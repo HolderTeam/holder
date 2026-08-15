@@ -73,7 +73,7 @@
     const linkText = state.asset
       ? `Download for ${platformName}`
       : state.platform === "linux"
-        ? "View Linux install options"
+        ? "Install on Ubuntu"
         : "View downloads";
 
     document.querySelectorAll("[data-download-primary]").forEach((link) => {
@@ -95,6 +95,17 @@
     document.querySelectorAll("[data-platform-card]").forEach((card) => {
       card.classList.toggle("is-current", card.dataset.platformCard === state.platform);
     });
+
+    if (state.assets) {
+      ["windows", "macos"].forEach((assetPlatform) => {
+        const asset = findBestAsset(assetPlatform, state.assets);
+        document.querySelectorAll(`[data-download-asset="${assetPlatform}"]`).forEach((link) => {
+          if (asset) {
+            link.href = asset.browser_download_url;
+          }
+        });
+      });
+    }
   }
 
   async function updateDownloadLinks() {
@@ -103,7 +114,7 @@
     setDownloadState({
       platform,
       asset: null,
-      url: platform === "linux" ? localUrl("/download/#linux") : releasePageUrl
+      url: platform === "linux" ? localUrl("/#ubuntu") : releasePageUrl
     });
 
     try {
@@ -121,13 +132,14 @@
       setDownloadState({
         platform,
         asset,
+        assets: release.assets || [],
         url: asset ? asset.browser_download_url : release.html_url || releasePageUrl
       });
     } catch (_error) {
       setDownloadState({
         platform,
         asset: null,
-        url: platform === "linux" ? localUrl("/download/#linux") : releasePageUrl
+        url: platform === "linux" ? localUrl("/#ubuntu") : releasePageUrl
       });
     }
   }
