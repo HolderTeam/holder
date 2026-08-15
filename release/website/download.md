@@ -62,6 +62,7 @@ permalink: /download/
       </div>
       <a class="button secondary" href="#source">Build from source</a>
     </article>
+
   </div>
 </section>
 
@@ -97,6 +98,7 @@ sudo apt install holder</code></pre>
       <h3>Bedrock Edition</h3>
       <p>A more sandboxed Holder for stores and mobile platforms.</p>
     </article>
+
   </div>
 </section>
 
@@ -113,6 +115,5 @@ sudo apt install holder</code></pre>
     <li><a href="https://github.com/HolderTeam/holder-daemon">holder-daemon</a> - local backend and command-line tools</li>
     <li><a href="https://github.com/HolderTeam/holder-desktop">holder-desktop</a> - GTK desktop frontend</li>
     <li><a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a> - platform launcher</li>
-    <li><a href="https://github.com/HolderTeam/holder-release">holder-release</a> - release assets</li>
   </ul>
 </section>
