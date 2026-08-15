@@ -14,7 +14,7 @@ your ideas, and the information coming at you from school, University, work, AIs
 
 ---
 
-## Personal knowledge, actually personal.
+## Personal knowledge management, actually personal.
 
 Your notes, ideas and accumulated knowledge shouldn't depend on one
 company, one cloud service, or one application.
