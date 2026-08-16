@@ -6,9 +6,9 @@ permalink: /linux/
 
 <section class="page-panel">
   <p class="eyebrow">Linux</p>
-  <h1>Holder for Linux</h1>
+  <h1>Holder for Linux and BSD</h1>
   <p class="lead">
-    The easiest Linux path is Ubuntu using the HolderTeam PPA. Other distributions are currently source-build territory.
+    The easiest Linux path is Ubuntu using the HolderTeam PPA. Other distributions are currently source-build at the moment.
   </p>
 </section>
 
@@ -26,7 +26,7 @@ sudo apt install holder</code></pre>
   <div class="section-head">
     <h2>Developer Build</h2>
     <p>
-      Holder should work on any Linux distribution as well as FreeBSD, build the backend and desktop from source.
+      To develop holder on any Linux or BSD distribution, you build the backend and desktop from source.
     </p>
     <p>The overall idea is:</p>
   </div>
@@ -47,5 +47,16 @@ cd ../holder-desktop
       libspelling, libsoup, libgit2, SQLite, OpenSSL, Boost, libsodium, and the other development libraries listed
       in the backend and desktop README files.
     </p>
+
+    <p>Rather than looking everything up, the classic dependency whack-a-mole approach is often faster:</p>
+
   </div>
+
+  <ol class="steps">
+    <li>Run <code>./make.sh</code>.</li>
+    <li>Let it compile until it moans loudly about something missing.</li>
+    <li>Install that.</li>
+    <li>Start again.</li>
+    <li>Repeat until the compiler gives up complaining and builds Holder.</li>
+  </ol>
 </section>
