@@ -36,7 +36,7 @@ title: Holder
     <article class="platform-card" data-platform-card="linux">
       <div>
         <h3>Ubuntu</h3>
-        <p>Install from the official Holder PPA.</p>
+        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
       </div>
       <a class="button secondary" href="#ubuntu">Install with apt</a>
     </article>
@@ -44,7 +44,7 @@ title: Holder
     <article class="platform-card" data-platform-card="windows">
       <div>
         <h3>Windows</h3>
-        <p>Installer for Windows 10 and Windows 11.</p>
+        <p>Installer for Windows 10 and Windows 11. <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>
       <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-asset="windows">Download installer</a>
     </article>
@@ -52,7 +52,7 @@ title: Holder
     <article class="platform-card" data-platform-card="macos">
       <div>
         <h3>macOS</h3>
-        <p>Signed and notarised DMG.</p>
+        <p>Signed and notarised DMG. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
       <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-asset="macos">Download DMG</a>
     </article>

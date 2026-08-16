@@ -78,6 +78,7 @@ img {
 .site-nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
@@ -115,6 +116,7 @@ img {
 
 .site-footer p:last-child {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
@@ -298,7 +300,8 @@ p {
   font-weight: 800;
 }
 
-.download-panel {
+.download-panel,
+.page-panel {
   display: grid;
   gap: 0.9rem;
   margin-bottom: 1.5rem;
@@ -308,9 +311,14 @@ p {
   background: linear-gradient(135deg, rgba(47, 193, 165, 0.14), rgba(210, 155, 69, 0.08)), var(--panel);
 }
 
-.download-panel h1 {
+.download-panel h1,
+.page-panel h1 {
   max-width: none;
   font-size: clamp(2rem, 6vw, 4.7rem);
+}
+
+.page-panel .actions {
+  margin-top: 0.35rem;
 }
 
 .platform-list {
@@ -392,7 +400,7 @@ code {
 
   .site-nav {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .button {
