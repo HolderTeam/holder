@@ -49,7 +49,7 @@ permalink: /windows/
 <section class="section">
   <div class="section-head">
     <h2>Building From Source</h2>
-    <p>Building from source on Windows currently uses Visual Studio for the backend and MSYS2 UCRT64 for the GTK desktop app.</p>
+    <p>Building from source on Windows uses Visual Studio for the backend and MSYS2 UCRT64 for the GTK desktop app.</p>
     <ul class="steps">
       <li>Install Visual Studio Community with the <strong>Desktop development with C++</strong> workload.</li>
       <li>Install <a href="https://www.msys2.org/">MSYS2</a> and open the <strong>UCRT64</strong> shell.</li>
@@ -59,6 +59,6 @@ permalink: /windows/
       <li>Clone the desktop app: <code>git clone https://github.com/HolderTeam/holder-desktop.git</code>.</li>
       <li>In the MSYS2 UCRT64 shell, run <code>./make-win.sh deps</code>, then <code>./make-win.sh run</code>.</li>
     </ul>
-    <p>The normal installer also includes a tiny launcher that starts the backend before opening the desktop app. Most developers do not need to build it unless they are working on packaging, but the source is in <a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a>.</p>
+    <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a>.</p>
   </div>
 </section>
