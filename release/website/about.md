@@ -48,7 +48,6 @@ permalink: /about/
 <section class="section">
   <div class="section-head">
     <h2>Why are you making this?</h2>
-    <p>I have never been naturally an organised person.</p>
     <p>
       When I was young, anything important that I needed to remember, I would write on the back of my hand.
       If that wasn't enough space then I would write it on the back of an old envelope and use it as a bookmark
