@@ -36,9 +36,9 @@ title: Holder
     <article class="platform-card" data-platform-card="linux">
       <div>
         <h3>Linux</h3>
-        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
+        <p>Install from the official Holder PPA.</p>
       </div>
-      <a class="button secondary" href="#linux">Install with apt</a>
+      <a class="button secondary" href="{{ '/linux/' | relative_url }}">Linux install</a>
     </article>
 
     <article class="platform-card" data-platform-card="windows">
@@ -57,31 +57,5 @@ title: Holder
       <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-asset="macos">Download DMG</a>
     </article>
 
-  </div>
-</section>
-
-<section class="section" id="linux">
-  <div class="section-head">
-    <h2>Linux install</h2>
-    <p>Add the Holder PPA, update apt, then install Holder.</p>
-  </div>
-
-  <pre><code>sudo add-apt-repository ppa:holderteam/holder
-sudo apt update
-sudo apt install holder</code></pre>
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>What you get</h2>
-    <p>
-      Holder includes a desktop app, a local backend, command-line tools and
-      a local API. It is free and open source software.
-    </p>
-  </div>
-
-  <div class="button-row">
-    <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-primary>Download Holder</a>
-    <a class="button secondary" href="https://github.com/HolderTeam">Source code</a>
   </div>
 </section>

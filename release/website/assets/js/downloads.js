@@ -114,7 +114,7 @@
     setDownloadState({
       platform,
       asset: null,
-      url: platform === "linux" ? localUrl("/#linux") : releasePageUrl
+      url: platform === "linux" ? localUrl("/linux/") : releasePageUrl
     });
 
     try {
@@ -139,7 +139,7 @@
       setDownloadState({
         platform,
         asset: null,
-        url: platform === "linux" ? localUrl("/#linux") : releasePageUrl
+        url: platform === "linux" ? localUrl("/linux/") : releasePageUrl
       });
     }
   }
