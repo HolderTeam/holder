@@ -73,7 +73,7 @@
     const linkText = state.asset
       ? `Download for ${platformName}`
       : state.platform === "linux"
-        ? "Install on Ubuntu"
+        ? "Install on Linux"
         : "View downloads";
 
     document.querySelectorAll("[data-download-primary]").forEach((link) => {
@@ -114,7 +114,7 @@
     setDownloadState({
       platform,
       asset: null,
-      url: platform === "linux" ? localUrl("/#ubuntu") : releasePageUrl
+      url: platform === "linux" ? localUrl("/#linux") : releasePageUrl
     });
 
     try {
@@ -139,7 +139,7 @@
       setDownloadState({
         platform,
         asset: null,
-        url: platform === "linux" ? localUrl("/#ubuntu") : releasePageUrl
+        url: platform === "linux" ? localUrl("/#linux") : releasePageUrl
       });
     }
   }

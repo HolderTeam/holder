@@ -29,16 +29,16 @@ title: Holder
 <section class="section" id="download">
   <div class="section-head">
     <h2>Download Holder</h2>
-    <p>Install the current Framework Edition for Ubuntu, Windows or macOS.</p>
+    <p>Install the current Framework Edition for Linux, Windows or macOS.</p>
   </div>
 
   <div class="platform-list">
     <article class="platform-card" data-platform-card="linux">
       <div>
-        <h3>Ubuntu</h3>
-        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
+        <h3>Linux</h3>
+        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
-      <a class="button secondary" href="#ubuntu">Install with apt</a>
+      <a class="button secondary" href="#linux">Install with apt</a>
     </article>
 
     <article class="platform-card" data-platform-card="windows">
@@ -60,9 +60,9 @@ title: Holder
   </div>
 </section>
 
-<section class="section" id="ubuntu">
+<section class="section" id="linux">
   <div class="section-head">
-    <h2>Ubuntu install</h2>
+    <h2>Linux install</h2>
     <p>Add the Holder PPA, update apt, then install Holder.</p>
   </div>
 
