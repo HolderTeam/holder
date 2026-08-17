@@ -17,28 +17,44 @@ permalink: /windows/
   <div class="section-head">
     <h2>Install</h2>
     <p>Download the latest Windows installer from the Holder release page and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
-    # Show image 3 in connection with the next paragraph
-    <p>When the installer starts, it is worth clicking yes to "Add Holder command line tools to PATH" because it allows you to use the command line tools which are useful in themselves, but especially if you have a problem.<p>
-    # Show image 4 in connection with the next paragraph
+    <p>When the installer starts, it is worth clicking yes to "Add Holder command line tools to PATH" because it allows you to use the command line tools which are useful in themselves, but especially if you have a problem.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">
+    </figure>
     <p>The Installer copies the programs to your computer.</p>
-    # show image 5 in connection with the next paragraph
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-4-installer-2.png' | relative_url }}" alt="The Holder installer copying files">
+    </figure>
     <p>When the installer finishes, tick Launch or select Holder from the start menu.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-5-installer-3-done-launch.png' | relative_url }}" alt="The Holder installer completion screen with the launch option selected">
+    </figure>
  </div>
 </section>
 
 <section class="section">
   <div class="section-head">
     <h2>Usage</h2>
-    # show image 6 in connection with the next paragraph
     <p>The window opens showing your projects and cards. By default you get a project called Home. Press the plus button to create new cards, press the folder with a plus to make new projects.</p>
-    # show image 7 in connection with the next paragraph
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-6-installer-2-done-launch.png' | relative_url }}" alt="Holder running on Windows with the default Home project open">
+    </figure>
     <p>Press the beaker icon to open the toolbox, press the keyboard icon to open the AI panel.</p>
-    # show image 8 in connection with the next paragraph
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-7-installer-3-done-launch.png' | relative_url }}" alt="Holder running on Windows with the toolbox and AI panel visible">
+    </figure>
     <p>The HTTP API is documented with Swagger.</p>
-    # show image 9 in connection with the next paragraph
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-8-webapi-docs.png' | relative_url }}" alt="Holder API documentation open in a browser on Windows">
+    </figure>
     <p>To access the command line interface, type holderctl into Powershell.</p>
-    # show image 10 in connection with the next paragraph
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-9-holderctl.png' | relative_url }}" alt="holderctl running in PowerShell on Windows">
+    </figure>
     <p>Holder Framework Edition allows multiple ways to control your knowledge, and fits into all your ways of working.</p>
+    <figure class="page-image wide">
+      <img src="{{ '/assets/img/platforms/windows/win-10-all-the-interfaces.png' | relative_url }}" alt="Holder on Windows showing the desktop app, command line interface and browser API documentation">
+    </figure>
   </div>
 </section>
 
@@ -61,11 +77,15 @@ permalink: /windows/
     <p>Development builds are self-signed by the GitHub build workflow.</p>
     <p>Because the development signing certificate isn't trusted by Windows, Microsoft Defender SmartScreen will treat the installer as an unrecognised application and display:</p>
     <p><strong>Windows protected your PC</strong></p>
-    # Add image 1
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-1-dont-run.png' | relative_url }}" alt="Windows SmartScreen showing the Windows protected your PC warning">
+    </figure>
     <p>with a recommendation not to run the application.</p>
     <p>This does not mean that SmartScreen has detected malware in Holder. It means that Windows does not trust the certificate used to sign these development builds.</p>
     <p>If you've downloaded Holder from the official Holder project and want to continue, click <strong>More info</strong>, check that you're running the file you intended to download, and then choose <strong>Run anyway</strong>.</p>
-    # Add image 2
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-2-run-anyway.png' | relative_url }}" alt="Windows SmartScreen showing the Run anyway button after expanding More info">
+    </figure>
     <p>If you regularly test or develop Holder on Windows, you can install and trust the Holder development certificate on your development machine. Windows can then verify subsequent development builds using that certificate without treating Holder's development signing identity as unknown.</p>
   </div>
 </section>

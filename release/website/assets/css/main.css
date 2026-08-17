@@ -254,6 +254,24 @@ p {
   font-size: 1.08rem;
 }
 
+.page-image {
+  margin: 0.4rem 0 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(244, 240, 232, 0.04);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.page-image img {
+  width: 100%;
+}
+
+.page-image.wide {
+  width: min(100%, var(--content));
+  max-width: none;
+}
+
 .grid {
   display: grid;
   gap: 1rem;
