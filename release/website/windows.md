@@ -17,6 +17,28 @@ permalink: /windows/
   <div class="section-head">
     <h2>Install</h2>
     <p>Download the latest Windows installer from the Holder release page and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
+    # Show image 3 in connection with the next paragraph
+    <p>When the installer starts, it is worth clicking yes to "Add Holder command line tools to PATH" because it allows you to use the command line tools which are useful in themselves, but especially if you have a problem.<p>
+    # Show image 4 in connection with the next paragraph
+    <p>The Installer copies the programs to your computer.</p>
+    # show image 5 in connection with the next paragraph
+    <p>When the installer finishes, tick Launch or select Holder from the start menu.</p>
+ </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Usage</h2>
+    # show image 6 in connection with the next paragraph
+    <p>The window opens showing your projects and cards. By default you get a project called Home. Press the plus button to create new cards, press the folder with a plus to make new projects.</p>
+    # show image 7 in connection with the next paragraph
+    <p>Press the beaker icon to open the toolbox, press the keyboard icon to open the AI panel.</p>
+    # show image 8 in connection with the next paragraph
+    <p>The HTTP API is documented with Swagger.</p>
+    # show image 9 in connection with the next paragraph
+    <p>To access the command line interface, type holderctl into Powershell.</p>
+    # show image 10 in connection with the next paragraph
+    <p>Holder Framework Edition allows multiple ways to control your knowledge, and fits into all your ways of working.</p>
   </div>
 </section>
 
@@ -39,9 +61,11 @@ permalink: /windows/
     <p>Development builds are self-signed by the GitHub build workflow.</p>
     <p>Because the development signing certificate isn't trusted by Windows, Microsoft Defender SmartScreen will treat the installer as an unrecognised application and display:</p>
     <p><strong>Windows protected your PC</strong></p>
+    # Add image 1
     <p>with a recommendation not to run the application.</p>
     <p>This does not mean that SmartScreen has detected malware in Holder. It means that Windows does not trust the certificate used to sign these development builds.</p>
     <p>If you've downloaded Holder from the official Holder project and want to continue, click <strong>More info</strong>, check that you're running the file you intended to download, and then choose <strong>Run anyway</strong>.</p>
+    # Add image 2
     <p>If you regularly test or develop Holder on Windows, you can install and trust the Holder development certificate on your development machine. Windows can then verify subsequent development builds using that certificate without treating Holder's development signing identity as unknown.</p>
   </div>
 </section>
