@@ -16,7 +16,7 @@ permalink: /windows/
 <section class="section">
   <div class="section-head">
     <h2>Install</h2>
-    <p>Download the latest Windows installer from the Holder release page and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
+    <p>Download the <a href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder-release/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
     <p>When the installer starts, it is worth clicking yes to "Add Holder command line tools to PATH" because it allows you to use the command line tools which are useful in themselves, but especially if you have a problem.</p>
     <figure class="page-image">
       <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">
