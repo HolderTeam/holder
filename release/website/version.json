@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Holder",
   "channel": "stable",
-  "version": "0.1.17",
+  "version": "0.1.7",
   "release_url": "https://github.com/HolderTeam/holder-release/releases/latest",
   "notes_url": "https://holder.team/",
   "message": "A new Holder release is available.",
