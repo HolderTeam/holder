@@ -12,7 +12,7 @@ title: Holder
       Download Holder for your computer and keep your knowledge on your own machine.
     </p>
     <div class="hero-actions">
-      <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-primary>Download Holder</a>
+      <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.1.7" data-download-primary>Download Holder</a>
       <a class="button secondary" href="#download">Choose platform</a>
     </div>
     <p class="download-note">
@@ -36,7 +36,7 @@ title: Holder
     <article class="platform-card" data-platform-card="linux">
       <div>
         <h3>Linux</h3>
-        <p>Install from the official Holder PPA.</p>
+        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
       <a class="button secondary" href="{{ '/linux/' | relative_url }}">Linux install</a>
     </article>
@@ -46,7 +46,7 @@ title: Holder
         <h3>Windows</h3>
         <p>Installer for Windows 10 and Windows 11. <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>
-      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-asset="windows">Download installer</a>
+      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe" data-download-asset="windows">Download installer</a>
     </article>
 
     <article class="platform-card" data-platform-card="macos">
@@ -54,7 +54,7 @@ title: Holder
         <h3>macOS</h3>
         <p>Signed and notarised DMG. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
-      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/latest" data-download-asset="macos">Download DMG</a>
+      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg" data-download-asset="macos">Download DMG</a>
     </article>
 
   </div>

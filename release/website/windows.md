@@ -9,7 +9,23 @@ permalink: /windows/
   <h1>Holder for Windows</h1>
   <p class="lead">Download the Windows installer, or build Holder yourself while the Windows signing pipeline is being finished.</p>
   <div class="actions">
-    <a class="button primary" data-download-asset="windows" href="https://github.com/HolderTeam/holder-release/releases/latest">Download for Windows</a>
+    <a class="button primary" data-download-asset="windows" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe">Download for Windows</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Before You Install</h2>
+    <p>The current Windows installer is a development build. Until the Windows release-signing pipeline is finished, Microsoft Defender SmartScreen will treat it as an unrecognised application and display:</p>
+    <p><strong>Windows protected your PC</strong></p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-1-dont-run.png' | relative_url }}" alt="Windows SmartScreen showing the Windows protected your PC warning">
+    </figure>
+    <p>This does not mean that SmartScreen has detected malware in Holder. It means Windows does not trust the certificate used to sign these development builds, and the installer does not yet have normal publisher reputation.</p>
+    <p>If you've downloaded Holder from the official Holder project and want to continue, click <strong>More info</strong>, check that you're running the file you intended to download, and then choose <strong>Run anyway</strong>.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-2-run-anyway.png' | relative_url }}" alt="Windows SmartScreen showing the Run anyway button after expanding More info">
+    </figure>
   </div>
 </section>
 
@@ -68,25 +84,6 @@ permalink: /windows/
     <p>This is slightly ironic given that GitHub itself is owned by Microsoft, but anyway.</p>
     <p>The goal is for every Holder release for Windows to be Authenticode-signed using a certificate that chains to a trusted certificate authority. Over time, those signed releases should also build SmartScreen reputation. Holder can then also go through the Microsoft Store certification process.</p>
     <p>I haven't finished getting all of that working yet. For now, you can either use a development build or compile Holder yourself.</p>
-  </div>
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Staged Development Builds</h2>
-    <p>Development builds are self-signed by the GitHub build workflow.</p>
-    <p>Because the development signing certificate is not trusted by Windows, Microsoft Defender SmartScreen will treat the installer as an unrecognised application and display:</p>
-    <p><strong>Windows protected your PC</strong></p>
-    <figure class="page-image">
-      <img src="{{ '/assets/img/platforms/windows/win-1-dont-run.png' | relative_url }}" alt="Windows SmartScreen showing the Windows protected your PC warning">
-    </figure>
-    <p>with a recommendation not to run the application.</p>
-    <p>This does not mean that SmartScreen has detected malware in Holder. It means Windows does not trust the certificate used to sign these development builds, and the installer does not yet have normal publisher reputation.</p>
-    <p>If you've downloaded Holder from the official Holder project and want to continue, click <strong>More info</strong>, check that you're running the file you intended to download, and then choose <strong>Run anyway</strong>.</p>
-    <figure class="page-image">
-      <img src="{{ '/assets/img/platforms/windows/win-2-run-anyway.png' | relative_url }}" alt="Windows SmartScreen showing the Run anyway button after expanding More info">
-    </figure>
-    <p>If you regularly test or develop Holder on Windows, you can install and trust the Holder development certificate on your development machine. Windows can then verify subsequent development builds using that certificate instead of treating Holder's development signing identity as unknown.</p>
   </div>
 </section>
 

@@ -9,14 +9,14 @@ permalink: /macos/
   <h1>Holder for macOS</h1>
   <p class="lead">Download the Holder disk image, drag Holder into Applications, then open it like a normal Mac app.</p>
   <div class="actions">
-    <a class="button primary" data-download-asset="macos" href="https://github.com/HolderTeam/holder-release/releases/latest">Download for macOS</a>
+    <a class="button primary" data-download-asset="macos" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg">Download for macOS</a>
   </div>
 </section>
 
 <section class="section">
   <div class="section-head">
     <h2>Install</h2>
-    <p>Download the Holder disk image (<code>.dmg</code>) and open it.</p>
+    <p>Download the <a href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg">Holder disk image</a> (<code>.dmg</code>) and open it.</p>
     <p>A small window will appear containing <strong>Holder</strong> and an <strong>Applications</strong> folder. Drag the Holder icon onto the Applications folder. This copies <code>Holder.app</code> into your Applications folder.</p>
     <p>You can then close the window and eject the Holder disk image.</p>
   </div>

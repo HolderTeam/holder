@@ -1,7 +1,17 @@
 (() => {
-  const releaseApiUrl = "https://api.github.com/repos/HolderTeam/holder-release/releases/latest";
-  const releasePageUrl = "https://github.com/HolderTeam/holder-release/releases/latest";
+  const releaseApiUrl = "https://api.github.com/repos/HolderTeam/holder-release/releases/tags/holder-v0.1.7";
+  const releasePageUrl = "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.1.7";
   const baseUrl = document.documentElement.dataset.baseUrl || "";
+  const fallbackAssets = {
+    windows: {
+      name: "Holder-windows-0.1.7-dev-Setup.exe",
+      browser_download_url: "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe"
+    },
+    macos: {
+      name: "Holder-macos-0.1.7.dmg",
+      browser_download_url: "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg"
+    }
+  };
 
   const platformLabels = {
     windows: "Windows",
@@ -113,8 +123,8 @@
 
     setDownloadState({
       platform,
-      asset: null,
-      url: platform === "linux" ? localUrl("/linux/") : releasePageUrl
+      asset: fallbackAssets[platform] || null,
+      url: platform === "linux" ? localUrl("/linux/") : fallbackAssets[platform]?.browser_download_url || releasePageUrl
     });
 
     try {
@@ -138,8 +148,9 @@
     } catch (_error) {
       setDownloadState({
         platform,
-        asset: null,
-        url: platform === "linux" ? localUrl("/linux/") : releasePageUrl
+        asset: fallbackAssets[platform] || null,
+        assets: Object.values(fallbackAssets),
+        url: platform === "linux" ? localUrl("/linux/") : fallbackAssets[platform]?.browser_download_url || releasePageUrl
       });
     }
   }
