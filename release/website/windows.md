@@ -16,15 +16,11 @@ permalink: /windows/
 <section class="section">
   <div class="section-head">
     <h2>Signed Release Builds Are Coming Soon</h2>
-    <p>Holder is more transparent than most software on your system. All of the source code is public, you can download it and build Holder yourself.</p>
-    <p>Furthermore, the binaries is made using public GitHub workflows, you can follow the process from source code to installer.</p>
-    <p>However, getting those GitHub workflows to produce Microsoft certified Windows installers has a few more hoops to jump through.</p>
-    <p>It is good that Windows takes software security seriously, but the developer experience for distributing Windows applications is... (think of a polite word)...  fragmented.</p>
-    <p>Apple has fast and easy to use notarization, while Linux distributions such as Ubuntu have established package-signing infrastructure.</p>
-    <p>Meanwhile, Windows has Authenticode signing, SmartScreen reputation, Microsoft Store distribution and several packaging formats, and those pieces need to be fitted together into a GitHub release process.</p>
-    <p>In short, you don't get easy (off the shelf) Windows workflows like GitHub give you for Apple and Linux. This is slightly ironic given that GitHub itself is owned by Microsoft, but anyway.</p>
-    <p>The goal is for every Holder release for Windows to be Authenticode-signed using a certificate that chains to a trusted certificate authority. Holder can then also go through the Microsoft Store certification process. After all the bureaucracy, we might not get the blue window of moan.</p>
-    <p>I haven't finished getting all of that working yet. For now, you can either use a development build or compile Holder yourself.</p>
+    <p>Holder is more transparent than most software on your system. All the source code is public, you can build it yourself, and public GitHub workflows take it from source to installer.</p>
+    <p>Getting those workflows to produce trusted Windows installers requires a few more hoops. Good that modern Windows takes security seriously, but the developer experience is... (think of a polite word)... fragmented.</p>
+    <p>Apple has straightforward notarization and Linux established package signing. Meanwhile, Windows has a pile of parts we have to fit together: Authenticode, SmartScreen, Store certification and several packaging formats.</p>
+    <p>The goal is for every Windows release to be Authenticode-signed by a trusted certificate authority and eventually pass Microsoft Store certification. After all that bureaucracy, we might even avoid the blue window of moan.</p>
+    <p>For now, use a development build or compile Holder yourself.</p>
   </div>
 </section>
 
