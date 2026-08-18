@@ -15,6 +15,21 @@ permalink: /windows/
 
 <section class="section">
   <div class="section-head">
+    <h2>Signed Release Builds Are Coming Soon</h2>
+    <p>Holder is more transparent than most software on your system. All of the source code is public, you can download it and build Holder yourself.</p>
+    <p>Furthermore, the binaries we made are using public GitHub workflows, you can follow the process from source code to installer.</p>
+    <p>However, getting those GitHub workflows to produce Microsoft certified Windows installers has a few more hoops to jump through.</p>
+    <p>It is good that Windows takes software security seriously, but the developer experience for distributing Windows applications is... (think of a polite word)...  fragmented.</p>
+    <p>Apple has fast and easy to use notarization, while Linux distributions such as Ubuntu have established package-signing infrastructure.</p>
+    <p>Meanwhile, Windows has Authenticode signing, SmartScreen reputation, Microsoft Store distribution and several packaging formats, and those pieces need to be fitted together into a GitHub release process.</p>
+    <p>In short, you don't get easy (off the shelf) Windows workflows like GitHub give you for Apple and Linux. This is slightly ironic given that GitHub itself is owned by Microsoft, but anyway.</p>
+    <p>The goal is for every Holder release for Windows to be Authenticode-signed using a certificate that chains to a trusted certificate authority. Holder can then also go through the Microsoft Store certification process. After all the bureaucracy, we might not get the blue window of moan.</p>
+    <p>I haven't finished getting all of that working yet. For now, you can either use a development build or compile Holder yourself.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
     <h2>Before You Install</h2>
     <p>The current Windows installer is a development build. Until the Windows release-signing pipeline is finished, Microsoft Defender SmartScreen will treat it as an unrecognised application and display:</p>
     <p><strong>Windows protected your PC</strong></p>
@@ -71,19 +86,6 @@ permalink: /windows/
     <figure class="page-image wide">
       <img src="{{ '/assets/img/platforms/windows/win-10-all-the-interfaces.png' | relative_url }}" alt="Holder on Windows showing the desktop app, command line interface and browser API documentation">
     </figure>
-  </div>
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Signed Release Builds Are Coming Soon</h2>
-    <p>Holder is more transparent than most software on your system. All of the source code is public, and the binaries are built using public GitHub workflows, so you can follow the process from source code to installer.</p>
-    <p>You can also download the source code and build Holder yourself.</p>
-    <p>However, getting those GitHub workflows to produce properly signed Windows installers has a few more hoops to jump through.</p>
-    <p>It is good that Windows takes software security seriously, but the developer experience for distributing traditional Windows applications is fragmented. Apple has Developer ID and notarization, while Linux distributions such as Ubuntu have established package-signing infrastructure. Windows has Authenticode signing, SmartScreen reputation, optional Microsoft Store distribution and several packaging formats, and those pieces need to be fitted together into a GitHub release process.</p>
-    <p>This is slightly ironic given that GitHub itself is owned by Microsoft, but anyway.</p>
-    <p>The goal is for every Holder release for Windows to be Authenticode-signed using a certificate that chains to a trusted certificate authority. Over time, those signed releases should also build SmartScreen reputation. Holder can then also go through the Microsoft Store certification process.</p>
-    <p>I haven't finished getting all of that working yet. For now, you can either use a development build or compile Holder yourself.</p>
   </div>
 </section>
 
