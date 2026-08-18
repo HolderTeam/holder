@@ -17,7 +17,7 @@ permalink: /windows/
   <div class="section-head">
     <h2>Signed Release Builds Are Coming Soon</h2>
     <p>Holder is more transparent than most software on your system. All of the source code is public, you can download it and build Holder yourself.</p>
-    <p>Furthermore, the binaries we made are using public GitHub workflows, you can follow the process from source code to installer.</p>
+    <p>Furthermore, the binaries is made using public GitHub workflows, you can follow the process from source code to installer.</p>
     <p>However, getting those GitHub workflows to produce Microsoft certified Windows installers has a few more hoops to jump through.</p>
     <p>It is good that Windows takes software security seriously, but the developer experience for distributing Windows applications is... (think of a polite word)...  fragmented.</p>
     <p>Apple has fast and easy to use notarization, while Linux distributions such as Ubuntu have established package-signing infrastructure.</p>
