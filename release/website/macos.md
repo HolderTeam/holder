@@ -17,15 +17,11 @@ permalink: /macos/
   <div class="section-head">
     <h2>Install</h2>
     <p>Download the <a href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg">Holder disk image</a> (<code>.dmg</code>) and open it.</p>
+    # Add image 1
     <p>A small window will appear containing <strong>Holder</strong> and an <strong>Applications</strong> folder. Drag the Holder icon onto the Applications folder. This copies <code>Holder.app</code> into your Applications folder.</p>
     <p>You can then close the window and eject the Holder disk image.</p>
-  </div>
-</section>
-
-<section class="section">
-  <div class="section-head">
-    <h2>Getting Started</h2>
     <p>Open <strong>Finder</strong>, select <strong>Applications</strong>, and double-click <strong>Holder</strong>.</p>
+    # Add image 2
     <p>The first time you run Holder, macOS will tell you that the application was downloaded from the internet and ask whether you're sure you want to open it. Click <strong>Open</strong>.</p>
     <p>That's it. On subsequent launches you can open Holder normally from Applications, Spotlight or the Dock.</p>
   </div>
@@ -33,9 +29,31 @@ permalink: /macos/
 
 <section class="section">
   <div class="section-head">
-    <h2>Current macOS Status</h2>
-    <p>The macOS build is packaged as a standard <code>.app</code> inside a disk image. It includes the desktop app, launcher, backend daemon and command-line tool.</p>
-    <p>The release build is signed and notarised for direct download outside the Mac App Store.</p>
+    <h2>Getting Started</h2>
+
+    <p>Holder opens with your projects and cards. By default you get a project called Home. Press the plus button to create a card, or the folder-plus button to create a project.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/macos/mac3-first-open.png' | relative_url }}" alt="Holder running on macOS with the default Home project open">
+    </figure>
+    <p>Press the beaker icon to open the toolbox, press the keyboard icon to open the AI panel.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/macos/mac4_tool_and_ai_trays_open.png' | relative_url }}" alt="Holder running on macOS with the toolbox and AI panel visible">
+    </figure>
+    <p>To change the colours, click on the Hamburger menu (apologies, the app was first written on Linux and still needs some macOS polish) then click on Preferences.</p>
+    # Add in image 6
+    <p>Then you can change the window style and the card editor theme.</p>
+    # Add in image 7
+    <p>Holder Framework Edition gives you several ways to work with the same local knowledge base: the desktop app, the command line and the HTTP API.</p>
+    <p>The local HTTP API is documented with Swagger UI.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/macos/mac8_swagger_docs.png' | relative_url }}" alt="Holder API documentation open in a browser on macOS">
+    </figure>
+    <p>To access the command-line interface, type <code>holderctl</code> into a Terminal.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/macos/mac7_holderctl.png' | relative_url }}" alt="holderctl running in a Terminal on macOS">
+    </figure>
+    <p></p>
+
   </div>
 </section>
 
