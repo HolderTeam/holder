@@ -22,7 +22,7 @@ title: Holder
   </div>
 
   <div class="hero-visual">
-    <img src="{{ '/assets/img/holder.jpg' | relative_url }}" alt="A Holder card box containing index cards">
+    <img src="{{ '/assets/img/holder_screenshot.png' | relative_url }}" alt="A Screenshot of Holder">
   </div>
 </section>
 
