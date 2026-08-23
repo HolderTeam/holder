@@ -6,27 +6,40 @@ permalink: /linux/
 
 <section class="page-panel">
   <p class="eyebrow">Linux</p>
-  <h1>Holder for Linux and BSD</h1>
+  <h1>Holder for Linux</h1>
   <p class="lead">
-    The easiest Linux path is Ubuntu using the HolderTeam PPA. Other distributions are currently source-build at the moment.
+    Try the signed Holder 0.2.0-dev AppImage preview on x86_64 Linux. It runs without installing Holder system-wide.
   </p>
+  <div class="actions">
+    <a class="button primary" data-download-asset="linux" href="{{ site.data.downloads.platforms.linux.url }}">Download the AppImage</a>
+    <a class="button secondary" href="{{ site.data.downloads.platforms.linux.checksum_url | relative_url }}">Download SHA256 checksum</a>
+  </div>
 </section>
 
 <section class="section">
   <div class="section-head">
-    <h2>Ubuntu Install</h2>
-    <p>Install Holder from the HolderTeam Launchpad PPA.</p>
+    <h2>Run the AppImage</h2>
+    <p>Download both files into the same directory, make the AppImage executable, verify it and run it.</p>
   </div>
-  <pre><code>sudo add-apt-repository ppa:holderteam/holder
-sudo apt update
-sudo apt install holder</code></pre>
+  <pre><code>cd ~/Downloads
+chmod +x Holder-0.2.0-dev-x86_64.AppImage
+sha256sum -c Holder-0.2.0-dev-SHA256SUMS
+./Holder-0.2.0-dev-x86_64.AppImage</code></pre>
+  <div class="section-head following-copy">
+    <p>
+      This is an early preview of the next Holder release. The AppImage contains the desktop app and backend and
+      starts its bundled backend when necessary. Your Holder data remains in your normal user data directory.
+    </p>
+    <p><strong>Preview note:</strong> back up your Holder data before trying a development build or switching between versions.</p>
+    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> remains the stable installation path.</p>
+  </div>
 </section>
 
 <section class="section">
   <div class="section-head">
     <h2>Developer Build</h2>
     <p>
-      To develop holder on any Linux or BSD distribution, you build the backend and desktop from source.
+      To develop Holder on Linux or BSD, build the backend and desktop from source.
     </p>
     <p>The overall idea is:</p>
   </div>

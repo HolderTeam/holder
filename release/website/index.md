@@ -29,32 +29,52 @@ title: Holder
 <section class="section" id="download">
   <div class="section-head">
     <h2>Download Holder</h2>
-    <p>Install the current Framework Edition for Linux, Windows or macOS.</p>
+    <p>Choose the current Holder build for Ubuntu, Linux, Windows or macOS. Build versions vary by platform while Holder approaches 0.2.0.</p>
   </div>
 
   <div class="platform-list">
+    <article class="platform-card" data-platform-card="ubuntu">
+      <div>
+        <div class="platform-heading">
+          <h3>Ubuntu</h3>
+          <span class="tag">0.1.7 stable</span>
+        </div>
+        <p>Install from the official HolderTeam PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
+      </div>
+      <a class="button secondary" href="{{ '/ubuntu/' | relative_url }}" data-download-asset="ubuntu">Install on Ubuntu</a>
+    </article>
+
     <article class="platform-card" data-platform-card="linux">
       <div>
-        <h3>Linux</h3>
-        <p>Install from the official Holder PPA. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
+        <div class="platform-heading">
+          <h3>Linux</h3>
+          <span class="tag preview">0.2.0-dev preview</span>
+        </div>
+        <p>Signed AppImage preview for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
-      <a class="button secondary" href="{{ '/linux/' | relative_url }}">Linux install</a>
+      <a class="button secondary" href="{{ site.data.downloads.platforms.linux.url }}" data-download-asset="linux">Download AppImage</a>
     </article>
 
     <article class="platform-card" data-platform-card="macos">
       <div>
-        <h3>macOS</h3>
+        <div class="platform-heading">
+          <h3>macOS</h3>
+          <span class="tag">0.1.7 stable</span>
+        </div>
         <p>Signed and notarised disk image. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
-      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-macos-0.1.7.dmg" data-download-asset="macos">Download DMG</a>
+      <a class="button secondary" href="{{ site.data.downloads.platforms.macos.url }}" data-download-asset="macos">Download DMG</a>
     </article>
 
     <article class="platform-card" data-platform-card="windows">
       <div>
-        <h3>Windows</h3>
+        <div class="platform-heading">
+          <h3>Windows</h3>
+          <span class="tag preview">0.1.7 development</span>
+        </div>
         <p>Self-signed installer for Windows 10 and Windows 11. Please really do read the <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>
-      <a class="button secondary" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe" data-download-asset="windows">Download installer</a>
+      <a class="button secondary" href="{{ site.data.downloads.platforms.windows.url }}" data-download-asset="windows">Download installer</a>
     </article>
 
   </div>

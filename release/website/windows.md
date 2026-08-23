@@ -9,7 +9,7 @@ permalink: /windows/
   <h1>Holder for Windows</h1>
   <p class="lead">Download the Windows installer, or build Holder yourself while the Windows signing pipeline is being finished.</p>
   <div class="actions">
-    <a class="button primary" data-download-asset="windows" href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe">Download for Windows</a>
+    <a class="button primary" data-download-asset="windows" href="{{ site.data.downloads.platforms.windows.url }}">Download for Windows</a>
   </div>
 </section>
 
@@ -43,7 +43,7 @@ permalink: /windows/
 <section class="section">
   <div class="section-head">
     <h2>Install</h2>
-    <p>Download the <a href="https://github.com/HolderTeam/holder-release/releases/download/holder-v0.1.7/Holder-windows-0.1.7-dev-Setup.exe">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder-release/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
+    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder-release/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
     <p>When the installer starts, it is worth selecting <strong>Add Holder command line tools to PATH</strong>. This lets you run <code>holderctl</code> from PowerShell, which is useful both for normal command-line use and for fixing problems.</p>
     <figure class="page-image">
       <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">

@@ -318,6 +318,11 @@ p {
   font-weight: 800;
 }
 
+.tag.preview {
+  border-color: rgba(47, 193, 165, 0.45);
+  color: #8fe8d7;
+}
+
 .download-panel,
 .page-panel {
   display: grid;
@@ -359,6 +364,14 @@ p {
   color: var(--muted);
 }
 
+.platform-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
 .platform-card.is-current {
   border-color: var(--accent);
 }
@@ -398,6 +411,11 @@ pre {
 
 code {
   color: #f4d39a;
+}
+
+.following-copy {
+  margin-top: 1.6rem;
+  margin-bottom: 0;
 }
 
 @media (max-width: 820px) {
