@@ -125,3 +125,16 @@ permalink: /about/
     <a class="button primary" href="https://github.com/HolderTeam/">Visit HolderTeam on GitHub</a>
   </div>
 </section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Cheesy Infographics</h2>
+    <p>Human memory and attention are limited, so there is real value in getting information out of your head and into a system you can trust. Better external memory makes information easier to retrieve; retrieval makes more information available for comparison and reasoning; connections make patterns easier to notice; and those patterns can contribute to better-informed judgement and action. Holder does not do your thinking for you: the aim is to provide an external cognitive system that leaves more of your limited attention available for the thinking that matters.</p>
+    <a href="{{ '/assets/img/philosophy/organisation.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/organisation-mid.png' | relative_url }}" alt="How organisation amplifies you"></a>
+    <p>The ultimate objective is to become a wiser, more capable and better-organised human being. Today's objective is to find the boiler warranty. Holder's ambitions live somewhere between those two extremes: take the ordinary chaos of documents, possessions, dates, thoughts and responsibilities, give it enough structure to become useful, and see what happens. Software does nothing by itself—but when the right information appears at the right moment, people can do things differently. Saving mankind may require a later release; for now, we'll start with SQLite.</p>
+    <a href="{{ '/assets/img/philosophy/wiser.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/wiser-mid.png' | relative_url }}" alt="Become wiser, fix the boiler"></a>
+    <p>Holder starts with the world as you experience it: people, things, places, events and time. Resources and Milestones give you handles on that world; Cards capture what you observe, remember, believe, infer and intend. As those Cards accumulate, connections, themes and patterns can emerge, helping you move from isolated experiences towards greater understanding. Whether that eventually leads to Truth, Beauty, the Good or enlightenment is somewhat beyond the scope of the GPL.</p>
+    <a href="{{ '/assets/img/philosophy/triangle.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/triangle-mid.png' | relative_url }}" alt="Write cards, gain understanding, hopefully"></a>
+  </div>
+
+</section>
