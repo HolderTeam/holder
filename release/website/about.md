@@ -128,7 +128,8 @@ permalink: /about/
 
 <section class="section">
   <div class="section-head">
-    <h2>Cheesy Infographics</h2>
+    <h2>Where are your Cheesy Infographics?</h2>
+    <p>Alright, if we have to...</p>
     <p>Human memory and attention are limited, so there is real power in getting information out of your head and into a system you can trust. Better external memory makes information easier to retrieve; retrieval makes more information available for comparison and reasoning; connections make patterns easier to notice; and those patterns can contribute to better-informed judgement and action.</p>
     <p>Holder does not do your thinking for you: the aim is to provide an external cognitive system that leaves more of your limited attention available for the thinking that matters.</p>
     <a href="{{ '/assets/img/philosophy/organisation.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/organisation-mid.png' | relative_url }}" alt="How organisation amplifies you"></a>
