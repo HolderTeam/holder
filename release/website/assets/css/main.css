@@ -418,6 +418,53 @@ code {
   margin-bottom: 0;
 }
 
+/* Privacy Policy / Terms of Service: dense, numbered prose, not the sparse marketing
+   headings the bare h1/h2/h3 rules above are sized for -- scoped down to document scale and
+   given the paragraph/list spacing kramdown's plain output otherwise has none of. */
+.legal {
+  max-width: 42rem;
+}
+
+.legal h1 {
+  max-width: none;
+  margin-bottom: 0.6rem;
+  font-size: clamp(2rem, 6vw, 3rem);
+}
+
+.legal h2 {
+  margin-top: 2.4rem;
+  margin-bottom: 0.7rem;
+  font-size: 1.5rem;
+}
+
+.legal h1 + p {
+  margin-bottom: 1.6rem;
+  color: var(--muted);
+}
+
+.legal p {
+  margin: 0.9rem 0;
+}
+
+.legal ul,
+.legal ol {
+  margin: 0.9rem 0;
+  padding-left: 1.35rem;
+  color: var(--muted);
+}
+
+.legal li {
+  margin: 0.35rem 0;
+}
+
+.legal strong {
+  color: var(--text);
+}
+
+.legal a {
+  color: var(--accent);
+}
+
 @media (max-width: 820px) {
   .hero,
   .grid.three,

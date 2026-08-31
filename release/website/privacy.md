@@ -1,3 +1,11 @@
+---
+layout: default
+title: Privacy Policy
+permalink: /privacy/
+---
+
+<div class="legal" markdown="1">
+
 # Privacy Policy
 
 **Last updated: 31 August 2026**
@@ -121,3 +129,5 @@ We may update this Privacy Policy when Holder's functionality or legal obligatio
 ## 13. Contact
 
 Questions about this Privacy Policy or Holder's handling of personal information can be sent to: privacy@holder.team
+
+</div>

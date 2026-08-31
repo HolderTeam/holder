@@ -1,3 +1,11 @@
+---
+layout: default
+title: Terms of Service
+permalink: /terms/
+---
+
+<div class="legal" markdown="1">
+
 # Terms of Service
 
 **Last updated: 31 August 2026**
@@ -94,3 +102,5 @@ These Terms are governed by the laws of England and Wales, except where applicab
 ## 13. Contact
 
 Questions about these Terms can be sent to: privacy@holder.team
+
+</div>
