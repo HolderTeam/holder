@@ -8,11 +8,15 @@ This Privacy Policy explains what information Holder processes, why it processes
 
 ## 1. Who we are
 
-Holder is provided by [Company legal name], a company registered in the United Kingdom.
+Holder is a volunteer-run free and open-source software project maintained by the Holder Team.
 
-For privacy questions, you can contact us at:
+The project is supported by Zeth Ltd, a company registered in England and Wales, which provides administrative and organisational support to the project.
 
-[contact email]
+For privacy and data protection matters relating to Holder, Zeth Ltd acts on behalf of the Holder Team.
+
+You can contact us at:
+
+privacy@holder.team
 
 ## 2. Information stored in Holder
 
@@ -94,7 +98,7 @@ Data stored locally by Holder remains on your device until you remove it, uninst
 
 Data stored using a third-party provider remains subject to that provider's storage and deletion mechanisms.
 
-Where Holder operates a service that stores personal information on your behalf, you may contact us at [contact email] regarding access to or deletion of that information.
+Where Holder operates a service that stores personal information on your behalf, you may contact us at privacy@holder.team regarding access to or deletion of that information.
 
 ## 10. Security
 
@@ -116,7 +120,4 @@ We may update this Privacy Policy when Holder's functionality or legal obligatio
 
 ## 13. Contact
 
-Questions about this Privacy Policy or Holder's handling of personal information can be sent to:
-
-[Company legal name]
-[contact email]
+Questions about this Privacy Policy or Holder's handling of personal information can be sent to: privacy@holder.team

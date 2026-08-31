@@ -2,7 +2,7 @@
 
 **Last updated: 31 August 2026**
 
-These Terms govern your use of Holder software and services provided by [Company legal name].
+These Terms govern your use of Holder software and services provided by the Holder Team.
 
 ## 1. Holder
 
@@ -93,7 +93,4 @@ These Terms are governed by the laws of England and Wales, except where applicab
 
 ## 13. Contact
 
-Questions about these Terms can be sent to:
-
-[Company legal name]
-[contact email]
+Questions about these Terms can be sent to: privacy@holder.team
