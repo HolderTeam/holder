@@ -158,3 +158,5 @@ git submodule update --init --recursive</code></pre>
     <p>When a backend change needs a core change, make and test the core change in the standalone repository first, commit it there, then advance the backend's <code>holder-core</code> submodule pointer to that commit. With the three projects built, you can now change the code, rebuild the relevant project, and run your local Holder desktop app to see the result.</p>
   </div>
 </section>
+
+<p class="footnote"><sup>*</sup> Holder development on Windows requires a 64-bit edition of Windows. Windows 11 is always 64-bit; Windows 10 is suitable only in its 64-bit edition. There is no supported 32-bit Windows build path.</p>

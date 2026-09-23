@@ -418,6 +418,13 @@ code {
   margin-bottom: 0;
 }
 
+.footnote {
+  max-width: 48rem;
+  margin: 2rem 0 0;
+  color: var(--quiet);
+  font-size: 0.9rem;
+}
+
 /* Privacy Policy / Terms of Service: dense, numbered prose, not the sparse marketing
    headings the bare h1/h2/h3 rules above are sized for -- scoped down to document scale and
    given the paragraph/list spacing kramdown's plain output otherwise has none of. */
