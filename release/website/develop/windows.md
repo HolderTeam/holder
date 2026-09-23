@@ -155,6 +155,6 @@ git submodule update --init --recursive</code></pre>
   <div class="section-head">
     <h2>Next steps</h2>
     <p>This is the platform setup guide, not a complete contribution policy. Each repository owns its current build commands and development notes: <a href="https://github.com/HolderTeam/holder-core#readme">core README</a>, <a href="https://github.com/HolderTeam/holder-daemon#readme">backend README</a>, and <a href="https://github.com/HolderTeam/holder-desktop#readme">desktop README</a>.</p>
-    <p>When a backend change needs a core change, make and test the core change in the standalone repository first, commit it there, then advance the backend's <code>holder-core</code> submodule pointer to that commit. A future contributor guide can cover that shared GitHub and review workflow without duplicating this operating-system setup.</p>
+    <p>When a backend change needs a core change, make and test the core change in the standalone repository first, commit it there, then advance the backend's <code>holder-core</code> submodule pointer to that commit. With the three projects built, you can now change the code, rebuild the relevant project, and run your local Holder desktop app to see the result.</p>
   </div>
 </section>
