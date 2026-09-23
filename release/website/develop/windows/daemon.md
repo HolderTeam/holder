@@ -12,33 +12,30 @@ permalink: /develop/windows/daemon/
 
 <section class="section">
   <div class="section-head">
-    <h2>Before you build Daemon</h2>
-    <p>First complete the shared <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and create <code>$HOME\src\holder</code>. You do not need to build Core first: Daemon has its own fixed copy of the Core code.</p>
-    <p>This page uses Visual Studio, the large purple application, not Visual Studio Code, the smaller blue editor.</p>
-  </div>
-  <ol class="steps">
-    <li>Install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> if it is not already installed. Its installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and leave the selected CMake tools and Windows SDK alone.</li>
-  </ol>
+    <h2>Get the Tools</h2>
+    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holder</code>. You do not need to build Core first: Daemon gets and builds its own copy of the Core library.</p>
+    <p>If you don't have it yet then install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a>. Its installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</p>
   </div>
 </section>
 
 <section class="section" id="download-daemon">
   <div class="section-head">
-    <h2>Download Daemon</h2>
-    <p>Open PowerShell and run these commands. The extra <code>--recurse-submodules</code> part downloads fixed copies of smaller projects that Daemon needs to build.</p>
+    <h2>Download the source code</h2>
+    <p>Open PowerShell and run these commands. The extra <code>--recurse-submodules</code> argument downloads fixed copies of smaller projects that Daemon needs to build.</p>
   </div>
-  <pre><code>cd $HOME\src\holder
+  <pre><code>cd $HOME\projects\holder
 git clone --recurse-submodules https://github.com/HolderTeam/holder-daemon.git</code></pre>
   <div class="section-head following-copy">
-    <p>Do not edit <code>holder-daemon\submodules\holder-core</code>: it is Daemon's fixed copy of Core. Make and test Core changes in the separate <code>holder-core</code> folder. If you cloned Daemon without <code>--recurse-submodules</code>, use these commands before building:</p>
+    <p>Note 1: Do not edit <code>holder-daemon\submodules\holder-core</code>: it is Daemon's fixed copy of the core library. If you want to change the core logic, then make and test your changes in the separate <code>holder-core</code> folder.</p>
+    <p>Note 2: If you cloned Daemon without <code>--recurse-submodules</code>, use these commands before building:</p>
   </div>
-  <pre><code>cd $HOME\src\holder\holder-daemon
+  <pre><code>cd $HOME\projects\holder\holder-daemon
 git submodule update --init --recursive</code></pre>
 </section>
 
 <section class="section" id="build-daemon">
   <div class="section-head">
-    <h2>Build and test Daemon</h2>
+    <h2>Build and test</h2>
     <p>In Visual Studio, choose <strong>Open a local folder</strong> and select <code>holder-daemon</code>. Visual Studio reads the project's saved build choices automatically.</p>
   </div>
   <ol class="steps">

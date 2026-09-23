@@ -12,9 +12,10 @@ permalink: /develop/windows/desktop/
 
 <section class="section">
   <div class="section-head">
-    <h2>Before you build Desktop</h2>
-    <p>First complete the shared <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and create <code>$HOME\src\holder</code>. You can build and test Desktop on its own.</p>
-    <p>To run Desktop after building it, you will also need a built Daemon. If you do not have one yet, follow <a href="{{ '/develop/windows/daemon/' | relative_url }}">Build Holder Daemon</a> when you reach the run step below.</p>
+    <h2>Install the tools</h2>
+    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holder</code>.</p>
+    <p>Holder Desktop can run on its own, but to actually be useful, it will need a backend to talk to.</p>
+    <p>You can install the daemon using the installer, or you can <a href="{{ '/develop/windows/daemon/' | relative_url }}">build your own Holder Daemon</a>.</p>
   </div>
 </section>
 
@@ -38,16 +39,16 @@ permalink: /develop/windows/desktop/
     <h2>Download Desktop</h2>
     <p>Open PowerShell and run these commands to download the desktop project into the Holder workspace you made on the Core page.</p>
   </div>
-  <pre><code>cd $HOME\src\holder
+  <pre><code>cd $HOME\projects\holder
 git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
 </section>
 
 <section class="section">
   <div class="section-head">
     <h2>Build and test Desktop</h2>
-    <p>Open a new <strong>MSYS2 UCRT64</strong> window. This kind of command window is often called a shell. The folder you made in PowerShell is called <code>~/src/holder</code> here; <code>~</code> means your own home folder.</p>
+    <p>Open a new <strong>MSYS2 UCRT64</strong> window. This kind of command window is often called a shell. The folder you made in PowerShell is called <code>~/projects/holder</code> here; <code>~</code> means your own home folder.</p>
   </div>
-  <pre><code>cd ~/src/holder/holder-desktop
+  <pre><code>cd ~/projects/holder/holder-desktop
 ./make-win.sh deps
 ./make-win.sh test</code></pre>
   <div class="section-head following-copy">
@@ -63,13 +64,13 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
   <div class="grid two">
     <article class="card">
       <h3>1. Start Daemon in PowerShell</h3>
-      <pre><code>cd $HOME\src\holder\holder-daemon
+      <pre><code>cd $HOME\projects\holder\holder-daemon
 .\out\build\windows-vcpkg-debug\holderd.exe</code></pre>
       <p>It should say that it is listening on <code>127.0.0.1:11499</code> and print a local documentation address. That address works only on your own PC. Leave this window open.</p>
     </article>
     <article class="card">
       <h3>2. Start Desktop in UCRT64</h3>
-      <pre><code>cd ~/src/holder/holder-desktop
+      <pre><code>cd ~/projects/holder/holder-desktop
 ./make-win.sh run</code></pre>
       <p>Holder should open and show its first Home project. Create a test card. If it appears, Desktop and Daemon are talking to each other.</p>
     </article>
