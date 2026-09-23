@@ -35,7 +35,7 @@ permalink: /develop/windows/
 <section class="section">
   <div class="section-head">
     <h2>Before you start</h2>
-    <p>You need a 64-bit supported Windows installation, an internet connection, and several gigabytes of free disk space. The first vcpkg configure for each C++ repository downloads and compiles its dependencies; it can take a while and use roughly 2 GB per repository.</p>
+    <p>You need a PC running Windows 10 or Windows 11, an internet connection, and several gigabytes of free disk space. The first vcpkg configure for each C++ repository downloads and compiles its dependencies; it can take a while and use roughly 2 GB per repository.</p>
     <p>This guide deliberately uses Visual Studio, not Visual Studio Code. Do not use an MSYS2 shell to build the backend, or a Visual Studio shell to build the GTK desktop app.</p>
   </div>
   <ol class="steps">
