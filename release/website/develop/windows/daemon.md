@@ -12,9 +12,13 @@ permalink: /develop/windows/daemon/
 
 <section class="section">
   <div class="section-head">
-    <h2>Start here if you completed Core</h2>
-    <p>You already have Git, Visual Studio, and <code>$HOME\src\holder</code>. Continue with <a href="#download-daemon">Download Daemon</a>; there is nothing to install again.</p>
-    <p>Starting from a new PC instead? Complete <a href="{{ '/develop/windows/core/' | relative_url }}">Build Holder Core</a> first. It installs the shared tools and makes the Holder workspace this page expects.</p>
+    <h2>Before you build Daemon</h2>
+    <p>First complete the shared <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and create <code>$HOME\src\holder</code>. You do not need to build Core first: Daemon has its own fixed copy of the Core code.</p>
+    <p>This page uses Visual Studio, the large purple application, not Visual Studio Code, the smaller blue editor.</p>
+  </div>
+  <ol class="steps">
+    <li>Install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> if it is not already installed. Its installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and leave the selected CMake tools and Windows SDK alone.</li>
+  </ol>
   </div>
 </section>
 
@@ -58,7 +62,7 @@ git submodule update --init --recursive</code></pre>
 <section class="section">
   <div class="section-head">
     <h2>Continue</h2>
-    <p>Next, <a href="{{ '/develop/windows/desktop/' | relative_url }}">build the Holder desktop app</a>. When that page is complete, it shows how to start Daemon and Desktop together.</p>
-    <p>If a backend change also needs a Core change, make and test the Core change in its separate folder first. Then commit it there and update Daemon to use that saved version.</p>
+    <p>You can now <a href="{{ '/develop/windows/desktop/' | relative_url }}">build the Holder desktop app</a>. When that page is complete, it shows how to start Daemon and Desktop together.</p>
+    <p>If a Daemon change also needs a Core change, clone and test Core in its separate folder first. Then commit it there and update Daemon to use that saved version.</p>
   </div>
 </section>

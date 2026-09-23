@@ -12,9 +12,9 @@ permalink: /develop/windows/desktop/
 
 <section class="section">
   <div class="section-head">
-    <h2>Start here if you completed Core and Daemon</h2>
-    <p>You already have Git, Visual Studio, and <code>~/src/holder</code>. Start with <a href="#install-msys2">Install MSYS2</a>.</p>
-    <p>Starting from a new PC instead? Complete <a href="{{ '/develop/windows/core/' | relative_url }}">Build Holder Core</a> and <a href="{{ '/develop/windows/daemon/' | relative_url }}">Build Holder Daemon</a> first. This page uses the workspace and backend build created there.</p>
+    <h2>Before you build Desktop</h2>
+    <p>First complete the shared <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a> to install Git and create <code>$HOME\src\holder</code>. You can build and test Desktop on its own.</p>
+    <p>To run Desktop after building it, you will also need a built Daemon. If you do not have one yet, follow <a href="{{ '/develop/windows/daemon/' | relative_url }}">Build Holder Daemon</a> when you reach the run step below.</p>
   </div>
 </section>
 
