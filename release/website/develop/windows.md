@@ -19,7 +19,7 @@ permalink: /develop/windows/
     <li>Install <a href="https://git-scm.com/download/win">Git for Windows</a>. Accept the normal installer defaults.</li>
   </ol>
   <div class="section-head following-copy">
-    <p>We will keep the three Holder project folders together in <code>$HOME\src\holder</code>. Open PowerShell, Windows’ built-in command window, and run these commands once:</p>
+    <p>We will keep the code to Holder in <code>$HOME\src\holder</code>. Open PowerShell, Windows’ built-in command window, and run these commands once:</p>
   </div>
   <pre><code>mkdir $HOME\src\holder
 cd $HOME\src\holder</code></pre>
@@ -29,7 +29,7 @@ cd $HOME\src\holder</code></pre>
   <div class="section-head">
     <h2>Three parts, three small guides</h2>
     <p>Holder is made from three projects. A project is simply a folder of source code: the files that programmers change to alter how an app works.</p>
-    <p>The core and backend use Visual Studio. The desktop app uses MSYS2 UCRT64 instead. That split is normal for Holder, but it is too much to learn all at once, so build one part before moving to the next.</p>
+    <p>The core and backend use Visual Studio. The desktop app uses MSYS2 UCRT64 instead.</p>
   </div>
   <div class="grid three">
     <article class="card">
