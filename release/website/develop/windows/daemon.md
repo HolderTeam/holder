@@ -13,7 +13,7 @@ permalink: /develop/windows/daemon/
 <section class="section">
   <div class="section-head">
     <h2>Get the Tools</h2>
-    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holder</code>. You do not need to build Core first: Daemon gets and builds its own copy of the Core library.</p>
+    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>. You do not need to build Core first: Daemon gets and builds its own copy of the Core library.</p>
     <p>If you don't have it yet then install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a>. Its installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</p>
   </div>
 </section>
@@ -23,13 +23,13 @@ permalink: /develop/windows/daemon/
     <h2>Download the source code</h2>
     <p>Open PowerShell and run these commands. The extra <code>--recurse-submodules</code> argument downloads fixed copies of smaller projects that Daemon needs to build.</p>
   </div>
-  <pre><code>cd $HOME\projects\holder
+  <pre><code>cd $HOME\projects\holderteam
 git clone --recurse-submodules https://github.com/HolderTeam/holder-daemon.git</code></pre>
   <div class="section-head following-copy">
     <p>Note 1: Do not edit <code>holder-daemon\submodules\holder-core</code>: it is Daemon's fixed copy of the core library. If you want to change the core logic, then make and test your changes in the separate <code>holder-core</code> folder.</p>
     <p>Note 2: If you cloned Daemon without <code>--recurse-submodules</code>, use these commands before building:</p>
   </div>
-  <pre><code>cd $HOME\projects\holder\holder-daemon
+  <pre><code>cd $HOME\projects\holderteam\holder-daemon
 git submodule update --init --recursive</code></pre>
 </section>
 

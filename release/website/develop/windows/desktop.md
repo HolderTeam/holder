@@ -13,7 +13,7 @@ permalink: /develop/windows/desktop/
 <section class="section">
   <div class="section-head">
     <h2>Install the tools</h2>
-    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holder</code>.</p>
+    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>.</p>
     <p>Holder Desktop can run on its own, but to actually be useful, it will need a backend to talk to.</p>
     <p>You can install the daemon using the installer, or you can <a href="{{ '/develop/windows/daemon/' | relative_url }}">build your own Holder Daemon</a>.</p>
   </div>
@@ -39,7 +39,7 @@ permalink: /develop/windows/desktop/
     <h2>Download Desktop</h2>
     <p>Open PowerShell and run these commands to download the desktop project into the Holder workspace you made on the Core page.</p>
   </div>
-  <pre><code>cd $HOME\projects\holder
+  <pre><code>cd $HOME\projects\holderteam
 git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
 </section>
 
@@ -64,7 +64,7 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
   <div class="grid two">
     <article class="card">
       <h3>1. Start Daemon in PowerShell</h3>
-      <pre><code>cd $HOME\projects\holder\holder-daemon
+      <pre><code>cd $HOME\projects\holderteam\holder-daemon
 .\out\build\windows-vcpkg-debug\holderd.exe</code></pre>
       <p>It should say that it is listening on <code>127.0.0.1:11499</code> and print a local documentation address. That address works only on your own PC. Leave this window open.</p>
     </article>

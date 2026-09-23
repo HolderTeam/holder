@@ -22,7 +22,7 @@ permalink: /develop/windows/core/
   <div class="section-head">
     <h2>Install the tools</h2>
     <ol class="steps">
-      <li>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install <a href="https://git-scm.com/download/win">Git</a> and create <code>$HOME\projects\holder</code>.</li>
+      <li>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install <a href="https://git-scm.com/download/win">Git</a> and create <code>$HOME\projects\holderteam</code>.</li>
       <li>Install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a>. It compiles C++ source code into programs that Windows can run its installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</li>
     </ol>
   </div>
@@ -33,7 +33,7 @@ permalink: /develop/windows/core/
     <h2>Download the source code</h2>
     <p>Open PowerShell and copy this command. “Clone” is Git’s word for making your own local copy of a project.</p>
   </div>
-  <pre><code>cd $HOME\projects\holder
+  <pre><code>cd $HOME\projects\holderteam
 git clone https://github.com/HolderTeam/holder-core.git</code></pre>
 </section>
 
