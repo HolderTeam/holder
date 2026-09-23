@@ -88,15 +88,13 @@ permalink: /windows/
 <section class="section">
   <div class="section-head">
     <h2>Building From Source</h2>
-    <p>Building from source on Windows uses Visual Studio for the backend and MSYS2 UCRT64 for the GTK desktop app.</p>
+    <p>Building from source on Windows uses Visual Studio for the backend and MSYS2 UCRT64 for the GTK desktop app. Follow the <a href="{{ '/develop/windows/' | relative_url }}">full Windows developer setup guide</a> for the fresh-machine path, tests, and instructions for running both together.</p>
     <ul class="steps">
       <li>Install Visual Studio Community with the <strong>Desktop development with C++</strong> workload.</li>
       <li>Install <a href="https://www.msys2.org/">MSYS2</a> and open the <strong>UCRT64</strong> shell.</li>
-      <li>Clone the backend: <code>git clone https://github.com/HolderTeam/holder-daemon.git</code>.</li>
-      <li>Open <code>holder-daemon</code> in Visual Studio, choose <code>windows-vcpkg-debug</code>, then use <strong>Build All</strong>.</li>
-      <li>For tests, choose <code>windows-vcpkg-tests-debug</code>, build, then run the CTest preset from Visual Studio's Test menu.</li>
-      <li>Clone the desktop app: <code>git clone https://github.com/HolderTeam/holder-desktop.git</code>.</li>
-      <li>In the MSYS2 UCRT64 shell, run <code>./make-win.sh deps</code>, then <code>./make-win.sh run</code>.</li>
+      <li>Clone the backend and desktop source repositories.</li>
+      <li>Build and test the backend in Visual Studio.</li>
+      <li>Build and test the desktop app in MSYS2 UCRT64, then start it with the backend running.</li>
     </ul>
     <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a>.</p>
   </div>
