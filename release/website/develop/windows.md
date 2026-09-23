@@ -159,4 +159,4 @@ git submodule update --init --recursive</code></pre>
   </div>
 </section>
 
-<p class="footnote"><sup>*</sup> Holder development on Windows requires a 64-bit edition of Windows. Windows 11 is always 64-bit; Windows 10 is suitable only in its 64-bit edition. There is no supported 32-bit Windows build path.</p>
+<p class="footnote"><sup>*</sup> Windows 11 is 64-bit only. Windows 10 also has 32-bit editions, but this desktop setup uses 64-bit toolchains and cannot be used on them. Advanced users on 32-bit Windows may still be able to build <code>holder-core</code> and <code>holder-daemon</code> for x86, then use <code>holderctl</code> or the local HTTP API; there is no current 32-bit desktop build path.</p>
