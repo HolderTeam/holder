@@ -13,10 +13,14 @@ permalink: /develop/windows/
 <section class="section">
   <div class="section-head">
     <h2>What you will build</h2>
-    <p>Holder has a native C++ backend and a GTK desktop app. On Windows they use different toolchains: Visual Studio builds the backend, while the MSYS2 UCRT64 environment builds the desktop app.</p>
+    <p>Holder has a platform-independent C++ core library, a native C++ backend, and a GTK desktop app. On Windows, Visual Studio builds the core and backend, while the MSYS2 UCRT64 environment builds the desktop app.</p>
     <p>Keep both programs running under the same Windows user account. The desktop discovers the local backend through a small per-user file written when the backend starts.</p>
   </div>
-  <div class="grid two">
+  <div class="grid three">
+    <article class="card">
+      <h3>Core library</h3>
+      <p><a href="https://github.com/HolderTeam/holder-core">holder-core</a>, the reusable storage and domain library. Make core contributions in its own checkout.</p>
+    </article>
     <article class="card">
       <h3>Backend</h3>
       <p><a href="https://github.com/HolderTeam/holder-daemon">holder-daemon</a>, built and tested with Visual Studio, CMake, Ninja, and vcpkg.</p>
@@ -31,7 +35,7 @@ permalink: /develop/windows/
 <section class="section">
   <div class="section-head">
     <h2>Before you start</h2>
-    <p>You need a 64-bit supported Windows installation, an internet connection, and several gigabytes of free disk space. The backend's first vcpkg configure downloads and compiles its dependencies; it can take a while and use roughly 2 GB.</p>
+    <p>You need a 64-bit supported Windows installation, an internet connection, and several gigabytes of free disk space. The first vcpkg configure for each C++ repository downloads and compiles its dependencies; it can take a while and use roughly 2 GB per repository.</p>
     <p>This guide deliberately uses Visual Studio, not Visual Studio Code. Do not use an MSYS2 shell to build the backend, or a Visual Studio shell to build the GTK desktop app.</p>
   </div>
   <ol class="steps">
@@ -48,17 +52,26 @@ permalink: /develop/windows/
 <section class="section">
   <div class="section-head">
     <h2>Get the source</h2>
-    <p>Open PowerShell and make one directory for the two sibling repositories. Cloning the backend recursively also obtains the pinned backend dependencies.</p>
+    <p>Open PowerShell and make one directory for the three sibling repositories. Cloning the backend recursively also obtains the pinned copies it uses for normal backend builds.</p>
   </div>
   <pre><code>mkdir $HOME\src\holder
 cd $HOME\src\holder
 git clone --recurse-submodules https://github.com/HolderTeam/holder-daemon.git
+git clone https://github.com/HolderTeam/holder-core.git
 git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
   <div class="section-head following-copy">
-    <p>If you cloned the backend without <code>--recurse-submodules</code>, fix it before building:</p>
+    <p>The standalone <code>holder-core</code> checkout is the place to make and test core changes. Do not edit <code>holder-daemon\submodules\holder-core</code>: that is the backend's pinned dependency copy. If you cloned the backend without <code>--recurse-submodules</code>, fix it before building:</p>
   </div>
   <pre><code>cd $HOME\src\holder\holder-daemon
 git submodule update --init --recursive</code></pre>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Build and test the core library</h2>
+    <p>Open <code>holder-core</code> with Visual Studio using <strong>Open a local folder</strong>. Select the <code>windows-vcpkg-debug</code> configuration, choose <strong>Build</strong> → <strong>Build All</strong>, then use Test Explorer's <strong>Run All</strong> command.</p>
+    <p>The core library has its own vcpkg installation directory, so its first build can be long even if you have already built the backend. A successful test run confirms that the canonical checkout is ready for core work.</p>
+  </div>
 </section>
 
 <section class="section">
@@ -141,6 +154,7 @@ git submodule update --init --recursive</code></pre>
 <section class="section">
   <div class="section-head">
     <h2>Next steps</h2>
-    <p>This is the platform setup guide, not a complete contribution policy. Each repository owns its own current build commands and development notes: <a href="https://github.com/HolderTeam/holder-daemon#readme">backend README</a> and <a href="https://github.com/HolderTeam/holder-desktop#readme">desktop README</a>. A future contributor guide can cover the shared GitHub and review workflow without duplicating this operating-system setup.</p>
+    <p>This is the platform setup guide, not a complete contribution policy. Each repository owns its current build commands and development notes: <a href="https://github.com/HolderTeam/holder-core#readme">core README</a>, <a href="https://github.com/HolderTeam/holder-daemon#readme">backend README</a>, and <a href="https://github.com/HolderTeam/holder-desktop#readme">desktop README</a>.</p>
+    <p>When a backend change needs a core change, make and test the core change in the standalone repository first, commit it there, then advance the backend's <code>holder-core</code> submodule pointer to that commit. A future contributor guide can cover that shared GitHub and review workflow without duplicating this operating-system setup.</p>
   </div>
 </section>
