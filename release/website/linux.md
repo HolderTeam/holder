@@ -29,7 +29,7 @@ sha256sum -c Holder-0.2.0-SHA256SUMS
     <p>
       The AppImage contains the complete Holder Framework (the desktop app, backend and command line tool).
     </p>
-    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> and handles updates automatically through Apt.</p>
+    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> handles updates automatically through Apt.</p>
   </div>
 </section>
 
