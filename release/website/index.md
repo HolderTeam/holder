@@ -37,7 +37,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Ubuntu</h3>
-          <span class="tag">0.2.0 stable</span>
+          <span class="tag">0.2.0 release</span>
         </div>
         <p>Install from the official HolderTeam PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
       </div>
@@ -48,7 +48,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Linux</h3>
-          <span class="tag">0.2.0 stable</span>
+          <span class="tag">0.2.0 release</span>
         </div>
         <p>Signed AppImage for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
@@ -59,7 +59,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>macOS</h3>
-          <span class="tag">0.2.0 stable</span>
+          <span class="tag">0.2.0 release</span>
         </div>
         <p>Signed and notarised disk image. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
