@@ -3,12 +3,12 @@ release_page: https://github.com/HolderTeam/holder-release/releases/tag/holder-v
 platforms:
   ubuntu:
     label: Ubuntu
-    version: 0.1.7
+    version: 0.2.0
     channel: stable
     local: true
     url: /ubuntu/
     button_label: Install on Ubuntu
-    detail: Stable 0.1.7 release from the HolderTeam PPA.
+    detail: Stable 0.2.0 release from the HolderTeam PPA.
   linux:
     label: Linux
     version: 0.2.0

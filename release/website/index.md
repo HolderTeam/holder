@@ -29,7 +29,7 @@ title: Holder
 <section class="section" id="download">
   <div class="section-head">
     <h2>Download Holder</h2>
-    <p>Choose the current Holder build for Ubuntu, Linux, Windows or macOS. The Ubuntu PPA is still catching up to 0.2.0.</p>
+    <p>Choose the current Holder build for Ubuntu, Linux, Windows or macOS.</p>
   </div>
 
   <div class="platform-list">
@@ -37,7 +37,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Ubuntu</h3>
-          <span class="tag">0.1.7 stable</span>
+          <span class="tag">0.2.0 stable</span>
         </div>
         <p>Install from the official HolderTeam PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
       </div>
