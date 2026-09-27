@@ -31,7 +31,7 @@ sha256sum -c Holder-0.2.0-SHA256SUMS
       app and backend and starts its bundled backend when necessary. Your Holder data remains in your normal user
       data directory.
     </p>
-    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> is also available, also at 0.2.0.</p>
+    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> is also available, at the same 0.2.0 version.</p>
   </div>
 </section>
 
