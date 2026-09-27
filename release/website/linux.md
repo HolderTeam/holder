@@ -27,8 +27,7 @@ sha256sum -c Holder-0.2.0-SHA256SUMS
 ./Holder-0.2.0-x86_64.AppImage</code></pre>
   <div class="section-head following-copy">
     <p>
-      The AppImage contains the desktop app and backend and starts its bundled backend when necessary.
-	Your Holder data remains in your normal user data directory.
+      The AppImage contains the complete Holder Framework (the desktop app, backend and command line tool).
     </p>
     <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> and handles updates automatically through Apt.</p>
   </div>
