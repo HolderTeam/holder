@@ -12,7 +12,7 @@ title: Holder
       Download Holder for your computer and keep your knowledge on your own machine.
     </p>
     <div class="hero-actions">
-      <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.1.7" data-download-primary>Download Holder</a>
+      <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.0" data-download-primary>Download Holder</a>
       <a class="button secondary" href="#download">Choose platform</a>
     </div>
     <p class="download-note">
@@ -29,7 +29,7 @@ title: Holder
 <section class="section" id="download">
   <div class="section-head">
     <h2>Download Holder</h2>
-    <p>Choose the current Holder build for Ubuntu, Linux, Windows or macOS. Build versions vary by platform while Holder approaches 0.2.0.</p>
+    <p>Choose the current Holder build for Ubuntu, Linux, Windows or macOS. The Ubuntu PPA is still catching up to 0.2.0.</p>
   </div>
 
   <div class="platform-list">
@@ -48,9 +48,9 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Linux</h3>
-          <span class="tag preview">0.2.0-dev preview</span>
+          <span class="tag">0.2.0 stable</span>
         </div>
-        <p>Signed AppImage preview for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
+        <p>Signed AppImage for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
       <a class="button secondary" href="{{ site.data.downloads.platforms.linux.url }}" data-download-asset="linux">Download AppImage</a>
     </article>
@@ -59,7 +59,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>macOS</h3>
-          <span class="tag">0.1.7 stable</span>
+          <span class="tag">0.2.0 stable</span>
         </div>
         <p>Signed and notarised disk image. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
@@ -70,7 +70,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Windows</h3>
-          <span class="tag preview">0.1.7 development</span>
+          <span class="tag preview">0.2.0 development</span>
         </div>
         <p>Self-signed installer for Windows 10 and Windows 11. Please really do read the <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>

@@ -28,11 +28,10 @@ sudo apt install holder</code></pre>
     <h2>Also there is an AppImage</h2>
     <p>
       Holder is also available as a signed x86_64 AppImage, which aims to work on all distributions including Ubuntu.
-      It is a preview rather than the current stable Ubuntu package and uses Holder's normal data directory.
-      Back up your Holder data before trying the development build or switching between versions.
+      It is a fully supported release alongside the PPA package, and uses Holder's normal data directory.
     </p>
   </div>
   <div class="button-row">
-    <a class="button secondary" href="{{ '/linux/' | relative_url }}">See the AppImage preview</a>
+    <a class="button secondary" href="{{ '/linux/' | relative_url }}">See the AppImage</a>
   </div>
 </section>

@@ -8,7 +8,7 @@ permalink: /linux/
   <p class="eyebrow">Linux</p>
   <h1>Holder for Linux</h1>
   <p class="lead">
-    Try the signed Holder 0.2.0-dev AppImage preview on x86_64 Linux. It runs without installing Holder system-wide.
+    Download the signed Holder 0.2.0 AppImage for x86_64 Linux. It runs without installing Holder system-wide.
   </p>
   <div class="actions">
     <a class="button primary" data-download-asset="linux" href="{{ site.data.downloads.platforms.linux.url }}">Download the AppImage</a>
@@ -22,16 +22,16 @@ permalink: /linux/
     <p>Download both files into the same directory, make the AppImage executable, verify it and run it.</p>
   </div>
   <pre><code>cd ~/Downloads
-chmod +x Holder-0.2.0-dev-x86_64.AppImage
-sha256sum -c Holder-0.2.0-dev-SHA256SUMS
-./Holder-0.2.0-dev-x86_64.AppImage</code></pre>
+chmod +x Holder-0.2.0-x86_64.AppImage
+sha256sum -c Holder-0.2.0-SHA256SUMS
+./Holder-0.2.0-x86_64.AppImage</code></pre>
   <div class="section-head following-copy">
     <p>
-      This is an early preview of the next Holder release. The AppImage contains the desktop app and backend and
-      starts its bundled backend when necessary. Your Holder data remains in your normal user data directory.
+      The AppImage is a signed, equal-standing Holder release alongside macOS and Windows. It contains the desktop
+      app and backend and starts its bundled backend when necessary. Your Holder data remains in your normal user
+      data directory.
     </p>
-    <p><strong>Preview note:</strong> back up your Holder data before trying a development build or switching between versions.</p>
-    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> remains the stable installation path.</p>
+    <p>Using Ubuntu? The <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu PPA</a> is also available, though it may lag a version or two behind.</p>
   </div>
 </section>
 
