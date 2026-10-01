@@ -302,7 +302,7 @@ pre + .section-head {
 /* In a single reading column the headings already mark each section; rules plus padding on
    both sides left a large dead band between an answer and the next question. */
 .narrow .section {
-  padding: 1.5rem 0;
+  padding: 1rem 0;
   border-top: 0;
 }
 
