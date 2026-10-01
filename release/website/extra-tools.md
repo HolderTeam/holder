@@ -27,7 +27,7 @@ narrow: true
     <p>Connect Holder projects to GitHub more easily and keep your work in sync across computers.</p>
   </div>
   <div class="button-row">
-    <a class="button secondary" href="https://cli.github.com/">Get the GitHub CLI</a>
+    <a class="button primary" href="https://cli.github.com/">Get the GitHub CLI</a>
   </div>
 </section>
 
@@ -37,7 +37,7 @@ narrow: true
     <p>Use supported AI models directly on your own computer, giving Holder local AI capabilities without relying on an online service.</p>
   </div>
   <div class="button-row">
-    <a class="button secondary" href="https://ollama.com/download">Get Ollama</a>
+    <a class="button primary" href="https://ollama.com/download">Get Ollama</a>
   </div>
 </section>
 
