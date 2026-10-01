@@ -8,7 +8,7 @@ permalink: /ubuntu/
   <p class="eyebrow">Ubuntu</p>
   <h1>Holder for Ubuntu</h1>
   <p class="lead">
-    Install the stable Holder 0.2.0 release from the HolderTeam PPA. Ubuntu 24.04 is Holder's minimum supported Ubuntu release.
+    Install the stable Holder 0.2.1 release from the HolderTeam PPA. Ubuntu 24.04 is Holder's minimum supported Ubuntu release.
   </p>
 </section>
 

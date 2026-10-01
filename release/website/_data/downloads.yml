@@ -1,38 +1,38 @@
 schema: 1
-release_page: https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.0
+release_page: https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.1
 platforms:
   ubuntu:
     label: Ubuntu
-    version: 0.2.0
+    version: 0.2.1
     channel: stable
     local: true
     url: /ubuntu/
     button_label: Install on Ubuntu
-    detail: Stable 0.2.0 release from the HolderTeam PPA.
+    detail: Stable 0.2.1 release from the HolderTeam PPA.
   linux:
     label: Linux
-    version: 0.2.0
+    version: 0.2.1
     channel: stable
     architecture: x86_64
-    asset_name: Holder-0.2.0-x86_64.AppImage
-    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.0/Holder-0.2.0-x86_64.AppImage
+    asset_name: Holder-0.2.1-x86_64.AppImage
+    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.1/Holder-0.2.1-x86_64.AppImage
     checksum_local: true
-    checksum_url: /assets/checksums/Holder-0.2.0-SHA256SUMS
+    checksum_url: /assets/checksums/Holder-0.2.1-SHA256SUMS
     button_label: Download Linux AppImage
-    detail: Signed 0.2.0 AppImage for x86_64 Linux.
+    detail: Signed 0.2.1 AppImage for x86_64 Linux.
   windows:
     label: Windows
-    version: 0.2.0-dev
+    version: 0.2.1-dev
     channel: development
-    asset_name: Holder-windows-0.2.0-dev-Setup.exe
-    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.0/Holder-windows-0.2.0-dev-Setup.exe
+    asset_name: Holder-windows-0.2.1-dev-Setup.exe
+    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.1/Holder-windows-0.2.1-dev-Setup.exe
     button_label: Download for Windows
-    detail: Development-signed 0.2.0 installer for Windows 10 and 11.
+    detail: Self-signed 0.2.1 installer for Windows 10 and 11.
   macos:
     label: macOS
-    version: 0.2.0
+    version: 0.2.1
     channel: stable
-    asset_name: Holder-macos-0.2.0.dmg
-    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.0/Holder-macos-0.2.0.dmg
+    asset_name: Holder-macos-0.2.1.dmg
+    url: https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.1/Holder-macos-0.2.1.dmg
     button_label: Download for macOS
-    detail: Signed and notarised 0.2.0 disk image.
+    detail: Signed and notarised 0.2.1 disk image.

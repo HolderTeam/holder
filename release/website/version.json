@@ -2,13 +2,13 @@
   "schema": 1,
   "product": "Holder",
   "channel": "stable",
-  "version": "0.2.0",
-  "release_url": "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.0",
+  "version": "0.2.1",
+  "release_url": "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.1",
   "notes_url": "https://holder.team/",
   "message": "A new Holder release is available.",
   "downloads": {
     "linux": "https://holder.team/linux/",
-    "windows": "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.0/Holder-windows-0.2.0-dev-Setup.exe",
-    "macos": "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.0/Holder-macos-0.2.0.dmg"
+    "windows": "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.1/Holder-windows-0.2.1-dev-Setup.exe",
+    "macos": "https://github.com/HolderTeam/holder-release/releases/download/holder-v0.2.1/Holder-macos-0.2.1.dmg"
   }
 }

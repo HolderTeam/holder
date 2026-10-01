@@ -12,7 +12,7 @@ title: Holder
       Download Holder for your computer and keep your knowledge on your own machine.
     </p>
     <div class="hero-actions">
-      <a class="button primary" href="https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.0" data-download-primary>Download Holder</a>
+      <a class="button primary" href="{{ site.data.downloads.release_page }}" data-download-primary>Download Holder</a>
       <a class="button secondary" href="#download">Choose platform</a>
     </div>
     <p class="download-note">
@@ -37,7 +37,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Ubuntu</h3>
-          <span class="tag">0.2.0 release</span>
+          <span class="tag">0.2.1 release</span>
         </div>
         <p>Install from the official HolderTeam PPA. <a class="muted-link" href="{{ '/ubuntu/' | relative_url }}">Ubuntu notes</a></p>
       </div>
@@ -48,7 +48,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Linux</h3>
-          <span class="tag">0.2.0 release</span>
+          <span class="tag">0.2.1 release</span>
         </div>
         <p>Signed AppImage for x86_64 Linux. <a class="muted-link" href="{{ '/linux/' | relative_url }}">Linux notes</a></p>
       </div>
@@ -59,7 +59,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>macOS</h3>
-          <span class="tag">0.2.0 release</span>
+          <span class="tag">0.2.1 release</span>
         </div>
         <p>Signed and notarised disk image. <a class="muted-link" href="{{ '/macos/' | relative_url }}">macOS notes</a></p>
       </div>
@@ -70,7 +70,7 @@ title: Holder
       <div>
         <div class="platform-heading">
           <h3>Windows</h3>
-          <span class="tag preview">0.2.0 development</span>
+          <span class="tag preview">0.2.1 development</span>
         </div>
         <p>Self-signed installer for Windows 10 and Windows 11. Please really do read the <a class="muted-link" href="{{ '/windows/' | relative_url }}">Windows notes</a></p>
       </div>

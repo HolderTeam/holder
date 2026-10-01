@@ -75,29 +75,29 @@ const linux = renderFor({
 });
 assert.equal(linux.current, "linux");
 assert.equal(linux.platformLabel.textContent, "Linux");
-assert.match(linux.primary.href, /Holder-0\.2\.0-x86_64\.AppImage$/);
-assert.match(linux.detail.textContent, /0\.2\.0 AppImage/);
+assert.match(linux.primary.href, /Holder-0\.2\.1-x86_64\.AppImage$/);
+assert.match(linux.detail.textContent, /0\.2\.1 AppImage/);
 
 const windows = renderFor({
   platform: "Win32",
   userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 });
 assert.equal(windows.current, "windows");
-assert.match(windows.primary.href, /Holder-windows-0\.2\.0-dev-Setup\.exe$/);
+assert.match(windows.primary.href, /Holder-windows-0\.2\.1-dev-Setup\.exe$/);
 
 const macos = renderFor({
   platform: "MacIntel",
   userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 });
 assert.equal(macos.current, "macos");
-assert.match(macos.primary.href, /Holder-macos-0\.2\.0\.dmg$/);
+assert.match(macos.primary.href, /Holder-macos-0\.2\.1\.dmg$/);
 
 const unknown = renderFor({ userAgent: "Holder test browser" });
 assert.equal(unknown.current, undefined);
 assert.equal(unknown.platformLabel.textContent, "your platform");
 assert.equal(
   unknown.primary.href,
-  "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.0"
+  "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.1"
 );
 
 console.log("Download detection smoke tests passed.");
