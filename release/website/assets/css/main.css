@@ -287,7 +287,12 @@ p {
 
 .section-head p {
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
+}
+
+.narrow .section-head {
+  max-width: none;
 }
 
 .page-image {
