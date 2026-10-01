@@ -2,6 +2,7 @@
 layout: default
 title: Holder for Linux
 permalink: /linux/
+narrow: true
 ---
 
 <section class="page-panel">

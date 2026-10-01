@@ -2,6 +2,7 @@
 layout: default
 title: Holder for Ubuntu
 permalink: /ubuntu/
+narrow: true
 ---
 
 <section class="page-panel">

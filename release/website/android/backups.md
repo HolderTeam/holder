@@ -2,6 +2,7 @@
 layout: default
 title: Android Backup
 permalink: /android/backups/
+narrow: true
 ---
 
 <section class="page-panel">

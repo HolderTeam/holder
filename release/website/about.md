@@ -2,6 +2,7 @@
 layout: default
 title: About Holder
 permalink: /about/
+narrow: true
 ---
 
 <section class="page-panel">

@@ -2,6 +2,7 @@
 layout: default
 title: Holder for macOS
 permalink: /macos/
+narrow: true
 ---
 
 <section class="page-panel">

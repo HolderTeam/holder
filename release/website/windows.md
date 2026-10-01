@@ -2,6 +2,7 @@
 layout: default
 title: Holder for Windows
 permalink: /windows/
+narrow: true
 ---
 
 <section class="page-panel">

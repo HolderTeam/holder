@@ -30,7 +30,7 @@
     </nav>
   </header>
 
-  <main class="page-shell">
+  <main class="page-shell{% if page.narrow %} narrow{% endif %}">
     {{ content }}
   </main>
 

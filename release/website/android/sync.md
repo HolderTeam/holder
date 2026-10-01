@@ -2,6 +2,7 @@
 layout: default
 title: Android Project Sync
 permalink: /android/sync/
+narrow: true
 ---
 
 <section class="page-panel">
