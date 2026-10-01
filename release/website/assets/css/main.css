@@ -271,6 +271,10 @@ p {
   margin-bottom: 1.6rem;
 }
 
+pre + .section-head {
+  margin-top: 1.25rem;
+}
+
 .section-head:last-child {
   margin-bottom: 0;
 }
@@ -293,6 +297,13 @@ p {
 
 .narrow .section-head {
   max-width: none;
+}
+
+/* In a single reading column the headings already mark each section; rules plus padding on
+   both sides left a large dead band between an answer and the next question. */
+.narrow .section {
+  padding: 1.5rem 0;
+  border-top: 0;
 }
 
 .page-image {
