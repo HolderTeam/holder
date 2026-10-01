@@ -40,7 +40,7 @@ permalink: /about/
   <div class="section-head">
     <h2>Who is making this?</h2>
     <p>
-      The project has been started by me, Zeth, a software engineer from England, but I am hoping others will join.
+      The optimistically name Holder Team, which currently consists of me, Zeth, a software engineer from England, but I am hoping others will join. The project is supported by my little company Zeth LTD.
     </p>
   </div>
 </section>
