@@ -6,16 +6,17 @@ narrow: true
 ---
 
 <section class="page-panel">
-  <p class="eyebrow">Extra Tools</p>
-  <h1>Unlock more with Holder</h1>
-  <p class="lead">Holder can work with a few additional tools to enable extra features.</p>
+  <p class="eyebrow">Recommended</p>
+  <h1>Extra Tools</h1>
+  <p class="lead">Two free tools that get the most out of Holder.</p>
 </section>
 
 <section class="section">
   <div class="section-head">
     <p>
-      Holder works on its own, but a couple of separately installed tools switch on extra features.
-      Neither is required. Install the ones that sound useful.
+      Holder is at its best with two companion tools installed. The GitHub CLI keeps your projects in sync
+      between computers, and Ollama runs AI models privately on your own machine. Both are free and quick to
+      install, and we recommend setting them up alongside Holder.
     </p>
   </div>
 </section>
