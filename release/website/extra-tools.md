@@ -14,9 +14,10 @@ narrow: true
 <section class="section">
   <div class="section-head">
     <p>
-      Holder is at its best with two companion tools installed. The GitHub CLI keeps your projects in sync
-      between computers, and Ollama runs AI models privately on your own machine. Both are free and quick to
-      install, and we recommend setting them up alongside Holder.
+      Holder is at its best with two companion tools installed. The GitHub CLI lets Holder set up syncing
+      between your computers for you, so you don't have to copy and paste settings by hand. Ollama runs AI
+      models privately on your own machine. Both are free and quick to install, and we recommend setting them
+      up alongside Holder.
     </p>
   </div>
 </section>
