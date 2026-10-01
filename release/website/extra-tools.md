@@ -10,6 +10,10 @@ permalink: /extra-tools/
   <p class="lead">Holder can work with a few additional tools to enable extra features.</p>
 </section>
 
+<figure class="page-image wide">
+  <img src="{{ '/assets/img/extra_tools_unlock.png' | relative_url }}" alt="GitHub CLI helps sync Holder projects across computers; Ollama runs supported AI models locally.">
+</figure>
+
 <section class="section">
   <div class="grid two">
     <article class="card">
