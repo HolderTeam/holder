@@ -2,6 +2,7 @@
 layout: default
 title: About Holder
 permalink: /about/
+narrow: true
 ---
 
 <section class="page-panel">
@@ -40,7 +41,10 @@ permalink: /about/
   <div class="section-head">
     <h2>Who is making this?</h2>
     <p>
-      The optimistically name Holder Team, which currently consists of me, Zeth, a software engineer from England, but I am hoping others will join. The project is supported by my little company Zeth LTD.
+      The optimistically named "Holder Team", which currently consists of me, Zeth, a software engineer from England,
+      but I am hoping others will join and form an open source community around Holder.
+      The project is supported by my company Zeth LTD,
+      which provides administrative and organisational support to the project.
     </p>
   </div>
 </section>

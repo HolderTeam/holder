@@ -2,6 +2,7 @@
 layout: default
 title: Develop Holder on Windows
 permalink: /develop/windows/
+narrow: true
 ---
 
 <section class="page-panel">

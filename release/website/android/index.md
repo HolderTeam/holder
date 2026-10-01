@@ -2,6 +2,7 @@
 layout: default
 title: Holder for Android
 permalink: /android/
+narrow: true
 ---
 
 <section class="page-panel">

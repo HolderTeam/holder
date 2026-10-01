@@ -2,6 +2,7 @@
 layout: default
 title: Android Storage
 permalink: /android/storage/
+narrow: true
 ---
 
 <section class="page-panel">

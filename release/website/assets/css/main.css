@@ -15,6 +15,8 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
   --radius: 8px;
   --content: 1120px;
+  --content-narrow: 54rem;
+  --gutter: clamp(1rem, 4vw, 2rem);
 }
 
 * {
@@ -96,16 +98,22 @@ img {
 .page-shell {
   width: min(100%, var(--content));
   margin: 0 auto;
-  padding: clamp(2rem, 5vw, 5rem) clamp(1rem, 4vw, 2rem);
+  padding: clamp(2rem, 4vw, 3.5rem) var(--gutter);
+}
+
+/* Prose pages (front matter `narrow: true`): one reading column, so the page panel, section
+   rules and text all share the same width instead of text hugging the left of a wide frame. */
+.page-shell.narrow {
+  width: min(100%, var(--content-narrow));
 }
 
 .site-footer {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  width: min(100%, var(--content));
+  width: min(100% - 2 * var(--gutter), var(--content) - 4rem);
   margin: 0 auto;
-  padding: 2rem clamp(1rem, 4vw, 2rem) 3rem;
+  padding: 2rem 0 3rem;
   color: var(--quiet);
   border-top: 1px solid var(--line);
 }
@@ -122,11 +130,10 @@ img {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.03fr) minmax(18rem, 0.97fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
   align-items: center;
   gap: clamp(2rem, 6vw, 5rem);
-  min-height: min(43rem, calc(100vh - 8rem));
-  padding-bottom: 2rem;
+  padding: clamp(1rem, 4vw, 3rem) 0 clamp(2.5rem, 5vw, 4rem);
 }
 
 .hero-copy {
@@ -157,7 +164,8 @@ h1 {
 }
 
 h2 {
-  font-size: clamp(2rem, 5vw, 3.7rem);
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  line-height: 1.15;
 }
 
 h3 {
@@ -175,7 +183,8 @@ p {
 }
 
 .hero-actions,
-.button-row {
+.button-row,
+.page-panel .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.8rem;
@@ -225,8 +234,7 @@ p {
 }
 
 .hero-visual img {
-  width: min(100%, 31rem);
-  margin-inline: auto;
+  width: 100%;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
@@ -238,20 +246,64 @@ p {
 }
 
 .section {
-  padding: clamp(3rem, 7vw, 6rem) 0;
+  padding: clamp(2.25rem, 4vw, 3.5rem) 0;
   border-top: 1px solid var(--line);
+}
+
+/* The page panel or a lead image already separates the first section; a rule there doubles up. */
+.page-panel + .section,
+.page-image + .section {
+  border-top: 0;
+  padding-top: 1rem;
+}
+
+/* Loose paragraphs after a code block, card grid or similar inside a section. */
+.section > p {
+  max-width: 48rem;
+  margin-top: 1.25rem;
+  color: var(--muted);
 }
 
 .section-head {
   display: grid;
-  gap: 0.9rem;
+  gap: 1rem;
   max-width: 48rem;
   margin-bottom: 1.6rem;
 }
 
+pre + .section-head {
+  margin-top: 1.25rem;
+}
+
+.section-head:last-child {
+  margin-bottom: 0;
+}
+
+.section-head h2 {
+  margin-bottom: 0.15rem;
+}
+
+.section-head > a > img,
+.section-head > img {
+  margin: 0.75rem 0;
+  border-radius: var(--radius);
+}
+
 .section-head p {
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
+}
+
+.narrow .section-head {
+  max-width: none;
+}
+
+/* In a single reading column the headings already mark each section; rules plus padding on
+   both sides left a large dead band between an answer and the next question. */
+.narrow .section {
+  padding: 1rem 0;
+  border-top: 0;
 }
 
 .page-image {
@@ -291,11 +343,26 @@ p {
 
 .card {
   display: grid;
+  align-content: start;
   gap: 0.65rem;
   padding: 1.25rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(36, 36, 40, 0.78);
+}
+
+.card h2 {
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.card h2 a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.card h2 a:hover {
+  text-decoration: underline;
 }
 
 .card p,
@@ -411,6 +478,12 @@ pre {
 
 code {
   color: #f4d39a;
+  font-size: 0.9em;
+}
+
+pre code {
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .following-copy {
