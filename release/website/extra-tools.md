@@ -17,11 +17,11 @@ permalink: /extra-tools/
 <section class="section">
   <div class="grid two">
     <article class="card">
-      <h2>GitHub CLI — sync your projects</h2>
+      <h2><a href="https://cli.github.com/">GitHub CLI</a> — sync your projects</h2>
       <p>Connect Holder projects to GitHub more easily and keep your work in sync across computers.</p>
     </article>
     <article class="card">
-      <h2>Ollama — run AI locally</h2>
+      <h2><a href="https://ollama.com/download">Ollama</a> — run AI locally</h2>
       <p>Use supported AI models directly on your own computer, giving Holder local AI capabilities without relying on an online service.</p>
     </article>
   </div>
