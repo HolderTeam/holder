@@ -97,7 +97,7 @@ assert.equal(unknown.current, undefined);
 assert.equal(unknown.platformLabel.textContent, "your platform");
 assert.equal(
   unknown.primary.href,
-  "https://github.com/HolderTeam/holder-release/releases/tag/holder-v0.2.1"
+  "https://github.com/HolderTeam/holder-framework/releases/tag/holder-v0.2.1"
 );
 
 console.log("Download detection smoke tests passed.");

@@ -44,7 +44,7 @@ narrow: true
 <section class="section">
   <div class="section-head">
     <h2>Install</h2>
-    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder-release/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
+    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder-framework/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
     <p>When the installer starts, it is worth selecting <strong>Add Holder command line tools to PATH</strong>. This lets you run <code>holderctl</code> from PowerShell, which is useful both for normal command-line use and for fixing problems.</p>
     <figure class="page-image">
       <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">
