@@ -77,6 +77,6 @@ narrow: true
       <li>In <code>holder-desktop</code>, install the Homebrew dependencies listed in the README, then run <code>meson setup build-macos --prefix=/</code>, <code>meson compile -C build-macos</code>, and <code>meson test -C build-macos --print-errorlogs</code>.</li>
       <li>Run <code>./build-macos/holder-desktop</code> only after the backend is already running.</li>
     </ul>
-    <p>The release app also includes the small launcher from <a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a>. Most developers do not need to build it unless they are working on the macOS app bundle or packaging.</p>
+    <p>The release app also includes a small <a href="https://github.com/HolderTeam/holder-framework/tree/main/launcher">launcher</a>. Most developers do not need to build it unless they are working on the macOS app bundle or packaging.</p>
   </div>
 </section>

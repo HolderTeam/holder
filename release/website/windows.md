@@ -97,6 +97,6 @@ narrow: true
       <li>Build and test the backend in Visual Studio.</li>
       <li>Build and test the desktop app in MSYS2 UCRT64, then start it with the backend running.</li>
     </ul>
-    <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder-launcher">holder-launcher</a>.</p>
+    <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder-framework/tree/main/launcher">launcher source</a>.</p>
   </div>
 </section>
