@@ -8,20 +8,23 @@ Instead, copy the needed glyph's exact path data into a new `res/drawable/ic_<na
 
 To get exact path data without hand-tracing an SVG: write a throwaway JVM unit test under `app/src/test` that imports the icon from wherever it currently resolves, walks `ImageVector.root` recursively collecting each `VectorPath.pathData: List<PathNode>`, and renders each `PathNode` variant to its SVG command-letter equivalent (M/L/H/V/C/S/Q/T/A/Z, lowercase for the Relative* variants) — vector drawable `pathData` uses identical syntax, so the output pastes straight in. Run via `./gradlew :app:testDebugUnitTest --tests "..."`, write the result to a file (Gradle doesn't surface test stdout directly), then delete the test.
 
-# Submodules
+# Core dependency ownership
 
-Do not modify holder-core through the submodule checkout inside holder-android (`submodules/holder-core`).
-Make holder-core changes only in the canonical workspace repository at ../holder-core,
-commit and test them there, then update holder-android's submodule pointer to that commit.
+Make holder-core changes in the standalone workspace repository at `../holder-core`
+and test them there first. Do not edit embedded dependency copies inside holder-android.
 
-If a task requires changes to both holder-core and holder-android:
+Use the published SDK or package through shared core selection tooling when the
+Android build supports it. The current checked-in Gradle and CMake configuration
+still builds embedded core source; do not assume the daemon's SDK configuration
+works for Android or introduce a build migration as part of an unrelated task.
+Follow the current Android build configuration and test the consumer against the
+exact core version needed by the task.
 
-In the standalone holder-core repository, make a new branch off main and change, test, and commit holder-core.
-Return to holder-android.
-Advance its holder-core submodule to the committed revision.
-Test holder-android against that revision.
-
-Never treat holder-android's submodule checkout as the working copy of holder-core. If you ever find the submodule checked out at a commit that doesn't match what the current branch actually records (e.g. after switching branches without updating submodules), run `git submodule update` to reset it — don't leave it pointing at a stray commit, and don't commit that drift into holder-android's tree.
+Legacy embedded checkouts and their Git pointers are not the normal shared
+dependency-update workflow. Do not automatically advance or reset them after
+switching branches, and do not commit existing checkout drift as an unrelated
+change. Changes to dependency selection or source integration must be part of
+the task's explicit scope.
 
 # XML comments
 
