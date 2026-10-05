@@ -77,7 +77,7 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
     <article class="card">
       <h3>If you built the backend</h3>
       <p>Open PowerShell and run:</p>
-      <pre><code>cd $HOME\projects\holderteam\holder-daemon
+      <pre><code>cd $HOME\projects\holderteam\holder-framework\daemon
 .\out\build\windows-vcpkg-debug\holderd.exe</code></pre>
     </article>
   </div>
@@ -117,7 +117,7 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
 <section class="section">
   <div class="section-head">
     <h2>You are ready</h2>
-    <p>You can now change code, rebuild the part you changed, and run your local Holder app to see the result. Each project keeps its detailed and up-to-date development notes in its own README: <a href="https://github.com/HolderTeam/holder-core#readme">Core</a>, <a href="https://github.com/HolderTeam/holder-daemon#readme">Daemon</a>, and <a href="https://github.com/HolderTeam/holder-desktop#readme">Desktop</a>.</p>
+    <p>You can now change code, rebuild the part you changed, and run your local Holder app to see the result. Each project keeps its detailed and up-to-date development notes in its own README: <a href="https://github.com/HolderTeam/holder-core#readme">Core</a>, <a href="https://github.com/HolderTeam/holder-framework/tree/main/daemon#readme">Daemon</a>, and <a href="https://github.com/HolderTeam/holder-desktop#readme">Desktop</a>.</p>
     <p>When you are happy with your change and the tests pass, follow <a href="{{ '/develop/windows/' | relative_url }}#contributing">Share your first change</a> to submit it for review.</p>
   </div>
 </section>

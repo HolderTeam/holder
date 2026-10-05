@@ -50,7 +50,7 @@ cd $HOME\projects\holderteam</code></pre>
     </article>
     <article class="card">
       <h3>Backend</h3>
-      <p><a href="https://github.com/HolderTeam/holder-daemon">holder-daemon</a> is the local service that stores your data and provides Holder's command-line and web interfaces.</p>
+      <p><a href="https://github.com/HolderTeam/holder-framework/tree/main/daemon">holder-daemon</a> is the local service that stores your data and provides Holder's command-line and web interfaces.</p>
       <p><a href="{{ '/develop/windows/daemon/' | relative_url }}">Build Daemon →</a></p>
     </article>
     <article class="card">
@@ -64,7 +64,7 @@ cd $HOME\projects\holderteam</code></pre>
 <section class="section" id="getting-help">
   <div class="section-head">
     <h2>If you get stuck</h2>
-    <p>Open the issue page for the part you are working on: <a href="https://github.com/HolderTeam/holder-core/issues">Core</a>, <a href="https://github.com/HolderTeam/holder-daemon/issues">Daemon</a>, or <a href="https://github.com/HolderTeam/holder-desktop/issues">Desktop</a>. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
+    <p>Open the issue page for the part you are working on: <a href="https://github.com/HolderTeam/holder-core/issues">Core</a>, <a href="https://github.com/HolderTeam/holder-framework/issues">Daemon</a>, or <a href="https://github.com/HolderTeam/holder-desktop/issues">Desktop</a>. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
     <p>Include the guide you followed, the step that failed, and what you expected to happen. Copy the command and its output, or the error from Visual Studio's Output window. Include your Windows version and the versions of the tools you used. This helps someone else understand where you got stuck.</p>
   </div>
 </section>
