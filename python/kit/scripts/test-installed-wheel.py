@@ -81,12 +81,17 @@ def main() -> None:
             assert lifecycle.move(into=first) is lifecycle
             assert lifecycle.parent == first
             assert lifecycle.parent.project is project
+            assert project.cards.get(lifecycle.card_id).project is project
+            assert first.children.list() == [lifecycle]
+            assert first.children.list()[0].project is first.project
             lifecycle.move(before=second)
+            assert first.children.list() == []
             assert lifecycle.parent is None and lifecycle.sort_key < second.sort_key
             lifecycle.move(after=second)
             assert lifecycle.sort_key > second.sort_key
             lifecycle.delete()
             assert lifecycle.deleted_at is not None
+            assert project.cards.get(lifecycle.card_id).deleted_at is not None
             trashed = project.cards.trashed()
             assert len(trashed) == 1 and trashed[0].project is project
             lifecycle = trashed[0].restore()

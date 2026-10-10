@@ -84,6 +84,19 @@ values and remain usable after their originating context closes.
 
 ## Card hierarchy
 
+`project.cards.get(card_id)` looks up an exact nonempty string ID in this project,
+including Trash, and returns a live Card with that same Project owner. Missing
+IDs, titles and ID prefixes raise `KeyError`; nonstrings raise `TypeError` and
+empty strings raise `ValueError`. Lookup does not read the card body.
+
+`card.children.list()` returns immediate live children in Core's hierarchy order
+(`sort_key` ascending, then `updated_at` descending), with the same Project owner.
+It reads only those children's metadata. Retained collections read current
+membership after moves, creation, Trash and restore; returned lists retain their
+membership, while their Card handles still read current values. A trashed parent
+raises `ValueError`, a purged parent raises `KeyError`, and a closed owner raises
+`RuntimeError`. A live parent with no children returns an empty list.
+
 `card.parent` reads the current parent and returns a live Card with the same
 Project owner, or `None` for a root card. `parent_card_id` remains available for
 record-oriented code. Parent reads require an open owner and an existing card.

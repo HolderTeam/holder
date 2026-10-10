@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 from typing import TYPE_CHECKING
 
 from .collections import ConnectionCollection, TagCollection
@@ -33,6 +34,19 @@ class _CardCollection:
     def _project(self) -> Project:
         self._record()
         return self._card.project
+
+
+class CardChildren(_CardCollection):
+    """Find this card's immediate live children in Holder's display order."""
+
+    def list(self) -> builtins.list[Card]:
+        """Return current children with the same Project owner, without reading bodies."""
+        project = self._project()
+        result = project._live_context().query_cards(
+            project.project_id,
+            json.dumps({"view": "children", "parent_card_id": self._card.card_id}),
+        )
+        return [Card._from_native(record, project) for record in result["cards"]]
 
 
 class CardTags(_CardCollection):

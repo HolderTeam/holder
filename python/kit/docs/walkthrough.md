@@ -33,6 +33,22 @@ The following sections use `project` to work with this project. To analyse an
 existing project instead, start with `project = holderkit.clone(remote_url)` and use
 the same analysis methods.
 
+## Find a card and its children
+
+```python
+saved_id = report.card_id
+report = project.cards.get(saved_id)
+
+evidence.move(into=report)
+for child in report.children.list():
+    print(child.title)
+```
+
+`get()` takes an exact card ID and raises `KeyError` if it is absent from this
+project. It can also find a card in Trash so you can restore it. The children
+collection returns immediate live children in Holder's display order. Both
+operations return live Cards owned by `project` and read metadata without bodies.
+
 ## Arrange cards
 
 ```python
