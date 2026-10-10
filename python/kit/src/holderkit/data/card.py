@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, Mapping, TypedDict, overload
 
 if TYPE_CHECKING:
     from .project import Project
-    from ..card_collections import CardTags, CardConnections, CardMilestones
+    from ..card_collections import CardChildren, CardTags, CardConnections, CardMilestones
 
 
 class CardMetadataRecord(TypedDict):
@@ -202,6 +202,12 @@ class Card:
     def deleted_datetime(self) -> datetime | None:
         deleted_at = self.deleted_at
         return None if deleted_at is None else datetime.fromtimestamp(deleted_at, tz=timezone.utc)
+
+    @property
+    def children(self) -> CardChildren:
+        from ..card_collections import CardChildren
+
+        return CardChildren(self)
 
     @property
     def tags(self) -> CardTags:

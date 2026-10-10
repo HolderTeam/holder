@@ -44,6 +44,16 @@ class _ProjectCollection:
 class ProjectCards(_ProjectCollection):
     """Live Card handles or detached record exports belonging to this project."""
 
+    def get(self, card_id: str) -> Card:
+        """Find an exact ID, including Trash; raise KeyError if it is absent.
+
+        Reads metadata only and returns a live Card with this Project owner.
+        Titles and ID prefixes are not accepted as references.
+        """
+        card = Card(self._project, card_id)
+        self._project._card_record(card.card_id)
+        return card
+
     @overload
     def __call__(
         self, *, batch_size: int = 256, include_content: Literal[False] = False,
