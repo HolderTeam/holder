@@ -16,11 +16,11 @@ on:
       - 'cli/**'
       - 'common/**'
       - 'api/**'
+      - 'core/**'
+      - '.github/workflows/core-sdk.yml'
+      - '.github/actions/core-sdk/**'
   workflow_dispatch:
     inputs:
-      core_ref:
-        description: Core version tag or full SHA (empty selects latest-green)
-        type: string
       core_build_type:
         description: SDK and daemon configuration
         type: choice
@@ -31,20 +31,6 @@ on:
         type: choice
         options: [source, ppa]
         default: source
-  workflow_call:
-    inputs:
-      core_ref:
-        description: Exact published core commit
-        required: true
-        type: string
-      core_build_type:
-        description: SDK and daemon configuration
-        type: string
-        default: RelWithDebInfo
-      daemon_ref:
-        description: Daemon source revision (resolved once)
-        default: main
-        type: string
 
 permissions:
   contents: read
@@ -55,8 +41,7 @@ jobs:
     outputs:
       daemon: ${{ steps.select.outputs.daemon }}
     env:
-      # holder-core calls this workflow from its own pull requests; those build everything.
-      SCOPED: ${{ github.event_name == 'pull_request' && github.repository == 'HolderTeam/holder' }}
+      SCOPED: ${{ github.event_name == 'pull_request' }}
     steps:
       - if: env.SCOPED == 'true'
         uses: actions/checkout@v4
@@ -73,7 +58,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(daemon/|cli/|common/|api/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$)' <<< "$changed"; then
+          if grep -qE '^(daemon/|cli/|common/|api/|core/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$)' <<< "$changed"; then
             echo "daemon=true" >> "$GITHUB_OUTPUT"
           else
             echo "daemon=false" >> "$GITHUB_OUTPUT"
@@ -83,13 +68,10 @@ jobs:
     if: needs.changes.outputs.daemon == 'true'
     runs-on: ubuntu-24.04
     outputs:
-      core_commit: ${{ steps.core.outputs.commit }}
       daemon_commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: HolderTeam/holder
-          ref: ${{ github.repository == 'HolderTeam/holder' && github.sha || inputs.daemon_ref || 'main' }}
           persist-credentials: false
       - name: Validate SDK configuration
         env:
@@ -102,30 +84,31 @@ jobs:
       - id: source
         name: Record daemon source revision
         run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: ${{ inputs.core_ref || 'latest-green' }}
-  linux:
+  core-sdk:
+    # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve
+    uses: ./.github/workflows/core-sdk.yml
+    with:
+      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  linux:
+    needs: [resolve, core-sdk]
     uses: ./.github/workflows/daemon-linux-backend.yml
     with:
-      core_commit: ${{ needs.resolve.outputs.core_commit }}
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   macos:
-    needs: resolve
+    needs: [resolve, core-sdk]
     uses: ./.github/workflows/daemon-macos-backend.yml
     with:
-      core_commit: ${{ needs.resolve.outputs.core_commit }}
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   windows:
-    needs: resolve
+    needs: [resolve, core-sdk]
     uses: ./.github/workflows/daemon-windows-backend.yml
     with:
-      core_commit: ${{ needs.resolve.outputs.core_commit }}
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   ubuntu-packages:
@@ -146,9 +129,9 @@ jobs:
       # The package is built from daemon/ copied out on its own, as the Debian source package is,
       # so a file the build reads from beside daemon/ shows up here instead of on Launchpad.
       EXPORTED_DAEMON: /tmp/export/daemon
-      # By default libholder packages are built here from the resolved core commit, the same core
-      # the other jobs use, so a daemon change needing new core does not wait on Launchpad. The
-      # ppa choice builds against the published Launchpad packages instead, as users install them.
+      # By default libholder packages are built here from core/ in this commit, the same core the
+      # other jobs use, so a daemon change needing new core does not wait on Launchpad. The ppa
+      # choice builds against the published Launchpad packages instead, as users install them.
       CORE_PACKAGES: ${{ inputs.core_packages || 'source' }}
     steps:
       - name: Install packaging tools and configure package source
@@ -167,24 +150,16 @@ jobs:
           apt-get update
       - uses: actions/checkout@v4
         with:
-          repository: HolderTeam/holder
           ref: ${{ needs.resolve.outputs.daemon_commit }}
           persist-credentials: false
-      - if: env.CORE_PACKAGES == 'source'
-        uses: actions/checkout@v4
-        with:
-          repository: HolderTeam/holder-core
-          ref: ${{ needs.resolve.outputs.core_commit }}
-          path: core-source
-          persist-credentials: false
-      - name: Build and install core packages from the resolved core commit
+      - name: Build and install core packages from core/ in this commit
         if: env.CORE_PACKAGES == 'source'
         shell: bash
         env:
           DEBIAN_FRONTEND: noninteractive
           SERIES: ${{ matrix.series }}
-          CORE_COMMIT: ${{ needs.resolve.outputs.core_commit }}
-        working-directory: core-source
+          CORE_COMMIT: ${{ needs.resolve.outputs.daemon_commit }}
+        working-directory: core
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
@@ -238,7 +213,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, resolve, linux, macos, windows, ubuntu-packages]
+    needs: [changes, resolve, core-sdk, linux, macos, windows, ubuntu-packages]
     runs-on: ubuntu-24.04
     steps:
       - name: Check job results
@@ -250,8 +225,8 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.resolve, .linux, .macos, .windows] | all(.result == "success")) and
+               ([.resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
                (.["ubuntu-packages"].result | IN("success", "skipped"))
              else
-               ([.resolve, .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
+               ([.resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
