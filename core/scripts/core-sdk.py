@@ -139,8 +139,13 @@ def archive_manifest(archive):
         return json.loads(member.read())
 
 
-def index(assets_dir):
-    """Describe the SDK archives built earlier in this CI run as a selection that fetch accepts."""
+def index(assets_dir, commit=None, tree=None):
+    """Describe the SDK archives built earlier in this CI run as a selection that fetch accepts.
+
+    Each platform's SDK is cached by core/'s tree on its own, so archives of the same tree can
+    record different commits: whichever commit first built each one. Given the run's commit and
+    core/ tree, the selection records those, and each asset keeps the commit its archive records.
+    Without them, every archive must record the same commit."""
     archives = sorted(p for p in assets_dir.iterdir() if p.name.endswith((".tar.gz", ".zip")))
     require(archives, f"No SDK archives in {assets_dir}")
     assets, manifests = [], []
@@ -148,16 +153,21 @@ def index(assets_dir):
         manifest = archive_manifest(archive)
         manifests.append(manifest)
         data = archive.read_bytes()
+        require(re.fullmatch(r"[0-9a-f]{40}", manifest["commit"]), "Invalid SDK commit")
         assets.append({"name": archive.name, "platform": manifest["platform"],
                        "architecture": manifest["architecture"], "build_type": manifest["build_type"],
-                       "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
-    for key in ("commit", "version"):
-        require(len({m[key] for m in manifests}) == 1, f"SDK archives disagree on {key}")
-    require(re.fullmatch(r"[0-9a-f]{40}", manifests[0]["commit"]), "Invalid SDK commit")
+                       "commit": manifest["commit"], "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    require(len({m["version"] for m in manifests}) == 1, "SDK archives disagree on version")
+    if commit is None:
+        require(len({m["commit"] for m in manifests}) == 1, "SDK archives disagree on commit")
+        commit = manifests[0]["commit"]
+    require(re.fullmatch(r"[0-9a-f]{40}", commit), "Invalid run commit")
     configurations = [(a["platform"], a["architecture"], a["build_type"]) for a in assets]
     require(len(set(configurations)) == len(configurations), "Duplicate SDK configurations")
-    return {"source": "artifact", "commit": manifests[0]["commit"], "version": manifests[0]["version"],
-            "assets": assets}
+    selection = {"source": "artifact", "commit": commit, "version": manifests[0]["version"], "assets": assets}
+    if tree:
+        selection["core_tree"] = tree
+    return selection
 
 
 def fetch(selection, cache, system, architecture, build_type, assets_dir=None):
@@ -181,7 +191,7 @@ def fetch(selection, cache, system, architecture, build_type, assets_dir=None):
         unpack(archive, Path(temporary))
         sdk = Path(temporary) / "libholder-sdk"
         manifest = json.loads((sdk / "libholder-manifest.json").read_text())
-        for key, expected in {"commit": selection["commit"], "version": selection["version"],
+        for key, expected in {"commit": asset.get("commit", selection["commit"]), "version": selection["version"],
                               "platform": system, "architecture": architecture, "build_type": build_type}.items():
             require(manifest[key] == expected, f"SDK manifest {key} mismatch")
         require((sdk / "share/holder/schema/schema.sql").is_file(), "SDK schema missing")
@@ -209,6 +219,8 @@ def main():
     indexing = commands.add_parser("index")
     indexing.add_argument("--assets", type=Path, required=True)
     indexing.add_argument("--output", type=Path, default=Path("out/core-selection.json"))
+    indexing.add_argument("--commit", help="The commit this run builds")
+    indexing.add_argument("--tree", help="core/'s Git tree in that commit")
     download = commands.add_parser("fetch")
     download.add_argument("--selection", type=Path, default=Path("out/core-selection.json"))
     download.add_argument("--cache", type=Path, default=Path(".core-sdk"))
@@ -218,7 +230,8 @@ def main():
     download.add_argument("--assets", type=Path, help="SDK archives for an artifact selection")
     args = parser.parse_args()
     if args.command in ("resolve", "index"):
-        selection = resolve(args.core_ref) if args.command == "resolve" else index(args.assets)
+        selection = (resolve(args.core_ref) if args.command == "resolve"
+                     else index(args.assets, args.commit, args.tree))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(selection, indent=2) + "\n")
         print(selection["commit"])

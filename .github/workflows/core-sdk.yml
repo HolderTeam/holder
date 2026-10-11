@@ -19,7 +19,7 @@ on:
         default: '["linux", "macos", "windows"]'
     outputs:
       commit:
-        description: The commit recorded in the SDKs (the first commit with this core/ tree)
+        description: The calling commit, which the core selection records (each SDK records the commit that built it)
         value: ${{ jobs.index.outputs.commit }}
 
 permissions:
@@ -208,7 +208,9 @@ jobs:
           merge-multiple: true
       - id: index
         name: Describe this run's SDKs
-        run: python3 scripts/core-sdk.py index --assets out/core-sdk-assets --output out/core-selection.json
+        run: >-
+          python3 scripts/core-sdk.py index --assets out/core-sdk-assets --output out/core-selection.json
+          --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
       - uses: actions/upload-artifact@v4
         with:
           name: core-selection
