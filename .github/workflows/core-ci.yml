@@ -1,10 +1,9 @@
 name: Core / CI
 
 on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the core jobs run. Keep its pattern in step with these paths.
   pull_request:
-    paths:
-      - core/**
-      - .github/workflows/core-ci.yml
   push:
     branches:
       - main
@@ -21,7 +20,40 @@ defaults:
     working-directory: core
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      core: ${{ steps.select.outputs.core }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(core/|\.github/workflows/core-ci\.yml$)' <<< "$changed"; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "core=false" >> "$GITHUB_OUTPUT"
+          fi
+
   linux:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-24.04
 
     steps:
@@ -102,6 +134,8 @@ jobs:
           retention-days: 7
 
   macos:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: macos-15
 
     steps:
@@ -160,6 +194,8 @@ jobs:
           ctest --test-dir out/consumer --output-on-failure
 
   windows:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: windows-latest
 
     steps:
@@ -222,3 +258,28 @@ jobs:
           cmake --build out/consumer --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir out/consumer --output-on-failure
+
+  result:
+    name: Core CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, linux, macos, windows]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.core }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.linux, .macos, .windows] | all(.result == "success"))
+             else
+               ([.linux, .macos, .windows] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null
