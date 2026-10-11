@@ -19,6 +19,7 @@ on:
       - 'core/**'
       - '.github/workflows/core-sdk.yml'
       - '.github/actions/core-sdk/**'
+      - '.github/scripts/check-core-boundary.py'
   workflow_dispatch:
     inputs:
       core_build_type:
@@ -58,7 +59,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(daemon/|cli/|common/|api/|core/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$)' <<< "$changed"; then
+          if grep -qE '^(daemon/|cli/|common/|api/|core/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "daemon=true" >> "$GITHUB_OUTPUT"
           else
             echo "daemon=false" >> "$GITHUB_OUTPUT"
@@ -84,6 +85,20 @@ jobs:
       - id: source
         name: Record daemon source revision
         run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  checks:
+    # Fast checks that need no build: no paths across the core boundary, and make.sh's core selection.
+    needs: changes
+    if: needs.changes.outputs.daemon == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the core boundary
+        run: python3 .github/scripts/check-core-boundary.py
+      - name: Test make.sh's core selection
+        working-directory: daemon
+        run: python3 -m unittest scripts/test_make.py -v
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve
@@ -213,7 +228,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, resolve, core-sdk, linux, macos, windows, ubuntu-packages]
+    needs: [changes, checks, resolve, core-sdk, linux, macos, windows, ubuntu-packages]
     runs-on: ubuntu-24.04
     steps:
       - name: Check job results
@@ -225,8 +240,8 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
                (.["ubuntu-packages"].result | IN("success", "skipped"))
              else
-               ([.resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
