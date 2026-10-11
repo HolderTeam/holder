@@ -4,12 +4,18 @@ name: Release / Launchpad
 # holder-core (libholder0, libholder-dev) and holder-daemon, for each series. A holder-v* tag
 # uploads both. Launchpad orders the builds: holder-daemon waits for libholder-dev from the
 # same upload. A manual run can upload one package, for a packaging-only fix with a new
-# Debian revision.
+# Debian revision. Pull requests that change the packaging build both source packages
+# unsigned and stop there, so the upload path is tested without publishing anything.
 
 on:
   push:
     tags:
       - "holder-v*"
+  pull_request:
+    paths:
+      - .github/workflows/release-launchpad.yml
+      - core/packaging/linux/debian/**
+      - daemon/packaging/linux/**
   workflow_dispatch:
     inputs:
       packages:
@@ -109,7 +115,14 @@ jobs:
               | gzip -n > "../holder-core_${version}.orig.tar.gz"
           fi
 
+      - name: Build unsigned source package
+        if: github.event_name == 'pull_request'
+        run: |
+          debuild -S -d -us -uc
+          ls -l ../"${SOURCE}"_*
+
       - name: Import PPA signing key
+        if: github.event_name != 'pull_request'
         env:
           PPA_GPG_PRIVATE_KEY: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
         run: |
@@ -134,10 +147,12 @@ jobs:
           gpgconf --kill gpg-agent
 
       - name: Build signed source package
+        if: github.event_name != 'pull_request'
         env:
           DEBFULLNAME: Holder Team
           DEBEMAIL: holdercardteam@gmail.com
         run: debuild -S -d -k"$DEBSIGN_KEYID"
 
       - name: Upload to Launchpad PPA
+        if: github.event_name != 'pull_request'
         run: dput ppa:holderteam/holder "../${SOURCE}_"*_source.changes
