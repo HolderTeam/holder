@@ -35,6 +35,15 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(result["sdk_asset"]["sha256"], "b" * 64)
         self.assertEqual(result["release_tag"], "sdk-" + self.sha)
 
+    def test_same_run_sdk_records_the_backend_run_instead_of_a_release(self):
+        selection = {"source": "artifact", "commit": self.sha, "version": "0.2.0",
+                     "assets": self.selection["assets"]}
+        result = tool.verify(selection, self.core, "c" * 40, "d" * 40,
+                             backend_repository="HolderTeam/holder", backend_run_id="789")
+        self.assertEqual((result["source"], result["repository"]), ("artifact", "HolderTeam/holder"))
+        self.assertEqual(result["backend_run"], {"repository": "HolderTeam/holder", "run_id": "789"})
+        self.assertNotIn("release_tag", result)
+
     def test_stale_backend_cannot_pass_latest_green_selection(self):
         self.core["commit"] = "e" * 40
         with self.assertRaisesRegex(ValueError, "revision differs"):
@@ -79,14 +88,15 @@ class ProvenanceTests(unittest.TestCase):
             manifest = Path(directory) / "release.json"
             output = Path(directory) / "outputs"
             manifest.write_text(json.dumps(pin))
-            env = {"GITHUB_OUTPUT": str(output), "CORE_REF_INPUT": "latest-green",
+            env = {"GITHUB_OUTPUT": str(output),
                    "DESKTOP_REPOSITORY_INPUT": "HolderTeam/holder-desktop",
-                   "BACKEND_REPOSITORY_INPUT": "HolderTeam/holder-core"}
+                   "BACKEND_REPOSITORY_INPUT": "HolderTeam/holder"}
             args = ["core-provenance.py", "prepare", "--release-manifest", str(manifest)]
             with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", args):
                 tool.main()
                 values = dict(line.split("=", 1) for line in output.read_text().splitlines())
-                self.assertEqual(values["core_ref"], self.sha)
+                self.assertNotIn("core_ref", values)
+                self.assertEqual(values["build_type"], "RelWithDebInfo")
                 self.assertEqual(values["appimage_version"], "0.2.1-rc.1")
                 self.assertEqual(values["backend_run_id"], "123")
                 self.assertEqual(values["backend_repository"], "HolderTeam/holder-backend")

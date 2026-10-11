@@ -27,16 +27,11 @@ on:
         description: Repository containing the backend artifact
         required: true
         type: string
-        default: HolderTeam/holder-core
+        default: HolderTeam/holder
       release_manifest:
         description: Checked-in framework manifest pinning core and this platform's component runs
         required: false
         default: ""
-        type: string
-      core_ref:
-        description: Core SDK selection; latest-green, tag or full SHA
-        required: false
-        default: latest-green
         type: string
 
 permissions:
@@ -62,7 +57,6 @@ jobs:
         shell: bash
         env:
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
-          CORE_REF_INPUT: ${{ inputs.core_ref }}
           DESKTOP_RUN_ID_INPUT: ${{ inputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ inputs.backend_run_id }}
           DESKTOP_REPOSITORY_INPUT: ${{ inputs.desktop_repository }}
@@ -74,13 +68,6 @@ jobs:
           fi
           python3 sources/holder-framework/staging/scripts/core-provenance.py prepare \
             --platform macos "${options[@]}"
-
-      - name: Resolve core SDK once
-        id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: ${{ steps.pins.outputs.core_ref }}
 
       - name: Resolve artifact run IDs
         id: artifact_runs
@@ -120,6 +107,20 @@ jobs:
           repository: ${{ steps.pins.outputs.backend_repository }}
           run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
 
+      - name: Download the backend run's core selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: core-selection
+          path: out
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ steps.pins.outputs.backend_repository }}
+          run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Read the core the backend was built against
+        id: core
+        shell: bash
+        run: echo "commit=$(python3 -c 'import json; print(json.load(open("out/core-selection.json"))["commit"])')" >> "$GITHUB_OUTPUT"
+
       - name: Verify backend core and release pins
         shell: bash
         env:
@@ -135,6 +136,8 @@ jobs:
             --selection out/core-selection.json --platform macos \
             --backend-root downloads/backend --desktop-root downloads/desktop \
             --desktop-commit "$DESKTOP_COMMIT" --build-type "$BUILD_TYPE" \
+            --backend-repository "${{ steps.pins.outputs.backend_repository }}" \
+            --backend-run-id "${{ steps.artifact_runs.outputs.backend_run_id }}" \
             --output out/core-provenance.json "${options[@]}"
 
       - name: Install Homebrew runtime tools
