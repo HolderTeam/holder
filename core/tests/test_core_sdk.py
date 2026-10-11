@@ -181,6 +181,21 @@ class SDKTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checksum"):
             sdk.fetch(selection, self.root / "cache", "linux", "x86_64", "RelWithDebInfo", assets)
 
+    def test_cached_archives_of_one_tree_may_record_different_commits(self) -> None:
+        # Each platform's SDK is cached by core/'s tree on its own, so a run can restore the Linux
+        # SDK first built at one commit and the macOS SDK first built at another.
+        macos = {**self.manifest, "commit": "b" * 40, "platform": "macos", "architecture": "arm64"}
+        assets = self.write_assets(self.manifest, macos)
+        selection = sdk.index(assets, "c" * 40, "d" * 40)
+        self.assertEqual((selection["commit"], selection["core_tree"]), ("c" * 40, "d" * 40))
+        self.assertEqual({a["platform"]: a["commit"] for a in selection["assets"]},
+                         {"linux": COMMIT, "macos": "b" * 40})
+        installed = sdk.fetch(selection, self.root / "cache", "linux", "x86_64", "RelWithDebInfo", assets)
+        self.assertEqual(json.loads((installed / "libholder-manifest.json").read_text())["commit"], COMMIT)
+        selection["assets"][0]["commit"] = "e" * 40
+        with self.assertRaisesRegex(ValueError, "manifest commit"):
+            sdk.fetch(selection, self.root / "other cache", "linux", "x86_64", "RelWithDebInfo", assets)
+
     def test_artifact_index_rejects_mixed_commits_and_duplicates(self) -> None:
         for manifests, message in [((self.manifest, {**self.manifest, "commit": "b" * 40, "platform": "macos"}), "commit"),
                                    ((self.manifest, self.manifest), "Duplicate")]:
