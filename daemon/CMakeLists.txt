@@ -560,6 +560,7 @@ add_executable(holderctl
   ${HOLDER_CLI_DIR}/src/commands/MilestoneDateTime.cpp
   ${HOLDER_CLI_DIR}/src/commands/Support.cpp
   ${HOLDER_CLI_DIR}/src/commands/card.cpp
+  ${HOLDER_CLI_DIR}/src/commands/hierarchy.cpp
   ${HOLDER_CLI_DIR}/src/commands/history.cpp
   ${HOLDER_CLI_DIR}/src/commands/links.cpp
   ${HOLDER_CLI_DIR}/src/commands/milestones.cpp

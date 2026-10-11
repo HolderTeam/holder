@@ -10,17 +10,20 @@ from typing import TYPE_CHECKING, Any, Self
 from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
 from ..generated.api.default import (
+    delete_cards_card_id,
     get_cards_card_id,
     get_projects_project_id_cards,
     patch_cards_card_id,
     post_cards,
     post_cards_card_id_move,
+    post_cards_card_id_restore,
 )
 from ..generated.models import (
     CardCreateRequest,
     CardMoveIntent,
     CardMoveRequest,
     CardUpdateRequest,
+    DeleteCardsCardIdChildren,
 )
 from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
     GetProjectsProjectIdCardsParentType0 as CardParent,
@@ -239,4 +242,31 @@ class Card:
         self._project._holder._call(
             post_cards_card_id_move, self.id, body=body, write=True
         )
+        return self.refresh()
+
+    def trash(self, *, children: str = "promote") -> None:
+        """Move this card to Trash.
+
+        With children="promote" (the default), its live children take its place
+        among its siblings, keeping their own descendants. With
+        children="trash_subtree", every live descendant goes to Trash with it.
+        A trashed card cannot be read again until restored, so this object is
+        not refreshed. The write is never retried.
+        """
+        try:
+            policy = DeleteCardsCardIdChildren(children)
+        except ValueError:
+            raise ValueError('children must be "promote" or "trash_subtree"') from None
+        self._project._holder._call(
+            delete_cards_card_id, self.id, children=policy, write=True
+        )
+
+    def restore(self) -> Self:
+        """Restore this card from Trash, and refresh it.
+
+        Restoring is single-card: it returns to its saved parent when that
+        parent is live, otherwise to its nearest live ancestor or the top level.
+        Children promoted when it was trashed stay where they are.
+        """
+        self._project._holder._call(post_cards_card_id_restore, self.id, write=True)
         return self.refresh()

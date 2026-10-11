@@ -14,8 +14,10 @@ from ..generated.api.default import (
     get_projects_project_id,
     patch_projects_project_id,
     post_projects,
+    post_projects_project_id_repair_hierarchy,
 )
 from ..generated.models import (
+    HierarchyRepairRequest,
     ProjectCreateRequest,
     ProjectCreateRequestPrivacyMode,
     ProjectPrivacyMode,
@@ -107,6 +109,24 @@ class ProjectCollection(Collection["Project"]):
         return project
 
 
+@dataclass(frozen=True)
+class RepairedCard:
+    """A hidden branch's top card and where repair moves it (None: top level)."""
+
+    card_id: str
+    parent_card_id: str | None
+
+
+@dataclass(frozen=True)
+class HierarchyRepair:
+    """Cards hidden under missing or trashed parents, and what repair does."""
+
+    applied: bool
+    moved: list[RepairedCard]
+    changed_card_count: int
+    cycle_card_ids: list[str]
+
+
 @dataclass(frozen=True, eq=False)
 class Project:
     project_id: str
@@ -162,3 +182,26 @@ class Project:
             write=True,
         )
         return self.refresh()
+
+    def repair_hierarchy(self, *, apply: bool = False) -> HierarchyRepair:
+        """Find, and with apply=True fix, cards hidden under missing or trashed parents.
+
+        Each hidden branch moves to its nearest live ancestor (or the top level)
+        with its descendants, in one commit. Cards in parent cycles are only
+        reported. The daemon also repairs at startup, and every pull repairs
+        what it brings in. Cached listings need an explicit refresh.
+        """
+        if not isinstance(apply, bool):
+            raise TypeError("apply must be a bool")
+        data = self._holder._call(
+            post_projects_project_id_repair_hierarchy,
+            self.id,
+            body=HierarchyRepairRequest(apply=apply),
+            write=apply,
+        )
+        return HierarchyRepair(
+            applied=data.applied,
+            moved=[RepairedCard(m.card_id, m.parent_card_id) for m in data.moved],
+            changed_card_count=data.changed_card_count,
+            cycle_card_ids=list(data.cycle_card_ids),
+        )

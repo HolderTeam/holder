@@ -84,7 +84,26 @@ card.move(after=sibling)
 
 Relative moves adopt the target's parent, including when the target is a root.
 The daemon enforces hierarchy and project rules. Moves refresh the card; refresh
-previously evaluated listings explicitly.
+previously evaluated listings explicitly. A move may re-space nearby siblings'
+sort keys to make room, so refresh listings rather than patching one card.
+
+Trash and restore cards:
+
+```python
+card.trash()                         # its children move up a level
+card.trash(children="trash_subtree") # its live descendants go to Trash too
+card.restore()                       # single-card: children stay where they are
+```
+
+Find, and fix, cards hidden under missing or trashed parents (left by older
+clients, files removed by hand, or a sync bringing either in):
+
+```python
+repair = project.repair_hierarchy()           # report only
+repair = project.repair_hierarchy(apply=True) # move hidden branches back
+```
+
+The daemon also repairs at startup, and every pull repairs what it brings in.
 
 Search returns lazy, relevance-ordered results with matching snippets:
 

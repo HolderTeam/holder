@@ -67,6 +67,11 @@ def sync_detailed(
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Restore a card from trash
 
+     Restores this card only. It returns to its saved parent when that parent is live and reachable,
+    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
+    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
+    restored afterwards.
+
     Args:
         card_id (str):
 
@@ -96,6 +101,11 @@ def sync(
 ) -> CardPatchResponse | ErrorResponse | None:
     """Restore a card from trash
 
+     Restores this card only. It returns to its saved parent when that parent is live and reachable,
+    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
+    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
+    restored afterwards.
+
     Args:
         card_id (str):
 
@@ -119,6 +129,11 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Restore a card from trash
+
+     Restores this card only. It returns to its saved parent when that parent is live and reachable,
+    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
+    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
+    restored afterwards.
 
     Args:
         card_id (str):
@@ -146,6 +161,11 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> CardPatchResponse | ErrorResponse | None:
     """Restore a card from trash
+
+     Restores this card only. It returns to its saved parent when that parent is live and reachable,
+    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
+    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
+    restored afterwards.
 
     Args:
         card_id (str):

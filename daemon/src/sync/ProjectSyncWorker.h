@@ -32,6 +32,10 @@ class ProjectSyncWorker {
  private:
   long long now_epoch_seconds() const;
   void run_startup_pull_pass();
+  // Makes hidden cards reachable again in every project. Pulls repair what they bring in, so this
+  // catches what changed while the daemon was not running: a card file removed or edited by hand,
+  // or a project last opened by an older version.
+  void run_startup_repair_pass();
   int run_push_cycle(bool final_push = false);
 
   std::filesystem::path db_path_;

@@ -4597,3 +4597,115 @@ TEST_CASE(
     server.rethrow_error();
   }
 }
+
+TEST_CASE("holderctl moves, trashes subtrees and repairs hidden cards", "[holderctl]") {
+  const auto xdg_root = prepare_xdg_tree();
+  holder::test::EnvGuard data_env("XDG_DATA_HOME", (xdg_root / "data").string());
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (xdg_root / "config").string());
+  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (xdg_root / "cache").string());
+
+  const auto db_path = xdg_root / "holder.db";
+  auto db = holder::test::open_db_with_schema(db_path);
+  const auto project_root = xdg_root / "hierarchy-root";
+  std::filesystem::create_directories(project_root);
+  holder::test::create_project(db, "hierarchy-project", project_root.string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  auto create_card = [&](const std::string& card_id,
+                         const std::string& title,
+                         std::optional<std::string> parent = std::nullopt) {
+    holder::model::Card card;
+    card.card_id = card_id;
+    card.project_id = "hierarchy-project";
+    card.title = title;
+    card.parent_card_id = parent;
+    card.created_at = card.updated_at = 10;
+    card_store.create(card, title + " body\n");
+  };
+  create_card("root-a", "Root A");
+  create_card("folder", "Folder");
+  create_card("loose", "Loose");
+  create_card("branch", "Branch");
+  create_card("leaf", "Leaf", "branch");
+  create_card("gone", "Gone");
+  create_card("hidden", "Hidden", "gone");
+
+  const std::string token = "hierarchytoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& ex) {
+    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
+  }
+  holder::core::SignalHandler signals;
+  std::thread server_thread([&server, &signals]() {
+    server.run(signals);
+  });
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
+  const auto server_dir = xdg_root / "data" / "holder" / "server";
+  const auto info_path = server_dir / "holder.json";
+  write_server_info(info_path, static_cast<int>(::getpid()), static_cast<int>(bound.port), token);
+#ifndef _WIN32
+  ::chmod(server_dir.c_str(), S_IRWXU);
+  ::chmod(info_path.c_str(), S_IRUSR | S_IWUSR);
+#endif
+
+  const std::string bin = std::string("\"") + HOLDER_CTL_PATH + "\"";
+  REQUIRE(run_command(bin + " use hierarchy-project >/dev/null") == 0);
+  const auto out = xdg_root / "hierarchy.out";
+  const auto run = [&](const std::string& args) {
+    return run_command(bin + " " + args + " > \"" + out.string() + "\" 2>/dev/null");
+  };
+
+  // move
+  REQUIRE(run("move Loose --into Folder") == 0);
+  REQUIRE(read_text(out) == "Moved card loose into Folder\n");
+  REQUIRE(card_store.get("loose")->parent_card_id == "folder");
+  REQUIRE(run("move Loose --top-level") == 0);
+  REQUIRE(read_text(out) == "Moved card loose to the top level\n");
+  REQUIRE_FALSE(card_store.get("loose")->parent_card_id.has_value());
+  REQUIRE(run("move Loose --before 'Root A'") == 0);
+  REQUIRE(read_text(out) == "Moved card loose before root-a\n");
+  REQUIRE(card_store.get("loose")->sort_key < card_store.get("root-a")->sort_key);
+  REQUIRE(run("move Loose --after 'Root A' --json") == 0);
+  REQUIRE(nlohmann::json::parse(read_text(out))["data"]["card_id"] == "loose");
+  REQUIRE(card_store.get("loose")->sort_key > card_store.get("root-a")->sort_key);
+  for (const auto& bad :
+       {"move Loose",
+        "move Loose --into",
+        "move Loose --top-level --into Folder",
+        "move --top-level",
+        "move Loose Folder --top-level"}) {
+    REQUIRE(run(bad) == 1);
+  }
+
+  // trash --subtree
+  REQUIRE(run("trash list --subtree") == 1);
+  REQUIRE(run("trash Branch --subtree") == 0);
+  REQUIRE(read_text(out) == "Trashed card and its descendants: branch\n");
+  REQUIRE(card_store.get("branch")->deleted_at.has_value());
+  REQUIRE(card_store.get("leaf")->deleted_at.has_value());
+
+  // repair: hide a card under a parent trashed in the database only, as an older client left it.
+  holder::card::CardRepo(db).soft_delete("gone", 20, 20);
+  REQUIRE(run("repair --dry-run") == 0);
+  REQUIRE(
+      read_text(out) == "Would make 1 hidden card reachable:\n  hidden -> top level\n"
+                        "Run holderctl repair without --dry-run to apply.\n"
+  );
+  REQUIRE(card_store.get("hidden")->parent_card_id == "gone");
+  REQUIRE(run("repair") == 0);
+  REQUIRE(read_text(out) == "Made 1 hidden card reachable:\n  hidden -> top level\n");
+  REQUIRE_FALSE(card_store.get("hidden")->parent_card_id.has_value());
+  REQUIRE(run("repair --json") == 0);
+  const auto repaired = nlohmann::json::parse(read_text(out));
+  REQUIRE(repaired["data"]["applied"] == false);
+  REQUIRE(repaired["data"]["moved"].empty());
+  REQUIRE(run("repair") == 0);
+  REQUIRE(read_text(out) == "No hidden cards: every live card is reachable.\n");
+  REQUIRE(run("repair --now") == 1);
+
+  server.stop();
+  server_thread.join();
+}
