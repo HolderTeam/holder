@@ -1,0 +1,217 @@
+name: Core / SDK
+
+# Builds the libholder SDK from core/ in the calling commit, for the daemon and anything else that
+# uses core through its installed interface. Each SDK is cached by core/'s Git tree, so a change
+# outside core/ reuses it. The archives are uploaded as core-sdk-<platform>-<build type>, and the
+# core-selection artifact describes them for the core-sdk action, which fetches and verifies them.
+# Nothing is published: SDKs reach users only with a Holder release.
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        description: RelWithDebInfo for development; Release for shipping
+        type: string
+        default: RelWithDebInfo
+      platforms:
+        description: JSON list of platforms to build, from linux, macos and windows
+        type: string
+        default: '["linux", "macos", "windows"]'
+    outputs:
+      commit:
+        description: The commit recorded in the SDKs (the first commit with this core/ tree)
+        value: ${{ jobs.index.outputs.commit }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: core
+
+jobs:
+  sdk:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+    runs-on: ${{ matrix.platform == 'linux' && 'ubuntu-24.04' || matrix.platform == 'macos' && 'macos-15' || 'windows-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate SDK configuration
+        shell: bash
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: |
+          case "$BUILD_TYPE" in
+            RelWithDebInfo|Release) ;;
+            *) echo "Unsupported SDK configuration: $BUILD_TYPE" >&2; exit 1 ;;
+          esac
+
+      - id: tree
+        name: Identify core/'s tree
+        shell: bash
+        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+
+      - id: cache
+        name: Restore the SDK built from this tree
+        uses: actions/cache/restore@v4
+        with:
+          path: core/out/sdk-assets
+          key: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}-${{ steps.tree.outputs.tree }}-v1
+
+      - name: Install Linux dependencies
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake catch2 ninja-build pkg-config libssl-dev nlohmann-json3-dev \
+            libyaml-cpp-dev libspdlog-dev libsqlite3-dev libsodium-dev \
+            libgit2-dev libmd4c-dev libsecret-1-dev
+
+      - name: Install macOS dependencies
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
+        run: |
+          brew update
+          # The runner can have a manually linked OpenSSL 1.1 binary that brew unlink misses.
+          brew_prefix="$(brew --prefix)"
+          openssl_bin="$brew_prefix/bin/openssl"
+          if [[ -L "$openssl_bin" && "$(readlink "$openssl_bin")" == "$brew_prefix/opt/openssl@1.1/bin/openssl" ]]; then
+            unlink "$openssl_bin"
+          fi
+          brew install cmake catch2 ninja pkg-config nlohmann-json yaml-cpp \
+            spdlog sqlite libsodium libgit2 md4c openssl@3
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix);$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+
+      - name: Set up MSVC
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set vcpkg paths
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=${{ github.workspace }}\.vcpkg" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
+
+      - name: Restore vcpkg binary package cache
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-
+            vcpkg-${{ runner.os }}-
+
+      - name: Bootstrap vcpkg
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:VCPKG_ROOT"
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      - name: Configure Unix SDK
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: |
+          platform_options=()
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            platform_options=(-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0)
+          fi
+          cmake -S . -B out/sdk-build -G Ninja \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DHOLDER_CORE_SDK=ON -DHOLDER_CORE_BUILD_SHARED=OFF "${platform_options[@]}"
+
+      - name: Configure Windows SDK
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: |
+          cmake -S . -B out/sdk-build -G Ninja `
+            "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE" -DHOLDER_CORE_SDK=ON -DHOLDER_CORE_BUILD_SHARED=OFF `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:GITHUB_WORKSPACE/.vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            "-DVCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and test
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cmake --build out/sdk-build --parallel
+          ctest --test-dir out/sdk-build --output-on-failure
+
+      - name: Install SDK
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake --install out/sdk-build --prefix out/sdk-install
+
+      - name: Archive and smoke-test Unix SDK
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: >-
+          python3 scripts/package-sdk.py
+          --install out/sdk-install --output out/sdk-assets
+          --commit "$(git rev-parse HEAD)"
+
+      - name: Archive and smoke-test Windows SDK
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python scripts/package-sdk.py `
+            --install out/sdk-install --output out/sdk-assets `
+            --commit (git rev-parse HEAD) `
+            --vcpkg-installed "$env:GITHUB_WORKSPACE/vcpkg_installed" `
+            --vcpkg-root "$env:GITHUB_WORKSPACE/.vcpkg"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Save vcpkg binary package cache
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save the SDK for this tree
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: core/out/sdk-assets
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}
+          path: core/out/sdk-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  index:
+    needs: sdk
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.index.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: core-sdk-*-${{ inputs.build_type }}
+          path: core/out/core-sdk-assets
+          merge-multiple: true
+      - id: index
+        name: Describe this run's SDKs
+        run: python3 scripts/core-sdk.py index --assets out/core-sdk-assets --output out/core-selection.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-selection
+          path: core/out/core-selection.json
+          if-no-files-found: error
+          retention-days: 7

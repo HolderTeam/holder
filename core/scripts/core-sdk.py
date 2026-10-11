@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Resolve core once, then fetch a verified immutable SDK for each build host."""
+"""Resolve core once, then fetch a verified immutable SDK for each build host.
+
+A selection names either a published SDK release (resolve) or SDK archives built earlier in the
+same CI run (index); fetch verifies and unpacks the archive for this host from either source."""
 
 import argparse
 import hashlib
@@ -99,8 +102,9 @@ def selected_asset(selection, system, architecture, build_type):
     asset = matches[0]
     require(re.fullmatch(r"[0-9a-f]{64}", asset["sha256"]), "Invalid SDK checksum")
     require(PurePosixPath(asset["name"]).name == asset["name"], "Invalid SDK asset name")
-    require(asset["url"] == f"https://github.com/{REPOSITORY}/releases/download/{selection['release_tag']}/{asset['name']}",
-            "Unexpected SDK download URL")
+    if selection.get("source") != "artifact":
+        require(asset["url"] == f"https://github.com/{REPOSITORY}/releases/download/{selection['release_tag']}/{asset['name']}",
+                "Unexpected SDK download URL")
     return asset
 
 
@@ -123,13 +127,50 @@ def unpack(archive, destination):
             package.extractall(destination, **({"filter": "data"} if hasattr(tarfile, "data_filter") else {}))
 
 
-def fetch(selection, cache, system, architecture, build_type):
+def archive_manifest(archive):
+    """Read libholder-manifest.json from an SDK archive without unpacking the rest."""
+    name = "libholder-sdk/libholder-manifest.json"
+    if archive.name.endswith(".zip"):
+        with zipfile.ZipFile(archive) as package:
+            return json.loads(package.read(name))
+    with tarfile.open(archive, "r:gz") as package:
+        member = package.extractfile(name)
+        require(member is not None, "SDK archive lacks its manifest")
+        return json.loads(member.read())
+
+
+def index(assets_dir):
+    """Describe the SDK archives built earlier in this CI run as a selection that fetch accepts."""
+    archives = sorted(p for p in assets_dir.iterdir() if p.name.endswith((".tar.gz", ".zip")))
+    require(archives, f"No SDK archives in {assets_dir}")
+    assets, manifests = [], []
+    for archive in archives:
+        manifest = archive_manifest(archive)
+        manifests.append(manifest)
+        data = archive.read_bytes()
+        assets.append({"name": archive.name, "platform": manifest["platform"],
+                       "architecture": manifest["architecture"], "build_type": manifest["build_type"],
+                       "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    for key in ("commit", "version"):
+        require(len({m[key] for m in manifests}) == 1, f"SDK archives disagree on {key}")
+    require(re.fullmatch(r"[0-9a-f]{40}", manifests[0]["commit"]), "Invalid SDK commit")
+    configurations = [(a["platform"], a["architecture"], a["build_type"]) for a in assets]
+    require(len(set(configurations)) == len(configurations), "Duplicate SDK configurations")
+    return {"source": "artifact", "commit": manifests[0]["commit"], "version": manifests[0]["version"],
+            "assets": assets}
+
+
+def fetch(selection, cache, system, architecture, build_type, assets_dir=None):
     asset = selected_asset(selection, system, architecture, build_type)
     root = cache / selection["commit"] / system / architecture / build_type
     root.mkdir(parents=True, exist_ok=True)
     archive = root / asset["name"]
     if not archive.exists():
-        data = read_url(asset["url"])
+        if selection.get("source") == "artifact":
+            require(assets_dir is not None, "An artifact selection needs the directory of SDK archives")
+            data = (assets_dir / asset["name"]).read_bytes()
+        else:
+            data = read_url(asset["url"])
         require(len(data) == asset["size"] and hashlib.sha256(data).hexdigest() == asset["sha256"],
                 "Downloaded SDK checksum or size mismatch")
         archive.write_bytes(data)
@@ -165,15 +206,19 @@ def main():
     resolution = commands.add_parser("resolve")
     resolution.add_argument("--core-ref", default=os.environ.get("HOLDER_CORE_REF", "latest-green"))
     resolution.add_argument("--output", type=Path, default=Path("out/core-selection.json"))
+    indexing = commands.add_parser("index")
+    indexing.add_argument("--assets", type=Path, required=True)
+    indexing.add_argument("--output", type=Path, default=Path("out/core-selection.json"))
     download = commands.add_parser("fetch")
     download.add_argument("--selection", type=Path, default=Path("out/core-selection.json"))
     download.add_argument("--cache", type=Path, default=Path(".core-sdk"))
     download.add_argument("--build-type", choices=["Release", "RelWithDebInfo"], default="RelWithDebInfo")
     download.add_argument("--github-env", action="store_true")
     download.add_argument("--expected-commit", help="Require the run-wide resolved commit")
+    download.add_argument("--assets", type=Path, help="SDK archives for an artifact selection")
     args = parser.parse_args()
-    if args.command == "resolve":
-        selection = resolve(args.core_ref)
+    if args.command in ("resolve", "index"):
+        selection = resolve(args.core_ref) if args.command == "resolve" else index(args.assets)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(selection, indent=2) + "\n")
         print(selection["commit"])
@@ -184,7 +229,7 @@ def main():
         selection = json.loads(args.selection.read_text())
         if args.expected_commit:
             require(selection["commit"] == args.expected_commit, "SDK selection differs from the run-wide core commit")
-        sdk = fetch(selection, args.cache, *host(), args.build_type)
+        sdk = fetch(selection, args.cache, *host(), args.build_type, args.assets)
         cmake_args = ""
         if platform.system() == "Windows":
             cmake_args += (f' -DCMAKE_TOOLCHAIN_FILE="{sdk.as_posix()}/vcpkg/scripts/buildsystems/vcpkg.cmake"'

@@ -1,0 +1,35 @@
+name: Fetch the core SDK
+description: >-
+  Fetch and verify the libholder SDK that the Core / SDK workflow built earlier in this run, then
+  set HOLDER_CORE_SDK, CMAKE_ARGS and HOLDER_CORE_BUILD_TYPE for the build.
+inputs:
+  commit:
+    description: The commit Core / SDK reported, which the SDK must record
+    required: true
+  build-type:
+    description: RelWithDebInfo for development; Release for shipping
+    default: RelWithDebInfo
+outputs:
+  sdk:
+    description: Verified SDK installation path
+    value: ${{ steps.fetch.outputs.sdk }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: core-selection
+        path: out
+    - uses: actions/download-artifact@v4
+      with:
+        name: core-sdk-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}-${{ inputs.build-type }}
+        path: out/core-sdk-assets
+    - id: fetch
+      shell: bash
+      env:
+        CORE_COMMIT: ${{ inputs.commit }}
+        BUILD_TYPE: ${{ inputs.build-type }}
+      run: >-
+        python core/scripts/core-sdk.py fetch --selection out/core-selection.json
+        --assets out/core-sdk-assets --cache .core-sdk
+        --expected-commit "$CORE_COMMIT" --build-type "$BUILD_TYPE" --github-env

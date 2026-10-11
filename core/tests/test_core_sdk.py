@@ -155,6 +155,41 @@ class SDKTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "run-wide core commit"):
                     sdk.main()
 
+    def write_assets(self, *manifests: dict[str, str]) -> Path:
+        assets = self.root / "assets"
+        assets.mkdir(exist_ok=True)
+        for number, manifest in enumerate(manifests or (self.manifest,)):
+            (assets / f"libholder-{number}.tar.gz").write_bytes(self.archive(manifest))
+        return assets
+
+    def test_artifact_index_describes_archives_from_this_run(self) -> None:
+        assets = self.write_assets()
+        selection = sdk.index(assets)
+        self.assertEqual((selection["source"], selection["commit"], selection["version"]), ("artifact", COMMIT, "0.2.0"))
+        installed = sdk.fetch(selection, self.root / "cache", "linux", "x86_64", "RelWithDebInfo", assets)
+        self.assertEqual(json.loads((installed / "libholder-manifest.json").read_text()), self.manifest)
+
+    def test_artifact_fetch_never_downloads(self) -> None:
+        assets = self.write_assets()
+        with patch.object(sdk, "read_url", side_effect=AssertionError("unexpected download")):
+            sdk.fetch(sdk.index(assets), self.root / "cache", "linux", "x86_64", "RelWithDebInfo", assets)
+
+    def test_artifact_changed_after_indexing_is_rejected(self) -> None:
+        assets = self.write_assets()
+        selection = sdk.index(assets)
+        next(assets.iterdir()).write_bytes(b"damaged")
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            sdk.fetch(selection, self.root / "cache", "linux", "x86_64", "RelWithDebInfo", assets)
+
+    def test_artifact_index_rejects_mixed_commits_and_duplicates(self) -> None:
+        for manifests, message in [((self.manifest, {**self.manifest, "commit": "b" * 40, "platform": "macos"}), "commit"),
+                                   ((self.manifest, self.manifest), "Duplicate")]:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    sdk.index(self.write_assets(*manifests))
+                for archive in (self.root / "assets").iterdir():
+                    archive.unlink()
+
     def test_windows_package_configs_use_their_own_installation(self) -> None:
         triplet = self.root / "sdk/vcpkg/installed/x64-windows"
         config = triplet / "share/unofficial-sodium/unofficial-sodiumConfig.cmake"

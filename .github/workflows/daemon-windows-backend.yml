@@ -34,7 +34,7 @@ jobs:
         working-directory: daemon
         run: git submodule update --init --recursive -- submodules/caste
 
-      - uses: HolderTeam/holder-core/.github/actions/core-sdk@main
+      - uses: ./.github/actions/core-sdk
         with:
           commit: ${{ inputs.core_commit }}
           build-type: ${{ inputs.build_type }}

@@ -1,11 +1,11 @@
 name: Linux daemon build
 description: >-
-  Build holderd against a resolved core SDK and stage its installed tree in
-  daemon/out/artifacts/linux-backend. The caller checks out holder-framework and,
-  in the same run, resolves core with the core-sdk action.
+  Build holderd against the core SDK and stage its installed tree in
+  daemon/out/artifacts/linux-backend. The caller checks out holder and, earlier
+  in the same run, builds the SDK with the Core / SDK workflow.
 inputs:
   core-commit:
-    description: Resolved core commit
+    description: The commit Core / SDK reported
     required: true
   build-type:
     description: SDK and daemon configuration
@@ -21,7 +21,7 @@ runs:
       working-directory: daemon
       run: git submodule update --init --recursive -- submodules/caste
 
-    - uses: HolderTeam/holder-core/.github/actions/core-sdk@main
+    - uses: ./.github/actions/core-sdk
       with:
         commit: ${{ inputs.core-commit }}
         build-type: ${{ inputs.build-type }}

@@ -63,10 +63,17 @@ jobs:
       - run: ruff check scripts tests src/holder --exclude src/holder/generated
       - run: python -m pytest
       - run: python -m build
+  core-sdk:
+    # Only used when the staged daemon below is not cached and has to be built.
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    uses: ./.github/workflows/core-sdk.yml
+    with:
+      platforms: '["linux"]'
   live:
     # Live tests against a holderd built from this tree. Daemon CI saves that build on main,
     # so a Python-only change normally restores it; otherwise this job builds it once.
-    needs: changes
+    needs: [changes, core-sdk]
     if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-24.04
     env:
@@ -76,16 +83,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: latest-green
       - id: key
         name: Compute staged daemon cache key
-        env:
-          CORE_COMMIT: ${{ steps.core.outputs.commit }}
-        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE" "$CORE_COMMIT")" >> "$GITHUB_OUTPUT"
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE")" >> "$GITHUB_OUTPUT"
       - id: restore
         uses: actions/cache/restore@v4
         with:
@@ -99,7 +99,7 @@ jobs:
       - if: steps.restore.outputs.cache-hit != 'true'
         uses: ./.github/actions/linux-daemon-build
         with:
-          core-commit: ${{ steps.core.outputs.commit }}
+          core-commit: ${{ needs.core-sdk.outputs.commit }}
           build-type: ${{ env.BUILD_TYPE }}
           build-testing: 'OFF'
       - if: steps.restore.outputs.cache-hit != 'true'
@@ -124,7 +124,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when the
     # checks succeeded or were rightly skipped.
     if: always()
-    needs: [changes, check, live]
+    needs: [changes, check, core-sdk, live]
     runs-on: ubuntu-latest
     steps:
       - name: Check job results
@@ -135,4 +135,4 @@ jobs:
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
-            ([.check, .live] | all(.result == (if $selected == "true" then "success" else "skipped" end)))' <<< "$RESULTS" > /dev/null
+            ([.check, .["core-sdk"], .live] | all(.result == (if $selected == "true" then "success" else "skipped" end)))' <<< "$RESULTS" > /dev/null

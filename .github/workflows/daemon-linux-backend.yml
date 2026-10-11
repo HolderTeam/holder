@@ -255,14 +255,13 @@ jobs:
           retention-days: 7
 
       # Python / Check restores this tree to run its live tests without building the daemon.
-      # Saved only after every test above passed, and only for holder-framework's own runs.
+      # Saved only after every test above passed.
       - name: Compute staged daemon cache key
         id: daemon-cache
         if: github.repository == 'HolderTeam/holder'
         env:
           BUILD_TYPE: ${{ inputs.build_type }}
-          CORE_COMMIT: ${{ inputs.core_commit }}
-        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE" "$CORE_COMMIT")" >> "$GITHUB_OUTPUT"
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE")" >> "$GITHUB_OUTPUT"
 
       - name: Save staged daemon
         if: github.repository == 'HolderTeam/holder'

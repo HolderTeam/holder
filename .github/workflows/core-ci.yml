@@ -122,6 +122,9 @@ jobs:
           cmake --build out/consumer-shared --parallel
           ctest --test-dir out/consumer-shared --output-on-failure
 
+      - name: Test the SDK tooling
+        run: python3 -m unittest discover -s tests -p test_core_sdk.py -v
+
       - name: Coverage
         run: ./make.sh coverage
 
