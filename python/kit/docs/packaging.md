@@ -49,8 +49,9 @@ installed SDK-wheel smoke test, including `_core_build.json` validation.
 
 ### Release wheels
 
-[`release.yml`](../.github/workflows/release.yml) builds wheels for CPython
-3.10–3.14 and a source archive. Supported wheel platforms are:
+`Release / Kit to PyPI`
+([`release-kit-pypi.yml`](../../../.github/workflows/release-kit-pypi.yml))
+builds wheels for CPython 3.10–3.14 and a source archive. Supported wheel platforms are:
 
 | Platform | Architecture | Minimum runtime |
 | --- | --- | --- |
@@ -58,9 +59,11 @@ installed SDK-wheel smoke test, including `_core_build.json` validation.
 | Windows | x86_64 | Windows 10/11 |
 | macOS | ARM64 | macOS 15 |
 
-Release builds use the exact core commit and `Release` SDK configuration in
-[`release-core.json`](../release-core.json). Ordinary development CI continues
-to use latest-green. A Framework release should set this file to its core pin.
+Release builds use the `Release` core SDKs of the release's Daemon CI run (its
+`daemon_ci_run_id` input, dispatched with `core_build_type=Release` on the same
+commit), so Kit ships with exactly the core the daemon was built against.
+Without a run, for pull requests and trial builds, `Core / SDK` builds the
+Release SDKs in the same run from `core/` in that commit.
 
 Before building wheels and the source archive, the release workflow rewrites
 relative README links in its checkout to absolute URLs at the release commit.
@@ -82,11 +85,12 @@ notices are carried in the distribution's licence metadata.
 Each wheel is installed in a fresh virtualenv and tested before optional
 adapters are installed, then runs the installed integration tests. Linux also
 runs in clean Debian Python containers. The source archive is built and
-installed with the same pinned SDK. The final distribution check requires all
-15 wheels and the source archive, validates core identity and metadata, and
-records file sizes and SHA256 hashes in the `release-manifest` artifact.
+installed with the same Release SDK. The final distribution check requires all
+15 wheels and the source archive, checks each wheel's core against the SDKs'
+`core-selection`, validates metadata, and records the core and the file sizes
+and SHA256 hashes in the `kit-release-manifest` artifact.
 
-To inspect a candidate from the `release-distributions` artifact:
+To inspect a candidate from the `kit-release-distributions` artifact:
 
 ```sh
 python -m venv .venv
@@ -102,8 +106,11 @@ explicit [native source build](building.md).
 The manual workflow's `destination` defaults to `none`, which builds and tests
 candidates. `pypi` or `testpypi` publishes only after all distribution checks
 pass, using the corresponding GitHub environment and Trusted Publishing.
-Publication requires the matching version tag, such as `v0.0.1` for the
-version in `pyproject.toml`. Pull requests build candidates without publishing.
+Holder Kit is released with the rest of Holder, at the same version: publishing
+must run from the release's `holder-v<version>` tag, with the release's Daemon
+CI run, and requires the version in `pyproject.toml`, the repository's `VERSION`
+and core's version to equal it. Pull requests build candidates without
+publishing.
 
 ## Ubuntu packages
 

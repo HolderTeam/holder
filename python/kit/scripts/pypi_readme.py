@@ -3,18 +3,21 @@
 import argparse
 from pathlib import Path
 import re
+import subprocess
 from urllib.parse import quote, urlsplit, urlunsplit
 
 
 LINK = re.compile(r'(?P<image>!)?\[(?P<label>[^\]\n]+)\]\((?P<url>[^\s)]+)(?P<title>\s+"[^"\n]*")?\)')
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
-REPOSITORY = "HolderTeam/holder-kit"
+REPOSITORY = "HolderTeam/holder"
 
 
 def render_readme(content: str, root: Path, commit: str) -> str:
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("README links require the full release commit SHA")
     root = root.resolve()
+    # Links are resolved within the whole repository, so they may leave python/kit/.
+    top = Path(subprocess.check_output(["git", "-C", str(root), "rev-parse", "--show-toplevel"], text=True).strip()).resolve()
 
     def replace(match: re.Match[str]) -> str:
         target = match["url"]
@@ -22,7 +25,7 @@ def render_readme(content: str, root: Path, commit: str) -> str:
         if parts.scheme or parts.netloc or not parts.path:
             return match[0]
         path = (root / parts.path.lstrip("/")).resolve()
-        relative = path.relative_to(root).as_posix()
+        relative = path.relative_to(top).as_posix()
         if not path.exists():
             raise ValueError(f"README link target does not exist: {target}")
         if match["image"]:

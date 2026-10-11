@@ -9,6 +9,9 @@ inputs:
   build-type:
     description: RelWithDebInfo for development; Release for shipping
     default: RelWithDebInfo
+  run-id:
+    description: Another run of this repository to take the SDK from, such as a release's Daemon CI run; blank uses this run
+    default: ""
 outputs:
   sdk:
     description: Verified SDK installation path
@@ -20,10 +23,14 @@ runs:
       with:
         name: core-selection
         path: out
+        github-token: ${{ inputs.run-id && github.token || '' }}
+        run-id: ${{ inputs.run-id || github.run_id }}
     - uses: actions/download-artifact@v4
       with:
         name: core-sdk-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}-${{ inputs.build-type }}
         path: out/core-sdk-assets
+        github-token: ${{ inputs.run-id && github.token || '' }}
+        run-id: ${{ inputs.run-id || github.run_id }}
     - id: fetch
       shell: bash
       env:
