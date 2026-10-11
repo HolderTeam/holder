@@ -18,7 +18,12 @@ Rules-Requires-Root: no
 
 Package: python3-holder-kit
 Architecture: any
-Depends: ${python3:Depends}, ${shlibs:Depends}, ${misc:Depends}, git
+Depends: ${python3:Depends},
+ libholder0 (>= ${libholder:Upstream}),
+ libholder0 (<< ${libholder:Upstream}.~),
+ ${shlibs:Depends},
+ ${misc:Depends},
+ git
 Suggests: python3-pandas, python3-networkx
 Description: Python bindings for the Holder core library
  Embed Holder projects, cards and connections directly in Python applications.

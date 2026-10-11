@@ -1,11 +1,12 @@
 name: Release / Launchpad
 
 # Uploads the Ubuntu source packages for a Holder release to ppa:holderteam/holder:
-# holder-core (libholder0, libholder-dev) and holder-daemon, for each series. A holder-v* tag
-# uploads both. Launchpad orders the builds: holder-daemon waits for libholder-dev from the
-# same upload. A manual run can upload one package, for a packaging-only fix with a new
-# Debian revision. Pull requests that change the packaging build both source packages
-# unsigned and stop there, so the upload path is tested without publishing anything.
+# holder-core (libholder0, libholder-dev), holder-daemon and holder-kit (python3-holder-kit), for
+# each series. A holder-v* tag uploads all three. Launchpad orders the builds: holder-daemon and
+# holder-kit wait for libholder-dev from the same upload. A manual run can upload one package,
+# for a packaging-only fix with a new Debian revision. Pull requests that change the packaging
+# build the source packages unsigned and stop there, so the upload path is tested without
+# publishing anything.
 
 on:
   push:
@@ -16,13 +17,14 @@ on:
       - .github/workflows/release-launchpad.yml
       - core/packaging/linux/debian/**
       - daemon/packaging/linux/**
+      - python/kit/packaging/linux/**
   workflow_dispatch:
     inputs:
       packages:
         description: Source packages to upload
         type: choice
-        options: [both, core, daemon]
-        default: both
+        options: [all, core, daemon, kit]
+        default: all
       version:
         description: Optional expected upstream version, for example 0.3.0
         required: false
@@ -41,12 +43,12 @@ jobs:
       fail-fast: false
       matrix:
         series: [noble, resolute]
-        package: ${{ fromJSON(inputs.packages == 'core' && '["core"]' || inputs.packages == 'daemon' && '["daemon"]' || '["core", "daemon"]') }}
+        package: ${{ fromJSON(inputs.packages && inputs.packages != 'all' && format('["{0}"]', inputs.packages) || '["core", "daemon", "kit"]') }}
     defaults:
       run:
-        working-directory: ${{ matrix.package }}
+        working-directory: ${{ matrix.package == 'kit' && 'python/kit' || matrix.package }}
     env:
-      SOURCE: ${{ matrix.package == 'core' && 'holder-core' || 'holder-daemon' }}
+      SOURCE: ${{ matrix.package == 'core' && 'holder-core' || matrix.package == 'kit' && 'holder-kit' || 'holder-daemon' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,7 +61,7 @@ jobs:
       - name: Install Debian packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends devscripts debhelper dput gnupg equivs
+          sudo apt-get install -y --no-install-recommends devscripts debhelper dh-python dput gnupg equivs
 
       - name: Copy the contract, holderctl and shared sources into daemon/
         if: matrix.package == 'daemon'
@@ -78,8 +80,13 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Core and the daemon each read their own VERSION file until core takes the root one.
-          version="$(tr -d '[:space:]' < VERSION)"
+          # Core and the daemon each read their own VERSION file until core takes the root one;
+          # Kit's version is in its pyproject.toml.
+          if [ "$SOURCE" = holder-kit ]; then
+            version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          else
+            version="$(tr -d '[:space:]' < VERSION)"
+          fi
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Launchpad uploads need a stable numeric version; $SOURCE has '$version'" >&2
             exit 1
@@ -101,6 +108,21 @@ jobs:
           fi
           rm -rf debian build
           cp -a packaging/linux/debian debian
+          if [ "$SOURCE" = holder-kit ]; then
+            # Kit installs the schema of the core it is built against, so it builds against the
+            # libholder-dev of its own version; on Launchpad it waits for that from this upload.
+            core_version="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/core/VERSION")"
+            if [ "$core_version" != "$version" ]; then
+              if [ "$EVENT_NAME" = pull_request ]; then
+                echo "::warning::holder-kit is at $version but core is at $core_version; it cannot be uploaded until they match."
+              else
+                echo "holder-kit is at $version but core is at $core_version; they must match." >&2
+                exit 1
+              fi
+            fi
+            sed -i "s/libholder-dev (>= [^)]*)/libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)/" debian/control
+            grep -F "libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)" debian/control
+          fi
           package_version="${version}-${PACKAGE_REVISION}~${SERIES}1"
           cat > debian/changelog <<EOF
           ${SOURCE} (${package_version}) ${SERIES}; urgency=medium
@@ -109,12 +131,13 @@ jobs:
 
            -- Holder Team <holdercardteam@gmail.com>  $(date -R)
           EOF
-          if [ "$SOURCE" = holder-core ]; then
-            # The upstream tarball is core/ as committed, without the debian/ copied in above.
-            # git archive run from a subdirectory archives only that subdirectory of the tree it
-            # is given, so run it from the top of the checkout.
-            git -C "$GITHUB_WORKSPACE" archive --format=tar --prefix="holder-core-${version}/" HEAD:core \
-              | gzip -n > "../holder-core_${version}.orig.tar.gz"
+          if [ "$SOURCE" != holder-daemon ]; then
+            # The upstream tarball is the package's directory as committed, without the debian/
+            # copied in above. git archive run from a subdirectory archives only that subdirectory
+            # of the tree it is given, so run it from the top of the checkout.
+            directory="${{ matrix.package == 'kit' && 'python/kit' || matrix.package }}"
+            git -C "$GITHUB_WORKSPACE" archive --format=tar --prefix="${SOURCE}-${version}/" "HEAD:${directory}" \
+              | gzip -n > "../${SOURCE}_${version}.orig.tar.gz"
           fi
 
       - name: Build unsigned source package
