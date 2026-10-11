@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: holder-kit
-Source: https://github.com/HolderTeam/holder-kit
+Source: https://github.com/HolderTeam/holder
 
 Files: *
 Copyright: 2026 Holder Team
