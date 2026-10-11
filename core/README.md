@@ -259,8 +259,8 @@ application version. An incompatible public ABI change requires a new SONAME
 and runtime package name. The default remains static-only for existing source
 consumers.
 
-Tagged `v<VERSION>` releases produce static libholder SDK archives for Linux x86_64,
-macOS arm64, and Windows x86_64, each in `RelWithDebInfo` and `Release`.
+The `Core / SDK` workflow at the repository root builds static libholder SDK archives
+for Linux x86_64, macOS arm64 and Windows x86_64, in `RelWithDebInfo` or `Release`.
 Each archive has `include/`, `lib/`, CMake package files, the schema and
 welcome resource under `share/holder/`, and a
 `libholder-manifest.json` recording the exact commit, build type, platform,
@@ -283,58 +283,28 @@ those libraries. The project is not promising a stable C++ ABI across SDK
 releases yet, so each consumer build should resolve one exact SDK revision and
 verify its manifest.
 
-The `libholder SDK release` workflow builds, tests, installs, archives, and
-smoke-tests each configuration. A `v<VERSION>` tag publishes all six archives
-as GitHub Release assets after every matrix job succeeds. Manual workflow runs
-validate SDKs without publishing a release. Existing consumer builds continue
-to use source until the separate consumer migration is implemented.
+`Core / SDK` builds, tests, installs, archives and smoke-tests each
+configuration from `core/` in the calling commit, and caches each archive by
+`core/`'s Git tree. It uploads the archives and a `core-selection` index as
+artifacts of that run; nothing is published between releases. Daemon CI uses
+them to build the daemon against core from the same commit, and staging takes
+core from the Daemon CI run it stages.
 
-Development builds should follow the newest green core build automatically.
-After `Holder core` CI succeeds for a push to `main`, the SDK workflow checks
-out that exact commit and validates all six configurations. It then publishes
-a prerelease named `sdk-<full-commit-SHA>` containing the six archives and
-`sdk-index.json`. The index identifies the commit and core/SDK workflow runs,
-and lists each archive's platform, architecture, configuration, size, download
-URL, and SHA-256 checksum. Published snapshots are retained and never
-overwritten by this workflow.
+A Holder release attaches the `Release` archives that its daemon was built
+against: `Release / Promote core SDK` copies them, with their index, from the
+release's Daemon CI run to the `holder-v<VERSION>` release. Outside embedders use
+those, or build from source.
 
-The lightweight `latest-green` tag points to the newest fully published green
-snapshot. Failed candidates leave the previous snapshot available. Publication
-is queued and serialized, and an older completed run cannot move the pointer
-backward. Development consumers resolve this tag once per build or CI run:
+### SDK tool
 
-```sh
-gh api repos/HolderTeam/holder-core/git/ref/tags/latest-green --jq '.object.sha'
-```
-
-Download `sdk-index.json` from the `sdk-<resolved-SHA>` release, select the
-matching archive, check its SHA-256 checksum, and verify the archive's manifest
-against the resolved commit and configuration. Cache SDKs by that resolved
-commit and configuration, and resolve the pointer again for a new build. A
-whole Holder Framework RC or release pins an exact core version across its
-components; ordinary development does not require dependency version bumps.
-
-### Shared SDK consumer tool
-
-`scripts/core-sdk.py` provides selection, checksummed caching and archive/manifest
-validation for every consumer. Run it from the consumer's working directory:
-
-```sh
-python3 ../holder-core/scripts/core-sdk.py resolve
-export HOLDER_CORE_SDK="$(python3 ../holder-core/scripts/core-sdk.py fetch)"
-```
-
-`resolve --core-ref <version-tag-or-full-SHA>` pins a release. `fetch --build-type
-Release` selects shipping binaries; development defaults to `RelWithDebInfo`.
-The script writes `out/core-selection.json` once, then uses that immutable
-selection for every fetch. It never falls back to compiling core.
-
-GitHub consumers use `HolderTeam/holder-core/.github/actions/core-sdk@main`
-with `command: resolve` once, then pass its `commit` output to the action's
-default `fetch` operation in each platform job. The action transfers the
-selection artifact, caches the archive and exports `HOLDER_CORE_SDK`,
-`HOLDER_CORE_BUILD_TYPE` and Windows toolchain options in `CMAKE_ARGS`.
-Consumers select their generator and configure their own packaging tools.
+`scripts/core-sdk.py` checks and unpacks an SDK archive for a build. `index`
+describes the archives in a directory as a selection, and `fetch` verifies the
+archive for this host against the selection (size, SHA-256 checksum and
+manifest) and prints the unpacked SDK's path. The root `core-sdk` action runs
+`fetch` in CI and exports `HOLDER_CORE_SDK`, `HOLDER_CORE_BUILD_TYPE` and the
+Windows toolchain options in `CMAKE_ARGS`. `resolve` still selects the SDKs
+that the former holder-core repository published (`latest-green`, `sdk-<SHA>`
+and version tags), which remain available there.
 
 The installed CMake package exposes `holder_DATA_DIR`, `holder_SCHEMA_FILE`
 and `holder_WELCOME_FILE` alongside `Holder::Core` and `Holder::Shared`.
