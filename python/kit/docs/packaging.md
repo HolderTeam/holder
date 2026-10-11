@@ -15,16 +15,15 @@ The build backend is scikit-build-core, which invokes CMake to compile
 not stable-ABI wheels.
 
 ```sh
-./make.sh wheel Release           # build with local core source
-./make.sh --sdk wheel Release     # build with the selected core SDK
+./make.sh wheel Release           # build with ../../core from source
+./make.sh --sdk wheel Release     # build with the core SDK in HOLDER_CORE_SDK
 ```
 
-Both commands write wheels to `out/make/wheels`. For a manual SDK build, select
-a Release SDK and a matching build configuration:
+Both commands write wheels to `out/make/wheels`. For a manual SDK build, use a
+prepared Release SDK and a matching build configuration:
 
 ```sh
-python scripts/core-sdk.py resolve --core-ref <tag-or-full-SHA>
-export HOLDER_CORE_SDK="$(python scripts/core-sdk.py fetch --build-type Release)"
+export HOLDER_CORE_SDK=/path/to/release-sdk
 export SKBUILD_CMAKE_BUILD_TYPE=Release
 python -m pip install build
 python -m build --wheel --outdir dist
@@ -45,8 +44,8 @@ and checks the resulting wheel's platform compatibility as described below.
 Validate a wheel in a fresh virtualenv outside the source checkout: import
 `holderkit`, create temporary data, exercise the card lifecycle, and verify the
 schema and typing resources. Test base use before installing optional adapters.
-The Linux job in [`ci.yml`](../.github/workflows/ci.yml) provides the installed
-SDK-wheel smoke test, including `_core_build.json` validation.
+The Linux job in [Kit / CI](../../../.github/workflows/kit-ci.yml) provides the
+installed SDK-wheel smoke test, including `_core_build.json` validation.
 
 ### Release wheels
 

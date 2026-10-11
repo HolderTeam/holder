@@ -13,6 +13,7 @@ on:
       - .github/workflows/kit-ci.yml
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
+      - .github/scripts/check-core-boundary.py
   workflow_dispatch:
 
 permissions:
@@ -48,11 +49,26 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
+          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
           else
             echo "kit=false" >> "$GITHUB_OUTPUT"
           fi
+
+  checks:
+    # Fast checks that need no build: no paths or core headers across the core boundary.
+    needs: changes
+    if: needs.changes.outputs.kit == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check the core boundary
+        run: python3 .github/scripts/check-core-boundary.py
 
   core-sdk:
     # Kit builds against core from this same commit, through core's installed SDK.
@@ -353,7 +369,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, core-sdk, linux, macos, windows]
+    needs: [changes, checks, core-sdk, linux, macos, windows]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -368,7 +384,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.["core-sdk"], .linux, .macos, .windows] | all(.result == "success"))
+               ([.checks, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success"))
              else
-               ([.["core-sdk"], .linux, .macos, .windows] | all(.result == "skipped"))
+               ([.checks, .["core-sdk"], .linux, .macos, .windows] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
