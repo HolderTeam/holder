@@ -20,7 +20,7 @@ backend with `holderctl ensure`. There is no launcher.
 
 Run it manually from:
 
-https://github.com/HolderTeam/holder-framework/actions/workflows/staging-windows-stage.yml
+https://github.com/HolderTeam/holder/actions/workflows/staging-windows-stage.yml
 
 By default, staging resolves core's latest-green SDK and selects successful
 desktop and core daemon-integration runs on main. All selected
@@ -58,7 +58,7 @@ The Linux AppImage workflow combines the native Ubuntu 24.04 artifacts from
 `holder-desktop` and `holder-daemon`, bundles their GTK/GIO runtime, and uploads
 both an AppImage and its assembled AppDir:
 
-https://github.com/HolderTeam/holder-framework/actions/workflows/staging-linux-appimage-stage.yml
+https://github.com/HolderTeam/holder/actions/workflows/staging-linux-appimage-stage.yml
 
 All workflow inputs are optional. Development staging resolves core's
 `latest-green` SDK once and selects the newest successful desktop main artifact
@@ -70,7 +70,7 @@ still running. Retry after that check passes; it does not silently use older cor
 
 Run IDs, repositories, branches, `core_ref` (tag or full SHA), and the AppImage
 version can be overridden for compatibility testing. Set `backend_repository`
-to `HolderTeam/holder-framework` to select artifacts from its own `daemon-ci.yml` instead.
+to `HolderTeam/holder` to select artifacts from its own `daemon-ci.yml` instead.
 An explicit older core selection needs a backend run built against that revision.
 
 For an RC or release, commit a JSON manifest to this repository and supply its
@@ -140,7 +140,7 @@ How to manually test a prerelease development version of Holder, aka a "staged c
 
 1. Go to the Mac OS staged app action:
 
-https://github.com/HolderTeam/holder-framework/actions/workflows/staging-macos-stage.yml
+https://github.com/HolderTeam/holder/actions/workflows/staging-macos-stage.yml
 
 2. Click on the latest (or your target) successful run.
 

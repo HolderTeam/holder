@@ -31,7 +31,7 @@ def resolve(repository, workflow, branch, artifact, provided="", request=api):
 
 
 def backend_workflow(repository):
-    """Core publishes backends from its integration run; holder-framework from its own CI."""
+    """Core publishes backends from its integration run; HolderTeam/holder from its own CI."""
     return "daemon-integration.yml" if repository == "HolderTeam/holder-core" else "daemon-ci.yml"
 
 

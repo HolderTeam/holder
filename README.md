@@ -14,7 +14,7 @@ The goal is not simply to make another notes application. It is to provide a dur
 
 ## Getting Holder
 
-Download Holder for Windows, macOS or Linux from [holder.team](https://holder.team/), or from the [releases page](https://github.com/HolderTeam/holder-framework/releases).
+Download Holder for Windows, macOS or Linux from [holder.team](https://holder.team/), or from the [releases page](https://github.com/HolderTeam/holder/releases).
 
 ## In this repository
 

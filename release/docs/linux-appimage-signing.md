@@ -1,12 +1,12 @@
 # Linux AppImage signing
 
 `Release / Sign Linux AppImage` turns one exact, successful
-`HolderTeam/holder-framework` AppImage artifact into a signed and tested release
+`HolderTeam/holder` AppImage artifact into a signed and tested release
 candidate. It deliberately does not create or update a GitHub release.
 
 ## Trust boundary
 
-The workflow lives in `holder-framework`, separate from Holder's source and
+The workflow lives in `holder`, separate from Holder's source and
 component build repositories, so ordinary changes to those cannot also change
 the signing policy. Staging lives in this same repository, so the protection
 here is the environment rather than repository separation: configure the fixed
@@ -39,7 +39,7 @@ change.
 ## Required GitHub configuration
 
 Create an environment named exactly `linux-release-signing` in
-`HolderTeam/holder-framework` and add:
+`HolderTeam/holder` and add:
 
 - Environment secret `HOLDER_GPG_SIGNING_KEY_B64`: a base64 encoding of the
   exported private signing subkeys.
@@ -57,7 +57,7 @@ secrets.
 
 Cross-repository artifact downloads may also require the existing repository or
 organisation secret `HOLDER_CI_ARTIFACT_TOKEN`. It needs only Actions read access
-to `HolderTeam/holder-framework`; it is not a signing secret.
+to `HolderTeam/holder`; it is not a signing secret.
 
 ## Running the workflow
 
@@ -89,14 +89,14 @@ gpg --import Holder-linux-release-key.asc
 gpg --verify Holder-<version>-SHA256SUMS.asc Holder-<version>-SHA256SUMS
 sha256sum -c Holder-<version>-SHA256SUMS
 gh attestation verify Holder-<version>-x86_64.AppImage \
-  --repo HolderTeam/holder-framework
+  --repo HolderTeam/holder
 ```
 
-This repository was previously named `holder-release`, and an attestation
-records the repository name from the time it was signed. Releases up to and
-including 0.2.1 were signed under the old name, so verify those with
-`--repo HolderTeam/holder-release`. Later releases use
-`--repo HolderTeam/holder-framework`.
+This repository was previously named `holder-release` and then
+`holder-framework`, and an attestation records the repository name from the
+time it was signed. Releases up to and including 0.2.1 were signed as
+`holder-release`, so verify those with `--repo HolderTeam/holder-release`.
+Later releases use `--repo HolderTeam/holder`.
 
 The detached manifest signature is the straightforward end-user verification
 path. The AppImage also contains an embedded OpenPGP signature for AppImage-aware
