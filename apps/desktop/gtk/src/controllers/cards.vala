@@ -184,7 +184,7 @@ internal class CardsController : Object {
         }
     }
 
-    public async void move_card_to_trash(string card_id) {
+    public async void move_card_to_trash(string card_id, bool trash_subtree = false) {
         if (owner.api == null) {
             owner.error_reported("Move to trash unavailable", "API client is not connected.");
             return;
@@ -200,16 +200,19 @@ internal class CardsController : Object {
         }
 
         try {
-            yield owner.api.delete_card(card_id);
+            yield owner.api.delete_card(card_id, trash_subtree);
+            var moved_text = trash_subtree
+                ? "Moved \"%s\" and the cards inside it to Trash".printf(card_title)
+                : "Moved \"%s\" to Trash".printf(card_title);
             owner.emit_activity(
                 "result.card.trash",
-                "Moved \"%s\" to Trash".printf(card_title),
+                moved_text,
                 owner.current_project != null ? owner.current_project.project_id : null,
                 card_id,
                 new CardTrashedDetails(card_title)
             );
             owner.status_changed("Moved card to trash");
-            owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));
+            owner.toast_requested(moved_text);
             yield owner.reload_cards_for_selected_project();
             owner.card_trashed(card_id);
         } catch (Error e) {

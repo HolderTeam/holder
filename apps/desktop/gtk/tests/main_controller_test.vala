@@ -2994,6 +2994,28 @@ private void test_move_card_to_trash_success_emits_toast_and_signal() {
     assert(api.list_cards_calls > list_cards_before);
 }
 
+private void test_move_card_to_trash_subtree_passes_the_choice_on() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((text) => {
+        if (text == "Moved \"Card 1\" and the cards inside it to Trash") {
+            saw_toast = true;
+        }
+    });
+    controller.move_card_to_trash.begin("c1", true);
+    assert(wait_for_condition(() => saw_toast));
+    assert(api.delete_card_calls == 1);
+    assert(api.last_delete_trash_subtree);
+}
+
 private void test_move_card_to_trash_failure_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_delete_card = true;
@@ -3711,6 +3733,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/move_card_to_trash_success_emits_toast_and_signal",
         test_move_card_to_trash_success_emits_toast_and_signal
+    );
+    Test.add_func(
+        "/main_controller/move_card_to_trash_subtree_passes_the_choice_on",
+        test_move_card_to_trash_subtree_passes_the_choice_on
     );
     Test.add_func(
         "/main_controller/move_card_to_trash_failure_emits_error",

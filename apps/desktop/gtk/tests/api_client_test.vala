@@ -1612,6 +1612,12 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
     assert(ok_end);
 }
 
+private void test_delete_card_path_asks_for_subtree_only_when_chosen() {
+    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("c 1", false) == "/cards/c%201");
+    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("c 1", true) ==
+           "/cards/c%201?children=trash_subtree");
+}
+
 private void test_move_card_body_omits_absent_parent() {
     foreach (var intent in new string[] { "to_start", "to_end" }) {
         foreach (var parent in new string?[] { null, "", "  " }) {
@@ -2931,6 +2937,8 @@ int main(string[] args) {
                   test_move_card_posts_move_endpoint);
     Test.add_func("/api_client/move_card_to_start_and_to_end_accept_null_and_parent_scope",
                   test_move_card_to_start_and_to_end_accept_null_and_parent_scope);
+    Test.add_func("/api_client/delete_card_path_asks_for_subtree_only_when_chosen",
+                  test_delete_card_path_asks_for_subtree_only_when_chosen);
     Test.add_func("/api_client/move_card_body_omits_absent_parent",
                   test_move_card_body_omits_absent_parent);
     Test.add_func("/api_client/move_card_missing_data_is_protocol_error",

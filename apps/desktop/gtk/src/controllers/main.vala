@@ -345,8 +345,8 @@ public class MainController : Object, IAiRunContext {
         yield cards_controller.move_card_by_intent(card_id, intent, target_card_id, parent_card_id);
     }
 
-    public async void move_card_to_trash(string card_id) {
-        yield cards_controller.move_card_to_trash(card_id);
+    public async void move_card_to_trash(string card_id, bool trash_subtree = false) {
+        yield cards_controller.move_card_to_trash(card_id, trash_subtree);
     }
 
     public async void create_project_named(string name, string privacy_mode = "encrypted_git") {
