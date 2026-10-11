@@ -10,8 +10,8 @@ installed clients only need HTTPX, attrs and typing-extensions.
 
 ## Setup
 
-Requires Python 3.11 or newer. Run these commands from the `python/` directory of the
-holder-framework repository.
+Requires Python 3.11 or newer. Run these commands from the `python/holder/` directory of the
+holder repository.
 
 ```sh
 python3 -m venv .venv
@@ -185,10 +185,10 @@ python scripts/generate.py
 python scripts/generate.py --check
 
 # Also verify the snapshot against the owning contract (used by CI).
-python scripts/generate.py --check --source ../api/openapi.yaml
+python scripts/generate.py --check --source ../../api/openapi.yaml
 
 # Refresh after changes have been tested in the contract's owning repository.
-python scripts/generate.py --source ../api/openapi.yaml
+python scripts/generate.py --source ../../api/openapi.yaml
 ```
 
 The generator and Ruff versions are pinned in `pyproject.toml`. Generation runs

@@ -12,5 +12,5 @@ and `python scripts/generate.py --check` to verify them.
 `openapi/openapi.yaml` is a verbatim snapshot of the daemon's contract.
 Fix contract errors in `api/openapi.yaml` of this repository first, test them with the daemon,
 then refresh the snapshot with
-`python scripts/generate.py --source ../api/openapi.yaml`.
+`python scripts/generate.py --source ../../api/openapi.yaml`.
 Do not duplicate domain logic owned by the daemon or holder-core.
