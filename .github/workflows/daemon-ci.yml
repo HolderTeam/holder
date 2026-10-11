@@ -196,7 +196,12 @@ jobs:
           ldd build/holderd | grep 'libholder.so.0'
           ldd build/holderctl | grep 'libholder.so.0'
           package=$(find .. -maxdepth 1 -name 'holder-daemon_*.deb' -print -quit)
-          dpkg-deb -f "$package" Depends | grep 'libholder0'
+          # holderd uses core's C++ headers, so it must require libholder0 of the same upstream version.
+          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
+          depends=$(dpkg-deb -f "$package" Depends)
+          echo "$depends"
+          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
+          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
           test ! -d build/holder-core
           dpkg -i "$package"
           holderd --version
