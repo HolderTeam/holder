@@ -29,3 +29,20 @@ run and adds the AppImage, checksum manifest, manifest signature, and public
 key to the draft for that exact version tag. An existing published prerelease
 can also receive the assets when `allow_published_prerelease` is explicitly
 enabled. Existing release titles and descriptions are never edited by the workflow.
+
+## Core SDKs
+
+`Release / Promote core SDK` adds the core SDK archives to the draft for the
+exact version tag, creating the draft if no other promotion has. Give it the
+successful Daemon CI run, dispatched with `core_build_type=Release`, that the
+release's backends were staged from: it downloads that run's Release SDKs for
+Linux, macOS and Windows, checks them against the run's `core-selection` index
+and the release version, and uploads them with the index as
+`core-sdk-index.json`. The SDKs on the release are therefore the core the
+shipped daemon was built against. Nothing else publishes core SDKs.
+
+## Ubuntu packages
+
+`Release / Launchpad` uploads the `holder-core` and `holder-daemon` source
+packages to `ppa:holderteam/holder` for each `holder-v*` tag. See the comments
+at the top of `.github/workflows/release-launchpad.yml`.
