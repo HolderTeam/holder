@@ -4,7 +4,7 @@ The HTTP contract between the Holder daemon and its clients.
 
 - [`openapi.yaml`](openapi.yaml) - the OpenAPI description of every endpoint. It is the canonical
   contract: a change to the daemon's HTTP behaviour changes this file in the same pull request.
-  The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/`](../python/)
+  The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/holder/`](../python/holder/)
   is generated from a tested snapshot of it.
 - [`API_VERSION`](API_VERSION) - the compatibility version clients check (`MAJOR.MINOR`). It is
   separate from the release version in the root [`VERSION`](../VERSION). A client states the range

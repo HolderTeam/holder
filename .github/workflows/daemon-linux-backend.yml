@@ -48,7 +48,7 @@ jobs:
             --timeout 60
 
       - name: Test Python collections against the built daemon
-        working-directory: python
+        working-directory: python/holder
         env:
           HOLDER_TEST_DAEMON: ${{ github.workspace }}/daemon/build-linux/holderd
         run: |
