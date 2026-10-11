@@ -76,7 +76,7 @@ To control a running Holder installation through the Framework API, use
 [holder-python](https://github.com/HolderTeam/holder-framework/tree/main/python).
 
 Holder Kit is versioned independently from the
-[Holder Framework](https://github.com/HolderTeam/holder-framework) and
+[Holder Framework](https://github.com/HolderTeam/holder) and
 [core library](https://github.com/HolderTeam/holder-core).
 
 ## Examples
