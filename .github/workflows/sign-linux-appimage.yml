@@ -14,7 +14,7 @@ on:
       staging_repository:
         description: Repository containing the staged Linux AppImage artifact
         required: false
-        default: HolderTeam/holder-framework
+        default: HolderTeam/holder
         type: string
       staging_artifact_name:
         description: Name of the staged Linux AppImage artifact

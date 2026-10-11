@@ -30,7 +30,7 @@ class RunSelectionTests(unittest.TestCase):
 
     def test_backend_workflow_follows_repository(self):
         self.assertEqual(tool.backend_workflow("HolderTeam/holder-core"), "daemon-integration.yml")
-        self.assertEqual(tool.backend_workflow("HolderTeam/holder-framework"), "daemon-ci.yml")
+        self.assertEqual(tool.backend_workflow("HolderTeam/holder"), "daemon-ci.yml")
 
     def test_explicit_failed_run_is_rejected(self):
         def request(path, **query):

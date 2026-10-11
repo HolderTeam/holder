@@ -56,7 +56,7 @@ jobs:
       daemon: ${{ steps.select.outputs.daemon }}
     env:
       # holder-core calls this workflow from its own pull requests; those build everything.
-      SCOPED: ${{ github.event_name == 'pull_request' && github.repository == 'HolderTeam/holder-framework' }}
+      SCOPED: ${{ github.event_name == 'pull_request' && github.repository == 'HolderTeam/holder' }}
     steps:
       - if: env.SCOPED == 'true'
         uses: actions/checkout@v4
@@ -88,8 +88,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: HolderTeam/holder-framework
-          ref: ${{ github.repository == 'HolderTeam/holder-framework' && github.sha || inputs.daemon_ref || 'main' }}
+          repository: HolderTeam/holder
+          ref: ${{ github.repository == 'HolderTeam/holder' && github.sha || inputs.daemon_ref || 'main' }}
           persist-credentials: false
       - name: Validate SDK configuration
         env:
@@ -129,7 +129,7 @@ jobs:
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   ubuntu-packages:
-    if: github.repository == 'HolderTeam/holder-framework' && inputs.core_build_type != 'Release'
+    if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release'
     needs: resolve
     strategy:
       fail-fast: false
@@ -167,7 +167,7 @@ jobs:
           apt-get update
       - uses: actions/checkout@v4
         with:
-          repository: HolderTeam/holder-framework
+          repository: HolderTeam/holder
           ref: ${{ needs.resolve.outputs.daemon_commit }}
           persist-credentials: false
       - if: env.CORE_PACKAGES == 'source'

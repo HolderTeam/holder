@@ -25,7 +25,7 @@ jobs:
       - name: Check out holder-framework
         uses: actions/checkout@v4
         with:
-          repository: HolderTeam/holder-framework
+          repository: HolderTeam/holder
           ref: ${{ inputs.daemon_commit }}
           persist-credentials: false
 

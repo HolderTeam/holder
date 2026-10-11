@@ -11,7 +11,7 @@ on:
         description: Repository containing the Windows staging artifact
         required: true
         type: string
-        default: HolderTeam/holder-framework
+        default: HolderTeam/holder
       staging_artifact_name:
         description: Name of the Windows tester installer artifact
         required: true
