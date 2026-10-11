@@ -24,7 +24,7 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 - [`cli/`](cli/) - `holderctl`, the command line client, including `holderctl ensure`.
 - [`common/`](common/) - platform code shared by the daemon and `holderctl`.
 - [`staging/`](staging/) - assembles and checks build artifacts for each platform.
-- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), an experimental Python client for the Holder daemon's HTTP API.
+- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), an experimental Python client for the Holder daemon's HTTP API, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
 - [`release/`](release/) - signing, verification and publishing of releases.
 
 ## Version

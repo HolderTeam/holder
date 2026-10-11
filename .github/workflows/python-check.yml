@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'python/**'
+      - 'python/holder/**'
       - 'api/openapi.yaml'
       - '.github/workflows/python-check.yml'
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(python/|api/openapi\.yaml$|\.github/workflows/python-check\.yml$)' <<< "$changed"; then
+          if grep -qE '^(python/holder/|api/openapi\.yaml$|\.github/workflows/python-check\.yml$)' <<< "$changed"; then
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
             echo "python=false" >> "$GITHUB_OUTPUT"
