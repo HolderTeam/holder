@@ -48,8 +48,6 @@ def load_pin(path, platform="linux"):
 
 def verify(selection, core, desktop_commit, backend_commit, pin=None, platform="linux", architecture="x86_64",
            expected_build_type=None, backend_repository=None, backend_run_id=None):
-    require(core["commit"] == selection["commit"],
-            "Backend core revision differs from the selected SDK; choose a matching backend run")
     require(core["version"] == selection["version"], "Backend core version differs from selected SDK")
     require(core["platform"] == platform and core["architecture"] == architecture,
             f"Package requires the {platform} {architecture} SDK")
@@ -58,10 +56,13 @@ def verify(selection, core, desktop_commit, backend_commit, pin=None, platform="
               asset["architecture"] == core["architecture"] and
               asset["build_type"] == core["build_type"]]
     require(len(assets) == 1, "Backend SDK configuration is absent from the core selection")
+    # A same-run selection records the commit each cached archive was built at (same core/ tree).
+    require(core["commit"] == assets[0].get("commit", selection["commit"]),
+            "Backend core revision differs from the selected SDK; choose a matching backend run")
     if expected_build_type:
         require(core["build_type"] == expected_build_type, "Backend SDK build type differs from selected configuration")
     if pin:
-        require(core["commit"] == pin["core"]["commit"] and
+        require(selection["commit"] == pin["core"]["commit"] and
                 core["build_type"] == pin["core"]["build_type"], "Backend does not match release core pin")
         require(desktop_commit == pin["desktop"]["commit"], "Desktop does not match release pin")
         require(backend_commit == pin["backend"]["commit"], "Backend does not match release pin")

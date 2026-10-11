@@ -44,6 +44,16 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(result["backend_run"], {"repository": "HolderTeam/holder", "run_id": "789"})
         self.assertNotIn("release_tag", result)
 
+    def test_same_run_selection_checks_each_backend_against_its_own_archive(self):
+        # The cached Linux SDK may have been built at an earlier commit with the same core/ tree.
+        asset = {**self.selection["assets"][0], "commit": "e" * 40}
+        selection = {"source": "artifact", "commit": self.sha, "version": "0.2.0", "assets": [asset]}
+        self.core["commit"] = "e" * 40
+        tool.verify(selection, self.core, "c" * 40, "d" * 40, pin=self.pin)
+        self.core["commit"] = self.sha
+        with self.assertRaisesRegex(ValueError, "revision differs"):
+            tool.verify(selection, self.core, "c" * 40, "d" * 40)
+
     def test_stale_backend_cannot_pass_latest_green_selection(self):
         self.core["commit"] = "e" * 40
         with self.assertRaisesRegex(ValueError, "revision differs"):
