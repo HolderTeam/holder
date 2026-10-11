@@ -4,7 +4,6 @@
 **/__pycache__/
 *.egg-info/
 *.so
-/.core-sdk/
 /out/
 /dist/
 /debian/
