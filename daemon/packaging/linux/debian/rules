@@ -12,5 +12,11 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	# Tests are covered by CI; package builds disable BUILD_TESTING.
 
+# holderd uses core's C++ headers, which have no stable ABI across versions (only the C API
+# does), so it needs the libholder0 from the same upstream version it was built against. Any
+# Debian revision of that version is accepted, so a packaging-only libholder0 fix still installs.
+override_dh_gencontrol:
+	dh_gencontrol -- -Vlibholder:Upstream=$$(dpkg-query -W -f='$${source:Upstream-Version}' libholder0)
+
 %:
 	dh $@ --buildsystem=cmake+ninja --builddirectory=build
