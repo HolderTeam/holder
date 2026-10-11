@@ -1,0 +1,1055 @@
+#if __has_include(<catch2/catch_test_macros.hpp>)
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#else
+#include <catch2/catch.hpp>
+#endif
+
+#include "card/CardRepo.h"
+#include "card/TagRepo.h"
+#include "model/Card.h"
+#include "model/Project.h"
+#include "platform/Db.h"
+#include "project/ProjectRepo.h"
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <sqlite3.h>
+#include <string>
+#include <thread>
+#include <vector>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
+namespace {
+
+std::filesystem::path find_schema_sql() {
+#ifdef SCHEMA_SQL_PATH
+  std::filesystem::path p = SCHEMA_SQL_PATH;
+  if (std::filesystem::exists(p)) return p;
+#endif
+  namespace fs = std::filesystem;
+  fs::path p1 = fs::current_path() / "schema" / "schema.sql";
+  if (fs::exists(p1)) return p1;
+  fs::path p2 = fs::current_path().parent_path() / "schema" / "schema.sql";
+  if (fs::exists(p2)) return p2;
+  throw std::runtime_error("schema.sql not found for tests");
+}
+
+std::filesystem::path make_temp_dir() {
+  const auto base = std::filesystem::temp_directory_path();
+  auto pattern = (base / "holder_card_test_XXXXXX").string();
+  std::vector<char> writable(pattern.begin(), pattern.end());
+  writable.push_back('\0');
+
+#ifndef _WIN32
+  char* created = ::mkdtemp(writable.data());
+  if (created == nullptr) {
+    throw std::runtime_error("mkdtemp failed creating holder_card_test temp dir");
+  }
+  return std::filesystem::path(created);
+#else
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    const auto suffix = std::to_string(
+        static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count())
+    );
+    auto dir = base / ("holder_card_test_" + suffix);
+    std::error_code ec;
+    if (std::filesystem::create_directory(dir, ec)) {
+      return dir;
+    }
+    if (ec && ec != std::errc::file_exists) {
+      throw std::filesystem::filesystem_error("create_directory", dir, ec);
+    }
+  }
+  throw std::runtime_error("failed to create unique holder_card_test temp dir");
+#endif
+}
+
+void apply_schema(holder::platform::Db& db) {
+  const auto schema_path = find_schema_sql();
+  std::ifstream in(schema_path);
+  REQUIRE(in.is_open());
+  std::string sql((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  db.exec(sql);
+}
+
+void create_project(holder::platform::Db& db, const std::string& project_id) {
+  holder::project::ProjectRepo repo(db);
+  holder::model::Project project;
+  project.project_id = project_id;
+  project.name = "Project";
+  project.root_path = "/tmp/project";
+  project.created_at = 1;
+  project.updated_at = 1;
+  repo.create(project);
+}
+
+void create_card(
+    holder::card::CardRepo& repo,
+    const std::string& card_id,
+    const std::string& project_id,
+    const std::string& title,
+    const std::optional<long long>& deleted_at = std::nullopt
+) {
+  holder::model::Card card;
+  card.card_id = card_id;
+  card.project_id = project_id;
+  card.title = title;
+  card.rel_path = "cards/" + card_id + ".md";
+  card.created_at = 1;
+  card.updated_at = 1;
+  card.deleted_at = deleted_at;
+  repo.create(card);
+}
+
+int sqlite_interrupt_cb(void* data) {
+  auto* flag = static_cast<int*>(data);
+  return (flag && *flag) ? 1 : 0;
+}
+
+} // namespace
+
+TEST_CASE(
+    "CardRepo tag-filtered collection pages walk card_id order across pages",
+    "[cardrepo][collection-pages]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "p");
+  create_project(db, "other");
+  holder::card::CardRepo repo(db);
+  holder::card::TagRepo tags(db);
+  for (const auto& id : {"a", "b", "c", "d", "e", "f", "g"}) {
+    create_card(repo, id, "p", id);
+    // Untagged cards sit between tagged ones; "e" is tagged but then trashed.
+    if (std::string("acegf").find(id) != std::string::npos)
+      tags.set_tags_for_card("p", id, {"work"}, 1);
+  }
+  repo.soft_delete("e", 2, 2);
+  create_card(repo, "bb", "other", "bb");
+  tags.set_tags_for_card("other", "bb", {"work"}, 1);
+  repo.move("g", "a", 0, 3);
+
+  holder::card::CardPageQuery query;
+  query.tag = "work";
+  std::vector<std::string> seen;
+  for (int pages = 0; pages < 10; ++pages) {
+    const auto page = repo.list_collection_page("p", query, 2);
+    for (const auto& card : page)
+      seen.push_back(card.card_id);
+    if (page.size() < 2) break;
+    query.cursor = holder::card::CardPageCursor{page.back().card_id, page.back().updated_at};
+  }
+  CHECK(seen == std::vector<std::string>{"a", "c", "f", "g"});
+
+  query.cursor.reset();
+  query.parent = holder::card::CardPageRoots{};
+  auto page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 3);
+  CHECK(page[2].card_id == "f");
+  query.parent = holder::card::CardPageChildrenOf{"a"};
+  page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 1);
+  CHECK(page[0].card_id == "g");
+  db.close();
+}
+
+TEST_CASE(
+    "CardRepo card_id and recent pages keep their cursor conventions",
+    "[cardrepo][collection-pages]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "p");
+  holder::card::CardRepo repo(db);
+  for (const auto& id : {"a", "b", "c"})
+    create_card(repo, id, "p", id);
+  repo.touch_updated("b", 5);
+
+  const auto ids = [](const std::vector<holder::model::Card>& cards) {
+    std::vector<std::string> out;
+    for (const auto& card : cards)
+      out.push_back(card.card_id);
+    return out;
+  };
+  using Ids = std::vector<std::string>;
+  // An empty card_id cursor selects the first page, as no cursor does.
+  CHECK(ids(repo.list_page_by_card_id("p", std::string(), 2)) == Ids{"a", "b"});
+  CHECK(ids(repo.list_page_by_card_id("p", std::nullopt, 2)) == Ids{"a", "b"});
+  CHECK(ids(repo.list_page_by_card_id("p", std::string("b"), 2)) == Ids{"c"});
+
+  // Most recent first, card_id descending among ties.
+  CHECK(ids(repo.list_recent_page("p", std::nullopt, std::nullopt, 10)) == Ids{"b", "c", "a"});
+  CHECK(ids(repo.list_recent_page("p", 1, std::string("c"), 10)) == Ids{"a"});
+  // A card_id without updated_at selects the first page; updated_at needs a card_id.
+  CHECK(ids(repo.list_recent_page("p", std::nullopt, std::string("c"), 1)) == Ids{"b"});
+  CHECK_THROWS_AS(repo.list_recent_page("p", 1, std::nullopt, 10), std::invalid_argument);
+  CHECK_THROWS_AS(repo.list_recent_page("p", 1, std::string(), 10), std::invalid_argument);
+  db.close();
+}
+
+TEST_CASE(
+    "CardRepo collection pages combine filters and stable ordering",
+    "[cardrepo][collection-pages]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "p");
+  create_project(db, "other");
+  holder::card::CardRepo repo(db);
+  holder::card::TagRepo tags(db);
+  for (const auto& id : {"a", "b", "c", "d"}) {
+    create_card(repo, id, "p", id);
+    tags.set_tags_for_card("p", id, {"work"}, 1);
+  }
+  create_card(repo, "foreign", "other", "foreign");
+  repo.move("b", "a", 0, 20);
+  repo.move("c", "a", 0, 20);
+  repo.soft_delete("d", 30, 30);
+  holder::card::CardPageQuery query;
+  auto page = repo.list_collection_page("p", query, 2);
+  REQUIRE(page.size() == 2);
+  CHECK(page[0].card_id == "a");
+  CHECK(page[1].card_id == "b");
+  query.cursor = holder::card::CardPageCursor{"b", 1};
+  page = repo.list_collection_page("p", query, 2);
+  REQUIRE(page.size() == 1);
+  CHECK(page[0].card_id == "c");
+  query.cursor.reset();
+  query.tag = "Work";
+  query.parent = holder::card::CardPageChildrenOf{"a"};
+  query.order = holder::card::CardPageOrder::UpdatedDesc;
+  page = repo.list_collection_page("p", query, 1);
+  REQUIRE(page.size() == 1);
+  CHECK(page[0].card_id == "c");
+  query.cursor = holder::card::CardPageCursor{"c", 20};
+  query.tag = "WORK";
+  page = repo.list_collection_page("p", query, 2);
+  REQUIRE(page.size() == 1);
+  CHECK(page[0].card_id == "b");
+  query.cursor.reset();
+  query.parent = holder::card::CardPageRoots{};
+  page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 1);
+  CHECK(page[0].card_id == "a");
+  // A retained tag-index entry must never make a soft-deleted card visible.
+  query.parent = holder::card::CardPageAll{};
+  page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 3);
+  for (const auto& card : page)
+    CHECK_FALSE(card.deleted_at.has_value());
+  query.tag = "missing";
+  CHECK(repo.list_collection_page("p", query, 10).empty());
+  for (const auto& invalid : {"", "#work", "work space", "deadbeef"}) {
+    query.tag = invalid;
+    CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  }
+  query.tag = "work";
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 0), std::invalid_argument);
+  query.cursor = holder::card::CardPageCursor{"", 0};
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  db.close();
+  query.cursor.reset();
+  CHECK_THROWS(repo.list_collection_page("p", query, 10));
+}
+
+TEST_CASE("Collection roots match existing roots and totals", "[cardrepo][collection-pages]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "p");
+  holder::card::CardRepo repo(db);
+  create_card(repo, "root", "p", "root");
+  create_card(repo, "imported", "p", "imported");
+  create_card(repo, "trashed-root", "p", "trashed-root", 2);
+  // Reproduce an older/imported row with an empty-string parent.
+  db.exec("PRAGMA foreign_keys = OFF;");
+  db.exec("UPDATE cards SET parent_card_id = '' WHERE card_id = 'imported';");
+  db.exec("PRAGMA foreign_keys = ON;");
+  holder::card::CardPageQuery query;
+  query.parent = holder::card::CardPageRoots{};
+  const auto roots = repo.list_collection_page("p", query, 10);
+  REQUIRE(roots.size() == 1);
+  CHECK(roots.front().card_id == "root");
+  CHECK(repo.count_roots_not_deleted("p") == static_cast<int>(roots.size()));
+  query.parent = holder::card::CardPageAll{};
+  CHECK(repo.list_collection_page("p", query, 10).size() == 2);
+}
+
+TEST_CASE(
+    "Collection cursors require the fields used by their order",
+    "[cardrepo][collection-pages]"
+) {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "p");
+  holder::card::CardRepo repo(db);
+  create_card(repo, "a", "p", "a");
+  create_card(repo, "b", "p", "b");
+  repo.touch_updated("a", 0);
+  repo.touch_updated("b", 0);
+  holder::card::CardPageQuery query;
+  query.cursor = holder::card::CardPageCursor{"a", std::nullopt};
+  auto page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 1);
+  CHECK(page.front().card_id == "b");
+  query.order = static_cast<holder::card::CardPageOrder>(99);
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  query.cursor.reset();
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  query.order = holder::card::CardPageOrder::CardIdAsc;
+  query.parent = holder::card::CardPageChildrenOf{""};
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  query.parent = holder::card::CardPageAll{};
+  query.cursor = holder::card::CardPageCursor{"a", std::nullopt};
+  query.order = holder::card::CardPageOrder::UpdatedDesc;
+  CHECK_THROWS_AS(repo.list_collection_page("p", query, 10), std::invalid_argument);
+  query.cursor = holder::card::CardPageCursor{"b", 0};
+  page = repo.list_collection_page("p", query, 10);
+  REQUIRE(page.size() == 1);
+  CHECK(page.front().card_id == "a");
+}
+
+TEST_CASE("CardRepo CRUD", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card card;
+  card.card_id = "card-1";
+  card.project_id = "proj-1";
+  card.title = "First";
+  card.rel_path = "cards/ca/rd/card-1.md";
+  card.sort_key = 1.0;
+  card.created_at = 10;
+  card.updated_at = 10;
+
+  repo.create(card);
+
+  const auto fetched = repo.get("card-1");
+  REQUIRE(fetched.has_value());
+  REQUIRE(fetched->title == "First");
+  REQUIRE(fetched->parent_card_id.has_value() == false);
+
+  auto list_root = repo.list_roots("proj-1");
+  REQUIRE(list_root.size() == 1);
+
+  holder::model::Card child;
+  child.card_id = "card-2";
+  child.project_id = "proj-1";
+  child.title = "Child";
+  child.rel_path = "cards/ca/rd/card-2.md";
+  child.parent_card_id = "card-1";
+  child.sort_key = 2.0;
+  child.created_at = 11;
+  child.updated_at = 11;
+  repo.create(child);
+
+  list_root = repo.list_roots("proj-1");
+  REQUIRE(list_root.size() == 1);
+
+  auto list_child = repo.list_children("proj-1", "card-1");
+  REQUIRE(list_child.size() == 1);
+  REQUIRE(list_child[0].card_id == "card-2");
+
+  repo.update_title("card-1", "Renamed", 20);
+  const auto renamed = repo.get("card-1");
+  REQUIRE(renamed.has_value());
+  REQUIRE(renamed->title == "Renamed");
+  REQUIRE(renamed->updated_at == 20);
+
+  repo.move("card-2", std::nullopt, 3.0, 30);
+  list_root = repo.list_roots("proj-1");
+  REQUIRE(list_root.size() == 2);
+
+  repo.soft_delete("card-2", 40, 41);
+  const auto deleted = repo.get("card-2");
+  REQUIRE(deleted.has_value());
+  REQUIRE(deleted->deleted_at.has_value());
+  REQUIRE(deleted->deleted_at.value() == 40);
+  REQUIRE(deleted->updated_at == 41);
+}
+
+TEST_CASE("CardRepo finds an exact card ID within project and deletion scope", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_project(db, "proj-2");
+
+  holder::card::CardRepo repo(db);
+  const std::string live_id = "11111111-1111-4111-8111-111111111111";
+  const std::string trashed_id = "22222222-2222-7222-8222-222222222222";
+  create_card(repo, live_id, "proj-1", "Live card");
+  create_card(repo, trashed_id, "proj-1", "Trashed card", 50);
+
+  const auto live = repo.find_by_id("proj-1", live_id, holder::model::CardScope::Live);
+  REQUIRE(live.has_value());
+  REQUIRE(live->card_id == live_id);
+  REQUIRE(live->title == "Live card");
+  REQUIRE_FALSE(live->deleted_at.has_value());
+  REQUIRE_FALSE(repo.find_by_id("proj-1", live_id, holder::model::CardScope::Trashed));
+
+  const auto trashed = repo.find_by_id("proj-1", trashed_id, holder::model::CardScope::Trashed);
+  REQUIRE(trashed.has_value());
+  REQUIRE(trashed->deleted_at == 50);
+  REQUIRE_FALSE(repo.find_by_id("proj-1", trashed_id, holder::model::CardScope::Live));
+
+  REQUIRE(repo.find_by_id("proj-1", live_id, holder::model::CardScope::Either));
+  REQUIRE(repo.find_by_id("proj-1", trashed_id, holder::model::CardScope::Either));
+  REQUIRE_FALSE(repo.find_by_id("proj-2", live_id, holder::model::CardScope::Either));
+}
+
+TEST_CASE("CardRepo finds literal leading card ID prefixes with a limit", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_project(db, "proj-2");
+
+  holder::card::CardRepo repo(db);
+  const std::string first_id = "12345678-1234-4123-8123-123456789abc";
+  const std::string second_id = "12345678-1234-7123-8123-123456789abd";
+  const std::string trashed_id = "12345678-9999-4999-8999-999999999999";
+  const std::string fragment_id = "aaaaaaaa-1234-4123-8123-123456781234";
+  create_card(repo, first_id, "proj-1", "First");
+  create_card(repo, second_id, "proj-1", "Second");
+  create_card(repo, trashed_id, "proj-1", "Trashed", 50);
+  create_card(repo, fragment_id, "proj-1", "Fragment only");
+  create_card(repo, "12345678-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "proj-2", "Other project");
+
+  const auto live =
+      repo.find_by_id_prefix("proj-1", "12345678", holder::model::CardScope::Live, 10);
+  REQUIRE(live.size() == 2);
+  REQUIRE(live[0].card_id == first_id);
+  REQUIRE(live[1].card_id == second_id);
+
+  const auto trashed =
+      repo.find_by_id_prefix("proj-1", "12345678", holder::model::CardScope::Trashed, 10);
+  REQUIRE(trashed.size() == 1);
+  REQUIRE(trashed[0].card_id == trashed_id);
+
+  const auto either =
+      repo.find_by_id_prefix("proj-1", "12345678", holder::model::CardScope::Either, 10);
+  REQUIRE(either.size() == 3);
+  REQUIRE(std::none_of(either.begin(), either.end(), [&](const auto& card) {
+    return card.card_id == fragment_id;
+  }));
+
+  REQUIRE(
+      repo.find_by_id_prefix("proj-1", "12345678", holder::model::CardScope::Either, 1).size() == 1
+  );
+  REQUIRE(repo.find_by_id_prefix("proj-1", "12345678", holder::model::CardScope::Either, 0).empty()
+  );
+}
+
+TEST_CASE("CardRepo finds exact titles within project and deletion scope", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_project(db, "proj-2");
+
+  holder::card::CardRepo repo(db);
+  create_card(repo, "31111111-1111-4111-8111-111111111111", "proj-1", "Roadmap");
+  create_card(repo, "32222222-2222-4222-8222-222222222222", "proj-1", "Roadmap");
+  create_card(repo, "33333333-3333-7333-8333-333333333333", "proj-1", "Roadmap", 50);
+  create_card(repo, "34444444-4444-4444-8444-444444444444", "proj-1", "Roadmaps");
+  create_card(repo, "35555555-5555-4555-8555-555555555555", "proj-1", "roadmap");
+  create_card(repo, "36666666-6666-4666-8666-666666666666", "proj-2", "Roadmap");
+
+  const auto live =
+      repo.find_by_exact_title("proj-1", "Roadmap", holder::model::CardScope::Live, 10);
+  REQUIRE(live.size() == 2);
+  REQUIRE(live[0].title == "Roadmap");
+  REQUIRE(live[1].title == "Roadmap");
+  REQUIRE_FALSE(live[0].deleted_at.has_value());
+  REQUIRE_FALSE(live[1].deleted_at.has_value());
+
+  const auto trashed =
+      repo.find_by_exact_title("proj-1", "Roadmap", holder::model::CardScope::Trashed, 10);
+  REQUIRE(trashed.size() == 1);
+  REQUIRE(trashed[0].deleted_at == 50);
+
+  REQUIRE(
+      repo.find_by_exact_title("proj-1", "Roadmap", holder::model::CardScope::Either, 10).size() ==
+      3
+  );
+  REQUIRE(
+      repo.find_by_exact_title("proj-1", "Roadmap", holder::model::CardScope::Either, 1).size() == 1
+  );
+  REQUIRE(
+      repo.find_by_exact_title("proj-1", "Roadmaps", holder::model::CardScope::Either, 10).size() ==
+      1
+  );
+  REQUIRE(repo.find_by_exact_title("proj-1", "Road", holder::model::CardScope::Either, 10).empty());
+  REQUIRE(
+      repo.find_by_exact_title("proj-1", "ROADMAP", holder::model::CardScope::Either, 10).empty()
+  );
+  REQUIRE(
+      repo.find_by_exact_title("proj-2", "Roadmap", holder::model::CardScope::Either, 10).size() ==
+      1
+  );
+  REQUIRE(repo.find_by_exact_title("proj-1", "Roadmap", holder::model::CardScope::Either, 0).empty()
+  );
+}
+
+TEST_CASE("CardRepo counts children and handles deleted_at on create", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card parent;
+  parent.card_id = "parent-1";
+  parent.project_id = "proj-1";
+  parent.title = "Parent";
+  parent.rel_path = "cards/pa/re/parent-1.md";
+  parent.sort_key = 1.0;
+  parent.created_at = 1;
+  parent.updated_at = 1;
+  repo.create(parent);
+
+  holder::model::Card child_visible;
+  child_visible.card_id = "child-1";
+  child_visible.project_id = "proj-1";
+  child_visible.title = "Child 1";
+  child_visible.rel_path = "cards/ch/il/child-1.md";
+  child_visible.parent_card_id = parent.card_id;
+  child_visible.sort_key = 2.0;
+  child_visible.created_at = 2;
+  child_visible.updated_at = 2;
+  repo.create(child_visible);
+
+  holder::model::Card child_deleted;
+  child_deleted.card_id = "child-2";
+  child_deleted.project_id = "proj-1";
+  child_deleted.title = "Child 2";
+  child_deleted.rel_path = "cards/ch/il/child-2.md";
+  child_deleted.parent_card_id = parent.card_id;
+  child_deleted.sort_key = 3.0;
+  child_deleted.created_at = 3;
+  child_deleted.updated_at = 3;
+  child_deleted.deleted_at = 99; // exercises bind_int64_optional(value.has_value())
+  repo.create(child_deleted);
+
+  REQUIRE(repo.count_all_not_deleted("proj-1") == 2);
+  REQUIRE(repo.count_roots_not_deleted("proj-1") == 1);
+  REQUIRE(repo.count_children_not_deleted("proj-1", parent.card_id) == 1);
+
+  repo.restore("child-2", 100);
+  const auto restored = repo.get("child-2");
+  REQUIRE(restored.has_value());
+  REQUIRE_FALSE(restored->deleted_at.has_value());
+  REQUIRE(restored->updated_at == 100);
+  REQUIRE(repo.count_children_not_deleted("proj-1", parent.card_id) == 2);
+
+  repo.remove("child-2");
+  REQUIRE_FALSE(repo.get("child-2").has_value());
+  REQUIRE(repo.count_all_not_deleted("proj-1") == 2);
+}
+
+TEST_CASE("CardRepo throws sqlite error when DB handle is invalid", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+  db.close();
+
+  holder::model::Card card;
+  card.card_id = "invalid-db";
+  card.project_id = "proj-1";
+  card.title = "Broken";
+  card.rel_path = "cards/in/va/invalid-db.md";
+  card.sort_key = 1.0;
+  card.created_at = 1;
+  card.updated_at = 1;
+
+  REQUIRE_THROWS_WITH(
+      repo.create(card),
+      Catch::Matchers::ContainsSubstring("prepare insert card failed: unknown sqlite error")
+  );
+}
+
+TEST_CASE("CardRepo create throws on duplicate primary key", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card card;
+  card.card_id = "dupe-card";
+  card.project_id = "proj-1";
+  card.title = "First";
+  card.rel_path = "cards/du/pe/dupe-card.md";
+  card.sort_key = 1.0;
+  card.created_at = 1;
+  card.updated_at = 1;
+
+  repo.create(card);
+  REQUIRE_THROWS_WITH(
+      repo.create(card),
+      Catch::Matchers::ContainsSubstring(
+          "insert card failed: UNIQUE constraint failed: cards.project_id, cards.rel_path"
+      )
+  );
+}
+
+TEST_CASE("CardRepo methods throw sqlite errors when DB is closed", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card card;
+  card.card_id = "closed-db-card";
+  card.project_id = "proj-1";
+  card.title = "Closed";
+  card.rel_path = "cards/cl/os/closed-db-card.md";
+  card.sort_key = 1.0;
+  card.created_at = 1;
+  card.updated_at = 1;
+
+  db.close();
+
+  REQUIRE_THROWS_WITH(
+      repo.get("missing"),
+      Catch::Matchers::ContainsSubstring("prepare get card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.find_by_id("proj-1", "missing", holder::model::CardScope::Either),
+      Catch::Matchers::ContainsSubstring("prepare find card by id failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.find_by_id_prefix("proj-1", "missing", holder::model::CardScope::Either, 10),
+      Catch::Matchers::ContainsSubstring(
+          "prepare find cards by id prefix failed: unknown sqlite error"
+      )
+  );
+  REQUIRE_THROWS_WITH(
+      repo.find_by_exact_title("proj-1", "Missing", holder::model::CardScope::Either, 10),
+      Catch::Matchers::ContainsSubstring(
+          "prepare find cards by exact title failed: unknown sqlite error"
+      )
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_roots("proj-1"),
+      Catch::Matchers::ContainsSubstring("prepare list cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_children("proj-1", "parent"),
+      Catch::Matchers::ContainsSubstring("prepare list child cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_all("proj-1"),
+      Catch::Matchers::ContainsSubstring("prepare list all cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_all_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("prepare count all cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_roots_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("prepare count root cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_children_not_deleted("proj-1", "parent"),
+      Catch::Matchers::ContainsSubstring("prepare count child cards failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::nullopt),
+      Catch::Matchers::ContainsSubstring("prepare next sort_key failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::optional<std::string>("parent")),
+      Catch::Matchers::ContainsSubstring("prepare next sort_key failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.update_title("card-1", "Title", 2),
+      Catch::Matchers::ContainsSubstring("prepare update card title failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.touch_updated("card-1", 2),
+      Catch::Matchers::ContainsSubstring("prepare touch card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.soft_delete("card-1", 3, 4),
+      Catch::Matchers::ContainsSubstring("prepare soft delete card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.restore("card-1", 5),
+      Catch::Matchers::ContainsSubstring("prepare restore card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.restore_snapshot(card),
+      Catch::Matchers::ContainsSubstring(
+          "prepare restore card snapshot failed: unknown sqlite error"
+      )
+  );
+  REQUIRE_THROWS_WITH(
+      repo.remove("card-1"),
+      Catch::Matchers::ContainsSubstring("prepare delete card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.move("card-1", std::nullopt, 1.5, 6),
+      Catch::Matchers::ContainsSubstring("prepare move card failed: unknown sqlite error")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_recent_page("proj-1", std::nullopt, std::nullopt, 10),
+      Catch::Matchers::ContainsSubstring("prepare card collection page failed: unknown sqlite error"
+      )
+  );
+}
+
+TEST_CASE("CardRepo read/count queries throw on interrupted sqlite step", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card parent;
+  parent.card_id = "parent-int";
+  parent.project_id = "proj-1";
+  parent.title = "Parent";
+  parent.rel_path = "cards/pa/re/parent-int.md";
+  parent.sort_key = 1.0;
+  parent.created_at = 1;
+  parent.updated_at = 1;
+  repo.create(parent);
+
+  holder::model::Card child;
+  child.card_id = "child-int";
+  child.project_id = "proj-1";
+  child.title = "Child";
+  child.rel_path = "cards/ch/il/child-int.md";
+  child.parent_card_id = "parent-int";
+  child.sort_key = 2.0;
+  child.created_at = 2;
+  child.updated_at = 2;
+  repo.create(child);
+
+  int interrupt_on = 1;
+  sqlite3_progress_handler(db.handle(), 1, sqlite_interrupt_cb, &interrupt_on);
+
+  REQUIRE_THROWS_WITH(
+      repo.get("parent-int"),
+      Catch::Matchers::ContainsSubstring("get card failed: interrupted")
+  );
+  // SQLite 3.41+ can report the interrupt while preparing the statement, earlier versions while
+  // stepping it. The operation name and "interrupted" are the stable part; the phase is not.
+  REQUIRE_THROWS_WITH(
+      repo.list_roots("proj-1"),
+      Catch::Matchers::ContainsSubstring("list cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_children("proj-1", "parent-int"),
+      Catch::Matchers::ContainsSubstring("list child cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_all("proj-1"),
+      Catch::Matchers::ContainsSubstring("list all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_all_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_roots_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count root cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_children_not_deleted("proj-1", "parent-int"),
+      Catch::Matchers::ContainsSubstring("count child cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::nullopt),
+      Catch::Matchers::ContainsSubstring("next sort_key failed: interrupted") ||
+          Catch::Matchers::ContainsSubstring("next sort_key query failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::optional<std::string>("parent-int")),
+      Catch::Matchers::ContainsSubstring("next sort_key failed: interrupted") ||
+          Catch::Matchers::ContainsSubstring("next sort_key query failed: interrupted")
+  );
+
+  sqlite3_progress_handler(db.handle(), 0, nullptr, nullptr);
+}
+
+TEST_CASE("CardRepo list/count/next_sort throw on interrupted step under load", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  // Seed enough rows to ensure SELECTs execute enough VM ops for interrupt callback.
+  for (int i = 0; i < 500; ++i) {
+    holder::model::Card c;
+    c.card_id = "root-int-" + std::to_string(i);
+    c.project_id = "proj-1";
+    c.title = "Root";
+    c.rel_path = "cards/ro/ot/root-int-" + std::to_string(i) + ".md";
+    c.sort_key = static_cast<double>(i);
+    c.created_at = i + 1;
+    c.updated_at = i + 1;
+    repo.create(c);
+  }
+
+  holder::model::Card parent;
+  parent.card_id = "parent-heavy";
+  parent.project_id = "proj-1";
+  parent.title = "Parent";
+  parent.rel_path = "cards/pa/re/parent-heavy.md";
+  parent.sort_key = 1000.0;
+  parent.created_at = 1;
+  parent.updated_at = 1;
+  repo.create(parent);
+
+  for (int i = 0; i < 500; ++i) {
+    holder::model::Card c;
+    c.card_id = "child-heavy-" + std::to_string(i);
+    c.project_id = "proj-1";
+    c.title = "Child";
+    c.rel_path = "cards/ch/il/child-heavy-" + std::to_string(i) + ".md";
+    c.parent_card_id = parent.card_id;
+    c.sort_key = static_cast<double>(i);
+    c.created_at = i + 10;
+    c.updated_at = i + 10;
+    repo.create(c);
+  }
+
+  int interrupt_on = 1;
+  sqlite3_progress_handler(db.handle(), 1, sqlite_interrupt_cb, &interrupt_on);
+
+  // SQLite 3.41+ can report the interrupt while preparing the statement, earlier versions while
+  // stepping it. The operation name and "interrupted" are the stable part; the phase is not.
+  REQUIRE_THROWS_WITH(
+      repo.list_roots("proj-1"),
+      Catch::Matchers::ContainsSubstring("list cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_children("proj-1", "parent-lock"),
+      Catch::Matchers::ContainsSubstring("list child cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_all("proj-1"),
+      Catch::Matchers::ContainsSubstring("list all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_all_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_roots_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count root cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_children_not_deleted("proj-1", "parent-lock"),
+      Catch::Matchers::ContainsSubstring("count child cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::nullopt),
+      Catch::Matchers::ContainsSubstring("next sort_key failed: interrupted") ||
+          Catch::Matchers::ContainsSubstring("next sort_key query failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.next_sort_key("proj-1", std::optional<std::string>("parent-lock")),
+      Catch::Matchers::ContainsSubstring("next sort_key failed: interrupted") ||
+          Catch::Matchers::ContainsSubstring("next sort_key query failed: interrupted")
+  );
+
+  sqlite3_progress_handler(db.handle(), 0, nullptr, nullptr);
+}
+
+TEST_CASE("CardRepo update/delete/move throw when sqlite step aborts", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+  holder::model::Card card;
+  card.card_id = "abort-card";
+  card.project_id = "proj-1";
+  card.title = "Abort";
+  card.rel_path = "cards/ab/or/abort-card.md";
+  card.sort_key = 1.0;
+  card.created_at = 1;
+  card.updated_at = 1;
+  repo.create(card);
+
+  // Force sqlite3_step failures for UPDATE and DELETE (prepare still succeeds).
+  db.exec("CREATE TRIGGER cards_fail_update BEFORE UPDATE ON cards "
+          "BEGIN SELECT RAISE(ABORT, 'blocked update'); END;");
+  db.exec("CREATE TRIGGER cards_fail_delete BEFORE DELETE ON cards "
+          "BEGIN SELECT RAISE(ABORT, 'blocked delete'); END;");
+
+  REQUIRE_THROWS_WITH(
+      repo.update_title(card.card_id, "New", 2),
+      Catch::Matchers::ContainsSubstring("update card title failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.touch_updated(card.card_id, 3),
+      Catch::Matchers::ContainsSubstring("touch card failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.soft_delete(card.card_id, 4, 5),
+      Catch::Matchers::ContainsSubstring("soft delete card failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.restore(card.card_id, 6),
+      Catch::Matchers::ContainsSubstring("restore card failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.restore_snapshot(card),
+      Catch::Matchers::ContainsSubstring("restore card snapshot failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.move(card.card_id, std::nullopt, 2.0, 7),
+      Catch::Matchers::ContainsSubstring("move card failed: blocked update")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.remove(card.card_id),
+      Catch::Matchers::ContainsSubstring("delete card failed: blocked delete")
+  );
+}
+
+TEST_CASE("CardRepo read/count queries throw when sqlite step hits locked database", "[cardrepo]") {
+  const auto dir = make_temp_dir();
+  const auto db_path = dir / "holder.db";
+
+  holder::platform::Db db;
+  db.open(db_path);
+  apply_schema(db);
+  create_project(db, "proj-1");
+
+  holder::card::CardRepo repo(db);
+
+  holder::model::Card parent;
+  parent.card_id = "parent-lock";
+  parent.project_id = "proj-1";
+  parent.title = "Parent";
+  parent.rel_path = "cards/pa/re/parent-lock.md";
+  parent.sort_key = 1.0;
+  parent.created_at = 1;
+  parent.updated_at = 1;
+  repo.create(parent);
+
+  for (int i = 0; i < 128; ++i) {
+    holder::model::Card root;
+    root.card_id = "root-lock-" + std::to_string(i);
+    root.project_id = "proj-1";
+    root.title = "Root";
+    root.rel_path = "cards/ro/ot/root-lock-" + std::to_string(i) + ".md";
+    root.sort_key = static_cast<double>(i + 10);
+    root.created_at = i + 10;
+    root.updated_at = i + 10;
+    repo.create(root);
+
+    holder::model::Card child;
+    child.card_id = "child-lock-" + std::to_string(i);
+    child.project_id = "proj-1";
+    child.title = "Child";
+    child.rel_path = "cards/ch/il/child-lock-" + std::to_string(i) + ".md";
+    child.parent_card_id = "parent-lock";
+    child.sort_key = static_cast<double>(i + 10);
+    child.created_at = i + 10;
+    child.updated_at = i + 10;
+    repo.create(child);
+  }
+
+  int interrupt_on = 1;
+  sqlite3_progress_handler(db.handle(), 1, sqlite_interrupt_cb, &interrupt_on);
+
+  // SQLite 3.41+ can report the interrupt while preparing the statement, earlier versions while
+  // stepping it. The operation name and "interrupted" are the stable part; the phase is not.
+  REQUIRE_THROWS_WITH(
+      repo.list_roots("proj-1"),
+      Catch::Matchers::ContainsSubstring("list cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_children("proj-1", "parent-lock"),
+      Catch::Matchers::ContainsSubstring("list child cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.list_all("proj-1"),
+      Catch::Matchers::ContainsSubstring("list all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_all_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count all cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_roots_not_deleted("proj-1"),
+      Catch::Matchers::ContainsSubstring("count root cards failed: interrupted")
+  );
+  REQUIRE_THROWS_WITH(
+      repo.count_children_not_deleted("proj-1", "parent-lock"),
+      Catch::Matchers::ContainsSubstring("count child cards failed: interrupted")
+  );
+
+  sqlite3_progress_handler(db.handle(), 0, nullptr, nullptr);
+}

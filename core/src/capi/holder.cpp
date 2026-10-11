@@ -1,0 +1,5196 @@
+#include "holder/holder.h"
+
+#include "card/CardPlacementResolver.h"
+#include "card/CardReferenceResolver.h"
+#include "card/CardRepo.h"
+#include "card/CardStore.h"
+#include "card/LinkKindCatalog.h"
+#include "card/LinkRepo.h"
+#include "card/MilestoneRepo.h"
+#include "card/TagExtractor.h"
+#include "card/TagRepo.h"
+#include "git/EcdsaDerSigningCredentialProvider.h"
+#include "git/GitOps.h"
+#include "git/RepoSyncMetrics.h"
+#include "history/CardHistory.h"
+#include "identity/Uuid.h"
+#include "index/FtsIndexer.h"
+#include "index/Reindexer.h"
+#include "model/ProjectSyncState.h"
+#include "platform/DatabaseRebuild.h"
+#include "platform/Db.h"
+#include "platform/Migrations.h"
+#include "privacy/PlatformKeyring.h"
+#include "privacy/ProjectPrivacy.h"
+#include "project/DefaultProject.h"
+#include "project/ProjectManifest.h"
+#include "project/ProjectImport.h"
+#include "project/ProjectPaths.h"
+#include "project/ProjectRepo.h"
+#include "project/ProjectStore.h"
+#include "project/ProjectSyncRepo.h"
+#include "resource/AssetImportService.h"
+#include "resource/LocalDirectoryProvider.h"
+#include "resource/LocationRepo.h"
+#include "resource/LocationStore.h"
+#include "resource/ResourceRepo.h"
+#include "resource/ResourceStore.h"
+#include "resource/StorageProvider.h"
+#include "sync/ProjectSyncOperation.h"
+#include "sync/ProjectSyncPolicy.h"
+#include "sync/PullConflictResolution.h"
+
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <climits>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <filesystem>
+#include <git2.h>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <new>
+#include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+struct holder_context {
+  std::filesystem::path data_dir;
+  std::filesystem::path db_path;
+  holder::platform::Db db;
+  holder::index::FtsIndexer fts{db};
+  std::shared_ptr<holder::git::GitCredentialProvider> credential_provider; // nullable
+};
+
+struct holder_error {
+  std::string message;
+};
+
+namespace {
+
+std::filesystem::path rebuild_readiness_path(const std::filesystem::path& data_dir) {
+  return data_dir / "server" / "database-rebuild-ready.json";
+}
+
+bool looks_like_project(const std::filesystem::path& root) {
+  return std::filesystem::is_directory(root) &&
+         std::filesystem::is_regular_file(root / ".holder" / "project.json");
+}
+
+std::vector<std::filesystem::path> discover_managed_project_roots(
+    const std::filesystem::path& data_dir
+) {
+  std::vector<std::filesystem::path> roots;
+  const auto projects_dir = data_dir / "projects";
+  if (!std::filesystem::is_directory(projects_dir)) return roots;
+  for (const auto& entry : std::filesystem::directory_iterator(projects_dir)) {
+    if (looks_like_project(entry.path())) roots.push_back(entry.path());
+  }
+  return roots;
+}
+
+holder::platform::DatabaseRebuildReport rebuild_managed_database(
+    const std::filesystem::path& data_dir,
+    const std::string& schema_sql,
+    bool dry_run
+) {
+  holder::platform::DatabaseRebuildRequest request;
+  request.database_path = data_dir / "server" / "holder.db";
+  request.backup_root = data_dir / "server" / "database-backups";
+  request.schema_sql = schema_sql;
+  request.expected_schema_version = holder::platform::Migrations::latest_schema_version;
+  request.project_roots = discover_managed_project_roots(data_dir);
+  request.durable_ownership_ready = holder::platform::database_rebuild_is_ready(
+      rebuild_readiness_path(data_dir)
+  );
+  request.dry_run = dry_run;
+  auto report = holder::platform::rebuild_database_projection(request);
+  if (!dry_run) {
+    holder::platform::mark_database_rebuild_ready(rebuild_readiness_path(data_dir));
+  }
+  return report;
+}
+
+void clear_error(holder_error** out_error) {
+  if (out_error != nullptr) {
+    *out_error = nullptr;
+  }
+}
+
+int set_error(holder_error** out_error, int code, std::string message) {
+  if (out_error != nullptr) {
+    try {
+      *out_error = new holder_error{std::move(message)};
+      // LCOV_EXCL_START
+    } catch (...) {
+      *out_error = nullptr;
+      return HOLDER_ERROR_ALLOCATION;
+    }
+    // LCOV_EXCL_STOP
+  }
+  return code;
+}
+
+int set_exception(holder_error** out_error, const std::exception& e) {
+  return set_error(out_error, HOLDER_ERROR_RUNTIME, e.what());
+}
+
+// LCOV_EXCL_START -- all production throw sites use std::exception-derived types; this is the
+// C ABI's final defense against a foreign/non-standard exception crossing the boundary.
+int set_unknown_exception(holder_error** out_error) {
+  return set_error(out_error, HOLDER_ERROR_RUNTIME, "unknown holder error");
+}
+// LCOV_EXCL_STOP
+
+char* duplicate_string(const std::string& value) {
+  auto* out = static_cast<char*>(std::malloc(value.size() + 1));
+  if (out == nullptr) {
+    return nullptr; // LCOV_EXCL_LINE
+  }
+  std::memcpy(out, value.c_str(), value.size() + 1);
+  return out;
+}
+
+nlohmann::json project_to_json(const holder::model::Project& project) {
+  nlohmann::json body = {
+      {"project_id", project.project_id},
+      {"name", project.name},
+      {"root_path", project.root_path},
+      {"privacy_mode", project.privacy_mode},
+      // LCOV_EXCL_START - gcov artefact: multi-line initializer is executed but never counted.
+      {"id_scheme", holder::model::to_string(project.id_scheme)},
+      // LCOV_EXCL_STOP
+      {"created_at", project.created_at},
+      {"updated_at", project.updated_at},
+  };
+
+  body["git_remote_url"] = project.git_remote_url.has_value()
+                               ? nlohmann::json(*project.git_remote_url)
+                               : nlohmann::json(nullptr);
+  body["git_provider"] = project.git_provider.has_value() ? nlohmann::json(*project.git_provider)
+                                                          : nlohmann::json(nullptr);
+  body["project_key_id"] = project.project_key_id.has_value()
+                               ? nlohmann::json(*project.project_key_id)
+                               : nlohmann::json(nullptr);
+  return body;
+}
+
+nlohmann::json card_to_json(const holder::model::Card& card) {
+  nlohmann::json body = {
+      {"card_id", card.card_id},
+      {"project_id", card.project_id},
+      {"title", card.title},
+      {"rel_path", card.rel_path},
+      {"sort_key", card.sort_key},
+      {"created_at", card.created_at},
+      {"updated_at", card.updated_at},
+  };
+
+  body["parent_card_id"] = card.parent_card_id.has_value() ? nlohmann::json(*card.parent_card_id)
+                                                           : nlohmann::json(nullptr);
+  body["deleted_at"] = card.deleted_at.has_value() ? nlohmann::json(*card.deleted_at)
+                                                   : nlohmann::json(nullptr);
+  return body;
+}
+
+std::optional<holder::model::CardScope> card_scope_from_int(int scope) {
+  switch (scope) {
+  case 0:
+    return holder::model::CardScope::Live;
+  case 1:
+    return holder::model::CardScope::Trashed;
+  case 2:
+    return holder::model::CardScope::Either;
+  default:
+    return std::nullopt;
+  }
+}
+
+const char* card_reference_match_kind_to_string(holder::card::CardReferenceMatchKind match_kind) {
+  switch (match_kind) {
+  case holder::card::CardReferenceMatchKind::FullId:
+    return "full_id";
+  case holder::card::CardReferenceMatchKind::IdPrefix:
+    return "id_prefix";
+  case holder::card::CardReferenceMatchKind::ExactTitle:
+    return "exact_title";
+  }
+  return "exact_title"; // LCOV_EXCL_LINE -- exhaustive switch above covers every enumerator
+}
+
+nlohmann::json placement_to_json(const holder::model::Placement& placement) {
+  return {
+      {"placement_id", placement.placement_id},
+      {"asset_id", placement.asset_id},
+      {"location_id", placement.location_id},
+      {"object_key", placement.object_key},
+      {"encoding", placement.encoding},
+      {"stored_byte_size", placement.stored_byte_size},
+      {"stored_sha256", placement.stored_sha256},
+      {"created_at", placement.created_at},
+  };
+}
+
+nlohmann::json asset_to_json(const holder::model::Asset& asset) {
+  nlohmann::json placements = nlohmann::json::array();
+  for (const auto& placement : asset.placements)
+    placements.push_back(placement_to_json(placement));
+  return {
+      {"asset_id", asset.asset_id},
+      {"resource_id", asset.resource_id},
+      {"original_filename", asset.original_filename},
+      {"media_type", asset.media_type},
+      {"byte_size", asset.byte_size},
+      {"plaintext_sha256", asset.plaintext_sha256},
+      {"created_at", asset.created_at},
+      {"updated_at", asset.updated_at},
+      {"placements", std::move(placements)},
+  };
+}
+
+nlohmann::json resource_bundle_to_json(const holder::model::ResourceBundle& bundle) {
+  nlohmann::json assets = nlohmann::json::array();
+  for (const auto& asset : bundle.assets)
+    assets.push_back(asset_to_json(asset));
+  return {
+      {"resource",
+       {
+           {"resource_id", bundle.resource.resource_id},
+           {"project_id", bundle.resource.project_id},
+           {"type", bundle.resource.type},
+           {"label", bundle.resource.label},
+           {"metadata", bundle.resource.metadata},
+           {"created_at", bundle.resource.created_at},
+           {"updated_at", bundle.resource.updated_at},
+       }},
+      {"assets", std::move(assets)},
+  };
+}
+
+nlohmann::json location_to_json(const holder::model::Location& location) {
+  return {
+      {"location_id", location.location_id},
+      {"project_id", location.project_id},
+      {"name", location.name},
+      {"provider", location.provider},
+      {"configuration", location.configuration},
+      {"created_at", location.created_at},
+      {"updated_at", location.updated_at},
+  };
+}
+
+holder::model::Placement placement_from_json(
+    const nlohmann::json& body,
+    const std::string& asset_id
+) {
+  holder::model::Placement placement;
+  placement.placement_id = body.at("placement_id").get<std::string>();
+  placement.asset_id = asset_id;
+  placement.location_id = body.at("location_id").get<std::string>();
+  placement.object_key = body.at("object_key").get<std::string>();
+  placement.encoding = body.at("encoding").get<std::string>();
+  placement.stored_byte_size = body.at("stored_byte_size").get<long long>();
+  placement.stored_sha256 = body.at("stored_sha256").get<std::string>();
+  placement.created_at = body.at("created_at").get<long long>();
+  return placement;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+holder::model::Asset asset_from_json(const nlohmann::json& body, const std::string& resource_id) {
+  holder::model::Asset asset;
+  asset.asset_id = body.at("asset_id").get<std::string>();
+  asset.resource_id = resource_id;
+  asset.original_filename = body.at("original_filename").get<std::string>();
+  asset.media_type = body.at("media_type").get<std::string>();
+  asset.byte_size = body.at("byte_size").get<long long>();
+  asset.plaintext_sha256 = body.at("plaintext_sha256").get<std::string>();
+  asset.created_at = body.at("created_at").get<long long>();
+  asset.updated_at = body.at("updated_at").get<long long>();
+  for (const auto& item : body.value("placements", nlohmann::json::array())) {
+    asset.placements.push_back(placement_from_json(item, asset.asset_id));
+  }
+  return asset;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+holder::model::ResourceBundle resource_bundle_from_json(const nlohmann::json& body) {
+  const auto& resource_body = body.at("resource");
+  holder::model::ResourceBundle bundle;
+  bundle.resource.resource_id = resource_body.at("resource_id").get<std::string>();
+  bundle.resource.project_id = resource_body.at("project_id").get<std::string>();
+  bundle.resource.type = resource_body.at("type").get<std::string>();
+  bundle.resource.label = resource_body.at("label").get<std::string>();
+  bundle.resource.metadata = resource_body.value("metadata", holder::model::ResourceMetadata{});
+  bundle.resource.created_at = resource_body.at("created_at").get<long long>();
+  bundle.resource.updated_at = resource_body.at("updated_at").get<long long>();
+  for (const auto& item : body.value("assets", nlohmann::json::array())) {
+    bundle.assets.push_back(asset_from_json(item, bundle.resource.resource_id));
+  }
+  return bundle;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+// -- holder_backup_restore's input parsing: accepts the shape holder_backup_snapshot_page
+// emits per card, so the Android snapshot writer/restorer round-trip without remapping. --
+
+holder::model::CardLink batch_card_link_from_json(const nlohmann::json& body) {
+  holder::model::CardLink link;
+  link.to_card_id = body.value("to_id", body.value("to_card_id", std::string()));
+  link.to_type = body.value("to_type", std::string("card"));
+  link.kind = body.value("kind", std::string());
+  if (body.contains("label") && !body.at("label").is_null()) {
+    link.label = body.at("label").get<std::string>();
+  }
+  return link;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+holder::model::Milestone batch_milestone_from_json(const nlohmann::json& body) {
+  holder::model::Milestone milestone;
+  milestone.start_at = body.at("start_at").get<long long>();
+  milestone.all_day = body.value("all_day", false);
+  if (body.contains("end_at") && !body.at("end_at").is_null()) {
+    // The true branch is exercised by backup restore; GCC gives the optional
+    // assignment no counter even though the surrounding condition records it as
+    // taken.
+    milestone.end_at = body.at("end_at").get<long long>(); // LCOV_EXCL_LINE
+  }
+  if (body.contains("kind") && !body.at("kind").is_null()) {
+    milestone.kind = body.at("kind").get<std::string>();
+  }
+  if (body.contains("description") && !body.at("description").is_null()) {
+    milestone.description = body.at("description").get<std::string>();
+  }
+  return milestone;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+holder::card::BatchCardInput batch_card_input_from_json(const nlohmann::json& body) {
+  holder::card::BatchCardInput item;
+  item.card_id = body.at("card_id").get<std::string>();
+  item.title = body.at("title").get<std::string>();
+  item.content = body.value("body", std::string());
+  item.created_at = body.at("created_at").get<long long>();
+  item.updated_at = body.at("updated_at").get<long long>();
+  for (const auto& link_json : body.value("links", nlohmann::json::array())) {
+    item.links.push_back(batch_card_link_from_json(link_json));
+  }
+  for (const auto& milestone_json : body.value("milestones", nlohmann::json::array())) {
+    item.milestones.push_back(batch_milestone_from_json(milestone_json));
+  }
+  return item;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+holder::model::Location location_from_json(const nlohmann::json& body) {
+  holder::model::Location location;
+  location.location_id = body.at("location_id").get<std::string>();
+  location.project_id = body.at("project_id").get<std::string>();
+  location.name = body.at("name").get<std::string>();
+  location.provider = body.at("provider").get<std::string>();
+  location.configuration = body.value("configuration", std::map<std::string, std::string>{});
+  location.created_at = body.at("created_at").get<long long>();
+  location.updated_at = body.at("updated_at").get<long long>();
+  return location;
+} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
+
+// -- Storage provider registry (see holder_storage_provider_register in holder.h) --
+
+holder::resource::StorageErrorCode storage_error_code_from_int(int value) {
+  switch (value) {
+  case HOLDER_STORAGE_ERROR_AUTHENTICATION:
+    return holder::resource::StorageErrorCode::Authentication;
+  case HOLDER_STORAGE_ERROR_PERMISSION:
+    return holder::resource::StorageErrorCode::Permission;
+  case HOLDER_STORAGE_ERROR_CAPACITY:
+    return holder::resource::StorageErrorCode::Capacity;
+  case HOLDER_STORAGE_ERROR_INTEGRITY:
+    return holder::resource::StorageErrorCode::Integrity;
+  case HOLDER_STORAGE_ERROR_CONFLICT:
+    return holder::resource::StorageErrorCode::Conflict;
+  case HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION:
+    return holder::resource::StorageErrorCode::InvalidConfiguration;
+  case HOLDER_STORAGE_ERROR_TRANSIENT:
+    return holder::resource::StorageErrorCode::Transient;
+  default:
+    return holder::resource::StorageErrorCode::Unavailable;
+  }
+}
+
+// Owns a C-ABI storage provider's user_data/destroy_user_data pair while registered or
+// retained by an in-flight operation -- see holder_storage_provider_register's ownership
+// contract in holder.h. Implements holder::resource::StorageProvider by calling the C
+// callbacks and translating a nonzero return into a typed StorageError, the same shape
+// CApiKeyringProviderHandle uses for the keyring seam.
+class CApiStorageProviderHandle final : public holder::resource::StorageProvider {
+ public:
+  CApiStorageProviderHandle(
+      holder_storage_put_fn put_fn,
+      holder_storage_get_fn get_fn,
+      holder_storage_exists_fn exists_fn,
+      holder_storage_remove_fn remove_fn,
+      void* user_data,
+      holder_destroy_fn destroy_user_data
+  )
+      : put_fn_(put_fn),
+        get_fn_(get_fn),
+        exists_fn_(exists_fn),
+        remove_fn_(remove_fn),
+        user_data_(user_data),
+        destroy_user_data_(destroy_user_data) {}
+
+  // The body is exercised; exclude GCC's separate, non-addressable deleting-destructor alias.
+  ~CApiStorageProviderHandle() override { // LCOV_EXCL_LINE
+    if (destroy_user_data_ != nullptr) destroy_user_data_(user_data_); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+
+  CApiStorageProviderHandle(const CApiStorageProviderHandle&) = delete;
+  CApiStorageProviderHandle& operator=(const CApiStorageProviderHandle&) = delete;
+
+  void put(
+      const std::string& object_key,
+      const std::filesystem::path& staged_file,
+      long long stored_size,
+      const std::string& stored_sha256
+  ) override {
+    int error_code = HOLDER_STORAGE_ERROR_UNAVAILABLE;
+    char* error_ptr = nullptr;
+    const int rc = put_fn_(
+        user_data_,
+        object_key.c_str(),
+        staged_file.string().c_str(),
+        stored_size,
+        stored_sha256.c_str(),
+        &error_code,
+        &error_ptr
+    );
+    throw_if_failed(rc, error_code, error_ptr, "put");
+  }
+
+  void get(const std::string& object_key, const std::filesystem::path& destination_file) override {
+    int error_code = HOLDER_STORAGE_ERROR_UNAVAILABLE;
+    char* error_ptr = nullptr;
+    const int rc = get_fn_(
+        user_data_,
+        object_key.c_str(),
+        destination_file.string().c_str(),
+        &error_code,
+        &error_ptr
+    );
+    throw_if_failed(rc, error_code, error_ptr, "get");
+  }
+
+  bool exists(const std::string& object_key) override {
+    int found = 0;
+    int error_code = HOLDER_STORAGE_ERROR_UNAVAILABLE;
+    char* error_ptr = nullptr;
+    const int rc = exists_fn_(user_data_, object_key.c_str(), &found, &error_code, &error_ptr);
+    throw_if_failed(rc, error_code, error_ptr, "exists");
+    return found != 0;
+  }
+
+  void remove(const std::string& object_key) override {
+    int error_code = HOLDER_STORAGE_ERROR_UNAVAILABLE;
+    char* error_ptr = nullptr;
+    const int rc = remove_fn_(user_data_, object_key.c_str(), &error_code, &error_ptr);
+    throw_if_failed(rc, error_code, error_ptr, "remove");
+  }
+
+ private:
+  static void throw_if_failed(int rc, int error_code, char* error_ptr, const char* op) {
+    if (rc == 0) {
+      if (error_ptr != nullptr) std::free(error_ptr); // LCOV_EXCL_LINE
+      return;
+    }
+    std::string message =
+        error_ptr != nullptr
+            ? std::string(error_ptr
+              ) // LCOV_EXCL_LINE - callback failures without text use the documented fallback.
+            : (std::string("storage provider ") + op + " failed");
+    if (error_ptr != nullptr) std::free(error_ptr);
+    throw holder::resource::StorageError(storage_error_code_from_int(error_code), message);
+  }
+
+  holder_storage_put_fn put_fn_;
+  holder_storage_get_fn get_fn_;
+  holder_storage_exists_fn exists_fn_;
+  holder_storage_remove_fn remove_fn_;
+  void* user_data_;
+  holder_destroy_fn destroy_user_data_;
+};
+
+std::mutex& storage_provider_registry_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::map<std::string, std::shared_ptr<CApiStorageProviderHandle>>& storage_provider_registry() {
+  static std::map<std::string, std::shared_ptr<CApiStorageProviderHandle>> registry;
+  return registry;
+}
+
+// "local_directory" is always available with no registration required, rooted per
+// data_dir; every other provider name (e.g. "google-drive", "s3_compatible") must have
+// been registered first via holder_storage_provider_register. Named to match
+// holder-desktop's own local-storage Location provider string (see
+// resources_tool_view.vala) -- Locations are portable/git-synced, so a client-specific
+// name here would silently fail to resolve a Location another client created.
+std::shared_ptr<holder::resource::StorageProvider> resolve_storage_provider(
+    holder_context* context,
+    const std::string& provider_name
+) {
+  if (provider_name == "local_directory") {
+    return std::make_shared<holder::resource::LocalDirectoryProvider>(
+        context->data_dir / "resource-store"
+    );
+  }
+  std::lock_guard<std::mutex> lock(storage_provider_registry_mutex());
+  auto it = storage_provider_registry().find(provider_name);
+  if (it == storage_provider_registry().end()) {
+    throw std::runtime_error("no storage provider registered for: " + provider_name);
+  }
+  return it->second;
+}
+
+int return_json(const nlohmann::json& body, char** out_json, holder_error** out_error) {
+  auto* out = duplicate_string(body.dump());
+  if (out == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  }
+  *out_json = out;
+  return HOLDER_OK;
+}
+
+template <typename Fn>
+int with_json_output(holder_context* context, char** out_json, holder_error** out_error, Fn&& fn) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    // LCOV_EXCL_START - holder_card_query_json validates this before dispatch, so its instantiation
+    // never reaches the guard; the other instantiations are covered by the C API guard tests.
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+    // LCOV_EXCL_STOP
+  }
+  *out_json = nullptr;
+  if (context == nullptr) {
+    // LCOV_EXCL_START - as above.
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+    // LCOV_EXCL_STOP
+  }
+  try {
+    return return_json(fn(), out_json, out_error);
+  } catch (const std::bad_alloc&) { // LCOV_EXCL_LINE - allocation injection is not supported.
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    // LCOV_EXCL_START - one handler shared by every entry point. gcov counts it per lambda
+    // instantiation, and only some entry points (e.g. move/query/milestone) can be made to throw.
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+    // LCOV_EXCL_STOP
+  } catch (...) { // LCOV_EXCL_LINE - GCC attributes the excluded fallback body
+                  // to the handler.
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  }
+}
+
+template <typename Fn>
+int with_void_output(holder_context* context, holder_error** out_error, Fn&& fn) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  try {
+    fn();
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) { // LCOV_EXCL_LINE - allocation injection is not supported.
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    // LCOV_EXCL_START - shared handler; holder_location_delete cannot be made to throw, while
+    // holder_resource_delete and others exercise it.
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+    // LCOV_EXCL_STOP
+  } catch (...) { // LCOV_EXCL_LINE - GCC attributes the excluded fallback body
+                  // to the handler.
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  }
+}
+
+std::optional<holder::model::ResourceBundle> find_bundle_for_asset(
+    holder_context* context,
+    const std::string& asset_id
+) {
+  holder::project::ProjectRepo projects(context->db);
+  holder::resource::ResourceRepo resources(context->db);
+  for (const auto& project : projects.list()) {
+    for (const auto& resource : resources.list(project.project_id)) {
+      auto bundle = resources.get_bundle(resource.resource_id);
+      if (!bundle.has_value()) continue;
+      const auto found =
+          std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& asset) {
+            return asset.asset_id == asset_id;
+          });
+      if (found != bundle->assets.end()) return bundle;
+    }
+  }
+  return std::nullopt;
+}
+
+std::string to_lower(std::string value) {
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  return value;
+}
+
+// from_card_id is a generic "front-matter owner" id shared with ai_messages, so a backlink's
+// from side isn't necessarily a card -- to_title/from_title come back null when the id doesn't
+// resolve via CardRepo rather than throwing, since that's an expected, not exceptional, case.
+nlohmann::json outgoing_link_to_json(
+    holder::platform::Db& db,
+    const holder::model::CardLink& link
+) {
+  const auto to_card = holder::card::CardRepo(db).get(link.to_card_id);
+  nlohmann::json body = {
+      {"to_card_id", link.to_card_id},
+      {"to_type", link.to_type},
+      {"kind", link.kind},
+      {"created_at", link.created_at},
+  };
+  body["label"] = link.label.has_value() ? nlohmann::json(*link.label) : nlohmann::json(nullptr);
+  body["to_title"] = to_card.has_value() ? nlohmann::json(to_card->title) : nlohmann::json(nullptr);
+  return body;
+}
+
+nlohmann::json backlink_to_json(holder::platform::Db& db, const holder::model::CardLink& link) {
+  const auto from_card = holder::card::CardRepo(db).get(link.from_card_id);
+  nlohmann::json body = {
+      {"from_card_id", link.from_card_id},
+      {"kind", link.kind},
+      {"created_at", link.created_at},
+  };
+  body["label"] = link.label.has_value() ? nlohmann::json(*link.label) : nlohmann::json(nullptr);
+  body["from_title"] = from_card.has_value() ? nlohmann::json(from_card->title)
+                                             : nlohmann::json(nullptr);
+  return body;
+}
+
+nlohmann::json search_row_to_json(const holder::index::FtsIndexer::SearchRow& row) {
+  return {
+      {"card_id", row.id},
+      {"title", row.title},
+      {"snippet", row.snippet},
+      {"rank", row.rank},
+      {"created_at", row.created_at},
+      {"updated_at", row.updated_at},
+  };
+}
+
+std::unique_ptr<holder::git::RealGitOps> make_project_git(holder_context* context) {
+  auto git = std::make_unique<holder::git::RealGitOps>();
+  if (context->credential_provider) {
+    git->set_credential_provider(context->credential_provider);
+  }
+  return git;
+} // LCOV_EXCL_LINE
+
+void persist_project_metadata(
+    holder_context* context,
+    const holder::model::Project& project,
+    const std::string& commit_message
+) {
+  auto git = make_project_git(context);
+  auto operation = git->lock_operation(project.root_path);
+  git->open_or_init(project.root_path);
+  holder::project::write_project_manifest(*git, project);
+  git->commit(commit_message);
+}
+
+nlohmann::json optional_json(const std::optional<std::string>& value) {
+  return value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
+}
+
+nlohmann::json optional_json(const std::optional<long long>& value) {
+  return value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
+}
+
+nlohmann::json milestone_to_json(const holder::model::Milestone& milestone) {
+  nlohmann::json body = {
+      {"milestone_id", milestone.milestone_id},
+      {"card_id", milestone.card_id},
+      {"start_at", milestone.start_at},
+      {"all_day", milestone.all_day},
+      {"created_at", milestone.created_at},
+      {"updated_at", milestone.updated_at},
+  };
+  body["end_at"] = optional_json(milestone.end_at);
+  body["kind"] = optional_json(milestone.kind);
+  body["description"] = optional_json(milestone.description);
+  return body;
+}
+
+// Parses the tri-state partial-update JSON documented on holder_card_milestone_update_json into
+// a holder::card::MilestoneUpdate. start_at/all_day have no has_* flag --
+// CardStore::update_milestone treats nullopt as "unchanged" for them and they can never be
+// explicitly cleared, so a present- but-null value for either is a caller error.
+holder::card::MilestoneUpdate milestone_update_from_json(const nlohmann::json& body) {
+  holder::card::MilestoneUpdate update;
+  if (body.contains("start_at")) {
+    if (body.at("start_at").is_null()) {
+      // LCOV_EXCL_START - C ABI validates null before helper dispatch.
+      throw std::invalid_argument("start_at must not be null");
+      // LCOV_EXCL_STOP
+    }
+    update.start_at = body.at("start_at").get<long long>();
+  }
+  if (body.contains("all_day")) {
+    if (body.at("all_day").is_null()) {
+      // LCOV_EXCL_START - C ABI validates null before helper dispatch.
+      throw std::invalid_argument("all_day must not be null");
+      // LCOV_EXCL_STOP
+    }
+    update.all_day = body.at("all_day").get<bool>();
+  }
+  if (body.contains("end_at")) {
+    update.has_end_at = true;
+    if (!body.at("end_at").is_null()) {
+      update.end_at = body.at("end_at").get<long long>();
+    }
+  }
+  if (body.contains("kind")) {
+    update.has_kind = true;
+    if (!body.at("kind").is_null()) {
+      update.kind = body.at("kind").get<std::string>();
+    }
+  }
+  if (body.contains("description")) {
+    update.has_description = true;
+    if (!body.at("description").is_null()) {
+      update.description = body.at("description").get<std::string>();
+    }
+  }
+  return update;
+} // LCOV_EXCL_LINE - gcov artefact: function exit is executed but never counted.
+
+holder::card::CardPlacementIntent card_placement_intent_from_string(const std::string& intent) {
+  if (intent == "into") return holder::card::CardPlacementIntent::Into;
+  if (intent == "before") return holder::card::CardPlacementIntent::Before;
+  if (intent == "after") return holder::card::CardPlacementIntent::After;
+  if (intent == "to_start") return holder::card::CardPlacementIntent::ToStart;
+  if (intent == "to_end") return holder::card::CardPlacementIntent::ToEnd;
+  if (intent == "left") return holder::card::CardPlacementIntent::Left;
+  if (intent == "right") return holder::card::CardPlacementIntent::Right;
+  if (intent == "up_level") return holder::card::CardPlacementIntent::UpLevel;
+  throw std::runtime_error("invalid_move_intent");
+}
+
+// Parses holder_card_move_json's request_json into a CardPlacementRequest. An unrecognized or
+// non-string "intent" throws "invalid_move_intent", matching CardPlacementResolver's own
+// vocabulary for that failure.
+holder::card::CardPlacementRequest card_placement_request_from_json(const nlohmann::json& body) {
+  if (!body.contains("intent") || !body.at("intent").is_string()) {
+    throw std::runtime_error("invalid_move_intent");
+  }
+  holder::card::CardPlacementRequest request;
+  request.intent = card_placement_intent_from_string(body.at("intent").get<std::string>());
+  if (body.contains("target_card_id") && !body.at("target_card_id").is_null()) {
+    request.target_card_id = body.at("target_card_id").get<std::string>();
+  }
+  // An omitted parent_card_id keeps the card's current parent; an explicit null is the
+  // project's top level.
+  if (body.contains("parent_card_id")) {
+    request.has_parent_card_id = true;
+    if (!body.at("parent_card_id").is_null()) {
+      request.parent_card_id = body.at("parent_card_id").get<std::string>();
+    }
+  }
+  return request;
+}
+
+// Adds card_title (null if unresolvable) for the project-wide range listing, where the caller
+// doesn't already know which card each milestone belongs to -- unlike the card-scoped list.
+nlohmann::json milestone_with_card_title_to_json(
+    holder::platform::Db& db,
+    const holder::model::Milestone& milestone
+) {
+  auto body = milestone_to_json(milestone);
+  const auto card = holder::card::CardRepo(db).get(milestone.card_id);
+  body["card_title"] = card.has_value() ? nlohmann::json(card->title) : nlohmann::json(nullptr);
+  return body;
+}
+
+nlohmann::json card_history_save_to_json(const holder::history::CardHistorySave& save) {
+  return {
+      {"oid", save.oid},
+      {"parent_oids", save.parent_oids},
+      {"authored_at", save.authored_at},
+      {"committed_at", save.committed_at},
+      {"message", save.message},
+  };
+}
+
+nlohmann::json card_history_entry_to_json(const holder::history::CardHistoryEntry& entry) {
+  nlohmann::json saves = nlohmann::json::array();
+  for (const auto& save : entry.saves)
+    saves.push_back(card_history_save_to_json(save));
+  return {
+      {"first_oid", entry.first_oid},
+      {"last_oid", entry.last_oid},
+      {"parent_oids", entry.parent_oids},
+      {"visible_parent_oids", entry.visible_parent_oids},
+      {"author", {{"name", entry.author_name}, {"email", entry.author_email}}},
+      {"started_at", entry.started_at},
+      {"ended_at", entry.ended_at},
+      {"kind", entry.kind},
+      {"summary", entry.summary},
+      {"commit_count", entry.commit_count},
+      {"is_merge", entry.is_merge},
+      {"saves", std::move(saves)},
+  };
+}
+
+nlohmann::json card_history_version_to_json(const holder::history::CardVersion& version) {
+  return {
+      {"exists", version.exists},
+      {"oid", version.oid},
+      {"title", version.title},
+      {"body", version.body},
+  };
+}
+
+nlohmann::json card_history_diff_line_to_json(const holder::history::CardDiffLine& line) {
+  return {
+      {"origin", std::string(1, line.origin)},
+      {"text", line.text},
+      {"old_line", line.old_line < 0 ? nlohmann::json(nullptr) : nlohmann::json(line.old_line)},
+      {"new_line", line.new_line < 0 ? nlohmann::json(nullptr) : nlohmann::json(line.new_line)},
+  };
+}
+
+nlohmann::json project_sync_to_json(const std::optional<holder::model::ProjectSyncState>& sync) {
+  if (!sync.has_value()) {
+    return {
+        {"last_commit_at", nullptr},
+        {"last_push_at", nullptr},
+        {"last_pull_at", nullptr},
+        {"uncommitted_changes_count", 0}, // LCOV_EXCL_LINE
+        {"unpushed_commits_count", 0}, // LCOV_EXCL_LINE
+        {"last_push_status", nullptr},
+        {"last_pull_status", nullptr},
+        {"last_sync_error", nullptr},
+        {"last_sync_error_at", nullptr},
+        {"retry_count", 0}, // LCOV_EXCL_LINE
+        {"next_retry_at", nullptr},
+        {"pull_retry_count", 0}, // LCOV_EXCL_LINE
+        {"next_pull_retry_at", nullptr},
+        {"updated_at", nullptr},
+    };
+  }
+  return {
+      {"last_commit_at", optional_json(sync->last_commit_at)},
+      {"last_push_at", optional_json(sync->last_push_at)},
+      {"last_pull_at", optional_json(sync->last_pull_at)},
+      {"uncommitted_changes_count", sync->uncommitted_changes_count},
+      {"unpushed_commits_count", sync->unpushed_commits_count},
+      {"last_push_status", optional_json(sync->last_push_status)},
+      {"last_pull_status", optional_json(sync->last_pull_status)},
+      {"last_sync_error", optional_json(sync->last_sync_error)},
+      {"last_sync_error_at", optional_json(sync->last_sync_error_at)},
+      {"retry_count", sync->retry_count},
+      {"next_retry_at", optional_json(sync->next_retry_at)},
+      {"pull_retry_count", sync->pull_retry_count},
+      {"next_pull_retry_at", optional_json(sync->next_pull_retry_at)},
+      {"updated_at",
+       sync->updated_at > 0 ? nlohmann::json(sync->updated_at) : nlohmann::json(nullptr)},
+  };
+}
+
+void refresh_sync_activity_counts(
+    holder::platform::Db& db,
+    const std::string& project_id,
+    const std::filesystem::path& root_path,
+    long long now
+) {
+  const auto metrics = holder::git::inspect_repo_sync_metrics(root_path, "origin");
+  holder::project::ProjectSyncRepo(db).update_activity_counts(
+      project_id,
+      {.uncommitted_changes_count = metrics.uncommitted_changes_count,
+       .unpushed_commits_count = metrics.unpushed_commits_count,
+       .updated_at = now}
+  );
+}
+
+// Owns the C-ABI signer's user_data/destroy_user_data pair for exactly as
+// long as some EcdsaDerSigningCredentialProvider's captured lambda keeps it
+// alive -- see holder_git_set_ssh_signer's ownership contract in holder.h.
+class CApiSshSignerHandle {
+ public:
+  CApiSshSignerHandle(void* user_data, holder_destroy_fn destroy_user_data)
+      : user_data_(user_data),
+        destroy_user_data_(destroy_user_data) {}
+
+  ~CApiSshSignerHandle() {
+    if (destroy_user_data_ != nullptr) {
+      destroy_user_data_(user_data_);
+    }
+  }
+
+  CApiSshSignerHandle(const CApiSshSignerHandle&) = delete;
+  CApiSshSignerHandle& operator=(const CApiSshSignerHandle&) = delete;
+
+  // Only invoked from EcdsaDerSigningCredentialProvider's captured sign callback during a real
+  // SSH auth handshake with a remote -- every test in this suite pushes/pulls over local
+  // file:// or bare-repo remotes, which libgit2 never authenticates, so this never runs. Not
+  // worth standing up a live SSH server just to exercise a thin buffer-ownership adapter.
+  // LCOV_EXCL_START
+  std::vector<unsigned char> sign(
+      holder_ssh_sign_fn sign_fn,
+      const unsigned char* data,
+      size_t data_len
+  ) const {
+    unsigned char* out_ptr = nullptr;
+    size_t out_len = 0;
+    const int rc = sign_fn(user_data_, data, data_len, &out_ptr, &out_len);
+    if (rc != 0 || out_ptr == nullptr) return {};
+
+    std::vector<unsigned char> result(out_ptr, out_ptr + out_len);
+    std::free(out_ptr);
+    return result;
+  }
+  // LCOV_EXCL_STOP
+
+ private:
+  void* user_data_;
+  holder_destroy_fn destroy_user_data_;
+};
+
+int keyring_kind_to_int(holder::privacy::PlatformKeyringSecretKind kind) {
+  return kind == holder::privacy::PlatformKeyringSecretKind::ProjectKey ? 1 : 0;
+}
+
+// Owns the C-ABI keyring provider's user_data/destroy_user_data pair for exactly
+// as long as the external provider it's installed into (via
+// platform_keyring_set_external_provider) is alive -- see
+// holder_keyring_set_provider's ownership contract in holder.h.
+class CApiKeyringProviderHandle {
+ public:
+  CApiKeyringProviderHandle(void* user_data, holder_destroy_fn destroy_user_data)
+      : user_data_(user_data),
+        destroy_user_data_(destroy_user_data) {}
+
+  ~CApiKeyringProviderHandle() {
+    if (destroy_user_data_ != nullptr) {
+      destroy_user_data_(user_data_);
+    }
+  }
+
+  CApiKeyringProviderHandle(const CApiKeyringProviderHandle&) = delete;
+  CApiKeyringProviderHandle& operator=(const CApiKeyringProviderHandle&) = delete;
+
+  holder::privacy::PlatformKeyringLookupResult lookup(
+      holder_keyring_lookup_fn lookup_fn,
+      const holder::privacy::PlatformKeyringSecretRef& ref
+  ) const {
+    int found = 0;
+    char* secret_ptr = nullptr;
+    char* error_ptr = nullptr;
+    const int rc = lookup_fn(
+        user_data_,
+        keyring_kind_to_int(ref.kind),
+        ref.service.c_str(),
+        ref.account.c_str(),
+        ref.project_id.has_value() ? ref.project_id->c_str() : nullptr,
+        &found,
+        &secret_ptr,
+        &error_ptr
+    );
+
+    holder::privacy::PlatformKeyringLookupResult result;
+    if (rc != 0) {
+      result.error_message = error_ptr != nullptr ? std::string(error_ptr)
+                                                  : std::string("keyring lookup failed");
+    } else if (found != 0 && secret_ptr != nullptr) {
+      result.secret = std::string(secret_ptr);
+    }
+    if (secret_ptr != nullptr) std::free(secret_ptr);
+    if (error_ptr != nullptr) std::free(error_ptr);
+    return result;
+  } // LCOV_EXCL_LINE
+
+  std::optional<std::string> store(
+      holder_keyring_store_fn store_fn,
+      const holder::privacy::PlatformKeyringSecretRef& ref,
+      const std::string& label,
+      const std::string& secret
+  ) const {
+    char* error_ptr = nullptr;
+    const int rc = store_fn(
+        user_data_,
+        keyring_kind_to_int(ref.kind),
+        ref.service.c_str(),
+        ref.account.c_str(),
+        ref.project_id.has_value() ? ref.project_id->c_str() : nullptr,
+        label.c_str(),
+        secret.c_str(),
+        &error_ptr
+    );
+
+    std::optional<std::string> result;
+    if (rc != 0) {
+      result = error_ptr != nullptr ? std::string(error_ptr) : std::string("keyring store failed");
+    }
+    if (error_ptr != nullptr) std::free(error_ptr);
+    return result;
+  } // LCOV_EXCL_LINE
+
+  std::optional<std::string> remove(
+      holder_keyring_remove_fn remove_fn,
+      const holder::privacy::PlatformKeyringSecretRef& ref
+  ) const {
+    char* error_ptr = nullptr;
+    const int rc = remove_fn(
+        user_data_,
+        keyring_kind_to_int(ref.kind),
+        ref.service.c_str(),
+        ref.account.c_str(),
+        ref.project_id.has_value() ? ref.project_id->c_str() : nullptr,
+        &error_ptr
+    );
+
+    std::optional<std::string> result;
+    if (rc != 0) {
+      result = error_ptr != nullptr ? std::string(error_ptr) : std::string("keyring remove failed");
+    }
+    if (error_ptr != nullptr) std::free(error_ptr);
+    return result;
+  } // LCOV_EXCL_LINE
+
+ private:
+  void* user_data_;
+  holder_destroy_fn destroy_user_data_;
+};
+
+long long now_epoch_seconds() {
+  return std::chrono::duration_cast<std::chrono::seconds>(
+             std::chrono::system_clock::now().time_since_epoch()
+  )
+      .count();
+}
+
+// Thin wrappers binding the C ABI's holder_context to the shared (holder::sync) pull
+// reconciliation/conflict-resolution logic -- shared because holder-daemon's own native sync
+// worker needs the exact same behavior and doesn't go through this C ABI at all, so the logic
+// itself can't live here as a context-bound implementation detail.
+void rebuild_project_index(holder_context* context, const holder::model::Project& project) {
+  holder::sync::reconcile_index_after_pull(context->db, &context->fts, project);
+}
+
+int resolve_pull_conflicts(
+    holder_context* context,
+    const holder::model::Project& project,
+    holder::git::RealGitOps& git,
+    const holder::git::NonFastForwardPullError& diverged,
+    long long now
+) {
+  return holder::sync::resolve_pull_conflicts(
+      context->db,
+      &context->fts,
+      project,
+      git,
+      diverged,
+      now
+  );
+}
+
+} // namespace
+
+int holder_context_open(
+    const char* data_dir,
+    const char* schema_sql,
+    holder_context** out_context,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_context must not be null");
+  }
+  *out_context = nullptr;
+
+  if (data_dir == nullptr || data_dir[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "data_dir must not be empty");
+  }
+
+  try {
+    auto context = std::make_unique<holder_context>();
+    context->data_dir = std::filesystem::path(data_dir);
+    context->db_path = context->data_dir / "server" / "holder.db";
+    std::filesystem::create_directories(context->db_path.parent_path());
+
+    const auto health = holder::platform::inspect_database_health(context->db_path);
+    const auto roots = discover_managed_project_roots(context->data_dir);
+    if (health.health == holder::platform::DatabaseHealth::IoError) {
+      throw std::runtime_error("database I/O failure: " + health.detail);
+    }
+    bool needs_rebuild = health.health == holder::platform::DatabaseHealth::Corrupt ||
+                         (health.health == holder::platform::DatabaseHealth::Missing &&
+                          !roots.empty());
+    // quick_check (what `health` reflects) only catches corruption, not staleness: a
+    // structurally intact database left behind by an older build can still be on an
+    // older schema_version than this one expects -- the one case this whole codebase's
+    // callers actually hit is an in-place app update on Android, which has no other
+    // migration path wired up (unlike the desktop daemon, which calls
+    // Migrations::migrate_to_latest() directly from its own startup). Reuse the same
+    // rebuild-from-durable-git-source-of-truth path already used for Corrupt/Missing
+    // rather than running incremental migrations in place here: every future schema
+    // bump gets this for free with no migration script of its own to write or forget,
+    // and rebuild_database_projection's durable-object-count check means it fails loudly
+    // instead of silently if anything doesn't come back the same.
+    if (!needs_rebuild && health.health == holder::platform::DatabaseHealth::Healthy) {
+      holder::platform::Db probe;
+      probe.open(context->db_path);
+      const bool stale = holder::platform::Migrations::read_schema_version(probe) <
+                         holder::platform::Migrations::latest_schema_version;
+      probe.close();
+      needs_rebuild = stale;
+    }
+    if (needs_rebuild) {
+      if (schema_sql == nullptr || schema_sql[0] == '\0') {
+        throw std::runtime_error("schema SQL is required to reconstruct the database");
+      }
+      rebuild_managed_database(context->data_dir, schema_sql, false);
+    }
+
+    context->db.open(context->db_path);
+    if (schema_sql != nullptr && schema_sql[0] != '\0') {
+      context->db.exec(schema_sql);
+    }
+    try {
+      if (holder::project::ProjectRepo(context->db).list().size() != roots.size()) {
+        throw std::runtime_error("not every project is under the managed project directory");
+      }
+      holder::platform::audit_core_durable_ownership(
+          context->db,
+          context->db_path.parent_path() / "quarantined-cards.json"
+      );
+      holder::platform::mark_database_rebuild_ready(rebuild_readiness_path(context->data_dir));
+    } catch (const std::exception&) {
+      // A healthy legacy profile remains usable, but is deliberately not marked
+      // reconstructible until its durable owners have been backfilled and audited.
+      if (health.health != holder::platform::DatabaseHealth::Healthy) throw;
+    }
+
+    *out_context = context.release();
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+void holder_context_destroy(holder_context* context) { delete context; }
+
+int holder_database_rebuild(
+    const char* data_dir,
+    const char* schema_sql,
+    int dry_run,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+  if (data_dir == nullptr || data_dir[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "data_dir must not be empty");
+  }
+  if (schema_sql == nullptr || schema_sql[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "schema_sql must not be empty");
+  }
+  try {
+    const auto report =
+        rebuild_managed_database(std::filesystem::path(data_dir), schema_sql, dry_run != 0);
+    return return_json(nlohmann::json::parse(report.to_json()), out_json, out_error);
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE - excluded fallback handler-end counter.
+}
+
+int holder_project_import(
+    holder_context* context,
+    const char* project_root,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+  if (context == nullptr || project_root == nullptr || project_root[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context and project_root are required");
+  }
+  try {
+    const auto project = holder::project::import_project_into_empty_database(
+        context->db, context->fts, context->data_dir, project_root
+    );
+    return return_json(project_to_json(project), out_json, out_error);
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::invalid_argument& e) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error);
+  }
+}
+
+int holder_resource_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    nlohmann::json body = nlohmann::json::array();
+    holder::resource::ResourceRepo repo(context->db);
+    for (const auto& resource : repo.list(project_id)) {
+      const auto bundle = repo.get_bundle(resource.resource_id);
+      if (bundle.has_value()) body.push_back(resource_bundle_to_json(*bundle));
+    }
+    return body;
+  });
+}
+
+int holder_resource_get(
+    holder_context* context,
+    const char* resource_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (resource_id == nullptr || resource_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "resource_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto bundle = holder::resource::ResourceRepo(context->db).get_bundle(resource_id);
+    if (!bundle.has_value())
+      throw std::runtime_error("resource not found: " + std::string(resource_id));
+    return resource_bundle_to_json(*bundle);
+  });
+}
+
+int holder_resource_put_json(
+    holder_context* context,
+    const char* resource_bundle_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (resource_bundle_json == nullptr || resource_bundle_json[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "resource_bundle_json must not be empty"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto bundle = resource_bundle_from_json(nlohmann::json::parse(resource_bundle_json));
+    holder::resource::ResourceStore(context->db).put(bundle);
+    return resource_bundle_to_json(bundle);
+  });
+}
+
+int holder_resource_delete(
+    holder_context* context,
+    const char* resource_id,
+    holder_error** out_error
+) {
+  if (resource_id == nullptr || resource_id[0] == '\0') {
+    clear_error(out_error);
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "resource_id must not be empty");
+  }
+  return with_void_output(context, out_error, [&]() {
+    holder::resource::ResourceStore(context->db).remove(resource_id);
+  });
+}
+
+int holder_asset_get(
+    holder_context* context,
+    const char* asset_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (asset_id == nullptr || asset_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "asset_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto bundle = find_bundle_for_asset(context, asset_id);
+    if (!bundle.has_value()) throw std::runtime_error("asset not found: " + std::string(asset_id));
+    const auto found =
+        std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& asset) {
+          return asset.asset_id == asset_id;
+        });
+    return asset_to_json(*found);
+  });
+}
+
+int holder_asset_put_json(
+    holder_context* context,
+    const char* resource_id,
+    const char* asset_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (resource_id == nullptr || resource_id[0] == '\0' || asset_json == nullptr ||
+      asset_json[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "resource_id and asset_json must not be empty"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    holder::resource::ResourceRepo repo(context->db);
+    auto bundle = repo.get_bundle(resource_id);
+    if (!bundle.has_value())
+      throw std::runtime_error("resource not found: " + std::string(resource_id));
+    auto asset = asset_from_json(nlohmann::json::parse(asset_json), resource_id);
+    const auto found =
+        std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& current) {
+          return current.asset_id == asset.asset_id;
+        });
+    if (found == bundle->assets.end())
+      bundle->assets.push_back(asset);
+    else
+      *found = asset;
+    bundle->resource.updated_at = std::max(bundle->resource.updated_at, asset.updated_at);
+    holder::resource::ResourceStore(context->db).put(*bundle);
+    return asset_to_json(asset);
+  });
+}
+
+int holder_asset_delete(
+    holder_context* context,
+    const char* asset_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (asset_id == nullptr || asset_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "asset_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    auto bundle = find_bundle_for_asset(context, asset_id);
+    if (!bundle.has_value()) throw std::runtime_error("asset not found: " + std::string(asset_id));
+    bundle->assets.erase(
+        std::remove_if(
+            bundle->assets.begin(),
+            bundle->assets.end(),
+            [&](const auto& asset) {
+              return asset.asset_id == asset_id;
+            }
+        ),
+        bundle->assets.end()
+    );
+    holder::resource::ResourceStore(context->db).put(*bundle);
+    return resource_bundle_to_json(*bundle);
+  });
+}
+
+int holder_location_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& location : holder::resource::LocationRepo(context->db).list(project_id)) {
+      body.push_back(location_to_json(location));
+    }
+    return body;
+  });
+}
+
+int holder_location_get(
+    holder_context* context,
+    const char* location_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (location_id == nullptr || location_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "location_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto location = holder::resource::LocationRepo(context->db).get(location_id);
+    if (!location.has_value())
+      throw std::runtime_error("location not found: " + std::string(location_id));
+    return location_to_json(*location);
+  });
+}
+
+int holder_location_put_json(
+    holder_context* context,
+    const char* location_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (location_json == nullptr || location_json[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "location_json must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto location = location_from_json(nlohmann::json::parse(location_json));
+    holder::resource::LocationStore(context->db).put(location);
+    return location_to_json(location);
+  });
+}
+
+int holder_location_delete(
+    holder_context* context,
+    const char* location_id,
+    holder_error** out_error
+) {
+  if (location_id == nullptr || location_id[0] == '\0') {
+    clear_error(out_error);
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "location_id must not be empty");
+  }
+  return with_void_output(context, out_error, [&]() {
+    holder::resource::LocationStore(context->db).remove(location_id);
+  });
+}
+
+int holder_storage_provider_register(
+    const char* provider_name,
+    holder_storage_put_fn put_fn,
+    holder_storage_get_fn get_fn,
+    holder_storage_exists_fn exists_fn,
+    holder_storage_remove_fn remove_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+
+  // Takes ownership of user_data unconditionally from this point on, exactly like
+  // holder_keyring_set_provider -- constructing the RAII handle before any validation is
+  // what makes every early return below (including a validation failure) still run
+  // destroy_user_data exactly once, via normal scope-exit destruction.
+  std::shared_ptr<CApiStorageProviderHandle> handle;
+  try {
+    handle = std::make_shared<CApiStorageProviderHandle>(
+        put_fn,
+        get_fn,
+        exists_fn,
+        remove_fn,
+        user_data,
+        destroy_user_data
+    );
+  } catch (const std::bad_alloc&) {
+    // Allocation failed before the handle could take the unconditionally transferred data.
+    if (destroy_user_data != nullptr) destroy_user_data(user_data);
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+
+  if (provider_name == nullptr || provider_name[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "provider_name must not be empty");
+  }
+  if (std::strcmp(provider_name, "local_directory") == 0) {
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "'local_directory' is a built-in provider name and cannot be overridden"
+    );
+  }
+  if (put_fn == nullptr || get_fn == nullptr || exists_fn == nullptr || remove_fn == nullptr) {
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "put_fn, get_fn, exists_fn, and remove_fn must not be null"
+    );
+  }
+
+  try {
+    {
+      std::lock_guard<std::mutex> lock(storage_provider_registry_mutex());
+      storage_provider_registry()[provider_name].swap(handle);
+    }
+    // Retire the previous provider outside the lock: its cleanup callback may reenter
+    // registration. Active operations keep their own shared ownership until completion.
+    return HOLDER_OK;
+    // LCOV_EXCL_START
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error);
+  }
+  // LCOV_EXCL_STOP
+}
+
+int holder_asset_import_file(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* location_id,
+    const char* source_file_path,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0' || card_id == nullptr || card_id[0] == '\0' ||
+      location_id == nullptr || location_id[0] == '\0' || source_file_path == nullptr ||
+      source_file_path[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "project_id, card_id, location_id, and source_file_path must not be empty"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto location = holder::resource::LocationRepo(context->db).get(location_id);
+    if (!location.has_value())
+      throw std::runtime_error("location not found: " + std::string(location_id));
+
+    holder::resource::AssetImportRequest request;
+    request.project_id = project_id;
+    request.card_id = card_id;
+    request.location_id = location_id;
+    request.source_file = std::filesystem::path(source_file_path);
+    request.now = now_epoch_seconds();
+
+    holder::resource::AssetImportService service(
+        context->db,
+        context->data_dir / "server" / "asset-staging",
+        holder::identity::uuid_v4
+    );
+    const auto provider = resolve_storage_provider(context, location->provider);
+    const auto result = service.import_file(request, *provider);
+    return nlohmann::json{
+        {"resource_id", result.resource_id},
+        {"asset_id", result.asset_id},
+        {"duplicate_reused", result.duplicate_reused},
+        {"link_created", result.link_created},
+    };
+  });
+}
+
+int holder_asset_retrieve(
+    holder_context* context,
+    const char* resource_id,
+    const char* asset_id,
+    const char* placement_id,
+    const char* destination_file_path,
+    holder_error** out_error
+) {
+  if (resource_id == nullptr || resource_id[0] == '\0' || asset_id == nullptr ||
+      asset_id[0] == '\0' || placement_id == nullptr || placement_id[0] == '\0' ||
+      destination_file_path == nullptr || destination_file_path[0] == '\0') {
+    clear_error(out_error);
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "resource_id, asset_id, placement_id, and destination_file_path must not be empty"
+    );
+  }
+  return with_void_output(context, out_error, [&]() {
+    const auto bundle = holder::resource::ResourceRepo(context->db).get_bundle(resource_id);
+    if (!bundle.has_value())
+      throw std::runtime_error("resource not found: " + std::string(resource_id));
+    const auto asset =
+        std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& item) {
+          return item.asset_id == asset_id;
+        });
+    if (asset == bundle->assets.end()) {
+      throw std::runtime_error("asset not found in resource: " + std::string(asset_id));
+    }
+    const auto placement =
+        std::find_if(asset->placements.begin(), asset->placements.end(), [&](const auto& item) {
+          return item.placement_id == placement_id;
+        });
+    if (placement == asset->placements.end()) {
+      throw std::runtime_error("placement not found in asset: " + std::string(placement_id));
+    }
+    const auto location = holder::resource::LocationRepo(context->db).get(placement->location_id);
+    if (!location.has_value())
+      throw std::runtime_error("location not found: " + placement->location_id);
+
+    holder::resource::AssetImportService service(
+        context->db,
+        context->data_dir / "server" / "asset-staging",
+        holder::identity::uuid_v4
+    );
+    const auto provider = resolve_storage_provider(context, location->provider);
+    service.retrieve(
+        resource_id,
+        asset_id,
+        placement_id,
+        *provider,
+        std::filesystem::path(destination_file_path)
+    );
+  });
+}
+
+int holder_project_list(holder_context* context, char** out_json, holder_error** out_error) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& project : repo.list()) {
+      body.push_back(project_to_json(project));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo repo(context->db);
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& card : repo.list_all(project_id)) {
+      if (card.deleted_at.has_value()) {
+        continue;
+      }
+      body.push_back(card_to_json(card));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_complete_page(
+    holder_context* context,
+    const char* project_id,
+    const char* cursor,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (limit <= 0 || limit > HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT) {
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "limit must be between 1 and " + std::to_string(HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT)
+    );
+  }
+
+  try {
+    const std::optional<std::string> after_card_id = cursor != nullptr && cursor[0] != '\0'
+                                                         ? std::optional<std::string>(cursor)
+                                                         : std::nullopt;
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto page = store.list_complete_page(project_id, after_card_id, limit);
+
+    nlohmann::json cards = nlohmann::json::array();
+    for (const auto& record : page.cards) {
+      auto card = card_to_json(record.card);
+      card["content"] = record.content;
+      cards.push_back(std::move(card));
+    }
+    nlohmann::json body = {{"cards", std::move(cards)}};
+    body["next_cursor"] = page.next_cursor.has_value() ? nlohmann::json(*page.next_cursor)
+                                                       : nlohmann::json(nullptr);
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_collection_page_json(
+    holder_context* context,
+    const char* project_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (!out_json)
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  *out_json = nullptr;
+  if (!context || !project_id || !project_id[0] || !request_json || !request_json[0])
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "context, project_id and request_json are required"
+    );
+  holder::card::CardPageQuery query;
+  int limit = 256;
+  bool include_content = false;
+  try {
+    const auto request = nlohmann::json::parse(request_json);
+    if (!request.is_object()) throw std::invalid_argument("request must be an object");
+    for (const auto& item : request.items()) {
+      const auto& key = item.key();
+      if (key != "view" && key != "parent_card_id" && key != "tag" && key != "order" &&
+          key != "limit" && key != "include_content" && key != "cursor")
+        throw std::invalid_argument("unsupported collection field: " + key);
+    }
+    const auto view = request.value("view", std::string("all"));
+    if (view == "roots")
+      query.parent = holder::card::CardPageRoots{};
+    else if (view == "children") {
+      const auto parent = request.at("parent_card_id").get<std::string>();
+      if (parent.empty()) throw std::invalid_argument("parent_card_id must not be empty");
+      query.parent = holder::card::CardPageChildrenOf{parent};
+    } else if (view != "all")
+      throw std::invalid_argument("unsupported collection view");
+    if (view != "children" && request.contains("parent_card_id"))
+      throw std::invalid_argument("parent_card_id requires children view");
+    if (request.contains("tag")) {
+      query.tag = request.at("tag").get<std::string>();
+      if (!holder::core::is_valid_tag(*query.tag)) throw std::invalid_argument("invalid tag");
+    }
+    const auto order = request.value("order", std::string("card_id"));
+    if (order == "updated")
+      query.order = holder::card::CardPageOrder::UpdatedDesc;
+    else if (order != "card_id")
+      throw std::invalid_argument("unsupported collection order");
+    if (request.contains("limit")) {
+      const auto& value = request.at("limit");
+      if (!value.is_number_integer() || value < 1 || value > HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT)
+        throw std::invalid_argument("limit must be between 1 and 1000");
+      limit = value.get<int>();
+    }
+    if (request.contains("include_content")) {
+      if (!request.at("include_content").is_boolean())
+        throw std::invalid_argument("include_content must be boolean");
+      include_content = request.at("include_content").get<bool>();
+    }
+    if (request.contains("cursor") && !request.at("cursor").is_null()) {
+      const auto& cursor = request.at("cursor");
+      if (!cursor.is_object() || cursor.size() != 2 || !cursor.contains("card_id") ||
+          !cursor.contains("updated_at") || !cursor.at("card_id").is_string() ||
+          cursor.at("card_id").get<std::string>().empty() ||
+          !cursor.at("updated_at").is_number_integer() ||
+          (cursor.at("updated_at").is_number_unsigned() &&
+           cursor.at("updated_at").get<unsigned long long>() >
+               static_cast<unsigned long long>(LLONG_MAX)))
+        throw std::invalid_argument("invalid collection cursor");
+      query.cursor = holder::card::CardPageCursor{
+          cursor.at("card_id").get<std::string>(),
+          cursor.at("updated_at").get<long long>()
+      };
+    }
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto page = store.list_collection_page(project_id, query, limit, include_content);
+    auto cards = nlohmann::json::array();
+    for (const auto& record : page.cards) {
+      auto card = card_to_json(record.card);
+      if (include_content) card["content"] = record.content;
+      cards.push_back(std::move(card));
+    }
+    nlohmann::json cursor = nullptr;
+    if (page.next_cursor)
+      cursor = {
+          {"card_id", page.next_cursor->card_id},
+          {"updated_at", *page.next_cursor->updated_at}
+      };
+    return nlohmann::json{{"cards", std::move(cards)}, {"next_cursor", std::move(cursor)}};
+  });
+}
+
+// Flexible card-listing query bundling CardRepo::list_roots/list_children/list_all/
+// list_recent_page (plus, optionally, count_children_not_deleted) behind one request_json
+// shape, so callers pick a view instead of the C API growing a one-off function per listing
+// need. See holder.h for request_json's field documentation.
+int holder_card_query_json(
+    holder_context* context,
+    const char* project_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (request_json == nullptr || request_json[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "request_json must not be empty");
+  }
+
+  // Field validation ahead of with_json_output, mirroring holder_card_milestone_update_json's
+  // convention, so a bad "view"/"parent_card_id"/"limit" reports as HOLDER_ERROR_INVALID_ARGUMENT
+  // rather than the HOLDER_ERROR_RUNTIME that with_json_output's catch-all maps every other
+  // std::exception to. Malformed JSON itself falls through this try (silently) and is reported
+  // as HOLDER_ERROR_RUNTIME below, same as every other *_json capi function.
+  try {
+    const auto parsed = nlohmann::json::parse(request_json);
+    if (!parsed.contains("view") || !parsed.at("view").is_string()) {
+      return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "view must be a string");
+    }
+    const std::string view = parsed.at("view").get<std::string>();
+    if (view != "roots" && view != "children" && view != "all" && view != "recent") {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          R"(view must be one of "roots", "children", "all", "recent")"
+      );
+    }
+    if (view == "children" &&
+        (!parsed.contains("parent_card_id") || !parsed.at("parent_card_id").is_string() ||
+         parsed.at("parent_card_id").get<std::string>().empty())) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          "parent_card_id must not be empty when view is \"children\""
+      );
+    }
+    if (view == "recent" && (!parsed.contains("limit") || !parsed.at("limit").is_number_integer() ||
+                             parsed.at("limit").get<int>() <= 0)) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          "limit must be a positive integer when view is \"recent\""
+      );
+    }
+  } catch (const nlohmann::json::exception&) {
+    // Malformed JSON: fall through to with_json_output, which reports it as HOLDER_ERROR_RUNTIME.
+  }
+
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto parsed = nlohmann::json::parse(request_json);
+    const std::string view = parsed.at("view").get<std::string>();
+    holder::card::CardRepo repo(context->db);
+
+    std::vector<holder::model::Card> cards;
+    if (view == "roots") {
+      cards = repo.list_roots(project_id);
+    } else if (view == "children") {
+      cards = repo.list_children(project_id, parsed.at("parent_card_id").get<std::string>());
+    } else if (view == "all") {
+      cards = repo.list_all(project_id);
+    } else { // "recent"
+      std::optional<long long> before_updated_at;
+      std::optional<std::string> before_card_id;
+      if (parsed.contains("before_updated_at") && !parsed.at("before_updated_at").is_null()) {
+        before_updated_at = parsed.at("before_updated_at").get<long long>();
+      }
+      if (parsed.contains("before_card_id") && !parsed.at("before_card_id").is_null()) {
+        before_card_id = parsed.at("before_card_id").get<std::string>();
+      }
+      cards = repo.list_recent_page(
+          project_id,
+          before_updated_at,
+          before_card_id,
+          parsed.at("limit").get<int>()
+      );
+    }
+
+    const bool include_child_counts = parsed.contains("include_child_counts") &&
+                                      parsed.at("include_child_counts").is_boolean() &&
+                                      parsed.at("include_child_counts").get<bool>();
+
+    nlohmann::json out_cards = nlohmann::json::array();
+    for (const auto& card : cards) {
+      // list_roots/list_children/list_all don't filter deleted_at themselves (see their own
+      // implementations) -- every other *_json listing function filters it here at the capi
+      // layer instead, and this one does the same for consistency. list_recent_page already
+      // excludes soft-deleted cards in its own SQL, so this is a no-op for that view.
+      if (card.deleted_at.has_value()) {
+        continue;
+      }
+      auto card_json = card_to_json(card);
+      if (include_child_counts) {
+        card_json["child_count"] = repo.count_children_not_deleted(project_id, card.card_id);
+      }
+      out_cards.push_back(std::move(card_json));
+    }
+    return nlohmann::json{{"cards", out_cards}};
+  });
+}
+
+// The Android backup snapshot's query (BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1):
+// project_id's cards, most-recently-updated first, cursor-paginated so the caller (Kotlin,
+// deciding based on accumulated JSON+gzip size, which holder-core knows nothing about) can
+// stop whenever it wants rather than holder-core needing a byte budget of its own. Each card
+// carries its own project's name/privacy_mode denormalized inline (simpler than a separate
+// per-project header the caller would have to track across pages) plus links and milestones
+// -- both are frontmatter-only, not recoverable from body text alone, so the snapshot must
+// carry them explicitly. Tags are deliberately NOT included: they're always #hashtags already
+// present in the card's own body (see GITHUB_INTEGRATION_ANDROID_PLAN.md's card_tags note),
+// so restore's normal card-write path re-derives them from body text the same way any other
+// card write already does -- carrying them here too would just be redundant. Resource
+// references are also not yet included (the resource/asset metadata a card_links
+// to_type='resource' entry points at needs its own ResourceRepo/AssetRepo join, deferred as
+// a follow-up rather than blocking this step) -- the link itself, if a card has one, is not
+// silently dropped, only its target's own descriptive metadata.
+//
+// cursor_card_id empty/null means "first page." next_cursor in the response is null once a
+// page comes back shorter than limit (nothing left); otherwise it's the caller's cursor for
+// the next call.
+int holder_backup_snapshot_page(
+    holder_context* context,
+    const char* project_id,
+    long long cursor_updated_at,
+    const char* cursor_card_id,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (limit <= 0) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "limit must be positive");
+  }
+
+  try {
+    holder::project::ProjectRepo project_repo(context->db);
+    const auto project = project_repo.get(project_id);
+    if (!project.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    holder::card::CardRepo card_repo(context->db);
+    holder::card::LinkRepo link_repo(context->db);
+    holder::card::MilestoneRepo milestone_repo(context->db);
+    holder::index::FtsIndexer fts(context->db);
+
+    const bool has_cursor = cursor_card_id != nullptr && cursor_card_id[0] != '\0';
+    const auto cards = card_repo.list_recent_page(
+        project_id,
+        has_cursor ? std::optional<long long>(cursor_updated_at) : std::nullopt,
+        has_cursor ? std::optional<std::string>(cursor_card_id) : std::nullopt,
+        limit
+    );
+
+    nlohmann::json cards_json = nlohmann::json::array();
+    for (const auto& card : cards) {
+      nlohmann::json entry = {
+          {"card_id", card.card_id},
+          {"project_id", card.project_id},
+          {"project_name", project->name},
+          {"privacy_mode", project->privacy_mode},
+          {"title", card.title},
+          {"body", fts.get_body(card.card_id).value_or("")},
+          {"created_at", card.created_at},
+          {"updated_at", card.updated_at},
+      };
+
+      nlohmann::json links = nlohmann::json::array();
+      for (const auto& link : link_repo.list_outgoing(project_id, card.card_id)) {
+        nlohmann::json link_json = {
+            {"to_id", link.to_card_id},
+            {"to_type", link.to_type},
+            {"kind", link.kind},
+        };
+        link_json["label"] = link.label.has_value() ? nlohmann::json(*link.label)
+                                                    : nlohmann::json(nullptr);
+        links.push_back(link_json);
+      }
+      if (!links.empty()) entry["links"] = links;
+
+      nlohmann::json milestones = nlohmann::json::array();
+      for (const auto& milestone : milestone_repo.list_for_card(project_id, card.card_id)) {
+        nlohmann::json milestone_json = {
+            {"start_at", milestone.start_at},
+            {"all_day", milestone.all_day},
+        };
+        milestone_json["end_at"] = milestone.end_at.has_value() ? nlohmann::json(*milestone.end_at)
+                                                                : nlohmann::json(nullptr);
+        milestone_json["kind"] = milestone.kind.has_value() ? nlohmann::json(*milestone.kind)
+                                                            : nlohmann::json(nullptr);
+        milestone_json["description"] = milestone.description.has_value()
+                                            ? nlohmann::json(*milestone.description)
+                                            : nlohmann::json(nullptr);
+        milestones.push_back(milestone_json);
+      }
+      if (!milestones.empty()) entry["milestones"] = milestones;
+
+      cards_json.push_back(entry);
+    }
+
+    nlohmann::json body = {{"cards", cards_json}};
+    if (!cards.empty() && static_cast<int>(cards.size()) == limit) {
+      const auto& last = cards.back();
+      body["next_cursor"] = {
+          {"updated_at", last.updated_at},
+          {"card_id", last.card_id},
+      };
+    } else {
+      body["next_cursor"] = nullptr;
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_backup_restore(
+    holder_context* context,
+    const char* project_name,
+    const char* privacy_mode,
+    const char* cards_json,
+    const char* commit_message,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_name == nullptr || project_name[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_name must not be empty");
+  }
+  if (cards_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "cards_json must not be null");
+  }
+  if (commit_message == nullptr || commit_message[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "commit_message must not be empty");
+  }
+
+  try {
+    std::vector<holder::card::BatchCardInput> items;
+    for (const auto& card_json : nlohmann::json::parse(cards_json)) {
+      items.push_back(batch_card_input_from_json(card_json));
+    }
+
+    holder::model::Project project;
+    project.name = project_name;
+    project.id_scheme = holder::model::IdScheme::Uuid7;
+    project.privacy_mode = (privacy_mode != nullptr && privacy_mode[0] != '\0')
+                               ? std::string(privacy_mode)
+                               : "plain";
+
+    holder::project::ProjectStore project_store(context->db);
+    const auto created =
+        project_store.create(project, holder::identity::uuid_v4, context->data_dir / "projects");
+
+    try {
+      holder::card::CardStore card_store(context->db, &context->fts);
+      card_store.create_batch(created.project_id, items, holder::identity::uuid_v4, commit_message);
+    } catch (...) {
+      // The project is brand new and this whole restore attempt failed -- don't leave a
+      // half-populated project around for the caller to stumble on. Same rollback shape as
+      // ProjectStore::create's own on-failure cleanup: remove the row (cascades to any cards
+      // that did get created before the failure), not the working directory.
+      holder::project::ProjectRepo(context->db).remove(created.project_id);
+      throw;
+    }
+
+    holder::project::ProjectRepo repo(context->db);
+    const auto final_project = repo.get(created.project_id).value();
+
+    auto* out = duplicate_string(project_to_json(final_project).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_get_content(
+    holder_context* context,
+    const char* card_id,
+    char** out_content,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_content == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_content must not be null");
+  }
+  *out_content = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo repo(context->db);
+    const auto card = repo.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto content = store.get_content(*card);
+    if (!content.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card content missing");
+    }
+
+    auto* out = duplicate_string(*content);
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_content = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_reference_resolve(
+    holder_context* context,
+    const char* project_id,
+    const char* reference,
+    int scope,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (reference == nullptr || reference[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "reference must not be empty");
+  }
+  const auto scope_enum = card_scope_from_int(scope);
+  if (!scope_enum.has_value()) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "scope must be 0, 1, or 2");
+  }
+
+  try {
+    holder::card::CardRepo repo(context->db);
+    holder::card::CardReferenceResolver resolver(repo);
+    const auto result = resolver.resolve(project_id, reference, *scope_enum);
+
+    nlohmann::json body;
+    switch (result.status) {
+    case holder::card::CardReferenceStatus::Resolved:
+      body = {
+          {"status", "resolved"},
+          {"match_kind", card_reference_match_kind_to_string(*result.match_kind)},
+          {"card", card_to_json(*result.card)},
+      };
+      break;
+    case holder::card::CardReferenceStatus::Ambiguous: {
+      nlohmann::json candidates = nlohmann::json::array();
+      for (const auto& candidate : result.candidates) {
+        candidates.push_back(card_to_json(candidate));
+      }
+      body = {
+          {"status", "ambiguous"},
+          {"match_kind", card_reference_match_kind_to_string(*result.match_kind)},
+          {"candidates", candidates},
+      };
+      break;
+    }
+    case holder::card::CardReferenceStatus::NotFound:
+      body = {{"status", "not_found"}};
+      break;
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_move_json(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (request_json == nullptr || request_json[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "request_json must not be empty");
+  }
+
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto body = nlohmann::json::parse(request_json);
+    const auto request = card_placement_request_from_json(body);
+
+    const auto result = holder::card::CardStore(context->db, &context->fts)
+                            .move_to(project_id, card_id, request, now_epoch_seconds());
+    const auto& moved = result.card;
+
+    nlohmann::json response;
+    response["card_id"] = moved.card_id;
+    response["parent_card_id"] = moved.parent_card_id.has_value()
+                                     ? nlohmann::json(moved.parent_card_id.value())
+                                     : nlohmann::json(nullptr);
+    response["sort_key"] = moved.sort_key;
+    response["revision"] = moved.updated_at;
+    response["moved_into_title"] = result.moved_into_title.has_value()
+                                       ? nlohmann::json(result.moved_into_title.value())
+                                       : nlohmann::json(nullptr);
+    return response;
+  });
+}
+
+int holder_project_create(
+    holder_context* context,
+    const char* name,
+    const char* root_path,
+    const char* privacy_mode,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (name == nullptr || name[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "name must not be empty");
+  }
+
+  try {
+    holder::model::Project project;
+    project.name = name;
+    project.id_scheme = holder::model::IdScheme::Uuid7;
+    if (root_path != nullptr && root_path[0] != '\0') {
+      project.root_path = root_path;
+    }
+    project.privacy_mode = (privacy_mode != nullptr && privacy_mode[0] != '\0')
+                               ? std::string(privacy_mode)
+                               : "plain";
+
+    holder::project::ProjectStore store(context->db);
+    const auto created =
+        store.create(std::move(project), holder::identity::uuid_v4, context->data_dir / "projects");
+
+    if (root_path != nullptr && root_path[0] != '\0') {
+      // This generic C API does not yet persist a registry for caller-selected
+      // roots. Fail closed rather than later rebuilding only managed projects.
+      std::error_code ignored;
+      std::filesystem::remove(rebuild_readiness_path(context->data_dir), ignored);
+    }
+
+    auto* out = duplicate_string(project_to_json(created).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_project_rename(
+    holder_context* context,
+    const char* project_id,
+    const char* name,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (name == nullptr || name[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "name must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto current = repo.get(project_id);
+    if (!current.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    auto git = make_project_git(context);
+    auto operation = git->lock_operation(current->root_path);
+    git->open_or_init(current->root_path);
+
+    repo.update_name(project_id, name, now_epoch_seconds());
+    const auto updated = repo.get(project_id).value();
+    persist_project_metadata(context, updated, "Update project metadata");
+
+    auto* out = duplicate_string(project_to_json(updated).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_project_delete(
+    holder_context* context,
+    const char* project_id,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    if (!repo.get(project_id).has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    repo.remove(project_id);
+    holder::project::ProjectSyncRepo(context->db).remove(project_id);
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_create(
+    holder_context* context,
+    const char* project_id,
+    const char* title,
+    const char* content,
+    const char* parent_card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (title == nullptr || title[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "title must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo project_repo(context->db);
+    const auto project = project_repo.get(project_id);
+    if (!project.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    holder::model::Card card;
+    card.card_id = holder::identity::generate_id(project->id_scheme);
+    card.project_id = project_id;
+    card.title = title;
+    card.created_at = now_epoch_seconds();
+    card.updated_at = card.created_at;
+    if (parent_card_id != nullptr && parent_card_id[0] != '\0') {
+      card.parent_card_id = std::string(parent_card_id);
+    }
+
+    holder::card::CardStore store(context->db, &context->fts);
+    store.create(card, content != nullptr ? std::string(content) : std::string());
+
+    holder::card::CardRepo repo(context->db);
+    const auto created = repo.get(card.card_id);
+    auto* out = duplicate_string(card_to_json(created.value()).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_update_content(
+    holder_context* context,
+    const char* card_id,
+    const char* content,
+    const char* title,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (content == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "content must not be null");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    const std::optional<std::string> title_opt = (title != nullptr && title[0] != '\0')
+                                                     ? std::optional<std::string>(title)
+                                                     : std::nullopt;
+    store.update_content(card_id, content, title_opt, now_epoch_seconds());
+
+    holder::card::CardRepo repo(context->db);
+    const auto updated = repo.get(card_id);
+    if (!updated.has_value()) {
+      // CardStore::update_content above already throws "card not found" for this exact
+      // condition, so this branch is unreachable given the current implementation -- kept as
+      // defense-in-depth in case that invariant ever changes.
+      // LCOV_EXCL_START
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+      // LCOV_EXCL_STOP
+    }
+
+    auto* out = duplicate_string(card_to_json(updated.value()).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_delete(holder_context* context, const char* card_id, holder_error** out_error) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    store.trash(card_id, now_epoch_seconds());
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_delete_subtree(
+    holder_context* context,
+    const char* card_id,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    store.trash(card_id, now_epoch_seconds(), holder::card::TrashChildren::TrashSubtree);
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_project_repair_hierarchy_json(
+    holder_context* context,
+    const char* project_id,
+    int apply,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto plan = apply ? store.repair_hierarchy(project_id, now_epoch_seconds())
+                            : store.plan_hierarchy_repair(project_id);
+    nlohmann::json moved = nlohmann::json::array();
+    for (const auto& card_id : plan.moved_card_ids) {
+      const auto placed = std::find_if(
+          plan.placements.begin(),
+          plan.placements.end(),
+          [&](const holder::model::Card& c) {
+            return c.card_id == card_id;
+          }
+      );
+      nlohmann::json parent = nullptr;
+      if (placed != plan.placements.end() && placed->parent_card_id)
+        parent = *placed->parent_card_id;
+      moved.push_back({{"card_id", card_id}, {"parent_card_id", parent}});
+    }
+    return nlohmann::json{
+        {"applied", apply != 0 && !plan.placements.empty()},
+        {"moved", moved},
+        {"changed_card_count", plan.placements.size()},
+        {"cycle_card_ids", plan.cycle_card_ids},
+    };
+  });
+}
+
+int holder_card_list_trashed(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo repo(context->db);
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& card : repo.list_all(project_id)) {
+      if (!card.deleted_at.has_value()) {
+        continue;
+      }
+      body.push_back(card_to_json(card));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_restore(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    store.restore(card_id, now_epoch_seconds());
+
+    holder::card::CardRepo repo(context->db);
+    const auto restored = repo.get(card_id);
+    auto* out = duplicate_string(card_to_json(restored.value()).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_purge(holder_context* context, const char* card_id, holder_error** out_error) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    store.hard_delete(card_id);
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_search(
+    holder_context* context,
+    const char* project_id,
+    const char* query,
+    int limit,
+    int offset,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (query == nullptr || query[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "query must not be empty");
+  }
+
+  try {
+    const auto rows = context->fts.search_cards(project_id, query, limit, offset);
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& row : rows) {
+      body.push_back(search_row_to_json(row));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_links(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto card = cards.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    holder::card::LinkRepo links(context->db);
+    nlohmann::json outgoing = nlohmann::json::array();
+    for (const auto& link : links.list_outgoing(card->project_id, card_id)) {
+      outgoing.push_back(outgoing_link_to_json(context->db, link));
+    }
+    nlohmann::json backlinks = nlohmann::json::array();
+    for (const auto& link : links.list_backlinks(card->project_id, card_id)) {
+      backlinks.push_back(backlink_to_json(context->db, link));
+    }
+
+    nlohmann::json parent = nullptr;
+    if (card->parent_card_id.has_value()) {
+      const auto parent_card = cards.get(*card->parent_card_id);
+      if (parent_card.has_value()) {
+        parent = {{"card_id", parent_card->card_id}, {"title", parent_card->title}};
+      }
+    }
+    nlohmann::json children = nlohmann::json::array();
+    for (const auto& child : cards.list_children(card->project_id, card_id)) {
+      if (child.deleted_at.has_value()) {
+        continue;
+      }
+      children.push_back({{"card_id", child.card_id}, {"title", child.title}});
+    }
+
+    nlohmann::json body = {
+        {"outgoing", outgoing},
+        {"backlinks", backlinks},
+        {"parent", parent},
+        {"children", children}
+    };
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_link_add(
+    holder_context* context,
+    const char* from_card_id,
+    const char* to_card_id,
+    const char* kind,
+    const char* label,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (from_card_id == nullptr || from_card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "from_card_id must not be empty");
+  }
+  if (to_card_id == nullptr || to_card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "to_card_id must not be empty");
+  }
+  if (kind == nullptr || kind[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "kind must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto from_card = cards.get(from_card_id);
+    if (!from_card.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "card not found: " + std::string(from_card_id)
+      );
+    }
+    if (!cards.get(to_card_id).has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "card not found: " + std::string(to_card_id)
+      );
+    }
+
+    holder::model::CardLink link;
+    link.project_id = from_card->project_id;
+    link.from_card_id = from_card_id;
+    link.to_card_id = to_card_id;
+    link.to_type = "card";
+    link.kind = kind;
+    if (label != nullptr && label[0] != '\0') {
+      link.label = std::string(label);
+    }
+    link.created_at = now_epoch_seconds();
+
+    holder::card::LinkRepo(context->db).upsert_links(from_card->project_id, from_card_id, {link});
+    holder::card::CardStore(context->db, &context->fts)
+        .update_links(from_card_id, now_epoch_seconds());
+
+    nlohmann::json outgoing = nlohmann::json::array();
+    for (const auto& l :
+         holder::card::LinkRepo(context->db).list_outgoing(from_card->project_id, from_card_id)) {
+      outgoing.push_back(outgoing_link_to_json(context->db, l));
+    }
+    auto* out = duplicate_string(outgoing.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_link_remove(
+    holder_context* context,
+    const char* from_card_id,
+    const char* to_card_id,
+    const char* kind,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (from_card_id == nullptr || from_card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "from_card_id must not be empty");
+  }
+  if (to_card_id == nullptr || to_card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "to_card_id must not be empty");
+  }
+  if (kind == nullptr || kind[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "kind must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto from_card = cards.get(from_card_id);
+    if (!from_card.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "card not found: " + std::string(from_card_id)
+      );
+    }
+
+    holder::card::LinkRepo(context->db)
+        .delete_link(
+            from_card->project_id,
+            from_card_id,
+            to_card_id,
+            std::string("card"),
+            std::string(kind)
+        );
+    holder::card::CardStore(context->db, &context->fts)
+        .update_links(from_card_id, now_epoch_seconds());
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_tags(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto card = cards.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    const auto tags =
+        holder::card::TagRepo(context->db).list_tags_for_card(card->project_id, card_id);
+    auto* out = duplicate_string(nlohmann::json(tags).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_tag_add(
+    holder_context* context,
+    const char* card_id,
+    const char* tag,
+    int* out_status,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_status == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_status must not be null");
+  }
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (tag == nullptr || tag[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "tag must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto result = store.add_tag(card_id, tag, now_epoch_seconds());
+    switch (result) {
+    case holder::card::AddTagResult::Added:
+      *out_status = HOLDER_TAG_ADD_ADDED;
+      break;
+    case holder::card::AddTagResult::AlreadyPresent:
+      *out_status = HOLDER_TAG_ADD_ALREADY_PRESENT;
+      break;
+    case holder::card::AddTagResult::InvalidTag:
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          "invalid tag: " + std::string(tag)
+      );
+    }
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_tag_remove(
+    holder_context* context,
+    const char* card_id,
+    const char* tag,
+    int* out_status,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_status == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_status must not be null");
+  }
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (tag == nullptr || tag[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "tag must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto result = store.remove_tag(card_id, tag, now_epoch_seconds());
+    switch (result) {
+    case holder::card::RemoveTagResult::Removed:
+      *out_status = HOLDER_TAG_REMOVE_REMOVED;
+      break;
+    case holder::card::RemoveTagResult::NotPresent:
+      *out_status = HOLDER_TAG_REMOVE_NOT_PRESENT;
+      break;
+    case holder::card::RemoveTagResult::PresentOutsideEditableTagLine:
+      *out_status = HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE;
+      break;
+    case holder::card::RemoveTagResult::InvalidTag:
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          "invalid tag: " + std::string(tag)
+      );
+    }
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_editable_tags(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    const auto tags = store.list_editable_tags(card_id);
+    auto* out = duplicate_string(nlohmann::json(tags).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_cards_with_tag(
+    holder_context* context,
+    const char* project_id,
+    const char* tag,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (tag == nullptr || tag[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "tag must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    holder::card::TagRepo tags(context->db);
+
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& id : tags.list_card_ids_with_tag(project_id, to_lower(tag))) {
+      const auto card = cards.get(id);
+      if (!card.has_value()) {
+        continue; // LCOV_EXCL_LINE
+      }
+      body.push_back({{"card_id", card->card_id}, {"title", card->title}});
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_project_list_tags(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& [tag, count] :
+         holder::card::TagRepo(context->db).list_project_tags(project_id)) {
+      body.push_back({{"tag", tag}, {"count", count}});
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_milestones(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto card = cards.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& milestone :
+         holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)) {
+      body.push_back(milestone_to_json(milestone));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_milestone_add(
+    holder_context* context,
+    const char* card_id,
+    long long start_at,
+    int has_end_at,
+    long long end_at,
+    int all_day,
+    const char* kind,
+    const char* description,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto card = cards.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    holder::card::MilestoneRepo milestone_repo(context->db);
+    auto milestones = milestone_repo.list_for_card(card->project_id, card_id);
+
+    holder::model::Milestone milestone;
+    milestone.milestone_id = holder::identity::uuid_v4();
+    milestone.project_id = card->project_id;
+    milestone.card_id = card_id;
+    milestone.start_at = start_at;
+    if (has_end_at != 0) {
+      milestone.end_at = end_at;
+    }
+    milestone.all_day = (all_day != 0);
+    if (kind != nullptr && kind[0] != '\0') {
+      milestone.kind = std::string(kind);
+    }
+    if (description != nullptr && description[0] != '\0') {
+      milestone.description = std::string(description);
+    }
+    milestone.created_at = now_epoch_seconds();
+    milestone.updated_at = milestone.created_at;
+    milestones.push_back(milestone);
+
+    milestone_repo.replace_for_card(card->project_id, card_id, milestones);
+    holder::card::CardStore(context->db, &context->fts)
+        .update_milestones(card_id, now_epoch_seconds());
+
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& m : milestone_repo.list_for_card(card->project_id, card_id)) {
+      body.push_back(milestone_to_json(m));
+    }
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_milestone_update_json(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* milestone_id,
+    const char* update_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (milestone_id == nullptr || milestone_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "milestone_id must not be empty");
+  }
+  if (update_json == nullptr || update_json[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "update_json must not be empty");
+  }
+  // start_at/all_day can never be explicitly cleared (see milestone_update_from_json / the doc
+  // comment on this function) -- checked here, ahead of with_json_output, so this specific
+  // caller mistake reports as HOLDER_ERROR_INVALID_ARGUMENT rather than the HOLDER_ERROR_RUNTIME
+  // that with_json_output's catch-all maps every other std::exception to. Malformed JSON falls
+  // through this try (silently) and is reported as HOLDER_ERROR_RUNTIME below, same as every
+  // other *_json capi function.
+  try {
+    const auto parsed = nlohmann::json::parse(update_json);
+    if ((parsed.contains("start_at") && parsed.at("start_at").is_null()) ||
+        (parsed.contains("all_day") && parsed.at("all_day").is_null())) {
+      clear_error(out_error);
+      if (out_json != nullptr) *out_json = nullptr;
+      return set_error(
+          out_error,
+          HOLDER_ERROR_INVALID_ARGUMENT,
+          "start_at and all_day must not be null"
+      );
+    }
+  } catch (const nlohmann::json::exception&) {
+    // Malformed JSON: fall through to with_json_output, which reports it as HOLDER_ERROR_RUNTIME.
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto update = milestone_update_from_json(nlohmann::json::parse(update_json));
+    const auto result =
+        holder::card::CardStore(context->db, &context->fts)
+            .update_milestone(project_id, card_id, milestone_id, update, now_epoch_seconds());
+    if (!result.has_value()) {
+      throw std::runtime_error("milestone not found: " + std::string(milestone_id));
+    }
+    return milestone_to_json(*result);
+  });
+}
+
+int holder_card_milestone_remove(
+    holder_context* context,
+    const char* card_id,
+    const char* milestone_id,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (milestone_id == nullptr || milestone_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "milestone_id must not be empty");
+  }
+
+  try {
+    holder::card::CardRepo cards(context->db);
+    const auto card = cards.get(card_id);
+    if (!card.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
+    }
+
+    holder::card::MilestoneRepo milestone_repo(context->db);
+    auto milestones = milestone_repo.list_for_card(card->project_id, card_id);
+    const auto before = milestones.size();
+    milestones.erase(
+        std::remove_if(
+            milestones.begin(),
+            milestones.end(),
+            [&](const holder::model::Milestone& m) {
+              return m.milestone_id == milestone_id;
+            }
+        ),
+        milestones.end()
+    );
+    if (milestones.size() == before) {
+      return HOLDER_OK;
+    }
+
+    milestone_repo.replace_for_card(card->project_id, card_id, milestones);
+    holder::card::CardStore(context->db, &context->fts)
+        .update_milestones(card_id, now_epoch_seconds());
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_project_list_milestones_in_range(
+    holder_context* context,
+    const char* project_id,
+    long long from,
+    long long to,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& milestone :
+         holder::card::MilestoneRepo(context->db).list_in_range(project_id, from, to)) {
+      body.push_back(milestone_with_card_title_to_json(context->db, milestone));
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_link_kind_list(char** out_json, holder_error** out_error) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  try {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& entry : holder::core::link_kind_catalog()) {
+      body.push_back(
+          {{"id", entry.id}, {"forward", entry.forward_label}, {"reverse", entry.reverse_label}}
+      );
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) { // LCOV_EXCL_LINE
+    return set_exception(out_error, e); // LCOV_EXCL_LINE
+  } catch (...) { // LCOV_EXCL_LINE
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_reindex(holder_context* context, holder_error** out_error) {
+  clear_error(out_error);
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+
+  try {
+    holder::index::Reindexer reindexer(context->db);
+    reindexer.run();
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_ensure_default_project(
+    holder_context* context,
+    const char* name,
+    const char* welcome_title,
+    const char* welcome_content,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (name == nullptr || name[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "name must not be empty");
+  }
+  if (welcome_title == nullptr || welcome_title[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "welcome_title must not be empty");
+  }
+
+  try {
+    const auto created = holder::project::ensure_default_project(
+        context->db,
+        name,
+        "plain",
+        welcome_title,
+        welcome_content != nullptr ? std::string(welcome_content) : std::string(),
+        holder::identity::uuid_v4,
+        context->data_dir / "projects",
+        &context->fts
+    );
+
+    auto* out = duplicate_string(
+        created.has_value() ? project_to_json(created.value()).dump() : std::string("null")
+    );
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_history_list(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* cursor_oid,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (limit <= 0) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "limit must be positive");
+  }
+
+  try {
+    holder::project::ProjectRepo project_repo(context->db);
+    const auto project = project_repo.get(project_id);
+    if (!project.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    const std::optional<std::string> cursor = (cursor_oid != nullptr && cursor_oid[0] != '\0')
+                                                  ? std::optional<std::string>{cursor_oid}
+                                                  : std::optional<std::string>{};
+
+    holder::history::CardHistoryService history;
+    const auto page = history.list(*project, card_id, static_cast<std::size_t>(limit), cursor);
+
+    nlohmann::json entries = nlohmann::json::array();
+    for (const auto& entry : page.entries)
+      entries.push_back(card_history_entry_to_json(entry));
+    nlohmann::json body = {
+        {"head_oid", optional_json(page.head_oid)},
+        {"entries", std::move(entries)},
+        {"next_cursor", optional_json(page.next_cursor)},
+        {"scan_limited", page.scan_limited},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_history_compare(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* from_oid,
+    const char* to_oid,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (to_oid == nullptr || to_oid[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "to_oid must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo project_repo(context->db);
+    const auto project = project_repo.get(project_id);
+    if (!project.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    const std::optional<std::string> from = (from_oid != nullptr && from_oid[0] != '\0')
+                                                ? std::optional<std::string>{from_oid}
+                                                : std::optional<std::string>{};
+
+    holder::history::CardHistoryService history;
+    const auto comparison =
+        history.compare(*project, card_id, from, std::optional<std::string>{to_oid});
+
+    nlohmann::json lines = nlohmann::json::array();
+    for (const auto& line : comparison.lines)
+      lines.push_back(card_history_diff_line_to_json(line));
+    nlohmann::json body = {
+        {"from", card_history_version_to_json(comparison.from)},
+        {"to", card_history_version_to_json(comparison.to)},
+        {"summary", comparison.summary},
+        {"lines", std::move(lines)},
+        {"truncated", comparison.truncated},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_card_history_restore(
+    holder_context* context,
+    const char* card_id,
+    const char* historical_oid,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (card_id == nullptr || card_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  if (historical_oid == nullptr || historical_oid[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "historical_oid must not be empty");
+  }
+
+  try {
+    holder::card::CardStore store(context->db, &context->fts);
+    store.restore_version(card_id, historical_oid, now_epoch_seconds());
+
+    holder::card::CardRepo repo(context->db);
+    const auto restored = repo.get(card_id);
+    auto* out = duplicate_string(card_to_json(restored.value()).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_set_homedir(const char* path, holder_error** out_error) {
+  clear_error(out_error);
+  if (path == nullptr || path[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "path must not be empty");
+  }
+
+  // libgit2 only runs its real subsystem init (including deriving the default
+  // homedir) on the process's first git_libgit2_init() 0->1 transition; later
+  // calls (e.g. from each GitRepo constructed per git operation) just bump a
+  // refcount. Force that first transition to happen here, before setting our
+  // override, so it isn't silently clobbered the next time a GitRepo is
+  // constructed. Deliberately never shut this reference back down: it must
+  // outlive every GitRepo for the rest of the process, or the override would
+  // be reset back to defaults whenever the refcount happened to hit zero.
+  git_libgit2_init();
+
+  const int rc = git_libgit2_opts(GIT_OPT_SET_HOMEDIR, path);
+  if (rc != 0) {
+    // Only fails on an internal libgit2 allocation failure; not practically triggerable from a
+    // test.
+    // LCOV_EXCL_START
+    const git_error* e = git_error_last();
+    return set_error(
+        out_error,
+        HOLDER_ERROR_RUNTIME,
+        std::string("git_libgit2_opts(GIT_OPT_SET_HOMEDIR) failed: ") +
+            (e && e->message ? e->message : "unknown error")
+    );
+    // LCOV_EXCL_STOP
+  }
+  return HOLDER_OK;
+}
+
+int holder_git_set_ssh_signer(
+    holder_context* context,
+    const char* username,
+    const unsigned char* public_key_blob,
+    size_t public_key_blob_len,
+    holder_ssh_sign_fn sign_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+
+  // Takes ownership of user_data unconditionally from this point on -- via
+  // this shared_ptr, which either gets captured into the installed provider
+  // below (success) or simply falls out of scope at any early return
+  // (failure) -- so destroy_user_data runs exactly once either way: right
+  // away if this call fails for any reason, or later (on replacement or
+  // context destruction) if it succeeds. Callers never need to guess which
+  // case applies or risk a double-release.
+  std::shared_ptr<CApiSshSignerHandle> handle;
+  try {
+    handle = std::make_shared<CApiSshSignerHandle>(user_data, destroy_user_data);
+  } catch (const std::bad_alloc&) {
+    // Allocation failed before the handle could take the unconditionally transferred data.
+    if (destroy_user_data != nullptr) destroy_user_data(user_data);
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (username == nullptr || username[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "username must not be empty");
+  }
+  if (public_key_blob == nullptr || public_key_blob_len == 0) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "public_key_blob must not be empty");
+  }
+  if (sign_fn == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "sign_fn must not be null");
+  }
+
+  try {
+    std::vector<unsigned char> pubkey(public_key_blob, public_key_blob + public_key_blob_len);
+
+    context->credential_provider = std::make_shared<holder::git::EcdsaDerSigningCredentialProvider>(
+        std::string(username),
+        std::move(pubkey),
+        [handle, sign_fn](const unsigned char* data, size_t data_len) { // LCOV_EXCL_START
+          // Invoked only by a real SSH server's authentication challenge; local-remotes tests
+          // verify provider wiring without requiring network credentials or an SSH daemon.
+          return handle->sign(sign_fn, data, data_len);
+        } // LCOV_EXCL_STOP
+    );
+    return HOLDER_OK;
+    // EcdsaDerSigningCredentialProvider's constructor never throws anything but bad_alloc, so
+    // beyond that this whole catch chain is unreachable given the current implementation --
+    // kept only as the same defense-in-depth boilerplate every other C ABI function uses.
+    // LCOV_EXCL_START
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error);
+  }
+  // LCOV_EXCL_STOP
+}
+
+int holder_project_update_git_remote(
+    holder_context* context,
+    const char* project_id,
+    const char* remote_url,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto current = repo.get(project_id);
+    if (!current.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    auto git = make_project_git(context);
+    auto operation = git->lock_operation(current->root_path);
+    git->open_or_init(current->root_path);
+
+    const std::optional<std::string> url = (remote_url != nullptr && remote_url[0] != '\0')
+                                               ? std::optional<std::string>(remote_url)
+                                               : std::nullopt;
+    repo.update_git_remote(project_id, url, now_epoch_seconds());
+    const auto updated = repo.get(project_id).value();
+    if (url.has_value()) {
+      git->set_remote("origin", *url);
+    } else {
+      git->remove_remote("origin");
+    }
+    holder::project::write_project_manifest(*git, updated);
+    git->commit("Update project metadata");
+
+    auto* out = duplicate_string(project_to_json(updated).dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_test_remote(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+    // GCC misses this ternary arm; git_test_remote's explicit-branch test asserts its value.
+    const std::string resolved_branch = (branch != nullptr && branch[0] != '\0')
+                                            ? std::string(branch) // LCOV_EXCL_LINE
+                                            : "local_default";
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"remote_url", optional_json(project.git_remote_url)},
+        {"branch", resolved_branch},
+    };
+
+    if (!project.git_remote_url.has_value() || project.git_remote_url->empty()) {
+      body["status"] = holder::git::remote_probe_status_name(
+          holder::git::RemoteProbeStatus::RemoteUnset
+      );
+      body["remote_has_head"] = false;
+      body["error_message"] = "Remote URL is not configured.";
+    } else {
+      auto git = make_project_git(context);
+      auto operation = git->lock_operation(project.root_path);
+      git->open_or_init(project.root_path);
+      git->set_remote("origin", project.git_remote_url.value());
+      const auto probe = git->probe_remote("origin");
+      body["status"] = holder::git::remote_probe_status_name(probe.status);
+      body["remote_has_head"] = probe.remote_has_head;
+      body["error_message"] = probe.error_message.empty() ? nlohmann::json(nullptr)
+                                                          : nlohmann::json(probe.error_message);
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_probe_remote_url(
+    holder_context* context,
+    const char* url,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (url == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "url must not be null");
+  }
+
+  try {
+    auto git = make_project_git(context);
+    const auto probe = git->probe_remote_url(url);
+
+    nlohmann::json body = {
+        {"url", url},
+        // LCOV_EXCL_START - gcov artefact: multi-line initializer is executed but never counted.
+        {"status", holder::git::remote_probe_status_name(probe.status)},
+        // LCOV_EXCL_STOP
+        {"remote_has_head", probe.remote_has_head},
+        {"error_message",
+         probe.error_message.empty() ? nlohmann::json(nullptr) : nlohmann::json(probe.error_message)
+        },
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_push(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    int set_upstream,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    holder::project::ProjectSyncRepo sync_repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+    const std::string requested_branch = (branch != nullptr) ? std::string(branch) : std::string();
+    const std::string resolved_branch = requested_branch.empty() ? "local_default"
+                                                                 : requested_branch;
+    const auto now = now_epoch_seconds();
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"remote_url", optional_json(project.git_remote_url)},
+        {"branch", resolved_branch},
+    };
+
+    if (!project.git_remote_url.has_value() || project.git_remote_url->empty()) {
+      sync_repo.record_push_result(
+          project_id,
+          holder::git::push_status_name(holder::git::PushStatus::RemoteUnset),
+          false,
+          std::optional<std::string>{"Remote URL is not configured."},
+          now
+      );
+      body["status"] = holder::git::push_status_name(holder::git::PushStatus::RemoteUnset);
+      body["ahead_count"] = 0;
+      body["behind_count"] = 0;
+      body["local_head_commit"] = nullptr;
+      body["error_message"] = "Remote URL is not configured.";
+    } else {
+      auto git = make_project_git(context);
+      auto operation = git->lock_operation(project.root_path);
+      git->open_or_init(project.root_path);
+      git->set_remote("origin", project.git_remote_url.value());
+      const auto push = git->push_branch("origin", requested_branch, set_upstream != 0);
+      const bool push_ok = push.status == holder::git::PushStatus::Pushed ||
+                           push.status == holder::git::PushStatus::UpToDate;
+      sync_repo.record_push_result(
+          project_id,
+          holder::git::push_status_name(push.status),
+          push_ok,
+          push.error_message.empty() ? std::optional<std::string>()
+                                     : std::optional<std::string>(push.error_message),
+          now
+      );
+      try {
+        refresh_sync_activity_counts(context->db, project_id, project.root_path, now);
+        // LCOV_EXCL_START -- refresh_sync_activity_counts only throws if the repo dir is an
+        // unreadable/corrupted git repo at this exact moment, not practically triggerable
+        // right after a successful push/pull/import against it.
+      } catch (const std::exception&) {
+        // Best-effort only; metrics refresh failure does not fail push response.
+      }
+      // LCOV_EXCL_STOP
+
+      body["status"] = holder::git::push_status_name(push.status);
+      body["ahead_count"] = push.ahead_count;
+      body["behind_count"] = push.behind_count;
+      body["local_head_commit"] = push.local_head_commit.empty()
+                                      ? nlohmann::json(nullptr)
+                                      : nlohmann::json(push.local_head_commit);
+      body["error_message"] = push.error_message.empty() ? nlohmann::json(nullptr)
+                                                         : nlohmann::json(push.error_message);
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_pull(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    auto git = make_project_git(context);
+    const auto result = holder::sync::run_project_sync(
+        context->db,
+        &context->fts,
+        *git,
+        project_id,
+        {.pull = true,
+         .push = false,
+         .push_after_failed_pull = false,
+         .branch = "",
+         .set_upstream = true,
+         .now = now_epoch_seconds()}
+    );
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"status",
+         result.pull.status == holder::sync::PullPhaseStatus::RemoteUnset
+             ? "failed"
+             : holder::sync::pull_phase_status_name(result.pull.status)},
+        {"error_message",
+         result.pull.error_message.has_value() ? nlohmann::json(*result.pull.error_message)
+                                               : nlohmann::json(nullptr)},
+    };
+    if (result.pull.status == holder::sync::PullPhaseStatus::Succeeded) {
+      body["conflicts_resolved"] = result.pull.conflicts_resolved;
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_sync_status(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    if (!repo.get(project_id).has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    holder::project::ProjectSyncRepo sync_repo(context->db);
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"sync", project_sync_to_json(sync_repo.get(project_id))},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_sync_if_due(
+    holder_context* context,
+    const char* project_id,
+    int push_interval_seconds,
+    int pull_interval_seconds,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    holder::project::ProjectSyncRepo sync_repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"pull_attempted", false},
+        {"pull_status", nullptr},
+        {"pull_error", nullptr},
+        {"pull_conflicts_resolved", 0}, // LCOV_EXCL_LINE
+        {"push_attempted", false},
+        {"push_status", nullptr},
+        {"push_error", nullptr},
+    };
+
+    if (!project.git_remote_url.has_value() || project.git_remote_url->empty()) {
+      auto* out = duplicate_string(body.dump());
+      if (out == nullptr) {
+        return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+      }
+      *out_json = out;
+      return HOLDER_OK;
+    }
+
+    const auto now = now_epoch_seconds();
+    const auto state = sync_repo.get(project_id);
+    holder::sync::PullDecisionInput pull_input{
+        .last_pull_at = state.has_value() ? state->last_pull_at : std::optional<long long>{},
+        .next_pull_retry_at = state.has_value() ? state->next_pull_retry_at
+                                                : std::optional<long long>{},
+        .now = now,
+    };
+    if (pull_interval_seconds > 0) pull_input.pull_interval_seconds = pull_interval_seconds;
+
+    const bool pull_due = holder::sync::should_attempt_pull(pull_input);
+    holder::sync::PushDecisionInput push_input{
+        .last_push_at = state.has_value() ? state->last_push_at : std::optional<long long>{},
+        .next_retry_at = state.has_value() ? state->next_retry_at : std::optional<long long>{},
+        .now = now,
+    }; // LCOV_EXCL_LINE -- GCC attributes the already-executed aggregate initialization here.
+    if (push_interval_seconds > 0) push_input.push_interval_seconds = push_interval_seconds;
+    const bool push_due = holder::sync::should_attempt_push(push_input);
+
+    if (pull_due || push_due) {
+      auto git = make_project_git(context);
+      const auto result = holder::sync::run_project_sync(
+          context->db,
+          &context->fts,
+          *git,
+          project_id,
+          {.pull = pull_due,
+           .push = push_due,
+           .push_after_failed_pull = true,
+           .branch = "", // LCOV_EXCL_LINE - gcov artefact: designated initializer is executed but
+                         // never counted.
+           .set_upstream = true,
+           .now = now}
+      );
+      body["pull_attempted"] = result.pull.attempted;
+      if (result.pull.attempted) {
+        body["pull_status"] = holder::sync::pull_phase_status_name(result.pull.status);
+        body["pull_conflicts_resolved"] = result.pull.conflicts_resolved;
+        if (result.pull.error_message.has_value()) body["pull_error"] = *result.pull.error_message;
+      }
+      body["push_attempted"] = result.push.attempted;
+      if (result.push.attempted) {
+        body["push_status"] = holder::git::push_status_name(result.push.status);
+        if (result.push.error_message.has_value()) body["push_error"] = *result.push.error_message;
+      }
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_git_sync_now(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    int push,
+    int set_upstream,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"pull_attempted", false},
+        {"pull_status", nullptr},
+        {"pull_error", nullptr},
+        {"pull_conflicts_resolved", 0}, // LCOV_EXCL_LINE
+        {"push_attempted", false},
+        {"push_status", nullptr},
+        {"push_error", nullptr},
+        // LCOV_EXCL_START - gcov artefact: multi-line initializer is executed but never counted.
+        {"push_ahead_count", 0},
+        // LCOV_EXCL_STOP
+        // LCOV_EXCL_START - gcov artefact: multi-line initializer is executed but never counted.
+        {"push_behind_count", 0},
+        // LCOV_EXCL_STOP
+        {"push_local_head_commit", nullptr},
+    };
+
+    if (!project.git_remote_url.has_value() || project.git_remote_url->empty()) {
+      auto* out = duplicate_string(body.dump());
+      if (out == nullptr) {
+        return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+      }
+      *out_json = out;
+      return HOLDER_OK;
+    }
+
+    auto git = make_project_git(context);
+    const auto result = holder::sync::run_project_sync(
+        context->db,
+        &context->fts,
+        *git,
+        project_id,
+        {.pull = true,
+         .push = (push != 0),
+         .push_after_failed_pull = false,
+         .branch = branch != nullptr ? branch : "", // LCOV_EXCL_LINE - gcov artefact: designated
+                                                    // initializer is executed but never counted.
+         .set_upstream = set_upstream != 0,
+         .now = now_epoch_seconds()}
+    );
+
+    body["pull_attempted"] = result.pull.attempted;
+    if (result.pull.attempted) {
+      body["pull_status"] = holder::sync::pull_phase_status_name(result.pull.status);
+      body["pull_conflicts_resolved"] = result.pull.conflicts_resolved;
+      if (result.pull.error_message.has_value()) body["pull_error"] = *result.pull.error_message;
+    }
+    body["push_attempted"] = result.push.attempted;
+    if (result.push.attempted) {
+      body["push_status"] = holder::git::push_status_name(result.push.status);
+      if (result.push.error_message.has_value()) body["push_error"] = *result.push.error_message;
+      body["push_ahead_count"] = result.push.ahead_count;
+      body["push_behind_count"] = result.push.behind_count;
+      if (result.push.local_head_commit.has_value()) {
+        body["push_local_head_commit"] = *result.push.local_head_commit;
+      }
+    }
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_keyring_set_provider(
+    holder_keyring_lookup_fn lookup_fn,
+    holder_keyring_store_fn store_fn,
+    holder_keyring_remove_fn remove_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+
+  // Takes ownership of user_data unconditionally from this point on, exactly
+  // like holder_git_set_ssh_signer -- see that function's comment for why.
+  std::shared_ptr<CApiKeyringProviderHandle> handle;
+  try {
+    handle = std::make_shared<CApiKeyringProviderHandle>(user_data, destroy_user_data);
+  } catch (const std::bad_alloc&) {
+    // Allocation failed before the handle could take the unconditionally transferred data.
+    if (destroy_user_data != nullptr) destroy_user_data(user_data);
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  }
+
+  if (lookup_fn == nullptr || store_fn == nullptr || remove_fn == nullptr) {
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "lookup_fn, store_fn, and remove_fn must not be null"
+    );
+  }
+
+  try {
+    holder::privacy::platform_keyring_set_external_provider(
+        [handle, lookup_fn](const holder::privacy::PlatformKeyringSecretRef& ref) {
+          return handle->lookup(lookup_fn, ref);
+        },
+        [handle, store_fn](
+            const holder::privacy::PlatformKeyringSecretRef& ref,
+            const std::string& label,
+            const std::string& secret
+        ) {
+          return handle->store(store_fn, ref, label, secret);
+        },
+        [handle, remove_fn](const holder::privacy::PlatformKeyringSecretRef& ref) {
+          return handle->remove(remove_fn, ref);
+        }
+    );
+    return HOLDER_OK;
+    // platform_keyring_set_external_provider only moves std::functions into storage; it never
+    // throws anything but bad_alloc, so beyond that this whole catch chain is unreachable given
+    // the current implementation -- kept only as the same defense-in-depth boilerplate as
+    // elsewhere.
+    // LCOV_EXCL_START
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error);
+  }
+  // LCOV_EXCL_STOP
+}
+
+int holder_encryption_check(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"privacy_mode", project.privacy_mode},
+    };
+
+    if (project.privacy_mode != "encrypted_git") {
+      body["check"] = {
+          {"ok", true},
+          {"checked_files", 0}, // LCOV_EXCL_LINE
+          {"unsafe_files", 0}, // LCOV_EXCL_LINE
+          {"unsafe_paths", nlohmann::json::array()},
+          {"message", "Project is plain mode; privacy check not required."},
+      };
+    } else {
+      const auto check = holder::privacy::run_encryption_safety_check(project.root_path);
+      body["check"] = {
+          {"ok", check.ok},
+          {"checked_files", check.checked_files},
+          {"unsafe_files", check.unsafe_paths.size()}, // LCOV_EXCL_LINE
+          {"unsafe_paths", check.unsafe_paths},
+          {"message", check.message},
+      };
+    } // LCOV_EXCL_LINE
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_recovery_token_export(
+    holder_context* context,
+    const char* project_id,
+    const char* pin,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (pin == nullptr || pin[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "pin must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto project_opt = repo.get(project_id);
+    if (!project_opt.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+    const auto& project = project_opt.value();
+    if (!project.project_key_id.has_value()) {
+      return set_error(out_error, HOLDER_ERROR_RUNTIME, "project has no key material configured");
+    }
+
+    const std::string token = holder::privacy::export_recovery_token(
+        project_id,
+        project.project_key_id.value(),
+        pin,
+        project.name,
+        project.git_remote_url
+    );
+
+    nlohmann::json body = {
+        {"project_id", project_id},
+        {"key_id", project.project_key_id.value()},
+        {"recovery_token", token},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_recovery_token_import(
+    holder_context* context,
+    const char* project_id,
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (project_id == nullptr || project_id[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  if (pin == nullptr || pin[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "pin must not be empty");
+  }
+  if (recovery_token == nullptr || recovery_token[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "recovery_token must not be empty");
+  }
+
+  try {
+    holder::project::ProjectRepo repo(context->db);
+    const auto project = repo.get(project_id);
+    if (!project.has_value()) {
+      return set_error(
+          out_error,
+          HOLDER_ERROR_RUNTIME,
+          "project not found: " + std::string(project_id)
+      );
+    }
+
+    auto git = make_project_git(context);
+    auto operation = git->lock_operation(project->root_path);
+
+    holder::privacy::import_recovery_token(
+        repo,
+        project_id,
+        pin,
+        recovery_token,
+        now_epoch_seconds()
+    );
+    persist_project_metadata(
+        context,
+        repo.get(project_id).value(),
+        "Restore encrypted project metadata"
+    );
+
+    nlohmann::json body = {{"project_id", project_id}};
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_recovery_token_inspect(
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (pin == nullptr || pin[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "pin must not be empty");
+  }
+  if (recovery_token == nullptr || recovery_token[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "recovery_token must not be empty");
+  }
+
+  try {
+    const auto metadata = holder::privacy::inspect_recovery_token(pin, recovery_token);
+    nlohmann::json body = {
+        {"project_id", metadata.project_id},
+        {"project_key_id", metadata.project_key_id},
+        {"project_name", optional_json(metadata.project_name)},
+        {"git_remote_url", optional_json(metadata.git_remote_url)},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+int holder_recovery_token_import_global(
+    holder_context* context,
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+) {
+  clear_error(out_error);
+  if (out_json == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
+  }
+  *out_json = nullptr;
+
+  if (context == nullptr) {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
+  }
+  if (pin == nullptr || pin[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "pin must not be empty");
+  }
+  if (recovery_token == nullptr || recovery_token[0] == '\0') {
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "recovery_token must not be empty");
+  }
+
+  try {
+    const auto metadata = holder::privacy::inspect_recovery_token(pin, recovery_token);
+
+    holder::project::ProjectRepo repo(context->db);
+    holder::project::ProjectSyncRepo sync_repo(context->db);
+    const auto now = now_epoch_seconds();
+
+    bool project_created = false;
+    auto project_opt = repo.get(metadata.project_id);
+    if (!project_opt.has_value()) {
+      holder::model::Project project;
+      project.project_id = metadata.project_id;
+      project.name = metadata.project_name.has_value() && !metadata.project_name->empty()
+                         ? metadata.project_name.value()
+                         : "Recovered Project";
+      project.privacy_mode = "encrypted_git";
+      project.created_at = now;
+      project.updated_at = now;
+      const auto slug = holder::core::slugify(project.name);
+      project.root_path =
+          holder::core::unique_project_root(context->data_dir / "projects", slug, repo.list());
+      project_created = true;
+      project_opt = project;
+    }
+
+    auto operation_git = make_project_git(context);
+    auto operation = operation_git->lock_operation(project_opt->root_path);
+    if (project_created) repo.create(*project_opt);
+    holder::privacy::import_recovery_token(repo, metadata.project_id, pin, recovery_token, now);
+
+    const bool remote_hint_present = metadata.git_remote_url.has_value() &&
+                                     !metadata.git_remote_url->empty();
+    bool remote_configured = false;
+    std::string pull_status = "not_attempted";
+    std::string remote_error;
+    std::string pull_error;
+
+    if (remote_hint_present) {
+      const auto refreshed = repo.get(metadata.project_id);
+      if (refreshed.has_value()) {
+        operation_git->open_or_init(refreshed->root_path);
+        try {
+          operation_git->set_remote("origin", metadata.git_remote_url.value());
+          remote_configured = true;
+          // LCOV_EXCL_START -- libgit2 is lenient about remote URL content and "origin" is
+          // always a valid remote name here, so this realistically only fails on an internal
+          // libgit2 error, not on any input a test could construct.
+        } catch (const std::exception& ex) {
+          remote_error = ex.what();
+        }
+        // LCOV_EXCL_STOP
+
+        if (remote_configured) {
+          try {
+            operation_git->pull_remote_ff_only("origin");
+            rebuild_project_index(context, refreshed.value());
+            pull_status = "succeeded";
+            sync_repo.record_pull_result(metadata.project_id, pull_status, true, std::nullopt, now);
+          } catch (const holder::git::NonFastForwardPullError& diverged) {
+            resolve_pull_conflicts(context, refreshed.value(), *operation_git, diverged, now);
+            rebuild_project_index(context, refreshed.value());
+            pull_status = "succeeded";
+            sync_repo.record_pull_result(metadata.project_id, pull_status, true, std::nullopt, now);
+          } catch (const std::exception& ex) {
+            pull_status = "failed";
+            pull_error = ex.what();
+            sync_repo.record_pull_result(
+                metadata.project_id,
+                pull_status,
+                false,
+                std::optional<std::string>(pull_error),
+                now
+            );
+          }
+        }
+        try {
+          refresh_sync_activity_counts(context->db, metadata.project_id, refreshed->root_path, now);
+          // LCOV_EXCL_START -- refresh_sync_activity_counts only throws if the repo dir is an
+          // unreadable/corrupted git repo at this exact moment, not practically triggerable
+          // right after a successful push/pull/import against it.
+        } catch (const std::exception&) {
+          // Best-effort only; metrics refresh failure does not fail import.
+        }
+        // LCOV_EXCL_STOP
+      }
+    }
+
+    // A newly recovered repository must pull before its first local metadata
+    // commit; otherwise that commit makes an otherwise empty checkout diverge
+    // from the hinted remote before recovery has even begun. That's why this is
+    // skipped entirely -- not just deferred -- when a remote hint is present but
+    // the pull didn't succeed (failed, or never attempted because set_remote
+    // itself failed): committing here regardless of pull outcome used to create
+    // exactly the divergence this comment warns about, just delayed until
+    // whatever's blocking the pull (auth, network, an unregistered device key...)
+    // gets fixed and the pull is retried -- at which point it fails again, this
+    // time with "no merge base found", because the local-only placeholder commit
+    // shares no ancestry with the remote it's now trying to fast-forward onto.
+    // Safe to skip: this commit only ever writes the project's own manifest, never
+    // card content, so nothing is lost by leaving it for a later successful pull to
+    // establish from the remote's real history instead.
+    if (!remote_hint_present || pull_status == "succeeded") {
+      if (const auto imported = repo.get(metadata.project_id); imported.has_value()) {
+        persist_project_metadata(context, *imported, "Restore encrypted project metadata");
+      }
+    }
+
+    nlohmann::json body = {
+        {"project_id", metadata.project_id},
+        {"project_created", project_created},
+        {"remote_hint_present", remote_hint_present},
+        {"remote_configured", remote_configured},
+        {"remote_error",
+         remote_error.empty() ? nlohmann::json(nullptr) : nlohmann::json(remote_error)},
+        {"pull_status", pull_status},
+        {"pull_error", pull_error.empty() ? nlohmann::json(nullptr) : nlohmann::json(pull_error)},
+    };
+
+    auto* out = duplicate_string(body.dump());
+    if (out == nullptr) {
+      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+    }
+    *out_json = out;
+    return HOLDER_OK;
+  } catch (const std::bad_alloc&) {
+    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
+  } catch (const std::exception& e) {
+    return set_exception(out_error, e);
+  } catch (...) {
+    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
+  } // LCOV_EXCL_LINE
+}
+
+void holder_string_free(char* value) { std::free(value); }
+
+const char* holder_error_message(const holder_error* error) {
+  if (error == nullptr) {
+    return "";
+  }
+  return error->message.c_str();
+}
+
+void holder_error_destroy(holder_error* error) { delete error; }

@@ -1,0 +1,1162 @@
+#pragma once
+
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define HOLDER_OK 0
+#define HOLDER_ERROR_INVALID_ARGUMENT 1
+#define HOLDER_ERROR_RUNTIME 2
+#define HOLDER_ERROR_ALLOCATION 3
+
+#define HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT 1000
+#define HOLDER_HAS_PROJECT_IMPORT 1
+#define HOLDER_HAS_CARD_COLLECTION_PAGE 1
+
+typedef struct holder_context holder_context;
+typedef struct holder_error holder_error;
+
+const char* holder_version_string(void);
+int holder_version_major(void);
+int holder_version_minor(void);
+int holder_version_patch(void);
+
+int holder_context_open(
+    const char* data_dir,
+    const char* schema_sql,
+    holder_context** out_context,
+    holder_error** out_error
+);
+
+void holder_context_destroy(holder_context* context);
+
+// Rebuilds the disposable SQLite projection from durable project files beneath
+// data_dir/projects. The platform keyring provider must already be registered
+// when encrypted projects may be present. This function must be called while
+// no holder_context for data_dir is open. Sets *out_json to a rebuild report.
+int holder_database_rebuild(
+    const char* data_dir,
+    const char* schema_sql,
+    int dry_run,
+    char** out_json,
+    holder_error** out_error
+);
+
+int holder_project_list(holder_context* context, char** out_json, holder_error** out_error);
+
+// Imports one durable plain project into an empty context's database, preserving
+// its project/card identities and rebuilding indexes with existing core policy.
+// project_root must be an immediate child of data_dir/projects, already populated
+// with independent ordinary files (no symlinks or hard links). Does not clone,
+// copy files, read a source database, or modify the durable files. Requires no
+// concurrent operations on this context. Validation/reconstruction failures roll
+// back database rows; result allocation failure can follow a successful import.
+// Sets *out_json to the imported project. Encrypted import is not supported yet.
+int holder_project_import(
+    holder_context* context,
+    const char* project_root,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Resource, Asset and Storage Location JSON APIs. Resources are returned as
+// {resource: {...}, assets: [{..., placements: [...]}]}; Locations are returned
+// as their safe portable declarations. Private Location bindings are deliberately
+// outside this C API and remain a host/SecretStore concern.
+int holder_resource_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_resource_get(
+    holder_context* context,
+    const char* resource_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_resource_put_json(
+    holder_context* context,
+    const char* resource_bundle_json,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_resource_delete(
+    holder_context* context,
+    const char* resource_id,
+    holder_error** out_error
+);
+int holder_asset_get(
+    holder_context* context,
+    const char* asset_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_asset_put_json(
+    holder_context* context,
+    const char* resource_id,
+    const char* asset_json,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_asset_delete(
+    holder_context* context,
+    const char* asset_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_location_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_location_get(
+    holder_context* context,
+    const char* location_id,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_location_put_json(
+    holder_context* context,
+    const char* location_json,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_location_delete(
+    holder_context* context,
+    const char* location_id,
+    holder_error** out_error
+);
+
+int holder_card_list(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Returns one card_id-ordered page of live cards with the same metadata fields as
+// holder_card_list plus "content", read from each card's authoritative durable file. cursor is
+// opaque: pass NULL/empty for the first page, then pass back next_cursor unchanged. limit must
+// be between 1 and HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT inclusive. Response shape:
+// {"cards": [{"card_id", "project_id", "title", "content", "rel_path",
+//              "parent_card_id", "sort_key", "created_at", "updated_at", "deleted_at"}, ...],
+//  "next_cursor": "..." | null}
+//
+// CONSISTENCY: metadata selection and all content reads in one call share the project's
+// process-local operation lock, so supported libholder operations in this process cannot
+// interleave within a page. There is no snapshot across page calls, and this does not coordinate
+// with raw filesystem changes or other processes. A missing file or any read, decryption, or
+// parsing failure fails the whole page; content is never sourced from the disposable FTS index or
+// silently replaced with an empty string. The returned JSON is released with holder_string_free.
+int holder_card_list_complete_page(
+    holder_context* context,
+    const char* project_id,
+    const char* cursor,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Bounded, composable live-card collection query. request_json is an object with:
+//   "view": "all" (default) | "roots" | "children"
+//   "parent_card_id": nonempty string, required for "children", rejected otherwise
+//   "tag": optional valid tag without #, matched case-insensitively
+//   "order": "card_id" (default, ascending) | "updated" (descending, then card_id descending)
+//   "limit": integer from 1 to HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT (default 256)
+//   "include_content": boolean (default false)
+//   "cursor": null/omitted for the first page; otherwise pass next_cursor unchanged.
+// Response: {"cards": [...], "next_cursor": {"card_id": ..., "updated_at": ...} | null}.
+// Cards have holder_card_list's metadata shape, plus "content" only when requested.
+// Filters apply before pagination. Metadata-only reads never access card files. Complete
+// reads share one project operation lock across selection and authoritative body reads;
+// any missing/unreadable body fails the whole page. No snapshot across calls or coordination
+// with raw filesystem changes or other processes. Keep filters and order fixed across pages.
+// Unsupported fields, malformed JSON and invalid values return HOLDER_ERROR_INVALID_ARGUMENT.
+// Release the returned JSON with holder_string_free.
+int holder_card_collection_page_json(
+    holder_context* context,
+    const char* project_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Queries project_id's cards for one hierarchy/recency view, replacing several one-off list
+// calls with a single flexible query. request_json fields:
+//   "view": "roots" | "children" | "all" | "recent"  (required)
+//   "parent_card_id": "..."  -- required when view is "children"; ignored otherwise
+//   "before_updated_at": <int>, "before_card_id": "..."  -- optional "recent"-view pagination
+//     cursor (both omitted for the first page); ignored for other views
+//   "limit": <int>  -- required and >0 when view is "recent" (list_recent_page's page size);
+//     ignored for other views, which are unbounded like their underlying CardRepo methods
+//   "include_child_counts": <bool>  -- optional, default false; when true, adds "child_count"
+//     (int) to each returned card via CardRepo::count_children_not_deleted
+// Sets *out_json to {"cards": [...]}, each entry the same shape as holder_card_list's entries,
+// plus "child_count" when requested. Never includes soft-deleted cards (matching every
+// underlying CardRepo method used).
+int holder_card_query_json(
+    holder_context* context,
+    const char* project_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+);
+
+// The Android backup snapshot's query: project_id's cards, most-recently-updated first,
+// cursor-paginated (pass cursor_card_id as null/empty for the first page; for later pages,
+// pass back the previous response's next_cursor fields). Each returned card carries its own
+// project's name/privacy_mode, its body text, and its links/milestones (not its tags -- those
+// are always #hashtags already present in the body, re-derived by the normal card-write path
+// on restore rather than carried here too). Response shape:
+// {"cards": [{"card_id", "project_id", "project_name", "privacy_mode", "title", "body",
+//             "created_at", "updated_at", "links": [...], "milestones": [...]}, ...],
+//  "next_cursor": {"updated_at", "card_id"} | null}
+// See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1.
+int holder_backup_snapshot_page(
+    holder_context* context,
+    const char* project_id,
+    long long cursor_updated_at,
+    const char* cursor_card_id,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Bulk-restores a batch of cards (the shape holder_backup_snapshot_page emits) into a brand
+// new project: fresh project_id, fresh git repo, no remote, one commit for the whole batch
+// (message "Restored from Android backup" is the caller's convention, not enforced here --
+// pass whatever commit_message you want). Every restored card also gets a fresh card_id --
+// card_id is a global primary key, not scoped per project, so reusing the snapshot's original
+// ids isn't safe (the source project this snapshot came from may still exist on the same
+// device); the input's "card_id" values are used only to resolve link targets within the
+// batch, not preserved on the restored cards. Every card lands at the root (no
+// parent_card_id -- restore is deliberately flat, no hierarchy). A link only survives if its
+// to_type is "card" and its to_card_id matches another item's original card_id in the same
+// batch; anything else (a resource-ref, or a link whose target didn't make it into this batch)
+// is dropped rather than written dangling. On failure the partially-created project is removed
+// (row and files) before the error is returned, so a failed restore never leaves a
+// half-written project behind.
+// cards_json shape: a JSON array of {"card_id", "title", "body", "created_at", "updated_at",
+// "links": [{"to_id"|"to_card_id", "to_type", "kind", "label"}],
+// "milestones": [{"start_at", "all_day", "end_at", "kind", "description"}]}. Extra fields
+// (project_id, project_name, privacy_mode) present because the input came straight from
+// holder_backup_snapshot_page are ignored -- project_name/privacy_mode are passed separately
+// since they're project-level, not per-card. Sets *out_json to the created project, same
+// shape as holder_project_create. See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 4.
+int holder_backup_restore(
+    holder_context* context,
+    const char* project_name,
+    const char* privacy_mode,
+    const char* cards_json,
+    const char* commit_message,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Returns the card's markdown body (not front matter). Fails with
+// HOLDER_ERROR_RUNTIME if the card is not found or its content file is missing.
+int holder_card_get_content(
+    holder_context* context,
+    const char* card_id,
+    char** out_content,
+    holder_error** out_error
+);
+
+// Resolves reference (a card id, an unambiguous id prefix, or an exact title) against
+// project_id's cards -- the same algorithm behind [[wikilink]] resolution in holder-daemon and
+// holderctl (see CardReferenceResolver). scope is 0 for live cards only, 1 for trashed only, or
+// 2 for either, matching holder::model::CardScope; any other value is an invalid argument.
+// Title matching is case-sensitive exact match only -- no fuzzy or case-insensitive fallback.
+// Sets *out_json to one of:
+//   {"status": "resolved", "match_kind": "full_id"|"id_prefix"|"exact_title", "card": {...}}
+//   {"status": "ambiguous", "match_kind": "id_prefix"|"exact_title", "candidates": [{...}, ...]}
+//   {"status": "not_found"}
+// "card" and each "candidates" entry use the same JSON shape as holder_card_list's entries.
+int holder_card_reference_resolve(
+    holder_context* context,
+    const char* project_id,
+    const char* reference,
+    int scope,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Resolves a placement intent for card_id within project_id (see CardPlacementResolver for the
+// full algorithm and error vocabulary) and applies it in one locked operation
+// (CardStore::move_to). When the card's neighbours leave no room, nearby siblings are re-spaced
+// in the same Git commit; only the moved card is reported.
+// request_json: {"intent": "into"|"before"|"after"|"to_start"|"to_end"|"left"|"right"|"up_level",
+// "target_card_id": "..." (required for into/before/after), "parent_card_id": "..."|null
+// (to_start/to_end/left/right only; omitted keeps card_id's current parent, null is the
+// project's top level)}.
+// Sets *out_json to {"card_id": ..., "parent_card_id": ...|null, "sort_key": ..., "revision": ...,
+// "moved_into_title": ...|null} on success -- the same shape holder-daemon's /move route already
+// returns, for consistency. Runtime errors use the exact message vocabulary documented on
+// CardPlacementResolver::resolve above (e.g. "move_would_create_cycle").
+int holder_card_move_json(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* request_json,
+    char** out_json,
+    holder_error** out_error
+);
+
+// privacy_mode may be NULL/empty, defaulting to "plain". root_path may be
+// NULL/empty, defaulting to a directory derived from the project name under
+// the context's data_dir.
+int holder_project_create(
+    holder_context* context,
+    const char* name,
+    const char* root_path,
+    const char* privacy_mode,
+    char** out_json,
+    holder_error** out_error
+);
+
+// content and parent_card_id may be NULL.
+int holder_card_create(
+    holder_context* context,
+    const char* project_id,
+    const char* title,
+    const char* content,
+    const char* parent_card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// If any project already exists, does nothing and sets *out_json to the JSON
+// literal "null". Otherwise creates a plain project named `name` with a
+// single welcome card, and sets *out_json to the created project. welcome_content
+// may be NULL.
+int holder_ensure_default_project(
+    holder_context* context,
+    const char* name,
+    const char* welcome_title,
+    const char* welcome_content,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Renames a project, setting *out_json to the updated project.
+int holder_project_rename(
+    holder_context* context,
+    const char* project_id,
+    const char* name,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Removes the project row (cascading to its cards per the schema) and any
+// sync state. Does not touch the project's files on disk.
+int holder_project_delete(
+    holder_context* context,
+    const char* project_id,
+    holder_error** out_error
+);
+
+// Replaces a card's content and, if title is non-NULL, its title. Sets
+// *out_json to the updated card.
+int holder_card_update_content(
+    holder_context* context,
+    const char* card_id,
+    const char* content,
+    const char* title,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Soft-deletes (trashes) a card; it stops appearing in holder_card_list. Immediate
+// live children replace its position among its siblings (or project roots), in
+// their existing order. Their descendants stay attached. Already-trashed children
+// remain in Trash. The lifecycle change and promotion share one Git commit.
+int holder_card_delete(holder_context* context, const char* card_id, holder_error** out_error);
+
+// Trashes a card together with every live descendant, in one Git commit. Descendants keep their
+// parents inside Trash, so restoring a parent before its children lets them reattach. Cards
+// already in Trash keep their own trash time; live cards beneath them are trashed too.
+// Restoring stays single-card (see holder_card_restore).
+int holder_card_delete_subtree(
+    holder_context* context,
+    const char* card_id,
+    holder_error** out_error
+);
+
+// Finds live cards that browsing from project_id's roots cannot reach because their parent is
+// missing or trashed (left by trash operations before children were promoted, or by sync from
+// an older version). With apply == 0 it only reports; otherwise it moves each hidden branch to
+// its nearest live, reachable ancestor (or the roots), descendants attached, in one Git commit.
+// Sets *out_json to {"applied": bool, "moved": [{"card_id": ..., "parent_card_id": ...|null}],
+// "changed_card_count": n, "cycle_card_ids": [...]}. Cards in parent cycles are reported, not
+// moved. Applying twice changes nothing the second time.
+int holder_project_repair_hierarchy_json(
+    holder_context* context,
+    const char* project_id,
+    int apply,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists project_id's trashed (soft-deleted) cards, same JSON card-array shape as
+// holder_card_list.
+int holder_card_list_trashed(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Restores a trashed card; it reappears in holder_card_list. Sets *out_json to
+// the restored card. Fails if card_id isn't currently trashed. Restores only this
+// card, to its saved parent if reachable, otherwise a reachable ancestor or roots.
+// Previously promoted children stay where they are.
+int holder_card_restore(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Permanently deletes a trashed card: removes its database row and its file
+// from the git working tree. Irreversible. Fails if card_id isn't currently
+// trashed -- restore it first, or use holder_card_delete to trash it.
+int holder_card_purge(holder_context* context, const char* card_id, holder_error** out_error);
+
+// Full-text searches a project's (non-deleted) cards. Sets *out_json to a JSON
+// array of {card_id, title, snippet, rank, created_at, updated_at}, ranked
+// best-match first.
+int holder_card_search(
+    holder_context* context,
+    const char* project_id,
+    const char* query,
+    int limit,
+    int offset,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists card_id's connections: *out_json becomes
+// {"outgoing": [{to_card_id, to_type, kind, label, created_at, to_title}],
+//  "backlinks": [{from_card_id, kind, label, created_at, from_title}],
+//  "parent": {card_id, title} | null,
+//  "children": [{card_id, title}, ...]}.
+// to_title/from_title are null when the id doesn't resolve to a known card.
+// parent/children reflect the card's hierarchy (parent_card_id) automatically,
+// same as desktop Holder's Connections tool -- they aren't editable through
+// this function; move a card via its parent_card_id instead. outgoing/
+// backlinks are the explicit link list stored in front matter. Neither
+// includes inline [[wikilinks]].
+int holder_card_list_links(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Adds (or updates, if from_card_id/to_card_id/kind already matches) an explicit
+// outgoing connection. label may be NULL. Sets *out_json to from_card_id's
+// updated outgoing connection list, same shape as holder_card_list_links's
+// "outgoing" array.
+int holder_card_link_add(
+    holder_context* context,
+    const char* from_card_id,
+    const char* to_card_id,
+    const char* kind,
+    const char* label,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Removes the from_card_id -> to_card_id connection of the given kind, if any.
+int holder_card_link_remove(
+    holder_context* context,
+    const char* from_card_id,
+    const char* to_card_id,
+    const char* kind,
+    holder_error** out_error
+);
+
+// Lists card_id's #tags (as extracted from its body by holder_card_create/
+// holder_card_update_content, or by holder_card_tag_add/remove below),
+// lowercased: *out_json becomes ["todo", "urgent"].
+int holder_card_list_tags(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+#define HOLDER_TAG_ADD_ADDED 0
+#define HOLDER_TAG_ADD_ALREADY_PRESENT 1
+
+// Holder's semantic tag operation -- callers should use this instead of editing
+// #tag text into a card's body directly, so core stays free to change how tags
+// are represented later without every caller changing too.
+//
+// Adds `tag` to card_id, normalized to lowercase. *out_status becomes
+// HOLDER_TAG_ADD_ADDED if the tag was written (to the card's trailing tag line --
+// its last non-blank line, when that line is nothing but #tags -- creating one if
+// none exists yet), or HOLDER_TAG_ADD_ALREADY_PRESENT if the tag already occurred
+// anywhere in the card, including in ordinary prose (no change made either way).
+// A tag holder_card_list_tags could never produce (see is_valid_tag) fails with
+// HOLDER_ERROR_INVALID_ARGUMENT instead of setting *out_status.
+int holder_card_tag_add(
+    holder_context* context,
+    const char* card_id,
+    const char* tag,
+    int* out_status,
+    holder_error** out_error
+);
+
+#define HOLDER_TAG_REMOVE_REMOVED 0
+#define HOLDER_TAG_REMOVE_NOT_PRESENT 1
+#define HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE 2
+
+// Removes `tag` from card_id, normalized to lowercase. Only ever removes text from
+// the card's trailing tag line (see holder_card_tag_add) -- this never rewrites
+// prose. *out_status becomes HOLDER_TAG_REMOVE_REMOVED, HOLDER_TAG_REMOVE_NOT_PRESENT
+// (the tag doesn't occur anywhere in the card), or
+// HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE (the tag exists only in prose;
+// the card remains tagged since nothing was removed -- tell the user to edit the
+// text directly). Same invalid-tag behavior as holder_card_tag_add.
+int holder_card_tag_remove(
+    holder_context* context,
+    const char* card_id,
+    const char* tag,
+    int* out_status,
+    holder_error** out_error
+);
+
+// Lists the subset of card_id's tags that holder_card_tag_remove can actually
+// remove -- those on the card's trailing tag line, lowercased, in order:
+// *out_json becomes ["todo", "urgent"], the same shape as holder_card_list_tags.
+// A client UI can use this to show a remove control only on tags where it would
+// work, rather than offering one uniformly and having it fail after the fact.
+// A tag can appear here *and* still occur in prose elsewhere -- removing it
+// still succeeds, but the card remains tagged either way, since the prose
+// occurrence is untouched.
+int holder_card_list_editable_tags(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists project_id's (non-trashed) cards carrying `tag` (case-insensitive):
+// *out_json becomes [{card_id, title}, ...]. Empty, not an error, for an
+// unknown project_id or a tag nothing carries.
+int holder_cards_with_tag(
+    holder_context* context,
+    const char* project_id,
+    const char* tag,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists every distinct tag in project_id with how many cards carry it, most-
+// used first: *out_json becomes [{"tag": "todo", "count": 3}, ...].
+int holder_project_list_tags(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists card_id's milestones, ordered by start_at: *out_json becomes
+// [{milestone_id, card_id, start_at, end_at, all_day, kind, description,
+// created_at, updated_at}, ...]. end_at/kind/description are null when unset.
+int holder_card_list_milestones(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Adds a new milestone to card_id. has_end_at is 0 to omit end_at (a point
+// in time rather than a span); all_day/has_end_at are 0 or 1; kind and
+// description may be NULL. Sets *out_json to card_id's updated milestone
+// list, same shape as holder_card_list_milestones.
+int holder_card_milestone_add(
+    holder_context* context,
+    const char* card_id,
+    long long start_at,
+    int has_end_at,
+    long long end_at,
+    int all_day,
+    const char* kind,
+    const char* description,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Partially updates one milestone, identified by project_id + card_id + milestone_id all
+// matching the same live card's milestone (CardStore::update_milestone's ownership check).
+// update_json fields follow tri-state partial-update semantics:
+//   - a key entirely absent from update_json means "leave this field unchanged"
+//   - "start_at" (integer, required if present) and "all_day" (bool, required if present)
+//     can never be explicitly cleared -- if the key is present its value must not be JSON
+//     null, or this returns HOLDER_ERROR_INVALID_ARGUMENT
+//   - "end_at" (integer or null), "kind" (string or null), "description" (string or null):
+//     present with a value sets it, present as JSON null explicitly clears it, absent leaves
+//     it unchanged
+// Example update_json: {"start_at": 1234567890, "kind": "Renewal", "end_at": null} changes the
+// start time and kind, clears any end time, and leaves all_day/description untouched.
+// Sets *out_json to the single updated milestone (same shape as one entry of
+// holder_card_milestone_add's list) on success. Returns HOLDER_ERROR_RUNTIME if project_id/
+// card_id/milestone_id don't all identify the same live card's milestone.
+int holder_card_milestone_update_json(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* milestone_id,
+    const char* update_json,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Removes milestone_id from card_id, if present. A no-op, not an error, if
+// milestone_id doesn't exist or belongs to a different card.
+int holder_card_milestone_remove(
+    holder_context* context,
+    const char* card_id,
+    const char* milestone_id,
+    holder_error** out_error
+);
+
+// Lists every milestone in project_id whose start_at falls within [from, to]
+// (inclusive), ordered by start_at -- the Calendar's primary query. *out_json
+// becomes [{..same fields as holder_card_list_milestones, plus card_title},
+// ...]. Never includes a trashed card's milestones. card_title is null when
+// the card can't be resolved.
+int holder_project_list_milestones_in_range(
+    holder_context* context,
+    const char* project_id,
+    long long from,
+    long long to,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Lists Holder's full built-in vocabulary of card_links.kind values with
+// curated English labels: *out_json becomes [{"id": "depends_on",
+// "forward": "Depends on", "reverse": "Required by"}, ...]. forward is how
+// the relationship reads from the linking (outgoing) card's side, reverse
+// from the linked-to (backlink) card's side. kind on a link isn't
+// constrained to this list -- a kind outside it just has no known label
+// here; callers should fall back to a humanized display of the raw string.
+// Not scoped to a context, since this is static reference data.
+int holder_link_kind_list(char** out_json, holder_error** out_error);
+
+// Rebuilds the full-text search index from the database. Safe to call anytime;
+// mainly useful to backfill data written before FTS indexing was wired up.
+int holder_reindex(holder_context* context, holder_error** out_error);
+
+void holder_string_free(char* value);
+
+const char* holder_error_message(const holder_error* error);
+void holder_error_destroy(holder_error* error);
+
+// -- Card history --
+//
+// Mirrors holder::history::CardHistoryService exactly (see src/history/CardHistory.h) --
+// this is the same read-only, grouped/paginated card history desktop's History tool and
+// holder-daemon's authenticated routes already expose, reached here directly through the C
+// ABI instead of over HTTP. Card identity is card_id's UUID; history follows both its live
+// and Trash paths automatically. No call in this section mutates the repository, index,
+// working tree, or database.
+
+// card_id's editing-session-grouped history, most-recent first, cursor-paginated
+// (cursor_oid NULL/empty for the first page; for a later page, pass back the previous
+// response's next_cursor). limit must be between 1 and 200. Sets *out_json to
+// {"head_oid": <oid>|null, "entries": [{"first_oid", "last_oid", "parent_oids": [...],
+// "visible_parent_oids": [...] (direct parents also present as another entry in this same
+// page -- a missing link may cross filtered history or a page boundary and must not be
+// drawn as a direct connection), "author": {"name", "email"}, "started_at", "ended_at",
+// "kind", "summary", "commit_count", "is_merge",
+// "saves": [{"oid", "parent_oids", "authored_at", "committed_at", "message"}, ...]
+// (chronological, first grouped save to last)}, ...],
+// "next_cursor": <oid>|null, "scan_limited": bool (true if the underlying scan hit its
+// bound before finishing this page -- next_cursor still lets the caller continue)}.
+int holder_card_history_list(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* cursor_oid,
+    int limit,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Compares card_id's state at from_oid against its state at to_oid, both read directly
+// from their commit trees (decrypted through the project's normal privacy boundary for an
+// encrypted_git project) rather than by checking anything out. from_oid may be NULL/empty
+// for a card's creation event, where no earlier version exists. to_oid must be a real,
+// previously-observed commit OID (e.g. from holder_card_history_list's head_oid or an
+// entry's last_oid) -- callers must never substitute a live/moving "current HEAD" concept
+// of their own, so that an autosave landing between a list call and this call cannot change
+// what a caller believes it is comparing. Sets *out_json to
+// {"from": {"exists", "oid", "title", "body"}, "to": {...same shape...}, "summary",
+// "lines": [{"origin" (one of " ", "+", "-"), "text", "old_line", "new_line"} (old_line/
+// new_line are null where not applicable), ...], "truncated" (true if the diff hit its
+// bounded line count/length and was shortened)}.
+int holder_card_history_compare(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* from_oid,
+    const char* to_oid,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Restores card_id to the whole card snapshot recorded at historical_oid, through the
+// ordinary CardStore write path: title, body, links, milestones, hierarchy/location, tags,
+// Resource references, and live/Trash state all come from that one historical snapshot
+// together, written as a new "Restore card <title>" commit. Never checks out or rewrites
+// Git history, so the pre-restore state remains an earlier, still-reachable entry in the
+// same history. Fails without writing anything if historical_oid's snapshot cannot be read,
+// decrypted, or parsed for card_id. Sets *out_json to the restored card, same shape as
+// holder_card_restore.
+int holder_card_history_restore(
+    holder_context* context,
+    const char* card_id,
+    const char* historical_oid,
+    char** out_json,
+    holder_error** out_error
+);
+
+// -- Git sync --
+
+// Global, process-wide libgit2 "home" directory override. Needed on
+// Android: libgit2's ssh transport looks for ~/.ssh/known_hosts via $HOME,
+// which Android apps don't have. Call once, before any git_* operation,
+// with a writable app-private directory (e.g. Context.filesDir). Not needed
+// on platforms with a real $HOME (desktop).
+int holder_git_set_homedir(const char* path, holder_error** out_error);
+
+// Raw signing callback for holder_git_set_ssh_signer. Given the challenge
+// bytes libssh2 wants signed, must return 0 and set *out_der_sig (malloc'd)
+// / *out_der_sig_len to a DER-encoded ECDSA-Sig-Value{r,s} produced by an
+// ecdsa-sha2-nistp256 (P-256/secp256r1) key, or return nonzero to indicate
+// a signing failure for this attempt. holder-core takes ownership of
+// *out_der_sig and frees it with free() after copying it.
+//
+// THREADING: may be invoked from any thread the host app performs a git
+// operation on, and multiple times over the signer's lifetime -- once per
+// git network operation that needs to authenticate, not once total. Do not
+// assume it runs on the thread that called holder_git_set_ssh_signer, and
+// do not cache anything thread-affine (e.g. a JNIEnv*) across calls.
+typedef int (*holder_ssh_sign_fn)(
+    void* user_data,
+    const unsigned char* data,
+    size_t data_len,
+    unsigned char** out_der_sig,
+    size_t* out_der_sig_len
+);
+
+// Called exactly once to release user_data: either when a later call to
+// holder_git_set_ssh_signer replaces this signer, or when context is
+// destroyed. May be NULL if user_data needs no cleanup.
+typedef void (*holder_destroy_fn)(void* user_data);
+
+// Installs a custom SSH identity (e.g. an Android Keystore-backed key) for
+// all subsequent git network operations (test-remote/push/pull) on this
+// context, replacing the default ssh-agent/~/.ssh lookup.
+//
+// public_key_blob is the raw SSH wire-format ecdsa-sha2-nistp256 public key
+// blob (RFC 5656 3.1) -- NOT base64-encoded, NOT the
+// "ecdsa-sha2-nistp256 AAAA... comment" line.
+//
+// OWNERSHIP: this call takes ownership of user_data unconditionally, from
+// the moment it's called -- regardless of whether it succeeds. destroy_user_data
+// is guaranteed to run exactly once: immediately, before this call returns,
+// if it fails for any reason (including invalid arguments); or later, when a
+// subsequent call to holder_git_set_ssh_signer replaces this signer or
+// context is destroyed via holder_context_destroy, if it succeeds. Callers
+// never need to release user_data themselves on a failure return, and must
+// not release it eagerly on success (e.g. a JNI global reference must only
+// be freed from destroy_user_data, since sign_fn can be invoked at any point
+// up until then).
+int holder_git_set_ssh_signer(
+    holder_context* context,
+    const char* username,
+    const unsigned char* public_key_blob,
+    size_t public_key_blob_len,
+    holder_ssh_sign_fn sign_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
+
+// Updates a project's configured git remote URL (remote_url NULL/empty
+// clears it). Sets *out_json to the updated project.
+int holder_project_update_git_remote(
+    holder_context* context,
+    const char* project_id,
+    const char* remote_url,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Sets remote "origin" to the project's configured git_remote_url (if any)
+// and probes reachability. branch may be NULL/empty. Sets *out_json to
+// {project_id, remote_url, branch, status, remote_has_head, error_message}.
+int holder_git_test_remote(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Probes an explicit URL's reachability without touching any project's configured remote or
+// opening/changing any git repository -- nothing is written to disk and the URL is never
+// persisted anywhere. Uses whichever credential provider is currently registered (see
+// holder_keyring_set_provider) for auth, exactly like every other git network operation --
+// callers needing a specific project's identity for the auth handshake (e.g. an SSH remote)
+// must select it first, the same as before calling holder_git_pull/push/test_remote.
+// Sets *out_json to {url, status, remote_has_head, error_message}.
+int holder_git_probe_remote_url(
+    holder_context* context,
+    const char* url,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Pushes the project's local branch to its configured remote. branch may be
+// NULL/empty to use the local HEAD's branch. Records the result into the
+// project's sync state (see holder_git_sync_status). Sets *out_json to
+// {project_id, remote_url, branch, status, ahead_count, behind_count,
+//  local_head_commit, error_message}.
+int holder_git_push(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    int set_upstream,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Fast-forward-only pulls from the project's configured remote. Records the
+// result into the project's sync state. Sets *out_json to
+// {project_id, status: "succeeded"|"failed", error_message}.
+int holder_git_pull(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Sets *out_json to {project_id, sync: {...}} mirroring
+// holder::model::ProjectSyncState (last_commit_at, last_push_at,
+// last_pull_at, uncommitted_changes_count, unpushed_commits_count,
+// last_push_status, last_pull_status, last_sync_error, last_sync_error_at,
+// retry_count, next_retry_at, pull_retry_count, next_pull_retry_at,
+// updated_at), or {project_id, sync: null} if no sync activity has been
+// recorded yet.
+int holder_git_sync_status(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Pulls and/or pushes the project only if enough time has passed since the
+// last attempt of each, per the same cadence policy holder-daemon's
+// background worker uses (holder::sync::should_attempt_pull/push) --
+// intended for a periodic background job (e.g. Android WorkManager) to call
+// on a tighter schedule than the desired sync interval, without over-syncing.
+// A no-op (HOLDER_OK, pull_attempted/push_attempted both false) if the
+// project has no remote configured, or if neither is due yet.
+//
+// push_interval_seconds/pull_interval_seconds override the default cadence
+// (1200s/300s, matching holder-daemon's worker) when positive; pass 0 for
+// the default.
+//
+// Sets *out_json to {project_id, pull_attempted, pull_status, pull_error,
+// push_attempted, push_status, push_error}, where each *_status/*_error is
+// null when its *_attempted is false.
+int holder_git_sync_if_due(
+    holder_context* context,
+    const char* project_id,
+    int push_interval_seconds,
+    int pull_interval_seconds,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Runs pull-then-push as one serialized operation, unconditionally -- unlike
+// holder_git_sync_if_due, not gated by cadence. A failed pull always skips the push phase
+// (ProjectSyncRequest.push_after_failed_pull is fixed at false here; this is what makes it safe
+// to call pull and push "together" rather than as two independent operations). branch may be
+// NULL/empty to use the local HEAD's branch. push may be 0 for a pull-only forced sync. Records
+// both phases' results into the project's sync state, the same as calling pull/push separately
+// would.
+// Sets *out_json to {project_id, pull_attempted, pull_status, pull_error,
+// pull_conflicts_resolved, push_attempted, push_status, push_error, push_ahead_count,
+// push_behind_count, push_local_head_commit}, where each pull_*/push_* result field is only
+// meaningful when its own *_attempted is true.
+int holder_git_sync_now(
+    holder_context* context,
+    const char* project_id,
+    const char* branch,
+    int push,
+    int set_upstream,
+    char** out_json,
+    holder_error** out_error
+);
+
+// -- Platform keyring --
+//
+// Encrypted projects, and other secrets (e.g. AI provider credentials), are
+// stored via the host OS's own keyring on desktop (libsecret/Keychain/Windows
+// Credential Manager). Android has none of those; holder_keyring_set_provider
+// installs a substitute for the whole process, backed by whatever the caller
+// wants (Android: an AndroidKeyStore-encrypted store, via JNI).
+//
+// kind is 0 for a generic secret (identified by service+account) or 1 for a
+// project encryption key (identified by project_id+account; service is empty).
+
+// Must return 0 and set *out_found: 1 with *out_secret (malloc'd) set to the
+// secret's value if it exists, or 0 (leaving *out_secret untouched) if it does
+// not -- that is not a failure. Return nonzero, optionally setting *out_error
+// (malloc'd), to indicate a real failure.
+typedef int (*holder_keyring_lookup_fn)(
+    void* user_data,
+    int kind,
+    const char* service,
+    const char* account,
+    const char* project_id,
+    int* out_found,
+    char** out_secret,
+    char** out_error
+);
+
+typedef int (*holder_keyring_store_fn)(
+    void* user_data,
+    int kind,
+    const char* service,
+    const char* account,
+    const char* project_id,
+    const char* label,
+    const char* secret,
+    char** out_error
+);
+
+typedef int (*holder_keyring_remove_fn)(
+    void* user_data,
+    int kind,
+    const char* service,
+    const char* account,
+    const char* project_id,
+    char** out_error
+);
+
+// Installs a process-wide platform keyring provider -- not scoped to a
+// holder_context, since the platform keyring itself isn't either.
+//
+// OWNERSHIP: unconditional from the moment this is called, exactly like
+// holder_git_set_ssh_signer -- destroy_user_data runs exactly once, either
+// immediately if this call fails for any reason, or later when a subsequent
+// call to holder_keyring_set_provider replaces this provider.
+int holder_keyring_set_provider(
+    holder_keyring_lookup_fn lookup_fn,
+    holder_keyring_store_fn store_fn,
+    holder_keyring_remove_fn remove_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
+
+// -- Asset storage providers --
+//
+// A Location's `provider` field (e.g. "local_directory", "google-drive") selects which
+// storage provider actually holds an Asset's bytes; holder_asset_import_file/
+// holder_asset_retrieve look one up by that name. "local_directory" always resolves to
+// a built-in filesystem provider rooted at data_dir/resource-store, with no
+// registration required -- named to match holder-desktop's own local-storage Location
+// provider string, since Locations are portable/git-synced. Any other provider
+// name must be registered first via holder_storage_provider_register -- there is
+// deliberately no bundled network client in this library; the host supplies one, exactly
+// like holder_keyring_set_provider does for platform keyrings.
+
+typedef enum {
+  HOLDER_STORAGE_ERROR_UNAVAILABLE = 0,
+  HOLDER_STORAGE_ERROR_AUTHENTICATION = 1,
+  HOLDER_STORAGE_ERROR_PERMISSION = 2,
+  HOLDER_STORAGE_ERROR_CAPACITY = 3,
+  HOLDER_STORAGE_ERROR_INTEGRITY = 4,
+  HOLDER_STORAGE_ERROR_CONFLICT = 5,
+  HOLDER_STORAGE_ERROR_INVALID_CONFIGURATION = 6,
+  HOLDER_STORAGE_ERROR_TRANSIENT = 7,
+} holder_storage_error_code;
+
+// Each callback returns 0 on success. On failure, return nonzero and set *out_error_code
+// (one of the holder_storage_error_code values above) and, optionally, *out_error
+// (malloc'd) with a human-readable message.
+typedef int (*holder_storage_put_fn)(
+    void* user_data,
+    const char* object_key,
+    const char* staged_file_path,
+    long long stored_size,
+    const char* stored_sha256,
+    int* out_error_code,
+    char** out_error
+);
+typedef int (*holder_storage_get_fn)(
+    void* user_data,
+    const char* object_key,
+    const char* destination_file_path,
+    int* out_error_code,
+    char** out_error
+);
+// Must return 0 and set *out_exists on success (whether or not the object is present --
+// that is not a failure). Return nonzero, with *out_error_code/*out_error set, only for a
+// real failure to determine existence (e.g. the provider is unreachable).
+typedef int (*holder_storage_exists_fn)(
+    void* user_data,
+    const char* object_key,
+    int* out_exists,
+    int* out_error_code,
+    char** out_error
+);
+typedef int (*holder_storage_remove_fn)(
+    void* user_data,
+    const char* object_key,
+    int* out_error_code,
+    char** out_error
+);
+
+// Installs (or replaces) the process-wide storage provider for provider_name -- not scoped
+// to a holder_context, matching holder_keyring_set_provider.
+//
+// OWNERSHIP: unconditional from the moment this is called, exactly like
+// holder_keyring_set_provider -- destroy_user_data runs exactly once, either immediately if
+// this call fails for any reason, or after a subsequent registration replaces this
+// provider and all in-flight asset operations using it finish (or at process exit).
+// Replacement does not interrupt active operations. Cleanup runs without the registry
+// lock held, so it may register another provider when triggered by replacement.
+int holder_storage_provider_register(
+    const char* provider_name,
+    holder_storage_put_fn put_fn,
+    holder_storage_get_fn get_fn,
+    holder_storage_exists_fn exists_fn,
+    holder_storage_remove_fn remove_fn,
+    void* user_data,
+    holder_destroy_fn destroy_user_data,
+    holder_error** out_error
+);
+
+// Imports source_file_path into project_id's Resource/Asset/Placement model (deduplicated
+// by content hash within the project), stores it via location_id's storage provider (its
+// `provider` field selects which one, per above), and attaches it to card_id via a
+// structural CardLink (to_type "resource", kind "attachment") -- mirroring
+// holder::resource::AssetImportService::import_file exactly; see that function for the
+// full staging/hashing/encryption/git-commit/cleanup-on-failure behavior. Does not modify
+// the card's Markdown body -- inserting a `![label](holder://resource/<resource_id>)`
+// reference at the right place in the text is the caller's job, the same as it is for
+// holder-desktop.
+// Sets *out_json to {resource_id, asset_id, duplicate_reused, link_created}.
+int holder_asset_import_file(
+    holder_context* context,
+    const char* project_id,
+    const char* card_id,
+    const char* location_id,
+    const char* source_file_path,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Downloads asset_id's placement_id back to destination_file_path via that placement's
+// Location's storage provider, verifying it against the Asset's recorded size/hash and
+// decrypting it if the project is encrypted_git -- mirroring
+// holder::resource::AssetImportService::retrieve exactly.
+int holder_asset_retrieve(
+    holder_context* context,
+    const char* resource_id,
+    const char* asset_id,
+    const char* placement_id,
+    const char* destination_file_path,
+    holder_error** out_error
+);
+
+// -- Encryption / recovery --
+
+// Runs the encrypted_git safety check (verifies every file under the
+// project's cards/ directory has an encryption envelope header) and reports
+// the project's privacy mode. For a "plain" project, *out_json's "check" is
+// always {ok: true, ...} without touching disk -- there's nothing to check.
+// Sets *out_json to {project_id, privacy_mode,
+// check: {ok, checked_files, unsafe_files, unsafe_paths, message}}.
+int holder_encryption_check(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Exports a PIN-protected recovery token for project_id's encryption key,
+// name, and configured git remote -- meant to be moved to another device
+// (physically or otherwise) and consumed by holder_recovery_token_import or
+// holder_recovery_token_import_global there. Fails if the project has no
+// key material configured (i.e. isn't encrypted_git).
+// Sets *out_json to {project_id, key_id, recovery_token}.
+int holder_recovery_token_export(
+    holder_context* context,
+    const char* project_id,
+    const char* pin,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Imports a recovery token into an *existing* project (project_id must
+// already match the token's own project_id, or this fails) -- e.g. to
+// recover after this device's own copy of the key was lost without losing
+// the project itself. See holder_recovery_token_import_global for the
+// device-setup case where the project doesn't exist yet.
+// Sets *out_json to {project_id}.
+int holder_recovery_token_import(
+    holder_context* context,
+    const char* project_id,
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Decrypts and returns a recovery token's metadata without importing
+// anything -- lets a caller show the user what they're about to recover
+// (project name, whether a remote is included) before committing. Not
+// scoped to a context, since it has no side effects at all.
+// Sets *out_json to {project_id, project_key_id, project_name,
+// git_remote_url}, where project_name/git_remote_url are null if the token
+// didn't include them.
+int holder_recovery_token_inspect(
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+);
+
+// The device-setup path: given just a PIN and a recovery token (no known
+// project_id), recovers the project -- creating it first if this device has
+// never seen it before -- and, if the token includes a remote hint,
+// configures that remote and attempts an initial pull.
+// Sets *out_json to {project_id, project_created, remote_hint_present,
+// remote_configured, remote_error, pull_status, pull_error}, mirroring
+// holder-daemon's POST /recovery-token/import response shape.
+int holder_recovery_token_import_global(
+    holder_context* context,
+    const char* pin,
+    const char* recovery_token,
+    char** out_json,
+    holder_error** out_error
+);
+
+#ifdef __cplusplus
+}
+#endif
