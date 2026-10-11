@@ -69,7 +69,7 @@ To run the frontend directly:
 ```
 
 The desktop app expects `holderd` to already be running. For local macOS development, build and
-start the backend from `daemon/` in the `holder-framework` repository first, or run a staged `.app` bundle that
+start the backend from `daemon/` in the `holder` repository first, or run a staged `.app` bundle that
 contains the backend and launcher.
 
 ## How the app finds its backend
@@ -85,7 +85,7 @@ as "a client is here" and does not idle out under it; the app reconnects with a 
 backend up again each time, if the connection drops. Nothing is read from the stream yet.
 
 When running from a source tree, set `HOLDER_CTL` to a built `holderctl`; `./make.sh run` does this itself when
-`../holder-framework/daemon/build/holderctl` exists. The Debug tool says what was used or why the step was skipped.
+`../holder/daemon/build/holderctl` exists. The Debug tool says what was used or why the step was skipped.
 
 Windows and macOS still start the backend through their launcher for now.
 
