@@ -13,7 +13,7 @@ permalink: /develop/windows/core/
 <section class="section">
   <div class="section-head">
     <h2>What is Holder Core?</h2>
-    <p><a href="https://github.com/HolderTeam/holder-core">holder-core</a>, sometimes called libholder, is a library: reusable code that other programs use. Holder Daemon uses this library to work with your data. Core does not have an app window of its own.</p>
+    <p><a href="https://github.com/HolderTeam/holder/tree/main/core">Holder Core</a>, sometimes called libholder, is a library: reusable code that other programs use. Holder Daemon uses this library to work with your data. Core does not have an app window of its own.</p>
     <p>These instructions use <strong>Visual Studio Community</strong>, which has a purple logo. Visual Studio Code, with the blue logo, is a different program.</p>
   </div>
 </section>
@@ -34,7 +34,10 @@ permalink: /develop/windows/core/
     <p>Open PowerShell and run these commands, one line at a time. “Clone” is Git’s word for making your own local copy of a project.</p>
   </div>
   <pre><code>cd $HOME\projects\holderteam
-git clone https://github.com/HolderTeam/holder-core.git</code></pre>
+git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
+  <div class="section-head following-copy">
+    <p>Core is the <code>core</code> folder inside <code>holder</code>, the same download the <a href="{{ '/develop/windows/daemon/' | relative_url }}">backend guide</a> uses. If you already have it, skip this step.</p>
+  </div>
 </section>
 
 <section class="section">
@@ -43,7 +46,7 @@ git clone https://github.com/HolderTeam/holder-core.git</code></pre>
     <p>A configuration is a saved set of build choices. The first preparation step uses vcpkg, a helper that downloads and builds code Holder depends on. This can take a while and needs additional disk space beyond the Visual Studio installation.</p>
   </div>
   <ol class="steps">
-    <li>In Visual Studio, choose <strong>Open a local folder</strong> and select the <code>holder-core</code> folder you just downloaded.</li>
+    <li>In Visual Studio, choose <strong>Open a local folder</strong> and select the <code>holder\core</code> folder.</li>
     <li>In the configuration drop-down, choose <code>windows-vcpkg-debug</code>. Wait for Visual Studio to finish preparing the project. You can follow its progress in the Output window.</li>
     <li>Choose <strong>Build</strong> → <strong>Build All</strong>. This project's saved build preset builds the library.</li>
     <li>Build the tests too: open <strong>View</strong> → <strong>Solution Explorer</strong>, switch to <strong>CMake Targets View</strong>, then right-click <code>holder_core_tests</code> and choose <strong>Build</strong>. A target is something the build tools produce; this one is the program that runs Core's tests.</li>
@@ -58,7 +61,7 @@ git clone https://github.com/HolderTeam/holder-core.git</code></pre>
 <section class="section">
   <div class="section-head">
     <h2>Continue</h2>
-    <p>You can now <a href="{{ '/develop/windows/' | relative_url }}#contributing">share your first change</a>. For more development details, see the <a href="https://github.com/HolderTeam/holder-core#readme">Core README</a>.</p>
+    <p>You can now <a href="{{ '/develop/windows/' | relative_url }}#contributing">share your first change</a>. For more development details, see the <a href="https://github.com/HolderTeam/holder/tree/main/core#readme">Core README</a>.</p>
     <p>If you also want to work on another part of Holder, you can <a href="{{ '/develop/windows/daemon/' | relative_url }}">build the backend</a> or <a href="{{ '/develop/windows/desktop/' | relative_url }}">build the desktop app</a>.</p>
   </div>
 </section>

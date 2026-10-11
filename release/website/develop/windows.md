@@ -31,7 +31,7 @@ narrow: true
 cd $HOME\projects\holderteam</code></pre>
   </li></ol>
 
-  <p class="footnote"><sup>*</sup> Windows 11 is 64-bit only. Windows 10 also has 32-bit editions. The Core and Daemon guides use 64-bit build tools, but advanced users may be able to adapt them to build <code>holder-core</code> and <code>holder-daemon</code> for x86, then use <code>holderctl</code> or the local HTTP API. There is no current 32-bit holder-desktop build path.</p>
+  <p class="footnote"><sup>*</sup> Windows 11 is 64-bit only. Windows 10 also has 32-bit editions. The Core and Daemon guides use 64-bit build tools, but advanced users may be able to adapt them to build Core and Daemon for x86, then use <code>holderctl</code> or the local HTTP API. There is no current 32-bit holder-desktop build path.</p>
 
 </section>
 
@@ -45,7 +45,7 @@ cd $HOME\projects\holderteam</code></pre>
   <div class="grid three">
     <article class="card">
       <h3>Core library</h3>
-      <p><a href="https://github.com/HolderTeam/holder-core">holder-core</a> contains the shared code for saving, finding, and organising Holder data.</p>
+      <p><a href="https://github.com/HolderTeam/holder/tree/main/core">Holder Core</a> contains the shared code for saving, finding, and organising Holder data.</p>
       <p><a href="{{ '/develop/windows/core/' | relative_url }}">Build Core →</a></p>
     </article>
     <article class="card">
@@ -64,7 +64,7 @@ cd $HOME\projects\holderteam</code></pre>
 <section class="section" id="getting-help">
   <div class="section-head">
     <h2>If you get stuck</h2>
-    <p>Open the issue page for the part you are working on: <a href="https://github.com/HolderTeam/holder-core/issues">Core</a>, <a href="https://github.com/HolderTeam/holder/issues">Daemon</a>, or <a href="https://github.com/HolderTeam/holder-desktop/issues">Desktop</a>. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
+    <p>Open the issue page for the part you are working on: <a href="https://github.com/HolderTeam/holder/issues">Core and Daemon</a>, or <a href="https://github.com/HolderTeam/holder-desktop/issues">Desktop</a>. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
     <p>Include the guide you followed, the step that failed, and what you expected to happen. Copy the command and its output, or the error from Visual Studio's Output window. Include your Windows version and the versions of the tools you used. This helps someone else understand where you got stuck.</p>
   </div>
 </section>
