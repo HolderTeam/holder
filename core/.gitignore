@@ -1,0 +1,12 @@
+build
+build-coverage
+build-memcheck
+build-san
+build-tidy
+build-warnings
+build-tsan
+out
+.vcpkg
+.core-sdk
+*~
+*__pycache__

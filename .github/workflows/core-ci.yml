@@ -1,0 +1,285 @@
+name: Core / CI
+
+on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the core jobs run. Keep its pattern in step with these paths.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - core/**
+      - .github/workflows/core-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: core
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      core: ${{ steps.select.outputs.core }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(core/|\.github/workflows/core-ci\.yml$)' <<< "$changed"; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "core=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  linux:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v4
+
+      - name: Restore apt package cache
+        uses: actions/cache/restore@v4
+        with:
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-
+            apt-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          mkdir -p "${PWD}/.apt-cache/archives/partial" "${PWD}/.apt-cache/debs"
+          cp "${PWD}"/.apt-cache/debs/*.deb "${PWD}/.apt-cache/archives/" 2>/dev/null || true
+          sudo apt-get update
+          sudo apt-get \
+            -o Dir::Cache::Archives="${PWD}/.apt-cache/archives" \
+            install -y \
+            cmake \
+            catch2 \
+            ninja-build \
+            pkg-config \
+            libssl-dev \
+            nlohmann-json3-dev \
+            libyaml-cpp-dev \
+            libspdlog-dev \
+            libsqlite3-dev \
+            libsodium-dev \
+            libgit2-dev \
+            libmd4c-dev \
+            libsecret-1-dev \
+            lcov \
+            gcovr
+          find "${PWD}/.apt-cache/archives" -maxdepth 1 -type f -name '*.deb' -exec cp {} "${PWD}/.apt-cache/debs/" \;
+
+      - name: Save apt package cache
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install
+        run: cmake --install build --prefix out/install/linux
+
+      - name: Verify installed package
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux"
+          cmake --build out/consumer --parallel
+          ctest --test-dir out/consumer --output-on-failure
+          cmake -S tests/installed-consumer -B out/consumer-shared -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux" -DHOLDER_CONSUMER_SHARED=ON
+          cmake --build out/consumer-shared --parallel
+          ctest --test-dir out/consumer-shared --output-on-failure
+
+      - name: Coverage
+        run: ./make.sh coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: holder-core-coverage
+          path: core/build-coverage/coverage/**
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: macos-15
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          # The runner can have a manually linked OpenSSL 1.1 binary that brew unlink misses.
+          brew_prefix="$(brew --prefix)"
+          openssl_bin="$brew_prefix/bin/openssl"
+          if [[ -L "$openssl_bin" && "$(readlink "$openssl_bin")" == "$brew_prefix/opt/openssl@1.1/bin/openssl" ]]; then
+            unlink "$openssl_bin"
+          fi
+          brew install \
+            cmake \
+            catch2 \
+            ninja \
+            pkg-config \
+            nlohmann-json \
+            yaml-cpp \
+            spdlog \
+            sqlite \
+            libsodium \
+            libgit2 \
+            md4c \
+            openssl@3
+
+      - name: Configure
+        run: |
+          brew_prefix="$(brew --prefix)"
+          openssl_prefix="$(brew --prefix openssl@3)"
+
+          cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="${brew_prefix};${openssl_prefix}" \
+            -DOPENSSL_ROOT_DIR="${openssl_prefix}"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install
+        run: cmake --install build --prefix out/install/macos
+
+      - name: Verify installed package
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
+          cmake --build out/consumer --parallel
+          ctest --test-dir out/consumer --output-on-failure
+
+  windows:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set vcpkg paths
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=${{ github.workspace }}\.vcpkg" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
+
+      - name: Restore vcpkg binary package cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-
+            vcpkg-${{ runner.os }}-
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:VCPKG_ROOT"
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      - name: Configure
+        run: cmake --preset windows-vcpkg-debug
+
+      - name: Build
+        run: cmake --build out/build/windows-vcpkg-debug --parallel
+
+      - name: Run tests
+        run: ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure
+
+      - name: Save vcpkg binary package cache
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Install
+        run: cmake --install out/build/windows-vcpkg-debug --prefix out/install/windows
+
+      - name: Verify installed package
+        shell: pwsh
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -G Ninja -DCMAKE_BUILD_TYPE=Debug `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            "-DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.vcpkg-holder-core" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_MANIFEST_MODE=OFF `
+            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/core/out/install/windows"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build out/consumer --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir out/consumer --output-on-failure
+
+  result:
+    name: Core CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, linux, macos, windows]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.core }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.linux, .macos, .windows] | all(.result == "success"))
+             else
+               ([.linux, .macos, .windows] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null

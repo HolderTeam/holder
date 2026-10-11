@@ -18,6 +18,7 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 
 ## In this repository
 
+- [`core/`](core/) - Holder Core (`libholder`): the engine, its C API and its own CMake build, which does not depend on anything else here.
 - [`daemon/`](daemon/) - the Holder daemon (`holderd`), its HTTP API and its CMake build, which also builds `holderctl`.
 - [`api/`](api/) - the HTTP contract: `openapi.yaml`, `API_VERSION` and the client documentation.
 - [`cli/`](cli/) - `holderctl`, the command line client, including `holderctl ensure`.
@@ -31,7 +32,9 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 Everything in this repository (the daemon, `holderctl`, the staging and release tooling and the Python client)
 has one version: the [`VERSION`](VERSION) file at the root. Change it there and nowhere else. The daemon's
 [`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not the
-release. `holder-core` and the desktop app have their own versions.
+release. Core still has its own [`core/VERSION`](core/VERSION) until the first shared release, 0.3.0, after
+which it takes the root version too; its library's SONAME stays separate. The desktop app has its own
+version until it moves here.
 
 ## Licence
 
