@@ -75,9 +75,8 @@ and applications that want to embed Holder functionality.
 To control a running Holder installation through the Framework API, use
 [holder-python](../holder/).
 
-Holder Kit is versioned independently from the
-[Holder Framework](https://github.com/HolderTeam/holder) and
-[core library](https://github.com/HolderTeam/holder-core).
+Holder Kit is part of [Holder](https://github.com/HolderTeam/holder) and is
+released with it, at the same version.
 
 ## Examples
 

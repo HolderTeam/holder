@@ -41,6 +41,15 @@ and the release version, and uploads them with the index as
 `core-sdk-index.json`. The SDKs on the release are therefore the core the
 shipped daemon was built against. Nothing else publishes core SDKs.
 
+## Holder Kit on PyPI
+
+`Release / Kit to PyPI` builds Holder Kit's wheels and source archive against
+Release core SDKs from `core/` in the same commit, checks them, and publishes them
+to TestPyPI or PyPI through Trusted Publishing (the `testpypi` and `pypi`
+environments). It publishes only from the `holder-v<version>` tag, with Kit,
+core and `VERSION` all at that version. See
+[`python/kit/docs/packaging.md`](../python/kit/docs/packaging.md).
+
 ## Ubuntu packages
 
 `Release / Launchpad` uploads the `holder-core` and `holder-daemon` source
