@@ -101,6 +101,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public int update_card_calls = 0;
     public int update_card_position_calls = 0;
     public int delete_card_calls = 0;
+    public bool last_delete_trash_subtree = false;
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
@@ -1155,12 +1156,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_move_updated_at = updated_at;
     }
 
-    public async void delete_card(string card_id) throws Error {
+    public async void delete_card(string card_id, bool trash_subtree = false) throws Error {
         if (fail_delete_card) {
             throw new IOError.FAILED("delete card failed");
         }
         delete_card_calls++;
         last_updated_card_id = card_id;
+        last_delete_trash_subtree = trash_subtree;
     }
 
     public async HolderLinux.CardMoveResult move_card(string card_id,

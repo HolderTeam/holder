@@ -400,11 +400,17 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         );
     }
 
+    internal static string delete_card_path(string card_id, bool trash_subtree) {
+        var path = "/cards/%s".printf(Uri.escape_string(card_id));
+        return trash_subtree ? path + "?children=trash_subtree" : path;
+    }
+
     public static async void delete_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
-                                         string card_id) throws Error {
+                                         string card_id,
+                                         bool trash_subtree = false) throws Error {
         yield client.request_json(
             "DELETE",
-            "/cards/%s".printf(Uri.escape_string(card_id)),
+            delete_card_path(card_id, trash_subtree),
             null,
             null
         );

@@ -282,6 +282,36 @@ private void test_move_to_trash_confirmation_is_destructive_and_only_confirms_on
     assert(confirmed == 1);
 }
 
+private void test_move_to_trash_with_children_offers_keep_or_subtree() {
+    var host = new DialogHost();
+    var adapter = new HolderLinux.CardActionDialogAdapter(host.window);
+    int keep = 0;
+    int subtree = 0;
+    adapter.confirm_move_to_trash_with_children("Quarterly plan", 2, (trash_subtree) => {
+        if (trash_subtree) {
+            subtree++;
+        } else {
+            keep++;
+        }
+    });
+
+    var dialog = host.wait_for_dialog();
+    assert(dialog.get_heading() == "Move to Trash");
+    assert(dialog.get_body() ==
+           HolderLinux.DialogTextPresenter.move_to_trash_with_children_body("Quarterly plan", 2));
+    assert(dialog.get_default_response() == "keep");
+    assert(dialog.get_close_response() == "cancel");
+    assert(dialog.get_response_appearance("keep") == Adw.ResponseAppearance.SUGGESTED);
+    assert(dialog.get_response_appearance("subtree") == Adw.ResponseAppearance.DESTRUCTIVE);
+
+    dialog.response("cancel");
+    assert(keep == 0 && subtree == 0);
+    dialog.response("keep");
+    assert(keep == 1 && subtree == 0);
+    dialog.response("subtree");
+    assert(keep == 1 && subtree == 1);
+}
+
 private void test_create_linked_card_confirmation_only_confirms_on_create() {
     var host = new DialogHost();
     var adapter = new HolderLinux.CardActionDialogAdapter(host.window);
@@ -623,6 +653,7 @@ public static int main(string[] args) {
 
     var card = "/holder/dialog-adapters/card-action/";
     Test.add_func(card + "trash", test_move_to_trash_confirmation_is_destructive_and_only_confirms_on_trash);
+    Test.add_func(card + "trash-with-children", test_move_to_trash_with_children_offers_keep_or_subtree);
     Test.add_func(card + "linked-card", test_create_linked_card_confirmation_only_confirms_on_create);
 
     var project = "/holder/dialog-adapters/project-create/";

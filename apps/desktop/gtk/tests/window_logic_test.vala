@@ -69,6 +69,13 @@ private void test_card_title_lookup_falls_back_when_the_card_is_unknown() {
     assert(HolderLinux.WindowPresenter.card_title_for_id(store, "c2") == "Second");
     assert(HolderLinux.WindowPresenter.card_title_for_id(store, "missing") == "this card");
     assert(HolderLinux.WindowPresenter.card_title_for_id(new GLib.ListStore(typeof(Object)), "c1") == "this card");
+
+    // Only direct children count; the confirmation decides whether to offer subtree trash.
+    store.append(new HolderLinux.CardSummary("c3", "p1", "Child", "c3.md", 1.0, "c1", 1, 1));
+    store.append(new HolderLinux.CardSummary("c4", "p1", "Child 2", "c4.md", 2.0, "c1", 1, 1));
+    store.append(new HolderLinux.CardSummary("c5", "p1", "Grandchild", "c5.md", 1.0, "c3", 1, 1));
+    assert(HolderLinux.WindowPresenter.child_count_for_id(store, "c1") == 2);
+    assert(HolderLinux.WindowPresenter.child_count_for_id(store, "c2") == 0);
 }
 
 private void test_recovery_draft_body_uses_the_given_time_zone() {

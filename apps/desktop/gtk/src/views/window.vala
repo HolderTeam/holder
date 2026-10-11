@@ -1410,8 +1410,15 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         var title_text = WindowPresenter.card_title_for_id(card_store, card_id);
-        card_action_dialog_adapter.confirm_move_to_trash(title_text, () => {
-            controller.move_card_to_trash.begin(card_id);
+        var child_count = WindowPresenter.child_count_for_id(card_store, card_id);
+        if (child_count == 0) {
+            card_action_dialog_adapter.confirm_move_to_trash(title_text, () => {
+                controller.move_card_to_trash.begin(card_id);
+            });
+            return;
+        }
+        card_action_dialog_adapter.confirm_move_to_trash_with_children(title_text, child_count, (trash_subtree) => {
+            controller.move_card_to_trash.begin(card_id, trash_subtree);
         });
     }
 

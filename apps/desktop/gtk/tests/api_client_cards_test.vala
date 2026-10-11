@@ -210,7 +210,7 @@ private void test_delete_card_sends_delete_to_card_path() {
 
     bool done_delete = false;
     bool ok_delete = false;
-    client.delete_card.begin("c 1/2", (obj, res) => {
+    client.delete_card.begin("c 1/2", false, (obj, res) => {
         try { client.delete_card.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
         done_delete = true;
     });
@@ -219,6 +219,17 @@ private void test_delete_card_sends_delete_to_card_path() {
     assert(ok_delete);
     assert(transport.last_method == "DELETE");
     assert(transport.last_uri.contains("/cards/c%201%2F2"));
+    assert(!transport.last_uri.contains("children="));
+
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    done_delete = false;
+    client.delete_card.begin("c 1/2", true, (obj, res) => {
+        try { client.delete_card.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
+        done_delete = true;
+    });
+    assert(wait_for_condition(() => done_delete));
+    assert(ok_delete);
+    assert(transport.last_uri.contains("/cards/c%201%2F2?children=trash_subtree"));
 }
 
 private void test_project_tags_and_cards_with_tag() {

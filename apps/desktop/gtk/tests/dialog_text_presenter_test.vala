@@ -10,6 +10,12 @@ private void test_update_prompt_body_names_both_versions() {
 private void test_card_dialog_bodies() {
     assert(HolderLinux.DialogTextPresenter.move_to_trash_body("My \"Card\"") ==
            "Move \"My \"Card\"\" to Trash?\n\nYou can restore it from the Trash tool.");
+    assert(HolderLinux.DialogTextPresenter.move_to_trash_with_children_body("Plan", 1) ==
+           "Move \"Plan\" to Trash?\n\nIts child card can move up a level to take its place, or go to "
+           + "Trash with it, together with any cards inside them.\n\nYou can restore cards from the "
+           + "Trash tool, one at a time.");
+    assert(HolderLinux.DialogTextPresenter.move_to_trash_with_children_body("Plan", 3)
+           .contains("Its 3 child cards can move up a level"));
     assert(HolderLinux.DialogTextPresenter.create_linked_card_body("Roadmap") ==
            "No card matches [[Roadmap]] in this project.");
 }

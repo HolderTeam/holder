@@ -303,7 +303,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                            int64 updated_at) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void delete_card(string card_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
+    public async void delete_card(string card_id, bool trash_subtree = false) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
     public async HolderLinux.CardMoveResult move_card(string card_id,
                                                       string project_id,
                                                       string intent,
