@@ -11,6 +11,6 @@ offline analysis, bulk import or export. You can run it in a notebook or on a se
 being installed or running locally. Use this if you want to use Holder's knowledge management format rather
 than interoperating with its applications in real time.
 
-![AI generated image](docs/which_holder_python_api.png)
+![AI generated image](kit/docs/which_holder_python_api.png)
 
 Each library has its own README with setup and development instructions.
