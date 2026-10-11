@@ -111,7 +111,9 @@ jobs:
           EOF
           if [ "$SOURCE" = holder-core ]; then
             # The upstream tarball is core/ as committed, without the debian/ copied in above.
-            git archive --format=tar --prefix="holder-core-${version}/" HEAD:core \
+            # git archive run from a subdirectory archives only that subdirectory of the tree it
+            # is given, so run it from the top of the checkout.
+            git -C "$GITHUB_WORKSPACE" archive --format=tar --prefix="holder-core-${version}/" HEAD:core \
               | gzip -n > "../holder-core_${version}.orig.tar.gz"
           fi
 
