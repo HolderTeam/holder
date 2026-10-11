@@ -99,15 +99,17 @@ jobs:
         run: |
           set -euo pipefail
           # Re-index the downloaded archives and require the same description the run recorded:
-          # the same commit, version, configurations, sizes and checksums.
-          python3 core/scripts/core-sdk.py index --assets out/core-sdk --output out/downloaded-selection.json
+          # the same run commit and core/ tree, version, configurations, per-archive commits, sizes
+          # and checksums.
+          python3 core/scripts/core-sdk.py index --assets out/core-sdk --output out/downloaded-selection.json \
+            --commit "$(jq -r .commit out/core-selection.json)" --tree "$(jq -r .core_tree out/core-selection.json)"
           python3 - <<'EOF'
           import json, os, sys
           recorded = json.load(open("out/core-selection.json"))
           downloaded = json.load(open("out/downloaded-selection.json"))
           key = lambda asset: asset["name"]
           if sorted(recorded["assets"], key=key) != sorted(downloaded["assets"], key=key) or \
-             (recorded["commit"], recorded["version"]) != (downloaded["commit"], downloaded["version"]):
+             any(recorded.get(k) != downloaded.get(k) for k in ("commit", "core_tree", "version")):
               sys.exit("The downloaded SDKs differ from the run's core selection")
           configurations = {(a["platform"], a["build_type"]) for a in recorded["assets"]}
           if configurations != {("linux", "Release"), ("macos", "Release"), ("windows", "Release")}:
