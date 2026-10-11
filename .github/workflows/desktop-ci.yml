@@ -1,0 +1,645 @@
+name: Desktop / CI
+
+# Builds and tests the GTK desktop app in apps/desktop/gtk/ on Linux (Ubuntu 24.04, with the
+# staged artifact, and Ubuntu 26.04), macOS and Windows. The artifacts keep the names staging
+# looks for: holder-desktop-linux-x86_64, holder-desktop-macos and holder-desktop-windows, with a
+# -release suffix for build_type=release.
+
+on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the desktop jobs run. Keep its pattern in step with these paths.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/desktop/**
+      - .github/workflows/desktop-ci.yml
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Meson configuration for the artifacts (debug, debugoptimized or release); blank uses debugoptimized on Linux and debug on macOS and Windows
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/desktop/gtk
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      desktop: ${{ steps.select.outputs.desktop }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: |
+          case "$BUILD_TYPE" in
+            ""|debug|debugoptimized|release) ;;
+            *) echo "build_type must be blank, debug, debugoptimized or release; got '$BUILD_TYPE'" >&2; exit 1 ;;
+          esac
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(apps/desktop/|\.github/workflows/desktop-ci\.yml$)' <<< "$changed"; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "desktop=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  linux:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    env:
+      MESON_BUILD_TYPE: ${{ inputs.build_type || 'debugoptimized' }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            appstream \
+            dbus-x11 \
+            desktop-file-utils \
+            libadwaita-1-dev \
+            libgee-0.8-dev \
+            libglib2.0-bin \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libsoup-3.0-dev \
+            libspelling-1-dev \
+            libvte-2.91-gtk4-dev \
+            meson \
+            ninja-build \
+            pkg-config \
+            valac \
+            xvfb
+
+      - name: Configure Meson
+        run: |
+          meson setup build-linux \
+            --prefix=/usr \
+            --buildtype="$MESON_BUILD_TYPE" \
+            -Dtests=true \
+            -Dterminal=true
+
+      - name: Build desktop and tests
+        run: meson compile -C build-linux
+
+      - name: Run tests
+        env:
+          # The GitHub runner has no accessibility bus or usable DRI device.
+          # GTK warnings are fatal under GLib's test harness, so use GTK's
+          # documented headless settings for widget tests.
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test \
+              -C build-linux \
+              --print-errorlogs \
+              --num-processes 8
+
+      - name: Stage installed desktop
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          install -d "${stage_dir}/release"
+
+          DESTDIR="${stage_dir}" meson install -C build-linux
+
+          # AppImage launchers do not use the system man-page hierarchy.
+          rm -rf "${stage_dir}/usr/share/man"
+
+          # GSettings normally compiles schemas at system package install time.
+          # Compile the isolated schema set so the staged application is usable
+          # without writing to the host's /usr tree.
+          glib-compile-schemas \
+            "${stage_dir}/usr/share/glib-2.0/schemas"
+
+          tr -d '[:space:]' < VERSION \
+            > "${stage_dir}/release/holder-desktop-version.txt"
+          install -m 0644 compatibility/daemon-api.json \
+            "${stage_dir}/release/holder-desktop-daemon-api.json"
+          printf '%s\n' "${GITHUB_SHA}" \
+            > "${stage_dir}/release/holder-desktop-commit.txt"
+
+          mkdir -p "${stage_dir}/release"
+          printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            > "${stage_dir}/release/holder-desktop-build.json"
+
+          (
+            cd "${stage_dir}"
+            find . \( -type f -o -type l \) \
+              ! -path './release/holder-desktop-manifest.txt' \
+              | sed 's#^\./##' \
+              | sort \
+              > release/holder-desktop-manifest.txt
+          )
+
+          find "${stage_dir}" -type f | sort
+
+      - name: Smoke-test staged desktop
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          schema_dir="${stage_dir}/usr/share/glib-2.0/schemas"
+          expected_version="$(tr -d '[:space:]' < VERSION)"
+
+          test -x "${stage_dir}/usr/bin/holder-desktop"
+          test -f "${schema_dir}/team.holder.Holder.gschema.xml"
+          test -f "${schema_dir}/gschemas.compiled"
+          test -f "${stage_dir}/usr/share/holder-desktop/holder.jpg"
+          test -f "${stage_dir}/usr/share/icons/hicolor/512x512/apps/team.holder.Holder.png"
+          test -f "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"
+          test -f "${stage_dir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
+          test -f "${stage_dir}/release/holder-desktop-daemon-api.json"
+          test -f "${stage_dir}/release/holder-desktop-manifest.txt"
+
+          test "$(cat "${stage_dir}/release/holder-desktop-version.txt")" = \
+            "${expected_version}"
+          grep -qx 'usr/bin/holder-desktop' \
+            "${stage_dir}/release/holder-desktop-manifest.txt"
+          python3 -m json.tool \
+            "${stage_dir}/release/holder-desktop-daemon-api.json" >/dev/null
+
+          desktop-file-validate \
+            "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"
+          appstreamcli validate --no-net \
+            "${stage_dir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
+
+          GSETTINGS_SCHEMA_DIR="${schema_dir}" \
+            gsettings list-keys team.holder.Holder >/dev/null
+
+          runtime_libraries="$(ldd "${stage_dir}/usr/bin/holder-desktop")"
+          printf '%s\n' "${runtime_libraries}"
+          if grep -q 'not found' <<<"${runtime_libraries}"; then
+            exit 1
+          fi
+
+      - name: Archive desktop artifact
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          upload_dir="${PWD}/out/artifacts/linux-desktop-upload"
+          archive_name="holder-desktop-linux-x86_64.tar.gz"
+
+          install -d "${upload_dir}"
+          tar -C "${stage_dir}" -czf "${upload_dir}/${archive_name}" .
+          (
+            cd "${upload_dir}"
+            sha256sum "${archive_name}" > "${archive_name}.sha256"
+          )
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: holder-desktop-linux-x86_64${{ inputs.build_type == 'release' && '-release' || '' }}
+          path: apps/desktop/gtk/out/artifacts/linux-desktop-upload/*
+          if-no-files-found: error
+          retention-days: 7
+
+  linux-resolute:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            appstream \
+            dbus-x11 \
+            desktop-file-utils \
+            libadwaita-1-dev \
+            libgee-0.8-dev \
+            libglib2.0-bin \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libsoup-3.0-dev \
+            libspelling-1-dev \
+            libvte-2.91-gtk4-dev \
+            meson \
+            ninja-build \
+            pkg-config \
+            valac \
+            xvfb
+
+      - name: Configure Meson
+        run: |
+          meson setup build-resolute \
+            --prefix=/usr \
+            --buildtype=debugoptimized \
+            -Dtests=true \
+            -Dterminal=true
+
+      - name: Build desktop and tests
+        run: meson compile -C build-resolute
+
+      - name: Run tests
+        env:
+          # The GitHub runner has no accessibility bus or usable DRI device.
+          # GTK warnings are fatal under GLib's test harness, so use GTK's
+          # documented headless settings for widget tests.
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test \
+              -C build-resolute \
+              --print-errorlogs \
+              --num-processes 8
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: holder-desktop-resolute-test-logs
+          path: apps/desktop/gtk/build-resolute/meson-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    env:
+      MESON_BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
+    runs-on: macos-15
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          brew update
+          brew install \
+            git \
+            meson \
+            ninja \
+            pkgconf \
+            vala \
+            gtk4 \
+            adwaita-icon-theme \
+            libadwaita \
+            gtksourceview5 \
+            libspelling \
+            libgee \
+            libsoup \
+            glib-networking \
+            json-glib \
+            vte3
+
+      - name: Build and test
+        run: |
+          set -euo pipefail
+
+          meson setup build-macos \
+            --buildtype="$MESON_BUILD_TYPE" \
+            --prefix=/
+          meson compile -C build-macos
+          meson test -C build-macos --print-errorlogs
+
+      - name: Stage desktop artifact
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/macos-desktop"
+          rm -rf "${stage_dir}"
+          mkdir -p "${stage_dir}"
+
+          DESTDIR="${stage_dir}" meson install -C build-macos
+
+          mkdir -p "${stage_dir}/release"
+          printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            > "${stage_dir}/release/holder-desktop-build.json"
+
+          (
+            cd "${stage_dir}"
+            find . -type f \
+              | sed 's#^\./##' \
+              | sort \
+              > manifest.txt
+          )
+
+          find "${stage_dir}" -maxdepth 5 -type f | sort
+
+      - name: Smoke-test staged desktop artifact
+        run: |
+          set -euo pipefail
+
+          test -f out/artifacts/macos-desktop/bin/holder-desktop
+          test -f out/artifacts/macos-desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
+          test -f out/artifacts/macos-desktop/share/holder-desktop/holder.jpg
+          test -f out/artifacts/macos-desktop/share/icons/hicolor/512x512/apps/team.holder.Holder.png
+          test -f out/artifacts/macos-desktop/share/applications/team.holder.Holder.desktop
+          test -f out/artifacts/macos-desktop/manifest.txt
+          grep -qx 'bin/holder-desktop' out/artifacts/macos-desktop/manifest.txt
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: holder-desktop-macos${{ inputs.build_type == 'release' && '-release' || '' }}
+          path: apps/desktop/gtk/out/artifacts/macos-desktop/**
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    env:
+      MESON_BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+        working-directory: apps/desktop/gtk
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up MSYS2 UCRT64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-vala
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-gtksourceview5
+            mingw-w64-ucrt-x86_64-libspelling
+            mingw-w64-ucrt-x86_64-hunspell-en
+            mingw-w64-ucrt-x86_64-libgee
+            mingw-w64-ucrt-x86_64-libsoup3
+            mingw-w64-ucrt-x86_64-json-glib
+
+      - name: Build and test
+        run: bash ./make-win.sh test
+
+      # Meson hides the output of passing tests, so a test that calls Test.skip looks like a pass.
+      # Print the time zone tests verbosely to see whether their DST cases ran or were skipped.
+      - name: Show time zone test results
+        if: always()
+        run: |
+          GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${PWD}/build-win/data" \
+            meson test -C build-win --no-rebuild --verbose \
+              holder-linux-milestone-draft-tests \
+              holder-linux-milestones-presenter-tests \
+              holder-linux-milestones-controller-tests
+
+      - name: Stage desktop artifact
+        run: |
+          set -euo pipefail
+
+          build_dir="build-win"
+          stage_dir="out/artifacts/windows-desktop"
+
+          copy_tree_if_exists() {
+            local source_dir="$1"
+            local relative_dir="${source_dir#/ucrt64/}"
+            local target_dir="${stage_dir}/${relative_dir}"
+
+            if [ -d "${source_dir}" ]; then
+              mkdir -p "$(dirname "${target_dir}")"
+              cp -a "${source_dir}" "${target_dir}"
+            fi
+          }
+
+          copy_msys2_dll_deps() {
+            local changed=1
+
+            while [ "${changed}" -eq 1 ]; do
+              changed=0
+
+              while IFS= read -r binary; do
+                while IFS= read -r dll; do
+                  case "${dll}" in
+                    /ucrt64/bin/*.dll)
+                      local target="${stage_dir}/bin/$(basename "${dll}")"
+                      if [ ! -f "${target}" ]; then
+                        cp -f "${dll}" "${target}"
+                        changed=1
+                      fi
+                      ;;
+                  esac
+                done < <(
+                  ldd "${binary}" \
+                    | awk '/=>/ { print $3 } /^[[:space:]]*\/ucrt64\// { print $1 }' \
+                    | sort -u
+                )
+              done < <(find "${stage_dir}" -type f \( -name '*.exe' -o -name '*.dll' \))
+            done
+          }
+
+          rm -rf "${stage_dir}"
+          mkdir -p \
+            "${stage_dir}/bin" \
+            "${stage_dir}/share/applications" \
+            "${stage_dir}/share/glib-2.0/schemas" \
+            "${stage_dir}/share/holder-desktop" \
+            "${stage_dir}/share/holder-desktop/icons" \
+            "${stage_dir}/share/metainfo"
+
+          cp "${build_dir}/holder-desktop.exe" "${stage_dir}/bin/"
+          # GLib launches piped subprocesses through these executables. They
+          # are runtime helpers, so the DLL dependency scan cannot discover them.
+          cp /ucrt64/bin/gspawn-win64-helper.exe "${stage_dir}/bin/"
+          cp /ucrt64/bin/gspawn-win64-helper-console.exe "${stage_dir}/bin/"
+          cp data/team.holder.Holder.desktop "${stage_dir}/share/applications/"
+          cp data/team.holder.Holder.metainfo.xml "${stage_dir}/share/metainfo/"
+          cp img/holder.jpg "${stage_dir}/share/holder-desktop/"
+          cp packaging/windows/Holder.ico "${stage_dir}/share/holder-desktop/icons/"
+
+          cp /ucrt64/share/glib-2.0/schemas/*.xml "${stage_dir}/share/glib-2.0/schemas/"
+          cp data/team.holder.Holder.gschema.xml "${stage_dir}/share/glib-2.0/schemas/"
+
+          copy_tree_if_exists /ucrt64/lib/gdk-pixbuf-2.0
+          copy_tree_if_exists /ucrt64/lib/enchant-2
+          copy_tree_if_exists /ucrt64/share/enchant-2
+          copy_tree_if_exists /ucrt64/share/hunspell
+          copy_tree_if_exists /ucrt64/lib/gio
+          copy_tree_if_exists /ucrt64/lib/gtk-4.0
+          copy_tree_if_exists /ucrt64/share/icons
+          mkdir -p "${stage_dir}/share/icons/hicolor"
+          cp -a data/icons/hicolor/. "${stage_dir}/share/icons/hicolor/"
+          copy_tree_if_exists /ucrt64/share/themes
+          copy_tree_if_exists /ucrt64/share/gtk-4.0
+          copy_tree_if_exists /ucrt64/share/libadwaita
+          copy_tree_if_exists /ucrt64/share/gtksourceview-5
+          copy_tree_if_exists /ucrt64/share/locale
+
+          find "${stage_dir}" -type f -name '*.dll.a' -delete
+
+          glib-compile-schemas "${stage_dir}/share/glib-2.0/schemas"
+
+          if [ -d "${stage_dir}/lib/gio/modules" ]; then
+            gio-querymodules "${stage_dir}/lib/gio/modules"
+          fi
+
+          if [ -d "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" ]; then
+            (
+              cd "${stage_dir}"
+              GDK_PIXBUF_MODULEDIR="lib/gdk-pixbuf-2.0/2.10.0/loaders" \
+                gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
+                > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+            )
+
+            stage_dir_win="$(cygpath -m "$(pwd)/${stage_dir}")"
+            awk -v prefix="${stage_dir_win}/" '
+              {
+                while ((pos = index($0, prefix)) > 0) {
+                  $0 = substr($0, 1, pos - 1) substr($0, pos + length(prefix))
+                }
+                print
+              }
+            ' "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" \
+              > "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache.tmp"
+            mv \
+              "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache.tmp" \
+              "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          fi
+
+          copy_msys2_dll_deps
+
+          mkdir -p "${stage_dir}/release"
+          printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            > "${stage_dir}/release/holder-desktop-build.json"
+
+          (
+            cd "${stage_dir}"
+            find . -type f \
+              | sed 's#^\./##' \
+              | sort \
+              > manifest.txt
+          )
+          du -sh "${stage_dir}"
+
+          find "${stage_dir}" -maxdepth 4 -type f | sort
+
+      - name: Smoke-test staged desktop artifact
+        run: |
+          set -euo pipefail
+
+          test -f out/artifacts/windows-desktop/bin/holder-desktop.exe
+          test -f out/artifacts/windows-desktop/bin/gspawn-win64-helper.exe
+          test -f out/artifacts/windows-desktop/bin/gspawn-win64-helper-console.exe
+          test -f out/artifacts/windows-desktop/share/glib-2.0/schemas/gschemas.compiled
+          test -f out/artifacts/windows-desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
+          test -d out/artifacts/windows-desktop/lib/gio/modules
+          test -f out/artifacts/windows-desktop/lib/gio/modules/giomodule.cache
+          test -d out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0
+          test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+          test -f out/artifacts/windows-desktop/lib/enchant-2/enchant_hunspell.dll
+          test -f out/artifacts/windows-desktop/share/enchant-2/enchant.ordering
+          test -f out/artifacts/windows-desktop/share/hunspell/en_GB.aff
+          test -f out/artifacts/windows-desktop/share/hunspell/en_GB.dic
+          test -f out/artifacts/windows-desktop/share/hunspell/en_US.aff
+          test -f out/artifacts/windows-desktop/share/hunspell/en_US.dic
+          test -d out/artifacts/windows-desktop/share/icons
+          test -f out/artifacts/windows-desktop/share/icons/hicolor/512x512/apps/team.holder.Holder.png
+          test -f out/artifacts/windows-desktop/share/holder-desktop/icons/Holder.ico
+          test -f out/artifacts/windows-desktop/share/gtksourceview-5/language-specs/language2.rng
+          test -f out/artifacts/windows-desktop/manifest.txt
+          ! grep -F "$(cygpath -m "$(pwd)/out/artifacts/windows-desktop")" \
+            out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+          ! grep -F "out/artifacts/windows-desktop" \
+            out/artifacts/windows-desktop/manifest.txt
+
+          # Run against the packaged DLLs with MSYS2 removed from PATH, so
+          # build-machine helper executables cannot conceal a packaging defect.
+          smoke_exe="out/artifacts/windows-desktop/bin/subprocess-smoke.exe"
+          cc tests/windows_packaged_subprocess_test.c -o "${smoke_exe}" \
+            $(pkg-config --cflags --libs gio-2.0)
+          PATH="$(pwd)/out/artifacts/windows-desktop/bin:$(cygpath -u "${SYSTEMROOT}")/System32" \
+            "./${smoke_exe}"
+          rm -f "${smoke_exe}"
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: holder-desktop-windows${{ inputs.build_type == 'release' && '-release' || '' }}
+          path: apps/desktop/gtk/out/artifacts/windows-desktop/**
+          if-no-files-found: error
+          retention-days: 7
+
+  result:
+    name: Desktop CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, linux, linux-resolute, macos, windows]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.desktop }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "success"))
+             else
+               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null

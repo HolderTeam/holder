@@ -134,11 +134,11 @@ run_app() {
     runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
   fi
   install_dev_desktop_assets "${app_id}"
-  # Running from a source tree: use the holderctl built beside it in holder, unless one
-  # is named already, so the app can start the backend itself.
+  # Running from a source tree: use the holderctl built in this repository's daemon/, unless
+  # one is named already, so the app can start the backend itself.
   local sibling_ctl=""
   local sibling_dir
-  if sibling_dir="$(cd "${PWD}/../holder/daemon/build" 2>/dev/null && pwd -P)"; then
+  if sibling_dir="$(cd "${PWD}/../../../daemon/build" 2>/dev/null && pwd -P)"; then
     sibling_ctl="${sibling_dir}/holderctl"
   fi
   if [[ -z "${HOLDER_CTL:-}" && -n "${sibling_ctl}" && -x "${sibling_ctl}" ]]; then

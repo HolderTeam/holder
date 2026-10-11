@@ -85,7 +85,7 @@ as "a client is here" and does not idle out under it; the app reconnects with a 
 backend up again each time, if the connection drops. Nothing is read from the stream yet.
 
 When running from a source tree, set `HOLDER_CTL` to a built `holderctl`; `./make.sh run` does this itself when
-`../holder/daemon/build/holderctl` exists. The Debug tool says what was used or why the step was skipped.
+`daemon/build/holderctl` exists in this repository (`../../../daemon/build/holderctl`). The Debug tool says what was used or why the step was skipped.
 
 Windows and macOS still start the backend through their launcher for now.
 
