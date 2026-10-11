@@ -359,8 +359,9 @@ symlink, `libholder.a`, CMake targets, and `holder.pc` for pkg-config. The
 `libholder Ubuntu packages` workflow builds and installs both packages on
 Ubuntu 24.04, then compiles external static and shared consumers against them.
 
-The manual `Upload libholder to Launchpad` workflow prepares signed source
-uploads for noble and resolute. Launchpad builds each series with its own
+The `Release / Launchpad` workflow at the repository root uploads signed source
+packages for noble and resolute: `holder-core` with `holder-daemon` for each
+`holder-v*` release, or either one by hand for a packaging-only revision. Launchpad builds each series with its own
 compiler, dependencies, and hardening flags. These packages do not use the
 GitHub Linux SDK archive. Check Launchpad binary build/publication results
 before relying on an uploaded package.

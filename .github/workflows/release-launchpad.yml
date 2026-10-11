@@ -1,0 +1,160 @@
+name: Release / Launchpad
+
+# Uploads the Ubuntu source packages for a Holder release to ppa:holderteam/holder:
+# holder-core (libholder0, libholder-dev) and holder-daemon, for each series. A holder-v* tag
+# uploads both. Launchpad orders the builds: holder-daemon waits for libholder-dev from the
+# same upload. A manual run can upload one package, for a packaging-only fix with a new
+# Debian revision. Pull requests that change the packaging build both source packages
+# unsigned and stop there, so the upload path is tested without publishing anything.
+
+on:
+  push:
+    tags:
+      - "holder-v*"
+  pull_request:
+    paths:
+      - .github/workflows/release-launchpad.yml
+      - core/packaging/linux/debian/**
+      - daemon/packaging/linux/**
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Source packages to upload
+        type: choice
+        options: [both, core, daemon]
+        default: both
+      version:
+        description: Optional expected upstream version, for example 0.3.0
+        required: false
+      package_revision:
+        description: Debian package revision; increment it for every replacement upload
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [noble, resolute]
+        package: ${{ fromJSON(inputs.packages == 'core' && '["core"]' || inputs.packages == 'daemon' && '["daemon"]' || '["core", "daemon"]') }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    env:
+      SOURCE: ${{ matrix.package == 'core' && 'holder-core' || 'holder-daemon' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Test package install hook
+        if: matrix.package == 'daemon'
+        run: python3 -B -m unittest tests/linux_postinst_test.py
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends devscripts debhelper dput gnupg equivs
+
+      - name: Copy the contract, holderctl and shared sources into daemon/
+        if: matrix.package == 'daemon'
+        run: |
+          # The source package is built from daemon/ alone, so it carries copies of the HTTP
+          # contract (api/), the holderctl sources (cli/), the platform files holderd and holderctl
+          # share (common/) and VERSION. The Daemon CI package build runs the same script.
+          packaging/linux/prepare-source-tree.sh "${GITHUB_WORKSPACE}" "${PWD}"
+          cp ../VERSION VERSION
+
+      - name: Prepare the versioned source package
+        env:
+          SERIES: ${{ matrix.series }}
+          INPUT_VERSION: ${{ inputs.version }}
+          PACKAGE_REVISION: ${{ inputs.package_revision || '1' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Core and the daemon each read their own VERSION file until core takes the root one.
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Launchpad uploads need a stable numeric version; $SOURCE has '$version'" >&2
+            exit 1
+          fi
+          if ! [[ "$PACKAGE_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "package_revision must be a positive integer; got '$PACKAGE_REVISION'" >&2
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = push ]; then
+            tag_version="${GITHUB_REF_NAME#holder-v}"
+            if [ "$tag_version" != "$version" ]; then
+              echo "$SOURCE is at $version but the release tag is $GITHUB_REF_NAME." >&2
+              echo "Every package in a release carries the release version." >&2
+              exit 1
+            fi
+          elif [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$version" ]; then
+            echo "Expected version '$INPUT_VERSION' does not match $SOURCE's '$version'" >&2
+            exit 1
+          fi
+          rm -rf debian build
+          cp -a packaging/linux/debian debian
+          package_version="${version}-${PACKAGE_REVISION}~${SERIES}1"
+          cat > debian/changelog <<EOF
+          ${SOURCE} (${package_version}) ${SERIES}; urgency=medium
+
+            * Build package revision ${PACKAGE_REVISION} for ${SERIES}.
+
+           -- Holder Team <holdercardteam@gmail.com>  $(date -R)
+          EOF
+          if [ "$SOURCE" = holder-core ]; then
+            # The upstream tarball is core/ as committed, without the debian/ copied in above.
+            # git archive run from a subdirectory archives only that subdirectory of the tree it
+            # is given, so run it from the top of the checkout.
+            git -C "$GITHUB_WORKSPACE" archive --format=tar --prefix="holder-core-${version}/" HEAD:core \
+              | gzip -n > "../holder-core_${version}.orig.tar.gz"
+          fi
+
+      - name: Build unsigned source package
+        if: github.event_name == 'pull_request'
+        run: |
+          debuild -S -d -us -uc
+          ls -l ../"${SOURCE}"_*
+
+      - name: Import PPA signing key
+        if: github.event_name != 'pull_request'
+        env:
+          PPA_GPG_PRIVATE_KEY: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$PPA_GPG_PRIVATE_KEY" ]; then
+            echo 'Configure PPA_GPG_PRIVATE_KEY before uploading' >&2
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "$PPA_GPG_PRIVATE_KEY" | gpg --batch --import
+          keyid="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          test -n "$keyid"
+          echo "DEBSIGN_KEYID=$keyid" >> "$GITHUB_ENV"
+          cat > ~/.gnupg/gpg.conf <<EOF
+          batch
+          yes
+          pinentry-mode loopback
+          EOF
+          cat > ~/.gnupg/gpg-agent.conf <<EOF
+          allow-loopback-pinentry
+          EOF
+          gpgconf --kill gpg-agent
+
+      - name: Build signed source package
+        if: github.event_name != 'pull_request'
+        env:
+          DEBFULLNAME: Holder Team
+          DEBEMAIL: holdercardteam@gmail.com
+        run: debuild -S -d -k"$DEBSIGN_KEYID"
+
+      - name: Upload to Launchpad PPA
+        if: github.event_name != 'pull_request'
+        run: dput ppa:holderteam/holder "../${SOURCE}_"*_source.changes

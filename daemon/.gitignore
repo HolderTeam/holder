@@ -17,7 +17,7 @@ Testing
 # Generated from holder-core/resources/WELCOME.md by CMake (configure_file).
 /config/WELCOME.md
 /schema/schema.sql
-# Copied here only while building the Debian source package (see ../.github/workflows/daemon-launchpad.yml).
+# Copied here only while building the Debian source package (see ../.github/workflows/release-launchpad.yml).
 /api/
 /cli/
 /common/
