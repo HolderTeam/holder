@@ -364,12 +364,127 @@ jobs:
       - name: Run lifecycle example
         run: python examples/card_lifecycle.py
 
+  ubuntu-packages:
+    # python3-holder-kit as Launchpad builds it: from python/kit/ copied out on its own, against
+    # libholder packages built here from core/ in this commit.
+    needs: changes
+    if: needs.changes.outputs.kit == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            series: noble
+          - image: ubuntu:26.04
+            series: resolute
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .
+    env:
+      EXPORTED_KIT: /tmp/export/holder-kit
+    steps:
+      - name: Install packaging tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git devscripts equivs debhelper cmake ninja-build
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and install core packages from core/ in this commit
+        shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          SERIES: ${{ matrix.series }}
+        working-directory: core
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          cp -a packaging/linux/debian debian
+          cat > debian/changelog <<EOF
+          holder-core (${version}-1~${SERIES}1) ${SERIES}; urgency=medium
+
+            * Build libholder packages from core ${GITHUB_SHA}.
+
+           -- Holder Team <holdercardteam@gmail.com>  $(date -R)
+          EOF
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc -j2
+          apt-get install -y --no-install-recommends ../libholder0_*.deb ../libholder-dev_*.deb
+      - name: Export python/kit/ on its own, as the Debian source package sees it
+        run: |
+          mkdir -p "$(dirname "${EXPORTED_KIT}")"
+          cp -a python/kit "${EXPORTED_KIT}"
+      - name: Build Kit against the installed core packages
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: ${{ env.EXPORTED_KIT }}
+        run: |
+          cp -a packaging/linux/debian debian
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc -j2
+      - name: Check the package's libholder0 requirement
+        shell: bash
+        working-directory: ${{ env.EXPORTED_KIT }}
+        run: |
+          set -euo pipefail
+          package=$(find .. -maxdepth 1 -name 'python3-holder-kit_*.deb' -print -quit)
+          # Kit installs the schema of the core it was built against, so it must require the
+          # libholder0 of the same upstream version.
+          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
+          depends=$(dpkg-deb -f "$package" Depends)
+          echo "$depends"
+          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
+          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
+          mkdir -p "$GITHUB_WORKSPACE/out/ubuntu-packages"
+          cp "$package" "$GITHUB_WORKSPACE"/libholder0_*.deb "$GITHUB_WORKSPACE/out/ubuntu-packages/"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: holder-kit-${{ matrix.series }}-packages
+          path: out/ubuntu-packages/*.deb
+          if-no-files-found: error
+
+  ubuntu-runtime:
+    # Installs the packages in a fresh container, without development packages or a compiler.
+    needs: [changes, ubuntu-packages]
+    if: needs.changes.outputs.kit == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            series: noble
+          - image: ubuntu:26.04
+            series: resolute
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: holder-kit-${{ matrix.series }}-packages
+          path: out/ubuntu-packages
+      - name: Install and test the packages
+        env:
+          SERIES: ${{ matrix.series }}
+        run: bash python/kit/scripts/ubuntu-package-ci.sh "$SERIES" out/ubuntu-packages
+
   result:
     name: Kit CI result
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, checks, core-sdk, linux, macos, windows]
+    needs: [changes, checks, core-sdk, linux, macos, windows, ubuntu-packages, ubuntu-runtime]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -384,7 +499,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.checks, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success"))
+               ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "success"))
              else
-               ([.checks, .["core-sdk"], .linux, .macos, .windows] | all(.result == "skipped"))
+               ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

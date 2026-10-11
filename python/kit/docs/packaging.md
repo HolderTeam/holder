@@ -144,51 +144,25 @@ dpkg-buildpackage -b -us -uc
 
 ### Package validation
 
-[`ubuntu-packages.yml`](../.github/workflows/ubuntu-packages.yml) builds and tests
-Noble (Ubuntu 24.04) and Resolute (Ubuntu 26.04) separately. It installs each
-binary in a fresh container without development packages, tests ordinary Python
-use, then installs optional adapters and runs integration tests.
-
-To reproduce the Noble build and runtime checks with Docker:
-
-```sh
-mkdir -p out/packages
-docker run --rm -v "$PWD:/source:ro" -v "$PWD/out/packages:/out" \
-  ubuntu:24.04 bash /source/scripts/ubuntu-package-ci.sh build noble
-docker run --rm -v "$PWD:/source:ro" -v "$PWD/out/packages:/out:ro" \
-  ubuntu:24.04 bash /source/scripts/ubuntu-package-ci.sh install noble
-```
-
-For Resolute, use `ubuntu:26.04` and `resolute`. Keep each series' artifacts in
-a separate output directory if testing both locally.
+Kit / CI ([`kit-ci.yml`](../../../.github/workflows/kit-ci.yml)) builds the
+package for Noble (Ubuntu 24.04) and Resolute (Ubuntu 26.04) separately, as
+Launchpad does: from `python/kit/` copied out on its own, against libholder
+packages built in the same job from `core/` in the same commit. It checks that
+the package requires `libholder0` of the same upstream version (Kit installs
+that core's schema and hands it to `libholder0` at runtime). It then installs
+the packages in a fresh container without development packages or a compiler,
+tests ordinary Python use with
+[`scripts/ubuntu-package-ci.sh`](../scripts/ubuntu-package-ci.sh), then
+installs optional adapters and runs integration tests.
 
 ### Launchpad source packages
 
-[`launchpad.yml`](../.github/workflows/launchpad.yml) is a manual workflow that
-prepares source candidates for both Ubuntu series. Its inputs are:
-
-| Input | Meaning |
-| --- | --- |
-| `version` | Must match `pyproject.toml` |
-| `package_revision` | Positive Debian revision; increment for replacement uploads |
-| `core_package_version` | Exact core package version before the Ubuntu suffix, such as `0.2.0-1` |
-| `upload` | Defaults to false; when true, sign and upload to `ppa:holderteam/holder` |
-
-Each candidate pins `libholder-dev` to the exact series-specific package version,
-such as `0.2.0-1~noble1`. Runtime dependencies are generated against the compatible
-shared ABI. Uploading requires the repository's `PPA_GPG_PRIVATE_KEY` secret.
-
-To prepare a source candidate manually, use a clean disposable checkout and
-Python 3.11 or newer (the preparation script uses `tomllib`):
-
-```sh
-python3 scripts/prepare-debian-source.py \
-  --version 0.0.1 --package-revision 1 --series noble \
-  --core-package-version '0.2.0-1~noble1'
-debuild -S -d -us -uc
-```
-
-Use the actual Kit and core versions for the candidate. The script packages
-committed files from `HEAD`, creates `debian/`, and writes the upstream archive
-in the parent directory. The workflow saves the unsigned source candidate as an
-artifact before optional signing and upload.
+`holder-kit` is one of the source packages that `Release / Launchpad`
+([`release-launchpad.yml`](../../../.github/workflows/release-launchpad.yml))
+uploads to `ppa:holderteam/holder`, with `holder-core` and `holder-daemon`. The
+release tag uploads all three. A manual run with `packages=kit` and a new
+`package_revision` uploads only Kit, for a packaging-only fix. Kit's version
+must equal core's: its source package builds against `libholder-dev` of that
+version, so on Launchpad it waits for the core packages from the same upload.
+The upstream tarball is `python/kit/` as committed. Pull requests that change
+the packaging build the source package unsigned without uploading.

@@ -15,5 +15,11 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	PYTHONPATH=$(CURDIR)/build/test-install/usr/lib/python3/dist-packages /usr/bin/python3 -m pytest -q tests
 endif
 
+# Kit links only core's stable C API, but it installs the schema of the core it was built against
+# (_schema.sql) and hands it to libholder0 at runtime, so it needs the libholder0 of that same
+# upstream version. Any Debian revision of it is accepted, so a packaging-only fix still installs.
+override_dh_gencontrol:
+	dh_gencontrol -- -Vlibholder:Upstream=$$(dpkg-query -W -f='$${source:Upstream-Version}' libholder0)
+
 %:
 	dh $@ --with python3 --buildsystem=cmake+ninja --builddirectory=build

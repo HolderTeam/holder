@@ -52,6 +52,6 @@ core and `VERSION` all at that version. See
 
 ## Ubuntu packages
 
-`Release / Launchpad` uploads the `holder-core` and `holder-daemon` source
+`Release / Launchpad` uploads the `holder-core`, `holder-daemon` and `holder-kit` source
 packages to `ppa:holderteam/holder` for each `holder-v*` tag. See the comments
 at the top of `.github/workflows/release-launchpad.yml`.
