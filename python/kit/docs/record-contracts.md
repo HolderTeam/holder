@@ -1,0 +1,478 @@
+# Detached record contracts
+
+Holder Kit record exports are plain dictionaries with stable field names and
+standard-library types. They own no native resources and remain readable,
+serialisable, and safe to pass elsewhere after their originating `Project` or
+`Context` is closed. `Project` and `Card` are live: use `project.to_record()`
+and `card.to_record()` to capture values before closing. Its card, connection, tag, milestone,
+DataFrame and graph exports automatically select that project's data. The
+advanced Context methods also accept explicit project IDs as described below.
+
+Identifiers are opaque strings. Timestamps are integer Unix seconds exactly as
+reported by libholder; the typed models additionally expose timezone-aware UTC
+`datetime` properties. Nullable native fields are always present and use
+`None`. Empty exports are ordinary empty lists; `PROJECT_RECORD_FIELDS` and
+the corresponding `*_RECORD_FIELDS` constants describe their schema without
+requiring a sample row.
+
+## `ProjectRecord`
+
+| Field | Python type | Meaning |
+|---|---|---|
+| `project_id` | `str` | Stable project identifier |
+| `name` | `str` | Project display name |
+| `root_path` | `str` | Project storage root reported by libholder |
+| `privacy_mode` | `str` | Current privacy mode |
+| `id_scheme` | `str` | Identifier scheme reported by libholder |
+| `created_at` | `int` | Creation time as Unix seconds |
+| `updated_at` | `int` | Last update time as Unix seconds |
+| `git_remote_url` | `str \| None` | Configured Git remote URL |
+| `git_provider` | `str \| None` | Configured Git provider |
+| `project_key_id` | `str \| None` | Encrypted-project key identifier |
+
+## `CardMetadataRecord`
+
+| Field | Python type | Meaning |
+|---|---|---|
+| `card_id` | `str` | Stable card identifier |
+| `project_id` | `str` | Owning project identifier |
+| `title` | `str` | Card title |
+| `rel_path` | `str` | Card path relative to its project root |
+| `parent_card_id` | `str \| None` | Parent card identifier |
+| `sort_key` | `float` | Sibling ordering key |
+| `created_at` | `int` | Creation time as Unix seconds |
+| `updated_at` | `int` | Last update time as Unix seconds |
+| `deleted_at` | `int \| None` | Soft-deletion time; live exports use `None` |
+
+This inexpensive contract is returned by `cards.to_records()`. It comes from
+`holder_card_list` and does not open or decrypt card files.
+
+## `CompleteCardRecord`
+
+`CompleteCardRecord` contains every `CardMetadataRecord` field plus:
+
+| Field | Python type | Meaning |
+|---|---|---|
+| `content` | `str` | Markdown body read from the authoritative card file |
+
+It is returned by `cards.to_records(include_content=True)`. The earlier
+`CardRecord` name remains an alias of this complete contract, and
+`CARD_RECORD_FIELDS` remains an alias of `COMPLETE_CARD_RECORD_FIELDS`.
+
+`CardCollection` currently exports live cards. Tags have a separate membership
+contract below, as do milestones; trashed cards remain future contracts rather than nested
+columns in either card record contract.
+
+## Extraction behavior and limitations
+
+Metadata-only extraction calls `holder_card_list` once per selected project.
+Complete extraction uses `holder_card_list_complete_page` and follows its
+opaque cursor until exhausted, avoiding one native operation per card. Each
+page is ordered by `card_id`, contains live cards only, and reads bodies from
+their authoritative durable files rather than the disposable FTS index.
+
+Metadata selection and body reads within one complete page share libholder's
+process-local project operation lock. Supported operations through the same
+process therefore cannot interleave inside that page. There is deliberately no
+snapshot promise across pages or projects, and the lock cannot coordinate with
+another process or direct filesystem/database edits. A missing card file, or a
+read, decryption, or parsing failure, fails the whole page rather than emitting
+an empty substitute body.
+
+All returned dictionaries are detached snapshots: they hold copied Python
+values and remain usable after their originating context closes.
+
+## Card hierarchy
+
+`project.cards.get(card_id)` looks up an exact nonempty string ID in this project,
+including Trash, and returns a live Card with that same Project owner. Missing
+IDs, titles and ID prefixes raise `KeyError`; nonstrings raise `TypeError` and
+empty strings raise `ValueError`. Lookup does not read the card body.
+
+`card.children.list()` returns immediate live children in Core's hierarchy order
+(`sort_key` ascending, then `updated_at` descending), with the same Project owner.
+It reads only those children's metadata. Retained collections read current
+membership after moves, creation, Trash and restore; returned lists retain their
+membership, while their Card handles still read current values. A trashed parent
+raises `ValueError`, a purged parent raises `KeyError`, and a closed owner raises
+`RuntimeError`. A live parent with no children returns an empty list.
+
+`card.parent` reads the current parent and returns a live Card with the same
+Project owner, or `None` for a root card. `parent_card_id` remains available for
+record-oriented code. Parent reads require an open owner and an existing card.
+
+`card.move(into=parent)`, `card.move(before=sibling)` and
+`card.move(after=sibling)` save immediately and return the same Card instance.
+Supply exactly one non-None Card target. Both cards must be live, belong to the
+same project and share a native Context; a target's own Project must also be
+open. Moving beside a root card makes the moved card a root. Core owns placement,
+sibling ordering and cycle validation; its rejected moves raise `HolderError`.
+Invalid target types raise `TypeError`; conflicting or missing options, foreign
+owners and trashed cards raise `ValueError`. Purged handles raise `KeyError`,
+including when another card's title matches the removed ID. Closed owners raise
+`RuntimeError`. Exported records remain detached after moves.
+
+## Live Cards and lifecycle
+
+`project.create_card(...)` and `project.cards.list()` return live Card handles.
+Their `card.project` is the exact Project instance used to obtain them. Advanced
+`context.create_card()`, `context.update_card()` and `context.cards.list()` also
+return live Cards, with borrowed Project handles on that Context. These borrowed
+handles do not promise identity with Project instances obtained separately.
+Closing a borrowed owner affects its Cards; closing the Context affects all owners.
+
+Card descriptive properties read current Core metadata or authoritative content.
+They are read-only; `card.update(content, title=None)` saves edits and returns a
+live Card. Other edits through the Project or Context become visible on existing
+handles. Bulk analysis should use detached exports or batches rather than repeatedly
+reading properties. Card equality and hashing use context, project and card identity,
+not changing metadata. There is no identity cache or automatic reopening.
+
+`card.to_record()` retains its default complete-body shape. Pass
+`include_content=False` for metadata-only values, including cards in Trash.
+Each export copies current values; separate metadata and content reads are not
+an atomic snapshot. Previously exported values remain unchanged and usable after
+close. This changes the earlier Card snapshot model: code needing retained values
+must export a record before closing instead of keeping a Card.
+
+| Card operation | Equivalent Project operation | Result |
+| --- | --- | --- |
+| `card.delete()` or `card.trash()` | `project.delete(card)` or `project.trash(card)` | None; move to Trash |
+| `card.delete(hard=True)` or `card.purge()` | `project.delete(card, hard=True)` or `project.purge(card)` | None; permanently remove |
+| `card.restore()` | `project.restore(card)` | A live Card owned by the same Project |
+
+`hard` is keyword-only and must be bool. Project operations accept only Cards,
+verify their context and project ownership, and resolve their exact current ID.
+Prefixes and titles cannot redirect a stale handle to a different card. Core
+checks lifecycle state: repeated trash, restore of a live card and purge of a
+live card raise `HolderError`. Permanent removal requires the card to already
+be in Trash. Core owns durable files, hierarchy updates, indexes and Git commits;
+Python does not implement those rules again.
+
+Trashing a parent promotes its immediate live children into its former sibling
+position, preserving order and descendants. Already-trashed children remain in
+Trash. Restoring restores only that card, using a reachable ancestor or roots
+when its saved parent is unavailable; promoted children stay put.
+
+`project.cards.trashed()` returns this project's Trash as live Card handles,
+without reading bodies. It also works after reopening, so restoration does not
+require retaining an earlier Python object. Ordinary lists, batches and project
+exports still select live cards. Trash metadata remains readable, but the current
+Core SDK does not support body reads in Trash: `card.content` and a complete
+`card.to_record()` raise `ValueError` until restore. Metadata-only export remains
+available. Core's `rel_path` metadata is not a promise of the current Trash file path.
+
+After permanent removal, descriptive reads and further operations through any
+old handle raise `KeyError`. After the owning Project closes, reads and edits
+raise `RuntimeError`. Stable `card_id`, `project_id` and `card.project` remain
+available in both cases; repr, equality and hashing do not read saved state.
+
+## Card collections
+
+A live Card exposes `card.tags`, `card.connections` and `card.milestones`.
+These adapters use the existing Project/Core operations, with the source ID
+supplied by the Card. A retained adapter reads current state on every call:
+close raises `RuntimeError`, permanent removal raises `KeyError`, and a source
+in Trash raises `ValueError`. Restoring the Card makes its retained adapters
+usable again. There is no cached membership data or automatic reopening.
+
+- `card.tags.list()` and `.list_editable()` return tag names. `.add(tag)` and
+  `.remove(tag)` retain `TagAddResult` and `TagRemoveResult`, including the
+  distinction between trailing tags and occurrences in prose. `.to_records()`
+  returns only that card's `TagRecord` values; `.to_dataframe()` uses the tag
+  schema and dtypes. Core's editable-tag read still reads the authoritative
+  body and retains its existing missing-file policy.
+- `card.connections.add(target_card, kind, label=None)` and
+  `.remove(target_card, kind)` accept a Card, not an ID. Both owners must be
+  open, target identity must exist, and the Cards must share a Context. Targets
+  may be in another project within that Context. Adding requires a live target;
+  removal also accepts a target in Trash. `.to_records()` and `.to_dataframe()`
+  export only this source's explicit outgoing `ConnectionRecord` values,
+  including external or unresolved targets already stored by Core. They do not
+  add backlinks, hierarchy connections or inline wikilinks.
+- `card.milestones.list()` and `.to_records()` return `MilestoneRecord` values
+  for that card. `.add(start_at, end_at=None, all_day=False, kind=None,
+  description=None)` retains the Project operation's keyword-only options and
+  returns the updated full list. `.update(milestone_id, changes)` returns one
+  record and uses the existing tri-state `MilestoneUpdate` validation and
+  ownership checks. `.remove(milestone_id)` retains Core's no-op behaviour for
+  absent or foreign IDs. `.to_dataframe()` uses the milestone schema without
+  the project/title columns of a project-wide export.
+
+These single-card exports use existing scoped reads and do not scan all project
+cards. Results are detached and remain usable after close; changing them does
+not save edits. Core owns validation and durable edits, with the same failures
+and consistency limits as the Project and Context collections below.
+
+## Card batches
+
+```python
+for batch in project.cards(batch_size=256, include_content=True):
+    analyse(batch)
+```
+
+Calling the cards collection returns a lazy iterator of lists. `batch_size`
+must be a positive integer; it defaults to 256. Full batches contain that many
+records, the last may be smaller, and an empty project yields no batches.
+Iteration reads only the pages needed for the next batch and retains a bounded
+number of records rather than the whole project. A batch larger than Core's
+page limit is assembled from several pages. Memory also depends on card sizes
+and any batches retained by your own code.
+
+`include_content=False` is the default and yields `CardMetadataRecord` values
+without opening card files. By default it uses Core's cursor-paged recent-card query,
+ordered by `updated_at` and then `card_id`, both descending.
+`include_content=True` yields `CompleteCardRecord` values in ascending `card_id`
+order through the existing authoritative-body page operation. Existing
+`.list()`, `.to_records()` and `.to_dataframe()` methods retain their behavior.
+
+`tag="experiment"` selects a case-insensitive tag without a leading `#`.
+`roots=True` selects project roots; `parent_card_id=...` selects immediate live
+children, not descendants. Tag and hierarchy selections combine before Core
+paginates. Roots and a parent ID cannot be combined. Unknown tags or a parent
+with no live children in this project yield no batches. Trashed cards are excluded.
+`order="card_id"` selects ascending IDs; `order="updated"` selects descending
+`updated_at` with descending IDs breaking ties. Omit it to keep the content-dependent
+default above. Filters and explicit ordering require Core's collection-page API;
+an older SDK raises `NotImplementedError` before iteration. Invalid filter types,
+empty tag/parent strings, conflicting hierarchy choices and unsupported ordering
+are rejected at the call; Core validates tag syntax when the first page is read.
+
+There is no snapshot across page calls. Keep the project open during iteration;
+closing it makes unread batches unavailable, while batches already returned
+remain usable. Changes between pages can affect which records are returned,
+particularly when recency values change during metadata iteration. Read,
+decryption or parse errors propagate; complete pages do not substitute missing
+bodies or yield partial results from a failed page.
+
+## pandas conversion
+
+`projects.to_dataframe()` and `cards.to_dataframe()` use these record-field
+constants as their authoritative column order. Card conversion is metadata-only
+by default; `include_content=True` selects the complete contract and the
+paginated authoritative-body operation.
+
+Identifiers and text use pandas' nullable `string` dtype, `sort_key` uses
+`float64`, and Holder's integer Unix timestamps become timezone-aware
+`datetime64[ns, UTC]` columns. Nullable timestamps use `NaT`; nullable strings
+use `pd.NA`. Empty DataFrames preserve the same columns and dtypes as populated
+ones. Content that was not requested has no column, while an authoritative
+empty card body is the empty string in a complete table.
+
+DataFrames contain copied Python/pandas values, retain no native context, and
+have no automatic write-back behavior. Editing one cannot modify Holder.
+Complete extraction retains the consistency limits above: each page is guarded
+by the process-local project lock, but a DataFrame assembled across pages or
+projects is not a transactionally consistent snapshot.
+
+## `ConnectionRecord`
+
+`context.connections.to_records(project_id=None)` exports explicit outgoing
+links from selected live source cards. Each link appears once, not again as a
+backlink. Core's automatic parent/children hierarchy and inline `[[wikilinks]]`
+are excluded. Identifiers retain core's names, including `to_card_id` for
+non-card targets; use `to_type` to distinguish those targets.
+
+| Field | Python type | Meaning |
+|---|---|---|
+| `project_id` | `str` | Source card's owning project |
+| `from_card_id` | `str` | Source card identifier |
+| `to_card_id` | `str` | Target identifier |
+| `to_type` | `str` | Core target type, such as `card` or `resource` |
+| `kind` | `str` | Relationship kind; custom kinds are allowed |
+| `label` | `str \| None` | Optional connection label |
+| `created_at` | `int` | Core timestamp in Unix seconds; core refreshes it on upsert |
+| `to_title` | `str \| None` | Resolved target card title, or `None` |
+
+Core has no separate connection ID. Identity is the tuple
+`(project_id, from_card_id, to_card_id, to_type, kind)`. Several kinds may connect
+the same ordered pair; reverse-direction links and self-links are distinct.
+`CONNECTION_RECORD_FIELDS` defines column order, including for empty exports.
+The pandas adapter uses nullable string columns and UTC timestamps with the
+same rules as the other tables. Join `from_card_id` to card records' `card_id`,
+and join card targets by `to_card_id` after selecting `to_type == "card"`.
+
+Extraction first selects card metadata and then calls `holder_card_list_links`
+once per source card. It does not read bodies or provide an atomic snapshot
+across cards/projects. Errors propagate instead of returning a partial list.
+Targets may be outside the selected project, unresolved, or trashed; target
+liveness is not guaranteed by this export. Records retain no context handles.
+
+## NetworkX conversion
+
+`Context.to_networkx()` uses the shared card and connection record contracts,
+with optional authoritative bodies via `include_content=True`. The output is a
+directed multigraph, preserving distinct connection kinds as edge keys, all
+selected cards including isolates, and the original record values as attributes.
+It reads connections for the same selected source-card records, without a
+second card selection. Extraction still spans separate core calls and has no
+whole-graph snapshot guarantee.
+
+Selected card nodes have `exported=True`. Referenced card targets lacking a
+selected record receive a minimal node containing `card_id`, core's nullable
+target title and `exported=False`. This preserves outgoing cross-project and
+unresolved connections without claiming complete metadata for those endpoints.
+Non-card connections are preserved by records/DataFrames but omitted from the
+card graph. Hierarchy remains a node attribute, not a fabricated explicit edge.
+All graph data is detached; mutation has no automatic write-back.
+
+## Combined DataFrames
+
+`Context.to_dataframes(project_id=None, include_content=False)` returns a
+`DataFrames` typed dictionary with five named tables: `projects`,
+`cards`, `connections`, `tags` and `milestones`. Each table uses its existing record-field constants,
+column order and pandas dtypes. The default cards table is metadata-only;
+`include_content=True` requests authoritative bodies through core's complete
+card pages. pandas remains optional and is checked before any extraction.
+
+The method selects projects once, extracts cards for those projects and reads
+outgoing connections, tag memberships and milestones for those same selected source-card records. It does not
+repeat card selection to assemble these tables. With no project ID,
+all projects from that initial selection are exported. With an ID, only that
+project and its source cards are exported. An unknown project ID returns five
+empty tables with their full schemas; an existing empty project retains its
+project row and empty cards/connections/tags/milestones tables.
+
+Join `cards.project_id` and `connections.project_id` to `projects.project_id`,
+and `connections.from_card_id` to `cards.card_id`. Outgoing targets can be
+outside the selected project, unresolved, trashed or non-card resources. Those
+connections are preserved without adding target cards/projects to the tables;
+filter `to_type == "card"` before joining `to_card_id` to exported card IDs and
+use a left join if you need to retain targets absent from that selection.
+
+The tables are detached but **not an atomic snapshot**. Project reads,
+card pages and per-card connection/tag/milestone reads are separate core operations. Changes
+can occur between them, and no export-wide transaction or lock is held. Core
+failures propagate rather than returning a partial dictionary. Tables remain
+usable after context closure, and editing any table never writes to Holder.
+
+## `TagRecord` and semantic tag operations
+
+`context.tags.to_records(project_id=None)` exports one row per normalized tag
+on each selected live card. Repeated occurrences are collapsed by core. Column
+order is `TAG_RECORD_FIELDS`: `project_id`, `card_id`, `tag` (strings), then
+`editable` (boolean). Identity is `(project_id, card_id, tag)`; core supplies
+neither a tag UUID nor a membership timestamp through this API, so none is invented.
+The pandas adapter and combined `tags` table use nullable `string` columns and
+nullable `boolean` for `editable`, even when empty. Join on `project_id` and
+`card_id` to the cards table, and on `project_id` to projects.
+
+The normalized tag list is read from core's extracted index, in alphabetical
+order. `editable` is membership in core's trailing-tag-line list, read from
+the authoritative body; it is not a guarantee that removing that occurrence
+will leave the card untagged. A tag may also occur in prose. There is one
+indexed tag read per selected card and, for tagged cards, one editable-list
+read. These separate reads do not form an atomic snapshot. No Python-side
+Markdown parsing or extra body/content column is introduced.
+
+`tags.list(card_id)` returns normalized names; `tags.list_editable(card_id)`
+returns trailing-line names in core's order. `tags.project_counts(project_id)`
+returns `ProjectTagRecord` dictionaries (`project_id`, `tag`, integer `count`),
+ordered by count descending then tag ascending. `tags.cards_with_tag(project_id,
+tag)` returns `TaggedCardRecord` dictionaries (`card_id`, `title`), using
+core's case-insensitive live-card search; equal-time matches have no promised
+tie ordering. Unknown projects yield empty query/export results. Direct reads
+or mutations for unknown cards raise `HolderError`.
+
+`tags.add(card_id, tag)` returns `TagAddResult.ADDED` or `.ALREADY_PRESENT`.
+Core lowercases a valid bare tag and adds it to the trailing tag line only if
+it does not occur anywhere in the body. `tags.remove(card_id, tag)` returns
+`TagRemoveResult.REMOVED`, `.NOT_PRESENT` or
+`.PRESENT_OUTSIDE_EDITABLE_TAG_LINE`; it never rewrites prose. `REMOVED` means
+the trailing occurrence was removed, not necessarily that the tag disappeared
+from the card. These `IntEnum` members mirror core statuses; successful changes
+have numeric value zero, so compare named members rather than testing truthiness.
+Malformed tags raise `ValueError`; non-string arguments raise `TypeError`.
+Core owns tag grammar, extraction, durable edits and reindexing. No bulk/atomic
+mutation contract is implied, and exported records/tables do not
+refresh automatically after a mutation. Live Card properties read the changes.
+
+Core's editable-list read currently substitutes an empty body if a card file
+is missing. The flag can therefore be false in that situation despite an indexed
+tag remaining present. By contrast, `include_content=True` still uses complete
+card extraction, whose missing-body failure propagates. Native read failures
+propagate without returning partial exports; closed contexts raise `RuntimeError`.
+
+## Milestone records and operations
+
+`context.milestones.list(card_id)` returns detached `MilestoneRecord` dictionaries
+in core's ascending `start_at` order. `MILESTONE_RECORD_FIELDS` defines their schema:
+
+| Field | Python type | Meaning |
+|---|---|---|
+| `milestone_id` | `str` | Core-generated milestone UUID |
+| `card_id` | `str` | Owning card identifier |
+| `start_at` | `int` | Start time in Unix seconds |
+| `end_at` | `int \| None` | Optional end time; None denotes a point |
+| `all_day` | `bool` | Core's all-day flag; no Python timezone/date normalization |
+| `kind` | `str \| None` | Optional kind, including custom values |
+| `description` | `str \| None` | Optional description |
+| `created_at` | `int` | Core creation time in Unix seconds |
+| `updated_at` | `int` | Core last-update time in Unix seconds |
+
+`milestones.to_records(project_id=None)` selects live cards and reads their
+milestones once per card. It returns `ProjectMilestoneRecord` dictionaries adding
+`project_id` and `card_title` from the selected card metadata. Field order is
+`PROJECT_MILESTONE_RECORD_FIELDS`: `project_id`, the milestone fields above, then
+`card_title`. `milestones.in_range(project_id, from_at, to_at)` returns the same
+contract, with the project ID supplied by the query and nullable `card_title`
+resolved by core. It uses core's bulk calendar query and excludes trashed cards.
+Unknown projects and empty selections yield empty results.
+
+Range selection is `from_at <= start_at <= to_at`, **not interval overlap**.
+A span beginning before the range is omitted even if it ends inside it. Reversed
+query bounds return an empty list. Equal-start ordering is unspecified. Card-local
+lists are start-ordered; whole-context exports preserve selected card order, not
+a globally sorted calendar. Sort detached data explicitly when needed.
+
+`milestones.to_dataframe()` and the combined `milestones` table preserve that
+extended schema. IDs/text use nullable strings, `all_day` uses nullable `boolean`,
+and all four time columns use `datetime64[ns, UTC]`; `end_at=None` becomes `NaT`.
+Empty tables keep the same columns/dtypes. Join on `project_id` and `card_id` to
+cards. Timestamps outside pandas' nanosecond range can remain valid core/record
+values but cannot be represented by this DataFrame contract; conversion errors
+propagate rather than silently clipping or changing precision.
+
+### Explicit mutations and partial updates
+
+`milestones.add(card_id, start_at, *, end_at=None, all_day=False, kind=None,
+description=None)` returns the **full updated card milestone list**, not just the
+new row. Each addition gets a new core ID; repeating a successful add creates
+another milestone. Empty kind/description strings on add are normalized to None
+by core. `milestones.remove(card_id, milestone_id)` returns None; absent IDs and
+IDs owned by another card are no-ops, but an unknown card raises `HolderError`.
+
+`milestones.update(project_id, card_id, milestone_id, changes)` accepts a typed
+`MilestoneUpdate` dictionary and returns the single updated `MilestoneRecord`:
+
+- Absent fields stay unchanged; an empty dictionary is a no-op for an existing,
+  correctly owned live milestone.
+- `end_at`, `kind` and `description` accept None to clear their value.
+- `start_at` and `all_day` cannot be cleared; None raises `ValueError`.
+- Unknown keys raise `ValueError`. Times must be signed 64-bit integer Unix
+  seconds, not bool/float; flags must be bool; text must be str or None. Invalid
+  Python field types raise `TypeError`, out-of-range integers `OverflowError`.
+- Core verifies the matching project/card/milestone ownership and live-card
+  status. Mismatch raises `HolderError`. An update creating `end_at < start_at`
+  also raises `HolderError` through the current C ABI exception translation.
+
+Core owns durable front-matter editing, index updates and Git commits; Python
+does not parse or rewrite Markdown. Exported records do not
+refresh automatically. Live Card properties read current state. Valid calls on a closed context raise `RuntimeError`.
+Failed reads abort exports without a partial result; no export-wide snapshot,
+transaction, revision check or bulk mutation guarantee is implied.
+
+### Current core limitations
+
+The public add operation does not enforce the update operation's reversed-span
+validation. Direct card-list/add/remove operations also do not expose the same
+explicit live-card ownership check as update and the calendar query; use selected
+live cards. Python preserves these contracts rather than duplicating domain policy.
+
+Add/remove replace index rows before attempting their durable card-file write.
+A missing file or another durable-write failure can therefore raise an error
+after index changes already occurred. Update checks/reads the file before changing
+the index, but none of these APIs promises an atomic multi-store transaction or
+automatic rollback on every failure. Do not blindly retry failed additions or
+infer unchanged storage from an exception. Strengthening this behavior requires
+an owning core change, not a Python-only transaction wrapper.
