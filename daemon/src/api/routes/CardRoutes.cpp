@@ -1397,8 +1397,22 @@ bool handle_card_routes(
         }
       } else if (req.method() == http::verb::delete_) {
         try {
+          // promote (the default): live children take the card's place. trash_subtree: every live
+          // descendant goes to Trash with it. Checked before anything changes.
+          const auto children_raw = param_get("children");
+          auto children = holder::card::TrashChildren::Promote;
+          if (children_raw == "trash_subtree") {
+            children = holder::card::TrashChildren::TrashSubtree;
+          } else if (!children_raw.empty() && children_raw != "promote") {
+            res = support::error_response(
+                http::status::bad_request,
+                "bad_request",
+                "children must be promote or trash_subtree."
+            );
+            return true;
+          }
           const long long deleted_at = support::now_epoch_seconds();
-          card_store->trash(card_id, deleted_at);
+          card_store->trash(card_id, deleted_at, children);
           nlohmann::json payload;
           payload["ok"] = true;
           payload["data"] = {{"card_id", card_id}};

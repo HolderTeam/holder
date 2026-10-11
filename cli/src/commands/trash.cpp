@@ -14,6 +14,8 @@ namespace {
 
 struct TrashOptions {
   bool json_output = false;
+  // Trash every live descendant too, instead of moving children up a level.
+  bool subtree = false;
   std::string subcommand;
   std::string card_id;
 };
@@ -21,7 +23,7 @@ struct TrashOptions {
 TrashOptions parse_trash_options(int argc, char* argv[]) {
   if (argc < 3) {
     throw std::runtime_error(
-        "Usage: holderctl trash <card-reference>|list|restore <card-reference>|delete <card-reference>|empty [--json]"
+        "Usage: holderctl trash <card-reference> [--subtree]|list|restore <card-reference>|delete <card-reference>|empty [--json]"
     ); // LCOV_EXCL_LINE
   }
 
@@ -30,6 +32,8 @@ TrashOptions parse_trash_options(int argc, char* argv[]) {
     const std::string arg = argv[i];
     if (arg == "--json") {
       options.json_output = true;
+    } else if (arg == "--subtree") {
+      options.subtree = true;
     } else if (arg.rfind("--", 0) == 0) {
       throw std::runtime_error("Unknown trash option: " + arg);
     } else if (options.subcommand.empty()) {
@@ -44,27 +48,30 @@ TrashOptions parse_trash_options(int argc, char* argv[]) {
       options.card_id = arg;
     } else {
       throw std::runtime_error(
-          "Usage: holderctl trash <card-reference>|list|restore <card-reference>|delete <card-reference>|empty [--json]"
+          "Usage: holderctl trash <card-reference> [--subtree]|list|restore <card-reference>|delete <card-reference>|empty [--json]"
       );
     }
   }
 
   if (options.subcommand.empty()) {
     throw std::runtime_error(
-        "Usage: holderctl trash <card-reference>|list|restore <card-reference>|delete <card-reference>|empty [--json]"
+        "Usage: holderctl trash <card-reference> [--subtree]|list|restore <card-reference>|delete <card-reference>|empty [--json]"
     ); // LCOV_EXCL_LINE
+  }
+  if (options.subtree && options.subcommand != "card") {
+    throw std::runtime_error("--subtree applies only when trashing a card.");
   }
   const bool needs_card = options.subcommand == "card" || options.subcommand == "restore" ||
                           options.subcommand == "delete";
   if (needs_card && options.card_id.empty()) {
     throw std::runtime_error(
-        "Usage: holderctl trash <card-reference>|list|restore <card-reference>|delete <card-reference>|empty [--json]"
+        "Usage: holderctl trash <card-reference> [--subtree]|list|restore <card-reference>|delete <card-reference>|empty [--json]"
     );
   }
   // LCOV_EXCL_START: the parser rejects extra positional arguments before this defensive check.
   if ((options.subcommand == "list" || options.subcommand == "empty") && !options.card_id.empty()) {
     throw std::runtime_error(
-        "Usage: holderctl trash <card-reference>|list|restore <card-reference>|delete <card-reference>|empty [--json]"
+        "Usage: holderctl trash <card-reference> [--subtree]|list|restore <card-reference>|delete <card-reference>|empty [--json]"
     );
   }
   // LCOV_EXCL_STOP
@@ -217,10 +224,13 @@ int command_trash(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto payload = card_api_request(
         paths,
         boost::beast::http::verb::delete_,
-        "/cards/" + url_encode_component(card_id)
+        "/cards/" + url_encode_component(card_id) +
+            (options.subtree ? "?children=trash_subtree" : "")
     );
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";
+    } else if (options.subtree) {
+      std::cout << "Trashed card and its descendants: " << display_card_id(card_id) << "\n";
     } else {
       std::cout << "Trashed card: " << display_card_id(card_id) << "\n";
     }

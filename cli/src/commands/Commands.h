@@ -32,6 +32,8 @@ int command_links(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_backlinks(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_link(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_trash(const holder::core::Paths& paths, int argc, char* argv[]);
+int command_move(const holder::core::Paths& paths, int argc, char* argv[]);
+int command_repair(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_restore(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_new(const holder::core::Paths& paths, int argc, char* argv[]);
 int command_append(const holder::core::Paths& paths, int argc, char* argv[]);

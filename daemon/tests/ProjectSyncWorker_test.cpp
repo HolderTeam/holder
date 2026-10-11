@@ -157,6 +157,29 @@ std::filesystem::path seed_real_card(
 
 } // namespace
 
+TEST_CASE("ProjectSyncWorker repairs hidden cards at startup", "[sync][worker][repair]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto db_path = dir / "holder.db";
+  const std::string parent = "55555555-5555-4555-8555-555555555551";
+  const std::string child = "55555555-5555-4555-8555-555555555552";
+  {
+    auto db = holder::test::open_db_with_schema(db_path);
+    // No remote: the startup repair covers every project, not only synced ones.
+    holder::test::create_project(db, "local-only", (dir / "repo").string());
+    holder::index::FtsIndexer fts(db);
+    holder::card::CardStore store(db, &fts);
+    holder::test::create_card_fixture(store, parent, "local-only", "Parent", "parent", 10);
+    holder::test::create_card_fixture(store, child, "local-only", "Child", "child", 11, parent);
+    // A parent trashed while the daemon was not running, leaving the child hidden.
+    holder::card::CardRepo(db).soft_delete(parent, 20, 20);
+  }
+
+  run_worker_for_seconds(db_path, 1);
+
+  auto db = holder::test::open_db_with_schema(db_path);
+  REQUIRE_FALSE(holder::card::CardRepo(db).get(child)->parent_card_id.has_value());
+}
+
 TEST_CASE("ProjectSyncWorker periodically refreshes pull timestamp", "[sync][worker]") {
   const auto dir = holder::test::make_temp_dir();
   const auto db_path = dir / "holder.db";

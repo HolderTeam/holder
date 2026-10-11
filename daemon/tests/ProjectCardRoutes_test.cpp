@@ -1,6 +1,7 @@
 #include "api/routes/CardRoutes.h"
 #include "api/routes/ProjectCardRoutes.h"
 #include "api/support/HttpQuery.h"
+#include "card/CardRepo.h"
 #include "card/TagRepo.h"
 #include "http_test_helpers.h"
 #include <unordered_map>
@@ -210,4 +211,61 @@ TEST_CASE("Project card collection pages can include card content", "[card-pages
   );
   CHECK(call({{"limit", "1001"}}, &store).first == http::status::ok);
   CHECK(call({{"include_content", "true"}}, nullptr).first == http::status::not_implemented);
+}
+
+TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-pages][repair]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "p", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string parent = "00000000-0000-4000-8000-000000000011";
+  const std::string child = "00000000-0000-4000-8000-000000000012";
+  holder::test::create_card_fixture(store, parent, "p", "parent", "parent", 10);
+  holder::test::create_card_fixture(store, child, "p", "child", "child", 20, parent);
+  // Hide the child: its parent is trashed in the database, as an older client's trash left it.
+  holder::card::CardRepo(db).soft_delete(parent, 30, 30);
+
+  auto call = [&](const std::string& body,
+                  http::verb method = http::verb::post,
+                  const std::string& path = "/projects/p/repair-hierarchy",
+                  holder::card::CardStore* card_store = nullptr) {
+    http::request<http::string_body> req{method, path, 11};
+    req.body() = body;
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::routes::handle_project_card_routes(
+        path,
+        req,
+        res,
+        db,
+        getter({}),
+        card_store ? card_store : &store
+    ));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+
+  auto [plan_status, plan] = call("");
+  REQUIRE(plan_status == http::status::ok);
+  CHECK(plan["data"]["applied"] == false);
+  CHECK(plan["data"]["changed_card_count"] == 1);
+  REQUIRE(plan["data"]["moved"].size() == 1);
+  CHECK(plan["data"]["moved"][0]["card_id"] == child);
+  CHECK(plan["data"]["moved"][0]["parent_card_id"].is_null());
+  CHECK(plan["data"]["cycle_card_ids"].empty());
+  CHECK(store.get(child)->parent_card_id == parent);
+
+  auto [apply_status, applied] = call(R"({"apply": true})");
+  REQUIRE(apply_status == http::status::ok);
+  CHECK(applied["data"]["applied"] == true);
+  CHECK_FALSE(store.get(child)->parent_card_id.has_value());
+  CHECK(call(R"({"apply": true})").second["data"]["applied"] == false);
+
+  CHECK(call(R"({"apply": "yes"})").first == http::status::bad_request);
+  CHECK(call("[]").first == http::status::bad_request);
+  CHECK(call("{").first == http::status::bad_request);
+  CHECK(call("", http::verb::get).first == http::status::method_not_allowed);
+  CHECK(
+      call("", http::verb::post, "/projects/missing/repair-hierarchy").first ==
+      http::status::not_found
+  );
 }

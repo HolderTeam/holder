@@ -124,6 +124,7 @@ from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
+from .delete_cards_card_id_children import DeleteCardsCardIdChildren
 from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
 from .error import Error
 from .error_response import ErrorResponse
@@ -162,6 +163,10 @@ from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKin
 from .health_data import HealthData
 from .health_data_crypt_filter import HealthDataCryptFilter
 from .health_response import HealthResponse
+from .hierarchy_repair import HierarchyRepair
+from .hierarchy_repair_move import HierarchyRepairMove
+from .hierarchy_repair_request import HierarchyRepairRequest
+from .hierarchy_repair_response import HierarchyRepairResponse
 from .local_model import LocalModel
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
@@ -418,6 +423,7 @@ __all__ = (
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
+    "DeleteCardsCardIdChildren",
     "DeleteCardsCardIdResourcesBody",
     "Error",
     "ErrorResponse",
@@ -446,6 +452,10 @@ __all__ = (
     "HealthData",
     "HealthDataCryptFilter",
     "HealthResponse",
+    "HierarchyRepair",
+    "HierarchyRepairMove",
+    "HierarchyRepairRequest",
+    "HierarchyRepairResponse",
     "LocalModel",
     "LocationBindingRequest",
     "LocationBindingRequestValues",

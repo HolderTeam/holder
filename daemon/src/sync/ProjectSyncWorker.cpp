@@ -1,4 +1,5 @@
 #include "sync/ProjectSyncWorker.h"
+#include "card/CardStore.h"
 #include "core/ActivityTracker.h"
 
 #include "git/GitOps.h"
@@ -77,6 +78,11 @@ void ProjectSyncWorker::run(const holder::core::SignalHandler& signals) {
     run_startup_pull_pass();
   } catch (const std::exception& ex) {
     spdlog::warn("sync worker startup pull pass failed: {}", ex.what());
+  }
+  try {
+    run_startup_repair_pass();
+  } catch (const std::exception& ex) {
+    spdlog::warn("sync worker startup repair pass failed: {}", ex.what());
   }
 
   while (!signals.is_requested()) {
@@ -169,6 +175,36 @@ void ProjectSyncWorker::run_startup_pull_pass() {
           ex.what()
       );
       // LCOV_EXCL_STOP
+    }
+  }
+}
+
+void ProjectSyncWorker::run_startup_repair_pass() {
+  holder::platform::Db db;
+  db.open(db_path_);
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  for (const auto& project : holder::project::ProjectRepo(db).list()) {
+    try {
+      // Planning reads only the database; only a project with hidden cards is written.
+      if (store.plan_hierarchy_repair(project.project_id).placements.empty()) continue;
+      const auto activity_scope = holder::core::activity().begin();
+      const auto plan = store.repair_hierarchy(project.project_id, now_epoch_seconds());
+      spdlog::info(
+          "made {} hidden card(s) reachable again in project {}",
+          plan.moved_card_ids.size(),
+          project.project_id
+      );
+      if (!plan.cycle_card_ids.empty()) {
+        spdlog::warn(
+            "project {} has {} card(s) in parent cycles; repair leaves them alone",
+            project.project_id,
+            plan.cycle_card_ids.size()
+        );
+      }
+    } catch (const std::exception& ex) {
+      // A locked encrypted project is repaired once it can be: on a later start or pull.
+      spdlog::warn("hierarchy repair skipped for {}: {}", project.project_id, ex.what());
     }
   }
 }

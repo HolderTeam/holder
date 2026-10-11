@@ -236,6 +236,44 @@ def test_card_moves_against_daemon(daemon):
             card.move(parent=parent)
 
 
+def test_card_lifecycle_against_daemon(daemon):
+    url, token, _, _ = daemon
+    with Holder(url=url, token=token) as h:
+        project = h.projects.create(name="Python lifecycle", privacy_mode="plain")
+        parent = project.cards.create(title="Parent")
+        child = parent.children.create(title="Child", content="Child body\n#keep")
+        # Promotion: the child takes its trashed parent's place.
+        assert parent.trash() is None
+        assert child.refresh().parent_card_id is None
+        assert child.content == "Child body\n#keep"
+        with pytest.raises(NotFoundError):
+            parent.refresh()
+        # Restore is single-card: the promoted child stays where it is.
+        assert parent.restore() is parent
+        assert parent.parent_card_id is None
+        assert child.refresh().parent_card_id is None
+
+        top = project.cards.create(title="Top")
+        middle = top.children.create(title="Middle")
+        bottom = middle.children.create(title="Bottom")
+        top.trash(children="trash_subtree")
+        for card in (top, middle, bottom):
+            with pytest.raises(NotFoundError):
+                card.refresh()
+        middle.restore()
+        assert middle.parent_card_id is None
+        with pytest.raises(NotFoundError):
+            bottom.refresh()
+
+        with pytest.raises(ValueError):
+            child.trash(children="everything")
+        # A healthy project has nothing to repair.
+        repair = project.repair_hierarchy(apply=True)
+        assert repair.applied is False
+        assert repair.moved == []
+        assert repair.cycle_card_ids == []
+
+
 def test_card_search_against_daemon(daemon):
     url, token, raw, _ = daemon
     with Holder(url=url, token=token) as h:

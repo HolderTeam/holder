@@ -96,7 +96,9 @@ def sync_detailed(
     """Restore a card to a saved snapshot
 
      Restores the complete card snapshot at the selected commit and records the result as a new commit
-    without rewriting history.
+    without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was
+    trashed promotes its current live children, as trashing does. Restoring a live snapshot places the
+    card under a reachable parent, as restoring from Trash does.
 
     Args:
         project_id (str):
@@ -135,7 +137,9 @@ def sync(
     """Restore a card to a saved snapshot
 
      Restores the complete card snapshot at the selected commit and records the result as a new commit
-    without rewriting history.
+    without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was
+    trashed promotes its current live children, as trashing does. Restoring a live snapshot places the
+    card under a reachable parent, as restoring from Trash does.
 
     Args:
         project_id (str):
@@ -169,7 +173,9 @@ async def asyncio_detailed(
     """Restore a card to a saved snapshot
 
      Restores the complete card snapshot at the selected commit and records the result as a new commit
-    without rewriting history.
+    without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was
+    trashed promotes its current live children, as trashing does. Restoring a live snapshot places the
+    card under a reachable parent, as restoring from Trash does.
 
     Args:
         project_id (str):
@@ -206,7 +212,9 @@ async def asyncio(
     """Restore a card to a saved snapshot
 
      Restores the complete card snapshot at the selected commit and records the result as a new commit
-    without rewriting history.
+    without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was
+    trashed promotes its current live children, as trashing does. Restoring a live snapshot places the
+    card under a reachable parent, as restoring from Trash does.
 
     Args:
         project_id (str):

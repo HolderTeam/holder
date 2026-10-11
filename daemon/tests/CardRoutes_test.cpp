@@ -1896,3 +1896,67 @@ TEST_CASE("CardRoutes preserves CardStore tag mutation outcomes", "[card-routes]
   REQUIRE(method_status == http::status::method_not_allowed);
   REQUIRE(method["error"]["code"] == "method_not_allowed");
 }
+
+TEST_CASE("CardRoutes DELETE trashes children by the requested policy", "[card-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  const std::string parent = "77777777-7777-4777-8777-777777777771";
+  const std::string child = "77777777-7777-4777-8777-777777777772";
+  const std::string grandchild = "77777777-7777-4777-8777-777777777773";
+  holder::test::create_card_fixture(card_store, parent, "proj-1", "Parent", "parent", 10);
+  holder::test::create_card_fixture(card_store, child, "proj-1", "Child", "child", 11, parent);
+  holder::test::create_card_fixture(
+      card_store,
+      grandchild,
+      "proj-1",
+      "Grandchild",
+      "grandchild",
+      12,
+      child
+  );
+  auto call = [&](const std::string& card_id, const std::string& children) {
+    const std::string path = "/cards/" + card_id;
+    auto req = make_request(http::verb::delete_, path, "");
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::routes::handle_card_routes(
+        path,
+        req,
+        res,
+        db,
+        &card_store,
+        &fts,
+        [] {
+          return std::string("generated-id");
+        },
+        [&](const std::string& name) {
+          return name == "children" ? children : std::string();
+        }
+    ));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+
+  // An unknown policy is rejected before anything changes.
+  auto [bad_status, bad] = call(parent, "everything");
+  REQUIRE(bad_status == http::status::bad_request);
+  REQUIRE_FALSE(card_store.get(parent)->deleted_at.has_value());
+
+  std::string policy;
+  SECTION("promote by default") { policy = ""; }
+  SECTION("promote explicitly") { policy = "promote"; }
+  SECTION("trash_subtree") { policy = "trash_subtree"; }
+  auto [status, payload] = call(parent, policy);
+  REQUIRE(status == http::status::ok);
+  if (policy != "trash_subtree") {
+    REQUIRE(card_store.get(parent)->deleted_at.has_value());
+    REQUIRE_FALSE(card_store.get(child)->deleted_at.has_value());
+    REQUIRE_FALSE(card_store.get(child)->parent_card_id.has_value());
+    REQUIRE(card_store.get(grandchild)->parent_card_id == child);
+  } else {
+    for (const auto& id : {parent, child, grandchild})
+      REQUIRE(card_store.get(id)->deleted_at.has_value());
+    REQUIRE(card_store.get(grandchild)->parent_card_id == child);
+  }
+}
