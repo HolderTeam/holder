@@ -9,7 +9,6 @@ CASTE_ARCHIVE_URL="https://github.com/zeth/caste/archive/${CASTE_COMMIT}.tar.gz"
 CCACHE_BIN=""
 CCACHE_STATE="unchecked"
 CORE_CMAKE_ARGS=()
-CORE_SDK_TOOLS_REF="249464d96a9c87f05b282e7a539ae524438ce6a5"
 
 print_usage() {
   cat <<'EOF'
@@ -21,7 +20,6 @@ Commands:
   help, -h, --help              Show this help
   default                       Configure, build, run tests, then run holderd
   build [BuildType]             Configure and build holderd and holderctl
-  core-update [ref] [BuildType]  Refresh the cached core selection and fetch its SDK
   test [BuildType]              Configure, build, and run the automated tests
   [BuildType]                   Run the default flow with this CMAKE_BUILD_TYPE
   coverage                      Build, run tests, and generate coverage reports
@@ -42,11 +40,9 @@ Examples:
 
 Environment:
   HOLDER_CCACHE                auto (default), 1 to require, or 0 to disable ccache
-  HOLDER_CORE_SDK              Explicit SDK path (auto-fetched except on Fedora)
-  HOLDER_CORE_REF              Resolve this tag/SHA instead of reusing the cached selection
-  HOLDER_CORE_SDK_TOOL         Override the shared SDK selection tool
-  HOLDER_USE_SYSTEM_CORE       1/ON to use the installed system core package
-  HOLDER_CORE_SOURCE_DIR       Source override (Fedora defaults to ../../holder-core)
+  HOLDER_CORE_SOURCE_DIR       Core source to build with the daemon (default ../core)
+  HOLDER_CORE_SDK              Use an installed core SDK instead of building core
+  HOLDER_USE_SYSTEM_CORE       1/ON to use the installed system core package instead
   HOLDER_CTEST_TIMEOUT          Per-test timeout (memcheck defaults to 900 seconds)
   HOLDER_SAN_BUILD_DIR          Override the sanitizer build directory
   HOLDER_TSAN_SUPPRESSIONS      Optional explicit ThreadSanitizer suppression file
@@ -99,73 +95,38 @@ prepare_ccache() {
   echo "Install ccache with your package manager (see README.md for dependencies)." >&2
 }
 
-download_sdk_tool() {
-  local destination="$1" url="$2"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$destination"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$destination" "$url"
-  else
-    echo "Missing dependency: curl or wget is required to fetch the core SDK tool." >&2
-    return 1
-  fi
-}
-
-core_sdk_tool() {
-  if [ -n "${HOLDER_CORE_SDK_TOOL:-}" ]; then
-    printf '%s\n' "$HOLDER_CORE_SDK_TOOL"
-    return
-  fi
-  if [ -f ../../holder-core/scripts/core-sdk.py ]; then
-    printf '%s\n' ../../holder-core/scripts/core-sdk.py
-    return
-  fi
-  local tools_dir=".core-sdk/tools/${CORE_SDK_TOOLS_REF}" file
-  mkdir -p "$tools_dir" || return
-  for file in core-sdk.py sdk_dependencies.py; do
-    if [ ! -f "$tools_dir/$file" ]; then
-      echo "Fetching core SDK tool: $file" >&2
-      download_sdk_tool "$tools_dir/$file.tmp" \
-        "https://raw.githubusercontent.com/HolderTeam/holder-core/${CORE_SDK_TOOLS_REF}/scripts/$file" || return
-      mv "$tools_dir/$file.tmp" "$tools_dir/$file" || return
-    fi
-  done
-  printf '%s\n' "$tools_dir/core-sdk.py"
-}
-
-fedora_source_default() {
-  [ -z "${HOLDER_CORE_SOURCE_DIR:-}" ] && [ -z "${HOLDER_CORE_SDK:-}" ] || return 1
+system_core_selected() {
   case "${HOLDER_USE_SYSTEM_CORE:-OFF}" in
-    0|OFF|off|FALSE|false|NO|no|"") ;;
-    *) return 1 ;;
+    0|OFF|off|FALSE|false|NO|no|"") return 1 ;;
+    *) return 0 ;;
   esac
-  [ "$(uname -s)" = Linux ] && [ -r /etc/os-release ] || return 1
-  local distro_id
-  distro_id="$(awk -F= '$1 == "ID" {gsub(/"/, "", $2); print $2}' /etc/os-release)"
-  [ "$distro_id" = fedora ]
+}
+
+# The daemon builds against core from this checkout (../core) unless an SDK or the system
+# package is chosen. CI builds against core's installed SDK instead; see Core / SDK.
+core_from_source() {
+  [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ] && return 0
+  [ -z "${HOLDER_CORE_SDK:-}" ] && ! system_core_selected
 }
 
 prepare_core() {
-  local build_type="$1" tool python_bin selection="out/core-selection.json"
-  if fedora_source_default; then
-    if [ ! -f ../../holder-core/CMakeLists.txt ]; then
-      echo "Fedora requires a native core build; clone holder-core beside holder-framework." >&2
-      echo "Alternatively set HOLDER_CORE_SOURCE_DIR or HOLDER_CORE_SDK to a native build." >&2
+  if [ -z "${HOLDER_CORE_SOURCE_DIR:-}" ] && core_from_source; then
+    if [ ! -f ../core/CMakeLists.txt ]; then
+      echo "Missing ../core: run make.sh from daemon/ in a holder checkout," >&2
+      echo "or set HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE." >&2
       return 1
     fi
-    HOLDER_CORE_SOURCE_DIR="$(cd ../../holder-core && pwd)"
+    HOLDER_CORE_SOURCE_DIR="$(cd ../core && pwd)"
     export HOLDER_CORE_SOURCE_DIR
-    echo "core: Fedora default uses the sibling checkout (native dependency ABI)"
   fi
   CORE_CMAKE_ARGS=("-DHOLDER_CORE_SOURCE_DIR=${HOLDER_CORE_SOURCE_DIR:-}"
                    "-DHOLDER_CORE_SDK=${HOLDER_CORE_SDK:-}" "-DHOLDER_USE_SYSTEM_CORE=OFF")
   if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]; then
-    case "${HOLDER_USE_SYSTEM_CORE:-OFF}" in
-      1|ON|on|TRUE|true|YES|yes)
-        echo "Select one core mode: HOLDER_CORE_SOURCE_DIR or HOLDER_USE_SYSTEM_CORE." >&2
-        return 2 ;;
-    esac
-    echo "core: explicit source override ($HOLDER_CORE_SOURCE_DIR)"
+    if system_core_selected; then
+      echo "Select one core mode: HOLDER_CORE_SOURCE_DIR or HOLDER_USE_SYSTEM_CORE." >&2
+      return 2
+    fi
+    echo "core: building from source ($HOLDER_CORE_SOURCE_DIR)"
     return
   fi
   case "${HOLDER_USE_SYSTEM_CORE:-OFF}" in
@@ -177,52 +138,17 @@ prepare_core() {
     0|OFF|off|FALSE|false|NO|no|"") ;;
     *) echo "Invalid HOLDER_USE_SYSTEM_CORE value: $HOLDER_USE_SYSTEM_CORE" >&2; return 2 ;;
   esac
-  if [ -n "${HOLDER_CORE_SDK:-}" ]; then
-    echo "core: explicit SDK ($HOLDER_CORE_SDK)"
-    return
-  fi
-  case "$build_type" in
-    Release|RelWithDebInfo) ;;
-    *)
-      echo "Published core SDKs support RelWithDebInfo and Release, not $build_type." >&2
-      echo "For $build_type, set HOLDER_CORE_SOURCE_DIR to an explicit core checkout." >&2
-      return 2
-      ;;
-  esac
-  if command -v python3 >/dev/null 2>&1; then
-    python_bin=python3
-  elif command -v python >/dev/null 2>&1; then
-    python_bin=python
-  else
-    echo "Missing dependency: Python 3 is required to resolve the core SDK." >&2
-    return 1
-  fi
-  tool="$(core_sdk_tool)"
-  if [ ! -f "$selection" ] || [ -n "${HOLDER_CORE_REF:-}" ]; then
-    echo "core: resolving ${HOLDER_CORE_REF:-latest-green}"
-    "$python_bin" "$tool" resolve --core-ref "${HOLDER_CORE_REF:-latest-green}" --output "$selection"
-  else
-    echo "core: reusing $selection (./make.sh core-update refreshes it)"
-  fi
-  echo "core: fetching/verifying $build_type SDK"
-  local sdk_path
-  sdk_path="$("$python_bin" "$tool" fetch --selection "$selection" --cache .core-sdk --build-type "$build_type")"
-  sdk_path="${sdk_path//$'\r'/}"
-  CORE_CMAKE_ARGS=("-DHOLDER_CORE_SOURCE_DIR=" "-DHOLDER_CORE_SDK=$sdk_path" "-DHOLDER_USE_SYSTEM_CORE=OFF")
+  echo "core: installed SDK ($HOLDER_CORE_SDK)"
 }
 
 development_build_type() {
-  if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ] || fedora_source_default; then printf '%s\n' Debug
+  if core_from_source; then printf '%s\n' Debug
   else printf '%s\n' RelWithDebInfo
   fi
 }
 
 cmake_configure() {
-  local build_type=RelWithDebInfo arg
-  for arg in "$@"; do
-    case "$arg" in -DCMAKE_BUILD_TYPE=*) build_type="${arg#*=}" ;; esac
-  done
-  prepare_core "$build_type"
+  prepare_core
   prepare_ccache
   if [ "${CCACHE_STATE}" = "enabled" ]; then
     cmake "$@" "${CORE_CMAKE_ARGS[@]}" -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE_BIN}"
@@ -331,7 +257,7 @@ build_standard() {
       exit 1
     fi
     local preset="windows-sdk-tests"
-    if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]; then preset="windows-vcpkg-debug"; fi
+    if core_from_source; then preset="windows-vcpkg-debug"; fi
     cmake_configure --preset "$preset" -DCMAKE_BUILD_TYPE="$build_type"
     cmake --build --preset "$preset" --parallel "$(jobs)"
     return
@@ -349,7 +275,7 @@ test_standard() {
       exit 1
     fi
     local preset="windows-sdk-tests"
-    if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]; then preset="windows-vcpkg-tests-debug"; fi
+    if core_from_source; then preset="windows-vcpkg-tests-debug"; fi
     cmake_configure --preset "$preset" -DCMAKE_BUILD_TYPE="$build_type"
     cmake --build --preset "$preset" --parallel "$(jobs)"
     ctest --preset "$preset"
@@ -363,7 +289,7 @@ test_standard() {
 run_standard() {
   if is_windows_shell; then
     local preset=windows-sdk-tests
-    if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]; then preset=windows-vcpkg-tests-debug; fi
+    if core_from_source; then preset=windows-vcpkg-tests-debug; fi
     "./out/build/$preset/holderd.exe"
   else
     ./build/holderd
@@ -629,13 +555,6 @@ case "${MODE}" in
     test_standard "RelWithDebInfo"
     run_standard
     ;;
-  core-update)
-    if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ] || fedora_source_default; then
-      echo "core-update refreshes SDKs; update a source checkout separately with Git." >&2
-      exit 2
-    fi
-    HOLDER_CORE_REF="${2:-latest-green}" prepare_core "${3:-RelWithDebInfo}"
-    ;;
   build)
     build_standard "${2:-RelWithDebInfo}"
     ;;
@@ -643,7 +562,7 @@ case "${MODE}" in
     test_standard "${2:-RelWithDebInfo}"
     ;;
   perf-privacy)
-    echo 'Core performance tests live in holder-core. Run build/tests/holder_core_tests "CardStore encrypted project perf profile (manual)" there.' >&2
+    echo 'Core performance tests live in ../core. Run build/tests/holder_core_tests "CardStore encrypted project perf profile (manual)" there.' >&2
     exit 2
     ;;
   coverage)
