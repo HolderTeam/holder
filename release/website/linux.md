@@ -43,10 +43,10 @@ sha256sum -c Holder-0.2.1-SHA256SUMS
     <p>The overall idea is:</p>
   </div>
 
-  <pre><code>git clone https://github.com/HolderTeam/holder-framework.git
+  <pre><code>git clone https://github.com/HolderTeam/holder.git
 git clone https://github.com/HolderTeam/holder-desktop.git
 
-cd holder-framework/daemon
+cd holder/daemon
 ./make.sh
 
 cd ../../holder-desktop
