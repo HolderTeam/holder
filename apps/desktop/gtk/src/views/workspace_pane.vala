@@ -1,0 +1,1115 @@
+namespace HolderLinux {
+
+public class WorkspacePane : Object {
+
+    private Gtk.Label title_label;
+    private Gtk.ToggleButton explorer_toggle_btn;
+    private Gtk.ToggleButton search_toggle_btn;
+    private Gtk.ToggleButton editor_toggle_btn;
+    private Gtk.ToggleButton toolbox_toggle_btn;
+    private Gtk.ToggleButton asset_preview_toggle_btn;
+    private Gtk.Label save_state_label;
+    private Gtk.Revealer message_revealer;
+    private Gtk.Label message_label;
+    private Gtk.Button message_debug_button;
+    private Gtk.Box search_row;
+    private Gtk.Revealer find_revealer;
+    private Gtk.Box replace_row;
+    private Gtk.Entry find_entry;
+    private Gtk.Entry replace_entry;
+    private Gtk.Paned content_paned;
+    private Gtk.Paned asset_split;
+    private Gtk.TextTag validated_tag_style;
+    private TagHighlightingController tag_highlighting_controller;
+    private MarkdownEditingController markdown_editing_controller;
+    private PanelWidthTracker ai_panel_width = new PanelWidthTracker(WorkspacePanel.AI_PANEL);
+    private bool ai_panel_visible = false;
+    private PanelWidthTracker asset_preview_width = new PanelWidthTracker(WorkspacePanel.ASSET_PREVIEW);
+    private bool asset_preview_visible = false;
+    public Gtk.Widget widget { get; private set; }
+    public GtkSource.Buffer editor_buffer { get; private set; }
+    public GtkSource.View editor_view { get; private set; }
+    public EditorSpellcheckController editor_spellcheck { get; private set; }
+    public Gtk.SearchEntry search_entry { get; private set; }
+    public Gtk.Stack content_stack { get; private set; }
+    public Gtk.Label search_summary_label { get; private set; }
+    public Gtk.SingleSelection search_selection { get; private set; }
+    public Gtk.ListView search_list { get; private set; }
+    public Gtk.Paned ai_split { get; private set; }
+    public AiPanel ai_panel { get; private set; }
+    public AssetPreviewPane asset_preview { get; private set; }
+    public InlineResourceImageRenderer inline_resource_images { get; private set; }
+    public ToolboxPane toolbox { get; private set; }
+
+    public signal void refresh_requested();
+    public signal void new_project_requested();
+    public signal void new_card_requested();
+    public signal void explorer_panel_toggled(bool visible);
+    public signal void ai_panel_toggled(bool visible);
+    public signal void asset_preview_toggled(bool visible);
+    public signal void toolbox_toggled(bool visible);
+    public signal void open_debug_panel_requested();
+    public signal void search_activated();
+    public signal void search_changed();
+    public signal void search_cleared();
+    public signal void search_focus_results_requested();
+    public signal void search_result_activated(uint position);
+    public signal void find_next_requested();
+    public signal void replace_requested();
+    public signal void replace_all_requested();
+    public signal void file_dropped(File file, Gtk.TextMark insertion_mark);
+
+    public WorkspacePane(GLib.ListModel search_model) {
+        markdown_editing_controller = new MarkdownEditingController();
+        widget = build_ui(search_model);
+    }
+
+    public void set_window_title_text(string title_text) {
+        title_label.set_text(title_text);
+    }
+
+    public void set_save_state_text(string text) {
+        if (text == null || text.strip().length == 0) {
+            save_state_label.set_text("");
+            save_state_label.set_visible(false);
+            return;
+        }
+        save_state_label.set_text(text);
+        save_state_label.set_visible(true);
+    }
+
+    public void set_app_message(string? text) {
+        if (text == null || text.strip().length == 0) {
+            message_label.set_text("");
+            message_debug_button.set_visible(false);
+            message_revealer.set_reveal_child(false);
+            return;
+        }
+        message_label.set_text(text);
+        message_debug_button.set_visible(true);
+        message_revealer.set_reveal_child(true);
+    }
+
+    public void set_editor_state(string text, bool editable) {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var current_text = editor_buffer.get_text(start, end, false);
+        if (current_text != text) {
+            inline_resource_images.replace_buffer_text(text);
+        }
+        if (editor_view.get_editable() != editable) {
+            editor_view.set_editable(editable);
+        }
+    }
+
+    public bool tidy_editor_text(string canonical_text) {
+        return EditorWhitespaceCleaner.apply(editor_buffer, canonical_text);
+    }
+
+    public void insert_resource_image_markdown(Gtk.TextMark insertion_mark,
+                                               string filename,
+                                               string resource_id) {
+        if (insertion_mark.get_deleted()) {
+            return;
+        }
+        Gtk.TextIter iter;
+        editor_buffer.get_iter_at_mark(out iter, insertion_mark);
+        var markdown = MarkdownResourceImageController.markdown_for_file(filename, resource_id);
+        var insertion = MarkdownResourceImageController.block_insertion(
+            markdown,
+            iter.starts_line(),
+            iter.ends_line()
+        );
+        editor_buffer.begin_user_action();
+        editor_buffer.insert(ref iter, insertion, -1);
+        editor_buffer.delete_mark(insertion_mark);
+        editor_buffer.end_user_action();
+    }
+
+    public void discard_file_drop_mark(Gtk.TextMark insertion_mark) {
+        if (!insertion_mark.get_deleted()) {
+            editor_buffer.delete_mark(insertion_mark);
+        }
+    }
+
+    public void set_validated_tag_occurrences(CardTagOccurrence[] occurrences) {
+        clear_validated_tag_highlights();
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var text = editor_buffer.get_text(start, end, false);
+        validated_tag_style.set_priority(editor_buffer.get_tag_table().get_size() - 1);
+        foreach (var range in tag_highlighting_controller.ranges_for(text, occurrences)) {
+            Gtk.TextIter tag_start;
+            Gtk.TextIter tag_end;
+            editor_buffer.get_iter_at_offset(out tag_start, range.char_start);
+            editor_buffer.get_iter_at_offset(out tag_end, range.char_end);
+            editor_buffer.apply_tag(validated_tag_style, tag_start, tag_end);
+        }
+    }
+
+    public void clear_validated_tag_highlights() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        editor_buffer.remove_tag(validated_tag_style, start, end);
+    }
+
+    public void show_editor_mode() {
+        content_stack.set_visible_child_name("editor");
+    }
+
+    public void show_search_mode() {
+        content_stack.set_visible_child_name("search");
+    }
+
+    public void toggle_toolbox() {
+        if (toolbox_toggle_btn == null) {
+            return;
+        }
+        toolbox_toggle_btn.set_active(!toolbox_toggle_btn.get_active());
+    }
+
+    public void show_find_replace_bar(bool show_replace) {
+        replace_row.set_visible(show_replace);
+        find_revealer.set_reveal_child(true);
+        find_entry.grab_focus();
+        find_entry.select_region(0, -1);
+    }
+
+    public void toggle_find_replace_bar(bool show_replace) {
+        if (find_revealer.get_reveal_child()) {
+            hide_find_replace_bar();
+            return;
+        }
+        show_find_replace_bar(show_replace);
+    }
+
+    public void hide_find_replace_bar() {
+        find_revealer.set_reveal_child(false);
+    }
+
+    public string get_find_text() {
+        return find_entry.get_text();
+    }
+
+    public string get_replace_text() {
+        return replace_entry.get_text();
+    }
+
+    public void set_spell_check_enabled(bool enabled) {
+        editor_spellcheck.set_enabled_preference(enabled);
+    }
+
+    public void set_toolbox_visible(bool visible) {
+        if (visible) {
+            toolbox.widget.set_visible(true);
+            toolbox.set_reveal_child(true);
+            if (content_paned.get_position() <= 0) {
+                apply_initial_toolbox_position(true);
+            }
+        } else {
+            toolbox.set_reveal_child(false);
+            toolbox.widget.set_visible(false);
+        }
+    }
+
+    public void show_tag(string tag) {
+        toolbox_toggle_btn.set_active(true);
+        toolbox.show_tag(tag);
+    }
+
+    public void set_ai_panel_visible(bool visible) {
+        ai_panel_visible = visible;
+        ai_panel.widget.set_visible(visible);
+        if (visible) {
+            apply_initial_ai_panel_position(true);
+        }
+    }
+
+    public bool is_ai_panel_visible() {
+        return ai_panel_visible;
+    }
+
+    public void set_ai_panel_width(int width) {
+        ai_panel_width.set_width(width);
+    }
+
+    public int get_ai_panel_width_for_persist() {
+        return ai_panel_width.width_for_persist();
+    }
+
+    public void set_asset_preview_visible(bool visible) {
+        asset_preview_visible = visible;
+        asset_preview.widget.set_visible(visible);
+        if (asset_preview_toggle_btn.get_active() != visible) {
+            asset_preview_toggle_btn.set_active(visible);
+        }
+        if (visible) apply_initial_asset_preview_position(true);
+    }
+
+    public bool is_asset_preview_visible() {
+        return asset_preview_visible;
+    }
+
+    public void set_asset_preview_width(int width) {
+        asset_preview_width.set_width(width);
+    }
+
+    public int get_asset_preview_width_for_persist() {
+        return asset_preview_width.width_for_persist();
+    }
+
+    private void apply_initial_toolbox_position(bool allow_defer) {
+        var paned_height = content_paned.get_height();
+        if (paned_height <= 0) {
+            if (allow_defer) {
+                Idle.add(() => {
+                    apply_initial_toolbox_position(false);
+                    return Source.REMOVE;
+                });
+            }
+            return;
+        }
+
+        content_paned.set_position(WorkspaceLayout.initial_toolbox_position(
+            paned_height,
+            content_paned.min_position,
+            content_paned.max_position
+        ));
+    }
+
+    private void apply_initial_ai_panel_position(bool allow_defer) {
+        var split_width = ai_split.get_width();
+        if (split_width <= 0) {
+            if (allow_defer) {
+                Idle.add(() => {
+                    apply_initial_ai_panel_position(false);
+                    return Source.REMOVE;
+                });
+            }
+            return;
+        }
+
+        var target_start = ai_panel_width.initial_position(
+            split_width,
+            ai_split.min_position,
+            ai_split.max_position
+        );
+        ai_panel_width.suppress_persist = true;
+        ai_split.set_position(target_start);
+        Idle.add(() => {
+            ai_panel_width.suppress_persist = false;
+            return Source.REMOVE;
+        });
+    }
+
+    private void apply_initial_asset_preview_position(bool allow_defer) {
+        var split_width = asset_split.get_width();
+        if (split_width <= 0) {
+            if (allow_defer) {
+                Idle.add(() => {
+                    apply_initial_asset_preview_position(false);
+                    return Source.REMOVE;
+                });
+            }
+            return;
+        }
+        asset_preview_width.suppress_persist = true;
+        asset_split.set_position(asset_preview_width.initial_position(
+            split_width,
+            asset_split.min_position,
+            asset_split.max_position
+        ));
+        Idle.add(() => {
+            asset_preview_width.suppress_persist = false;
+            return Source.REMOVE;
+        });
+    }
+
+    private void maybe_move_cursor_for_context_menu(Gtk.GestureClick click, int n_press, double x, double y) {
+        var sequence = click.get_current_sequence();
+        var event = click.get_last_event(sequence);
+        if (n_press != 1 || event == null || !event.triggers_context_menu()) {
+            return;
+        }
+
+        Gtk.TextIter selection_begin;
+        Gtk.TextIter selection_end;
+        if (editor_buffer.get_selection_bounds(out selection_begin, out selection_end)) {
+            return;
+        }
+
+        int buffer_x;
+        int buffer_y;
+        editor_view.window_to_buffer_coords(
+            Gtk.TextWindowType.WIDGET,
+            (int) x,
+            (int) y,
+            out buffer_x,
+            out buffer_y
+        );
+
+        Gtk.TextIter iter;
+        if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
+            return;
+        }
+
+        editor_buffer.select_range(iter, iter);
+    }
+
+    private Gtk.Widget build_ui(GLib.ListModel search_model) {
+        var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+
+        var header = new Adw.HeaderBar();
+        title_label = new Gtk.Label("Editor");
+        save_state_label = new Gtk.Label("");
+        save_state_label.add_css_class("caption");
+        save_state_label.add_css_class("dim-label");
+        save_state_label.set_visible(false);
+        var title_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        title_box.append(title_label);
+        title_box.append(save_state_label);
+        header.set_title_widget(title_box);
+
+        var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
+        refresh_btn.set_tooltip_text("Refresh projects and cards");
+        refresh_btn.clicked.connect(() => {
+            refresh_requested();
+        });
+
+        var new_project_btn = new Gtk.Button.from_icon_name("folder-new-symbolic");
+        new_project_btn.set_tooltip_text("Create a new project");
+        new_project_btn.clicked.connect(() => {
+            new_project_requested();
+        });
+
+        var new_card_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
+        new_card_btn.set_tooltip_text("Create a new card");
+        new_card_btn.clicked.connect(() => {
+            new_card_requested();
+        });
+
+        explorer_toggle_btn = new Gtk.ToggleButton();
+        explorer_toggle_btn.set_icon_name("sidebar-show-symbolic");
+        explorer_toggle_btn.set_tooltip_text("Toggle explorer panel");
+        explorer_toggle_btn.set_active(true);
+        explorer_toggle_btn.toggled.connect(() => {
+            explorer_panel_toggled(explorer_toggle_btn.get_active());
+        });
+
+        search_toggle_btn = new Gtk.ToggleButton();
+        search_toggle_btn.set_icon_name("system-search-symbolic");
+        search_toggle_btn.set_tooltip_text("Toggle search panel");
+        search_toggle_btn.set_active(true);
+        search_toggle_btn.toggled.connect(() => {
+            if (search_row != null) {
+                search_row.set_visible(search_toggle_btn.get_active());
+            }
+        });
+
+        editor_toggle_btn = new Gtk.ToggleButton();
+        editor_toggle_btn.set_icon_name("emblem-documents-symbolic");
+        editor_toggle_btn.set_tooltip_text("Toggle card editor");
+        editor_toggle_btn.set_active(true);
+        editor_toggle_btn.toggled.connect(() => {
+            if (content_stack != null) {
+                content_stack.set_visible(editor_toggle_btn.get_active());
+            }
+        });
+
+        var find_replace_btn = new Gtk.Button.from_icon_name("edit-find-replace-symbolic");
+        find_replace_btn.set_tooltip_text("Find and replace");
+        find_replace_btn.clicked.connect(() => {
+            toggle_find_replace_bar(true);
+        });
+
+        var ai_toggle_btn = new Gtk.ToggleButton();
+        ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
+        ai_toggle_btn.set_tooltip_text("Toggle Intelligence panel");
+        ai_toggle_btn.toggled.connect(() => {
+            ai_panel_toggled(ai_toggle_btn.get_active());
+        });
+
+        asset_preview_toggle_btn = new Gtk.ToggleButton();
+        asset_preview_toggle_btn.set_icon_name("image-x-generic-symbolic");
+        asset_preview_toggle_btn.set_tooltip_text("Toggle Asset Preview");
+        asset_preview_toggle_btn.toggled.connect(() => {
+            asset_preview_toggled(asset_preview_toggle_btn.get_active());
+        });
+
+        toolbox_toggle_btn = new Gtk.ToggleButton();
+        toolbox_toggle_btn.set_icon_name("applications-science-symbolic");
+        toolbox_toggle_btn.set_tooltip_text("Toggle project toolbox panel");
+        toolbox_toggle_btn.toggled.connect(() => {
+            toolbox_toggled(toolbox_toggle_btn.get_active());
+        });
+
+        var main_menu = new GLib.Menu();
+        var editing_section = new GLib.Menu();
+        editing_section.append("Find/Replace", "win.find-replace");
+        editing_section.append("Move Card to Trash", "win.move-selected-card-to-trash");
+        editing_section.append("Print", "win.print");
+        var local_section = new GLib.Menu();
+        local_section.append("Local info", "win.show-local-info");
+        var app_section = new GLib.Menu();
+        app_section.append("Preferences", "win.show-preferences");
+        app_section.append("About", "win.show-about");
+        main_menu.append_section(null, editing_section);
+        main_menu.append_section(null, local_section);
+        main_menu.append_section(null, app_section);
+
+        var main_menu_btn = new Gtk.MenuButton();
+        main_menu_btn.set_icon_name("open-menu-symbolic");
+        main_menu_btn.set_tooltip_text("Open app menu");
+        main_menu_btn.set_menu_model(main_menu);
+
+        header.pack_start(refresh_btn);
+        header.pack_end(main_menu_btn);
+        header.pack_end(toolbox_toggle_btn);
+        header.pack_end(ai_toggle_btn);
+        header.pack_end(asset_preview_toggle_btn);
+        header.pack_end(editor_toggle_btn);
+        header.pack_end(find_replace_btn);
+        header.pack_end(search_toggle_btn);
+        header.pack_end(explorer_toggle_btn);
+        header.pack_end(new_project_btn);
+        header.pack_end(new_card_btn);
+        outer.append(header);
+
+        message_revealer = new Gtk.Revealer();
+        message_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN);
+        message_revealer.set_reveal_child(false);
+
+        var message_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        message_box.set_margin_top(6);
+        message_box.set_margin_bottom(0);
+        message_box.set_margin_start(8);
+        message_box.set_margin_end(8);
+        message_box.add_css_class("card");
+
+        message_label = new Gtk.Label("") { xalign = 0.0f };
+        message_label.set_wrap(true);
+        message_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        message_label.set_hexpand(true);
+        message_label.set_margin_top(10);
+        message_label.set_margin_bottom(10);
+        message_label.set_margin_start(12);
+        message_label.set_margin_end(12);
+        message_box.append(message_label);
+
+        message_debug_button = new Gtk.Button.with_label("Open Debug Panel");
+        message_debug_button.set_halign(Gtk.Align.END);
+        message_debug_button.set_valign(Gtk.Align.CENTER);
+        message_debug_button.set_margin_top(8);
+        message_debug_button.set_margin_bottom(8);
+        message_debug_button.set_margin_end(8);
+        message_debug_button.set_visible(false);
+        message_debug_button.clicked.connect(() => {
+            open_debug_panel_requested();
+        });
+        message_box.append(message_debug_button);
+
+        message_revealer.set_child(message_box);
+        outer.append(message_revealer);
+
+        search_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        search_row.set_margin_top(8);
+        search_row.set_margin_bottom(8);
+        search_row.set_margin_start(8);
+        search_row.set_margin_end(8);
+        search_row.set_visible(search_toggle_btn.get_active());
+
+        search_entry = new Gtk.SearchEntry();
+        search_entry.set_placeholder_text("Search cards in current project...");
+        search_entry.set_hexpand(true);
+        search_entry.activate.connect(() => {
+            search_activated();
+        });
+        search_entry.search_changed.connect(() => {
+            search_changed();
+        });
+
+        var search_key = new Gtk.EventControllerKey();
+        search_key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Down) {
+                search_focus_results_requested();
+                return true;
+            }
+            return false;
+        });
+        search_entry.add_controller(search_key);
+
+        var clear_search_btn = new Gtk.Button.from_icon_name("edit-clear-symbolic");
+        clear_search_btn.set_tooltip_text("Clear search");
+        clear_search_btn.clicked.connect(() => {
+            search_cleared();
+        });
+
+        search_row.append(search_entry);
+        search_row.append(clear_search_btn);
+        outer.append(search_row);
+
+        find_revealer = build_find_replace_revealer();
+        outer.append(find_revealer);
+
+        editor_buffer = new GtkSource.Buffer(null);
+        editor_buffer.set_highlight_syntax(true);
+        editor_buffer.set_highlight_matching_brackets(true);
+
+        var lm = GtkSource.LanguageManager.get_default();
+        var markdown = lm.get_language("holder-markdown");
+        if (markdown == null) {
+            markdown = lm.get_language("markdown");
+        }
+        if (markdown == null) {
+            markdown = lm.guess_language("note.md", null);
+        }
+        if (markdown != null) {
+            editor_buffer.set_language(markdown);
+        }
+
+        tag_highlighting_controller = new TagHighlightingController();
+        validated_tag_style = new Gtk.TextTag("holder-validated-tag");
+        editor_buffer.get_tag_table().add(validated_tag_style);
+        configure_validated_tag_style();
+        editor_buffer.notify["style-scheme"].connect(() => {
+            configure_validated_tag_style();
+        });
+
+        editor_view = new GtkSource.View.with_buffer(editor_buffer);
+        WindowsMonospace.apply(editor_view);
+        editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        editor_view.set_show_line_numbers(true);
+        editor_view.set_vexpand(true);
+        editor_view.set_hexpand(true);
+        inline_resource_images = new InlineResourceImageRenderer(editor_buffer, editor_view);
+        editor_spellcheck = new EditorSpellcheckController(editor_buffer, editor_view);
+        inline_resource_images.buffer_mutation_started.connect(() => {
+            editor_spellcheck.prepare_buffer_mutation();
+        });
+        inline_resource_images.buffer_mutation_finished.connect((has_inline_images) => {
+            editor_spellcheck.finish_buffer_mutation(has_inline_images);
+        });
+
+        var file_drop = new Gtk.DropTarget(typeof(Gdk.FileList), Gdk.DragAction.COPY);
+        file_drop.drop.connect((value, x, y) => {
+            var dropped = (Gdk.FileList?) value.get_boxed();
+            if (dropped == null) {
+                return false;
+            }
+            int buffer_x;
+            int buffer_y;
+            editor_view.window_to_buffer_coords(
+                Gtk.TextWindowType.WIDGET,
+                (int) x,
+                (int) y,
+                out buffer_x,
+                out buffer_y
+            );
+            Gtk.TextIter drop_iter;
+            if (!editor_view.get_iter_at_location(out drop_iter, buffer_x, buffer_y)) {
+                editor_buffer.get_iter_at_mark(out drop_iter, editor_buffer.get_insert());
+            }
+            bool accepted = false;
+            foreach (var file in dropped.get_files()) {
+                var insertion_mark = editor_buffer.create_mark(null, drop_iter, false);
+                file_dropped(file, insertion_mark);
+                accepted = true;
+            }
+            return accepted;
+        });
+        editor_view.add_controller(file_drop);
+
+        var markdown_keys = new Gtk.EventControllerKey();
+        markdown_keys.key_pressed.connect((keyval, keycode, state) => {
+            return handle_markdown_key(keyval, state);
+        });
+        editor_view.add_controller(markdown_keys);
+
+        var context_click = new Gtk.GestureClick();
+        context_click.set_button(0);
+        context_click.pressed.connect((n_press, x, y) => {
+            maybe_move_cursor_for_context_menu(context_click, n_press, x, y);
+        });
+        editor_view.add_controller(context_click);
+
+        var editor_scroll = new Gtk.ScrolledWindow();
+        editor_scroll.set_child(editor_view);
+        editor_scroll.set_vexpand(true);
+
+        var search_page = build_search_page(search_model);
+
+        content_stack = new Gtk.Stack();
+        content_stack.set_vexpand(true);
+        content_stack.set_hexpand(true);
+        content_stack.add_named(editor_scroll, "editor");
+        content_stack.add_named(search_page, "search");
+        content_stack.set_visible_child_name("editor");
+
+        toolbox = new ToolboxPane();
+
+        content_paned = new Gtk.Paned(Gtk.Orientation.VERTICAL);
+        content_paned.set_start_child(content_stack);
+        content_paned.set_end_child(toolbox.widget);
+        content_paned.set_resize_start_child(true);
+        content_paned.set_resize_end_child(false);
+        content_paned.set_shrink_start_child(false);
+        content_paned.set_shrink_end_child(true);
+        content_paned.set_wide_handle(true);
+        content_paned.set_vexpand(true);
+        content_paned.set_hexpand(true);
+        toolbox.widget.set_visible(false);
+
+        asset_preview = new AssetPreviewPane();
+        asset_preview.close_requested.connect(() => {
+            asset_preview_toggle_btn.set_active(false);
+        });
+        asset_split = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+        asset_split.set_start_child(content_paned);
+        asset_split.set_end_child(asset_preview.widget);
+        asset_split.set_resize_start_child(true);
+        asset_split.set_resize_end_child(false);
+        asset_split.set_shrink_start_child(false);
+        asset_split.set_shrink_end_child(true);
+        asset_split.set_wide_handle(true);
+        asset_preview.widget.set_visible(false);
+        asset_split.set_vexpand(true);
+        asset_split.set_hexpand(true);
+        asset_split.notify["position"].connect(() => {
+            asset_preview_width.on_position_changed(
+                asset_preview.widget.get_visible(),
+                asset_split.get_width(),
+                asset_split.get_position()
+            );
+        });
+
+        ai_panel = new AiPanel();
+        ai_split = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+        ai_split.set_start_child(asset_split);
+        ai_split.set_end_child(ai_panel.widget);
+        ai_split.set_resize_start_child(true);
+        ai_split.set_resize_end_child(false);
+        ai_split.set_shrink_start_child(false);
+        ai_split.set_shrink_end_child(true);
+        ai_split.set_wide_handle(true);
+        ai_panel.widget.set_visible(false);
+        ai_split.set_vexpand(true);
+        ai_split.set_hexpand(true);
+        ai_split.notify["position"].connect(() => {
+            ai_panel_width.on_position_changed(
+                ai_panel.widget.get_visible(),
+                ai_split.get_width(),
+                ai_split.get_position()
+            );
+        });
+
+        outer.append(ai_split);
+        return outer;
+    }
+
+    private void configure_validated_tag_style() {
+        validated_tag_style.foreground_set = false;
+        validated_tag_style.weight = (int) Pango.Weight.SEMIBOLD;
+        validated_tag_style.weight_set = true;
+        validated_tag_style.set_priority(editor_buffer.get_tag_table().get_size() - 1);
+
+        var scheme = editor_buffer.get_style_scheme();
+        if (scheme == null) {
+            return;
+        }
+        var style = scheme.get_style("def:preprocessor");
+        if (style == null || !style.foreground_set) {
+            style = scheme.get_style("def:link-text");
+        }
+        if (style == null || !style.foreground_set) {
+            return;
+        }
+        Gdk.RGBA color = {};
+        if (color.parse(style.foreground)) {
+            validated_tag_style.foreground_rgba = color;
+        }
+    }
+
+    private bool handle_markdown_key(uint keyval, Gdk.ModifierType state) {
+        var modifiers = markdown_key_modifiers_from(state);
+        if (handle_markdown_return(keyval, modifiers)) {
+            return true;
+        }
+        if (!editor_view.get_editable()) {
+            return false;
+        }
+
+        var action = MarkdownKeyMap.resolve(keyval, modifiers);
+        switch (action.kind) {
+            case MarkdownKeyActionKind.INLINE:
+                return apply_inline_markdown(action.inline_command);
+            case MarkdownKeyActionKind.LINE:
+                return apply_line_markdown(action.line_command);
+            case MarkdownKeyActionKind.CLEAR_FORMATTING:
+                return apply_clear_markdown_formatting();
+            default:
+                return false;
+        }
+    }
+
+    private static MarkdownKeyModifiers markdown_key_modifiers_from(Gdk.ModifierType state) {
+        var relevant = state & (
+            Gdk.ModifierType.SHIFT_MASK |
+            Gdk.ModifierType.CONTROL_MASK |
+            Gdk.ModifierType.ALT_MASK |
+            Gdk.ModifierType.SUPER_MASK
+        );
+        return (MarkdownKeyModifiers) (int) relevant;
+    }
+
+    private bool apply_inline_markdown(MarkdownInlineCommand command) {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        var has_selection = editor_buffer.get_selection_bounds(out start, out end);
+        if (!has_selection) {
+            editor_buffer.get_iter_at_mark(out start, editor_buffer.get_insert());
+            end = start;
+        } else {
+            var marker = MarkdownSelectionRules.inline_marker_for(command);
+            if (marker != null && !selection_contains_line_break(start, end)) {
+                expand_selection_to_surrounding_marker(ref start, ref end, (!) marker);
+            }
+        }
+
+        var selected_text = editor_buffer.get_text(start, end, false);
+        var edit = markdown_editing_controller.decide_inline_edit(
+            selected_text,
+            has_selection,
+            command
+        );
+        if (!edit.changed) {
+            return true;
+        }
+        apply_text_edit(start, end, edit);
+        return true;
+    }
+
+    private bool apply_clear_markdown_formatting() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        if (editor_buffer.get_selection_bounds(out start, out end)) {
+            var selected_text = editor_buffer.get_text(start, end, false);
+            var edit = markdown_editing_controller.decide_inline_edit(
+                selected_text,
+                true,
+                MarkdownInlineCommand.CLEAR_FORMATTING
+            );
+            if (edit.changed) {
+                apply_text_edit(start, end, edit);
+            }
+            return true;
+        }
+        return apply_line_markdown(MarkdownLineCommand.CLEAR_STRUCTURE);
+    }
+
+    private void apply_text_edit(Gtk.TextIter start,
+                                 Gtk.TextIter end,
+                                 MarkdownTextEdit edit) {
+        var insertion_offset = start.get_offset();
+        editor_buffer.begin_user_action();
+        editor_buffer.delete(ref start, ref end);
+        editor_buffer.insert(ref start, edit.replacement, -1);
+
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        editor_buffer.get_iter_at_offset(
+            out selection_start,
+            insertion_offset + edit.selection_start
+        );
+        editor_buffer.get_iter_at_offset(
+            out selection_end,
+            insertion_offset + edit.selection_end
+        );
+        if (edit.select_replacement) {
+            editor_buffer.select_range(selection_end, selection_start);
+        } else {
+            editor_buffer.place_cursor(selection_end);
+        }
+        editor_buffer.end_user_action();
+    }
+
+    private bool apply_line_markdown(MarkdownLineCommand command) {
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        var has_selection = editor_buffer.get_selection_bounds(
+            out selection_start,
+            out selection_end
+        );
+        if (!has_selection) {
+            editor_buffer.get_iter_at_mark(
+                out selection_start,
+                editor_buffer.get_insert()
+            );
+            selection_end = selection_start;
+        }
+
+        var first_line = selection_start.get_line();
+        var last_line = MarkdownSelectionRules.last_line_index(
+            first_line,
+            selection_end.get_line(),
+            has_selection,
+            selection_end.get_line_offset()
+        );
+        var lines = new string[last_line - first_line + 1];
+        for (var index = 0; index < lines.length; index++) {
+            Gtk.TextIter line_start;
+            editor_buffer.get_iter_at_line(out line_start, first_line + index);
+            Gtk.TextIter line_end = line_start;
+            line_end.forward_to_line_end();
+            lines[index] = editor_buffer.get_text(line_start, line_end, false);
+        }
+        var edits = markdown_editing_controller.decide_line_edits(lines, command);
+
+        var start_mark = editor_buffer.create_mark(null, selection_start, has_selection);
+        var end_mark = editor_buffer.create_mark(null, selection_end, false);
+        editor_buffer.begin_user_action();
+        for (var index = edits.length - 1; index >= 0; index--) {
+            var edit = edits[index];
+            if (!edit.changed) {
+                continue;
+            }
+            Gtk.TextIter line_start;
+            editor_buffer.get_iter_at_line(out line_start, first_line + index);
+            Gtk.TextIter remove_end = line_start;
+            if (edit.remove_chars > 0) {
+                remove_end.forward_chars(edit.remove_chars);
+                editor_buffer.delete(ref line_start, ref remove_end);
+            }
+            if (edit.insertion.length > 0) {
+                editor_buffer.insert(ref line_start, edit.insertion, -1);
+            }
+        }
+
+        Gtk.TextIter restored_start;
+        Gtk.TextIter restored_end;
+        editor_buffer.get_iter_at_mark(out restored_start, start_mark);
+        editor_buffer.get_iter_at_mark(out restored_end, end_mark);
+        if (has_selection) {
+            editor_buffer.select_range(restored_end, restored_start);
+        } else {
+            editor_buffer.place_cursor(restored_end);
+        }
+        editor_buffer.delete_mark(start_mark);
+        editor_buffer.delete_mark(end_mark);
+        editor_buffer.end_user_action();
+        return true;
+    }
+
+    private bool selection_contains_line_break(Gtk.TextIter start, Gtk.TextIter end) {
+        return editor_buffer.get_text(start, end, false).index_of_char('\n') >= 0;
+    }
+
+    private void expand_selection_to_surrounding_marker(ref Gtk.TextIter start,
+                                                        ref Gtk.TextIter end,
+                                                        string marker) {
+        var marker_chars = marker.char_count();
+        Gtk.TextIter before = start;
+        Gtk.TextIter after = end;
+        before.backward_chars(2);
+        after.forward_chars(2);
+        if (!MarkdownSelectionRules.should_expand_to_marker(
+                marker,
+                editor_buffer.get_text(before, start, false),
+                editor_buffer.get_text(end, after, false))) {
+            return;
+        }
+        before = start;
+        after = end;
+        before.backward_chars(marker_chars);
+        after.forward_chars(marker_chars);
+        start = before;
+        end = after;
+    }
+
+    private bool handle_markdown_return(uint keyval, MarkdownKeyModifiers modifiers) {
+        if (!MarkdownKeyMap.is_plain_return(keyval, modifiers) || !editor_view.get_editable()) {
+            return false;
+        }
+
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        if (editor_buffer.get_selection_bounds(out selection_start, out selection_end)) {
+            return false;
+        }
+
+        Gtk.TextIter cursor;
+        editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
+        Gtk.TextIter line_start = cursor;
+        line_start.set_line_offset(0);
+        var line_prefix = editor_buffer.get_text(line_start, cursor, false);
+        var decision = markdown_editing_controller.decide_return(line_prefix);
+        if (decision.action == MarkdownListAction.NONE) {
+            return false;
+        }
+
+        editor_buffer.begin_user_action();
+        if (decision.action == MarkdownListAction.END) {
+            editor_buffer.delete(ref line_start, ref cursor);
+            editor_buffer.insert(ref line_start, "\n", -1);
+            editor_buffer.place_cursor(line_start);
+        } else {
+            editor_buffer.insert(ref cursor, "\n" + decision.continuation, -1);
+            editor_buffer.place_cursor(cursor);
+        }
+        editor_buffer.end_user_action();
+        return true;
+    }
+
+    private Gtk.Revealer build_find_replace_revealer() {
+        var revealer = new Gtk.Revealer();
+        revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN);
+        revealer.set_reveal_child(false);
+
+        var frame = new Gtk.Frame(null);
+        frame.add_css_class("card");
+        frame.set_margin_top(6);
+        frame.set_margin_bottom(6);
+        frame.set_margin_start(8);
+        frame.set_margin_end(8);
+
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        var find_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var find_label = new Gtk.Label("Find") { xalign = 0.0f };
+        find_label.set_width_chars(8);
+        find_entry = new Gtk.Entry();
+        find_entry.set_hexpand(true);
+        find_entry.set_placeholder_text("Search text");
+        find_entry.update_property(Gtk.AccessibleProperty.LABEL, "Find text", -1);
+        find_entry.activate.connect(() => {
+            find_next_requested();
+        });
+        var find_next_btn = new Gtk.Button.with_label("Find Next");
+        find_next_btn.clicked.connect(() => {
+            find_next_requested();
+        });
+        var close_btn = new Gtk.Button.from_icon_name("window-close-symbolic");
+        close_btn.set_tooltip_text("Close find and replace");
+        close_btn.clicked.connect(() => {
+            hide_find_replace_bar();
+        });
+        find_row.append(find_label);
+        find_row.append(find_entry);
+        find_row.append(find_next_btn);
+        find_row.append(close_btn);
+
+        replace_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var replace_label = new Gtk.Label("Replace") { xalign = 0.0f };
+        replace_label.set_width_chars(8);
+        replace_entry = new Gtk.Entry();
+        replace_entry.set_hexpand(true);
+        replace_entry.set_placeholder_text("Replacement text");
+        replace_entry.update_property(Gtk.AccessibleProperty.LABEL, "Replacement text", -1);
+        replace_entry.activate.connect(() => {
+            replace_requested();
+        });
+        var replace_btn = new Gtk.Button.with_label("Replace");
+        replace_btn.clicked.connect(() => {
+            replace_requested();
+        });
+        var replace_all_btn = new Gtk.Button.with_label("Replace All");
+        replace_all_btn.clicked.connect(() => {
+            replace_all_requested();
+        });
+        replace_row.append(replace_label);
+        replace_row.append(replace_entry);
+        replace_row.append(replace_btn);
+        replace_row.append(replace_all_btn);
+
+        var key = new Gtk.EventControllerKey();
+        key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Escape) {
+                hide_find_replace_bar();
+                editor_view.grab_focus();
+                return true;
+            }
+            return false;
+        });
+        find_entry.add_controller(key);
+        var replace_key = new Gtk.EventControllerKey();
+        replace_key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Escape) {
+                hide_find_replace_bar();
+                editor_view.grab_focus();
+                return true;
+            }
+            return false;
+        });
+        replace_entry.add_controller(replace_key);
+
+        box.append(find_row);
+        box.append(replace_row);
+        frame.set_child(box);
+        revealer.set_child(frame);
+        return revealer;
+    }
+
+    private Gtk.Widget build_search_page(GLib.ListModel search_model) {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        search_summary_label = new Gtk.Label("Search results will appear here.") { xalign = 0.0f };
+        search_summary_label.add_css_class("dim-label");
+        box.append(search_summary_label);
+
+        search_selection = new Gtk.SingleSelection(search_model);
+        var search_factory = new Gtk.SignalListItemFactory();
+        search_factory.setup.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+            var title = new Gtk.Label("") { xalign = 0.0f };
+            title.add_css_class("title-5");
+            title.set_ellipsize(Pango.EllipsizeMode.END);
+            var snippet = new Gtk.Label("") { xalign = 0.0f };
+            snippet.add_css_class("dim-label");
+            snippet.set_wrap(true);
+            snippet.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+            snippet.set_max_width_chars(80);
+            row.append(title);
+            row.append(snippet);
+            list_item.set_child(row);
+        });
+        search_factory.bind.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var result = list_item.get_item() as SearchCardResult;
+            var row = list_item.get_child() as Gtk.Box;
+            var title = row.get_first_child() as Gtk.Label;
+            var snippet = title.get_next_sibling() as Gtk.Label;
+            if (result == null) {
+                title.set_text("");
+                snippet.set_text("");
+                return;
+            }
+            title.set_text(result.title);
+            snippet.set_text(result.snippet);
+        });
+
+        search_list = new Gtk.ListView(search_selection, search_factory);
+        search_list.activate.connect((position) => {
+            search_result_activated((uint) position);
+        });
+
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_vexpand(true);
+        scroll.set_child(search_list);
+        box.append(scroll);
+
+        return box;
+    }
+}
+
+}

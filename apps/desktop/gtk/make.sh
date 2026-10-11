@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BUILD_DIR="${BUILD_DIR:-build}"
+COVERAGE_BUILD_DIR="${COVERAGE_BUILD_DIR:-build-coverage}"
+MODE="${1:-run}"
+
+is_windows_shell() {
+  case "${OS:-}:$(uname -s 2>/dev/null || true)" in
+    Windows_NT:*|*:MINGW*|*:MSYS*|*:CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Windows uses the MSYS2 UCRT64 GTK toolchain.  Keep make.sh as the public
+# contract on every platform while retaining its dedicated provisioning logic.
+if is_windows_shell; then
+  exec "$(cd "$(dirname "$0")" && pwd)/make-win.sh" "$@"
+fi
+
+setup_build() {
+  local dir="$1"
+  shift
+  if [[ -f "${dir}/build.ninja" ]]; then
+    meson setup "${dir}" --reconfigure "$@"
+  else
+    meson setup "${dir}" "$@"
+  fi
+}
+
+refresh_compiled_schemas() {
+  local dir="$1"
+  # glib-compile-schemas scans the schema directory, so Meson may miss schema renames.
+  rm -f "${dir}/data/gschemas.compiled"
+}
+
+install_dev_desktop_assets() {
+  local app_id="$1"
+  local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+  local desktop_dir="${data_home}/applications"
+  local icon_theme_dir="${data_home}/icons/hicolor"
+  local -a icon_sizes=(16 24 32 48 64 128 256 512)
+
+  mkdir -p "${desktop_dir}"
+  {
+    while IFS= read -r line; do
+      case "${line}" in
+        Name=*)
+          printf 'Name=Holder (Development)\n'
+          ;;
+        Exec=*)
+          printf 'Exec=%s/%s/holder-desktop\n' "${PWD}" "${BUILD_DIR}"
+          ;;
+        Icon=*)
+          printf 'Icon=%s\n' "${app_id}"
+          ;;
+        *)
+          printf '%s\n' "${line}"
+          ;;
+      esac
+    done < data/team.holder.Holder.desktop
+  } > "${desktop_dir}/${app_id}.desktop"
+
+  for size in "${icon_sizes[@]}"; do
+    mkdir -p "${icon_theme_dir}/${size}x${size}/apps"
+    cp \
+      "data/icons/hicolor/${size}x${size}/apps/team.holder.Holder.png" \
+      "${icon_theme_dir}/${size}x${size}/apps/team.holder.Holder.png"
+    cp \
+      "data/icons/hicolor/${size}x${size}/apps/team.holder.Holder.png" \
+      "${icon_theme_dir}/${size}x${size}/apps/${app_id}.png"
+  done
+
+  if [[ ! -f "${icon_theme_dir}/index.theme" ]]; then
+    {
+      printf '[Icon Theme]\n'
+      printf 'Name=Hicolor\n'
+      printf 'Comment=Fallback icon theme\n'
+      printf 'Directories='
+      local sep=''
+      for size in "${icon_sizes[@]}"; do
+        printf '%s%sx%s/apps' "${sep}" "${size}" "${size}"
+        sep=','
+      done
+      printf '\n\n'
+
+      for size in "${icon_sizes[@]}"; do
+        printf '[%sx%s/apps]\n' "${size}" "${size}"
+        printf 'Size=%s\n' "${size}"
+        printf 'Context=Applications\n'
+        printf 'Type=Fixed\n\n'
+      done
+    } > "${icon_theme_dir}/index.theme"
+  fi
+
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -f "${icon_theme_dir}" || true
+  fi
+
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q "${desktop_dir}" || true
+  fi
+}
+
+build() {
+  setup_build "${BUILD_DIR}"
+  refresh_compiled_schemas "${BUILD_DIR}"
+  meson compile -C "${BUILD_DIR}"
+}
+
+run_gui_tests() {
+  local dir="$1"
+  if command -v xvfb-run >/dev/null 2>&1; then
+    # GTK popovers need a display with a stable monitor layout. Use an isolated
+    # display so tests do not depend on the developer's desktop arrangement.
+    GSETTINGS_BACKEND=memory \
+      xvfb-run -a meson test -C "${dir}" --print-errorlogs
+  else
+    # macOS provides its native display services but not Xvfb.
+    GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
+  fi
+}
+
+test_only() {
+  build
+  run_gui_tests "${BUILD_DIR}"
+}
+
+run_app() {
+  test_only
+  local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
+  local runtime_data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  if [[ "$(uname -s)" == Darwin ]] && command -v brew >/dev/null 2>&1; then
+    runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
+  fi
+  install_dev_desktop_assets "${app_id}"
+  # Running from a source tree: use the holderctl built beside it in holder, unless one
+  # is named already, so the app can start the backend itself.
+  local sibling_ctl=""
+  local sibling_dir
+  if sibling_dir="$(cd "${PWD}/../holder/daemon/build" 2>/dev/null && pwd -P)"; then
+    sibling_ctl="${sibling_dir}/holderctl"
+  fi
+  if [[ -z "${HOLDER_CTL:-}" && -n "${sibling_ctl}" && -x "${sibling_ctl}" ]]; then
+    export HOLDER_CTL="${sibling_ctl}"
+    echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
+  fi
+  HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
+    GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
+    XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
+    "./${BUILD_DIR}/holder-desktop"
+}
+
+coverage() {
+  setup_build "${COVERAGE_BUILD_DIR}" -Db_coverage=true
+  refresh_compiled_schemas "${COVERAGE_BUILD_DIR}"
+  meson compile -C "${COVERAGE_BUILD_DIR}"
+  run_gui_tests "${COVERAGE_BUILD_DIR}"
+
+  local out_dir="${COVERAGE_BUILD_DIR}/coverage"
+  mkdir -p "${out_dir}"
+  local -a gcovr_common_flags=(
+    --root .
+    --object-directory "${COVERAGE_BUILD_DIR}"
+    --filter 'src/'
+    --exclude 'tests/'
+    --gcov-executable gcov
+    --gcov-ignore-errors all
+    --exclude-unreachable-branches
+    --exclude-throw-branches
+    --exclude-function-lines
+  )
+
+  gcovr \
+    "${gcovr_common_flags[@]}" \
+    --txt \
+    --txt-metric line \
+    --output "${out_dir}/summary-lines.txt"
+
+  gcovr \
+    "${gcovr_common_flags[@]}" \
+    --txt \
+    --txt-metric branch \
+    --output "${out_dir}/summary-branches.txt"
+
+  gcovr \
+    "${gcovr_common_flags[@]}" \
+    --html-details "${out_dir}/index.html" \
+    --html-title "holder-desktop coverage"
+
+  gcovr \
+    "${gcovr_common_flags[@]}" \
+    --json-pretty \
+    --output "${out_dir}/coverage.json"
+
+  echo "Coverage line summary:   ${out_dir}/summary-lines.txt"
+  echo "Coverage branch summary: ${out_dir}/summary-branches.txt"
+  echo "Coverage JSON:           ${out_dir}/coverage.json"
+  echo "Coverage HTML:           ${out_dir}/index.html"
+  cat "${out_dir}/summary-lines.txt"
+  cat "${out_dir}/summary-branches.txt"
+}
+
+case "${MODE}" in
+  build)
+    build
+    ;;
+  test)
+    test_only
+    ;;
+  run)
+    run_app
+    ;;
+  coverage)
+    coverage
+    ;;
+  *)
+    echo "Usage: $0 [build|test|run|coverage]"
+    exit 2
+    ;;
+esac
