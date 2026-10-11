@@ -9,7 +9,7 @@ on:
         default: ""
         type: string
       backend_run_id:
-        description: Optional run containing a daemon Linux artifact; blank uses the latest successful core integration
+        description: Optional run containing a daemon Linux artifact; blank uses the latest successful Daemon CI run
         required: false
         default: ""
         type: string
@@ -24,19 +24,14 @@ on:
         default: main
         type: string
       backend_repository:
-        description: Repository containing the daemon artifact (core downstream integration by default)
+        description: Repository containing the daemon artifact (its Daemon CI run also holds the core selection)
         required: false
-        default: HolderTeam/holder-core
+        default: HolderTeam/holder
         type: string
       backend_ref:
         description: Branch used when automatically resolving the backend artifact
         required: false
         default: main
-        type: string
-      core_ref:
-        description: Core SDK selection for development; latest-green, tag or full SHA
-        required: false
-        default: latest-green
         type: string
       release_manifest:
         description: Optional checked-in JSON manifest pinning core and component runs for an RC/release
@@ -70,7 +65,6 @@ jobs:
         id: pins
         env:
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
-          CORE_REF_INPUT: ${{ inputs.core_ref }}
           DESKTOP_RUN_ID_INPUT: ${{ inputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ inputs.backend_run_id }}
           APPIMAGE_VERSION_INPUT: ${{ inputs.appimage_version }}
@@ -82,13 +76,6 @@ jobs:
             options=(--release-manifest "sources/holder-framework/staging/$RELEASE_MANIFEST")
           fi
           python3 sources/holder-framework/staging/scripts/core-provenance.py prepare "${options[@]}"
-
-      - name: Resolve core SDK once
-        id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: ${{ steps.pins.outputs.core_ref }}
 
       - name: Resolve component artifact runs
         id: artifact_runs
@@ -215,6 +202,20 @@ jobs:
           repository: ${{ steps.pins.outputs.backend_repository }}
           run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
 
+      - name: Download the backend run's core selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: core-selection
+          path: out
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ steps.pins.outputs.backend_repository }}
+          run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Read the core the backend was built against
+        id: core
+        shell: bash
+        run: echo "commit=$(python3 -c 'import json; print(json.load(open("out/core-selection.json"))["commit"])')" >> "$GITHUB_OUTPUT"
+
       - name: Install AppImage assembly dependencies
         run: |
           set -euo pipefail
@@ -304,6 +305,8 @@ jobs:
             --selection out/core-selection.json \
             --desktop-root work/desktop-root --backend-root work/backend-root \
             --build-type "${{ steps.pins.outputs.build_type }}" \
+            --backend-repository "${{ steps.pins.outputs.backend_repository }}" \
+            --backend-run-id "${{ steps.artifact_runs.outputs.backend_run_id }}" \
             --output out/core-provenance.json "${options[@]}"
           echo "Core SDK: \`${{ steps.core.outputs.commit }}\`" >> "$GITHUB_STEP_SUMMARY"
 

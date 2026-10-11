@@ -1,6 +1,6 @@
 # Framework release manifests
 
-Development staging follows latest-green. For an RC or production release,
+Development staging follows the latest Daemon CI run on main. For an RC or production release,
 commit one manifest and pass the same `release_manifest` path to all three
 staging workflows. Each reads its platform entry, uses the shared product
 version/core pin, and bundles the original manifest in the package.
@@ -9,11 +9,12 @@ version/core pin, and bundles the original manifest in the package.
 validate this machinery. It is a test candidate, not a production release;
 its component inputs remain subject to Actions artifact retention.
 
-1. Select one published core commit and record its full SHA.
-2. Dispatch `daemon-ci.yml` with that `core_ref` and `core_build_type=Release`.
-3. Dispatch the desktop artifact workflows with `build_type=release`.
-4. After the selected runs pass, record their run IDs and source commits below.
-5. Commit the manifest and run staging with its relative path. Leave core/run
+1. Dispatch `daemon-ci.yml` on the commit to release with `core_build_type=Release`. It
+   builds core from `core/` in that commit and records the SDK in its `core-selection`
+   artifact; the core commit to pin is the `commit` in that selection.
+2. Dispatch the desktop artifact workflows with `build_type=release`.
+3. After the selected runs pass, record their run IDs and source commits below.
+4. Commit the manifest and run staging with its relative path. Leave run
    overrides at defaults. Windows branch validation can additionally use
    `sign_test_installer=false`; normal main staging retains protected signing.
 
@@ -24,15 +25,15 @@ its component inputs remain subject to Actions artifact retention.
   "platforms": {
     "linux": {
       "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<Linux desktop run>", "commit": "<desktop SHA>"},
-      "backend": {"repository": "HolderTeam/holder-daemon", "run_id": "<daemon Release run>", "commit": "<daemon SHA>"}
+      "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     },
     "windows": {
       "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<Windows desktop run>", "commit": "<desktop SHA>"},
-      "backend": {"repository": "HolderTeam/holder-daemon", "run_id": "<daemon Release run>", "commit": "<daemon SHA>"}
+      "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     },
     "macos": {
       "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<macOS desktop run>", "commit": "<desktop SHA>"},
-      "backend": {"repository": "HolderTeam/holder-daemon", "run_id": "<daemon Release run>", "commit": "<daemon SHA>"}
+      "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     }
   }
 }

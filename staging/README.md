@@ -6,14 +6,14 @@ For a whole-framework RC or production release, use one
 Windows and macOS. It pins one core SDK revision/configuration, product version
 and each platform's component runs and source commits. Release manifests require
 Release backend/core artifacts and release Meson desktop artifacts.
-Normal development staging continues to follow latest-green.
+Normal development staging follows the latest successful Daemon CI run on main.
 
 ## Windows
 
 The `Staging / Windows` workflow assembles the two Windows build outputs into a release-candidate layout:
 
 - `holder-desktop-windows` from `HolderTeam/holder-desktop`
-- `holder-daemon-windows-backend` from core's downstream integration run
+- `holder-daemon-windows-backend` from this repository's Daemon CI run
 
 The desktop is the program the installer's shortcuts start (`bin\holder-desktop.exe`); it starts its own
 backend with `holderctl ensure`. There is no launcher.
@@ -22,17 +22,20 @@ Run it manually from:
 
 https://github.com/HolderTeam/holder/actions/workflows/staging-windows-stage.yml
 
-By default, staging resolves core's latest-green SDK and selects successful
-desktop and core daemon-integration runs on main. All selected
-artifacts must be unexpired. An explicit core tag/SHA and component run IDs
-support reproducible staging. Desktop installer metadata is checked out at the
-selected desktop run's commit. A backend built against another core revision
-is rejected.
+By default, staging selects successful desktop and Daemon CI runs on main. All
+selected artifacts must be unexpired. Explicit component run IDs support
+reproducible staging. Desktop installer metadata is checked out at the
+selected desktop run's commit.
+
+Core comes with the backend: Daemon CI builds the daemon against core from the
+same commit, and its `core-selection` artifact records that SDK. Staging takes
+the selection from the backend run it picked and rejects a backend whose
+recorded core differs from it.
 
 The staged directory and installed package preserve `core-build.json` and
 `release/holder-core-provenance.json`; `release-candidate.json` records the
-core SDK asset checksum and publication. `backend_run_commit` identifies the
-workflow run revision (the core revision when selecting a core integration run).
+core SDK asset checksum and the backend run it came from. `backend_run_commit`
+identifies the workflow run revision.
 
 The normal workflow uploads two artifacts:
 
@@ -60,23 +63,24 @@ both an AppImage and its assembled AppDir:
 
 https://github.com/HolderTeam/holder/actions/workflows/staging-linux-appimage-stage.yml
 
-All workflow inputs are optional. Development staging resolves core's
-`latest-green` SDK once and selects the newest successful desktop main artifact
-and core main `daemon-integration.yml` artifact that are still downloadable.
-Core's integration run contains the daemon package built and tested against
-that published SDK. Staging rejects a backend whose recorded core revision
-differs from the selected SDK, including while a newer downstream check is
-still running. Retry after that check passes; it does not silently use older core.
+All workflow inputs are optional. Development staging selects the newest
+successful desktop main artifact and Daemon CI (`daemon-ci.yml`) artifact on
+main that are still downloadable. The Daemon CI run built the daemon against
+core from the same commit, and staging takes the core selection from that run.
+Daemon CI runs on main only when the daemon, core or their shared code changes,
+and its artifacts last 7 days, so after a quiet week run Daemon CI on main
+again before staging.
 
-Run IDs, repositories, branches, `core_ref` (tag or full SHA), and the AppImage
-version can be overridden for compatibility testing. Set `backend_repository`
-to `HolderTeam/holder` to select artifacts from its own `daemon-ci.yml` instead.
-An explicit older core selection needs a backend run built against that revision.
+Run IDs, repositories, branches and the AppImage version can be overridden for
+compatibility testing. An older backend run from `HolderTeam/holder-core`'s
+`daemon-integration.yml` still works while its artifacts last: it recorded the
+published SDK it used in the same way.
 
 For an RC or release, commit a JSON manifest to this repository and supply its
 relative path through `release_manifest`. The manifest controls the version,
-repositories, immutable component runs and core commit; leave run ID, product
-version and `core_ref` overrides at their defaults. For example:
+repositories, immutable component runs and core commit; leave run ID and product
+version overrides at their defaults. The core commit is the one the backend
+run's core selection records. For example:
 
 ```json
 {
@@ -88,8 +92,8 @@ version and `core_ref` overrides at their defaults. For example:
     "commit": "<full desktop SHA>"
   },
   "backend": {
-    "repository": "HolderTeam/holder-core",
-    "run_id": "<successful daemon integration run ID>",
+    "repository": "HolderTeam/holder",
+    "run_id": "<successful Daemon CI run ID>",
     "commit": "<full daemon SHA>"
   }
 }
@@ -129,12 +133,12 @@ the release verification use this).
 
 ## Mac
 
-macOS staging uses the same latest-green selection and rejects mismatched
-backend SDKs. Artifact runs must be successful and unexpired, and desktop
+macOS staging takes core from the backend run in the same way and rejects
+mismatched backend SDKs. Artifact runs must be successful and unexpired, and desktop
 packaging metadata comes from the selected run's exact source commit. Core
 provenance is retained in `Holder.app/Contents/Resources/core-build.json`,
 `release/holder-core-provenance.json` and the release-candidate metadata.
-Explicit core and component run overrides support reproducible staging.
+Explicit component run overrides support reproducible staging.
 
 How to manually test a prerelease development version of Holder, aka a "staged copy".
 
