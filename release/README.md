@@ -44,7 +44,7 @@ shipped daemon was built against. Nothing else publishes core SDKs.
 ## Holder Kit on PyPI
 
 `Release / Kit to PyPI` builds Holder Kit's wheels and source archive against
-the Release core SDKs of the same Daemon CI run, checks them, and publishes them
+Release core SDKs from `core/` in the same commit, checks them, and publishes them
 to TestPyPI or PyPI through Trusted Publishing (the `testpypi` and `pypi`
 environments). It publishes only from the `holder-v<version>` tag, with Kit,
 core and `VERSION` all at that version. See

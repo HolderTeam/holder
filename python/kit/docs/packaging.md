@@ -59,11 +59,9 @@ builds wheels for CPython 3.10–3.14 and a source archive. Supported wheel plat
 | Windows | x86_64 | Windows 10/11 |
 | macOS | ARM64 | macOS 15 |
 
-Release builds use the `Release` core SDKs of the release's Daemon CI run (its
-`daemon_ci_run_id` input, dispatched with `core_build_type=Release` on the same
-commit), so Kit ships with exactly the core the daemon was built against.
-Without a run, for pull requests and trial builds, `Core / SDK` builds the
-Release SDKs in the same run from `core/` in that commit.
+Release builds use `Release` core SDKs that `Core / SDK` builds in the same run
+from `core/` in the same commit. They are cached by `core/`'s tree, so a release
+usually reuses the SDKs its Daemon CI run built.
 
 Before building wheels and the source archive, the release workflow rewrites
 relative README links in its checkout to absolute URLs at the release commit.
@@ -107,9 +105,8 @@ The manual workflow's `destination` defaults to `none`, which builds and tests
 candidates. `pypi` or `testpypi` publishes only after all distribution checks
 pass, using the corresponding GitHub environment and Trusted Publishing.
 Holder Kit is released with the rest of Holder, at the same version: publishing
-must run from the release's `holder-v<version>` tag, with the release's Daemon
-CI run, and requires the version in `pyproject.toml`, the repository's `VERSION`
-and core's version to equal it. Pull requests build candidates without
+must run from the release's `holder-v<version>` tag, and requires the version in
+`pyproject.toml`, the repository's `VERSION` and core's version to equal it. Pull requests build candidates without
 publishing.
 
 ## Ubuntu packages

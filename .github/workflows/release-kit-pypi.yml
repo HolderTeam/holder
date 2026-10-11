@@ -1,11 +1,10 @@
 name: Release / Kit to PyPI
 
 # Builds Holder Kit's wheels (CPython 3.10-3.14 on Linux, Windows and macOS) and source archive,
-# and publishes them to TestPyPI or PyPI. A release uses the Release core SDKs of the release's
-# Daemon CI run (dispatched with core_build_type=Release), so Kit ships with exactly the core the
-# daemon was built against; publishing requires that run, on this commit, and the holder-v<version>
-# tag with Kit, core and the repository all at that version. Without a run (pull requests and
-# trial builds), Core / SDK builds the Release SDKs in this run.
+# and publishes them to TestPyPI or PyPI. Kit is built against Release core SDKs that Core / SDK
+# builds from core/ in the same commit (cached by core/'s tree, so a release usually reuses the
+# SDKs its Daemon CI run built). Publishing requires the holder-v<version> tag, with Kit, core and
+# the repository all at that version.
 
 on:
   pull_request:
@@ -28,14 +27,8 @@ on:
         type: choice
         options: [none, testpypi, pypi]
         default: none
-      daemon_ci_run_id:
-        description: Successful Daemon CI run on this commit, dispatched with core_build_type=Release (required to publish; blank builds the SDKs here)
-        required: false
-        default: ""
-        type: string
 
 permissions:
-  actions: read
   contents: read
 
 defaults:
@@ -47,7 +40,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.config.outputs.version }}
-      run_commit: ${{ steps.run.outputs.commit }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -59,7 +51,6 @@ jobs:
         name: Check the version and the destination
         env:
           DESTINATION: ${{ inputs.destination || 'none' }}
-          RUN_ID: ${{ inputs.daemon_ci_run_id }}
         run: |
           python - <<'PY'
           import os, tomllib
@@ -69,49 +60,21 @@ jobs:
           if os.environ['DESTINATION'] != 'none':
               assert version == holder_version, f'Kit is at {version}, not the Holder version {holder_version}'
               assert os.environ['GITHUB_REF'] == f'refs/tags/holder-v{version}', 'Publishing requires the holder-v<version> tag'
-              assert os.environ['RUN_ID'], 'Publishing requires the release Daemon CI run'
           elif version != holder_version:
               print(f'::warning::Kit is at {version}, not the Holder version {holder_version}; it cannot be published')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
           PY
-      - id: run
-        name: Check the Daemon CI run
-        if: inputs.daemon_ci_run_id
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ inputs.daemon_ci_run_id }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
-            echo "daemon_ci_run_id must be numeric; got '$RUN_ID'" >&2
-            exit 1
-          fi
-          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
-          path="$(jq -r '.path' <<< "$run")"
-          conclusion="$(jq -r '.conclusion' <<< "$run")"
-          head_sha="$(jq -r '.head_sha' <<< "$run")"
-          if [ "$path" != .github/workflows/daemon-ci.yml ] || [ "$conclusion" != success ]; then
-            echo "Run $RUN_ID is $path with conclusion $conclusion; a successful Daemon CI run is required." >&2
-            exit 1
-          fi
-          if [ "$head_sha" != "$GITHUB_SHA" ]; then
-            echo "Run $RUN_ID built $head_sha, not this commit $GITHUB_SHA." >&2
-            exit 1
-          fi
-          echo "commit=$head_sha" >> "$GITHUB_OUTPUT"
 
   core-sdk:
-    # Release SDKs from core/ in this commit, when no Daemon CI run supplies them.
+    # Kit is built against core from this same commit, through core's Release SDKs.
     needs: prepare
-    if: ${{ !inputs.daemon_ci_run_id }}
     uses: ./.github/workflows/core-sdk.yml
     with:
       build_type: Release
 
   wheels:
     needs: [prepare, core-sdk]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.core-sdk.result) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     strategy:
@@ -131,9 +94,8 @@ jobs:
       - name: Fetch the Release core SDK
         uses: ./.github/actions/core-sdk
         with:
-          commit: ${{ needs.prepare.outputs.run_commit || needs.core-sdk.outputs.commit }}
+          commit: ${{ needs.core-sdk.outputs.commit }}
           build-type: Release
-          run-id: ${{ inputs.daemon_ci_run_id }}
       - name: Configure Python build tools
         shell: bash
         run: |
@@ -218,7 +180,6 @@ jobs:
 
   sdist:
     needs: [prepare, core-sdk]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.core-sdk.result) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -235,9 +196,8 @@ jobs:
       - name: Fetch the Release core SDK
         uses: ./.github/actions/core-sdk
         with:
-          commit: ${{ needs.prepare.outputs.run_commit || needs.core-sdk.outputs.commit }}
+          commit: ${{ needs.core-sdk.outputs.commit }}
           build-type: Release
-          run-id: ${{ inputs.daemon_ci_run_id }}
       - name: Build and install the source archive with the Release SDK
         env:
           KIT_VERSION: ${{ needs.prepare.outputs.version }}
@@ -257,8 +217,7 @@ jobs:
           if-no-files-found: error
 
   distributions:
-    needs: [prepare, core-sdk, wheels, sdist]
-    if: ${{ !cancelled() && needs.wheels.result == 'success' && needs.sdist.result == 'success' }}
+    needs: [prepare, wheels, sdist]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -281,8 +240,6 @@ jobs:
         with:
           name: core-selection
           path: python/kit/out
-          github-token: ${{ inputs.daemon_ci_run_id && github.token || '' }}
-          run-id: ${{ inputs.daemon_ci_run_id || github.run_id }}
       - name: Verify the release set
         env:
           DESTINATION: ${{ inputs.destination || 'none' }}
@@ -306,7 +263,7 @@ jobs:
           path: python/kit/out/release-manifest.json
 
   publish:
-    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.destination != 'none' && needs.distributions.result == 'success' }}
+    if: github.event_name == 'workflow_dispatch' && inputs.destination != 'none'
     needs: distributions
     runs-on: ubuntu-24.04
     environment: ${{ inputs.destination }}
