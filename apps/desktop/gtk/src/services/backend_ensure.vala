@@ -18,7 +18,7 @@ private extern static string? macos_program_directory();
 
 // Makes sure a compatible daemon is running by running `holderctl ensure`, which knows how to
 // start one on each platform and reports through one JSON object and its exit status
-// (daemon/docs/ensure.md in holder-framework). A daemon started this way stops itself after
+// (daemon/docs/ensure.md in HolderTeam/holder). A daemon started this way stops itself after
 // IDLE_EXIT_SECONDS without a client; an already-running daemon, such as the Linux systemd
 // service, is left as it is.
 public class BackendEnsure : Object, IBackendStarter {
