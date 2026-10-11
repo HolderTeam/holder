@@ -3,3 +3,6 @@
 /daemon/VERSION
 __pycache__/
 *.pyc
+
+# vcpkg installed trees from the core and daemon CMake presets (${sourceDir}/../.vcpkg-holder-*).
+/.vcpkg-holder-*/

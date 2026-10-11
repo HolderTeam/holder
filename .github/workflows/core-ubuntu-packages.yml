@@ -1,17 +1,22 @@
-name: libholder Ubuntu packages
+name: Core / Ubuntu packages
 
 on:
   pull_request:
     paths:
-      - .github/workflows/debian-packages.yml
-      - CMakeLists.txt
-      - cmake/**
-      - packaging/linux/debian/**
-      - tests/installed-consumer/**
+      - .github/workflows/core-ubuntu-packages.yml
+      - core/CMakeLists.txt
+      - core/VERSION
+      - core/cmake/**
+      - core/packaging/linux/debian/**
+      - core/tests/installed-consumer/**
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: core
 
 jobs:
   noble:

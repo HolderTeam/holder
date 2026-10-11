@@ -1,10 +1,14 @@
-name: Native sanitizers
+name: Core / Sanitizers
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: core
 
 jobs:
   address-undefined:
@@ -13,7 +17,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Check out holder-core
+      - name: Check out holder
         uses: actions/checkout@v7
         with:
           persist-credentials: false

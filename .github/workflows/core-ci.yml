@@ -1,30 +1,40 @@
-name: Holder core
+name: Core / CI
 
 on:
   pull_request:
+    paths:
+      - core/**
+      - .github/workflows/core-ci.yml
   push:
     branches:
       - main
+    paths:
+      - core/**
+      - .github/workflows/core-ci.yml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: core
 
 jobs:
   linux:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Check out holder-core
+      - name: Check out holder
         uses: actions/checkout@v4
 
       - name: Restore apt package cache
         uses: actions/cache/restore@v4
         with:
-          path: .apt-cache/debs
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core.yml') }}-
+            apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-
             apt-${{ runner.os }}-
 
       - name: Install dependencies
@@ -56,8 +66,8 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
-          path: .apt-cache/debs
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON
@@ -73,10 +83,10 @@ jobs:
 
       - name: Verify installed package
         run: |
-          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/out/install/linux"
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux"
           cmake --build out/consumer --parallel
           ctest --test-dir out/consumer --output-on-failure
-          cmake -S tests/installed-consumer -B out/consumer-shared -DCMAKE_PREFIX_PATH="${{ github.workspace }}/out/install/linux" -DHOLDER_CONSUMER_SHARED=ON
+          cmake -S tests/installed-consumer -B out/consumer-shared -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux" -DHOLDER_CONSUMER_SHARED=ON
           cmake --build out/consumer-shared --parallel
           ctest --test-dir out/consumer-shared --output-on-failure
 
@@ -87,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: holder-core-coverage
-          path: build-coverage/coverage/**
+          path: core/build-coverage/coverage/**
           if-no-files-found: error
           retention-days: 7
 
@@ -95,7 +105,7 @@ jobs:
     runs-on: macos-15
 
     steps:
-      - name: Check out holder-core
+      - name: Check out holder
         uses: actions/checkout@v4
 
       - name: Install dependencies
@@ -145,7 +155,7 @@ jobs:
 
       - name: Verify installed package
         run: |
-          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
           cmake --build out/consumer --parallel
           ctest --test-dir out/consumer --output-on-failure
 
@@ -153,7 +163,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Check out holder-core
+      - name: Check out holder
         uses: actions/checkout@v4
 
       - name: Set up MSVC developer environment
@@ -169,9 +179,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakePresets.json') }}-
+            vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-
             vcpkg-${{ runner.os }}-
 
       - name: Bootstrap vcpkg
@@ -195,7 +205,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Install
         run: cmake --install out/build/windows-vcpkg-debug --prefix out/install/windows
@@ -205,9 +215,9 @@ jobs:
         run: |
           cmake -S tests/installed-consumer -B out/consumer -G Ninja -DCMAKE_BUILD_TYPE=Debug `
             "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            "-DVCPKG_INSTALLED_DIR=${{ github.workspace }}/../.vcpkg-holder-core" `
+            "-DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.vcpkg-holder-core" `
             -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_MANIFEST_MODE=OFF `
-            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/out/install/windows"
+            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/core/out/install/windows"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build out/consumer --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
