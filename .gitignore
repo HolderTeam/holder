@@ -1,5 +1,5 @@
 
-# Copied here only while building the Debian source package (see daemon-launchpad.yml).
+# Copied here only while building the Debian source package (see release-launchpad.yml).
 /daemon/VERSION
 __pycache__/
 *.pyc
