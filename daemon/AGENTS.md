@@ -10,7 +10,7 @@ Shared `boost::asio::io_context` instances are owned by dedicated I/O threads. R
 
 Preserve request-data lifetimes and worker-owned database access. Treat intermittent memory corruption, iterator invalidation, and concurrency failures as real defects, not CI noise.
 
-When changing an HTTP route, update `api/openapi.yaml` (at the repository root) and test it in the same change where applicable.
+When changing an HTTP route, update `api/openapi.yaml` (at the repository root) and test it in the same change where applicable. Follow "Changing the contract" in `api/README.md`: a breaking change needs a new `API_VERSION`, and a change in meaning is written into the contract's descriptions.
 
 # Core dependency selection
 
