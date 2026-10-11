@@ -278,7 +278,7 @@ elseif(HOLDER_USE_SYSTEM_CORE)
   set(HOLDER_CORE_WELCOME "${holder_DATA_DIR}/resources/WELCOME.md")
 else()
   if(NOT EXISTS "${HOLDER_CORE_SDK}/libholder-manifest.json")
-    message(FATAL_ERROR "Missing core SDK. Resolve and fetch with holder-core/scripts/core-sdk.py, then set HOLDER_CORE_SDK. Source builds require an explicit HOLDER_CORE_SOURCE_DIR.")
+    message(FATAL_ERROR "No core selected. Set HOLDER_CORE_SOURCE_DIR to ../core (as make.sh does), HOLDER_CORE_SDK to an installed core SDK, or HOLDER_USE_SYSTEM_CORE.")
   endif()
   file(READ "${HOLDER_CORE_SDK}/libholder-manifest.json" _core_manifest)
   string(JSON _core_build_type GET "${_core_manifest}" build_type)
@@ -324,7 +324,7 @@ configure_file("${HOLDER_CORE_WELCOME}"
   "${CMAKE_CURRENT_BINARY_DIR}/config/WELCOME.md" COPYONLY)
 
 # Keep a build-tree schema beside holderd for development runs and staged artifacts.
-# The only tracked schema source remains in holder-core.
+# The only tracked schema source is core's, installed with it.
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/schema")
 configure_file("${HOLDER_CORE_SCHEMA}"
   "${CMAKE_CURRENT_SOURCE_DIR}/schema/schema.sql" COPYONLY)

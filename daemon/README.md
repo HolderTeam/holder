@@ -36,17 +36,16 @@ Coverage tooling (optional):
 ## Building
 
 `./make.sh` builds, runs the tests, then starts `holderd`.
-It downloads core on the first build and reuses it afterwards.
-Run `./make.sh core-update` to get a newer version. On Fedora, it builds
-`../../holder-core` instead.
+It builds core from `../core` in this repository together with the daemon,
+so a core change is picked up on the next build.
 
 ```sh
 ./make.sh build               # Build without starting the daemon
 ./make.sh test                # Build and run the tests
 ```
 
-See [core build options](docs/core-builds.md) for version pins, source builds,
-SDK overrides and release builds.
+See [core build options](docs/core-builds.md) for using an installed core SDK or
+package instead, and for how CI and releases build against core.
 
 Model catalog config lives at `config/models.yaml` and is served by the API at `/models.yaml`.
 
@@ -91,8 +90,6 @@ sudo dnf install -y \
   'pkgconfig(libgit2)' md4c-devel catch-devel libsodium-devel libsecret-devel \
   clang18-tools-extra
 
-# If holder-core is not already checked out beside holder-framework:
-git clone https://github.com/HolderTeam/holder-core.git ../../holder-core
 ./make.sh
 ```
 
@@ -128,16 +125,16 @@ HOLDER_SAN_BUILD_DIR=build-tsan ./make.sh san thread
 
 On Fedora, an uninstrumented glibc can produce a ThreadSanitizer report in
 `tzset_internal` during concurrent libgit2 signature creation. If the report matches
-the documented internal-lock case in holder-core, rerun with its explicit suppression:
+the documented internal-lock case in core, rerun with its explicit suppression:
 
 ```sh
 HOLDER_SAN_BUILD_DIR=build-tsan \
-  HOLDER_TSAN_SUPPRESSIONS="$PWD/../../holder-core/tools/tsan/glibc.supp" \
+  HOLDER_TSAN_SUPPRESSIONS="$PWD/../core/tools/tsan/glibc.supp" \
   HOLDER_CTEST_TIMEOUT=900 ./make.sh san thread
 ```
 
 This suppression is opt-in and does not cover Holder code. See the rationale and
-source references in [glibc.supp](../../holder-core/tools/tsan/glibc.supp).
+source references in [glibc.supp](../core/tools/tsan/glibc.supp).
 
 ## Quick Start (FreeBSD)
 
