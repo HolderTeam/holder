@@ -149,6 +149,9 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         managedDevices {
+            // Every device below is an x86_64 image without ARM translation, so each names the ABI
+            // it tests: AGP defaults to x86_64 today but switches to arm64-v8a in AGP 10.
+            //
             // minSdk floor. Left as a generic old profile rather than matched to real hardware:
             // an old device paired with an old API level is an unremarkable combination.
             //
@@ -170,6 +173,7 @@ android {
                 apiLevel = 28
                 systemImageSource = "google"
                 require64Bit = true
+                testedAbi = "x86_64"
             }
             // Fast, reliable near-floor coverage while pixel2Api28 above is parked -- aosp-atd is
             // the lightest image source that exists at all (no GMS background stack), but only
@@ -179,6 +183,7 @@ android {
                 apiLevel = 30
                 systemImageSource = "aosp-atd"
                 require64Bit = true
+                testedAbi = "x86_64"
             }
             // Recent-Android coverage on a long-settled image. "Pixel 6" reads sensibly next to
             // a modern API level and matches a real device on the team, so a failure here can
@@ -190,6 +195,7 @@ android {
                 apiLevel = 34
                 systemImageSource = "aosp"
                 require64Bit = true
+                testedAbi = "x86_64"
             }
             // The SDK level the app actually ships against (targetSdk 37, and a Play submission
             // requirement). Its AOSP emulator image under CI's software renderer is genuinely
@@ -204,6 +210,7 @@ android {
                 apiLevel = 36
                 systemImageSource = "aosp-atd"
                 require64Bit = true
+                testedAbi = "x86_64"
                 pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_4KB_PAGES
             }
             groups.create("ciPhones") {

@@ -29,6 +29,7 @@ import team.holder.android.diagnostics.DiagnosticsEntry
 import team.holder.android.diagnostics.DiagnosticsLog
 import team.holder.android.diagnostics.diagnosticsLogFile
 import team.holder.android.ui.CenteredMessage
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -40,16 +41,19 @@ private val DIAGNOSTICS_TIME_FORMAT =
  * An activity log for this device -- sync attempts today, saves/restores/failures later -- not
  * a programmer's console; see [team.holder.android.sync.GitSyncWorker] for the one source that
  * currently records into it. Read-only: there's no in-app action that clears or edits entries.
+ * [logFile] is the device's log unless a test passes its own.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiagnosticsSettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
+fun DiagnosticsSettingsScreen(
+    onBack: () -> Unit,
+    logFile: File = diagnosticsLogFile(LocalContext.current),
+) {
     var entries by remember { mutableStateOf<List<DiagnosticsEntry>?>(null) }
 
     LaunchedEffect(Unit) {
         entries = withContext(Dispatchers.IO) {
-            DiagnosticsLog.read(diagnosticsLogFile(context))
+            DiagnosticsLog.read(logFile)
         }
     }
 
