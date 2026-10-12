@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Restore apt package cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: core/.apt-cache/debs
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -96,7 +96,7 @@ jobs:
 
       - name: Save apt package cache
         if: success() && github.event_name != 'pull_request'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: core/.apt-cache/debs
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -215,7 +215,7 @@ jobs:
           "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
 
       - name: Restore vcpkg binary package cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -241,7 +241,7 @@ jobs:
 
       - name: Save vcpkg binary package cache
         if: success() && github.event_name != 'pull_request'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}

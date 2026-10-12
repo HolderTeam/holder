@@ -120,7 +120,7 @@ jobs:
 
       - name: Restore vcpkg binary package cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-binary-cache
           key: vcpkg-android-arm64-${{ runner.os }}-${{ hashFiles('core/vcpkg.json') }}
@@ -146,7 +146,7 @@ jobs:
 
       - name: Save vcpkg binary package cache
         if: success() && github.event_name != 'pull_request' && steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .vcpkg-binary-cache
           key: vcpkg-android-arm64-${{ runner.os }}-${{ hashFiles('core/vcpkg.json') }}
@@ -220,7 +220,7 @@ jobs:
 
       - name: Restore x86_64 vcpkg binary package cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-binary-cache
           key: vcpkg-android-x86_64-${{ runner.os }}-${{ hashFiles('core/vcpkg.json') }}
@@ -261,7 +261,7 @@ jobs:
         if: >-
           success() && github.event_name != 'pull_request' &&
           steps.vcpkg-cache.outputs.cache-hit != 'true' && matrix.device == 'pixel2Api30'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .vcpkg-binary-cache
           key: vcpkg-android-x86_64-${{ runner.os }}-${{ hashFiles('core/vcpkg.json') }}
@@ -319,7 +319,7 @@ jobs:
 
       - name: Restore x86_64 vcpkg binary package cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-binary-cache
           key: vcpkg-android-x86_64-${{ runner.os }}-${{ hashFiles('core/vcpkg.json') }}
