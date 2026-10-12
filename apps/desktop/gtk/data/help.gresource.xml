@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/team/holder/Holder/help">
+    <file alias="toolbox/connections.md">help/toolbox/connections.md</file>
+    <file alias="toolbox/flowboard.md">help/toolbox/flowboard.md</file>
+    <file alias="toolbox/resources.md">help/toolbox/resources.md</file>
+    <file alias="toolbox/milestones.md">help/toolbox/milestones.md</file>
+    <file alias="toolbox/history.md">help/toolbox/history.md</file>
+    <file alias="toolbox/sharing.md">help/toolbox/sharing.md</file>
+    <file alias="toolbox/terminals.md">help/toolbox/terminals.md</file>
+    <file alias="toolbox/git.md">help/toolbox/git.md</file>
+    <file alias="toolbox/recovery.md">help/toolbox/recovery.md</file>
+    <file alias="toolbox/trash.md">help/toolbox/trash.md</file>
+    <file alias="toolbox/debug.md">help/toolbox/debug.md</file>
+  </gresource>
+  <gresource prefix="/team/holder/Holder/assets">
+    <file alias="holder.jpg">img/holder.jpg</file>
+  </gresource>
+  <gresource prefix="/team/holder/Holder/icons">
+    <file alias="16x16/apps/team.holder.Holder.png">data/icons/hicolor/16x16/apps/team.holder.Holder.png</file>
+    <file alias="24x24/apps/team.holder.Holder.png">data/icons/hicolor/24x24/apps/team.holder.Holder.png</file>
+    <file alias="32x32/apps/team.holder.Holder.png">data/icons/hicolor/32x32/apps/team.holder.Holder.png</file>
+    <file alias="48x48/apps/team.holder.Holder.png">data/icons/hicolor/48x48/apps/team.holder.Holder.png</file>
+    <file alias="64x64/apps/team.holder.Holder.png">data/icons/hicolor/64x64/apps/team.holder.Holder.png</file>
+    <file alias="128x128/apps/team.holder.Holder.png">data/icons/hicolor/128x128/apps/team.holder.Holder.png</file>
+    <file alias="256x256/apps/team.holder.Holder.png">data/icons/hicolor/256x256/apps/team.holder.Holder.png</file>
+    <file alias="512x512/apps/team.holder.Holder.png">data/icons/hicolor/512x512/apps/team.holder.Holder.png</file>
+    <!-- The development launcher's local hicolor index only lists app icon directories. -->
+    <file alias="16x16/apps/holder-tag-symbolic.svg">data/icons/hicolor/scalable/actions/holder-tag-symbolic.svg</file>
+    <!-- Bundle these theme fallbacks: macOS installations may omit the emblems. -->
+    <file alias="16x16/apps/emblem-documents-symbolic.svg">data/icons/hicolor/scalable/actions/emblem-documents-symbolic.svg</file>
+    <file alias="16x16/apps/emblem-ok-symbolic.svg">data/icons/hicolor/scalable/actions/emblem-ok-symbolic.svg</file>
+  </gresource>
+</gresources>

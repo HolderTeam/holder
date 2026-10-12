@@ -1,0 +1,120 @@
+namespace HolderLinux {
+
+internal interface IAiCatalogProviderSource : Object {
+    public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
+}
+
+internal class HolderApiAiCatalogProviderSource : Object, IAiCatalogProviderSource {
+    private IHolderApi api;
+
+    public HolderApiAiCatalogProviderSource(IHolderApi api) {
+        this.api = api;
+    }
+
+    public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error {
+        return yield api.list_ai_provider_catalog();
+    }
+}
+
+public class AiCatalogPanelView : Object {
+    private IAiCatalogProviderSource? catalog_source;
+    private uint refresh_serial = 0;
+    private AiCatalogController controller;
+    private Gtk.ListBox ai_catalog_list;
+
+    public Gtk.Widget widget { get; private set; }
+
+    public signal void error_reported(string title, string details);
+    public signal void debug_log_requested(string line);
+
+    public AiCatalogPanelView() {
+        controller = new AiCatalogController();
+        widget = build_ui();
+    }
+
+    public void set_api_client(IHolderApi? api) {
+        set_catalog_source(api != null ? new HolderApiAiCatalogProviderSource(api) : null);
+    }
+
+    internal void set_catalog_source(IAiCatalogProviderSource? source) {
+        catalog_source = source;
+        // A load still running for the previous source must not render its rows.
+        refresh_serial++;
+    }
+
+    public async void refresh() {
+        if (catalog_source == null) {
+            return;
+        }
+        var serial = ++refresh_serial;
+        clear_list_box(ai_catalog_list);
+        try {
+            var providers = yield catalog_source.list_ai_provider_catalog();
+            // Refreshing twice (or swapping the source) while a load is running leaves only the newest
+            // answer to render; otherwise every overlapping load appends its own copy of the rows.
+            if (serial != refresh_serial) {
+                return;
+            }
+            if (providers.size == 0) {
+                ai_catalog_list.append(new Gtk.Label("No providers in catalog.") { xalign = 0.0f });
+                return;
+            }
+            foreach (var provider in providers) {
+                var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+                var title_label = new Gtk.Label(controller.title_for_provider(provider)) { xalign = 0.0f };
+                title_label.add_css_class("title-5");
+                var detail_label = new Gtk.Label(controller.status_for_provider(provider)) { xalign = 0.0f };
+                detail_label.add_css_class("dim-label");
+                detail_label.set_wrap(true);
+                row.append(title_label);
+                row.append(detail_label);
+                if (controller.has_urls(provider)) {
+                    var urls = new Gtk.Label(controller.urls_for_provider(provider)) { xalign = 0.0f };
+                    urls.add_css_class("caption");
+                    urls.add_css_class("dim-label");
+                    urls.set_wrap(true);
+                    row.append(urls);
+                }
+                ai_catalog_list.append(row);
+            }
+            debug_log_requested("AI catalog refreshed: %d providers".printf(providers.size));
+        } catch (Error e) {
+            if (serial != refresh_serial) {
+                return;
+            }
+            debug_log_requested("AI catalog refresh failed: %s".printf(e.message));
+            error_reported("AI catalog refresh failed", e.message);
+        }
+    }
+
+    private Gtk.Widget build_ui() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var refresh_btn = new Gtk.Button.with_label("Refresh Catalog");
+        refresh_btn.clicked.connect(() => {
+            refresh.begin();
+        });
+        actions.append(refresh_btn);
+        box.append(actions);
+
+        ai_catalog_list = new Gtk.ListBox();
+        ai_catalog_list.set_selection_mode(Gtk.SelectionMode.NONE);
+
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_vexpand(true);
+        scroll.set_child(ai_catalog_list);
+        box.append(scroll);
+        return box;
+    }
+
+    private void clear_list_box(Gtk.ListBox list) {
+        Gtk.Widget? child = list.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            list.remove(child);
+            child = next;
+        }
+    }
+}
+
+}

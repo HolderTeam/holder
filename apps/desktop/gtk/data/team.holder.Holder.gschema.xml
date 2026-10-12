@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="team.holder.Holder" path="/team/holder/Holder/">
+    <key name="style-variant" type="s">
+      <default>'default'</default>
+      <summary>Preferred application style variant</summary>
+      <description>
+        One of: default, force-light, force-dark.
+      </description>
+    </key>
+    <key name="style-scheme-id" type="s">
+      <default>''</default>
+      <summary>Preferred GtkSourceView style scheme id</summary>
+      <description>
+        Empty string means no explicit override.
+      </description>
+    </key>
+    <key name="use-custom-editor-font" type="b">
+      <default>false</default>
+      <summary>Use a custom editor font</summary>
+      <description>
+        If true, the editor uses the font stored in custom-editor-font.
+      </description>
+    </key>
+    <key name="custom-editor-font" type="s">
+      <default>'Monospace 11'</default>
+      <summary>Custom editor font</summary>
+      <description>
+        A Pango font description containing the editor font family, face, and size.
+      </description>
+    </key>
+    <key name="show-line-numbers" type="b">
+      <default>true</default>
+      <summary>Show line numbers in the editor</summary>
+      <description>
+        If true, the editor displays line numbers in the gutter.
+      </description>
+    </key>
+    <key name="show-spell-checking" type="b">
+      <default>true</default>
+      <summary>Show spell checking in the editor</summary>
+      <description>
+        If true, misspelled words are underlined in the editor.
+      </description>
+    </key>
+    <key name="show-inline-image-previews" type="b">
+      <default>false</default>
+      <summary>Show inline image previews</summary>
+      <description>
+        If true, images referenced by Holder resource links are displayed inside the editor.
+        Spell checking is paused on cards while inline previews are present.
+      </description>
+    </key>
+    <key name="preserve-trailing-whitespace" type="b">
+      <default>false</default>
+      <summary>Preserve trailing whitespace on save</summary>
+      <description>
+        If true, spaces and tabs at the ends of lines are kept exactly as typed or pasted, and
+        trim-two-space-hard-breaks and trim-whitespace-in-code-blocks have no effect.
+      </description>
+    </key>
+    <key name="trim-two-space-hard-breaks" type="b">
+      <default>false</default>
+      <summary>Trim two-space Markdown hard breaks on save</summary>
+      <description>
+        If true, a genuine two-or-more-space hard-break run at the end of a line is stripped to
+        nothing on save, the same as ordinary trailing whitespace, instead of being kept as a
+        two-space hard break. Has no effect when preserve-trailing-whitespace is true.
+      </description>
+    </key>
+    <key name="trim-whitespace-in-code-blocks" type="b">
+      <default>false</default>
+      <summary>Trim trailing whitespace inside fenced code blocks on save</summary>
+      <description>
+        If true, trailing spaces and tabs inside fenced code blocks are stripped on save the
+        same as ordinary lines, instead of being preserved literally. Has no effect when
+        preserve-trailing-whitespace is true.
+      </description>
+    </key>
+    <key name="no-plaintext-recovery-files" type="b">
+      <default>false</default>
+      <summary>Do not write plaintext editor recovery files</summary>
+      <description>
+        If true, Holder will not keep readable emergency copies of unsaved cards. This improves
+        local privacy, but recent changes may be lost if the backend is unavailable when Holder
+        closes or crashes.
+      </description>
+    </key>
+    <key name="window-width" type="i">
+      <default>1200</default>
+      <summary>Window width in pixels</summary>
+      <description>
+        Last non-maximized window width.
+      </description>
+    </key>
+    <key name="window-height" type="i">
+      <default>800</default>
+      <summary>Window height in pixels</summary>
+      <description>
+        Last non-maximized window height.
+      </description>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Whether the window was maximized at close</summary>
+      <description>
+        If true, startup restores maximized state.
+      </description>
+    </key>
+    <key name="sidebar-width" type="i">
+      <default>280</default>
+      <summary>Explorer sidebar width in pixels</summary>
+      <description>
+        Last width used for the left explorer sidebar.
+      </description>
+    </key>
+    <key name="ai-panel-width" type="i">
+      <default>0</default>
+      <summary>AI panel width in pixels</summary>
+      <description>
+        Last user-resized width for the AI panel. Zero means automatic width.
+      </description>
+    </key>
+    <key name="asset-preview-width" type="i">
+      <default>0</default>
+      <summary>Asset Preview width in pixels</summary>
+      <description>
+        Last user-resized width for Asset Preview. Zero means automatic width.
+      </description>
+    </key>
+    <key name="tiny-close-streak" type="i">
+      <default>0</default>
+      <summary>Consecutive closes with tiny window size</summary>
+      <description>
+        Counts consecutive closes below the minimum recommended size.
+      </description>
+    </key>
+    <key name="custom-card-link-kinds" type="as">
+      <default>[]</default>
+      <summary>Custom graph link kinds used in the add-link dialog</summary>
+      <description>
+        User-defined card link kinds shown alongside default presets.
+      </description>
+    </key>
+    <key name="git-github-username" type="s">
+      <default>''</default>
+      <summary>Last used GitHub username in guided setup</summary>
+      <description>
+        Used to prefill the guided Git sync setup for subsequent projects.
+      </description>
+    </key>
+    <key name="update-last-check-at" type="x">
+      <default>0</default>
+      <summary>Last automatic update check time</summary>
+      <description>
+        Unix timestamp of the last background update check attempt.
+      </description>
+    </key>
+    <key name="update-last-prompt-version" type="s">
+      <default>''</default>
+      <summary>Last update version shown to the user</summary>
+      <description>
+        Latest release version for which Holder showed an upgrade prompt.
+      </description>
+    </key>
+    <key name="update-last-prompt-at" type="x">
+      <default>0</default>
+      <summary>Last update prompt time</summary>
+      <description>
+        Unix timestamp of the last upgrade prompt shown to the user.
+      </description>
+    </key>
+    <key name="terminal-powershell-path" type="s">
+      <default>''</default>
+      <summary>Last verified PowerShell executable path</summary>
+    </key>
+    <key name="terminal-powershell-version" type="s">
+      <default>''</default>
+      <summary>Last verified PowerShell version</summary>
+    </key>
+    <key name="terminal-windows-terminal-path" type="s">
+      <default>''</default>
+      <summary>Last verified Windows Terminal executable path</summary>
+    </key>
+    <key name="terminal-winget-path" type="s">
+      <default>''</default>
+      <summary>Last discovered WinGet executable path</summary>
+    </key>
+  </schema>
+</schemalist>
