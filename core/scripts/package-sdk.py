@@ -49,6 +49,8 @@ def main():
         root = Path(temp)
         staged = root / "libholder-sdk"
         shutil.copytree(args.install, staged)
+        # GPLv3: whoever receives the SDK receives the licence with it.
+        shutil.copy2(Path(__file__).resolve().parents[1] / "LICENSE", staged / "LICENSE")
         if platform == "windows":
             if not args.vcpkg_installed or not args.vcpkg_root:
                 parser.error("Windows SDKs require --vcpkg-installed and --vcpkg-root")
@@ -92,6 +94,8 @@ def main():
             with tarfile.open(archive, "r:gz") as package:
                 package.extractall(extracted)
         sdk = extracted / "libholder-sdk"
+        if not (sdk / "LICENSE").is_file():
+            parser.error("SDK archive is missing LICENSE")
         source = root / "consumer"
         source.mkdir()
         (source / "CMakeLists.txt").write_text(
