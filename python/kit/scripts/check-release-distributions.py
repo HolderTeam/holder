@@ -29,7 +29,7 @@ def main() -> None:
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     description = render_readme(Path("README.md").read_text(encoding="utf-8"), Path.cwd(), commit)
     platforms = set(wheel_platforms)
-    expected = {(python, platform) for python in ("cp310", "cp311", "cp312", "cp313", "cp314")
+    expected = {(python, platform) for python in ("cp310", "cp311", "cp312", "cp313", "cp314", "cp315")
                 for platform in platforms}
     found: set[tuple[str, str]] = set()
     files = sorted(args.directory.iterdir())

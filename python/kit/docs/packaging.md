@@ -51,7 +51,7 @@ installed SDK-wheel smoke test, including `_core_build.json` validation.
 
 `Release / Kit to PyPI`
 ([`release-kit-pypi.yml`](../../../.github/workflows/release-kit-pypi.yml))
-builds wheels for CPython 3.10–3.14 and a source archive. Supported wheel platforms are:
+builds wheels for CPython 3.10–3.15 and a source archive. Supported wheel platforms are:
 
 | Platform | Architecture | Minimum runtime |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Each wheel is installed in a fresh virtualenv and tested before optional
 adapters are installed, then runs the installed integration tests. Linux also
 runs in clean Debian Python containers. The source archive is built and
 installed with the same Release SDK. The final distribution check requires all
-15 wheels and the source archive, checks each wheel's core against the SDKs'
+18 wheels and the source archive, checks each wheel's core against the SDKs'
 `core-selection`, validates metadata, and records the core and the file sizes
 and SHA256 hashes in the `kit-release-manifest` artifact.
 
