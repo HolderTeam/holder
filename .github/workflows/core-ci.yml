@@ -271,10 +271,11 @@ jobs:
     uses: ./.github/workflows/core-sdk.yml
 
   publish-sdk:
-    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree>, once core's
+    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree> once core's
     # tests and SDKs have passed, so pull requests and people building on Holder can take them
-    # instead of building core. Only main may use the holder-sdk-publish environment, which holds
-    # the publishing app's key; pull requests never run this job.
+    # instead of building core, and keeps the newest 32 such releases. Only main may use the
+    # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
+    # run this job.
     needs: [linux, macos, windows, sdk]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -322,6 +323,11 @@ jobs:
         run: >-
           .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
           "${{ steps.tree.outputs.tree }}"
+
+      - name: Keep the newest 32 core-<tree> releases
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: .github/scripts/prune-sdk-releases.sh core- 32
 
   result:
     name: Core CI result
