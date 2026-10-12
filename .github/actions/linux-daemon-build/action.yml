@@ -88,6 +88,13 @@ runs:
         path: .ccache
         key: ccache-${{ runner.os }}-${{ inputs.build-type }}-${{ inputs.build-testing }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+    - name: Remove older compiler caches
+      if: github.event_name != 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: .github/scripts/prune-ccache.sh "ccache-${{ runner.os }}-${{ inputs.build-type }}-${{ inputs.build-testing }}-"
+
     - name: Stage installed backend
       shell: bash
       working-directory: daemon

@@ -75,6 +75,10 @@ jobs:
     # so a Python-only change normally restores it; otherwise this job builds it once.
     needs: [changes, core-sdk]
     if: needs.changes.outputs.python == 'true'
+    # actions: write lets the daemon build delete this branch's older compiler caches.
+    permissions:
+      actions: write
+      contents: read
     runs-on: ubuntu-24.04
     env:
       BUILD_TYPE: RelWithDebInfo
