@@ -270,6 +270,59 @@ jobs:
     if: needs.changes.outputs.core == 'true'
     uses: ./.github/workflows/core-sdk.yml
 
+  publish-sdk:
+    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree>, once core's
+    # tests and SDKs have passed, so pull requests and people building on Holder can take them
+    # instead of building core. Only main may use the holder-sdk-publish environment, which holds
+    # the publishing app's key; pull requests never run this job.
+    needs: [linux, macos, windows, sdk]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: holder-sdk-publish
+    concurrency:
+      group: holder-sdk-publish
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: tree
+        name: Identify core/'s tree
+        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-sdk-*-RelWithDebInfo
+          path: out/core-sdk-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: core-selection
+          path: out
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish core-<tree>
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
+          "${{ steps.tree.outputs.tree }}"
+
   result:
     name: Core CI result
     # The required check. It runs even when jobs fail or are skipped, and passes only when every

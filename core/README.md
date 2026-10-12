@@ -305,6 +305,12 @@ against: `Release / Promote core SDK` copies them, with their index, from the
 release's Daemon CI run to the `holder-v<VERSION>` release. Outside embedders use
 those, or build from source.
 
+After core's tests and SDKs pass on `main`, Core / CI publishes that commit's
+`RelWithDebInfo` SDKs to [HolderTeam/holder-sdk](https://github.com/HolderTeam/holder-sdk)
+as the prerelease `core-<tree>`, named after core/'s Git tree, with an
+`sdk-index.json` of sizes, checksums and download URLs. A tree that already has
+a release is not published again. Every archive includes core's `LICENSE`.
+
 ### SDK tool
 
 `scripts/core-sdk.py` checks and unpacks an SDK archive for a build. `index`
