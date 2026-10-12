@@ -10,6 +10,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -194,8 +196,12 @@ class ComposeUiTest {
 
     @Test
     fun diagnosticsSettingsScreen_showsEmptyState() {
+        // Its own missing file, not the app's real log: a device that has run the app keeps
+        // entries there across test runs, and the screen would rightly list them instead.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val logFile = context.cacheDir.resolve("diagnostics-empty-${UUID.randomUUID()}/log.json")
         composeRule.setContent {
-            DiagnosticsSettingsScreen(onBack = {})
+            DiagnosticsSettingsScreen(onBack = {}, logFile = logFile)
         }
 
         // The log file read happens on a background dispatcher the compose test clock doesn't
