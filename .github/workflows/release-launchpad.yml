@@ -4,9 +4,10 @@ name: Release / Launchpad
 # holder-core (libholder0, libholder-dev), holder-daemon, holder-kit (python3-holder-kit) and
 # holder-desktop (holder-desktop, holder), for each series. A holder-v* tag uploads all four.
 # Launchpad orders the builds: holder-daemon and holder-kit wait for libholder-dev from the same
-# upload. holder-desktop needs nothing from the others to build. A manual run can upload one package,
-# for a packaging-only fix with a new Debian revision. Pull requests that change the packaging
-# build the source packages unsigned and stop there, so the upload path is tested without
+# upload. holder-desktop needs nothing from the others to build, and requires the holder-daemon of
+# its release or newer to install. A manual run can upload one package, for a packaging-only fix
+# with a new Debian revision. Pull requests that change the packaging build the source packages
+# unsigned and stop there, so the upload path is tested without
 # publishing anything.
 
 on:
@@ -113,6 +114,13 @@ jobs:
             # this upload rather than building against an older core already in the PPA.
             sed -i "s/libholder-dev (>= [^)]*)/libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)/" debian/control
             grep -F "libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)" debian/control
+          fi
+          if [ "$SOURCE" = holder-desktop ]; then
+            # The desktop starts its backend with the holderctl of its own release (holderctl
+            # ensure), so it needs that holder-daemon or newer. Debian revisions do not count, so a
+            # packaging-only fix of either package still satisfies it.
+            sed -i "s/holder-daemon (>= [^)]*)/holder-daemon (>= ${version})/" debian/control
+            grep -F "holder-daemon (>= ${version})" debian/control
           fi
           package_version="${version}-${PACKAGE_REVISION}~${SERIES}1"
           cat > debian/changelog <<EOF
