@@ -31,5 +31,5 @@ runs:
         BUILD_TYPE: ${{ inputs.build-type }}
       run: >-
         python core/scripts/core-sdk.py fetch --selection out/core-selection.json
-        --assets out/core-sdk-assets --cache .core-sdk
+        --assets out/core-sdk-assets --cache .core-sdk --install-dir .core-sdk/libholder-sdk
         --expected-commit "$CORE_COMMIT" --build-type "$BUILD_TYPE" --github-env

@@ -170,7 +170,10 @@ def index(assets_dir, commit=None, tree=None):
     return selection
 
 
-def fetch(selection, cache, system, architecture, build_type, assets_dir=None):
+def fetch(selection, cache, system, architecture, build_type, assets_dir=None, install_dir=None):
+    # Archives are cached by commit. The unpacked SDK goes beside its archive unless install_dir
+    # names a fixed place: CI uses one, because the SDK's path reaches the compiler's include
+    # flags, and a path naming the commit would make every compiler cache entry miss.
     asset = selected_asset(selection, system, architecture, build_type)
     root = cache / selection["commit"] / system / architecture / build_type
     root.mkdir(parents=True, exist_ok=True)
@@ -203,9 +206,10 @@ def fetch(selection, cache, system, architecture, build_type, assets_dir=None):
             # Normalize legacy snapshots as well as newly packaged SDKs. The
             # cached archive is preserved and rechecked against its checksum.
             relocate_windows_packages(sdk / "vcpkg/installed/x64-windows")
-        target = root / "libholder-sdk"
+        target = Path(install_dir) if install_dir is not None else root / "libholder-sdk"
         if target.exists():
             shutil.rmtree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(sdk), target)
     return target.resolve()
 
@@ -228,6 +232,8 @@ def main():
     download.add_argument("--github-env", action="store_true")
     download.add_argument("--expected-commit", help="Require the run-wide resolved commit")
     download.add_argument("--assets", type=Path, help="SDK archives for an artifact selection")
+    download.add_argument("--install-dir", type=Path,
+                          help="Unpack the SDK here instead of beside its cached archive")
     args = parser.parse_args()
     if args.command in ("resolve", "index"):
         selection = (resolve(args.core_ref) if args.command == "resolve"
@@ -242,7 +248,7 @@ def main():
         selection = json.loads(args.selection.read_text())
         if args.expected_commit:
             require(selection["commit"] == args.expected_commit, "SDK selection differs from the run-wide core commit")
-        sdk = fetch(selection, args.cache, *host(), args.build_type, args.assets)
+        sdk = fetch(selection, args.cache, *host(), args.build_type, args.assets, args.install_dir)
         cmake_args = ""
         if platform.system() == "Windows":
             cmake_args += (f' -DCMAKE_TOOLCHAIN_FILE="{sdk.as_posix()}/vcpkg/scripts/buildsystems/vcpkg.cmake"'
