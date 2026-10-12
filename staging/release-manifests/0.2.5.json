@@ -1,0 +1,45 @@
+{
+  "version": "0.2.5",
+  "core": {
+    "commit": "9f3155a328431c6a5bde1b6194895834ac751437",
+    "build_type": "Release"
+  },
+  "platforms": {
+    "linux": {
+      "desktop": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239118391",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      },
+      "backend": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239115380",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      }
+    },
+    "windows": {
+      "desktop": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239118391",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      },
+      "backend": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239115380",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      }
+    },
+    "macos": {
+      "desktop": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239118391",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      },
+      "backend": {
+        "repository": "HolderTeam/holder",
+        "run_id": "38239115380",
+        "commit": "9f3155a328431c6a5bde1b6194895834ac751437"
+      }
+    }
+  }
+}
