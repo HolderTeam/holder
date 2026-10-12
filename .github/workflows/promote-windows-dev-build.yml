@@ -147,11 +147,15 @@ jobs:
               --clobber \
               "${assets[@]}"
           else
-            echo "Creating prerelease ${RELEASE_TAG}"
-            gh release create "${RELEASE_TAG}" \
-              --repo "${RELEASE_REPOSITORY}" \
-              --prerelease \
-              --title "${RELEASE_TITLE}" \
-              --notes-file "${notes}" \
-              "${assets[@]}"
+            create_args=("${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" --prerelease
+              --title "${RELEASE_TITLE}" --notes-file "${notes}")
+            if [[ "${RELEASE_TAG}" == holder-v* ]]; then
+              # A product release starts as a draft, as the other promotions create it: publishing
+              # it would make GitHub create the tag at the tip of main, not on the release commit.
+              create_args+=(--draft)
+              echo "Creating draft ${RELEASE_TAG}"
+            else
+              echo "Creating prerelease ${RELEASE_TAG}"
+            fi
+            gh release create "${create_args[@]}" "${assets[@]}"
           fi
