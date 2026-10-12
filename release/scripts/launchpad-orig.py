@@ -19,15 +19,30 @@ import json
 import subprocess
 import sys
 import tarfile
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
 ARCHIVE = "https://api.launchpad.net/1.0/~holderteam/+archive/ubuntu/holder"
 
 
+def fetch(url, timeout=60, attempts=5, wait=10, sleep=time.sleep):
+    """Read a URL, retrying when Launchpad is briefly unavailable (5xx or a dropped connection)."""
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as response:
+                return response.read()
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            transient = not isinstance(error, urllib.error.HTTPError) or error.code >= 500
+            if not transient or attempt == attempts:
+                raise
+            print(f"Launchpad request failed ({error}); retrying in {wait * attempt}s", file=sys.stderr)
+            sleep(wait * attempt)
+
+
 def get_json(url):
-    with urllib.request.urlopen(url, timeout=60) as response:
-        return json.load(response)
+    return json.loads(fetch(url))
 
 
 def published_orig_url(source, version, request=get_json):
@@ -71,8 +86,7 @@ def main(argv=None):
     prefix = f"{args.source}-{args.version}/"
     url = published_orig_url(args.source, args.version)
     if url:
-        with urllib.request.urlopen(url, timeout=300) as response:
-            published = response.read()
+        published = fetch(url, timeout=300)
         expected = contents(git_archive(args.directory, prefix))
         if contents(gzip.decompress(published)) != expected:
             print(f"The PPA's {url.rsplit('/', 1)[-1]} does not match {args.directory}/ in this commit.", file=sys.stderr)
