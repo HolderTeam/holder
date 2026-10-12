@@ -7,6 +7,7 @@ The workflows are in `.github/workflows/` (`sign-*` and `promote-*`), as GitHub 
 - `docs/` - how release signing and verification work.
 - `keys/` - the public signing key that releases are checked against.
 - `scripts/` - the helpers the workflows call to verify and sign artifacts.
+- `website/` - the website, [www.holder.team](https://www.holder.team/): downloads, guides and the desktop update feed. See its README.
 
 ## Windows development builds
 

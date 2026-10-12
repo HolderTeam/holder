@@ -1,5 +1,9 @@
-# holder-website
-Website for the Holder project
+# Website
+
+The Holder website, [www.holder.team](https://www.holder.team/): what Holder is, downloads,
+guides, and the update feed (`version.json`) that installed desktop apps check. It lives under
+`release/` because it is the public face of a release; it is a static Jekyll site, not part of
+Holder itself.
 
 ## Local development
 
@@ -29,5 +33,5 @@ bundle exec jekyll serve
 
 The checked-in lockfile was generated with Bundler 2.4.20. Fedora 45 supplies
 a newer Ruby and Bundler; Bundler will report any compatibility issue during
-`bundle install`. The GitHub Pages deployment itself remains pinned to Ruby
-3.2 in [the Pages workflow](.github/workflows/pages.yml).
+`bundle install`. CI and the deployment pin Ruby 3.2: see
+[Website / CI](../../.github/workflows/website-ci.yml). Run these commands from this directory.
