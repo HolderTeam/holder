@@ -107,6 +107,9 @@ jobs:
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   linux:
     needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/daemon-linux-backend.yml
     with:
       core_commit: ${{ needs.core-sdk.outputs.commit }}
@@ -114,6 +117,9 @@ jobs:
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   macos:
     needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/daemon-macos-backend.yml
     with:
       core_commit: ${{ needs.core-sdk.outputs.commit }}
@@ -121,6 +127,9 @@ jobs:
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   windows:
     needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/daemon-windows-backend.yml
     with:
       core_commit: ${{ needs.core-sdk.outputs.commit }}
