@@ -45,7 +45,7 @@ jobs:
       SCOPED: ${{ github.event_name == 'pull_request' }}
     steps:
       - if: env.SCOPED == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -71,7 +71,7 @@ jobs:
     outputs:
       daemon_commit: ${{ steps.source.outputs.commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Validate SDK configuration
@@ -91,7 +91,7 @@ jobs:
     if: needs.changes.outputs.daemon == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Check the core boundary
@@ -163,7 +163,7 @@ jobs:
               > /etc/apt/preferences.d/no-ppa-libholder
           fi
           apt-get update
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.daemon_commit }}
           persist-credentials: false

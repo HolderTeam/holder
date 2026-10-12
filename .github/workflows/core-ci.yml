@@ -29,7 +29,7 @@ jobs:
       core: ${{ steps.select.outputs.core }}
     steps:
       - if: github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Check out holder
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Restore apt package cache
         uses: actions/cache/restore@v6
@@ -143,7 +143,7 @@ jobs:
 
     steps:
       - name: Check out holder
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -203,7 +203,7 @@ jobs:
 
     steps:
       - name: Check out holder
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up MSVC developer environment
         uses: ilammy/msvc-dev-cmd@v1
