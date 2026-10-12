@@ -13,7 +13,7 @@ permalink: /develop/windows/daemon/
 <section class="section">
   <div class="section-head">
     <h2>Install the tools</h2>
-    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>. You do not need to build Core separately: Daemon builds Core as part of its own build, from the Core folder you download in the next step.</p>
+    <p>As explained in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>, you need to install Git and create <code>$HOME\projects\holderteam</code>. You do not need to build Core separately: Daemon builds Core as part of its own build, from the <code>core</code> folder in the same download.</p>
     <p>If you don't have it yet, install <a href="https://visualstudio.microsoft.com/vs/community/">Visual Studio Community</a> (2022 or later), the program with the purple logo. Visual Studio Code is a different program. The installer groups tools into “workloads”; select <strong>Desktop development with C++</strong>, and accept the pre-selected CMake tools and Windows SDK.</p>
   </div>
 </section>
@@ -24,11 +24,10 @@ permalink: /develop/windows/daemon/
     <p>Open PowerShell and run these commands. The extra <code>--recurse-submodules</code> argument downloads fixed copies of smaller projects that Daemon needs to build.</p>
   </div>
   <pre><code>cd $HOME\projects\holderteam
-git clone --recurse-submodules https://github.com/HolderTeam/holder.git
-git clone https://github.com/HolderTeam/holder-core.git</code></pre>
+git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
   <div class="section-head following-copy">
-    <p>Daemon is the <code>daemon</code> folder inside <code>holder</code>. The Windows debug build compiles Core from the separate <code>holder-core</code> folder next to it, so changes you make in Core are used the next time you build Daemon. To change Core's logic, follow the <a href="{{ '/develop/windows/core/' | relative_url }}">Core guide</a> and make and test your changes in that repository.</p>
-    <p>If you cloned the framework without <code>--recurse-submodules</code>, use these commands before building:</p>
+    <p>Daemon is the <code>daemon</code> folder inside <code>holder</code>. The Windows debug build compiles Core from the <code>core</code> folder next to it, so changes you make in Core are used the next time you build Daemon. To work on Core's logic and run its own tests, follow the <a href="{{ '/develop/windows/core/' | relative_url }}">Core guide</a>.</p>
+    <p>If you cloned <code>holder</code> without <code>--recurse-submodules</code>, use these commands before building:</p>
   </div>
   <pre><code>cd $HOME\projects\holderteam\holder
 git submodule update --init --recursive</code></pre>
@@ -63,6 +62,6 @@ git submodule update --init --recursive</code></pre>
     <h2>Continue</h2>
     <p>You can now <a href="{{ '/develop/windows/' | relative_url }}#contributing">share your first change</a>. The <a href="https://github.com/HolderTeam/holder/tree/main/daemon#readme">Daemon README</a> has more development details.</p>
     <p>If you also want to work on the user interface, <a href="{{ '/develop/windows/desktop/' | relative_url }}">build the Holder desktop app</a>. That guide also shows how to start Daemon and Desktop together.</p>
-    <p>If a Daemon change also needs a Core change, make and test it in the Core folder first, then commit it there.</p>
+    <p>If a Daemon change also needs a Core change, make it in <code>holder\core</code>, run Core's tests too, and include both in the same pull request.</p>
   </div>
 </section>
