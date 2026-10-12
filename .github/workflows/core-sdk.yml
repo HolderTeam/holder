@@ -185,7 +185,7 @@ jobs:
           path: core/out/sdk-assets
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}
           path: core/out/sdk-assets/*
@@ -211,7 +211,7 @@ jobs:
         run: >-
           python3 scripts/core-sdk.py index --assets out/core-sdk-assets --output out/core-selection.json
           --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: core-selection
           path: core/out/core-selection.json

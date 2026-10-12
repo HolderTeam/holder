@@ -172,7 +172,7 @@ jobs:
           docker run --rm -v "$PWD:/source:ro" \
             -e CORE_COMMIT -e KIT_VERSION "python:${PYTHON_VERSION}-slim-trixie" \
             bash -c 'python -m venv /venv && /venv/bin/python -m pip install --no-deps /source/dist/*.whl && cd /tmp && /venv/bin/python -I /source/scripts/test-installed-wheel.py --core-commit "$CORE_COMMIT" --version "$KIT_VERSION"'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kit-wheel-${{ matrix.runner }}-${{ matrix.python }}
           path: python/kit/dist/*.whl
@@ -210,7 +210,7 @@ jobs:
           python -m venv out/source-test
           out/source-test/bin/python -m pip install --no-deps dist/*.tar.gz
           out/source-test/bin/python -I scripts/test-installed-wheel.py --core-commit "$core_commit" --version "$KIT_VERSION"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kit-source-distribution
           path: python/kit/dist/*.tar.gz
@@ -252,12 +252,12 @@ jobs:
             exit 1
           fi
           python scripts/check-release-distributions.py dist --selection out/core-selection.json --manifest out/release-manifest.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kit-release-distributions
           path: python/kit/dist/*
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kit-release-manifest
           path: python/kit/out/release-manifest.json
