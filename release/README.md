@@ -15,6 +15,8 @@ The `Release / Promote Windows dev build` workflow can publish a self-signed Win
 
 This is for prerelease testing only. It does not replace the final Windows signing path.
 
+Given a `holder-v<version>` release tag, it adds the installer to that draft release, creating the draft if no other promotion has, as the Linux and core SDK promotions do. Without one, it publishes a tester prerelease under its own `holder-windows-dev-<staging run>` tag.
+
 ## Linux AppImage release candidates
 
 The `Release / Sign Linux AppImage` workflow verifies and signs one exact
