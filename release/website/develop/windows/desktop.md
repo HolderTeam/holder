@@ -37,10 +37,10 @@ permalink: /develop/windows/desktop/
 <section class="section">
   <div class="section-head">
     <h2>Download Desktop</h2>
-    <p>Open PowerShell and run these commands to download the desktop project into the workspace you made in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>.</p>
+    <p>The desktop app is in the holder repository, in <code>apps\desktop\gtk</code>. If you followed the Core or Daemon guide, you already have it. Otherwise, open PowerShell and run these commands to download Holder into the workspace you made in the <a href="{{ '/develop/windows/' | relative_url }}">Windows developer setup</a>.</p>
   </div>
   <pre><code>cd $HOME\projects\holderteam
-git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
+git clone --recurse-submodules https://github.com/HolderTeam/holder.git</code></pre>
 </section>
 
 <section class="section">
@@ -49,9 +49,9 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
     <p>Open a new <strong>MSYS2 UCRT64</strong> window. This kind of command window is often called a shell. Your source files stay in the same Windows folder, but MSYS2 writes paths differently: for example, <code>C:\Users\pigeonwrath</code> becomes <code>/c/Users/pigeonwrath</code>.</p>
     <p>MSYS2 normally has its own home folder, so <code>~</code> may not point to the Windows user folder you used in PowerShell. The command below uses <code>USERPROFILE</code> to find your Windows user folder and <code>cygpath</code> to convert its path for MSYS2. You can copy it as written if you used the suggested workspace:</p>
   </div>
-  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder-desktop"</code></pre>
+  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder/apps/desktop/gtk"</code></pre>
   <div class="section-head following-copy">
-    <p>If you chose a different workspace, use its path instead. For example, a checkout at <code>D:\projects\holderteam\holder-desktop</code> would use <code>cd /d/projects/holderteam/holder-desktop</code>. See <a href="https://www.msys2.org/docs/filesystem-paths/">MSYS2's path guide</a> for more examples.</p>
+    <p>If you chose a different workspace, use its path instead. For example, a checkout at <code>D:\projects\holderteam\holder</code> would use <code>cd /d/projects/holderteam/holder/apps/desktop/gtk</code>. See <a href="https://www.msys2.org/docs/filesystem-paths/">MSYS2's path guide</a> for more examples.</p>
     <p>Once you are in the Desktop folder, run these commands one at a time:</p>
   </div>
   <pre><code>./make-win.sh deps
@@ -86,7 +86,7 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
     <h3>Start your Desktop build in UCRT64</h3>
     <p>In an <strong>MSYS2 UCRT64</strong> window, run:</p>
   </div>
-  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder-desktop"
+  <pre><code>cd "$(cygpath -u "$USERPROFILE")/projects/holderteam/holder/apps/desktop/gtk"
 ./make-win.sh run</code></pre>
   <div class="section-head following-copy">
     <p>Holder should open with your projects, or a Home project if this is your first run. Create a test card. If it appears, Desktop and Daemon are talking to each other.</p>
@@ -117,7 +117,7 @@ git clone https://github.com/HolderTeam/holder-desktop.git</code></pre>
 <section class="section">
   <div class="section-head">
     <h2>You are ready</h2>
-    <p>You can now change code, rebuild the part you changed, and run your local Holder app to see the result. Each project keeps its detailed and up-to-date development notes in its own README: <a href="https://github.com/HolderTeam/holder/tree/main/core#readme">Core</a>, <a href="https://github.com/HolderTeam/holder/tree/main/daemon#readme">Daemon</a>, and <a href="https://github.com/HolderTeam/holder-desktop#readme">Desktop</a>.</p>
+    <p>You can now change code, rebuild the part you changed, and run your local Holder app to see the result. Each project keeps its detailed and up-to-date development notes in its own README: <a href="https://github.com/HolderTeam/holder/tree/main/core#readme">Core</a>, <a href="https://github.com/HolderTeam/holder/tree/main/daemon#readme">Daemon</a>, and <a href="https://github.com/HolderTeam/holder/tree/main/apps/desktop/gtk#readme">Desktop</a>.</p>
     <p>When you are happy with your change and the tests pass, follow <a href="{{ '/develop/windows/' | relative_url }}#contributing">Share your first change</a> to submit it for review.</p>
   </div>
 </section>

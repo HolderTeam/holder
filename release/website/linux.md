@@ -44,12 +44,11 @@ sha256sum -c Holder-0.2.1-SHA256SUMS
   </div>
 
   <pre><code>git clone https://github.com/HolderTeam/holder.git
-git clone https://github.com/HolderTeam/holder-desktop.git
 
 cd holder/daemon
 ./make.sh
 
-cd ../../holder-desktop
+cd ../apps/desktop/gtk
 ./make.sh</code></pre>
 
   <div class="section-head">

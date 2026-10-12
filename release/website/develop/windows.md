@@ -55,7 +55,7 @@ cd $HOME\projects\holderteam</code></pre>
     </article>
     <article class="card">
       <h3>Desktop</h3>
-      <p><a href="https://github.com/HolderTeam/holder-desktop">holder-desktop</a> is the app with windows and buttons. Build it if you want to change the editors, navigation, or other parts of the user interface.</p>
+      <p><a href="https://github.com/HolderTeam/holder/tree/main/apps/desktop/gtk">Desktop</a> is the app with windows and buttons. Build it if you want to change the editors, navigation, or other parts of the user interface.</p>
       <p><a href="{{ '/develop/windows/desktop/' | relative_url }}">Build Desktop →</a></p>
     </article>
   </div>
@@ -64,7 +64,7 @@ cd $HOME\projects\holderteam</code></pre>
 <section class="section" id="getting-help">
   <div class="section-head">
     <h2>If you get stuck</h2>
-    <p>Open the issue page for the part you are working on: <a href="https://github.com/HolderTeam/holder/issues">Core and Daemon</a>, or <a href="https://github.com/HolderTeam/holder-desktop/issues">Desktop</a>. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
+    <p>Open Holder's <a href="https://github.com/HolderTeam/holder/issues">issue page</a>; it covers Core, Daemon and Desktop. Issues are GitHub's place for reporting problems and discussing fixes. Search for the error first; if no existing issue covers it, sign in to GitHub and open a new one.</p>
     <p>Include the guide you followed, the step that failed, and what you expected to happen. Copy the command and its output, or the error from Visual Studio's Output window. Include your Windows version and the versions of the tools you used. This helps someone else understand where you got stuck.</p>
   </div>
 </section>

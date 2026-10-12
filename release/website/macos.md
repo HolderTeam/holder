@@ -68,13 +68,12 @@ narrow: true
 <section class="section">
   <div class="section-head">
     <h2>Building From Source</h2>
-    <p>macOS source builds currently use Homebrew for dependencies. The packaged app is assembled from the holder and holder-desktop repositories.</p>
+    <p>macOS source builds currently use Homebrew for dependencies. The packaged app is assembled from the backend and the desktop app, which are both in the holder repository.</p>
     <ul class="steps">
       <li>Install Xcode Command Line Tools and Homebrew.</li>
-      <li>Clone the framework: <code>git clone https://github.com/HolderTeam/holder.git</code>.</li>
+      <li>Clone Holder: <code>git clone https://github.com/HolderTeam/holder.git</code>.</li>
       <li>In <code>holder/daemon</code>, install the Homebrew dependencies listed in the README, then run <code>./make.sh</code>.</li>
-      <li>Clone the desktop app: <code>git clone https://github.com/HolderTeam/holder-desktop.git</code>.</li>
-      <li>In <code>holder-desktop</code>, install the Homebrew dependencies listed in the README, then run <code>meson setup build-macos --prefix=/</code>, <code>meson compile -C build-macos</code>, and <code>meson test -C build-macos --print-errorlogs</code>.</li>
+      <li>In <code>holder/apps/desktop/gtk</code>, install the Homebrew dependencies listed in the README, then run <code>meson setup build-macos --prefix=/</code>, <code>meson compile -C build-macos</code>, and <code>meson test -C build-macos --print-errorlogs</code>.</li>
       <li>Run <code>./build-macos/holder-desktop</code> only after the backend is already running.</li>
     </ul>
     <p>The release app also includes a small <a href="https://github.com/HolderTeam/holder/tree/main/launcher">launcher</a>. Most developers do not need to build it unless they are working on the macOS app bundle or packaging.</p>
