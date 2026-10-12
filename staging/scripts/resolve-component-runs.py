@@ -22,7 +22,7 @@ def api(path, **query):
     command = ["gh", "api", "--method", "GET", path]
     for name, value in query.items():
         command += ["-f", f"{name}={value}"]
-    return json.loads(subprocess.check_output(command, text=True))
+    return json.loads(subprocess.check_output(command, text=True, encoding="utf-8"))
 
 
 def candidate_runs(repository, workflow, branch, provided, request):
