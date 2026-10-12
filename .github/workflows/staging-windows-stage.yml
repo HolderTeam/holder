@@ -307,7 +307,15 @@ jobs:
           if ((Get-FileHash "$stageDir\core-build.json").Hash -ne (Get-FileHash "downloads\backend\core-build.json").Hash) {
             throw "Staged core provenance differs from backend"
           }
-          if ($metadata.core.commit -ne "${{ steps.core.outputs.commit }}") {
+          # Each SDK in the selection records the commit that built it, which is an earlier commit
+          # with the same core/ tree when the SDK came from the cache.
+          $selection = Get-Content "out\core-selection.json" -Raw | ConvertFrom-Json
+          $sdk = @($selection.assets | Where-Object { $_.platform -eq "windows" -and $_.build_type -eq $metadata.core.build_type })
+          if ($sdk.Count -ne 1) {
+            throw "The core selection has no single Windows $($metadata.core.build_type) SDK"
+          }
+          $sdkCommit = if ($sdk[0].commit) { $sdk[0].commit } else { $selection.commit }
+          if ($metadata.core.commit -ne $sdkCommit) {
             throw "Product core provenance differs from selected SDK"
           }
           Push-Location $stageDir
