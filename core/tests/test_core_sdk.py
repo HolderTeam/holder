@@ -75,6 +75,49 @@ class SDKTests(unittest.TestCase):
         self.assertEqual(json.loads((target / "libholder-manifest.json").read_text()), self.manifest)
         self.assertNotIn(COMMIT, installed.as_posix())
 
+    def shelved(self, assets: list[dict[str, Any]] | None = None, **index: Any) -> dict[str, Any]:
+        tree = "b" * 40
+        data = self.archive()
+        name = "libholder-0.2.0-linux-x86_64-relwithdebinfo.tar.gz"
+        base = f"https://github.com/{sdk.SHELF}/releases/download/core-{tree}/"
+        asset = {"name": name, "platform": "linux", "architecture": "x86_64", "build_type": "RelWithDebInfo",
+                 "commit": COMMIT, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                 "url": base + name}
+        published = {"schema_version": 1, "repository": sdk.SHELF, "release_tag": f"core-{tree}",
+                     "core_tree": tree, "commit": COMMIT, "assets": [asset] if assets is None else assets, **index}
+        files = {base + "sdk-index.json": json.dumps(published).encode(), base + name: data}
+
+        def read(url: str) -> bytes:
+            if url not in files:
+                raise sdk.urllib.error.HTTPError(url, 404, "Not Found", None, None)
+            return files[url]
+        return {"tree": tree, "read": read, "asset": asset, "data": data}
+
+    def test_shelf_downloads_and_verifies_the_archive_for_this_tree(self) -> None:
+        shelved = self.shelved()
+        with patch.object(sdk, "read_url", side_effect=shelved["read"]):
+            archive = sdk.shelf(shelved["tree"], "RelWithDebInfo", self.root / "out", "linux", "x86_64")
+        self.assertIsNotNone(archive)
+        self.assertEqual(archive.read_bytes(), shelved["data"])
+
+    def test_shelf_without_a_release_or_archive_returns_none(self) -> None:
+        shelved = self.shelved()
+        with patch.object(sdk, "read_url", side_effect=shelved["read"]):
+            self.assertIsNone(sdk.shelf("c" * 40, "RelWithDebInfo", self.root / "out", "linux", "x86_64"))
+            self.assertIsNone(sdk.shelf(shelved["tree"], "Release", self.root / "out", "linux", "x86_64"))
+            self.assertIsNone(sdk.shelf(shelved["tree"], "RelWithDebInfo", self.root / "out", "windows", "x86_64"))
+
+    def test_shelf_unreachable_returns_none(self) -> None:
+        with patch.object(sdk, "read_url", side_effect=sdk.urllib.error.URLError("offline")):
+            self.assertIsNone(sdk.shelf("b" * 40, "RelWithDebInfo", self.root / "out", "linux", "x86_64"))
+
+    def test_shelf_rejects_a_mismatched_index_or_archive(self) -> None:
+        for name, shelved in [("index", self.shelved(core_tree="c" * 40)),
+                              ("checksum", self.shelved(assets=[{**self.shelved()["asset"], "sha256": "0" * 64}]))]:
+            with self.subTest(name), patch.object(sdk, "read_url", side_effect=shelved["read"]):
+                with self.assertRaises(ValueError):
+                    sdk.shelf(shelved["tree"], "RelWithDebInfo", self.root / "out", "linux", "x86_64")
+
     def test_corrupt_download_is_not_cached(self) -> None:
         self.archive()
         with patch.object(sdk, "read_url", return_value=b"damaged"):

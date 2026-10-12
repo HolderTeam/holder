@@ -1,8 +1,9 @@
 name: Core / SDK
 
-# Builds the libholder SDK from core/ in the calling commit, for the daemon and anything else that
-# uses core through its installed interface. Each SDK is cached by core/'s Git tree, so a change
-# outside core/ reuses it. The archives are uploaded as core-sdk-<platform>-<build type>, and the
+# Provides the libholder SDK for core/ in the calling commit, for the daemon and anything else that
+# uses core through its installed interface: from the Actions cache, else from holder-sdk's
+# core-<tree> release (main's green builds), else by building it. Built SDKs are cached by core/'s
+# Git tree, so a change outside core/ reuses them. The archives are uploaded as core-sdk-<platform>-<build type>, and the
 # core-selection artifact describes them for the core-sdk action, which fetches and verifies them.
 # Nothing is published: SDKs reach users only with a Holder release.
 
@@ -63,8 +64,19 @@ jobs:
           path: core/out/sdk-assets
           key: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}-${{ steps.tree.outputs.tree }}-v1
 
+      # main's green builds are published to holder-sdk as core-<tree>; a tree that's there needn't
+      # be built. Only when neither the cache nor holder-sdk has it (core changed) is core built.
+      - id: shelf
+        name: Download the SDK for this tree from holder-sdk
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+          TREE: ${{ steps.tree.outputs.tree }}
+        run: python scripts/core-sdk.py shelf --tree "$TREE" --build-type "$BUILD_TYPE" --output out/sdk-assets
+
       - name: Install Linux dependencies
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -73,7 +85,7 @@ jobs:
             libgit2-dev libmd4c-dev libsecret-1-dev
 
       - name: Install macOS dependencies
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'macOS'
         run: |
           brew update
           # The runner can have a manually linked OpenSSL 1.1 binary that brew unlink misses.
@@ -88,18 +100,18 @@ jobs:
           echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
 
       - name: Set up MSVC
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set vcpkg paths
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         shell: pwsh
         run: |
           "VCPKG_ROOT=${{ github.workspace }}\.vcpkg" >> $env:GITHUB_ENV
           "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
 
       - name: Restore vcpkg binary package cache
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
@@ -109,7 +121,7 @@ jobs:
             vcpkg-${{ runner.os }}-
 
       - name: Bootstrap vcpkg
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         shell: pwsh
         run: |
           git clone https://github.com/microsoft/vcpkg "$env:VCPKG_ROOT"
@@ -117,7 +129,7 @@ jobs:
           New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
       - name: Configure Unix SDK
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os != 'Windows'
         env:
           BUILD_TYPE: ${{ inputs.build_type }}
         run: |
@@ -130,7 +142,7 @@ jobs:
             -DHOLDER_CORE_SDK=ON -DHOLDER_CORE_BUILD_SHARED=OFF "${platform_options[@]}"
 
       - name: Configure Windows SDK
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         shell: pwsh
         env:
           BUILD_TYPE: ${{ inputs.build_type }}
@@ -143,25 +155,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build and test
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.shelf.outputs.found == 'false'
         shell: bash
         run: |
           cmake --build out/sdk-build --parallel
           ctest --test-dir out/sdk-build --output-on-failure
 
       - name: Install SDK
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.shelf.outputs.found == 'false'
         run: cmake --install out/sdk-build --prefix out/sdk-install
 
       - name: Archive and smoke-test Unix SDK
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os != 'Windows'
         run: >-
           python3 scripts/package-sdk.py
           --install out/sdk-install --output out/sdk-assets
           --commit "$(git rev-parse HEAD)"
 
       - name: Archive and smoke-test Windows SDK
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows'
         shell: pwsh
         run: |
           python scripts/package-sdk.py `
@@ -172,14 +184,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Save vcpkg binary package cache
-        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows' && github.event_name != 'pull_request'
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows' && github.event_name != 'pull_request'
         uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save the SDK for this tree
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.shelf.outputs.found == 'false'
         uses: actions/cache/save@v6
         with:
           path: core/out/sdk-assets
