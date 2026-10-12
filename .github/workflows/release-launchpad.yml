@@ -27,6 +27,11 @@ on:
         type: choice
         options: [all, core, daemon, kit, desktop]
         default: all
+      series:
+        description: Ubuntu series to upload for
+        type: choice
+        options: [both, noble, resolute]
+        default: both
       version:
         description: Optional expected upstream version, for example 0.2.5
         required: false
@@ -44,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        series: [noble, resolute]
+        series: ${{ fromJSON(inputs.series && inputs.series != 'both' && format('["{0}"]', inputs.series) || '["noble", "resolute"]') }}
         package: ${{ fromJSON(inputs.packages && inputs.packages != 'all' && format('["{0}"]', inputs.packages) || '["core", "daemon", "kit", "desktop"]') }}
     defaults:
       run:
@@ -130,19 +135,24 @@ jobs:
            -- Holder Team <holdercardteam@gmail.com>  $(date -R)
           EOF
           if [ "$SOURCE" = holder-core ] || [ "$SOURCE" = holder-kit ]; then
-            # These two are quilt source packages (the daemon and the desktop are native). The
-            # upstream tarball is the package's directory as committed, without the debian/ copied
-            # in above. git archive run from a subdirectory archives only that subdirectory of the
-            # tree it is given, so run it from the top of the checkout.
+            # These two are quilt source packages (the daemon and the desktop are native). Their
+            # upstream tarball is the package's directory as committed. Launchpad keeps one per
+            # version for every series and revision, so reuse the PPA's if it has one; otherwise
+            # build it reproducibly, so that every series' job builds the same file.
             directory="${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}"
-            git -C "$GITHUB_WORKSPACE" archive --format=tar --prefix="${SOURCE}-${version}/" "HEAD:${directory}" \
-              | gzip -n > "../${SOURCE}_${version}.orig.tar.gz"
+            orig_path="$(cd .. && pwd)/${SOURCE}_${version}.orig.tar.gz"
+            orig="$(cd "$GITHUB_WORKSPACE" && python3 release/scripts/launchpad-orig.py --source "$SOURCE" \
+              --version "$version" --directory "$directory" --output "$orig_path" | tail -n 1)"
+            if [ "$orig" = reused ]; then
+              # Launchpad already has the tarball; the upload must not include it again.
+              echo "DEBUILD_SOURCE_OPTION=-sd" >> "$GITHUB_ENV"
+            fi
           fi
 
       - name: Build unsigned source package
         if: github.event_name == 'pull_request'
         run: |
-          debuild -S -d -us -uc
+          debuild -S -d ${DEBUILD_SOURCE_OPTION:-} -us -uc
           ls -l ../"${SOURCE}"_*
 
       - name: Import PPA signing key
@@ -175,7 +185,7 @@ jobs:
         env:
           DEBFULLNAME: Holder Team
           DEBEMAIL: holdercardteam@gmail.com
-        run: debuild -S -d -k"$DEBSIGN_KEYID"
+        run: debuild -S -d ${DEBUILD_SOURCE_OPTION:-} -k"$DEBSIGN_KEYID"
 
       - name: Upload to Launchpad PPA
         if: github.event_name != 'pull_request'
