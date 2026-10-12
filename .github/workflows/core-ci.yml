@@ -10,6 +10,7 @@ on:
     paths:
       - core/**
       - .github/workflows/core-ci.yml
+      - .github/workflows/core-sdk.yml
   workflow_dispatch:
 
 permissions:
@@ -45,7 +46,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(core/|\.github/workflows/core-ci\.yml$)' <<< "$changed"; then
+          if grep -qE '^(core/|\.github/workflows/core-(ci|sdk)\.yml$)' <<< "$changed"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
           else
             echo "core=false" >> "$GITHUB_OUTPUT"
@@ -262,12 +263,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir out/consumer --output-on-failure
 
+  sdk:
+    # Core's SDK for this commit, cached by core/'s tree. Saved from main, it is the latest core
+    # that consumers and pull requests not changing core take instead of building core again.
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    uses: ./.github/workflows/core-sdk.yml
+
   result:
     name: Core CI result
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, macos, windows]
+    needs: [changes, linux, macos, windows, sdk]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -282,7 +290,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .macos, .windows] | all(.result == "success"))
+               ([.linux, .macos, .windows, .sdk] | all(.result == "success"))
              else
-               ([.linux, .macos, .windows] | all(.result == "skipped"))
+               ([.linux, .macos, .windows, .sdk] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
