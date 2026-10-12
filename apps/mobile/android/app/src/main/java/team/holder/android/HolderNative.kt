@@ -375,29 +375,29 @@ object HolderNative {
         System.loadLibrary("holder_jni")
     }.exceptionOrNull()
 
+    /** Every native call runs on one of three lanes, each a thread with its own holder-core
+     * context (see [NativeLane]), split the way holder-daemon splits its request lanes:
+     * - [saveLane]: every write, in the order the user made them, so a slow write (each one is
+     *   a Git commit) never holds up what's on screen;
+     * - [readLane]: what the screen needs now; it sees only committed data, never a write
+     *   that's still in progress on the save lane;
+     * - [backgroundLane]: Git network work, history, backup snapshots, encryption and assets
+     *   (whose storage provider may be on the network), so none of it blocks the other two.
+     * Writes on different lanes are ordered by SQLite, and Git work on one project by core's
+     * per-repository lock. */
+    private val saveLane = NativeLane("holder-save")
+    private val readLane = NativeLane("holder-read")
+    private val backgroundLane = NativeLane("holder-background")
+
     @Volatile
-    private var contextHandle: Long = 0L
+    private var isOpen = false
 
     /** Set once by [initialize], reused by [selectGitSignerForProject] -- the native signer
      * can be re-registered any number of times after the context is first opened (each project
-     * gets its own alias, see [gitSignerLock]'s doc comment), and every one of those
-     * re-registrations needs the same homedir [team.holder.android.git.GitIdentity
-     * .registerWithNative] was originally given. */
+     * gets its own alias), and every one of those re-registrations needs the same homedir
+     * [team.holder.android.git.GitIdentity.registerWithNative] was originally given. */
     @Volatile
     private var dataDir: File? = null
-
-    /** Guards "point the one native git signer at project X's key, then actually perform
-     * project X's git network operation" as a single atomic unit -- see [selectGitSignerForProject]'s
-     * doc comment for why this pairing has to be atomic at all: holder-core's native context
-     * holds exactly one registered signer for the whole app, not one per project, so switching
-     * which project's key it signs with and running that project's own push/pull/sync must
-     * never interleave with another project doing the same, or one project's git operation
-     * could get silently signed with a different project's key. A plain JVM lock, not a
-     * coroutine Mutex -- every function this guards ([pushGit]/[pullGit]/[gitSyncIfDue]/
-     * [testGitRemote]) is already a plain blocking call (real native/network I/O), never a
-     * suspend function, so a lock that blocks the calling thread is the correct match, not a
-     * mismatch to work around. */
-    private val gitSignerLock = Any()
 
     private external fun nativeVersion(): String
     private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
@@ -616,27 +616,41 @@ object HolderNative {
     fun initialize(context: Context, dataDir: File, schemaSql: String, welcomeContent: String) {
         loadError?.let { throw it }
 
-        if (contextHandle == 0L) {
+        if (!isOpen) {
             // Recovery of encrypted projects needs the platform keyring before
             // holder_context_open can reconstruct the SQLite projection. Registration
             // remains best-effort here: a plain profile does not need it, while core
             // will fail closed if reconstruction actually needs an unavailable key.
             runCatching { team.holder.android.keyring.AndroidKeyringStore.registerWithNative(context) }
-            contextHandle = nativeContextOpen(dataDir.absolutePath, schemaSql)
+            // One context per lane, opened one after another: the first open may rebuild the
+            // database, and the others then find it healthy.
+            try {
+                for (lane in listOf(saveLane, readLane, backgroundLane)) {
+                    lane.attach(nativeContextOpen(dataDir.absolutePath, schemaSql))
+                }
+            } catch (failure: Throwable) {
+                closeLanes()
+                throw failure
+            }
+            isOpen = true
             this.dataDir = dataDir
             // Best-effort, and deliberately not project-scoped here: this just points libgit2
             // at dataDir for ~/.ssh/known_hosts and installs *some* signer so the context has
             // one at all; selectGitSignerForProject re-registers with the right per-project
             // alias immediately before any actual git network operation, which is what
-            // matters -- see gitSignerLock's doc comment.
-            runCatching { team.holder.android.git.GitIdentity.registerWithNative(contextHandle, dataDir) }
+            // matters. Only the background lane does Git network work, so only it needs one.
+            backgroundLane.call {
+                runCatching { team.holder.android.git.GitIdentity.registerWithNative(it, dataDir) }
+            }
         }
-        nativeEnsureDefaultProject(
-            contextHandle,
-            DEFAULT_PROJECT_NAME,
-            deriveWelcomeTitle(welcomeContent, WELCOME_CARD_TITLE_FALLBACK),
-            welcomeContent,
-        )
+        saveLane.call {
+            nativeEnsureDefaultProject(
+                it,
+                DEFAULT_PROJECT_NAME,
+                deriveWelcomeTitle(welcomeContent, WELCOME_CARD_TITLE_FALLBACK),
+                welcomeContent,
+            )
+        }
     }
 
     /**
@@ -676,22 +690,28 @@ object HolderNative {
         }
     }
 
-    /** Closes the native store. Safe to call even if it was never opened. */
+    /** Closes the native store. Safe to call even if it was never opened. Waits for calls
+     * already queued on each lane to finish first, so a context is never closed under a call
+     * that's still using it; calls queued after this fail as not initialized. */
     @Synchronized
     fun close() {
-        if (contextHandle != 0L) {
-            nativeContextClose(contextHandle)
-            contextHandle = 0L
+        isOpen = false
+        closeLanes()
+    }
+
+    private fun closeLanes() {
+        for (lane in listOf(saveLane, readLane, backgroundLane)) {
+            lane.detach { nativeContextClose(it) }
         }
     }
 
     fun listProjects(): List<HolderProject> {
-        val projects = JSONArray(nativeProjectList(requireContext()))
+        val projects = JSONArray(readLane.call { nativeProjectList(it) })
         return List(projects.length()) { index -> parseProject(projects.getJSONObject(index)) }
     }
 
     fun listCards(projectId: String): List<HolderCard> {
-        val cards = JSONArray(nativeCardList(requireContext(), projectId))
+        val cards = JSONArray(readLane.call { nativeCardList(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
@@ -720,21 +740,20 @@ object HolderNative {
         if (limit != null) request.put("limit", limit)
         if (includeChildCounts) request.put("include_child_counts", true)
 
-        val cards = JSONObject(nativeCardQuery(requireContext(), projectId, request.toString()))
+        val cards = JSONObject(readLane.call { nativeCardQuery(it, projectId, request.toString()) })
             .getJSONArray("cards")
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
     fun getCardContent(cardId: String): String {
-        return nativeCardGetContent(requireContext(), cardId)
+        return readLane.call { nativeCardGetContent(it, cardId) }
     }
 
     /** Resolves a [[wikilink]]-style reference (a card id, an unambiguous id prefix, or a
-     * case-sensitive exact title) the same way holder-daemon/holderctl do. This is a local
-     * read, not a git network operation, so it's not wrapped in [gitSignerLock]. scope defaults
+     * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults
      * to 0 (live cards only), matching holder::model::CardScope::Live. */
     fun resolveCardReference(projectId: String, reference: String, scope: Int = 0): CardReferenceResolution {
-        val json = JSONObject(nativeCardReferenceResolve(requireContext(), projectId, reference, scope))
+        val json = JSONObject(readLane.call { nativeCardReferenceResolve(it, projectId, reference, scope) })
         return when (json.getString("status")) {
             "resolved" -> CardReferenceResolution.Resolved(
                 matchKind = json.getString("match_kind"),
@@ -761,7 +780,7 @@ object HolderNative {
         limit: Int,
     ): BackupSnapshotPage {
         val json = JSONObject(
-            nativeBackupSnapshotPage(requireContext(), projectId, cursorUpdatedAt, cursorCardId, limit),
+            backgroundLane.call { nativeBackupSnapshotPage(it, projectId, cursorUpdatedAt, cursorCardId, limit) },
         )
         val cardsJson = json.getJSONArray("cards")
         val cards = List(cardsJson.length()) { cardsJson.getJSONObject(it) }
@@ -784,25 +803,25 @@ object HolderNative {
         commitMessage: String,
     ): HolderProject =
         parseProject(
-            JSONObject(nativeBackupRestore(requireContext(), projectName, privacyMode, cardsJson, commitMessage)),
+            JSONObject(saveLane.call { nativeBackupRestore(it, projectName, privacyMode, cardsJson, commitMessage) }),
         )
 
     /** privacyMode null defaults (server-side) to "plain". "encrypted_git" is also valid. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        parseProject(JSONObject(nativeProjectCreate(requireContext(), name, null, privacyMode)))
+        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
 
     fun renameProject(projectId: String, name: String): HolderProject =
-        parseProject(JSONObject(nativeProjectRename(requireContext(), projectId, name)))
+        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
 
     fun deleteProject(projectId: String) {
-        nativeProjectDelete(requireContext(), projectId)
+        saveLane.call { nativeProjectDelete(it, projectId) }
     }
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
-        parseCard(JSONObject(nativeCardCreate(requireContext(), projectId, title, content, parentCardId)))
+        parseCard(JSONObject(saveLane.call { nativeCardCreate(it, projectId, title, content, parentCardId) }))
 
     fun updateCard(cardId: String, title: String, content: String): HolderCard =
-        parseCard(JSONObject(nativeCardUpdateContent(requireContext(), cardId, content, title)))
+        parseCard(JSONObject(saveLane.call { nativeCardUpdateContent(it, cardId, content, title) }))
 
     /** Resolves and applies one of eight relative-placement intents to cardId within
      * projectId, via holder-core's CardPlacementResolver (see that class for the full
@@ -824,7 +843,7 @@ object HolderNative {
         if (targetCardId != null) request.put("target_card_id", targetCardId)
         if (parentCardId != null) request.put("parent_card_id", parentCardId)
 
-        val json = JSONObject(nativeCardMove(requireContext(), projectId, cardId, request.toString()))
+        val json = JSONObject(saveLane.call { nativeCardMove(it, projectId, cardId, request.toString()) })
         return HolderCardMoveResult(
             cardId = json.getString("card_id"),
             parentCardId = json.optStringOrNull("parent_card_id"),
@@ -836,21 +855,21 @@ object HolderNative {
 
     /** Soft-deletes (trashes) a card; it stops appearing in listCards until restored or purged. */
     fun deleteCard(cardId: String) {
-        nativeCardDelete(requireContext(), cardId)
+        saveLane.call { nativeCardDelete(it, cardId) }
     }
 
     fun listTrashedCards(projectId: String): List<HolderCard> {
-        val cards = JSONArray(nativeCardListTrashed(requireContext(), projectId))
+        val cards = JSONArray(readLane.call { nativeCardListTrashed(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
     /** Restores a trashed card so it reappears in listCards. Fails if cardId isn't trashed. */
     fun restoreCard(cardId: String): HolderCard =
-        parseCard(JSONObject(nativeCardRestore(requireContext(), cardId)))
+        parseCard(JSONObject(saveLane.call { nativeCardRestore(it, cardId) }))
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */
     fun purgeCard(cardId: String) {
-        nativeCardPurge(requireContext(), cardId)
+        saveLane.call { nativeCardPurge(it, cardId) }
     }
 
     /** cardId's editing-session-grouped history within projectId's repository, most-recent
@@ -863,7 +882,7 @@ object HolderNative {
         cursor: String? = null,
         limit: Int = 50,
     ): HolderCardHistoryPage {
-        val json = JSONObject(nativeCardHistoryList(requireContext(), projectId, cardId, cursor, limit))
+        val json = JSONObject(backgroundLane.call { nativeCardHistoryList(it, projectId, cardId, cursor, limit) })
         val entries = json.getJSONArray("entries")
         return HolderCardHistoryPage(
             headOid = json.optStringOrNull("head_oid"),
@@ -884,7 +903,7 @@ object HolderNative {
         fromOid: String?,
         toOid: String,
     ): HolderCardHistoryComparison {
-        val json = JSONObject(nativeCardHistoryCompare(requireContext(), projectId, cardId, fromOid, toOid))
+        val json = JSONObject(backgroundLane.call { nativeCardHistoryCompare(it, projectId, cardId, fromOid, toOid) })
         val lines = json.getJSONArray("lines")
         return HolderCardHistoryComparison(
             from = parseCardHistoryVersion(json.getJSONObject("from")),
@@ -901,11 +920,11 @@ object HolderNative {
      * checks out or rewrites Git history, so the pre-restore state remains its own, still-
      * reachable history entry. Returns the restored card. */
     fun restoreCardHistory(cardId: String, historicalOid: String): HolderCard =
-        parseCard(JSONObject(nativeCardHistoryRestore(requireContext(), cardId, historicalOid)))
+        parseCard(JSONObject(saveLane.call { nativeCardHistoryRestore(it, cardId, historicalOid) }))
 
     /** Explicit connections only -- not hierarchy (parent/child) or inline [[wikilinks]]. */
     fun listCardLinks(cardId: String): HolderCardLinks {
-        val json = JSONObject(nativeCardListLinks(requireContext(), cardId))
+        val json = JSONObject(readLane.call { nativeCardListLinks(it, cardId) })
         val outgoing = json.getJSONArray("outgoing")
         val backlinks = json.getJSONArray("backlinks")
         val children = json.getJSONArray("children")
@@ -920,12 +939,12 @@ object HolderNative {
     /** Adds (or updates, if fromCardId/toCardId/kind already matches) an explicit outgoing
      * connection. Returns fromCardId's updated outgoing connection list. */
     fun addCardLink(fromCardId: String, toCardId: String, kind: String, label: String? = null): List<HolderOutgoingLink> {
-        val outgoing = JSONArray(nativeCardLinkAdd(requireContext(), fromCardId, toCardId, kind, label))
+        val outgoing = JSONArray(saveLane.call { nativeCardLinkAdd(it, fromCardId, toCardId, kind, label) })
         return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
     }
 
     fun removeCardLink(fromCardId: String, toCardId: String, kind: String) {
-        nativeCardLinkRemove(requireContext(), fromCardId, toCardId, kind)
+        saveLane.call { nativeCardLinkRemove(it, fromCardId, toCardId, kind) }
     }
 
     @Volatile
@@ -961,7 +980,7 @@ object HolderNative {
 
     /** cardId's #tags, as extracted from its body (including any added via addCardTag). */
     fun listCardTags(cardId: String): List<String> {
-        val tags = JSONArray(nativeCardListTags(requireContext(), cardId))
+        val tags = JSONArray(readLane.call { nativeCardListTags(it, cardId) })
         return List(tags.length()) { index -> tags.getString(index) }
     }
 
@@ -977,7 +996,7 @@ object HolderNative {
      * including inline in prose -- a card is either tagged or it isn't, regardless of where the
      * tag text lives. */
     fun addCardTag(cardId: String, tag: String): AddTagResult =
-        when (nativeCardTagAdd(requireContext(), cardId, tag)) {
+        when (saveLane.call { nativeCardTagAdd(it, cardId, tag) }) {
             0 -> AddTagResult.ADDED // HOLDER_TAG_ADD_ADDED
             1 -> AddTagResult.ALREADY_PRESENT // HOLDER_TAG_ADD_ALREADY_PRESENT
             else -> error("unexpected add_tag status")
@@ -991,7 +1010,7 @@ object HolderNative {
      * remains tagged since nothing was removed, and the caller should point the user at the
      * text itself. */
     fun removeCardTag(cardId: String, tag: String): RemoveTagResult =
-        when (nativeCardTagRemove(requireContext(), cardId, tag)) {
+        when (saveLane.call { nativeCardTagRemove(it, cardId, tag) }) {
             0 -> RemoveTagResult.REMOVED // HOLDER_TAG_REMOVE_REMOVED
             1 -> RemoveTagResult.NOT_PRESENT // HOLDER_TAG_REMOVE_NOT_PRESENT
             2 -> RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE // HOLDER_TAG_REMOVE_PRESENT_OUTSIDE_EDITABLE_TAG_LINE
@@ -1004,19 +1023,19 @@ object HolderNative {
      * this to show a remove control only where it will work, rather than offering one on every
      * tag uniformly. */
     fun listEditableCardTags(cardId: String): List<String> {
-        val tags = JSONArray(nativeCardListEditableTags(requireContext(), cardId))
+        val tags = JSONArray(readLane.call { nativeCardListEditableTags(it, cardId) })
         return List(tags.length()) { index -> tags.getString(index) }
     }
 
     /** Cards in projectId carrying tag (case-insensitive). */
     fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> {
-        val cards = JSONArray(nativeCardsWithTag(requireContext(), projectId, tag))
+        val cards = JSONArray(readLane.call { nativeCardsWithTag(it, projectId, tag) })
         return List(cards.length()) { index -> parseCardRef(cards.getJSONObject(index)) }
     }
 
     /** Every distinct tag in projectId with how many cards carry it, most-used first. */
     fun listProjectTags(projectId: String): List<HolderTagCount> {
-        val tags = JSONArray(nativeProjectListTags(requireContext(), projectId))
+        val tags = JSONArray(readLane.call { nativeProjectListTags(it, projectId) })
         return List(tags.length()) { index ->
             val entry = tags.getJSONObject(index)
             HolderTagCount(tag = entry.getString("tag"), count = entry.getInt("count"))
@@ -1025,7 +1044,7 @@ object HolderNative {
 
     /** cardId's milestones, ordered by start (soonest first). */
     fun listCardMilestones(cardId: String): List<HolderMilestone> {
-        val milestones = JSONArray(nativeCardListMilestones(requireContext(), cardId))
+        val milestones = JSONArray(readLane.call { nativeCardListMilestones(it, cardId) })
         return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
     }
 
@@ -1041,16 +1060,7 @@ object HolderNative {
         description: String? = null,
     ): List<HolderMilestone> {
         val milestones = JSONArray(
-            nativeCardMilestoneAdd(
-                requireContext(),
-                cardId,
-                startAt,
-                endAt != null,
-                endAt ?: 0L,
-                allDay,
-                kind,
-                description,
-            )
+            saveLane.call { nativeCardMilestoneAdd(it, cardId, startAt, endAt != null, endAt ?: 0L, allDay, kind, description) }
         )
         return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
     }
@@ -1092,26 +1102,26 @@ object HolderNative {
         }
         return parseMilestone(
             JSONObject(
-                nativeCardMilestoneUpdate(requireContext(), projectId, cardId, milestoneId, body.toString())
+                saveLane.call { nativeCardMilestoneUpdate(it, projectId, cardId, milestoneId, body.toString()) }
             )
         )
     }
 
     /** A no-op, not an error, if milestoneId doesn't exist or belongs to a different card. */
     fun removeCardMilestone(cardId: String, milestoneId: String) {
-        nativeCardMilestoneRemove(requireContext(), cardId, milestoneId)
+        saveLane.call { nativeCardMilestoneRemove(it, cardId, milestoneId) }
     }
 
     /** Every milestone in projectId whose start falls within [from, to] (inclusive), ordered by
      * start -- the Calendar's primary query. Never includes a trashed card's milestones. */
     fun listMilestonesInRange(projectId: String, from: Long, to: Long): List<HolderMilestone> {
         val milestones =
-            JSONArray(nativeProjectListMilestonesInRange(requireContext(), projectId, from, to))
+            JSONArray(readLane.call { nativeProjectListMilestonesInRange(it, projectId, from, to) })
         return List(milestones.length()) { index -> parseMilestone(milestones.getJSONObject(index)) }
     }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
-        val results = JSONArray(nativeCardSearch(requireContext(), projectId, query, limit, 0))
+        val results = JSONArray(readLane.call { nativeCardSearch(it, projectId, query, limit, 0) })
         return List(results.length()) { index ->
             val result = results.getJSONObject(index)
             HolderSearchResult(
@@ -1124,49 +1134,57 @@ object HolderNative {
 
     /** remoteUrl null clears the configured remote. */
     fun updateProjectGitRemote(projectId: String, remoteUrl: String?): HolderProject =
-        parseProject(JSONObject(nativeProjectUpdateGitRemote(requireContext(), projectId, remoteUrl)))
+        parseProject(JSONObject(saveLane.call { nativeProjectUpdateGitRemote(it, projectId, remoteUrl) }))
 
-    /** Re-registers the native git signer with [projectId]'s own key -- must only ever be
-     * called while holding [gitSignerLock], immediately before the one native call it's
-     * preparing for, never any earlier. Best-effort, matching [initialize]'s own policy: a
+    /** Re-registers the background lane's native git signer with [projectId]'s own key --
+     * must only ever be called on the background lane, immediately before the one native call
+     * it's preparing for, in the same lane call. The context holds one signer, not one per
+     * project, so selecting and using it in one lane call is what stops another project's
+     * sync from switching the key in between. Best-effort, matching [initialize]'s own policy: a
      * Keystore hiccup here shouldn't crash a sync, it should just fail that one push/pull with
      * whatever auth error the native side reports -- same failure shape as a real key mismatch
      * would produce. */
-    private fun selectGitSignerForProject(projectId: String) {
+    private fun selectGitSignerForProject(contextHandle: Long, projectId: String) {
         val dir = dataDir ?: return
         runCatching {
             team.holder.android.git.GitIdentity.registerWithNative(
-                requireContext(),
+                contextHandle,
                 dir,
                 alias = team.holder.android.git.GitIdentity.aliasForProject(projectId),
             )
         }
     }
 
-    fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(nativeGitTestRemote(requireContext(), projectId, branch))
-        GitTestRemoteResult(
+    fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitTestRemote(it, projectId, branch)
+        })
+        return GitTestRemoteResult(
             status = json.getString("status"),
             remoteHasHead = json.optBoolean("remote_has_head", false),
             errorMessage = json.optStringOrNull("error_message"),
         )
     }
 
-    fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(nativeGitProbeRemoteUrl(requireContext(), url))
-        GitTestRemoteResult(
+    fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitProbeRemoteUrl(it, url)
+        })
+        return GitTestRemoteResult(
             status = json.getString("status"),
             remoteHasHead = json.optBoolean("remote_has_head", false),
             errorMessage = json.optStringOrNull("error_message"),
         )
     }
 
-    fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(nativeGitPush(requireContext(), projectId, branch, setUpstream))
-        GitPushResult(
+    fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitPush(it, projectId, branch, setUpstream)
+        })
+        return GitPushResult(
             status = json.getString("status"),
             aheadCount = json.optInt("ahead_count", 0),
             behindCount = json.optInt("behind_count", 0),
@@ -1174,10 +1192,12 @@ object HolderNative {
         )
     }
 
-    fun pullGit(projectId: String): GitPullResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(nativeGitPull(requireContext(), projectId))
-        GitPullResult(
+    fun pullGit(projectId: String): GitPullResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitPull(it, projectId)
+        })
+        return GitPullResult(
             status = json.getString("status"),
             errorMessage = json.optStringOrNull("error_message"),
             conflictsResolved = json.optInt("conflicts_resolved", 0),
@@ -1185,7 +1205,7 @@ object HolderNative {
     }
 
     fun gitSyncStatus(projectId: String): GitSyncStatus {
-        val sync = JSONObject(nativeGitSyncStatus(requireContext(), projectId)).getJSONObject("sync")
+        val sync = JSONObject(readLane.call { nativeGitSyncStatus(it, projectId) }).getJSONObject("sync")
         return GitSyncStatus(
             lastPushAt = sync.optLongOrNull("last_push_at"),
             lastPullAt = sync.optLongOrNull("last_pull_at"),
@@ -1209,12 +1229,12 @@ object HolderNative {
         projectId: String,
         pushIntervalSeconds: Int = 0,
         pullIntervalSeconds: Int = 0,
-    ): GitSyncIfDueResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(
-            nativeGitSyncIfDue(requireContext(), projectId, pushIntervalSeconds, pullIntervalSeconds),
-        )
-        GitSyncIfDueResult(
+    ): GitSyncIfDueResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitSyncIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
+        })
+        return GitSyncIfDueResult(
             pullAttempted = json.getBoolean("pull_attempted"),
             pullStatus = json.optStringOrNull("pull_status"),
             pullError = json.optStringOrNull("pull_error"),
@@ -1237,12 +1257,12 @@ object HolderNative {
         branch: String? = null,
         push: Boolean = true,
         setUpstream: Boolean = true,
-    ): GitSyncNowResult = synchronized(gitSignerLock) {
-        selectGitSignerForProject(projectId)
-        val json = JSONObject(
-            nativeGitSyncNow(requireContext(), projectId, branch, push, setUpstream),
-        )
-        GitSyncNowResult(
+    ): GitSyncNowResult {
+        val json = JSONObject(backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            nativeGitSyncNow(it, projectId, branch, push, setUpstream)
+        })
+        return GitSyncNowResult(
             pullAttempted = json.getBoolean("pull_attempted"),
             pullStatus = json.optStringOrNull("pull_status"),
             pullError = json.optStringOrNull("pull_error"),
@@ -1257,7 +1277,7 @@ object HolderNative {
     }
 
     fun encryptionCheck(projectId: String): EncryptionCheckResult {
-        val json = JSONObject(nativeEncryptionCheck(requireContext(), projectId))
+        val json = JSONObject(backgroundLane.call { nativeEncryptionCheck(it, projectId) })
         val check = json.getJSONObject("check")
         val unsafePathsJson = check.getJSONArray("unsafe_paths")
         return EncryptionCheckResult(
@@ -1271,7 +1291,7 @@ object HolderNative {
     }
 
     fun exportRecoveryToken(projectId: String, pin: String): RecoveryTokenExportResult {
-        val json = JSONObject(nativeRecoveryTokenExport(requireContext(), projectId, pin))
+        val json = JSONObject(backgroundLane.call { nativeRecoveryTokenExport(it, projectId, pin) })
         return RecoveryTokenExportResult(
             projectId = json.getString("project_id"),
             keyId = json.getString("key_id"),
@@ -1283,7 +1303,7 @@ object HolderNative {
      * exist and match the token's own project id. See importRecoveryTokenGlobal for recovering
      * onto a device that doesn't have the project yet. */
     fun importRecoveryToken(projectId: String, pin: String, recoveryToken: String) {
-        nativeRecoveryTokenImport(requireContext(), projectId, pin, recoveryToken)
+        saveLane.call { nativeRecoveryTokenImport(it, projectId, pin, recoveryToken) }
     }
 
     /** Decrypts a recovery token's metadata without importing anything, so a caller can show
@@ -1302,7 +1322,7 @@ object HolderNative {
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
     fun importRecoveryTokenGlobal(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
-        val json = JSONObject(nativeRecoveryTokenImportGlobal(requireContext(), pin, recoveryToken))
+        val json = JSONObject(saveLane.call { nativeRecoveryTokenImportGlobal(it, pin, recoveryToken) })
         return RecoveryTokenImportGlobalResult(
             projectId = json.getString("project_id"),
             projectCreated = json.getBoolean("project_created"),
@@ -1317,7 +1337,7 @@ object HolderNative {
     /** Storage locations (e.g. a Google Drive folder) available to attach Resources into,
      * within projectId. */
     fun listLocations(projectId: String): List<HolderLocation> {
-        val locations = JSONArray(nativeLocationList(requireContext(), projectId))
+        val locations = JSONArray(readLane.call { nativeLocationList(it, projectId) })
         return List(locations.length()) { index -> parseLocation(locations.getJSONObject(index)) }
     }
 
@@ -1340,11 +1360,11 @@ object HolderNative {
             put("created_at", now)
             put("updated_at", now)
         }
-        return parseLocation(JSONObject(nativeLocationPutJson(requireContext(), body.toString())))
+        return parseLocation(JSONObject(saveLane.call { nativeLocationPutJson(it, body.toString()) }))
     }
 
     fun getResource(resourceId: String): HolderResource =
-        parseResourceBundle(JSONObject(nativeResourceGet(requireContext(), resourceId)))
+        parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
 
     /** Imports sourceFilePath into projectId's Resource/Asset model, stores it via
      * locationId's storage provider (see [team.holder.android.resource.AndroidStorageProvider]),
@@ -1353,7 +1373,7 @@ object HolderNative {
      * like it is for holder-desktop (see HolderMarkdownViewer). Deduplicates by content hash
      * within the project -- a second import of identical bytes reuses the existing Resource. */
     fun importAsset(projectId: String, cardId: String, locationId: String, sourceFilePath: String): HolderAssetImportResult {
-        val json = JSONObject(nativeAssetImportFile(requireContext(), projectId, cardId, locationId, sourceFilePath))
+        val json = JSONObject(backgroundLane.call { nativeAssetImportFile(it, projectId, cardId, locationId, sourceFilePath) })
         return HolderAssetImportResult(
             resourceId = json.getString("resource_id"),
             assetId = json.getString("asset_id"),
@@ -1365,13 +1385,7 @@ object HolderNative {
     /** Downloads assetId's placementId back down to destinationFilePath via that placement's
      * Location's storage provider, verified against the Asset's recorded size/hash. */
     fun retrieveAsset(resourceId: String, assetId: String, placementId: String, destinationFilePath: String) {
-        nativeAssetRetrieve(requireContext(), resourceId, assetId, placementId, destinationFilePath)
-    }
-
-    private fun requireContext(): Long {
-        val handle = contextHandle
-        check(handle != 0L) { "HolderNative.initialize() must be called first" }
-        return handle
+        backgroundLane.call { nativeAssetRetrieve(it, resourceId, assetId, placementId, destinationFilePath) }
     }
 
     private fun parseProject(json: JSONObject) = HolderProject(

@@ -40,6 +40,17 @@ if(DEFINED VCPKG_ROOT AND NOT VCPKG_ROOT STREQUAL "")
     set(ENV{ANDROID_NDK_ROOT} "${HOLDER_ANDROID_NDK_HOME}")
   endif()
 
+  # Gradle configures every ABI with the same VCPKG_INSTALLED_DIR, and a manifest-mode install
+  # removes the packages of every triplet it wasn't asked for, so building two ABIs would
+  # delete each other's packages mid-build. Give each ABI its own directory. try_compile runs
+  # this file again with the directory already set, hence the check.
+  if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED ANDROID_ABI)
+    get_filename_component(_holder_installed_leaf "${VCPKG_INSTALLED_DIR}" NAME)
+    if(NOT _holder_installed_leaf STREQUAL ANDROID_ABI)
+      set(VCPKG_INSTALLED_DIR "${VCPKG_INSTALLED_DIR}/${ANDROID_ABI}")
+    endif()
+  endif()
+
   include("${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 else()
   if(NOT CMAKE_BINARY_DIR MATCHES "CMakeTmp")

@@ -23,6 +23,16 @@ int holder_version_major(void);
 int holder_version_minor(void);
 int holder_version_patch(void);
 
+// THREADING: a context owns one SQLite connection and is not safe to use from
+// two threads at once. Calls on one context must not overlap: a call made
+// while another is still running on the same connection can see that call's
+// uncommitted writes or join its transaction. To work on several threads,
+// open one context per thread (or per serial worker) on the same data_dir;
+// each sees only committed data, SQLite orders their writes, and core
+// serializes Git work on a project across contexts. Open the first context
+// before the others, since opening may rebuild the database.
+// holder_context_destroy must not run while a call on that context is still
+// running.
 int holder_context_open(
     const char* data_dir,
     const char* schema_sql,
