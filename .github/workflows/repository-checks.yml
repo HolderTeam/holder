@@ -1,0 +1,27 @@
+name: Repository / Checks
+
+# Fast checks about the repository as a whole, on every pull request. Today: every component has
+# the version in the root VERSION (release/scripts/version.py).
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Repository checks result
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test the version tool
+        run: python3 -m unittest discover -s release/tests -v
+      - name: Check that every component has the root VERSION
+        run: python3 release/scripts/version.py --check
