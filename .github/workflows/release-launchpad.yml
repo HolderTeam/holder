@@ -7,8 +7,7 @@ name: Release / Launchpad
 # upload. holder-desktop needs nothing from the others to build, and requires the holder-daemon of
 # its release or newer to install. A manual run can upload one package, for a packaging-only fix
 # with a new Debian revision. Pull requests that change the packaging build the source packages
-# unsigned and stop there, so the upload path is tested without
-# publishing anything.
+# unsigned and stop there, so the upload path is tested without publishing anything.
 
 on:
   push:
