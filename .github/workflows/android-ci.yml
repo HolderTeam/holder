@@ -33,9 +33,13 @@ jobs:
       run:
         working-directory: .
     outputs:
+      # The build, boundary check and unit tests: for Android and for core changes.
       android: ${{ steps.select.outputs.android }}
+      # The emulator tests: only when Android itself changes, or when run by hand (for example
+      # before an Android release). A core-only change never starts an emulator.
+      emulators: ${{ steps.select.outputs.emulators }}
     steps:
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name != 'workflow_dispatch'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -44,19 +48,25 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ "$EVENT" == workflow_dispatch ]]; then
             echo "android=true" >> "$GITHUB_OUTPUT"
+            echo "emulators=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # The pull request merge commit's parents are the base and the pull request head.
-          changed=$(git diff --name-only HEAD^1...HEAD^2)
-          printf '%s\n' "$changed"
-          if grep -qE '^(apps/mobile/android/|core/|\.github/workflows/android-ci\.yml$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
-            echo "android=true" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT" == pull_request ]]; then
+            # The pull request merge commit's parents are the base and the pull request head.
+            changed=$(git diff --name-only HEAD^1...HEAD^2)
           else
-            echo "android=false" >> "$GITHUB_OUTPUT"
+            changed=$(git diff --name-only "$BEFORE" HEAD)
           fi
+          printf '%s\n' "$changed"
+          choose() {
+            if grep -qE "$2" <<< "$changed"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"
+          }
+          choose android '^(apps/mobile/android/|core/|\.github/workflows/android-ci\.yml$|\.github/scripts/check-core-boundary\.py$)'
+          choose emulators '^(apps/mobile/android/|\.github/workflows/android-ci\.yml$)'
 
   checks:
     # Fast checks that need no build: no paths or core headers across the core boundary.
@@ -151,7 +161,7 @@ jobs:
 
   managed-device-tests:
     needs: changes
-    if: needs.changes.outputs.android == 'true'
+    if: needs.changes.outputs.emulators == 'true'
     runs-on: ubuntu-24.04
     # One job per device, in parallel: a flake or a real failure on one API level doesn't block
     # or get conflated with the others, and a rerun only redoes the device that failed. Each
