@@ -1,18 +1,32 @@
 #!/usr/bin/env bash
-# Publishes this run's core SDK archives to HolderTeam/holder-sdk as the prerelease core-<tree>,
-# with an sdk-index.json describing them. Does nothing when that release already exists: core/'s
-# tree is unchanged, so its SDKs are already published. The release is created as a draft and
+# Publishes core SDK archives to HolderTeam/holder-sdk, with an sdk-index.json describing them.
+# By default the release is the development snapshot core-<tree>, a prerelease. With
+# SDK_RELEASE=holder-v<version> it is instead the SDK shipped with that Holder release: a full
+# release (a prerelease only for a pre-release version), marked latest. Does nothing when the
+# release already exists: published SDKs are never replaced. The release is created as a draft and
 # published only once every file is uploaded, so a failed run leaves no half-published release.
 #
 # Usage: publish-core-sdk.sh <archives dir> <core-selection.json> <core tree>
-# Needs GH_TOKEN with contents: write on HolderTeam/holder-sdk, and RUN_URL.
+# Needs GH_TOKEN with contents: write on HolderTeam/holder-sdk, and RUN_URL; SDK_RELEASE optional.
 set -euo pipefail
 
 assets="$1"
 selection="$2"
 tree="$3"
 repo=HolderTeam/holder-sdk
-tag="core-$tree"
+tag="${SDK_RELEASE:-core-$tree}"
+if [[ "$tag" == holder-v* ]]; then
+  version="${tag#holder-v}"
+  [[ "$(jq -r .version "$selection")" == "$version" ]] || { echo "Core is not at version $version" >&2; exit 1; }
+  title="Holder $version core SDK"
+  about="The core SDK (libholder) shipped with Holder $version: use it for anything you distribute."
+  if [[ "$version" == *-* ]]; then flags=(--prerelease --latest=false); latest=false; else flags=(--latest); latest=true; fi
+else
+  title="Core SDK ${tree:0:12}"
+  about="A development build: see the README for which release to use."
+  flags=(--prerelease --latest=false)
+  latest=false
+fi
 
 [[ "$(jq -r .core_tree "$selection")" == "$tree" ]] || { echo "Selection is for another core tree" >&2; exit 1; }
 
@@ -45,10 +59,10 @@ diff <(jq -r '.assets[].name' "$assets/sdk-index.json" | sort) \
 
 notes="Holder core's SDK (libholder), built from HolderTeam/holder commit $commit (core tree $tree) by $RUN_URL.
 
-A development build: see the README for which release to use, and sdk-index.json for each archive's size and SHA-256 checksum."
+$about sdk-index.json lists each archive's size and SHA-256 checksum."
 
-gh release create "$tag" --repo "$repo" --target main --draft --prerelease --latest=false \
-  --title "Core SDK ${tree:0:12}" --notes "$notes" "$assets"/*
+gh release create "$tag" --repo "$repo" --target main --draft "${flags[@]}" \
+  --title "$title" --notes "$notes" "$assets"/*
 read -r id draft < <(release)
-gh api -X PATCH "repos/$repo/releases/$id" -F draft=false -f make_latest=false > /dev/null
+gh api -X PATCH "repos/$repo/releases/$id" -F draft=false -f make_latest="$latest" > /dev/null
 echo "Published https://github.com/$repo/releases/tag/$tag"
