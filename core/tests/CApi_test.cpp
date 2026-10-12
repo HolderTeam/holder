@@ -26,15 +26,18 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -1517,6 +1520,115 @@ TEST_CASE("C API moves a card into another card", "[capi]") {
   holder_string_free(move_json);
 
   holder_context_destroy(context);
+}
+
+TEST_CASE("C API contexts on one data directory can be used from separate threads", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+
+  holder_context* writer = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &writer, &error) == HOLDER_OK
+  );
+  char* project_json = nullptr;
+  REQUIRE(
+      holder_project_create(writer, "Home", nullptr, nullptr, &project_json, &error) == HOLDER_OK
+  );
+  const std::string project_id = nlohmann::json::parse(project_json)["project_id"].get<std::string>(
+  );
+  holder_string_free(project_json);
+  std::vector<std::string> card_ids;
+  for (const char* title : {"A", "B", "C"}) {
+    char* card_json = nullptr;
+    REQUIRE(
+        holder_card_create(
+            writer,
+            project_id.c_str(),
+            title,
+            "body",
+            nullptr,
+            &card_json,
+            &error
+        ) == HOLDER_OK
+    );
+    card_ids.push_back(nlohmann::json::parse(card_json)["card_id"].get<std::string>());
+    holder_string_free(card_json);
+  }
+  const auto& moved_id = card_ids.back();
+
+  holder_context* reader = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &reader, &error) == HOLDER_OK
+  );
+
+  // One thread moves a card back and forth on the writer context while another lists the
+  // project on the reader context: neither call may fail, and every list sees all three cards.
+  constexpr int moves = 20;
+  std::atomic<bool> moving{true};
+  std::atomic<int> failed_moves{0};
+  std::atomic<int> failed_reads{0};
+  std::atomic<int> reads{0};
+  std::thread mover([&]() {
+    for (int i = 0; i < moves; ++i) {
+      const std::string request = i % 2 == 0 ? R"({"intent":"to_end"})"
+                                             : R"({"intent":"to_start"})";
+      char* move_json = nullptr;
+      holder_error* move_error = nullptr;
+      if (holder_card_move_json(
+              writer,
+              project_id.c_str(),
+              moved_id.c_str(),
+              request.c_str(),
+              &move_json,
+              &move_error
+          ) == HOLDER_OK) {
+        holder_string_free(move_json);
+      } else {
+        ++failed_moves;
+        holder_error_destroy(move_error);
+      }
+    }
+    moving = false;
+  });
+  std::thread lister([&]() {
+    while (moving || reads == 0) {
+      char* list_json = nullptr;
+      holder_error* list_error = nullptr;
+      if (holder_card_list(reader, project_id.c_str(), &list_json, &list_error) == HOLDER_OK) {
+        if (nlohmann::json::parse(list_json).size() != 3) ++failed_reads;
+        holder_string_free(list_json);
+      } else {
+        ++failed_reads;
+        holder_error_destroy(list_error);
+      }
+      ++reads;
+    }
+  });
+  mover.join();
+  lister.join();
+  REQUIRE(failed_moves == 0);
+  REQUIRE(failed_reads == 0);
+
+  // The last move (to_start) is committed, so the reader context sees it.
+  char* list_json = nullptr;
+  REQUIRE(holder_card_list(reader, project_id.c_str(), &list_json, &error) == HOLDER_OK);
+  const auto cards = nlohmann::json::parse(list_json);
+  holder_string_free(list_json);
+  double moved_key = 0;
+  double lowest_other_key = std::numeric_limits<double>::max();
+  for (const auto& card : cards) {
+    const auto key = card.at("sort_key").get<double>();
+    if (card.at("card_id") == moved_id) {
+      moved_key = key;
+    } else {
+      lowest_other_key = std::min(lowest_other_key, key);
+    }
+  }
+  REQUIRE(moved_key < lowest_other_key);
+
+  holder_context_destroy(reader);
+  holder_context_destroy(writer);
 }
 
 TEST_CASE("C API move rejects a cycle, an unknown target, and an unknown intent", "[capi]") {
