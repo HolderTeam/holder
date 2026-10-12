@@ -196,11 +196,13 @@ android {
             // flakier than 28/34 -- the same smoke test passes some runs and 60s-times-out on
             // others, on identical code -- so this leg is advisory in CI (continue-on-error in
             // the workflow): it still runs and reports, it just doesn't turn the run red on its
-            // own. Revisit making it blocking when the image matures.
+            // own. (No emulator test is part of the required "Android CI result" anyway.) It uses
+            // the ATD image, like pixel2Api30: by 2026-10 Google no longer published the plain
+            // AOSP API 36 image for x86_64, only for ARM, so "aosp" could not set up the device.
             val pixel6Api36 = localDevices.create("pixel6Api36") {
                 device = "Pixel 6"
                 apiLevel = 36
-                systemImageSource = "aosp"
+                systemImageSource = "aosp-atd"
                 require64Bit = true
                 pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_4KB_PAGES
             }
