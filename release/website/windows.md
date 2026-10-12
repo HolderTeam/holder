@@ -1,0 +1,102 @@
+---
+layout: default
+title: Holder for Windows
+permalink: /windows/
+narrow: true
+---
+
+<section class="page-panel">
+  <p class="eyebrow">Windows</p>
+  <h1>Holder for Windows</h1>
+  <p class="lead">Download the Windows installer, or build Holder yourself while the Windows signing pipeline is being finished.</p>
+  <div class="actions">
+    <a class="button primary" data-download-asset="windows" href="{{ site.data.downloads.platforms.windows.url }}">Download for Windows</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Signed Release Builds Are Coming Soon</h2>
+    <p>Holder is more transparent than most software on your system. All the source code is public, you can build it yourself, and public GitHub workflows take it from source to installer.</p>
+    <p>Getting those workflows to produce trusted Windows installers requires a few more hoops. Good that modern Windows takes security seriously, but the developer experience is... (think of a polite word)... fragmented.</p>
+    <p>Apple has straightforward notarization and Linux established package signing. Meanwhile, Windows has a pile of parts we have to fit together: Authenticode, SmartScreen, Store certification and several packaging formats.</p>
+    <p>The goal is for every Windows release to be Authenticode-signed by a trusted certificate authority and eventually pass Microsoft Store certification. After all that bureaucracy, we might even avoid the blue window of moan.</p>
+    <p>For now, use a development build or compile Holder yourself.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Before You Install</h2>
+    <p>The current Windows installer is a development build. Until the Windows release-signing pipeline is finished, Microsoft Defender SmartScreen will treat it as an unrecognised application and display:</p>
+    <p><strong>Windows protected your PC</strong></p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-1-dont-run.png' | relative_url }}" alt="Windows SmartScreen showing the Windows protected your PC warning">
+    </figure>
+    <p>This does not mean that SmartScreen has detected malware in Holder. It means Windows does not trust the certificate used to sign these development builds, and the installer does not yet have normal publisher reputation.</p>
+    <p>If you've downloaded Holder from the official Holder project and want to continue, click <strong>More info</strong>, check that you're running the file you intended to download, and then choose <strong>Run anyway</strong>.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-2-run-anyway.png' | relative_url }}" alt="Windows SmartScreen showing the Run anyway button after expanding More info">
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Install</h2>
+    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
+    <p>When the installer starts, it is worth selecting <strong>Add Holder command line tools to PATH</strong>. This lets you run <code>holderctl</code> from PowerShell, which is useful both for normal command-line use and for fixing problems.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">
+    </figure>
+    <p>The installer copies the Holder programs and supporting files to your computer.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-4-installer-2.png' | relative_url }}" alt="The Holder installer copying files">
+    </figure>
+    <p>When the installer finishes, leave <strong>Launch Holder</strong> selected, or open Holder later from the Start menu.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-5-installer-3-done-launch.png' | relative_url }}" alt="The Holder installer completion screen with the launch option selected">
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Usage</h2>
+    <p>Holder opens with your projects and cards. By default you get a project called Home. Press the plus button to create a card, or the folder-plus button to create a project.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-6-installer-2-done-launch.png' | relative_url }}" alt="Holder running on Windows with the default Home project open">
+    </figure>
+    <p>Press the beaker icon to open the toolbox, press the keyboard icon to open the AI panel.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-7-installer-3-done-launch.png' | relative_url }}" alt="Holder running on Windows with the toolbox and AI panel visible">
+    </figure>
+    <p>The local HTTP API is documented with Swagger UI.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-8-webapi-docs.png' | relative_url }}" alt="Holder API documentation open in a browser on Windows">
+    </figure>
+    <p>To access the command-line interface, type <code>holderctl</code> into PowerShell.</p>
+    <figure class="page-image">
+      <img src="{{ '/assets/img/platforms/windows/win-9-holderctl.png' | relative_url }}" alt="holderctl running in PowerShell on Windows">
+    </figure>
+    <p>Holder Framework Edition gives you several ways to work with the same local knowledge base: the desktop app, the command line and the HTTP API.</p>
+    <figure class="page-image wide">
+      <img src="{{ '/assets/img/platforms/windows/win-10-all-the-interfaces.png' | relative_url }}" alt="Holder on Windows showing the desktop app, command line interface and browser API documentation">
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Building From Source</h2>
+    <p>Building from source on Windows uses Visual Studio for the backend and MSYS2 UCRT64 for the GTK desktop app. Follow the <a href="{{ '/develop/windows/' | relative_url }}">full Windows developer setup guide</a> for the fresh-machine path, tests, and instructions for running both together.</p>
+    <ul class="steps">
+      <li>Install Visual Studio Community with the <strong>Desktop development with C++</strong> workload.</li>
+      <li>Install <a href="https://www.msys2.org/">MSYS2</a> and open the <strong>UCRT64</strong> shell.</li>
+      <li>Clone the backend and desktop source repositories.</li>
+      <li>Build and test the backend in Visual Studio.</li>
+      <li>Build and test the desktop app in MSYS2 UCRT64, then start it with the backend running.</li>
+    </ul>
+    <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder/tree/main/launcher">launcher source</a>.</p>
+  </div>
+</section>

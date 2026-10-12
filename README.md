@@ -26,7 +26,7 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 - [`staging/`](staging/) - assembles and checks build artifacts for each platform.
 - [`apps/desktop/gtk/`](apps/desktop/gtk/) - the Holder desktop app (GTK 4 and libadwaita, built with Meson), a client of the daemon's HTTP API on Linux, macOS and Windows.
 - [`python/`](python/) - Python libraries: [`holder/`](python/holder/), an experimental Python client for the Holder daemon's HTTP API, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
-- [`release/`](release/) - signing, verification and publishing of releases.
+- [`release/`](release/) - signing, verification and publishing of releases, and the website ([`release/website/`](release/website/), www.holder.team), including its developer guides.
 
 ## Version
 

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-base-url="{{ site.baseurl | default: '' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>
+    {% if page.title and page.title != site.title %}{{ page.title }} · {% endif %}{{ site.title }}
+  </title>
+
+  <meta name="description" content="{{ site.description }}">
+  <meta name="theme-color" content="#151515">
+  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
+  <script defer src="{{ '/assets/js/downloads.js' | relative_url }}"></script>
+</head>
+
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{ '/' | relative_url }}">
+      <img src="{{ '/assets/img/holder-icon.png' | relative_url }}" alt="" width="36" height="36">
+      <span>Holder</span>
+    </a>
+
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="{{ '/#download' | relative_url }}">Download</a>
+      <a href="{{ '/about/' | relative_url }}">About</a>
+      {% comment %}<a href="{{ '/features/' | relative_url }}">Features</a>{% endcomment %}
+      <a href="{{ '/extra-tools/' | relative_url }}">Extra Tools</a>
+      <a href="https://github.com/HolderTeam">Source</a>
+    </nav>
+  </header>
+
+  <main class="page-shell{% if page.narrow %} narrow{% endif %}">
+    {{ content }}
+  </main>
+
+  <footer class="site-footer">
+    <p>Holder is free and open source software.</p>
+    <p>
+      <a href="{{ '/linux/' | relative_url }}">Linux</a>
+      <a href="{{ '/ubuntu/' | relative_url }}">Ubuntu</a>
+      <a href="{{ '/windows/' | relative_url }}">Windows</a>
+      <a href="{{ '/macos/' | relative_url }}">macOS</a>
+      <a href="https://github.com/HolderTeam">GitHub</a>
+      <a href="https://github.com/HolderTeam/holder/releases/latest">Releases</a>
+      <a href="{{ '/privacy/' | relative_url }}">Privacy</a>
+      <a href="{{ '/terms/' | relative_url }}">Terms</a>
+    </p>
+  </footer>
+</body>
+</html>
