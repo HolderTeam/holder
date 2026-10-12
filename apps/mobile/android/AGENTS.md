@@ -18,8 +18,9 @@ header, and a boundary check in CI enforces that. The build compiles core from s
 `../../../core` (Gradle passes `HOLDER_CORE_DIR` to CMake), takes core's Android dependencies from
 core's vcpkg manifest, and packages core's `schema/` and `resources/` as assets. Android / CI builds
 the app against core from the same commit, so a core change that breaks the Android build or its
-unit tests fails its own pull request. The emulator tests also run, but are advisory: GitHub's
-emulators are often flaky, so they never block a merge.
+unit tests fails its own pull request. The emulator tests run only when the app itself changes,
+or when Android / CI is run by hand (for example before an Android release), and are advisory:
+GitHub's emulators are often flaky, so they never block a merge or start for core-only work.
 
 # XML comments
 
