@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_version:
-        description: Exact release version, for example 0.3.0
+        description: Exact release version, for example 0.2.5
         required: true
         type: string
       daemon_ci_run_id:
@@ -63,7 +63,7 @@ jobs:
             exit 1
           fi
           if ! [[ "$EXPECTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "expected_version must be a version like 0.3.0; got '$EXPECTED_VERSION'" >&2
+            echo "expected_version must be a version like 0.2.5; got '$EXPECTED_VERSION'" >&2
             exit 1
           fi
           run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"

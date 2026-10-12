@@ -28,7 +28,7 @@ on:
         options: [all, core, daemon, kit, desktop]
         default: all
       version:
-        description: Optional expected upstream version, for example 0.3.0
+        description: Optional expected upstream version, for example 0.2.5
         required: false
       package_revision:
         description: Debian package revision; increment it for every replacement upload
@@ -82,13 +82,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Core, the daemon and the desktop each read their own VERSION file until they take the
-          # root one; Kit's version is in its pyproject.toml.
-          if [ "$SOURCE" = holder-kit ]; then
-            version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
-          else
-            version="$(tr -d '[:space:]' < VERSION)"
-          fi
+          # Every package has Holder's one version: the root VERSION, which the parts built on their
+          # own also carry in their own directories (release/scripts/version.py).
+          python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --check
+          version="$(python3 "$GITHUB_WORKSPACE/release/scripts/version.py")"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Launchpad uploads need a stable numeric version; $SOURCE has '$version'" >&2
             exit 1
@@ -110,18 +107,10 @@ jobs:
           fi
           rm -rf debian build
           cp -a packaging/linux/debian debian
-          if [ "$SOURCE" = holder-kit ]; then
-            # Kit installs the schema of the core it is built against, so it builds against the
-            # libholder-dev of its own version; on Launchpad it waits for that from this upload.
-            core_version="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/core/VERSION")"
-            if [ "$core_version" != "$version" ]; then
-              if [ "$EVENT_NAME" = pull_request ]; then
-                echo "::warning::holder-kit is at $version but core is at $core_version; it cannot be uploaded until they match."
-              else
-                echo "holder-kit is at $version but core is at $core_version; they must match." >&2
-                exit 1
-              fi
-            fi
+          if [ "$SOURCE" = holder-daemon ] || [ "$SOURCE" = holder-kit ]; then
+            # The daemon uses core's C++ headers and Kit installs core's schema, so each builds
+            # against the libholder-dev of the release version. On Launchpad they wait for it from
+            # this upload rather than building against an older core already in the PPA.
             sed -i "s/libholder-dev (>= [^)]*)/libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)/" debian/control
             grep -F "libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)" debian/control
           fi

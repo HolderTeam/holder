@@ -30,12 +30,15 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 
 ## Version
 
-Everything in this repository (the daemon, `holderctl`, the staging and release tooling and the Python client)
-has one version: the [`VERSION`](VERSION) file at the root. Change it there and nowhere else. The daemon's
-[`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not the
-release. Core still has its own [`core/VERSION`](core/VERSION) until the first shared release, 0.3.0, after
-which it takes the root version too; its library's SONAME stays separate. The desktop app likewise keeps
-[`apps/desktop/gtk/VERSION`](apps/desktop/gtk/VERSION) until 0.3.0.
+Everything in this repository (core, the daemon, `holderctl`, the desktop app, Holder Kit, the
+Python client, and the staging and release tooling) has one version: the [`VERSION`](VERSION) file
+at the root. Parts that are built on their own from their own directory also carry it there, because
+their source package holds only that directory: [`core/VERSION`](core/VERSION),
+[`apps/desktop/gtk/VERSION`](apps/desktop/gtk/VERSION) and the Python packages' `pyproject.toml`.
+Change the version with `release/scripts/version.py <version>`, which sets every copy;
+`Repository / Checks` fails a pull request in which they differ. The daemon's
+[`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not
+the release. Core's library SONAME is separate too.
 
 ## Licence
 
