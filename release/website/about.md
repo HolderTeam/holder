@@ -106,12 +106,12 @@ narrow: true
       the daemon and the GUI frontend, the API and command line tool can just expect it to be there.
     </p>
     <p>
-      But on Mac and Windows we need to handle this process ourselves. So a third program called the launcher checks
-      the backend is up, starts it if needed, then hands over to the frontend.
+      On Mac and Windows there is no service manager doing that for us, so the frontend does it: when it opens, it
+      checks the backend is up and starts it if needed, using the command line tool.
     </p>
     <p>
-      We also have a couple of more dev-ops repos that handle the workflows of getting the source code from repo to
-      release.
+      All of it, including the workflows that take the source code from repository to release, and this website,
+      lives in one repository.
     </p>
   </div>
 </section>

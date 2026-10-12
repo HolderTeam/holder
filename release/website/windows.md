@@ -44,8 +44,8 @@ narrow: true
 <section class="section">
   <div class="section-head">
     <h2>Install</h2>
-    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder/releases">Holder release page</a> and run it. The installer includes the desktop app, launcher, backend daemon and command-line tool.</p>
-    <p>When the installer starts, it is worth selecting <strong>Add Holder command line tools to PATH</strong>. This lets you run <code>holderctl</code> from PowerShell, which is useful both for normal command-line use and for fixing problems.</p>
+    <p>Download the <a href="{{ site.data.downloads.platforms.windows.url }}">latest Windows installer</a> from the <a href="https://github.com/HolderTeam/holder/releases">Holder release page</a> and run it. The installer includes the desktop app, the backend daemon and the command-line tool. The desktop app starts the backend itself when it needs it.</p>
+    <p>Keep the installer's <strong>Add the Holder command-line tools to PATH</strong> option, which is selected by default. It lets you run <code>holderctl</code> from PowerShell, which is useful both for normal command-line use and for fixing problems.</p>
     <figure class="page-image">
       <img src="{{ '/assets/img/platforms/windows/win-3-installer-1.png' | relative_url }}" alt="The Holder installer showing setup options including adding Holder command line tools to PATH">
     </figure>
@@ -93,10 +93,9 @@ narrow: true
     <ul class="steps">
       <li>Install Visual Studio Community with the <strong>Desktop development with C++</strong> workload.</li>
       <li>Install <a href="https://www.msys2.org/">MSYS2</a> and open the <strong>UCRT64</strong> shell.</li>
-      <li>Clone the backend and desktop source repositories.</li>
+      <li>Clone the Holder repository, which holds the backend and the desktop app.</li>
       <li>Build and test the backend in Visual Studio.</li>
       <li>Build and test the desktop app in MSYS2 UCRT64, then start it with the backend running.</li>
     </ul>
-    <p>The installer also includes a tiny launcher that starts the backend before opening the desktop app. You don't need to build it unless you are working on packaging, but you can get it here: <a href="https://github.com/HolderTeam/holder/tree/main/launcher">launcher source</a>.</p>
   </div>
 </section>
