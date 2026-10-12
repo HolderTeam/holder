@@ -1,7 +1,9 @@
 name: Android / CI
 
 # Builds the Android app in apps/mobile/android/ against core from this same commit (its native
-# build compiles core/ from source), runs its unit tests, and runs its tests on emulators.
+# build compiles core/ from source), runs its unit tests, and runs its tests on emulators. Only the
+# boundary check, the build and the unit tests make up the required "Android CI result"; the
+# emulator tests are advisory (see the result job).
 
 on:
   # Pull requests always start this workflow so that its required result check is reported;
@@ -345,10 +347,12 @@ jobs:
   result:
     name: Android CI result
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
-    # selected job succeeded and no job ran that was not selected. The manual API 28 job is not
-    # part of it, and the advisory API 36 leg cannot fail managed-device-tests (continue-on-error).
+    # selected job succeeded and no job ran that was not selected. The emulator tests are left out
+    # on purpose: GitHub's emulators change and are often flaky, and Android / CI also runs for
+    # every core change, so they report their own status without blocking a merge. The boundary
+    # check, the build and the unit tests are what a pull request must pass.
     if: always()
-    needs: [changes, checks, build, managed-device-tests]
+    needs: [changes, checks, build]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -363,7 +367,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.checks, .build, .["managed-device-tests"]] | all(.result == "success"))
+               ([.checks, .build] | all(.result == "success"))
              else
-               ([.checks, .build, .["managed-device-tests"]] | all(.result == "skipped"))
+               ([.checks, .build] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
