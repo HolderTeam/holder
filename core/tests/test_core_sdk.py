@@ -63,6 +63,18 @@ class SDKTests(unittest.TestCase):
             self.assertEqual(download.call_count, 1)
             self.assertEqual(json.loads((installed / "libholder-manifest.json").read_text()), self.manifest)
 
+    def test_install_dir_is_a_fixed_path_that_is_replaced(self) -> None:
+        data = self.archive()
+        target = self.root / "fixed" / "libholder-sdk"
+        with patch.object(sdk, "read_url", return_value=data):
+            installed = sdk.fetch(self.selection, self.root, "linux", "x86_64", "RelWithDebInfo", install_dir=target)
+            self.assertEqual(installed, target.resolve())
+            (installed / "stale").write_text("from an earlier SDK")
+            sdk.fetch(self.selection, self.root, "linux", "x86_64", "RelWithDebInfo", install_dir=target)
+        self.assertFalse((target / "stale").exists())
+        self.assertEqual(json.loads((target / "libholder-manifest.json").read_text()), self.manifest)
+        self.assertNotIn(COMMIT, installed.as_posix())
+
     def test_corrupt_download_is_not_cached(self) -> None:
         self.archive()
         with patch.object(sdk, "read_url", return_value=b"damaged"):
