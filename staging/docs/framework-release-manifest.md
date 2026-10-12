@@ -6,13 +6,14 @@ staging workflows. Each reads its platform entry, uses the shared product
 version/core pin, and bundles the original manifest in the package.
 
 `release-manifests/validation-0.2.1-rc.1.json` pins the branch artifacts used to
-validate this machinery. It is a test candidate, not a production release;
-its component inputs remain subject to Actions artifact retention.
+validate this machinery. It is a test candidate, not a production release; it
+predates the desktop and core moving into this repository, its artifacts have
+expired, and staging no longer accepts its separate desktop repository.
 
 1. Dispatch `daemon-ci.yml` on the commit to release with `core_build_type=Release`. It
    builds core from `core/` in that commit and records the SDK in its `core-selection`
    artifact; the core commit to pin is the `commit` in that selection.
-2. Dispatch the desktop artifact workflows with `build_type=release`.
+2. Dispatch Desktop / CI (`desktop-ci.yml`) on the same commit with `build_type=release`.
 3. After the selected runs pass, record their run IDs and source commits below.
 4. Commit the manifest and run staging with its relative path. Leave run
    overrides at defaults. Windows branch validation can additionally use
@@ -24,15 +25,15 @@ its component inputs remain subject to Actions artifact retention.
   "core": {"commit": "<full core SHA>", "build_type": "Release"},
   "platforms": {
     "linux": {
-      "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<Linux desktop run>", "commit": "<desktop SHA>"},
+      "desktop": {"repository": "HolderTeam/holder", "run_id": "<Desktop / CI release run>", "commit": "<desktop SHA>"},
       "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     },
     "windows": {
-      "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<Windows desktop run>", "commit": "<desktop SHA>"},
+      "desktop": {"repository": "HolderTeam/holder", "run_id": "<Desktop / CI release run>", "commit": "<desktop SHA>"},
       "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     },
     "macos": {
-      "desktop": {"repository": "HolderTeam/holder-desktop", "run_id": "<macOS desktop run>", "commit": "<desktop SHA>"},
+      "desktop": {"repository": "HolderTeam/holder", "run_id": "<Desktop / CI release run>", "commit": "<desktop SHA>"},
       "backend": {"repository": "HolderTeam/holder", "run_id": "<Daemon CI Release run>", "commit": "<daemon SHA>"}
     }
   }
@@ -40,9 +41,11 @@ its component inputs remain subject to Actions artifact retention.
 ```
 
 Replace placeholders with full lowercase commit SHAs and numeric run IDs.
-The same daemon run supplies all three platform artifacts. Desktop
-commits may differ between platform entries when deliberately selected; each
-entry is checked against its selected run and build metadata.
+The same Daemon CI run supplies all three platform backends, and the same
+Desktop / CI run all three desktops. The desktop and the backend must come from
+the same repository, and the desktop run must be built from the same
+`apps/desktop/` source as the backend's commit; each entry is also checked
+against its selected run and build metadata.
 
 A Release manifest selects artifact names ending in `-release` and rejects
 development desktop or daemon/core configurations. Backend's own
