@@ -34,4 +34,6 @@ bundle exec jekyll serve
 The checked-in lockfile was generated with Bundler 2.4.20. Fedora 45 supplies
 a newer Ruby and Bundler; Bundler will report any compatibility issue during
 `bundle install`. CI and the deployment pin Ruby 3.2: see
-[Website / CI](../../.github/workflows/website-ci.yml). Run these commands from this directory.
+[Website / CI](../../.github/workflows/website-ci.yml), which checks pull requests, and
+[Release / Website](../../.github/workflows/release-website.yml), which deploys to GitHub Pages
+whenever this directory changes on `main`. Run these commands from this directory.
