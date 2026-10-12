@@ -37,7 +37,7 @@ jobs:
         platform: ${{ fromJSON(inputs.platforms) }}
     runs-on: ${{ matrix.platform == 'linux' && 'ubuntu-24.04' || matrix.platform == 'macos' && 'macos-15' || 'windows-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -198,7 +198,7 @@ jobs:
     outputs:
       commit: ${{ steps.index.outputs.commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/download-artifact@v4
