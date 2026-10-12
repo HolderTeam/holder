@@ -58,7 +58,7 @@ jobs:
 
       - id: cache
         name: Restore the SDK built from this tree
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: core/out/sdk-assets
           key: core-sdk-${{ matrix.platform }}-${{ inputs.build_type }}-${{ steps.tree.outputs.tree }}-v1
@@ -100,7 +100,7 @@ jobs:
 
       - name: Restore vcpkg binary package cache
         if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -173,14 +173,14 @@ jobs:
 
       - name: Save vcpkg binary package cache
         if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows' && github.event_name != 'pull_request'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save the SDK for this tree
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: core/out/sdk-assets
           key: ${{ steps.cache.outputs.cache-primary-key }}
