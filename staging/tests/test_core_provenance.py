@@ -93,13 +93,12 @@ class ProvenanceTests(unittest.TestCase):
     def test_release_manifest_controls_selection_and_rejects_conflicting_overrides(self):
         pin = {**self.pin, "appimage_version": "0.2.1-rc.1"}
         for name in ("desktop", "backend"):
-            pin[name] = {**pin[name], "repository": "HolderTeam/holder-" + name, "run_id": "123"}
+            pin[name] = {**pin[name], "repository": "HolderTeam/holder", "run_id": "123"}
         with tempfile.TemporaryDirectory() as directory:
             manifest = Path(directory) / "release.json"
             output = Path(directory) / "outputs"
             manifest.write_text(json.dumps(pin))
             env = {"GITHUB_OUTPUT": str(output),
-                   "DESKTOP_REPOSITORY_INPUT": "HolderTeam/holder-desktop",
                    "BACKEND_REPOSITORY_INPUT": "HolderTeam/holder"}
             args = ["core-provenance.py", "prepare", "--release-manifest", str(manifest)]
             with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", args):
@@ -109,9 +108,15 @@ class ProvenanceTests(unittest.TestCase):
                 self.assertEqual(values["build_type"], "RelWithDebInfo")
                 self.assertEqual(values["appimage_version"], "0.2.1-rc.1")
                 self.assertEqual(values["backend_run_id"], "123")
-                self.assertEqual(values["backend_repository"], "HolderTeam/holder-backend")
+                self.assertEqual(values["backend_repository"], "HolderTeam/holder")
+                self.assertEqual(values["desktop_repository"], "HolderTeam/holder")
                 os.environ["BACKEND_RUN_ID_INPUT"] = "456"
                 with self.assertRaisesRegex(ValueError, "manifest alone"):
+                    tool.main()
+            pin["desktop"]["repository"] = "HolderTeam/holder-desktop"
+            manifest.write_text(json.dumps(pin))
+            with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", args):
+                with self.assertRaisesRegex(ValueError, "same repository"):
                     tool.main()
 
     def test_release_manifest_rejects_moving_core_reference(self):
@@ -123,7 +128,7 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_shared_framework_manifest_selects_platform_and_one_core_pin(self):
         components = {
-            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder-desktop", "run_id": "123"},
+            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder", "run_id": "123"},
             "backend": {"commit": "d" * 40, "repository": "HolderTeam/holder-daemon", "run_id": "456"}}
         document = {"version": "0.2.1-rc.1", "core": {"commit": self.sha, "build_type": "Release"},
                     "platforms": {"linux": components, "windows": components, "macos": components}}
@@ -142,7 +147,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_a_manifest_written_when_there_was_a_launcher_is_still_accepted(self):
         launcher = {"commit": "f" * 40, "repository": "HolderTeam/holder-launcher", "run_id": "789"}
         components = {
-            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder-desktop", "run_id": "123"},
+            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder", "run_id": "123"},
             "backend": {"commit": "d" * 40, "repository": "HolderTeam/holder-daemon", "run_id": "456"}}
         document = {"version": "0.2.1-rc.1", "core": {"commit": self.sha, "build_type": "Release"},
                     "platforms": {"windows": {**components, "launcher": launcher},
@@ -158,7 +163,7 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_a_missing_desktop_or_backend_is_still_rejected(self):
         components = {
-            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder-desktop", "run_id": "123"}}
+            "desktop": {"commit": "c" * 40, "repository": "HolderTeam/holder", "run_id": "123"}}
         document = {"version": "0.2.1-rc.1", "core": {"commit": self.sha, "build_type": "Release"},
                     "platforms": {"windows": components}}
         with tempfile.TemporaryDirectory() as directory:
@@ -179,7 +184,7 @@ class ProvenanceTests(unittest.TestCase):
         for platform in ("linux", "windows", "macos"):
             with tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "output.txt"
-                environment = {"GITHUB_OUTPUT": str(output), "DESKTOP_REPOSITORY_INPUT": "HolderTeam/holder-desktop",
+                environment = {"GITHUB_OUTPUT": str(output), 
                                "BACKEND_REPOSITORY_INPUT": "HolderTeam/holder-core"}
                 with patch.dict(os.environ, environment, clear=False), \
                         patch.object(sys, "argv", ["core-provenance.py", "prepare", "--platform", platform]):

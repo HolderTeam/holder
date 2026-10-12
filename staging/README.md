@@ -12,7 +12,7 @@ Normal development staging follows the latest successful Daemon CI run on main.
 
 The `Staging / Windows` workflow assembles the two Windows build outputs into a release-candidate layout:
 
-- `holder-desktop-windows` from `HolderTeam/holder-desktop`
+- `holder-desktop-windows` from this repository's Desktop / CI run
 - `holder-daemon-windows-backend` from this repository's Daemon CI run
 
 The desktop is the program the installer's shortcuts start (`bin\holder-desktop.exe`); it starts its own
@@ -22,10 +22,14 @@ Run it manually from:
 
 https://github.com/HolderTeam/holder/actions/workflows/staging-windows-stage.yml
 
-By default, staging selects successful desktop and Daemon CI runs on main. All
-selected artifacts must be unexpired. Explicit component run IDs support
-reproducible staging. Desktop installer metadata is checked out at the
-selected desktop run's commit.
+By default, staging selects the newest successful Daemon CI run on main, then the
+newest successful Desktop / CI run built from the same desktop source: its
+`apps/desktop/` Git tree must equal the one at the backend's commit. The two
+commits can differ, because Desktop / CI runs on main only when the desktop
+changes, but the desktop source cannot. All selected artifacts must be
+unexpired. Explicit component run IDs support reproducible staging and are held
+to the same rule. Desktop installer metadata is checked out at the selected
+desktop run's commit.
 
 Core comes with the backend: Daemon CI builds the daemon against core from the
 same commit, and its `core-selection` artifact records that SDK. Staging takes
@@ -57,15 +61,16 @@ If the artifact downloads need cross-repository authentication, add a repository
 
 ## Linux AppImage
 
-The Linux AppImage workflow combines the native Ubuntu 24.04 artifacts from
-`holder-desktop` and `holder-daemon`, bundles their GTK/GIO runtime, and uploads
+The Linux AppImage workflow combines the native Ubuntu 24.04 artifacts of the
+desktop (Desktop / CI) and the daemon (Daemon CI), bundles their GTK/GIO runtime, and uploads
 both an AppImage and its assembled AppDir:
 
 https://github.com/HolderTeam/holder/actions/workflows/staging-linux-appimage-stage.yml
 
 All workflow inputs are optional. Development staging selects the newest
-successful desktop main artifact and Daemon CI (`daemon-ci.yml`) artifact on
-main that are still downloadable. The Daemon CI run built the daemon against
+successful Daemon CI (`daemon-ci.yml`) artifact on main that is still
+downloadable, and the newest Desktop / CI (`desktop-ci.yml`) artifact built from
+the same desktop source, as for Windows. The Daemon CI run built the daemon against
 core from the same commit, and staging takes the core selection from that run.
 Daemon CI runs on main only when the daemon, core or their shared code changes,
 and its artifacts last 7 days, so after a quiet week run Daemon CI on main
@@ -87,8 +92,8 @@ run's core selection records. For example:
   "appimage_version": "0.2.1-rc.1",
   "core": {"commit": "<full core SHA>", "build_type": "RelWithDebInfo"},
   "desktop": {
-    "repository": "HolderTeam/holder-desktop",
-    "run_id": "<successful desktop run ID>",
+    "repository": "HolderTeam/holder",
+    "run_id": "<successful Desktop / CI run ID>",
     "commit": "<full desktop SHA>"
   },
   "backend": {

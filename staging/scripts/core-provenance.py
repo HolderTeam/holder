@@ -104,12 +104,15 @@ def main():
         values = {name: os.environ.get(name.upper() + "_INPUT", "") for name in
                   ("desktop_run_id", "backend_run_id", "appimage_version")}
         values["build_type"] = "RelWithDebInfo"
-        for name in components:
-            values[name + "_repository"] = os.environ[name.upper() + "_REPOSITORY_INPUT"]
+        values["backend_repository"] = os.environ["BACKEND_REPOSITORY_INPUT"]
+        # Desktop / CI and Daemon CI run in the same repository.
+        values["desktop_repository"] = values["backend_repository"]
         if pin:
             require(not any(values[name + "_run_id"] for name in components) and not values["appimage_version"],
                     "Use the release manifest alone, without run or version overrides")
             values.update(appimage_version=pin["appimage_version"], build_type=pin["core"]["build_type"])
+            require(pin["desktop"]["repository"] == pin["backend"]["repository"],
+                    "The desktop and the backend must come from the same repository")
             for name in components:
                 values[name + "_run_id"] = str(pin[name]["run_id"])
                 values[name + "_repository"] = pin[name]["repository"]

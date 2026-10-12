@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       desktop_run_id:
-        description: GitHub Actions run ID that uploaded holder-desktop-macos. Leave blank for latest successful desktop_ref run.
+        description: Optional Desktop / CI run ID; blank uses the newest one built from the backend's desktop source (apps/desktop/)
         required: false
         default: ""
         type: string
@@ -13,18 +13,8 @@ on:
         required: false
         default: ""
         type: string
-      desktop_repository:
-        description: Repository containing the desktop artifact and packaging metadata
-        required: true
-        type: string
-        default: HolderTeam/holder-desktop
-      desktop_ref:
-        description: holder-desktop ref to read VERSION and macOS packaging templates from
-        required: true
-        type: string
-        default: main
       backend_repository:
-        description: Repository containing the backend artifact
+        description: Repository whose Daemon CI and Desktop / CI runs to use
         required: true
         type: string
         default: HolderTeam/holder
@@ -59,7 +49,6 @@ jobs:
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
           DESKTOP_RUN_ID_INPUT: ${{ inputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ inputs.backend_run_id }}
-          DESKTOP_REPOSITORY_INPUT: ${{ inputs.desktop_repository }}
           BACKEND_REPOSITORY_INPUT: ${{ inputs.backend_repository }}
         run: |
           options=()
@@ -76,18 +65,16 @@ jobs:
           GH_TOKEN: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           DESKTOP_RUN_ID_INPUT: ${{ steps.pins.outputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ steps.pins.outputs.backend_run_id }}
-          DESKTOP_REPOSITORY: ${{ steps.pins.outputs.desktop_repository }}
-          DESKTOP_REF: ${{ inputs.desktop_ref }}
           BACKEND_REPOSITORY: ${{ steps.pins.outputs.backend_repository }}
         run: python3 sources/holder-framework/staging/scripts/resolve-component-runs.py --platform macos --build-type "${{ steps.pins.outputs.build_type }}"
 
-      - name: Check out holder-desktop metadata
+      - name: Check out the desktop's commit for its version and packaging files
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ steps.pins.outputs.desktop_repository }}
           ref: ${{ steps.artifact_runs.outputs.desktop_commit }}
-          token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
-          path: sources/holder-desktop
+          persist-credentials: false
+          path: sources/desktop
 
       - name: Download desktop artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -174,7 +161,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          desktop_source_dir="sources/holder-desktop"
+          desktop_source_dir="sources/desktop/apps/desktop/gtk"
           staging_source_dir="sources/holder-framework"
           version="${PRODUCT_VERSION:-$(tr -d '[:space:]' < "${desktop_source_dir}/VERSION")}"
           homebrew_prefix="$(brew --prefix)"
@@ -526,7 +513,7 @@ jobs:
           HOLDER_VERSION="${version}" \
           STAGING_SHA="${staging_sha}" \
           DESKTOP_REPOSITORY="${{ steps.pins.outputs.desktop_repository }}" \
-          DESKTOP_REF="${{ inputs.desktop_ref }}" \
+          DESKTOP_TREE="${{ steps.artifact_runs.outputs.desktop_tree }}" \
           DESKTOP_SHA="${desktop_sha}" \
           DESKTOP_RUN_ID="${{ steps.artifact_runs.outputs.desktop_run_id }}" \
           BACKEND_REPOSITORY="${{ steps.pins.outputs.backend_repository }}" \
@@ -546,7 +533,7 @@ jobs:
               "staging_repository": os.environ["GITHUB_REPOSITORY"],
               "staging_sha": os.environ["STAGING_SHA"],
               "desktop_repository": os.environ["DESKTOP_REPOSITORY"],
-              "desktop_ref": os.environ["DESKTOP_REF"],
+              "desktop_tree": os.environ["DESKTOP_TREE"],
               "desktop_sha": os.environ["DESKTOP_SHA"],
               "desktop_run_id": os.environ["DESKTOP_RUN_ID"],
               "desktop_artifact": "holder-desktop-macos${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}",
