@@ -7,7 +7,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val holderCoreDir = rootProject.layout.projectDirectory.dir("submodules/holder-core").asFile
+// Core is built from source from core/ in this repository, the same commit as the app. The app
+// uses only its C API (holder/holder.h); its schema and welcome resources are packaged as assets.
+val holderCoreDir = rootProject.projectDir.resolve("../../../core").canonicalFile
 val holderNdkVersion = "28.2.13676358"
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
@@ -53,6 +55,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++20"
+                arguments += "-DHOLDER_CORE_DIR=${holderCoreDir.absolutePath}"
                 if (!vcpkgRoot.isNullOrBlank()) {
                     val ndkDir = holderNdkDir
                         ?: throw GradleException("ANDROID_HOME, ANDROID_SDK_ROOT, or local.properties sdk.dir is required when VCPKG_ROOT is set")

@@ -4,8 +4,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(HOLDER_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../submodules/holder-core")
-include("${HOLDER_CORE_DIR}/cmake/HolderVersion.cmake")
+# Gradle passes core/ of this repository; the default is the same directory, seven levels up.
+set(HOLDER_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../../../../core" CACHE PATH "Core source directory")
 
 if(NOT DEFINED VCPKG_TARGET_TRIPLET AND (DEFINED ANDROID_ABI OR DEFINED CMAKE_ANDROID_ARCH_ABI))
   if(DEFINED ANDROID_ABI)
@@ -27,7 +27,7 @@ if(NOT DEFINED VCPKG_TARGET_TRIPLET AND (DEFINED ANDROID_ABI OR DEFINED CMAKE_AN
   endif()
 endif()
 
-project(holder_android_native VERSION ${HOLDER_CORE_CMAKE_VERSION} LANGUAGES CXX)
+project(holder_android_native LANGUAGES CXX)
 
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory("${HOLDER_CORE_DIR}" "${CMAKE_BINARY_DIR}/holder-core")

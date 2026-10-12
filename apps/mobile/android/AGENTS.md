@@ -8,23 +8,17 @@ Instead, copy the needed glyph's exact path data into a new `res/drawable/ic_<na
 
 To get exact path data without hand-tracing an SVG: write a throwaway JVM unit test under `app/src/test` that imports the icon from wherever it currently resolves, walks `ImageVector.root` recursively collecting each `VectorPath.pathData: List<PathNode>`, and renders each `PathNode` variant to its SVG command-letter equivalent (M/L/H/V/C/S/Q/T/A/Z, lowercase for the Relative* variants) — vector drawable `pathData` uses identical syntax, so the output pastes straight in. Run via `./gradlew :app:testDebugUnitTest --tests "..."`, write the result to a file (Gradle doesn't surface test stdout directly), then delete the test.
 
-# Core dependency ownership
+# Core
 
-Make holder-core changes in the standalone workspace repository at `../holder-core`
-and test them there first. Do not edit embedded dependency copies inside holder-android.
+Core lives in `../../../core` in this repository. Make core changes there, with core's own tests,
+in the same pull request as the Android changes that need them.
 
-Use the published SDK or package through shared core selection tooling when the
-Android build supports it. The current checked-in Gradle and CMake configuration
-still builds embedded core source; do not assume the daemon's SDK configuration
-works for Android or introduce a build migration as part of an unrelated task.
-Follow the current Android build configuration and test the consumer against the
-exact core version needed by the task.
-
-Legacy embedded checkouts and their Git pointers are not the normal shared
-dependency-update workflow. Do not automatically advance or reset them after
-switching branches, and do not commit existing checkout drift as an unrelated
-change. Changes to dependency selection or source integration must be part of
-the task's explicit scope.
+The app uses only core's stable C API: its native code includes `holder/holder.h` and no other core
+header, and a boundary check in CI enforces that. The build compiles core from source from
+`../../../core` (Gradle passes `HOLDER_CORE_DIR` to CMake), takes core's Android dependencies from
+core's vcpkg manifest, and packages core's `schema/` and `resources/` as assets. Android / CI builds
+the app against core from the same commit, so a core change that breaks Android fails its own pull
+request.
 
 # XML comments
 

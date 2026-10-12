@@ -1,7 +1,7 @@
 Use the native Android testing stack. Do not duplicate libholder/C API tests in Kotlin.
 
 1. **C/C++ tests**
-   - Keep existing holder-core Catch2/C API coverage for business logic, Git, crypto, cards, projects, search, etc.
+   - Keep core's own Catch2/C API coverage (in `core/`) for business logic, Git, crypto, cards, projects, search, etc.
 
 2. **Kotlin unit tests**
    - JUnit for ViewModels, state handling, validation and Kotlin↔native result mapping.

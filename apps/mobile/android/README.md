@@ -16,10 +16,13 @@ A persistent search bar can sit at the top of many primary views. Most other int
 
 The path from a fresh checkout to Holder running on your own devices:
 
-1. **Clone with submodules** (or, if already cloned, fetch them now):
+1. **Clone Holder.** The app lives in `apps/mobile/android/` of the
+   [holder](https://github.com/HolderTeam/holder) repository and builds
+   core from `core/` in the same checkout:
 
    ```bash
-   git submodule update --init --recursive
+   git clone https://github.com/HolderTeam/holder.git
+   cd holder/apps/mobile/android
    ```
 
 2. **Install prerequisites**: Android Studio (gives you the SDK, an
