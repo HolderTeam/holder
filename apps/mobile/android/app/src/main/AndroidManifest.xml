@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Package visibility (Android 11/API 30+): without this, PackageManager hides other
+         installed apps from our own queries by default, including a genuinely installed
+         browser. GitHubActivityBrowserLauncher.resolveBrowser's CustomTabsClient
+         .getPackageName and its ordinary-browser fallback both silently see nothing without
+         this, misreporting BrowserUnavailable even when a browser is actually installed.
+         Confirmed live: this exact failure reproduced on real emulators (API 33/37) before
+         this was added. This HTTPS visibility covers both CustomTabsClient's provider lookup
+         and the exact GitHub authorization-URI check. External-browser candidates are then
+         separately required to expose an unconstrained generic HTTP browser filter. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Holder">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Holder"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Lets Files/Downloads/an email client offer "Open with Holder" for a .hrk
+                 recovery-key export (see holder-desktop's recovery_service.vala, which produces
+                 that same extension), straight to Recover Project with the token pre-filled,
+                 rather than the user having to copy its text out by hand. singleTop above means
+                 an already-running Holder gets this via onNewIntent rather than a second
+                 instance.
+
+                 Two independent filters, deliberately not combined into one: mixing a
+                 mimeType constraint and a pathPattern constraint in the same intent-filter's
+                 data set made real-device matching inconsistent (a MediaStore-backed content://
+                 URI matched; a DocumentsProvider-backed one, what Files/Downloads actually hand
+                 off, didn't). Keeping them apart avoids Android combining them into one
+                 stricter, harder-to-satisfy requirement. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:pathPattern=".*\\.hrk" />
+            </intent-filter>
+
+            <!-- Covers a content:// URI whose path is an opaque document/attachment id rather
+                 than the real filename (the common case for Files/Downloads/an email client),
+                 where pathPattern above can't match at all. application/octet-stream is what
+                 most such providers fall back to for a .hrk file, since it's not a MIME type
+                 Android has any built-in association for. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- Lets another app's Share action send text/a URL (URLs travel as text/plain
+                 too) straight into Holder as a new card; see MainActivity's
+                 sharedContentFromIntent. Kept apart from the */* filter below on the same
+                 precedent as the two .hrk filters above: combining a text/plain mimeType with
+                 a broader */* one would let Android fold them into a single, stricter
+                 requirement rather than offering both independently. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!-- Covers a shared image/PDF/other file. Separate intent-filter from the
+                 text/plain one above; see that filter's comment. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- Lets a text-selection toolbar (long-press text in any app) offer "Holder"
+                 directly, next to Copy/Share/Web search; see MainActivity's
+                 sharedContentFromIntent. -->
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!-- The sole exported App Link boundary. Both http and https declarations are required
+             for Android's Digital Asset Links verification; the coordinator remains stricter
+             and accepts only its exact HTTPS OAuth endpoint at runtime. -->
+        <activity
+            android:name=".GitHubCallbackActivity"
+            android:exported="true"
+            android:noHistory="true">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="${oauthHost}" />
+                <data android:path="/android/oauth-callback" />
+                <data android:path="/github/install-complete" />
+            </intent-filter>
+        </activity>
+
+        <!-- Single-button "New card" home-screen widget; fires the same NEW_CARD action as the
+             static app shortcut above, handled by MainActivity.isNewCardShortcutIntent. See
+             NewCardWidget.kt/NewCardWidgetReceiver.kt. -->
+        <receiver
+            android:name=".widget.NewCardWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/new_card_widget_info" />
+        </receiver>
+
+        <!-- Grants other apps read-only, revocable access to a downloaded Resource
+             attachment so it can be opened externally (ACTION_VIEW). See
+             team.holder.android.resource.openResourceExternally. Only the
+             resource-attachments cache subdirectory is exposed; see file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>
