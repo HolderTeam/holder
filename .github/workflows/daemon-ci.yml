@@ -135,6 +135,53 @@ jobs:
       core_commit: ${{ needs.core-sdk.outputs.commit }}
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  publish-linux-daemon:
+    # Publishes main's tested Linux daemon to HolderTeam/holder-sdk, named after the hash of every
+    # tree it was built from (linux-daemon-cache-key.sh), so Python / Check and others take it
+    # instead of building the daemon; keeps the newest 32 such releases. Only main may use the
+    # holder-sdk-publish environment, which holds the publishing app's key.
+    needs: linux
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: holder-sdk-publish
+    concurrency:
+      group: holder-sdk-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: key
+        name: Compute the daemon build's key
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh RelWithDebInfo)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: holder-daemon-linux-x86_64
+          path: out/linux-daemon
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish the Linux daemon
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: .github/scripts/publish-daemon-build.sh out/linux-daemon "${{ steps.key.outputs.key }}"
+
+      - name: Keep the newest 32 daemon releases
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: .github/scripts/prune-sdk-releases.sh daemon- 32
+
   ubuntu-packages:
     if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release'
     needs: resolve

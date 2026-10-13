@@ -13,6 +13,11 @@ inputs:
   build-testing:
     description: ON also builds the daemon's tests
     default: 'ON'
+  save-ccache:
+    description: >-
+      'false' only restores the compiler cache, for a build that borrows Daemon / CI's (for
+      example Python / Check's, without tests) instead of keeping its own
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -82,14 +87,14 @@ runs:
       run: ccache --show-stats --verbose
 
     - name: Save compiler cache
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request' && inputs.save-ccache == 'true'
       uses: actions/cache/save@v4
       with:
         path: .ccache
         key: ccache-${{ runner.os }}-${{ inputs.build-type }}-${{ inputs.build-testing }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Remove older compiler caches
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request' && inputs.save-ccache == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
