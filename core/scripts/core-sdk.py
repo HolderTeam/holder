@@ -2,7 +2,9 @@
 """Resolve core once, then fetch a verified immutable SDK for each build host.
 
 A selection names either a published SDK release (resolve) or SDK archives built earlier in the
-same CI run (index); fetch verifies and unpacks the archive for this host from either source."""
+same CI run (index); fetch verifies and unpacks the archive for this host from either source.
+shelf downloads this host's archive for a core/ tree from HolderTeam/holder-sdk, where main's
+green builds are published, so a build whose core/ is unchanged needn't build core."""
 
 import argparse
 import hashlib
@@ -14,6 +16,7 @@ import re
 import shutil
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 import sys
@@ -22,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sdk_dependencies import relocate_windows_packages
 
 REPOSITORY = "HolderTeam/holder-core"
+SHELF = "HolderTeam/holder-sdk"
 API = f"https://api.github.com/repos/{REPOSITORY}/"
 
 
@@ -214,6 +218,48 @@ def fetch(selection, cache, system, architecture, build_type, assets_dir=None, i
     return target.resolve()
 
 
+def shelf(tree, build_type, output, system, architecture):
+    """Download this host's SDK for core/'s tree from holder-sdk's core-<tree> release.
+
+    Returns the verified archive's path, or None when holder-sdk has no such release or archive
+    (core changed since main's last green build) or can't be reached, so the caller builds core
+    instead. An index or archive that doesn't match what it claims is an error, never a fallback."""
+    require(re.fullmatch(r"[0-9a-f]{40}", tree), "Invalid core tree")
+    tag = f"core-{tree}"
+    base = f"https://github.com/{SHELF}/releases/download/{tag}/"
+    try:
+        index = json.loads(read_url(base + "sdk-index.json"))
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            print(f"warning: holder-sdk answered {error.code}; building core instead", file=sys.stderr)
+        return None
+    except urllib.error.URLError as error:
+        print(f"warning: holder-sdk unreachable ({error.reason}); building core instead", file=sys.stderr)
+        return None
+    require(index.get("schema_version") == 1 and index.get("repository") == SHELF
+            and index.get("release_tag") == tag and index.get("core_tree") == tree,
+            "holder-sdk index does not match the requested core tree")
+    matches = [a for a in index["assets"] if (a["platform"], a["architecture"], a["build_type"])
+               == (system, architecture, build_type)]
+    require(len(matches) <= 1, "Duplicate SDKs in the holder-sdk index")
+    if not matches:
+        return None
+    asset = matches[0]
+    require(PurePosixPath(asset["name"]).name == asset["name"], "Invalid SDK asset name")
+    require(asset["url"] == base + asset["name"], "Unexpected SDK download URL")
+    require(re.fullmatch(r"[0-9a-f]{64}", asset["sha256"]), "Invalid SDK checksum")
+    data = read_url(asset["url"])
+    require(len(data) == asset["size"] and hashlib.sha256(data).hexdigest() == asset["sha256"],
+            "Downloaded SDK checksum or size mismatch")
+    output.mkdir(parents=True, exist_ok=True)
+    archive = output / asset["name"]
+    archive.write_bytes(data)
+    manifest = archive_manifest(archive)
+    for key in ("commit", "platform", "architecture", "build_type"):
+        require(manifest[key] == asset[key], f"SDK manifest {key} mismatch")
+    return archive
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -225,6 +271,10 @@ def main():
     indexing.add_argument("--output", type=Path, default=Path("out/core-selection.json"))
     indexing.add_argument("--commit", help="The commit this run builds")
     indexing.add_argument("--tree", help="core/'s Git tree in that commit")
+    shelved = commands.add_parser("shelf")
+    shelved.add_argument("--tree", required=True, help="core/'s Git tree")
+    shelved.add_argument("--build-type", choices=["Release", "RelWithDebInfo"], default="RelWithDebInfo")
+    shelved.add_argument("--output", type=Path, required=True, help="Where to put the archive")
     download = commands.add_parser("fetch")
     download.add_argument("--selection", type=Path, default=Path("out/core-selection.json"))
     download.add_argument("--cache", type=Path, default=Path(".core-sdk"))
@@ -235,6 +285,13 @@ def main():
     download.add_argument("--install-dir", type=Path,
                           help="Unpack the SDK here instead of beside its cached archive")
     args = parser.parse_args()
+    if args.command == "shelf":
+        archive = shelf(args.tree, args.build_type, args.output, *host())
+        print(archive if archive else f"holder-sdk has no {args.build_type} SDK for core tree {args.tree}")
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                output.write(f"found={'true' if archive else 'false'}\n")
+        return
     if args.command in ("resolve", "index"):
         selection = (resolve(args.core_ref) if args.command == "resolve"
                      else index(args.assets, args.commit, args.tree))

@@ -310,6 +310,9 @@ After core's tests and SDKs pass on `main`, Core / CI publishes that commit's
 as the prerelease `core-<tree>`, named after core/'s Git tree, with an
 `sdk-index.json` of sizes, checksums and download URLs. A tree that already has
 a release is not published again. Every archive includes core's `LICENSE`.
+Core / SDK takes an SDK from there (`scripts/core-sdk.py shelf`) when core/'s tree
+matches and the Actions cache doesn't have it, so a change that leaves core/
+alone doesn't build core.
 
 ### SDK tool
 
