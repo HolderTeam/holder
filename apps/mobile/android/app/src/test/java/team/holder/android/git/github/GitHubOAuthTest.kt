@@ -5,13 +5,147 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
+import okio.BufferedSource
+import okio.ForwardingSource
+import okio.buffer
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GitHubOAuthTest {
+    private fun tokenBody() = JSONObject()
+        .put("access_token", "access_secret")
+        .put("expires_in", 28800)
+        .put("refresh_token", "refresh_secret")
+        .put("refresh_cap", "cap_secret")
+        .put("refresh_token_expires_in", 15811200)
+
+    private suspend fun refreshResponse(status: Int, body: String): RelayResult {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(status).message("test response").body(body.toResponseBody()).build()
+        }.build()
+        return GitHubOAuth.refresh(client, "submitted_refresh", "submitted_cap")
+    }
+
+    @Test
+    fun refreshAcceptsOnlyCompleteTypedSuccessAtHttp200() = runBlocking {
+        assertEquals(
+            RelayResult.Success(GitHubTokens("access_secret", 28800, "refresh_secret", "cap_secret", 15811200)),
+            refreshResponse(200, tokenBody().toString()),
+        )
+        for (status in listOf(201, 204, 302, 400, 429, 500, 503)) {
+            assertEquals(RelayResult.Failure(RelayError.InvalidResponse(status)), refreshResponse(status, tokenBody().toString()))
+        }
+    }
+
+    @Test
+    fun malformedSuccessFieldsCannotBecomeTokensOrAnOperationalFailure() = runBlocking {
+        val invalidBodies = mutableListOf("", "{broken", "[]", "null", "{}", tokenBody().toString() + " trailing")
+        for (field in listOf("access_token", "refresh_token", "refresh_cap", "expires_in", "refresh_token_expires_in")) {
+            invalidBodies += tokenBody().apply { remove(field) }.toString()
+            invalidBodies += tokenBody().put(field, JSONObject.NULL).toString()
+            invalidBodies += tokenBody().put(field, true).toString()
+            invalidBodies += tokenBody().put(field, JSONObject()).toString()
+        }
+        for (field in listOf("access_token", "refresh_token", "refresh_cap")) {
+            for (value in listOf("", "  ", 17)) invalidBodies += tokenBody().put(field, value).toString()
+        }
+        for (field in listOf("expires_in", "refresh_token_expires_in")) {
+            for (value in listOf(0, -1, 1.5, "28800", 2147483648L, Long.MAX_VALUE)) {
+                invalidBodies += tokenBody().put(field, value).toString()
+            }
+        }
+        invalidBodies += tokenBody().put("error", "unexpected").toString()
+        for (body in invalidBodies) {
+            assertEquals(body, RelayResult.Failure(RelayError.InvalidResponse(200)), refreshResponse(200, body))
+        }
+    }
+
+    @Test
+    fun operationalEnvelopesRequireExactFieldsTypesAndStatus() = runBlocking {
+        val envelopes = listOf(
+            Triple(400, "{\"error\":\"invalid_request\"}", RelayError.InvalidRequest),
+            Triple(400, "{\"error\":\"authorization_required\",\"reason\":\"verify_email\"}", RelayError.AuthorizationRequired(AuthorizationReason.VerifyEmail)),
+            Triple(429, "{\"error\":\"rate_limited\",\"retry_after_seconds\":30}", RelayError.RateLimited(30)),
+            Triple(500, "{\"error\":\"unexpected\"}", RelayError.Unexpected),
+            Triple(503, "{\"error\":\"outcome_unknown\"}", RelayError.OutcomeUnknown),
+        )
+        for ((expectedStatus, body, expectedError) in envelopes) {
+            for (status in listOf(200, 201, 400, 401, 429, 500, 503)) {
+                assertEquals(
+                    "$status $body",
+                    RelayResult.Failure(if (status == expectedStatus) expectedError else RelayError.InvalidResponse(status)),
+                    refreshResponse(status, body),
+                )
+            }
+            for (field in listOf("access_token", "refresh_token", "refresh_cap", "unknown_field")) {
+                val mixedBody = JSONObject(body).put(field, "secret").toString()
+                assertEquals(RelayError.InvalidResponse(expectedStatus), GitHubOAuth.mapRelayErrorBody(expectedStatus, mixedBody))
+            }
+        }
+        for (value in listOf(JSONObject.NULL, "30", -1, 2.5, 2147483648L, true)) {
+            val body = JSONObject().put("error", "rate_limited").put("retry_after_seconds", value).toString()
+            assertEquals(RelayError.InvalidResponse(429), GitHubOAuth.mapRelayErrorBody(429, body))
+        }
+        for (body in listOf("{broken", "{}", "[]", "{\"error\":17}", "{\"error\":\"unknown\"}")) {
+            assertEquals(RelayError.InvalidResponse(500), GitHubOAuth.mapRelayErrorBody(500, body))
+        }
+    }
+
+    @Test
+    fun longResponseStringsDoNotExhaustValidationStack() = runBlocking {
+        val longCap = "a".repeat(65536)
+        val success = refreshResponse(200, tokenBody().put("refresh_cap", longCap).toString())
+        assertTrue(success is RelayResult.Success)
+        assertEquals(longCap, (success as RelayResult.Success).tokens.refreshCap)
+        assertEquals(
+            RelayError.InvalidResponse(500),
+            GitHubOAuth.mapRelayErrorBody(500, "{\"error\":\"$longCap"),
+        )
+    }
+
+    @Test
+    fun lenientJsonExtensionsCannotEstablishAnOperationalEnvelope() {
+        for (body in listOf(
+            "{error:unexpected}",
+            "{'error':'unexpected'}",
+            "{\"error\":\"unexpected\",}",
+            "{\"error\":\"unexpected\"} trailing",
+            "{\"error\":\"outcome_unknown\",\"error\":\"unexpected\"}",
+            "{\"error\":\"unexpected\",\"err\\u006fr\":\"unexpected\"}",
+            "{\"error\":/*comment*/\"unexpected\"}",
+        )) {
+            assertEquals(body, RelayError.InvalidResponse(500), GitHubOAuth.mapRelayErrorBody(500, body))
+        }
+        assertEquals(RelayError.Unexpected, GitHubOAuth.mapRelayErrorBody(500, " \n{ \"err\\u006fr\" : \"unexpected\" }\t"))
+    }
+
+    @Test
+    fun responseBodyReadFailureIsAnAmbiguousOutcome() = runBlocking {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val source = object : ForwardingSource(Buffer().writeUtf8("partial_secret")) {
+                override fun read(sink: Buffer, byteCount: Long): Long = throw java.io.IOException("read failed")
+            }.buffer()
+            val body = object : ResponseBody() {
+                override fun contentType() = null
+                override fun contentLength() = -1L
+                override fun source(): BufferedSource = source
+            }
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(200).message("OK").body(body).build()
+        }.build()
+        assertEquals(RelayResult.Failure(RelayError.AmbiguousTransportFailure), GitHubOAuth.refresh(client, "refresh", "cap"))
+    }
+
     @Test
     fun authorizationUrlRetainsTheExactOAuthParametersUsedForBrowserResolutionAndLaunch() {
         val url = GitHubOAuth.buildAuthorizationUrl(
@@ -100,7 +234,7 @@ class GitHubOAuthTest {
         val body = "{\"error\":\"authorization_required\"}"
 
         assertEquals(RelayError.AuthorizationRequired(null), GitHubOAuth.mapRelayErrorBody(400, body))
-        assertEquals(RelayError.Unexpected(503, body), GitHubOAuth.mapRelayErrorBody(503, body))
+        assertEquals(RelayError.InvalidResponse(503), GitHubOAuth.mapRelayErrorBody(503, body))
     }
 
     @Test
@@ -109,8 +243,8 @@ class GitHubOAuthTest {
         val unknownBody = "{\"error\":\"outcome_unknown\"}"
 
         assertEquals(RelayError.RateLimited(30), GitHubOAuth.mapRelayErrorBody(429, rateBody))
-        assertEquals(RelayError.Unexpected(503, rateBody), GitHubOAuth.mapRelayErrorBody(503, rateBody))
+        assertEquals(RelayError.InvalidResponse(503), GitHubOAuth.mapRelayErrorBody(503, rateBody))
         assertEquals(RelayError.OutcomeUnknown, GitHubOAuth.mapRelayErrorBody(503, unknownBody))
-        assertEquals(RelayError.Unexpected(400, unknownBody), GitHubOAuth.mapRelayErrorBody(400, unknownBody))
+        assertEquals(RelayError.InvalidResponse(400), GitHubOAuth.mapRelayErrorBody(400, unknownBody))
     }
 }

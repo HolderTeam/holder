@@ -777,17 +777,92 @@ class GitHubConnectionCoordinatorTest {
     }
 
     @Test
+    fun malformedRelayRefreshIsNeverRetriedEvenWhenDisposalFails() = runBlocking {
+        for (failDisposal in listOf(false, true)) {
+            val credential = StoredGitHubCredential("refresh_before_response", "cap_before_response", Long.MAX_VALUE)
+            fakeStore.credential = credential
+            val requests = AtomicInteger()
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                requests.incrementAndGet()
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK").body("{broken".toResponseBody()).build()
+            }.build()
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, token, cap ->
+                GitHubOAuth.refresh(client, token, cap).also {
+                    fakeStore.failNextReplacement = if (failDisposal) DurableGitHubCredentialState.Absent else null
+                }
+            }
+
+            repeat(2) {
+                assertEquals(
+                    GitHubResult.Failure(GitHubError.AuthorizationRequired),
+                    GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("invalid token response") },
+                )
+            }
+            assertEquals(1, requests.get())
+            assertEquals(
+                if (failDisposal) DurableGitHubCredentialState.Refreshing(credential) else DurableGitHubCredentialState.Absent,
+                fakeStore.durableState,
+            )
+            restartCredentialProcess()
+            assertEquals(
+                GitHubResult.Failure(GitHubError.AuthorizationRequired),
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("invalid token after restart") },
+            )
+            assertEquals(1, requests.get())
+            GitHubConnectionCoordinator.credentialStore = fakeStore
+        }
+    }
+
+    @Test
+    fun replacementQueuedDuringFailedRotationRetainsItsCacheAndStatus() = runBlocking {
+        val oldCredential = StoredGitHubCredential("refresh_initial", "cap_initial", Long.MAX_VALUE)
+        fakeStore.credential = oldCredential
+        val saving = CompletableDeferred<Unit>()
+        val failSave = CompletableDeferred<Unit>()
+        fakeStore.beforeMutation = { expected, replacement ->
+            if (expected is DurableGitHubCredentialState.Refreshing && replacement is DurableGitHubCredentialState.Ready) {
+                saving.complete(Unit)
+                failSave.await()
+                throw IOException("rotation persistence failed")
+            }
+        }
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotatedTokens()) }
+        val refreshing = async {
+            GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("failed rotation dispatched") }
+        }
+        saving.await()
+        val replacement = StoredGitHubCredential("refresh_replacement", "cap_replacement", Long.MAX_VALUE)
+        val cache = GitHubConnectionCoordinator.AccessTokenCache("access_replacement", Long.MAX_VALUE)
+        val status = GitHubStatus.Connected("replacement-owner", "https://github.com/settings/installations/7")
+        // Enter the mutex's wait queue before releasing the failing durable write.
+        val replacing = async(start = CoroutineStart.UNDISPATCHED) {
+            replaceCredentialStateForTest(replacement, cache, status)
+        }
+        failSave.complete(Unit)
+        replacing.await()
+        assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), refreshing.await())
+        assertEquals(replacement, fakeStore.credential)
+        assertEquals(cache, GitHubConnectionCoordinator.accessTokenCache)
+        assertEquals(status, GitHubConnectionCoordinator.statusFlow.value)
+    }
+
+    @Test
     fun operationalUnexpectedRefreshFailureRetainsTheCommittedCredential() = runBlocking {
         val credential = StoredGitHubCredential("ghr_current", "cap_current", Long.MAX_VALUE)
         fakeStore.credential = credential
-        val unexpected = RelayError.Unexpected(503, "malformed relay response")
-        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Failure(unexpected) }
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(500).message("Internal Server Error")
+                .body("{\"error\":\"unexpected\"}".toResponseBody()).build()
+        }.build()
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, token, cap -> GitHubOAuth.refresh(client, token, cap) }
 
         val result = GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) {
             error("an operational refresh failure must not supply an access token")
         }
 
-        assertEquals(GitHubResult.Failure(GitHubError.Unexpected(unexpected.httpStatus, unexpected.body)), result)
+        assertEquals(GitHubResult.Failure(GitHubError.Unexpected(500, "Relay operational failure")), result)
         assertEquals(credential, fakeStore.credential)
         assertEquals(DurableGitHubCredentialState.Ready(credential), fakeStore.durableState)
         assertEquals(2, fakeStore.transitions.size)
@@ -859,7 +934,7 @@ class GitHubConnectionCoordinatorTest {
         fakeStore.credential = credential
         GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
             fakeStore.failNextMutation = true
-            RelayResult.Failure(RelayError.Unexpected(500, "relay configuration failure"))
+            RelayResult.Failure(RelayError.Unexpected)
         }
 
         val result = GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) {

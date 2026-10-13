@@ -431,8 +431,8 @@ object GitHubConnectionCoordinator {
         codeVerifier: String,
     ): GitHubResult<GitHubStatus> {
         val exchangeResult = GitHubOAuth.exchangeCode(exchangeHttpClient, code, codeVerifier)
-        // Never log a Success case's own body -- it carries live access/refresh tokens.
-        Log.d(LOG_TAG, "performExchange: relay result = " + if (exchangeResult is RelayResult.Success) "Success" else exchangeResult.toString())
+        // Log only the category: failures can also contain sensitive transport diagnostics.
+        Log.d(LOG_TAG, "performExchange: relay result = ${exchangeResult::class.simpleName}")
         return when (exchangeResult) {
             is RelayResult.Success -> {
                 val committedSnapshot = commitCredentialForConnectOperation(appContext, attemptId, exchangeResult.tokens)
@@ -451,13 +451,14 @@ object GitHubConnectionCoordinator {
             is RelayResult.Failure -> when (val error = exchangeResult.error) {
                 is RelayError.AuthorizationRequired ->
                     GitHubResult.Success(GitHubStatus.AuthorizationRequired(error.reason))
-                RelayError.InvalidRequest, RelayError.OutcomeUnknown, RelayError.AmbiguousTransportFailure ->
+                RelayError.InvalidRequest, RelayError.OutcomeUnknown, RelayError.AmbiguousTransportFailure,
+                is RelayError.InvalidResponse ->
                     // A definite rejection, an ambiguous exchange outcome, or an ambiguous
                     // transport failure -- all "tried, needs to try again," not a network-blip
                     // retry prompt and not NotConnected's "chose not to."
                     GitHubResult.Success(GitHubStatus.AuthorizationRequired(null))
                 is RelayError.RateLimited -> GitHubResult.Failure(GitHubError.RateLimited(error.retryAfterSeconds))
-                is RelayError.Unexpected -> GitHubResult.Failure(GitHubError.Unexpected(error.httpStatus, error.body))
+                RelayError.Unexpected -> GitHubResult.Failure(relayOperationalError())
                 is RelayError.NetworkError -> GitHubResult.Failure(GitHubError.NetworkError(error.cause))
             }
         }
@@ -953,11 +954,17 @@ object GitHubConnectionCoordinator {
                         throw e
                     } catch (e: Exception) {
                         Log.e(LOG_TAG, "Could not durably commit the rotated GitHub credential", e)
-                        credentialMutationMutex.withLock {
+                        return credentialMutationMutex.withLock {
+                            if (!refreshSnapshotStillCurrent(
+                                    quarantinedSnapshot, credentialEpoch.get(), credentialStore.read(appContext),
+                                )
+                            ) {
+                                return@withLock SnapshotAccessTokenResult.Stale
+                            }
                             accessTokenCache = null
                             mutableStatusFlow.value = GitHubStatus.NotConnected
+                            SnapshotAccessTokenResult.Failure(GitHubError.AuthorizationRequired)
                         }
-                        return SnapshotAccessTokenResult.Failure(GitHubError.AuthorizationRequired)
                     }
                     if (committedSnapshot != null) {
                         SnapshotAccessTokenResult.Available(
@@ -971,7 +978,8 @@ object GitHubConnectionCoordinator {
                 is RelayResult.Failure -> when (val error = refreshResult.error) {
                     is RelayError.AuthorizationRequired -> abandonRejectedRefreshCredential(appContext, quarantinedSnapshot)
                     RelayError.OutcomeUnknown,
-                    RelayError.AmbiguousTransportFailure -> abandonUnsafeRefreshCredential(appContext, quarantinedSnapshot)
+                    RelayError.AmbiguousTransportFailure,
+                    is RelayError.InvalidResponse -> abandonUnsafeRefreshCredential(appContext, quarantinedSnapshot)
                     // The relay rejected this request before it could reach GitHub, so its
                     // stored credential remains safe to reuse, but only after Ready(A) is
                     // durably restored from the quarantine.
@@ -985,10 +993,10 @@ object GitHubConnectionCoordinator {
                         quarantinedSnapshot,
                         GitHubError.RateLimited(error.retryAfterSeconds),
                     )
-                    is RelayError.Unexpected -> restoreOperationalRefreshCredential(
+                    RelayError.Unexpected -> restoreOperationalRefreshCredential(
                         appContext,
                         quarantinedSnapshot,
-                        GitHubError.Unexpected(error.httpStatus, error.body),
+                        relayOperationalError(),
                     )
                     is RelayError.NetworkError -> restoreOperationalRefreshCredential(
                         appContext,
@@ -1111,6 +1119,9 @@ object GitHubConnectionCoordinator {
     ): Boolean =
         snapshot.epoch == currentEpoch &&
             snapshot.durableState == currentState
+
+    private fun relayOperationalError(): GitHubError =
+        GitHubError.Unexpected(500, "Relay operational failure")
 
     private fun credentialPersistenceError(): GitHubError =
         GitHubError.Unexpected(null, "Could not durably update GitHub credentials")
