@@ -321,7 +321,7 @@ fun RecoverProjectScreen(
                         // primary path.
                         onConnect = { scope.launch { continueGithubRecovery(r.projectId, owner, repo) } },
                         onCancel = {
-                            scope.launch { GitHubConnection.cancelPendingBrowserAuthorization() }
+                            scope.launch { GitHubConnection.cancelConnect() }
                         },
                         onOpenUrl = { url -> openUrlExternally(context, url) },
                         onFinishSetup = { installUrl ->

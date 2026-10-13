@@ -15,6 +15,8 @@ fun githubErrorMessage(error: GitHubError): String = when (error) {
     is GitHubError.RepositoryNotAccessible -> "GitHub needs one more permission for this repository"
     is GitHubError.RateLimited -> "GitHub request was rate limited -- try again shortly"
     is GitHubError.NetworkError -> "Could not reach GitHub -- check your connection and try again"
+    GitHubError.RelayUnavailable -> "GitHub sign-in service is unavailable -- try again"
+    GitHubError.TryAgain -> "GitHub sign-in is busy -- try again"
     is GitHubError.Unexpected -> if (error.httpStatus != null) {
         "GitHub request failed (HTTP ${error.httpStatus})"
     } else {

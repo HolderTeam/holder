@@ -210,7 +210,7 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
                     }
                 },
                 onCancel = {
-                    scope.launch { GitHubConnection.cancelPendingBrowserAuthorization() }
+                    scope.launch { GitHubConnection.cancelConnect() }
                 },
                 onDisconnect = { scope.launch { GitHubConnection.disconnect(context) } },
                 onOpenUrl = { url -> openUrlExternally(context, url) },

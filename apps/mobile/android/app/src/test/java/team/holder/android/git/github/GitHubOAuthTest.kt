@@ -346,10 +346,11 @@ class GitHubOAuthTest {
 
     @Test
     fun relayErrorEnvelope_requiresItsPinnedHttpStatusBeforeItCanDriveAnAuthorizationAction() {
-        val body = "{\"error\":\"authorization_required\"}"
+        val body = "{\"error\":\"authorization_required\",\"reason\":\"reconnect\"}"
 
         assertEquals(RelayError.AuthorizationRequired(null), GitHubOAuth.mapRelayErrorBody(400, body))
         assertEquals(RelayError.InvalidResponse(503), GitHubOAuth.mapRelayErrorBody(503, body))
+        assertEquals(RelayError.InvalidResponse(400), GitHubOAuth.mapRelayErrorBody(400, "{\"error\":\"authorization_required\"}"))
     }
 
     @Test
@@ -358,6 +359,7 @@ class GitHubOAuthTest {
         val unknownBody = "{\"error\":\"outcome_unknown\"}"
 
         assertEquals(RelayError.RateLimited(30), GitHubOAuth.mapRelayErrorBody(429, rateBody))
+        assertEquals(RelayError.InvalidResponse(429), GitHubOAuth.mapRelayErrorBody(429, "{\"error\":\"rate_limited\"}"))
         assertEquals(RelayError.InvalidResponse(503), GitHubOAuth.mapRelayErrorBody(503, rateBody))
         assertEquals(RelayError.OutcomeUnknown, GitHubOAuth.mapRelayErrorBody(503, unknownBody))
         assertEquals(RelayError.InvalidResponse(400), GitHubOAuth.mapRelayErrorBody(400, unknownBody))

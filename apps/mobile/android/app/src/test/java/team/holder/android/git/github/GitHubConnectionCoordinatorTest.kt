@@ -494,7 +494,7 @@ class GitHubConnectionCoordinatorTest {
     private suspend fun finishStaleAttempt(attemptId: UUID): Boolean = suspendCoroutineUninterceptedOrReturn { continuation ->
         GitHubConnectionCoordinator.javaClass.declaredMethods.single { it.name == "finishConnectOperation" }
             .apply { isAccessible = true }
-            .invoke(GitHubConnectionCoordinator, attemptId, GitHubResult.Success(GitHubStatus.NotConnected), false, true, continuation)
+            .invoke(GitHubConnectionCoordinator, attemptId, GitHubResult.Success(GitHubStatus.NotConnected), false, false, true, continuation)
     }
 
     @Test
@@ -1075,8 +1075,96 @@ class GitHubConnectionCoordinatorTest {
             }
             assertEquals(GitHubResult.Failure(GitHubError.BrowserUnavailable), result)
             assertEquals("the first Connect must reach browser selection", 1, browser.resolveCallCount.get())
-            assertEquals(DurableGitHubCredentialState.Absent, fakeStore.durableState)
+            assertTrue(fakeStore.durableState !is DurableGitHubCredentialState.Ready)
         }
+    }
+
+    @Test
+    fun connectDoesNotClearCredentialRotatedAfterItsRejectedStatus() = runBlocking {
+        val old = StoredGitHubCredential("refresh_old", "cap_old", Long.MAX_VALUE)
+        fakeStore.credential = old
+        GitHubConnectionCoordinator.accessTokenCache =
+            GitHubConnectionCoordinator.AccessTokenCache("access_old", Long.MAX_VALUE)
+        val rotated = rotatedTokens("access_new", "refresh_new")
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotated) }
+        val queries = AtomicInteger()
+        val connected = GitHubStatus.Connected("alice", "https://github.com/settings/installations/1")
+        GitHubConnectionCoordinator.storedCredentialStatusOverride = {
+            if (queries.incrementAndGet() == 1) {
+                GitHubConnectionCoordinator.accessTokenCache = null
+                GitHubConnectionCoordinator.withAccessToken(fakeContext) { GitHubResult.Success(Unit) }
+                GitHubResult.Failure(GitHubError.AuthorizationRequired)
+            } else {
+                GitHubResult.Success(connected)
+            }
+        }
+        val browser = UnavailableBrowserLauncher()
+
+        assertEquals(GitHubResult.Success(connected), GitHubConnectionCoordinator.connect(fakeContext, browser))
+        assertEquals(2, queries.get())
+        assertEquals(rotated.refreshToken, fakeStore.credential?.refreshToken)
+        assertEquals(rotated.accessToken, GitHubConnectionCoordinator.accessTokenCache?.accessToken)
+        assertFalse(fakeStore.transitions.any { it.second == DurableGitHubCredentialState.Absent })
+        assertEquals(0, browser.resolveCallCount.get())
+    }
+
+    @Test
+    fun connectCanClearTheCredentialItsOwnRefreshJustRotatedAndFoundRejected() = runBlocking {
+        fakeStore.credential = StoredGitHubCredential("refresh_old", "cap_old", Long.MAX_VALUE)
+        GitHubConnectionCoordinator.accessTokenCache = null
+        val rotated = rotatedTokens("access_new", "refresh_new")
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotated) }
+        GitHubConnectionCoordinator.statusQueryOverride = { accessToken ->
+            assertEquals(rotated.accessToken, accessToken)
+            GitHubResult.Failure(GitHubError.AuthorizationRequired)
+        }
+        val browser = UnavailableBrowserLauncher()
+
+        assertEquals(
+            GitHubResult.Failure(GitHubError.BrowserUnavailable),
+            GitHubConnectionCoordinator.connect(fakeContext, browser),
+        )
+        assertEquals(DurableGitHubCredentialState.Absent, fakeStore.durableState)
+        assertEquals(1, browser.resolveCallCount.get())
+    }
+
+    @Test
+    fun cancelConnectStopsItsWaitBeforeBrowserLaunch() = runBlocking(Dispatchers.IO) {
+        fakeStore.credential = StoredGitHubCredential("refresh_old", "cap_old", Long.MAX_VALUE)
+        GitHubConnectionCoordinator.accessTokenCache =
+            GitHubConnectionCoordinator.AccessTokenCache("access_old", Long.MAX_VALUE)
+        val gateEntered = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<Unit>()
+        val holdingRequest = async {
+            GitHubConnectionCoordinator.withAccessToken(fakeContext) {
+                gateEntered.complete(Unit)
+                releaseGate.await()
+                GitHubResult.Success(Unit)
+            }
+        }
+        gateEntered.await()
+        val browser = UnavailableBrowserLauncher()
+        val connect = async { GitHubConnectionCoordinator.connect(fakeContext, browser) }
+        try {
+            kotlinx.coroutines.withTimeout(5_000) { while (currentAttempt() == null) delay(1) }
+            assertTrue(GitHubConnectionCoordinator.cancelConnect())
+            assertEquals(GitHubResult.Success(GitHubStatus.NotConnected), kotlinx.coroutines.withTimeout(5_000) { connect.await() })
+            assertEquals(0, browser.resolveCallCount.get())
+        } finally {
+            releaseGate.complete(Unit)
+        }
+        holdingRequest.await()
+        Unit
+    }
+
+    @Test
+    fun statusAfterRestartShowsReconnectForQuarantinedCredential() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Refreshing(
+            StoredGitHubCredential("refresh_old", "cap_old", Long.MAX_VALUE),
+        )
+        restartCredentialProcess()
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.status(fakeContext))
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.statusFlow.value)
     }
 
     @Test
@@ -1190,7 +1278,7 @@ class GitHubConnectionCoordinatorTest {
             GitHubConnectionCoordinator.connect(fakeContext, browser)
         }
         assertEquals(3, invalidations.get())
-        assertTrue(result is GitHubResult.Failure && result.error is GitHubError.Unexpected)
+        assertEquals(GitHubResult.Failure(GitHubError.TryAgain), result)
         assertEquals(connected, GitHubConnectionCoordinator.statusFlow.value)
         assertEquals("refresh_3", fakeStore.credential?.refreshToken)
         assertEquals("access_3", GitHubConnectionCoordinator.accessTokenCache?.accessToken)
@@ -1238,7 +1326,7 @@ class GitHubConnectionCoordinatorTest {
             error("an operational refresh failure must not supply an access token")
         }
 
-        assertEquals(GitHubResult.Failure(GitHubError.Unexpected(500, "Relay operational failure")), result)
+        assertEquals(GitHubResult.Failure(GitHubError.RelayUnavailable), result)
         assertEquals(credential, fakeStore.credential)
         assertEquals(DurableGitHubCredentialState.Ready(credential), fakeStore.durableState)
         assertEquals(2, fakeStore.transitions.size)

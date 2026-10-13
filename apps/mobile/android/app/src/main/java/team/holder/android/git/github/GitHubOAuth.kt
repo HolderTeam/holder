@@ -201,7 +201,6 @@ internal object GitHubOAuth {
             "authorization_required" -> {
                 if (httpStatus != 400 || !json.hasOnlyKeys("error", "reason")) return invalid
                 val reason = when {
-                    !json.containsKey("reason") -> null
                     json["reason"] == "reconnect" -> null
                     json["reason"] == "verify_email" -> AuthorizationReason.VerifyEmail
                     else -> return invalid
@@ -210,9 +209,7 @@ internal object GitHubOAuth {
             }
             "rate_limited" -> {
                 if (httpStatus != 429 || !json.hasOnlyKeys("error", "retry_after_seconds")) return invalid
-                val retryAfter = if (json.containsKey("retry_after_seconds")) {
-                    json.nonNegativeInt("retry_after_seconds") ?: return invalid
-                } else null
+                val retryAfter = json.nonNegativeInt("retry_after_seconds") ?: return invalid
                 RelayError.RateLimited(retryAfter)
             }
             "outcome_unknown" ->
