@@ -372,11 +372,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - image: ubuntu:24.04
-            series: noble
-          - image: ubuntu:26.04
-            series: resolute
+        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
+        # backend build); main and manual runs build for both.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
     timeout-minutes: 45
@@ -455,11 +453,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - image: ubuntu:24.04
-            series: noble
-          - image: ubuntu:26.04
-            series: resolute
+        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
+        # backend build); main and manual runs build for both.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
     timeout-minutes: 30
