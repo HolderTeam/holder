@@ -2,6 +2,7 @@ package team.holder.android.git.github
 
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -23,6 +24,54 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GitHubOAuthTest {
+    @Test
+    fun transportRetryabilityDependsOnCredentialWriteNotExceptionClass() = runBlocking {
+        for (failure in listOf(
+            javax.net.ssl.SSLHandshakeException("sensitive handshake diagnostic"),
+            java.net.SocketTimeoutException("timeout"),
+            java.net.UnknownHostException("dns"),
+            java.net.ConnectException("connect"),
+        )) {
+            for (writeBody in listOf(false, true)) {
+                val client = OkHttpClient.Builder().addInterceptor { chain ->
+                    if (writeBody) chain.request().body!!.writeTo(Buffer())
+                    throw failure
+                }.build()
+                val result = GitHubOAuth.refresh(client, "refresh", "cap")
+                if (writeBody) {
+                    assertEquals(RelayResult.Failure(RelayError.AmbiguousTransportFailure), result)
+                } else {
+                    assertTrue((result as RelayResult.Failure).error is RelayError.NetworkError)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun failedTlsConnectionBeforeHttpIsRetryable() = runBlocking {
+        val server = java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"))
+        server.soTimeout = 5000
+        val peer = async(Dispatchers.IO) {
+            server.accept().use { socket ->
+                socket.getOutputStream().write("HTTP/1.1 502 Bad Gateway\r\n\r\n".toByteArray())
+            }
+        }
+        try {
+            val client = GitHubConnectionCoordinator.newCredentialRelayHttpClient().newBuilder()
+                .proxy(java.net.Proxy.NO_PROXY)
+                .callTimeout(5, TimeUnit.SECONDS)
+                .addInterceptor { chain ->
+                    chain.proceed(chain.request().newBuilder().url("https://127.0.0.1:${server.localPort}/refresh").build())
+                }.build()
+            val result = GitHubOAuth.refresh(client, "refresh", "cap") as RelayResult.Failure
+            assertTrue(result.error is RelayError.NetworkError)
+            assertTrue((result.error as RelayError.NetworkError).cause is javax.net.ssl.SSLException)
+        } finally {
+            server.close()
+            peer.await()
+        }
+    }
+
     private fun tokenBody() = JSONObject()
         .put("access_token", "access_secret")
         .put("expires_in", 28800)

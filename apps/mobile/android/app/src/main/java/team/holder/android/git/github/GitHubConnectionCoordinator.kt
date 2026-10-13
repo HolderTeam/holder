@@ -70,6 +70,9 @@ object GitHubConnectionCoordinator {
     // ---- credential concern ----
     private val credentialMutationMutex = Mutex()
     private val credentialEpoch = AtomicLong(0L)
+    // Refresh failure invalidates status evidence, not the authorization attempt that may
+    // replace that credential. Both counters are captured under credentialMutationMutex.
+    private val statusRevision = AtomicLong(0L)
     /** Internal, not private, only so a test can seed a pre-valid cache entry directly --
      * exercising [withAccessToken]'s controlPlaneMutex barrier (e.g. against a concurrent
      * [disconnect]) without needing a real/faked GitHubOAuth.refresh network call to get there.
@@ -173,6 +176,7 @@ object GitHubConnectionCoordinator {
         /** Guarded by [connectStateMutex]. This is captured when the operation becomes
          * current and advances only for this operation's own credential replacement. */
         var expectedCredentialEpoch: Long,
+        var expectedStatusRevision: Long,
     )
 
     private data class PendingInstallationReturn(val state: String, val startedAtMonotonic: Long)
@@ -185,6 +189,7 @@ object GitHubConnectionCoordinator {
         val epoch: Long,
         val durableState: DurableGitHubCredentialState,
         val accessTokenCache: AccessTokenCache?,
+        val statusRevision: Long = 0L,
     ) {
         /** Normal readers receive authority only from Ready; Refreshing stays quarantined. */
         val credential: StoredGitHubCredential?
@@ -281,14 +286,16 @@ object GitHubConnectionCoordinator {
                     val attemptId = GitHubPkce.generateAttemptId()
                     // Capture the credential generation only after the old operation has
                     // stopped, before any phase of this operation can begin.
-                    val expectedCredentialEpoch = credentialMutationMutex.withLock { credentialEpoch.get() }
+                    val (expectedCredentialEpoch, expectedStatusRevision) = credentialMutationMutex.withLock {
+                        credentialEpoch.get() to statusRevision.get()
+                    }
                     val job = coordinatorScope.launch(start = CoroutineStart.LAZY) {
                         runConnectOperation(appContext, attemptId, browserLauncher, deferred)
                     }
                     // Completion is intentional here: cancellation requested / Call.cancel()
                     // alone do not prove a blocking phase has returned and cleaned up.
                     job.invokeOnCompletion { stopped.complete(Unit) }
-                    connectInFlight = ConnectOperation(attemptId, deferred, job, stopped, expectedCredentialEpoch)
+                    connectInFlight = ConnectOperation(attemptId, deferred, job, stopped, expectedCredentialEpoch, expectedStatusRevision)
                     job.start()
                     deferred
                 }
@@ -320,8 +327,8 @@ object GitHubConnectionCoordinator {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // structured-concurrency cancellation, not a real failure -- never swallow this
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "runConnectOperation: uncaught exception, failing this attempt rather than hanging/crashing", e)
-            finishConnectOperation(attemptId, GitHubResult.Failure(GitHubError.Unexpected(null, e.message ?: e::class.java.simpleName)))
+            Log.e(LOG_TAG, "runConnectOperation: operation failed (${e.javaClass.simpleName})")
+            finishConnectOperation(attemptId, GitHubResult.Failure(GitHubError.Unexpected(null, "GitHub authorization operation failed")))
         }
     }
 
@@ -455,7 +462,13 @@ object GitHubConnectionCoordinator {
                 when (val query = statusAgainstStoredCredential(appContext, committedSnapshot)) {
                     is CredentialStatusQueryResult.Completed -> query.result
                     CredentialStatusQueryResult.Stale -> GitHubResult.Success(currentAuthoritativeStatus())
-                }.also { Log.d(LOG_TAG, "performExchange: post-commit status = $it") }
+                }.also { result ->
+                    val category = when (result) {
+                        is GitHubResult.Success -> result.value.javaClass.simpleName
+                        is GitHubResult.Failure -> result.error.javaClass.simpleName
+                    }
+                    Log.d(LOG_TAG, "performExchange: post-commit result = $category")
+                }
             }
             is RelayResult.Failure -> when (val error = exchangeResult.error) {
                 is RelayError.AuthorizationRequired ->
@@ -501,7 +514,8 @@ object GitHubConnectionCoordinator {
             accessTokenCache = cache
             val epoch = credentialEpoch.incrementAndGet()
             operation.expectedCredentialEpoch = epoch
-            CredentialStateSnapshot(epoch, DurableGitHubCredentialState.Ready(credential), cache)
+            operation.expectedStatusRevision = statusRevision.get()
+            CredentialStateSnapshot(epoch, DurableGitHubCredentialState.Ready(credential), cache, statusRevision.get())
         }
     }
 
@@ -559,7 +573,9 @@ object GitHubConnectionCoordinator {
                 // operation still owns the generation it queried. Returning the current
                 // status on mismatch keeps joiners from receiving a historical answer too.
                 val completedOutcome = if (outcome is GitHubResult.Success && publishSuccessfulStatus) {
-                    if (credentialEpoch.get() == current.expectedCredentialEpoch) {
+                    if (credentialEpoch.get() == current.expectedCredentialEpoch &&
+                        statusRevision.get() == current.expectedStatusRevision
+                    ) {
                         mutableStatusFlow.value = outcome.value
                         outcome
                     } else {
@@ -648,17 +664,16 @@ object GitHubConnectionCoordinator {
         if (query is CredentialStatusQueryResult.Stale) return@withContext currentAuthoritativeStatus()
         val result = (query as CredentialStatusQueryResult.Completed).result
         val status = (result as? GitHubResult.Success)?.value ?: return@withContext mutableStatusFlow.value
-        publishStatusIfCurrentEpoch(snapshot.epoch, status)
+        publishStatusIfCurrent(snapshot, status)
     }
 
     private suspend fun currentAuthoritativeStatus(): GitHubStatus =
         credentialMutationMutex.withLock { mutableStatusFlow.value }
 
-    /** The check and publication are one credential-mutation transaction. A query from an old
-     * epoch returns the already-published current state instead of overwriting it. */
-    private suspend fun publishStatusIfCurrentEpoch(expectedEpoch: Long, status: GitHubStatus): GitHubStatus =
+    /** Publication must still own both the credential generation and its status evidence. */
+    private suspend fun publishStatusIfCurrent(snapshot: CredentialStateSnapshot, status: GitHubStatus): GitHubStatus =
         credentialMutationMutex.withLock {
-            if (credentialEpoch.get() == expectedEpoch) {
+            if (credentialEpoch.get() == snapshot.epoch && statusRevision.get() == snapshot.statusRevision) {
                 mutableStatusFlow.value = status
                 status
             } else {
@@ -731,6 +746,7 @@ object GitHubConnectionCoordinator {
                 }
                 accessTokenCache = null
                 operation.expectedCredentialEpoch = credentialEpoch.incrementAndGet()
+                operation.expectedStatusRevision = statusRevision.get()
                 mutableStatusFlow.value = GitHubStatus.NotConnected
                 true
             }
@@ -746,6 +762,7 @@ object GitHubConnectionCoordinator {
                 epoch = credentialEpoch.get(),
                 durableState = durableState,
                 accessTokenCache = accessTokenCache,
+                statusRevision = statusRevision.get(),
             )
         }
 
@@ -863,6 +880,7 @@ object GitHubConnectionCoordinator {
             epoch = credentialEpoch.get(),
             durableState = durableState,
             accessTokenCache = accessTokenCache,
+            statusRevision = statusRevision.get(),
         )
     }
 
@@ -909,14 +927,14 @@ object GitHubConnectionCoordinator {
                             null
                         } else {
                             accessTokenCache = null
-                            CredentialStateSnapshot(snapshot.epoch, refreshing, null)
+                            CredentialStateSnapshot(snapshot.epoch, refreshing, null, statusRevision.get())
                         }
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(LOG_TAG, "Could not durably quarantine the GitHub refresh credential", e)
+                Log.e(LOG_TAG, "Could not durably quarantine the GitHub refresh credential (${e.javaClass.simpleName})")
                 return SnapshotAccessTokenResult.Failure(credentialPersistenceError())
             } ?: return SnapshotAccessTokenResult.Stale
 
@@ -955,14 +973,14 @@ object GitHubConnectionCoordinator {
                                     // A' and its access token become process authority only
                                     // after Ready(A') is durably committed.
                                     accessTokenCache = cache
-                                    CredentialStateSnapshot(snapshot.epoch, ready, cache)
+                                    CredentialStateSnapshot(snapshot.epoch, ready, cache, statusRevision.get())
                                 }
                             }
                         }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "Could not durably commit the rotated GitHub credential", e)
+                        Log.e(LOG_TAG, "Could not durably commit the rotated GitHub credential (${e.javaClass.simpleName})")
                         return settleQuarantinedRefresh(
                             appContext,
                             quarantinedSnapshot,
@@ -1070,11 +1088,11 @@ object GitHubConnectionCoordinator {
     }
 
     /** Called only under credentialMutationMutex after checking the refresh's generation.
-     * Invalidate delayed status publications as well as token authority. Fresh authorization
-     * installs another generation; no stale refresh can change its cache or presentation. */
+     * Quarantine/Absent already prevents token reuse. Invalidate delayed status results
+     * without revoking an in-progress authorization attempt for this credential generation. */
     private fun publishRefreshAuthorizationRequired() {
         accessTokenCache = null
-        credentialEpoch.incrementAndGet()
+        statusRevision.incrementAndGet()
         mutableStatusFlow.value = GitHubStatus.AuthorizationRequired(null)
     }
 
@@ -1175,7 +1193,7 @@ object GitHubConnectionCoordinator {
             return
         }
 
-        Log.d(LOG_TAG, "handleOAuthCallbackUri: matched pendingOAuth, code=${callback.code != null} error=${callback.error}")
+        Log.d(LOG_TAG, "handleOAuthCallbackUri: matched pendingOAuth, code=${callback.code != null} error=${callback.error != null}")
         val outcome = if (callback.code != null) {
             CallbackOutcome.Code(callback.code)
         } else {

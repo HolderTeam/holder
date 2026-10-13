@@ -2,10 +2,9 @@ package team.holder.android.git.github
 
 import android.util.Log
 import java.io.IOException
-import java.net.ConnectException
-import java.net.UnknownHostException
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -59,8 +58,8 @@ sealed interface RelayError {
      * received and processed it is genuinely unknown. */
     data object AmbiguousTransportFailure : RelayError
 
-    /** Genuinely never reached the relay at all -- safe to treat as an ordinary, retryable
-     * transport failure, since nothing was ever sent anywhere. */
+    /** The credential body was never written -- safe to retry even if a connection or HTTP
+     * headers reached the relay. No credential authority was transmitted. */
     data class NetworkError(val cause: Throwable) : RelayError
 }
 
@@ -103,6 +102,9 @@ internal object GitHubOAuth {
     private suspend fun postRelay(client: OkHttpClient, url: String, body: JSONObject.() -> Unit): RelayResult =
         withContext(Dispatchers.IO) {
             val payload = JSONObject().apply(body).toString()
+            // Set before writing any credential bytes, including into OkHttp's buffer.
+            // Once true it never resets, including across any HTTP follow-up.
+            val bodyWriteStarted = AtomicBoolean(false)
             val request = Request.Builder()
                 .url(url)
                 .header("Content-Type", "application/json")
@@ -110,7 +112,7 @@ internal object GitHubOAuth {
                 // They are credential-spending operations, so make the body explicitly non-
                 // replayable as a second line of defence alongside the dedicated client's no-
                 // retry/no-redirect settings.
-                .post(oneShotJsonBody(payload))
+                .post(oneShotJsonBody(payload) { bodyWriteStarted.set(true) })
                 .build()
             val call = client.newCall(request)
             // A continuation's cancellation handler runs at cancellation initiation, even
@@ -123,7 +125,7 @@ internal object GitHubOAuth {
                 if (continuation.isActive) {
                     // Carry exceptions as values through the cancellable boundary so a late
                     // I/O exception after cancellation cannot escape as an unhandled resume.
-                    continuation.resume(runCatching { postRelayBlocking(call, url) })
+                    continuation.resume(runCatching { postRelayBlocking(call, url, bodyWriteStarted) })
                 }
             }.getOrThrow()
         }
@@ -131,20 +133,16 @@ internal object GitHubOAuth {
     /** Genuinely blocking (OkHttp's synchronous `execute()`) -- [postRelay] installs a
      * cancellation hook on [call] before entering it, so detaching a connect operation also
      * interrupts the socket operation rather than leaving it alive behind a cancelled Job. */
-    private fun postRelayBlocking(call: Call, url: String): RelayResult {
+    private fun postRelayBlocking(call: Call, url: String, bodyWriteStarted: AtomicBoolean): RelayResult {
         val response = try {
             call.execute()
-        } catch (e: UnknownHostException) {
-            Log.w("GitHubOAuth", "postRelay: $url never reached (UnknownHostException)")
-            return RelayResult.Failure(RelayError.NetworkError(e))
-        } catch (e: ConnectException) {
-            Log.w("GitHubOAuth", "postRelay: $url never reached (ConnectException)")
-            return RelayResult.Failure(RelayError.NetworkError(e))
         } catch (e: IOException) {
-            // Anything past connection establishment (a timeout awaiting the response, a
-            // connection reset mid-read, ...) -- the request may already have been received
-            // and processed. See "Transport-failure ambiguity": never assume this is safely
-            // retryable.
+            if (!bodyWriteStarted.get()) {
+                Log.w("GitHubOAuth", "postRelay: $url failed before credential write (${e.javaClass.simpleName})")
+                return RelayResult.Failure(RelayError.NetworkError(e))
+            }
+            // Writing may only have filled a local buffer, but cannot prove no bytes reached
+            // the relay. Exception class alone never makes a post-write failure retryable.
             Log.w("GitHubOAuth", "postRelay: $url ambiguous transport failure (${e.javaClass.simpleName})")
             return RelayResult.Failure(RelayError.AmbiguousTransportFailure)
         }
@@ -241,7 +239,7 @@ internal object GitHubOAuth {
      * content metadata while preventing a code or rotating refresh credential being sent twice.
      * Internal visibility keeps the transport guarantee directly regression-testable.
      */
-    internal fun oneShotJsonBody(payload: String): RequestBody =
+    internal fun oneShotJsonBody(payload: String, onWriteStarted: () -> Unit = {}): RequestBody =
         object : RequestBody() {
             private val delegate = payload.toRequestBody(JSON_MEDIA_TYPE)
 
@@ -249,7 +247,10 @@ internal object GitHubOAuth {
 
             override fun contentLength() = delegate.contentLength()
 
-            override fun writeTo(sink: BufferedSink) = delegate.writeTo(sink)
+            override fun writeTo(sink: BufferedSink) {
+                onWriteStarted()
+                delegate.writeTo(sink)
+            }
 
             override fun isOneShot() = true
         }

@@ -13,12 +13,12 @@ fun githubErrorMessage(error: GitHubError): String = when (error) {
     GitHubError.AuthorizationRequired -> "GitHub needs to be reconnected"
     is GitHubError.InstallationRequired -> "Holder Project Setup isn't installed on your GitHub account yet"
     is GitHubError.RepositoryNotAccessible -> "GitHub needs one more permission for this repository"
-    is GitHubError.RateLimited -> "GitHub connection is rate limited -- try again shortly"
+    is GitHubError.RateLimited -> "GitHub request was rate limited -- try again shortly"
     is GitHubError.NetworkError -> error.cause.message ?: "Network error talking to GitHub"
     is GitHubError.Unexpected -> if (error.httpStatus != null) {
-        "GitHub connection failed (HTTP ${error.httpStatus})"
+        "GitHub request failed (HTTP ${error.httpStatus})"
     } else {
-        "GitHub connection failed -- try again"
+        "GitHub operation failed -- try again"
     }
     GitHubError.AuthorizationVerificationFailed -> "GitHub sign-in verification failed -- try again"
     GitHubError.BrowserUnavailable -> "No browser is available to sign in with GitHub"
