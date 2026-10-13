@@ -69,6 +69,10 @@ jobs:
   core-sdk:
     # Kit is built against core from this same commit, through core's Release SDKs.
     needs: prepare
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/core-sdk.yml
     with:
       build_type: Release

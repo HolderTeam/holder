@@ -74,6 +74,10 @@ jobs:
     # Kit builds against core from this same commit, through core's installed SDK.
     needs: changes
     if: needs.changes.outputs.kit == 'true'
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/core-sdk.yml
 
   linux:

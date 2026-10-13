@@ -200,6 +200,10 @@ jobs:
   windows:
     needs: changes
     if: needs.changes.outputs.core == 'true'
+    # actions: write deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
     runs-on: windows-latest
 
     steps:
@@ -247,6 +251,14 @@ jobs:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Remove older vcpkg binary package caches
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-run-caches.sh "vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-"
+
       - name: Install
         run: cmake --install out/build/windows-vcpkg-debug --prefix out/install/windows
 
@@ -268,6 +280,9 @@ jobs:
     # that consumers and pull requests not changing core take instead of building core again.
     needs: changes
     if: needs.changes.outputs.core == 'true'
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/core-sdk.yml
 
   publish-sdk:
