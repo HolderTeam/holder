@@ -68,6 +68,10 @@ jobs:
     # Only used when the staged daemon below is not cached and has to be built.
     needs: changes
     if: needs.changes.outputs.python == 'true'
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/core-sdk.yml
     with:
       platforms: '["linux"]'

@@ -32,6 +32,10 @@ defaults:
 
 jobs:
   sdk:
+    # actions: write deletes this branch's older vcpkg binary caches; callers must grant it.
+    permissions:
+      actions: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -189,6 +193,14 @@ jobs:
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Remove older vcpkg binary package caches
+        if: steps.shelf.outputs.found == 'false' && runner.os == 'Windows' && github.event_name != 'pull_request'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-run-caches.sh "vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-sdk-${{ inputs.build_type }}-"
 
       - name: Save the SDK for this tree
         if: steps.shelf.outputs.found == 'false'

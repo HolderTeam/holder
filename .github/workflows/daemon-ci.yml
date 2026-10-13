@@ -110,6 +110,10 @@ jobs:
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/core-sdk.yml
     with:
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
