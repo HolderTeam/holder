@@ -44,8 +44,8 @@ import okhttp3.OkHttpClient
  *     refresh token/cap and the cached access token).
  *   - [controlPlaneMutex] is a third, orthogonal concern: serializing direct GitHub REST calls
  *     so a refresh can never invalidate a token another call is actively using.
- * Lock order, fixed here and never inverted anywhere in this file: `controlPlaneMutex` before
- * `credentialMutationMutex`; `connectStateMutex` before `credentialMutationMutex`.
+ * Lock order, when needed: `controlPlaneMutex`, then `connectStateMutex`, then
+ * `credentialMutationMutex`. Never wait for the control-plane gate while holding connect state.
  */
 object GitHubConnectionCoordinator {
     private const val LOG_TAG = "GitHubConnection"
@@ -123,6 +123,10 @@ object GitHubConnectionCoordinator {
 
     /** 10-15 minutes is plenty for an OAuth ceremony a user is actively watching. */
     private const val PENDING_OAUTH_TIMEOUT_MILLIS = 12 * 60 * 1000L
+
+    /** Bound status re-queries when competing refreshes repeatedly invalidate their snapshots.
+     * Exhaustion is operational: it must neither discard credentials nor start authorization. */
+    private const val MAX_CONNECT_STATUS_QUERIES = 3
 
     /** Much shorter than the OAuth ceremony -- an installation round-trip through GitHub's own
      * UI is far faster, and this only guards against wasted status() calls, not a forgeable
@@ -337,6 +341,7 @@ object GitHubConnectionCoordinator {
         attemptId: UUID,
         browserLauncher: GitHubBrowserLauncher,
     ) {
+        var statusQueries = 0
         while (true) {
             val credentialSnapshot = snapshotCredentialForConnectOperation(appContext, attemptId)
             if (credentialSnapshot == null) {
@@ -344,6 +349,7 @@ object GitHubConnectionCoordinator {
                 return
             }
             if (credentialSnapshot.credential == null) break
+            statusQueries++
             val resumeQuery = storedCredentialStatusOverride?.invoke(appContext)?.let {
                 CredentialStatusQueryResult.Completed(it)
             } ?: statusAgainstStoredCredential(appContext, credentialSnapshot)
@@ -351,6 +357,13 @@ object GitHubConnectionCoordinator {
                 // A refresh can change the snapshot without superseding this Connect.
                 // Reassess its settled state: use a rotated credential or begin sign-in if
                 // unavailable. The next snapshot refuses a different ownership epoch.
+                if (statusQueries >= MAX_CONNECT_STATUS_QUERIES) {
+                    finishConnectOperation(
+                        attemptId,
+                        GitHubResult.Failure(GitHubError.Unexpected(null, "GitHub connection changed during status checks; try again")),
+                    )
+                    return
+                }
                 continue
             }
             val resumeResult = (resumeQuery as CredentialStatusQueryResult.Completed).result
@@ -759,17 +772,22 @@ object GitHubConnectionCoordinator {
 
     /** Re-querying is allowed within this authorization's epoch, never across Disconnect or
      * replacement. Adopt only the status revision belonging to the snapshot being queried;
-     * subsequent changes still invalidate its publication through the ordinary guards. */
+     * subsequent changes still invalidate its publication through the ordinary guards.
+     * All refreshes hold the control-plane gate through settlement. Acquire it first so an
+     * active Refreshing state cannot be mistaken for a credential needing browser sign-in.
+     * A quarantine left after failure/restart remains unavailable once that gate is free. */
     private suspend fun snapshotCredentialForConnectOperation(
         appContext: Context,
         attemptId: UUID,
-    ): CredentialStateSnapshot? = connectStateMutex.withLock {
-        val operation = connectInFlight
-        if (operation?.attemptId != attemptId) return@withLock null
-        val snapshot = snapshotCredentialState(appContext)
-        if (snapshot.epoch != operation.expectedCredentialEpoch) return@withLock null
-        operation.expectedStatusRevision = snapshot.statusRevision
-        snapshot
+    ): CredentialStateSnapshot? = controlPlaneMutex.withLock {
+        connectStateMutex.withLock {
+            val operation = connectInFlight
+            if (operation?.attemptId != attemptId) return@withLock null
+            val snapshot = snapshotCredentialState(appContext)
+            if (snapshot.epoch != operation.expectedCredentialEpoch) return@withLock null
+            operation.expectedStatusRevision = snapshot.statusRevision
+            snapshot
+        }
     }
 
     internal suspend fun snapshotCredentialState(context: Context): CredentialStateSnapshot =
