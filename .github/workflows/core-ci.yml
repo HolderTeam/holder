@@ -270,13 +270,53 @@ jobs:
     if: needs.changes.outputs.core == 'true'
     uses: ./.github/workflows/core-sdk.yml
 
+  ubuntu-packages:
+    # Core's libholder0 and libholder-dev packages for both Ubuntu series, built on main for
+    # publish-sdk to add to the core-<tree> release, so Daemon / CI's and Kit / CI's package jobs
+    # take them instead of building core (they build them themselves when core/ changes).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: changes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            series: noble
+          - image: ubuntu:26.04
+            series: resolute
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Install packaging tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git devscripts equivs debhelper cmake ninja-build
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ matrix.series }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-debs-${{ matrix.series }}
+          path: out/core-debs/*
+          if-no-files-found: error
+          retention-days: 7
+
   publish-sdk:
     # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree> once core's
     # tests and SDKs have passed, so pull requests and people building on Holder can take them
     # instead of building core, and keeps the newest 32 such releases. Only main may use the
     # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
     # run this job.
-    needs: [linux, macos, windows, sdk]
+    needs: [linux, macos, windows, sdk, ubuntu-packages]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: holder-sdk-publish
@@ -306,6 +346,12 @@ jobs:
           name: core-selection
           path: out
 
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-debs-*
+          path: out/core-debs
+          merge-multiple: true
+
       - id: token
         name: Get a token for holder-sdk
         uses: actions/create-github-app-token@v3
@@ -319,6 +365,7 @@ jobs:
       - name: Publish core-<tree>
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
+          SDK_PACKAGES: out/core-debs
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: >-
           .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json

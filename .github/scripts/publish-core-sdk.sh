@@ -8,6 +8,8 @@
 #
 # Usage: publish-core-sdk.sh <archives dir> <core-selection.json> <core tree>
 # Needs GH_TOKEN with contents: write on HolderTeam/holder-sdk, and RUN_URL; SDK_RELEASE optional.
+# SDK_PACKAGES may name a directory of core's Ubuntu packages (libholder0 and libholder-dev .debs,
+# with a libholder-<series>.sha256 per series) to publish in the same release, listed in the index.
 set -euo pipefail
 
 assets="$1"
@@ -56,6 +58,20 @@ jq --arg repo "$repo" --arg tag "$tag" --arg run "$RUN_URL" '
 # Every archive the index lists must be here, and nothing else.
 diff <(jq -r '.assets[].name' "$assets/sdk-index.json" | sort) \
      <(find "$assets" -maxdepth 1 -type f ! -name sdk-index.json -printf '%f\n' | sort)
+
+if [[ -n "${SDK_PACKAGES:-}" ]]; then
+  (cd "$SDK_PACKAGES" && for sums in libholder-*.sha256; do sha256sum -c "$sums"; done)
+  for deb in "$SDK_PACKAGES"/*.deb; do
+    name=$(basename "$deb")
+    jq -n --arg name "$name" --arg repo "$repo" --arg tag "$tag" \
+      --arg sha "$(sha256sum "$deb" | cut -d' ' -f1)" --argjson size "$(stat -c %s "$deb")" \
+      '{name: $name, size: $size, sha256: $sha, url: "https://github.com/\($repo)/releases/download/\($tag)/\($name)"}'
+  done | jq -s . > "$assets/packages.json"
+  jq --slurpfile packages "$assets/packages.json" '.packages = $packages[0]' "$assets/sdk-index.json" > "$assets/index.tmp"
+  mv "$assets/index.tmp" "$assets/sdk-index.json"
+  rm "$assets/packages.json"
+  cp "$SDK_PACKAGES"/*.deb "$SDK_PACKAGES"/libholder-*.sha256 "$assets/"
+fi
 
 notes="Holder core's SDK (libholder), built from HolderTeam/holder commit $commit (core tree $tree) by $RUN_URL.
 

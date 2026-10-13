@@ -13,6 +13,8 @@ on:
       - .github/workflows/kit-ci.yml
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
+      - .github/actions/core-ubuntu-packages/**
+      - .github/scripts/fetch-core-debs.sh
       - .github/scripts/check-core-boundary.py
   workflow_dispatch:
 
@@ -49,7 +51,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
           else
             echo "kit=false" >> "$GITHUB_OUTPUT"
@@ -366,7 +368,7 @@ jobs:
 
   ubuntu-packages:
     # python3-holder-kit as Launchpad builds it: from python/kit/ copied out on its own, against
-    # libholder packages built here from core/ in this commit.
+    # libholder packages for core/ in this commit (from holder-sdk, or built here).
     needs: changes
     if: needs.changes.outputs.kit == 'true'
     strategy:
@@ -395,26 +397,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Build and install core packages from core/ in this commit
-        shell: bash
-        env:
-          DEBIAN_FRONTEND: noninteractive
-          SERIES: ${{ matrix.series }}
-        working-directory: core
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          cp -a packaging/linux/debian debian
-          cat > debian/changelog <<EOF
-          holder-core (${version}-1~${SERIES}1) ${SERIES}; urgency=medium
-
-            * Build libholder packages from core ${GITHUB_SHA}.
-
-           -- Holder Team <holdercardteam@gmail.com>  $(date -R)
-          EOF
-          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
-          dpkg-buildpackage -b -us -uc -j2
-          apt-get install -y --no-install-recommends ../libholder0_*.deb ../libholder-dev_*.deb
+      - name: Core packages for core/ in this commit, from holder-sdk or built
+        uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ matrix.series }}
       - name: Export python/kit/ on its own, as the Debian source package sees it
         run: |
           mkdir -p "$(dirname "${EXPORTED_KIT}")"
@@ -441,7 +427,7 @@ jobs:
           grep -F "libholder0 (>= ${upstream})" <<< "$depends"
           grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
           mkdir -p "$GITHUB_WORKSPACE/out/ubuntu-packages"
-          cp "$package" "$GITHUB_WORKSPACE"/libholder0_*.deb "$GITHUB_WORKSPACE/out/ubuntu-packages/"
+          cp "$package" "$GITHUB_WORKSPACE"/out/core-debs/libholder0_*.deb "$GITHUB_WORKSPACE/out/ubuntu-packages/"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: holder-kit-${{ matrix.series }}-packages
