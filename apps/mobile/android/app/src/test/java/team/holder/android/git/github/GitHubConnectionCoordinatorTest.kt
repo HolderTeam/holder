@@ -58,6 +58,8 @@ private class FakeCredentialStore(
                 ?: DurableGitHubCredentialState.Absent
         }
     val durableState: DurableGitHubCredentialState get() = durable.state
+    var readFailure: Exception? = null
+    var readCount = 0
     var failNextMutation = false
     var failNextReplacement: DurableGitHubCredentialState? = null
     var beforeMutation: (suspend (DurableGitHubCredentialState, DurableGitHubCredentialState) -> Unit)? = null
@@ -65,7 +67,11 @@ private class FakeCredentialStore(
     var clearStartedLatch: CountDownLatch? = null
     var releaseClearLatch: CountDownLatch? = null
 
-    override suspend fun read(context: Context): DurableGitHubCredentialState = durable.state
+    override suspend fun read(context: Context): DurableGitHubCredentialState {
+        readCount++
+        readFailure?.let { throw it }
+        return durable.state
+    }
 
     override suspend fun compareAndSet(
         context: Context,
@@ -154,6 +160,7 @@ class GitHubConnectionCoordinatorTest {
         GitHubConnectionCoordinator.accessTokenCache = null
         fakeStore.clearStartedLatch = null
         fakeStore.releaseClearLatch = null
+        fakeStore.readFailure = null
         fakeStore.failNextMutation = false
         fakeStore.failNextReplacement = null
         fakeStore.beforeMutation = null
@@ -824,6 +831,7 @@ class GitHubConnectionCoordinatorTest {
             if (expected is DurableGitHubCredentialState.Refreshing && replacement is DurableGitHubCredentialState.Ready) {
                 saving.complete(Unit)
                 failSave.await()
+                fakeStore.readFailure = IOException("store remains unavailable")
                 throw IOException("rotation persistence failed")
             }
         }
@@ -839,12 +847,69 @@ class GitHubConnectionCoordinatorTest {
         val replacing = async(start = CoroutineStart.UNDISPATCHED) {
             replaceCredentialStateForTest(replacement, cache, status)
         }
+        val readsBeforeFailure = fakeStore.readCount
         failSave.complete(Unit)
         replacing.await()
         assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), refreshing.await())
+        assertEquals("superseded cleanup must not read storage", readsBeforeFailure, fakeStore.readCount)
         assertEquals(replacement, fakeStore.credential)
         assertEquals(cache, GitHubConnectionCoordinator.accessTokenCache)
         assertEquals(status, GitHubConnectionCoordinator.statusFlow.value)
+    }
+
+    @Test
+    fun rotationWriteAndCleanupReadFailuresLeaveQuarantineWithoutPublishingState() = runBlocking {
+        val credential = StoredGitHubCredential("refresh_write_failure", "cap_write_failure", Long.MAX_VALUE)
+        val status = GitHubStatus.Connected("initial-owner", "https://github.com/settings/installations/3")
+        replaceCredentialStateForTest(
+            credential, GitHubConnectionCoordinator.AccessTokenCache("expired_access", 0), status,
+        )
+        val requests = AtomicInteger()
+        fakeStore.beforeMutation = { expected, replacement ->
+            if (expected is DurableGitHubCredentialState.Refreshing && replacement is DurableGitHubCredentialState.Ready) {
+                fakeStore.readFailure = IOException("cleanup read failed")
+                throw IOException("rotation write failed")
+            }
+        }
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+            requests.incrementAndGet()
+            RelayResult.Success(rotatedTokens())
+        }
+        assertEquals(
+            GitHubResult.Failure(GitHubError.AuthorizationRequired),
+            GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("uncommitted token dispatched") },
+        )
+        assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
+        assertNull(GitHubConnectionCoordinator.accessTokenCache)
+        assertEquals(status, GitHubConnectionCoordinator.statusFlow.value)
+        restartCredentialProcess()
+        assertEquals(
+            GitHubResult.Failure(GitHubError.AuthorizationRequired),
+            GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("quarantined token dispatched") },
+        )
+        assertEquals(1, requests.get())
+    }
+
+    @Test
+    fun cancellationDuringRotationFailureCleanupStillPropagates() = runBlocking {
+        fakeStore.credential = StoredGitHubCredential("refresh_cancel", "cap_cancel", Long.MAX_VALUE)
+        val cancellation = kotlinx.coroutines.CancellationException("cancel cleanup")
+        fakeStore.beforeMutation = { expected, replacement ->
+            if (expected is DurableGitHubCredentialState.Refreshing && replacement is DurableGitHubCredentialState.Ready) {
+                fakeStore.readFailure = cancellation
+                throw IOException("rotation write failed")
+            }
+        }
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotatedTokens()) }
+        try {
+            GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("uncommitted token dispatched") }
+            throw AssertionError("cleanup swallowed cancellation")
+        } catch (actual: kotlinx.coroutines.CancellationException) {
+            // Coroutine stack recovery may copy the exception across withContext.
+            assertEquals(cancellation.message, actual.message)
+        }
+        assertTrue(fakeStore.durableState is DurableGitHubCredentialState.Refreshing)
+        assertNull(GitHubConnectionCoordinator.accessTokenCache)
     }
 
     @Test

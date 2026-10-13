@@ -13,6 +13,8 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import okio.BufferedSource
 import okio.ForwardingSource
+import okio.Source
+import okio.Timeout
 import okio.buffer
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -103,7 +105,7 @@ class GitHubOAuthTest {
 
     @Test
     fun longResponseStringsDoNotExhaustValidationStack() = runBlocking {
-        val longCap = "a".repeat(65536)
+        val longCap = "a".repeat(MAX_RELAY_RESPONSE_BYTES / 2)
         val success = refreshResponse(200, tokenBody().put("refresh_cap", longCap).toString())
         assertTrue(success is RelayResult.Success)
         assertEquals(longCap, (success as RelayResult.Success).tokens.refreshCap)
@@ -111,6 +113,70 @@ class GitHubOAuthTest {
             RelayError.InvalidResponse(500),
             GitHubOAuth.mapRelayErrorBody(500, "{\"error\":\"$longCap"),
         )
+    }
+
+    @Test
+    fun responseLimitAcceptsExactBoundaryAndRejectsOversizedBodiesBeforeParsing() = runBlocking {
+        val base = tokenBody().put("refresh_cap", "").toString()
+        val exact = tokenBody().put("refresh_cap", "a".repeat(MAX_RELAY_RESPONSE_BYTES - base.length)).toString()
+        assertEquals(MAX_RELAY_RESPONSE_BYTES, exact.toByteArray().size)
+        assertTrue(refreshResponse(200, exact) is RelayResult.Success)
+        for (status in listOf(200, 500)) {
+            assertEquals(
+                RelayResult.Failure(RelayError.InvalidResponse(status)),
+                refreshResponse(status, exact + " "),
+            )
+        }
+        assertEquals(
+            RelayResult.Failure(RelayError.InvalidResponse(200)),
+            refreshResponse(200, tokenBody().put("refresh_cap", "é".repeat(MAX_RELAY_RESPONSE_BYTES / 2)).toString()),
+        )
+    }
+
+    @Test
+    fun streamingResponseReadIsBoundedAndClosedForMissingOrMisleadingContentLength() = runBlocking {
+        for (declaredLength in listOf(-1L, 1L, MAX_RELAY_RESPONSE_BYTES + 1L)) {
+            var bytesRead = 0L
+            var closed = false
+            val stream = object : Source {
+                override fun read(sink: Buffer, byteCount: Long): Long {
+                    // An unending server response: reaching EOF is not needed to reject it.
+                    val count = minOf(byteCount, 8192L).toInt()
+                    sink.write(ByteArray(count) { 'a'.code.toByte() })
+                    bytesRead += count
+                    return count.toLong()
+                }
+                override fun timeout() = Timeout.NONE
+                override fun close() { closed = true }
+            }.buffer()
+            val body = object : ResponseBody() {
+                override fun contentType() = null
+                override fun contentLength() = declaredLength
+                override fun source(): BufferedSource = stream
+            }
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK").body(body).build()
+            }.build()
+            assertEquals(RelayResult.Failure(RelayError.InvalidResponse(200)), GitHubOAuth.refresh(client, "refresh", "cap"))
+            assertTrue(closed)
+            if (declaredLength > MAX_RELAY_RESPONSE_BYTES) {
+                assertEquals(0L, bytesRead)
+            } else {
+                assertTrue(bytesRead in (MAX_RELAY_RESPONSE_BYTES + 1L)..(MAX_RELAY_RESPONSE_BYTES + 8192L))
+            }
+        }
+    }
+
+    @Test
+    fun invalidUtf8IsRejectedRatherThanReplacedInsideTokens() = runBlocking {
+        val parts = tokenBody().put("refresh_cap", "ENCODING_MARKER").toString().split("ENCODING_MARKER")
+        val body = parts[0].toByteArray() + byteArrayOf(0xc3.toByte(), 0x28) + parts[1].toByteArray()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(200).message("OK").body(body.toResponseBody()).build()
+        }.build()
+        assertEquals(RelayResult.Failure(RelayError.InvalidResponse(200)), GitHubOAuth.refresh(client, "refresh", "cap"))
     }
 
     @Test

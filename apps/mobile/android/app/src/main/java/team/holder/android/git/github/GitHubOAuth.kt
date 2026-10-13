@@ -4,6 +4,8 @@ import android.util.Log
 import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -20,17 +22,9 @@ import org.json.JSONObject
 
 private val JSON_MEDIA_TYPE = "application/json; charset=UTF-8".toMediaType()
 
-// The wire protocol contains only flat objects with scalar fields. Android's JSONTokener
-// also accepts non-JSON syntax and duplicate keys; neither can establish a no-spend result.
-private const val JSON_STRING = """"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*+""""
-private const val JSON_NUMBER = """-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?"""
-private const val JSON_SPACE = "[ \\t\\r\\n]*"
-private val JSON_FIELD = Regex("($JSON_STRING)$JSON_SPACE:$JSON_SPACE(?:$JSON_STRING|$JSON_NUMBER|true|false|null)")
-// At most five fields are valid; bound repetition and use possessive string matching so
-// long malformed input cannot exhaust the regex engine's stack.
-private val JSON_OBJECT = Regex(
-    "$JSON_SPACE\\{$JSON_SPACE(?:${JSON_FIELD.pattern}(?:$JSON_SPACE,$JSON_SPACE${JSON_FIELD.pattern}){0,4})?$JSON_SPACE\\}$JSON_SPACE",
-)
+// Token responses are small. Bound bytes read from the decoded HTTP body even when the
+// server omits Content-Length or uses compression; never buffer an arbitrary error page.
+internal const val MAX_RELAY_RESPONSE_BYTES = 16 * 1024
 
 /** The result of a successful exchange/refresh: an access token to use immediately (cached by
  * [GitHubConnectionCoordinator], never persisted -- see its `accessTokenCache`) and the rotated
@@ -151,15 +145,27 @@ internal object GitHubOAuth {
             // connection reset mid-read, ...) -- the request may already have been received
             // and processed. See "Transport-failure ambiguity": never assume this is safely
             // retryable.
-            Log.w("GitHubOAuth", "postRelay: $url ambiguous transport failure")
+            Log.w("GitHubOAuth", "postRelay: $url ambiguous transport failure (${e.javaClass.simpleName})")
             return RelayResult.Failure(RelayError.AmbiguousTransportFailure)
         }
 
         response.use { resp ->
             val responseBody = try {
-                resp.body?.string().orEmpty()
-            } catch (_: IOException) {
-                Log.w("GitHubOAuth", "postRelay: $url response read failed (HTTP ${resp.code})")
+                val body = resp.body
+                val source = body.source()
+                if (body.contentLength() > MAX_RELAY_RESPONSE_BYTES ||
+                    source.request(MAX_RELAY_RESPONSE_BYTES + 1L)
+                ) {
+                    Log.w("GitHubOAuth", "postRelay: $url response exceeds size limit (HTTP ${resp.code})")
+                    return RelayResult.Failure(RelayError.InvalidResponse(resp.code))
+                }
+                val bytes = source.readByteArray()
+                Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
+            } catch (_: CharacterCodingException) {
+                Log.w("GitHubOAuth", "postRelay: $url invalid response encoding (HTTP ${resp.code})")
+                return RelayResult.Failure(RelayError.InvalidResponse(resp.code))
+            } catch (e: IOException) {
+                Log.w("GitHubOAuth", "postRelay: $url response read failed (HTTP ${resp.code}, ${e.javaClass.simpleName})")
                 return RelayResult.Failure(RelayError.AmbiguousTransportFailure)
             }
             if (resp.code != 200) {
@@ -167,7 +173,7 @@ internal object GitHubOAuth {
                 Log.w("GitHubOAuth", "postRelay: $url HTTP ${resp.code} (${error::class.simpleName})")
                 return RelayResult.Failure(error)
             }
-            val json = parseObject(responseBody)
+            val json = parseRelayResponseObject(responseBody)
             val accessToken = json?.nonBlankString("access_token")
             val refreshToken = json?.nonBlankString("refresh_token")
             val refreshCap = json?.nonBlankString("refresh_cap")
@@ -190,23 +196,23 @@ internal object GitHubOAuth {
      * Unknown fields (including tokens mixed into an error) invalidate that guarantee. */
     internal fun mapRelayErrorBody(httpStatus: Int, body: String): RelayError {
         val invalid = RelayError.InvalidResponse(httpStatus)
-        val json = parseObject(body) ?: return invalid
-        return when (json.opt("error")) {
+        val json = parseRelayResponseObject(body) ?: return invalid
+        return when (json["error"]) {
             "invalid_request" ->
                 if (httpStatus == 400 && json.hasOnlyKeys("error")) RelayError.InvalidRequest else invalid
             "authorization_required" -> {
                 if (httpStatus != 400 || !json.hasOnlyKeys("error", "reason")) return invalid
                 val reason = when {
-                    !json.has("reason") -> null
-                    json.opt("reason") == "reconnect" -> null
-                    json.opt("reason") == "verify_email" -> AuthorizationReason.VerifyEmail
+                    !json.containsKey("reason") -> null
+                    json["reason"] == "reconnect" -> null
+                    json["reason"] == "verify_email" -> AuthorizationReason.VerifyEmail
                     else -> return invalid
                 }
                 RelayError.AuthorizationRequired(reason)
             }
             "rate_limited" -> {
                 if (httpStatus != 429 || !json.hasOnlyKeys("error", "retry_after_seconds")) return invalid
-                val retryAfter = if (json.has("retry_after_seconds")) {
+                val retryAfter = if (json.containsKey("retry_after_seconds")) {
                     json.nonNegativeInt("retry_after_seconds") ?: return invalid
                 } else null
                 RelayError.RateLimited(retryAfter)
@@ -219,33 +225,15 @@ internal object GitHubOAuth {
         }
     }
 
-    private fun parseObject(body: String): JSONObject? = try {
-        if (!JSON_OBJECT.matches(body)) {
-            null
-        } else {
-            val keys = JSON_FIELD.findAll(body).map {
-                org.json.JSONTokener(it.groupValues[1]).nextValue() as String
-            }.toList()
-            if (keys.size != keys.toSet().size) null else JSONObject(body)
-        }
-    } catch (_: org.json.JSONException) {
-        // Parser exception messages can contain the original token-bearing input.
-        null
-    }
+    private fun Map<String, Any>.hasOnlyKeys(vararg allowed: String): Boolean =
+        keys.all { it in allowed }
 
-    private fun JSONObject.hasOnlyKeys(vararg allowed: String): Boolean =
-        keys().asSequence().all { it in allowed }
+    private fun Map<String, Any>.nonBlankString(key: String): String? =
+        (get(key) as? String)?.takeIf { it.isNotBlank() }
 
-    private fun JSONObject.nonBlankString(key: String): String? =
-        (opt(key) as? String)?.takeIf { it.isNotBlank() }
+    private fun Map<String, Any>.nonNegativeInt(key: String): Int? = get(key) as? Int
 
-    private fun JSONObject.nonNegativeInt(key: String): Int? = when (val value = opt(key)) {
-        is Int -> value.takeIf { it >= 0 }
-        is Long -> value.takeIf { it in 0..Int.MAX_VALUE.toLong() }?.toInt()
-        else -> null
-    }
-
-    private fun JSONObject.positiveInt(key: String): Int? = nonNegativeInt(key)?.takeIf { it > 0 }
+    private fun Map<String, Any>.positiveInt(key: String): Int? = nonNegativeInt(key)?.takeIf { it > 0 }
 
     /**
      * OkHttp consults [RequestBody.isOneShot] before connection recovery and HTTP follow-up

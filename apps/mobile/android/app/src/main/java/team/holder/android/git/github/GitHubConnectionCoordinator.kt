@@ -432,7 +432,11 @@ object GitHubConnectionCoordinator {
     ): GitHubResult<GitHubStatus> {
         val exchangeResult = GitHubOAuth.exchangeCode(exchangeHttpClient, code, codeVerifier)
         // Log only the category: failures can also contain sensitive transport diagnostics.
-        Log.d(LOG_TAG, "performExchange: relay result = ${exchangeResult::class.simpleName}")
+        val resultCategory = when (exchangeResult) {
+            is RelayResult.Success -> "Success"
+            is RelayResult.Failure -> exchangeResult.error.javaClass.simpleName
+        }
+        Log.d(LOG_TAG, "performExchange: relay result = $resultCategory")
         return when (exchangeResult) {
             is RelayResult.Success -> {
                 val committedSnapshot = commitCredentialForConnectOperation(appContext, attemptId, exchangeResult.tokens)
@@ -955,8 +959,23 @@ object GitHubConnectionCoordinator {
                     } catch (e: Exception) {
                         Log.e(LOG_TAG, "Could not durably commit the rotated GitHub credential", e)
                         return credentialMutationMutex.withLock {
+                            // Supersession alone is sufficient; do not touch a failing store
+                            // again when a newer generation already owns the connection.
+                            if (credentialEpoch.get() != quarantinedSnapshot.epoch) {
+                                return@withLock SnapshotAccessTokenResult.Stale
+                            }
+                            val currentState = try {
+                                credentialStore.read(appContext)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e(LOG_TAG, "Could not read GitHub credentials after failed rotation (${e.javaClass.simpleName})")
+                                // Ownership is unverified. Leave cache/status alone and never
+                                // restore the quarantined credential or expose the new token.
+                                return@withLock SnapshotAccessTokenResult.Failure(GitHubError.AuthorizationRequired)
+                            }
                             if (!refreshSnapshotStillCurrent(
-                                    quarantinedSnapshot, credentialEpoch.get(), credentialStore.read(appContext),
+                                    quarantinedSnapshot, credentialEpoch.get(), currentState,
                                 )
                             ) {
                                 return@withLock SnapshotAccessTokenResult.Stale
