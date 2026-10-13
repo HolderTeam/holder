@@ -82,6 +82,9 @@ fun RecoverProjectScreen(
     var githubOwnerRepo by remember { mutableStateOf<Pair<String, String>?>(null) }
     var githubStatus by remember { mutableStateOf<GitHubStatus?>(null) }
     var githubBusy by remember { mutableStateOf(false) }
+    // Advanced by each recovery run and by Cancel. A run stops at its next step once this has
+    // moved on, so Cancel also works during the status check before Connect exists.
+    var githubRun by remember { mutableStateOf(0) }
     var githubError by remember { mutableStateOf<String?>(null) }
     // Set only for GitHubError.RepositoryNotAccessible -- the friendly recovery route the
     // plan's "Selective-repository installations" section designed: a direct link to where
@@ -139,17 +142,21 @@ fun RecoverProjectScreen(
      * more clearly here anyway. Called right after a GitHub-eligible import failure, and by
      * the explicit "check again"/"Retry" buttons alike. */
     suspend fun continueGithubRecovery(projectId: String, owner: String, repo: String) {
+        val run = ++githubRun
         githubError = null
         githubActionUrl = null
         githubBusy = true
 
-        var status = runCatching { GitHubConnection.status(context) }
+        val statusOutcome = runCatching { GitHubConnection.status(context) }
+        if (run != githubRun) return
+        var status = statusOutcome
             .onFailure { githubError = it.message ?: "Could not check GitHub status" }
             .getOrNull()
         githubStatus = status
 
         if (status is GitHubStatus.NotConnected || status is GitHubStatus.AuthorizationRequired) {
             val connectOutcome = runCatching { GitHubConnection.connect(context, browserLauncher) }
+            if (run != githubRun) return
             connectOutcome.onFailure { failure -> githubError = failure.message ?: "Could not connect to GitHub" }
             when (val connectResult = connectOutcome.getOrNull()) {
                 is GitHubResult.Success -> status = connectResult.value
@@ -170,7 +177,7 @@ fun RecoverProjectScreen(
             }
             registerAndRetryPull(projectId, owner, repo)
         }
-        githubBusy = false
+        if (run == githubRun) githubBusy = false
     }
 
     Scaffold(
@@ -321,6 +328,8 @@ fun RecoverProjectScreen(
                         // primary path.
                         onConnect = { scope.launch { continueGithubRecovery(r.projectId, owner, repo) } },
                         onCancel = {
+                            githubRun++
+                            githubBusy = false
                             scope.launch { GitHubConnection.cancelConnect() }
                         },
                         onOpenUrl = { url -> openUrlExternally(context, url) },

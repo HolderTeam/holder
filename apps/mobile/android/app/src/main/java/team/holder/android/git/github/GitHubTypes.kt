@@ -27,8 +27,16 @@ sealed interface GitHubError {
     data class NetworkError(val cause: Throwable) : GitHubError
     /** A validated operational failure from the OAuth relay, not api.github.com. */
     data object RelayUnavailable : GitHubError
-    /** Connect's status evidence changed too often, or it could not enter the request gate. */
-    data object TryAgain : GitHubError
+    /** Connect stopped before opening a browser or changing the stored credential, so trying
+     * again is always safe. Only [GitHubConnection.connect] returns this. */
+    data class ConnectInterrupted(val reason: Reason) : GitHubError {
+        enum class Reason {
+            /** Other GitHub requests held the request gate for longer than Connect waits. */
+            RequestsBusy,
+            /** Concurrent refreshes kept replacing the credential Connect was checking. */
+            CredentialChanging,
+        }
+    }
 
     /** An unanticipated GitHub response or local operation failure. [httpStatus] is null when
      * no GitHub HTTP response exists. Relay operational failures use [RelayUnavailable]. */

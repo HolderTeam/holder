@@ -14,8 +14,12 @@ class GitHubErrorMessageTest {
             githubErrorMessage(GitHubError.RelayUnavailable),
         )
         assertEquals(
-            "GitHub sign-in is busy -- try again",
-            githubErrorMessage(GitHubError.TryAgain),
+            "GitHub is busy with another request -- try again",
+            githubErrorMessage(GitHubError.ConnectInterrupted(GitHubError.ConnectInterrupted.Reason.RequestsBusy)),
+        )
+        assertEquals(
+            "GitHub sign-in changed while it was being checked -- try again",
+            githubErrorMessage(GitHubError.ConnectInterrupted(GitHubError.ConnectInterrupted.Reason.CredentialChanging)),
         )
     }
 
