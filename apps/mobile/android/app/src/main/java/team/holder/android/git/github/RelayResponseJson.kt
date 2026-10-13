@@ -17,7 +17,6 @@ private class RelayResponseJson(private val input: String) {
         val fields = mutableMapOf<String, Any>()
         if (!take('}')) {
             while (true) {
-                if (fields.size == 5) return null
                 val key = readString() ?: return null
                 if (fields.containsKey(key)) return null
                 skipSpace()

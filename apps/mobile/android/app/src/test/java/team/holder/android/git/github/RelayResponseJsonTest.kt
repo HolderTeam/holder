@@ -34,9 +34,16 @@ class RelayResponseJsonTest {
     }
 
     @Test
-    fun rejectsDuplicateDecodedKeysExtraFieldsAndTrailingData() {
+    fun fieldWhitelistIsLeftToEnvelopeValidation() {
+        assertEquals(
+            mapOf("a" to 0, "b" to 0, "c" to 0, "d" to 0, "e" to 0, "f" to 0),
+            parseRelayResponseObject("""{"a":0,"b":0,"c":0,"d":0,"e":0,"f":0}"""),
+        )
+    }
+
+    @Test
+    fun rejectsDuplicateDecodedKeysAndTrailingData() {
         assertNull(parseRelayResponseObject("""{"error":"unexpected","err\u006fr":"unexpected"}"""))
-        assertNull(parseRelayResponseObject("""{"a":0,"b":0,"c":0,"d":0,"e":0,"f":0}"""))
         assertNull(parseRelayResponseObject("""{"a":0,}"""))
         assertNull(parseRelayResponseObject("""{"a":0} {}"""))
         assertEquals(emptyMap<String, Any>(), parseRelayResponseObject("{}"))

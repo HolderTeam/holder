@@ -858,7 +858,7 @@ class GitHubConnectionCoordinatorTest {
     }
 
     @Test
-    fun rotationWriteAndCleanupReadFailuresLeaveQuarantineWithoutPublishingState() = runBlocking {
+    fun rotationWriteAndCleanupReadFailuresLeaveQuarantineAndPublishReconnect() = runBlocking {
         val credential = StoredGitHubCredential("refresh_write_failure", "cap_write_failure", Long.MAX_VALUE)
         val status = GitHubStatus.Connected("initial-owner", "https://github.com/settings/installations/3")
         replaceCredentialStateForTest(
@@ -881,7 +881,7 @@ class GitHubConnectionCoordinatorTest {
         )
         assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
         assertNull(GitHubConnectionCoordinator.accessTokenCache)
-        assertEquals(status, GitHubConnectionCoordinator.statusFlow.value)
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.statusFlow.value)
         restartCredentialProcess()
         assertEquals(
             GitHubResult.Failure(GitHubError.AuthorizationRequired),
@@ -910,6 +910,167 @@ class GitHubConnectionCoordinatorTest {
         }
         assertTrue(fakeStore.durableState is DurableGitHubCredentialState.Refreshing)
         assertNull(GitHubConnectionCoordinator.accessTokenCache)
+    }
+
+    @Test
+    fun refreshSettlementReadFailuresPublishReconnectAndRejectDelayedConnectedStatus() = runBlocking {
+        for (relayError in listOf(
+            RelayError.InvalidResponse(502), RelayError.AuthorizationRequired(null), RelayError.Unexpected,
+        )) {
+            fakeStore.readFailure = null
+            val credential = StoredGitHubCredential("refresh_read_failure", "cap_read_failure", Long.MAX_VALUE)
+            val connected = GitHubStatus.Connected("owner", "https://github.com/settings/installations/1")
+            replaceCredentialStateForTest(
+                credential, GitHubConnectionCoordinator.AccessTokenCache("expired", 0), connected,
+            )
+            val epochBefore = credentialEpochForTest()
+            val statusStarted = CompletableDeferred<Unit>()
+            val finishStatus = CompletableDeferred<Unit>()
+            GitHubConnectionCoordinator.standaloneStatusOverride = {
+                statusStarted.complete(Unit)
+                finishStatus.await()
+                GitHubResult.Success(connected)
+            }
+            val delayedStatus = async { GitHubConnectionCoordinator.status(fakeContext) }
+            statusStarted.await()
+            val requests = AtomicInteger()
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+                requests.incrementAndGet()
+                fakeStore.readFailure = IOException("settlement read failed")
+                RelayResult.Failure(relayError)
+            }
+            val result = try {
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("refresh supplied a token") }
+            } finally {
+                finishStatus.complete(Unit)
+            }
+            val reconnect = GitHubStatus.AuthorizationRequired(null)
+            assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), result)
+            assertEquals(reconnect, delayedStatus.await())
+            assertEquals(reconnect, GitHubConnectionCoordinator.statusFlow.value)
+            assertEquals(epochBefore + 1, credentialEpochForTest())
+            assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
+            assertNull(GitHubConnectionCoordinator.accessTokenCache)
+            fakeStore.readFailure = null
+            assertEquals(
+                GitHubResult.Failure(GitHubError.AuthorizationRequired),
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("quarantine was reused") },
+            )
+            assertEquals(1, requests.get())
+        }
+    }
+
+    @Test
+    fun failedRefreshWritesRejectDelayedStatusEvenWhenCleanupCanReadStorage() = runBlocking {
+        for (relayResult in listOf(
+            RelayResult.Success(rotatedTokens()),
+            RelayResult.Failure(RelayError.InvalidResponse(502)),
+            RelayResult.Failure(RelayError.Unexpected),
+        )) {
+            val credential = StoredGitHubCredential("refresh_write", "cap_write", Long.MAX_VALUE)
+            val connected = GitHubStatus.Connected("owner", "https://github.com/settings/installations/1")
+            replaceCredentialStateForTest(
+                credential, GitHubConnectionCoordinator.AccessTokenCache("expired", 0), connected,
+            )
+            val epochBefore = credentialEpochForTest()
+            val statusStarted = CompletableDeferred<Unit>()
+            val finishStatus = CompletableDeferred<Unit>()
+            GitHubConnectionCoordinator.standaloneStatusOverride = {
+                statusStarted.complete(Unit)
+                finishStatus.await()
+                GitHubResult.Success(connected)
+            }
+            val delayedStatus = async { GitHubConnectionCoordinator.status(fakeContext) }
+            statusStarted.await()
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+                fakeStore.failNextMutation = true
+                relayResult
+            }
+            val result = try {
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("uncommitted token dispatched") }
+            } finally {
+                finishStatus.complete(Unit)
+            }
+            assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), result)
+            assertEquals(GitHubStatus.AuthorizationRequired(null), delayedStatus.await())
+            assertEquals(epochBefore + 1, credentialEpochForTest())
+            assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
+            assertNull(GitHubConnectionCoordinator.accessTokenCache)
+        }
+    }
+
+    @Test
+    fun staleRefreshSettlementSkipsUnavailableStoreAndPreservesNewerConnection() = runBlocking {
+        for (relayError in listOf(
+            RelayError.InvalidResponse(502), RelayError.AuthorizationRequired(null), RelayError.Unexpected,
+        )) {
+            fakeStore.readFailure = null
+            fakeStore.credential = StoredGitHubCredential("refresh_old", "cap_old", Long.MAX_VALUE)
+            GitHubConnectionCoordinator.accessTokenCache = null
+            val replacement = StoredGitHubCredential("refresh_new", "cap_new", Long.MAX_VALUE)
+            val cache = GitHubConnectionCoordinator.AccessTokenCache("access_new", Long.MAX_VALUE)
+            val connected = GitHubStatus.Connected("new-owner", "https://github.com/settings/installations/2")
+            var readsBeforeSettlement = 0
+            var newEpoch = 0L
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+                replaceCredentialStateForTest(replacement, cache, connected)
+                newEpoch = credentialEpochForTest()
+                readsBeforeSettlement = fakeStore.readCount
+                fakeStore.readFailure = IOException("new store unavailable")
+                RelayResult.Failure(relayError)
+            }
+            assertEquals(
+                GitHubResult.Failure(GitHubError.AuthorizationRequired),
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("stale token dispatched") },
+            )
+            assertEquals(readsBeforeSettlement, fakeStore.readCount)
+            assertEquals(newEpoch, credentialEpochForTest())
+            assertEquals(replacement, fakeStore.credential)
+            assertEquals(cache, GitHubConnectionCoordinator.accessTokenCache)
+            assertEquals(connected, GitHubConnectionCoordinator.statusFlow.value)
+        }
+    }
+
+    @Test
+    fun cancellationDuringDisposalAndRestorationReadStillPropagates() = runBlocking {
+        for (relayError in listOf(RelayError.InvalidResponse(502), RelayError.Unexpected)) {
+            fakeStore.readFailure = null
+            fakeStore.credential = StoredGitHubCredential("refresh_cancel", "cap_cancel", Long.MAX_VALUE)
+            val epochBefore = credentialEpochForTest()
+            val cancellation = kotlinx.coroutines.CancellationException("cancel settlement")
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+                fakeStore.readFailure = cancellation
+                RelayResult.Failure(relayError)
+            }
+            try {
+                GitHubConnectionCoordinator.withAccessToken<String>(fakeContext) { error("cancelled refresh dispatched") }
+                throw AssertionError("settlement swallowed cancellation")
+            } catch (actual: kotlinx.coroutines.CancellationException) {
+                assertEquals(cancellation.message, actual.message)
+            }
+            assertEquals(epochBefore, credentialEpochForTest())
+            assertTrue(fakeStore.durableState is DurableGitHubCredentialState.Refreshing)
+        }
+    }
+
+    @Test
+    fun connectCompletesWhenItsRefreshFailureInvalidatesItsGeneration() = runBlocking {
+        fakeStore.credential = StoredGitHubCredential("refresh_connect", "cap_connect", Long.MAX_VALUE)
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+            fakeStore.failNextMutation = true
+            RelayResult.Success(rotatedTokens())
+        }
+        val browser = UnavailableBrowserLauncher()
+        val result = kotlinx.coroutines.withTimeout(5_000) {
+            GitHubConnectionCoordinator.connect(fakeContext, browser)
+        }
+        assertEquals(GitHubResult.Success(GitHubStatus.AuthorizationRequired(null)), result)
+        assertEquals(0, browser.resolveCallCount.get())
+        assertTrue(fakeStore.durableState is DurableGitHubCredentialState.Refreshing)
+        assertEquals(
+            GitHubResult.Failure(GitHubError.BrowserUnavailable),
+            kotlinx.coroutines.withTimeout(5_000) { GitHubConnectionCoordinator.connect(fakeContext, browser) },
+        )
     }
 
     @Test
@@ -951,7 +1112,7 @@ class GitHubConnectionCoordinatorTest {
         assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), result)
         assertEquals(1, relayCalls.get())
         assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
-        assertEquals(GitHubStatus.NotConnected, GitHubConnectionCoordinator.statusFlow.value)
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.statusFlow.value)
 
         val restartedStore = restartCredentialProcess()
         GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
@@ -1008,7 +1169,7 @@ class GitHubConnectionCoordinatorTest {
 
         assertEquals(GitHubResult.Failure(GitHubError.AuthorizationRequired), result)
         assertEquals(DurableGitHubCredentialState.Refreshing(credential), fakeStore.durableState)
-        assertEquals(GitHubStatus.NotConnected, GitHubConnectionCoordinator.statusFlow.value)
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.statusFlow.value)
         val restartedStore = restartCredentialProcess()
         assertNull(GitHubConnectionCoordinator.snapshotCredentialState(fakeContext).credential)
         assertEquals(DurableGitHubCredentialState.Refreshing(credential), restartedStore.durableState)
@@ -1555,8 +1716,8 @@ class GitHubConnectionCoordinatorTest {
 
         releaseQuery.countDown()
 
-        assertEquals(GitHubResult.Success(GitHubStatus.NotConnected), connect.await())
-        assertEquals(GitHubStatus.NotConnected, GitHubConnectionCoordinator.statusFlow.value)
+        assertEquals(GitHubResult.Success(GitHubStatus.AuthorizationRequired(null)), connect.await())
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.statusFlow.value)
     }
 
     @Test
