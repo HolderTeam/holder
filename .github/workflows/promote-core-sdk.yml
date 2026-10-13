@@ -1,9 +1,11 @@
 name: Release / Promote core SDK
 
-# Attaches the core SDK archives that a release's daemon was built against to the draft
-# holder-v<version> release, creating the draft if no other promotion has yet. The archives come
-# from the release's Daemon CI run (dispatched with core_build_type=Release), with that run's
-# core-selection index, so the SDKs users download are exactly the core the shipped daemon uses.
+# Publishes the core SDK archives that a release's daemon was built against to HolderTeam/holder-sdk
+# as the release holder-v<version>, beside main's development snapshots. The archives come from the
+# release's Daemon CI run (dispatched with core_build_type=Release), with that run's core-selection
+# index, so the SDKs people download are exactly the core the shipped daemon uses. Holder's own
+# release holds what users install; the SDKs live in holder-sdk. Run it from main: only main may
+# use the holder-sdk-publish environment, which holds the publishing app's key.
 
 on:
   workflow_dispatch:
@@ -21,11 +23,6 @@ on:
         required: false
         default: ""
         type: string
-      allow_published_prerelease:
-        description: Allow adding assets to an existing published prerelease for the exact version
-        required: false
-        default: false
-        type: boolean
 
 run-name: Promote core SDK ${{ inputs.expected_version }} to release
 
@@ -34,16 +31,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: holder-draft-release-promotion
+  group: holder-sdk-publish
   cancel-in-progress: false
 
 jobs:
   promote:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    environment: holder-sdk-publish
     permissions:
       actions: read
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -74,7 +72,12 @@ jobs:
             exit 1
           fi
           echo "commit=$(jq -r '.head_sha' <<< "$run")" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${RELEASE_TAG_INPUT:-holder-v${EXPECTED_VERSION}}" >> "$GITHUB_OUTPUT"
+          release_tag="${RELEASE_TAG_INPUT:-holder-v${EXPECTED_VERSION}}"
+          if [ "${release_tag}" != "holder-v${EXPECTED_VERSION}" ]; then
+            echo "The release tag must be holder-v${EXPECTED_VERSION}; got '${release_tag}'" >&2
+            exit 1
+          fi
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Download the run's core selection
         uses: actions/download-artifact@v8
@@ -118,57 +121,22 @@ jobs:
               sys.exit(f"Core is at {recorded['version']}, not the release version {os.environ['EXPECTED_VERSION']}")
           print(f"Core {recorded['version']} from {recorded['commit']}: {len(recorded['assets'])} Release SDKs")
           EOF
-          cp out/core-selection.json out/core-sdk/core-sdk-index.json
 
-      - name: Ensure draft release exists
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.run.outputs.release_tag }}
-          EXPECTED_VERSION: ${{ inputs.expected_version }}
-          ALLOW_PUBLISHED_PRERELEASE: ${{ inputs.allow_published_prerelease }}
-        run: |
-          set -euo pipefail
-          releases="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100")"
-          matching_release="$(jq -c --arg tag "${RELEASE_TAG}" '[.[] | select(.tag_name == $tag)]' <<< "${releases}")"
-          match_count="$(jq 'length' <<< "${matching_release}")"
-          if [ "${match_count}" -gt 1 ]; then
-            echo "GitHub returned more than one release for tag ${RELEASE_TAG}." >&2
-            exit 1
-          fi
-          if [ "${match_count}" -eq 1 ]; then
-            is_draft="$(jq -r '.[0].draft' <<< "${matching_release}")"
-            is_prerelease="$(jq -r '.[0].prerelease' <<< "${matching_release}")"
-            if [ "${is_draft}" != "true" ] &&
-               { [ "${ALLOW_PUBLISHED_PRERELEASE}" != "true" ] || [ "${is_prerelease}" != "true" ]; }; then
-              echo "Release ${RELEASE_TAG} is already published; only an explicitly allowed prerelease may be updated." >&2
-              exit 1
-            fi
-            echo "Using existing release ${RELEASE_TAG} without changing its title or description."
-          else
-            create_args=("${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --draft
-              --title "Holder ${EXPECTED_VERSION}"
-              --notes "Release notes pending. Edit this draft before publishing.")
-            if [[ "${EXPECTED_VERSION}" == *-* ]]; then
-              create_args+=(--prerelease)
-            fi
-            gh release create "${create_args[@]}"
-            echo "Created draft ${RELEASE_TAG}."
-          fi
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
 
-      - name: Upload core SDKs without editing release notes
+      - name: Publish to holder-sdk
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.run.outputs.release_tag }}
-          DAEMON_CI_RUN_ID: ${{ inputs.daemon_ci_run_id }}
-          RUN_COMMIT: ${{ steps.run.outputs.commit }}
-        run: |
-          set -euo pipefail
-          mapfile -t assets < <(find out/core-sdk -maxdepth 1 -type f | sort)
-          gh release upload "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --clobber "${assets[@]}"
-          {
-            echo "## Core SDKs promoted to ${RELEASE_TAG}"
-            echo
-            echo "From Daemon CI run [${DAEMON_CI_RUN_ID}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${DAEMON_CI_RUN_ID}) at \`${RUN_COMMIT}\`:"
-            echo
-            for asset in "${assets[@]}"; do echo "- \`$(basename "$asset")\`"; done
-          } >> "$GITHUB_STEP_SUMMARY"
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SDK_RELEASE: ${{ steps.run.outputs.release_tag }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.daemon_ci_run_id }}
+        run: >-
+          .github/scripts/publish-core-sdk.sh out/core-sdk out/core-selection.json
+          "$(jq -r .core_tree out/core-selection.json)"

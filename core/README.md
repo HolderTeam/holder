@@ -300,10 +300,10 @@ artifacts of that run; nothing is published between releases. Daemon CI uses
 them to build the daemon against core from the same commit, and staging takes
 core from the Daemon CI run it stages.
 
-A Holder release attaches the `Release` archives that its daemon was built
-against: `Release / Promote core SDK` copies them, with their index, from the
-release's Daemon CI run to the `holder-v<VERSION>` release. Outside embedders use
-those, or build from source.
+Each Holder release's `Release` archives, the ones its daemon was built
+against, are published to holder-sdk as `holder-v<VERSION>`: `Release / Promote
+core SDK` takes them, with their index, from the release's Daemon CI run. Outside
+embedders use those, or build from source.
 
 After core's tests and SDKs pass on `main`, Core / CI publishes that commit's
 `RelWithDebInfo` SDKs to [HolderTeam/holder-sdk](https://github.com/HolderTeam/holder-sdk)

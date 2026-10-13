@@ -35,14 +35,17 @@ enabled. Existing release titles and descriptions are never edited by the workfl
 
 ## Core SDKs
 
-`Release / Promote core SDK` adds the core SDK archives to the draft for the
-exact version tag, creating the draft if no other promotion has. Give it the
-successful Daemon CI run, dispatched with `core_build_type=Release`, that the
-release's backends were staged from: it downloads that run's Release SDKs for
-Linux, macOS and Windows, checks them against the run's `core-selection` index
-and the release version, and uploads them with the index as
-`core-sdk-index.json`. The SDKs on the release are therefore the core the
-shipped daemon was built against. Nothing else publishes core SDKs.
+`Release / Promote core SDK` publishes a release's core SDKs to
+[HolderTeam/holder-sdk](https://github.com/HolderTeam/holder-sdk) as the release
+`holder-v<version>`, beside `main`'s development snapshots; Holder's own release
+holds only what users install. Run it from `main` (only `main` may use the
+`holder-sdk-publish` environment) and give it the successful Daemon CI run,
+dispatched with `core_build_type=Release`, that the release's backends were staged
+from: it downloads that run's Release SDKs for Linux, macOS and Windows, checks
+them against the run's `core-selection` index and the release version, and
+publishes them with an `sdk-index.json` of sizes, checksums and download URLs.
+The SDKs are therefore the core the shipped daemon was built against. A version
+already published there is never replaced.
 
 ## Holder Kit on PyPI
 
