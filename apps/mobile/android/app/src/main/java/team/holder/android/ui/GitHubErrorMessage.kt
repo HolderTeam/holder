@@ -14,7 +14,7 @@ fun githubErrorMessage(error: GitHubError): String = when (error) {
     is GitHubError.InstallationRequired -> "Holder Project Setup isn't installed on your GitHub account yet"
     is GitHubError.RepositoryNotAccessible -> "GitHub needs one more permission for this repository"
     is GitHubError.RateLimited -> "GitHub request was rate limited -- try again shortly"
-    is GitHubError.NetworkError -> error.cause.message ?: "Network error talking to GitHub"
+    is GitHubError.NetworkError -> "Could not reach GitHub -- check your connection and try again"
     is GitHubError.Unexpected -> if (error.httpStatus != null) {
         "GitHub request failed (HTTP ${error.httpStatus})"
     } else {

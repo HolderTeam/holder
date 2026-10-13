@@ -189,7 +189,7 @@ object GitHubConnectionCoordinator {
         val epoch: Long,
         val durableState: DurableGitHubCredentialState,
         val accessTokenCache: AccessTokenCache?,
-        val statusRevision: Long = 0L,
+        val statusRevision: Long,
     ) {
         /** Normal readers receive authority only from Ready; Refreshing stays quarantined. */
         val credential: StoredGitHubCredential?
@@ -337,17 +337,21 @@ object GitHubConnectionCoordinator {
         attemptId: UUID,
         browserLauncher: GitHubBrowserLauncher,
     ) {
-        val credentialSnapshot = snapshotCredentialState(appContext)
-        if (credentialSnapshot.credential != null) {
+        while (true) {
+            val credentialSnapshot = snapshotCredentialForConnectOperation(appContext, attemptId)
+            if (credentialSnapshot == null) {
+                finishConnectOperation(attemptId, GitHubResult.Success(currentAuthoritativeStatus()))
+                return
+            }
+            if (credentialSnapshot.credential == null) break
             val resumeQuery = storedCredentialStatusOverride?.invoke(appContext)?.let {
                 CredentialStatusQueryResult.Completed(it)
             } ?: statusAgainstStoredCredential(appContext, credentialSnapshot)
             if (resumeQuery is CredentialStatusQueryResult.Stale) {
-                finishConnectOperation(
-                    attemptId,
-                    GitHubResult.Success(currentAuthoritativeStatus()),
-                )
-                return
+                // A refresh can change the snapshot without superseding this Connect.
+                // Reassess its settled state: use a rotated credential or begin sign-in if
+                // unavailable. The next snapshot refuses a different ownership epoch.
+                continue
             }
             val resumeResult = (resumeQuery as CredentialStatusQueryResult.Completed).result
             if (!requiresFreshAuthorization(resumeResult)) {
@@ -361,11 +365,12 @@ object GitHubConnectionCoordinator {
             // fresh ceremony IN THE SAME operation (connect() is already exclusively
             // user-initiated, so no second "tap Connect again" is warranted).
             if (!clearCredentialForConnectOperation(appContext, attemptId)) {
-                // Refresh cleanup or a replacement may have invalidated this operation's
-                // generation. Complete its caller even though it cannot start authorization.
+                // A replacement may have superseded this operation's generation. Complete
+                // its caller even though it cannot start authorization.
                 finishConnectOperation(attemptId, GitHubResult.Success(currentAuthoritativeStatus()))
                 return
             }
+            break
         }
 
         val state = GitHubPkce.generateState()
@@ -751,6 +756,21 @@ object GitHubConnectionCoordinator {
                 true
             }
         }
+
+    /** Re-querying is allowed within this authorization's epoch, never across Disconnect or
+     * replacement. Adopt only the status revision belonging to the snapshot being queried;
+     * subsequent changes still invalidate its publication through the ordinary guards. */
+    private suspend fun snapshotCredentialForConnectOperation(
+        appContext: Context,
+        attemptId: UUID,
+    ): CredentialStateSnapshot? = connectStateMutex.withLock {
+        val operation = connectInFlight
+        if (operation?.attemptId != attemptId) return@withLock null
+        val snapshot = snapshotCredentialState(appContext)
+        if (snapshot.epoch != operation.expectedCredentialEpoch) return@withLock null
+        operation.expectedStatusRevision = snapshot.statusRevision
+        snapshot
+    }
 
     internal suspend fun snapshotCredentialState(context: Context): CredentialStateSnapshot =
         credentialMutationMutex.withLock {
