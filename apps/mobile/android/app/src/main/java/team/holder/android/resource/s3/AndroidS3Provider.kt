@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.Response
+import team.holder.android.network.LocalNetworkAccess
 import team.holder.android.resource.AndroidStorageProvider
 import team.holder.android.resource.StorageErrorCode
 import team.holder.android.resource.encode
@@ -54,6 +55,10 @@ private class StorageProviderFailure(val code: StorageErrorCode, message: String
 class AndroidS3Provider(
     private val config: () -> S3Config,
     private val client: OkHttpClient = OkHttpClient(),
+    // Whether connecting to this endpoint host would be blocked by Android 17's local network
+    // protection (see LocalNetworkAccess): fail at once with an explanation, not after a
+    // connection timeout.
+    private val localNetworkBlocked: (host: String) -> Boolean = { false },
 ) : AndroidStorageProvider {
 
     override fun put(objectKey: String, stagedFilePath: String, storedSize: Long, storedSha256: String): String? =
@@ -107,6 +112,9 @@ class AndroidS3Provider(
         }
         val cfg = config()
         val endpoint = parseEndpoint(cfg.endpoint)
+        if (localNetworkBlocked(endpoint.host)) {
+            throw StorageProviderFailure(StorageErrorCode.PERMISSION, LocalNetworkAccess.BLOCKED_MESSAGE)
+        }
         val target = endpoint.basePath + "/" + uriEncodePath(cfg.bucket) + "/" + uriEncodePath(objectKey)
         val amzDate = amzDateFormat().format(Date())
         val date = amzDate.substring(0, 8)
@@ -176,7 +184,7 @@ private fun httpStatusToStorageErrorCode(httpStatusCode: Int): StorageErrorCode 
 private fun amzDateFormat(): SimpleDateFormat =
     SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
 
-internal class ParsedS3Endpoint(val scheme: String, val hostHeader: String, val basePath: String)
+internal class ParsedS3Endpoint(val scheme: String, val host: String, val hostHeader: String, val basePath: String)
 
 /** Mirrors `parse_endpoint` in holder-daemon's `S3CompatibleProvider.cpp`: requires `https://`
  * except for an explicit local test server (localhost/127.0.0.1/10.0.2.2 -- the last being
@@ -213,7 +221,7 @@ internal fun parseEndpoint(value: String): ParsedS3Endpoint {
         )
     }
     val hostHeader = if (port == defaultPort) host else "$host:$port"
-    return ParsedS3Endpoint(scheme, hostHeader, basePath)
+    return ParsedS3Endpoint(scheme, host, hostHeader, basePath)
 }
 
 /** Mirrors `uri_encode_path` in holder-daemon's `S3CompatibleProvider.cpp` exactly (unreserved

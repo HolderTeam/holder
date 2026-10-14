@@ -38,9 +38,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import team.holder.android.network.LocalNetworkAccess
 import team.holder.android.resource.drive.GoogleDriveConnection
 import team.holder.android.resource.s3.S3Connection
 import team.holder.android.ui.openUrlExternally
+import team.holder.android.ui.LocalNetworkPermissionDialog
+import team.holder.android.ui.rememberLocalNetworkPermission
 
 // Mirrors BackupSettingsScreen's/SyncSettingsScreen's own help-link constants -- same
 // website, same /android/<topic> shape.
@@ -73,6 +76,8 @@ fun StorageSettingsScreen(onBack: () -> Unit) {
     val s3ConnectedBucket by S3Connection.connectedBucket(context).collectAsState(initial = null)
     var s3Connecting by remember { mutableStateOf(false) }
     var s3Error by remember { mutableStateOf<String?>(null) }
+    val localNetwork = rememberLocalNetworkPermission()
+    LocalNetworkPermissionDialog(localNetwork)
     var s3ShowConnectDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -146,6 +151,13 @@ fun StorageSettingsScreen(onBack: () -> Unit) {
                         s3Error = null
                         s3Connecting = true
                         scope.launch {
+                            // On Android 17 a bucket on the local network needs this first, or
+                            // the connection check below only fails after a timeout.
+                            localNetwork.ensureAllowed(LocalNetworkAccess.hostOfUrl(endpoint))?.let { blocked ->
+                                s3Error = blocked
+                                s3Connecting = false
+                                return@launch
+                            }
                             runCatching {
                                 S3Connection.connect(context, endpoint, region, bucket, accessKeyId, secretAccessKey)
                             }.onSuccess {

@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import team.holder.android.HolderLocation
 import team.holder.android.HolderSettings
 import team.holder.android.keyring.AndroidKeyringStore
+import team.holder.android.network.LocalNetworkAccess
 import team.holder.android.resource.AndroidStorageProviderBridge
 import team.holder.android.resource.StorageLocations
 
@@ -54,7 +55,13 @@ object S3Connection {
      * [team.holder.android.resource.drive.GoogleDriveConnection.registerProvider]. */
     fun registerProvider(context: Context) {
         val appContext = context.applicationContext
-        AndroidStorageProviderBridge.register(PROVIDER_ID, AndroidS3Provider(config = { requireStoredConfig(appContext) }))
+        AndroidStorageProviderBridge.register(
+            PROVIDER_ID,
+            AndroidS3Provider(
+                config = { requireStoredConfig(appContext) },
+                localNetworkBlocked = { LocalNetworkAccess.isBlocked(appContext, it) },
+            ),
+        )
     }
 
     /** Null when S3 isn't connected. The bucket name is the one thing worth showing in
@@ -87,7 +94,10 @@ object S3Connection {
         val config = S3Config(trimmedEndpoint, trimmedRegion, trimmedBucket, trimmedAccessKeyId, secretAccessKey)
         withContext(Dispatchers.IO) {
             try {
-                AndroidS3Provider(config = { config }).exists(CONNECTIVITY_PROBE_KEY)
+                AndroidS3Provider(
+                    config = { config },
+                    localNetworkBlocked = { LocalNetworkAccess.isBlocked(appContext, it) },
+                ).exists(CONNECTIVITY_PROBE_KEY)
             } catch (failure: Exception) {
                 throw S3ConnectException(failure.message ?: "Could not connect to this S3 bucket")
             }
