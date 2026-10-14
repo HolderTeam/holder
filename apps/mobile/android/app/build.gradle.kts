@@ -27,6 +27,15 @@ val vcpkgRoot = System.getenv("VCPKG_ROOT")
     ?: localProperties.getProperty("vcpkg.dir")
 val vcpkgInstalledDir = rootProject.layout.buildDirectory.dir("vcpkg_installed").get().asFile
 val vcpkgAndroidWrapper = project.layout.projectDirectory.file("src/main/cpp/vcpkg-android-wrapper.cmake").asFile
+// Debug builds only: the base URL of the local mock GitHub (mock-github/mock_github.py), e.g.
+// -Pholder.githubMock=http://127.0.0.1:8765, which a device reaches through adb reverse. Empty
+// means the real GitHub and relay. Not an emulator's 10.0.2.2: from Android 17 an app targeting
+// API 37 needs the local network permission for that, while loopback is always allowed.
+val holderGitHubMock = (findProperty("holder.githubMock") as String?).orEmpty().trimEnd('/')
+if (holderGitHubMock.isNotEmpty() && !Regex("http://(127\\.0\\.0\\.1|localhost):[0-9]+").matches(holderGitHubMock)) {
+    throw GradleException("holder.githubMock must be http://127.0.0.1:<port> or http://localhost:<port>")
+}
+
 val androidSdkDir = System.getenv("ANDROID_HOME")
     ?: System.getenv("ANDROID_SDK_ROOT")
     ?: localProperties.getProperty("sdk.dir")
@@ -100,6 +109,7 @@ android {
             // AndroidManifest.xml. Real production traffic only ever goes through
             // holder-github-service's production deployment.
             manifestPlaceholders["oauthHost"] = "auth.holder.ws"
+            buildConfigField("String", "GITHUB_MOCK_URL", "\"\"")
         }
         debug {
             signingConfig = signingConfigs.getByName("debug")
@@ -107,6 +117,9 @@ android {
             // holder-github-service's development deployment (its own GitHub App, its own
             // client_id -- see GitHubEnvironment.kt), never production's.
             manifestPlaceholders["oauthHost"] = "auth-dev.holder.ws"
+            // Points GitHub sign-in, the relay and the GitHub API at the local mock when
+            // -Pholder.githubMock is set; see GitHubEnvironment.kt. Release builds never can.
+            buildConfigField("String", "GITHUB_MOCK_URL", "\"$holderGitHubMock\"")
             // Distinct applicationId so a locally-built debug APK installs alongside a real
             // release install rather than overwriting it -- Android sandboxes app data per
             // applicationId, so this gets the debug build a fully separate data directory,
@@ -213,6 +226,20 @@ android {
                 testedAbi = "x86_64"
                 pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_4KB_PAGES
             }
+            // Android 17 with Google APIs, for the GitHub sign-in test (GitHubMockSignInTest via
+            // mock-github/run_device_tests.py). It needs a real browser, which the aosp and ATD
+            // images do not have. pixel2Api28 above is its Android 9 counterpart.
+            val pixel6Api37 = localDevices.create("pixel6Api37") {
+                device = "Pixel 6"
+                apiLevel = 37
+                systemImageSource = "google"
+                require64Bit = true
+                testedAbi = "x86_64"
+            }
+            groups.create("githubSignIn") {
+                targetDevices.add(pixel2Api28)
+                targetDevices.add(pixel6Api37)
+            }
             groups.create("ciPhones") {
                 targetDevices.add(pixel2Api28)
                 targetDevices.add(pixel2Api30)
@@ -260,6 +287,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.uiautomator)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

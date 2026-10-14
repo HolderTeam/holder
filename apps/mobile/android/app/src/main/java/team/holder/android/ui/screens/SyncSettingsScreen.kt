@@ -79,6 +79,9 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
     // Starts as NotConnected until the initial recheck (LaunchedEffect below) resolves.
     val githubStatus by GitHubConnection.statusFlow.collectAsState()
     var githubBusy by remember { mutableStateOf(false) }
+    // Advanced by each check/Connect and by Cancel, so a cancelled or superseded one leaves
+    // the busy state and error to whatever replaced it.
+    var githubRun by remember { mutableStateOf(0) }
     var githubError by remember { mutableStateOf<String?>(null) }
     // Non-null only while the one-time "sync your existing projects?" offer is showing --
     // see GitHubBackfill.checkAndMarkOfferedOnce, called below every time this screen learns
@@ -103,10 +106,13 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
     }
 
     fun recheckGithubStatus() {
+        val run = ++githubRun
         githubError = null
         githubBusy = true
         scope.launch {
-            runCatching { GitHubConnection.status(context) }
+            val outcome = runCatching { GitHubConnection.status(context) }
+            if (run != githubRun) return@launch
+            outcome
                 .onSuccess { maybeOfferBackfill(it) }
                 .onFailure { githubError = it.message ?: "Could not check GitHub status" }
             githubBusy = false
@@ -195,10 +201,13 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
                 busy = githubBusy,
                 error = githubError,
                 onConnect = {
+                    val run = ++githubRun
                     githubError = null
                     githubBusy = true
                     scope.launch {
-                        runCatching { GitHubConnection.connect(context, browserLauncher) }
+                        val outcome = runCatching { GitHubConnection.connect(context, browserLauncher) }
+                        if (run != githubRun) return@launch
+                        outcome
                             .onSuccess { result ->
                                 when (result) {
                                     is GitHubResult.Success -> maybeOfferBackfill(result.value)
@@ -210,7 +219,9 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
                     }
                 },
                 onCancel = {
-                    scope.launch { GitHubConnection.cancelPendingBrowserAuthorization() }
+                    githubRun++
+                    githubBusy = false
+                    scope.launch { GitHubConnection.cancelConnect() }
                 },
                 onDisconnect = { scope.launch { GitHubConnection.disconnect(context) } },
                 onOpenUrl = { url -> openUrlExternally(context, url) },

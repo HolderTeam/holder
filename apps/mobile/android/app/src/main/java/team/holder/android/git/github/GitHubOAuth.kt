@@ -2,8 +2,9 @@ package team.holder.android.git.github
 
 import android.util.Log
 import java.io.IOException
-import java.net.ConnectException
-import java.net.UnknownHostException
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -19,6 +20,10 @@ import okio.BufferedSink
 import org.json.JSONObject
 
 private val JSON_MEDIA_TYPE = "application/json; charset=UTF-8".toMediaType()
+
+// Token responses are small. Bound bytes read from the decoded HTTP body even when the
+// server omits Content-Length or uses compression; never buffer an arbitrary error page.
+internal const val MAX_RELAY_RESPONSE_BYTES = 16 * 1024
 
 /** The result of a successful exchange/refresh: an access token to use immediately (cached by
  * [GitHubConnectionCoordinator], never persisted -- see its `accessTokenCache`) and the rotated
@@ -40,7 +45,12 @@ sealed interface RelayError {
     data class AuthorizationRequired(val reason: AuthorizationReason?) : RelayError
     data class RateLimited(val retryAfterSeconds: Int?) : RelayError
     data object OutcomeUnknown : RelayError
-    data class Unexpected(val httpStatus: Int?, val body: String) : RelayError
+    /** A validated HTTP 500 operational envelope guarantees the credential was not spent. */
+    data object Unexpected : RelayError
+
+    /** A response outside the closed protocol cannot establish whether a credential was spent.
+     * Keep only status metadata: even a malformed error body can contain live tokens. */
+    data class InvalidResponse(val httpStatus: Int) : RelayError
 
     /** Not part of the relay's own envelope -- this is Android's own transport-layer
      * classification (see "Transport-failure ambiguity" in the plan). A failure that occurred
@@ -48,8 +58,8 @@ sealed interface RelayError {
      * received and processed it is genuinely unknown. */
     data object AmbiguousTransportFailure : RelayError
 
-    /** Genuinely never reached the relay at all -- safe to treat as an ordinary, retryable
-     * transport failure, since nothing was ever sent anywhere. */
+    /** The credential body was never written -- safe to retry even if a connection or HTTP
+     * headers reached the relay. No credential authority was transmitted. */
     data class NetworkError(val cause: Throwable) : RelayError
 }
 
@@ -67,7 +77,7 @@ sealed interface RelayResult {
  */
 internal object GitHubOAuth {
     fun buildAuthorizationUrl(state: String, codeChallenge: String): String =
-        "https://github.com/login/oauth/authorize".toHttpUrl()
+        GitHubEnvironment.AUTHORIZE_URL.toHttpUrl()
             .newBuilder()
             .addQueryParameter("client_id", GitHubEnvironment.CLIENT_ID)
             .addQueryParameter("redirect_uri", GitHubEnvironment.OAUTH_CALLBACK_URL)
@@ -92,6 +102,9 @@ internal object GitHubOAuth {
     private suspend fun postRelay(client: OkHttpClient, url: String, body: JSONObject.() -> Unit): RelayResult =
         withContext(Dispatchers.IO) {
             val payload = JSONObject().apply(body).toString()
+            // Set before writing any credential bytes, including into OkHttp's buffer.
+            // Once true it never resets, including across any HTTP follow-up.
+            val bodyWriteStarted = AtomicBoolean(false)
             val request = Request.Builder()
                 .url(url)
                 .header("Content-Type", "application/json")
@@ -99,7 +112,7 @@ internal object GitHubOAuth {
                 // They are credential-spending operations, so make the body explicitly non-
                 // replayable as a second line of defence alongside the dedicated client's no-
                 // retry/no-redirect settings.
-                .post(oneShotJsonBody(payload))
+                .post(oneShotJsonBody(payload) { bodyWriteStarted.set(true) })
                 .build()
             val call = client.newCall(request)
             // A continuation's cancellation handler runs at cancellation initiation, even
@@ -112,7 +125,7 @@ internal object GitHubOAuth {
                 if (continuation.isActive) {
                     // Carry exceptions as values through the cancellable boundary so a late
                     // I/O exception after cancellation cannot escape as an unhandled resume.
-                    continuation.resume(runCatching { postRelayBlocking(call, url) })
+                    continuation.resume(runCatching { postRelayBlocking(call, url, bodyWriteStarted) })
                 }
             }.getOrThrow()
         }
@@ -120,94 +133,102 @@ internal object GitHubOAuth {
     /** Genuinely blocking (OkHttp's synchronous `execute()`) -- [postRelay] installs a
      * cancellation hook on [call] before entering it, so detaching a connect operation also
      * interrupts the socket operation rather than leaving it alive behind a cancelled Job. */
-    private fun postRelayBlocking(call: Call, url: String): RelayResult {
+    private fun postRelayBlocking(call: Call, url: String, bodyWriteStarted: AtomicBoolean): RelayResult {
         val response = try {
             call.execute()
-        } catch (e: UnknownHostException) {
-            Log.w("GitHubOAuth", "postRelay: $url never reached (UnknownHostException)", e)
-            return RelayResult.Failure(RelayError.NetworkError(e))
-        } catch (e: ConnectException) {
-            Log.w("GitHubOAuth", "postRelay: $url never reached (ConnectException)", e)
-            return RelayResult.Failure(RelayError.NetworkError(e))
         } catch (e: IOException) {
-            // Anything past connection establishment (a timeout awaiting the response, a
-            // connection reset mid-read, ...) -- the request may already have been received
-            // and processed. See "Transport-failure ambiguity": never assume this is safely
-            // retryable.
-            Log.w("GitHubOAuth", "postRelay: $url ambiguous transport failure (${e::class.simpleName}: ${e.message})", e)
+            if (!bodyWriteStarted.get()) {
+                Log.w("GitHubOAuth", "postRelay: $url failed before credential write (${e.javaClass.simpleName})")
+                return RelayResult.Failure(RelayError.NetworkError(e))
+            }
+            // Writing may only have filled a local buffer, but cannot prove no bytes reached
+            // the relay. Exception class alone never makes a post-write failure retryable.
+            Log.w("GitHubOAuth", "postRelay: $url ambiguous transport failure (${e.javaClass.simpleName})")
             return RelayResult.Failure(RelayError.AmbiguousTransportFailure)
         }
 
         response.use { resp ->
-            val responseBody = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) {
-                Log.w("GitHubOAuth", "postRelay: $url returned HTTP ${resp.code}: $responseBody")
-                return RelayResult.Failure(mapRelayErrorBody(resp.code, responseBody))
+            val responseBody = try {
+                val body = resp.body
+                val source = body.source()
+                if (body.contentLength() > MAX_RELAY_RESPONSE_BYTES ||
+                    source.request(MAX_RELAY_RESPONSE_BYTES + 1L)
+                ) {
+                    Log.w("GitHubOAuth", "postRelay: $url response exceeds size limit (HTTP ${resp.code})")
+                    return RelayResult.Failure(RelayError.InvalidResponse(resp.code))
+                }
+                val bytes = source.readByteArray()
+                Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
+            } catch (_: CharacterCodingException) {
+                Log.w("GitHubOAuth", "postRelay: $url invalid response encoding (HTTP ${resp.code})")
+                return RelayResult.Failure(RelayError.InvalidResponse(resp.code))
+            } catch (e: IOException) {
+                Log.w("GitHubOAuth", "postRelay: $url response read failed (HTTP ${resp.code}, ${e.javaClass.simpleName})")
+                return RelayResult.Failure(RelayError.AmbiguousTransportFailure)
             }
-            val json = try {
-                JSONObject(responseBody)
-            } catch (e: org.json.JSONException) {
-                Log.w("GitHubOAuth", "postRelay: $url returned unparseable JSON: $responseBody", e)
-                return RelayResult.Failure(RelayError.Unexpected(resp.code, responseBody))
+            if (resp.code != 200) {
+                val error = mapRelayErrorBody(resp.code, responseBody)
+                Log.w("GitHubOAuth", "postRelay: $url HTTP ${resp.code} (${error::class.simpleName})")
+                return RelayResult.Failure(error)
             }
-            if (!json.has("access_token")) {
-                Log.w("GitHubOAuth", "postRelay: $url response missing access_token: $responseBody")
-                return RelayResult.Failure(RelayError.Unexpected(resp.code, responseBody))
+            val json = parseRelayResponseObject(responseBody)
+            val accessToken = json?.nonBlankString("access_token")
+            val refreshToken = json?.nonBlankString("refresh_token")
+            val refreshCap = json?.nonBlankString("refresh_cap")
+            val expiresIn = json?.positiveInt("expires_in")
+            val refreshExpiresIn = json?.positiveInt("refresh_token_expires_in")
+            if (json == null || !json.hasOnlyKeys(
+                    "access_token", "expires_in", "refresh_token", "refresh_cap", "refresh_token_expires_in",
+                ) || accessToken == null || refreshToken == null || refreshCap == null ||
+                expiresIn == null || refreshExpiresIn == null
+            ) {
+                Log.w("GitHubOAuth", "postRelay: $url invalid token response (HTTP ${resp.code})")
+                return RelayResult.Failure(RelayError.InvalidResponse(resp.code))
             }
-            // A JSONException from any of these (a field missing/wrong-typed) must never
-            // propagate uncaught -- confirmed live: this exact gap crashed the whole app
-            // instead of surfacing as an ordinary Failure, since access_token's own presence
-            // was checked above but the other four fields' presence never was.
-            return try {
-                val tokens = GitHubTokens(
-                    accessToken = json.getString("access_token"),
-                    expiresInSeconds = json.getInt("expires_in"),
-                    refreshToken = json.getString("refresh_token"),
-                    refreshCap = json.getString("refresh_cap"),
-                    refreshTokenExpiresInSeconds = json.getInt("refresh_token_expires_in"),
-                )
-                Log.d("GitHubOAuth", "postRelay: $url succeeded")
-                RelayResult.Success(tokens)
-            } catch (e: org.json.JSONException) {
-                Log.w("GitHubOAuth", "postRelay: $url response missing/malformed an expected field: $responseBody", e)
-                RelayResult.Failure(RelayError.Unexpected(resp.code, responseBody))
-            }
+            Log.d("GitHubOAuth", "postRelay: $url succeeded")
+            return RelayResult.Success(GitHubTokens(accessToken, expiresIn, refreshToken, refreshCap, refreshExpiresIn))
         }
     }
 
-    /** The relay protocol closes both the envelope name and its status.  A hostile proxy or a
-     * broken deployment must not turn (for example) a 503 into a definite authorization action
-     * merely by placing `authorization_required` in its JSON body. */
+    /** Only a validated envelope with its pinned status can establish a reusable credential.
+     * Unknown fields (including tokens mixed into an error) invalidate that guarantee. */
     internal fun mapRelayErrorBody(httpStatus: Int, body: String): RelayError {
-        val json = try {
-            JSONObject(body)
-        } catch (e: org.json.JSONException) {
-            return RelayError.Unexpected(httpStatus, body)
-        }
-        return when (json.optString("error")) {
-            "invalid_request" -> if (httpStatus == 400) RelayError.InvalidRequest else RelayError.Unexpected(httpStatus, body)
-            "authorization_required" -> if (httpStatus == 400) {
-                RelayError.AuthorizationRequired(
-                    when (json.optString("reason")) {
-                        "verify_email" -> AuthorizationReason.VerifyEmail
-                        else -> null
-                    },
-                )
-            } else {
-                RelayError.Unexpected(httpStatus, body)
+        val invalid = RelayError.InvalidResponse(httpStatus)
+        val json = parseRelayResponseObject(body) ?: return invalid
+        return when (json["error"]) {
+            "invalid_request" ->
+                if (httpStatus == 400 && json.hasOnlyKeys("error")) RelayError.InvalidRequest else invalid
+            "authorization_required" -> {
+                if (httpStatus != 400 || !json.hasOnlyKeys("error", "reason")) return invalid
+                val reason = when {
+                    json["reason"] == "reconnect" -> null
+                    json["reason"] == "verify_email" -> AuthorizationReason.VerifyEmail
+                    else -> return invalid
+                }
+                RelayError.AuthorizationRequired(reason)
             }
-            "rate_limited" -> if (httpStatus == 429) {
-                RelayError.RateLimited(json.optInt("retry_after_seconds", -1).takeIf { it >= 0 })
-            } else {
-                RelayError.Unexpected(httpStatus, body)
+            "rate_limited" -> {
+                if (httpStatus != 429 || !json.hasOnlyKeys("error", "retry_after_seconds")) return invalid
+                val retryAfter = json.nonNegativeInt("retry_after_seconds") ?: return invalid
+                RelayError.RateLimited(retryAfter)
             }
-            "outcome_unknown" -> if (httpStatus == 503) RelayError.OutcomeUnknown else RelayError.Unexpected(httpStatus, body)
-            // `unexpected` has no action-bearing subtype, but keep its pinned status explicit
-            // so the accepted protocol remains closed rather than silently permissive.
-            "unexpected" -> RelayError.Unexpected(httpStatus, body)
-            else -> RelayError.Unexpected(httpStatus, body)
+            "outcome_unknown" ->
+                if (httpStatus == 503 && json.hasOnlyKeys("error")) RelayError.OutcomeUnknown else invalid
+            "unexpected" ->
+                if (httpStatus == 500 && json.hasOnlyKeys("error")) RelayError.Unexpected else invalid
+            else -> invalid
         }
     }
+
+    private fun Map<String, Any>.hasOnlyKeys(vararg allowed: String): Boolean =
+        keys.all { it in allowed }
+
+    private fun Map<String, Any>.nonBlankString(key: String): String? =
+        (get(key) as? String)?.takeIf { it.isNotBlank() }
+
+    private fun Map<String, Any>.nonNegativeInt(key: String): Int? = get(key) as? Int
+
+    private fun Map<String, Any>.positiveInt(key: String): Int? = nonNegativeInt(key)?.takeIf { it > 0 }
 
     /**
      * OkHttp consults [RequestBody.isOneShot] before connection recovery and HTTP follow-up
@@ -215,7 +236,7 @@ internal object GitHubOAuth {
      * content metadata while preventing a code or rotating refresh credential being sent twice.
      * Internal visibility keeps the transport guarantee directly regression-testable.
      */
-    internal fun oneShotJsonBody(payload: String): RequestBody =
+    internal fun oneShotJsonBody(payload: String, onWriteStarted: () -> Unit = {}): RequestBody =
         object : RequestBody() {
             private val delegate = payload.toRequestBody(JSON_MEDIA_TYPE)
 
@@ -223,7 +244,10 @@ internal object GitHubOAuth {
 
             override fun contentLength() = delegate.contentLength()
 
-            override fun writeTo(sink: BufferedSink) = delegate.writeTo(sink)
+            override fun writeTo(sink: BufferedSink) {
+                onWriteStarted()
+                delegate.writeTo(sink)
+            }
 
             override fun isOneShot() = true
         }

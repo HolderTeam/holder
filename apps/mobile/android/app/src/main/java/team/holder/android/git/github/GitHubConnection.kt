@@ -46,6 +46,9 @@ object GitHubConnection {
     suspend fun cancelPendingBrowserAuthorization(): Boolean =
         GitHubConnectionCoordinator.cancelPendingBrowserAuthorization()
 
+    /** Stops a Connect initiated by a sign-in screen, including its pre-browser checks. */
+    suspend fun cancelConnect(): Boolean = GitHubConnectionCoordinator.cancelConnect()
+
     /** Clears the stored credential and connected-login display state. Always succeeds
      * locally; does not attempt to revoke anything on GitHub's side -- revocation is the
      * user's own action from GitHub's "Authorized GitHub Apps" settings, the same boundary

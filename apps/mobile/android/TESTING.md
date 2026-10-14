@@ -28,6 +28,10 @@ Use the native Android testing stack. Do not duplicate libholder/C API tests in 
      - reopen and verify persistence
 
    - Use Compose UI Test; use UI Automator only where interaction outside the Compose app is required.
+   - GitHub sign-in and repository setup leave the app for the browser, so
+     `GitHubMockSignInTest` uses UI Automator against the local mock GitHub;
+     `mock-github/run_device_tests.py` runs it on Android 9 and Android 17 emulators. See
+     [mock-github/README.md](mock-github/README.md).
 
 6. **Device matrix**
    - Use Gradle Managed Devices in CI.

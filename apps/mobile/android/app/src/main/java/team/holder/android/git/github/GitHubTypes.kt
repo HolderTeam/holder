@@ -25,13 +25,21 @@ sealed interface GitHubError {
     data class RepositoryNotAccessible(val ownerSlashRepo: String, val installationSettingsUrl: String) : GitHubError
     data class RateLimited(val retryAfterSeconds: Int?) : GitHubError
     data class NetworkError(val cause: Throwable) : GitHubError
+    /** A validated operational failure from the OAuth relay, not api.github.com. */
+    data object RelayUnavailable : GitHubError
+    /** Connect stopped before opening a browser or changing the stored credential, so trying
+     * again is always safe. Only [GitHubConnection.connect] returns this. */
+    data class ConnectInterrupted(val reason: Reason) : GitHubError {
+        enum class Reason {
+            /** Other GitHub requests held the request gate for longer than Connect waits. */
+            RequestsBusy,
+            /** Concurrent refreshes kept replacing the credential Connect was checking. */
+            CredentialChanging,
+        }
+    }
 
-    /** The honest fallback rather than forcing every unanticipated GitHub response into one
-     * of the named cases above. [httpStatus] is null when the failure never reached a
-     * GitHub response at all (a malformed local request, for instance). Also where the
-     * relay's own `outcome_unknown` and an ambiguous transport failure during *refresh*
-     * land -- see GitHubConnectionCoordinator's refresh gate for why those must not
-     * force-clear the stored credential the way a definite [AuthorizationRequired] does. */
+    /** An unanticipated GitHub response or local operation failure. [httpStatus] is null when
+     * no GitHub HTTP response exists. Relay operational failures use [RelayUnavailable]. */
     data class Unexpected(val httpStatus: Int?, val body: String) : GitHubError
 
     /** `RESULT_VERIFICATION_FAILED`/`RESULT_VERIFICATION_TIMED_OUT`/`RESULT_UNKNOWN_CODE`
