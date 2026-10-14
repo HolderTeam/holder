@@ -1,5 +1,6 @@
 package team.holder.android.git.github
 
+import android.util.Log
 import team.holder.android.BuildConfig
 
 /**
@@ -18,11 +19,30 @@ import team.holder.android.BuildConfig
  * placeholder, so a change to one must be mirrored in the other by hand.
  */
 internal object GitHubEnvironment {
+    /** Non-empty only in a debug build made with `-Pholder.githubMock=http://127.0.0.1:<port>`:
+     * GitHub's sign-in page, the relay and the REST API all come from the local mock in
+     * `mock-github/` instead. The OAuth callback stays the real App Link, so the mock's sign-in
+     * page returns to the app exactly as GitHub's does. */
+    val MOCK_URL: String = BuildConfig.GITHUB_MOCK_URL
+
+    init {
+        if (MOCK_URL.isNotEmpty()) Log.w("GitHubConnection", "Using the mock GitHub at $MOCK_URL")
+    }
+
     /** Holder Project Setup / Holder Project Setup Development's public, non-secret client_id. */
     val CLIENT_ID: String = if (BuildConfig.DEBUG) "Iv23liFvueeHnGLLdbRz" else "Iv23linTTVwa07QTSWAB"
 
     /** holder-github-service's relay base URL -- see that repo's wrangler.jsonc routes. */
-    val RELAY_BASE_URL: String = if (BuildConfig.DEBUG) "https://setup-dev.holder.ws" else "https://setup.holder.ws"
+    val RELAY_BASE_URL: String = when {
+        MOCK_URL.isNotEmpty() -> MOCK_URL
+        BuildConfig.DEBUG -> "https://setup-dev.holder.ws"
+        else -> "https://setup.holder.ws"
+    }
+
+    val AUTHORIZE_URL: String =
+        if (MOCK_URL.isNotEmpty()) "$MOCK_URL/login/oauth/authorize" else "https://github.com/login/oauth/authorize"
+
+    val API_BASE_URL: String = if (MOCK_URL.isNotEmpty()) "$MOCK_URL/api" else "https://api.github.com"
 
     /** This App's own fixed callback -- exchange only, never client-supplied. Must match this
      * GitHub App's registered Callback URL exactly (wildcard matching is off). */

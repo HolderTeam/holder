@@ -9,7 +9,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-private const val API_BASE = "https://api.github.com"
+private val API_BASE = GitHubEnvironment.API_BASE_URL
 private val JSON_MEDIA_TYPE = "application/json; charset=UTF-8".toMediaType()
 
 internal data class GitHubInstallation(

@@ -77,7 +77,7 @@ sealed interface RelayResult {
  */
 internal object GitHubOAuth {
     fun buildAuthorizationUrl(state: String, codeChallenge: String): String =
-        "https://github.com/login/oauth/authorize".toHttpUrl()
+        GitHubEnvironment.AUTHORIZE_URL.toHttpUrl()
             .newBuilder()
             .addQueryParameter("client_id", GitHubEnvironment.CLIENT_ID)
             .addQueryParameter("redirect_uri", GitHubEnvironment.OAUTH_CALLBACK_URL)
