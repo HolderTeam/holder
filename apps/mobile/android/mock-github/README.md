@@ -156,8 +156,9 @@ images, a few GB. They need the Google images because the test uses Chrome, whic
 lighter aosp and ATD images used by the other device tests do not have. The script keeps
 `adb reverse` set on each emulator as it boots, so the app reaches the mock at `127.0.0.1`.
 An emulator's `10.0.2.2` does not work: from Android 17, an app targeting API 37 needs the
-local network permission to reach it, while loopback is always allowed. Add `--software-gpu`
-on a machine without a usable GPU, as CI does.
+local network permission to reach it, while loopback is always allowed. Android 9's emulator
+always renders in software (its image refuses the default GPU mode); add `--software-gpu` to
+do the same for every emulator, as CI does, on a machine without a usable GPU.
 
 The test taps through Chrome's first-run screens, approves the callback link for the app
 directly (so it does not depend on the device verifying `auth-dev.holder.ws` over the

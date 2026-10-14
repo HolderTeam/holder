@@ -29,6 +29,9 @@ import mock_github
 
 ANDROID_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DEVICES = ["pixel2Api28", "pixel6Api37"]
+# The Android 9 image's emulator refuses the default GPU mode for a window-less emulator.
+SOFTWARE_GPU_DEVICES = {"pixel2Api28"}
+SOFTWARE_GPU = "-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect"
 TEST_CLASS = "team.holder.android.github.GitHubMockSignInTest"
 
 
@@ -60,15 +63,17 @@ def keep_reversing(port: int, stop: threading.Event) -> None:
                 subprocess.run([adb, "-s", serial, "reverse", f"tcp:{port}", f"tcp:{port}"], capture_output=True)
 
 
-def run_device(device: str, port: int, extra: list[str]) -> bool:
+def run_device(device: str, port: int, software_gpu: bool) -> bool:
     command = [
         str(ANDROID_DIR / "gradlew"), "-p", str(ANDROID_DIR),
         f":app:{device}DebugAndroidTest",
+        "--rerun",  # the test depends on the mock and the emulator, not just its inputs
         f"-Pholder.githubMock=http://127.0.0.1:{port}",
         f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
         "-Pholder.android.abis=x86_64",
-        *extra,
     ]
+    if software_gpu or device in SOFTWARE_GPU_DEVICES:
+        command.append(SOFTWARE_GPU)
     print(f"\n[run] {device}: {' '.join(command[3:])}", flush=True)
     started = time.monotonic()
     passed = subprocess.run(command).returncode == 0
@@ -81,15 +86,14 @@ def main() -> int:
     parser.add_argument("devices", nargs="*", default=DEFAULT_DEVICES, help="managed device names")
     parser.add_argument("--port", type=int, default=mock_github.DEFAULT_PORT)
     parser.add_argument("--software-gpu", action="store_true",
-                        help="render with swiftshader, as CI does (for machines without a usable GPU)")
+                        help="render every emulator with swiftshader, as CI does (Android 9 always does)")
     args = parser.parse_args()
 
-    extra = ["-Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect"] if args.software_gpu else []
     start_mock(args.port)
     stop = threading.Event()
     threading.Thread(target=keep_reversing, args=(args.port, stop), daemon=True).start()
     try:
-        results = {device: run_device(device, args.port, extra) for device in args.devices}
+        results = {device: run_device(device, args.port, args.software_gpu) for device in args.devices}
     finally:
         stop.set()
 
