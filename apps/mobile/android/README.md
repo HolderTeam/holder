@@ -147,6 +147,12 @@ devices/API levels at once instead of repeating build+install+launch by hand
 for each one. Devices that are offline or unauthorized are skipped and
 reported, not treated as failures.
 
+It also keeps each device awake while plugged in, and captures Holder's
+GitHub and crash log lines from each device into `build/device-logs/` until
+the device is unplugged. `scripts/deploy-all.sh --mock` builds against a
+local mock of GitHub and the sign-in relay instead of the real ones, for
+testing sign-in failures on purpose; see [mock-github/README.md](mock-github/README.md).
+
 `scripts/start-emulators.sh` starts every configured Android Virtual Device
 that isn't already running (skipping ones that are, never starting
 duplicates). Since emulators are meant to stay running while you develop,
