@@ -194,6 +194,16 @@ class MockGitHubTest(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertIn(b"Mock GitHub", page)
 
+    def test_reset_forgets_everything(self):
+        _, tokens = self.sign_in()
+        self.state.add_fault("refresh", "garbled")
+        self.state.update_settings({"installed": False})
+        self.state.reset()
+        snapshot = self.state.snapshot()
+        self.assertEqual(([], [], 0, True), (snapshot["access_tokens"], snapshot["faults"]["refresh"],
+                                              snapshot["replays"], snapshot["settings"]["installed"]))
+        self.assertEqual(401, self.api("GET", "/user", tokens["access_token"])[0])
+
     def test_tokens_never_appear_whole_in_the_state(self):
         _, tokens = self.sign_in()
         _, _, data = self.request("GET", "/_mock/state")

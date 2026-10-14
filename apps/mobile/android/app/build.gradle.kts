@@ -28,7 +28,9 @@ val vcpkgRoot = System.getenv("VCPKG_ROOT")
 val vcpkgInstalledDir = rootProject.layout.buildDirectory.dir("vcpkg_installed").get().asFile
 val vcpkgAndroidWrapper = project.layout.projectDirectory.file("src/main/cpp/vcpkg-android-wrapper.cmake").asFile
 // Debug builds only: the base URL of the local mock GitHub (mock-github/mock_github.py), e.g.
-// -Pholder.githubMock=http://127.0.0.1:8765. Empty means the real GitHub and relay.
+// -Pholder.githubMock=http://127.0.0.1:8765, which a device reaches through adb reverse. Empty
+// means the real GitHub and relay. Not an emulator's 10.0.2.2: from Android 17 an app targeting
+// API 37 needs the local network permission for that, while loopback is always allowed.
 val holderGitHubMock = (findProperty("holder.githubMock") as String?).orEmpty().trimEnd('/')
 if (holderGitHubMock.isNotEmpty() && !Regex("http://(127\\.0\\.0\\.1|localhost):[0-9]+").matches(holderGitHubMock)) {
     throw GradleException("holder.githubMock must be http://127.0.0.1:<port> or http://localhost:<port>")
@@ -224,6 +226,20 @@ android {
                 testedAbi = "x86_64"
                 pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_4KB_PAGES
             }
+            // Android 17 with Google APIs, for the GitHub sign-in test (GitHubMockSignInTest via
+            // mock-github/run_device_tests.py). It needs a real browser, which the aosp and ATD
+            // images do not have. pixel2Api28 above is its Android 9 counterpart.
+            val pixel6Api37 = localDevices.create("pixel6Api37") {
+                device = "Pixel 6"
+                apiLevel = 37
+                systemImageSource = "google"
+                require64Bit = true
+                testedAbi = "x86_64"
+            }
+            groups.create("githubSignIn") {
+                targetDevices.add(pixel2Api28)
+                targetDevices.add(pixel6Api37)
+            }
             groups.create("ciPhones") {
                 targetDevices.add(pixel2Api28)
                 targetDevices.add(pixel2Api30)
@@ -271,6 +287,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.uiautomator)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

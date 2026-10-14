@@ -104,12 +104,13 @@ class MockState:
         self.clock = clock
         self.callback = callback
         self.cap_key = secrets.token_bytes(32)
-        self.settings = {
+        self.initial_settings = {
             "access_ttl": access_ttl,
             "refresh_ttl": refresh_ttl,
             "installed": True,
             "auto_approve": auto_approve,
         }
+        self.settings = dict(self.initial_settings)
         self.user = {"id": 4242, "login": "mock-user"}
         self.installation_id = 777
         self.codes: dict[str, dict] = {}
@@ -171,6 +172,16 @@ class MockState:
             for record in live:
                 record["expires"] = now
             return len(live)
+
+    def reset(self) -> None:
+        """Back to the state the mock started in: no codes, tokens, repositories or faults."""
+        with self.lock:
+            self.settings = dict(self.initial_settings)
+            for collection in (self.codes, self.access, self.refresh, self.repos, self.events):
+                collection.clear()
+            for queue in self.faults.values():
+                queue.clear()
+            self.replays = 0
 
     def revoke_all(self) -> None:
         """As if the user revoked the app on github.com."""
@@ -574,6 +585,9 @@ class Handler(BaseHTTPRequestHandler):
             elif action == "expire":
                 count = self.state.expire_access_tokens()
                 self.state.log("control", f"expired {count} access token(s); the next request must refresh")
+            elif action == "reset":
+                self.state.reset()
+                self.state.log("control", "reset to the starting state")
             elif action == "revoke":
                 self.state.revoke_all()
                 self.state.log("control", "revoked every token, as if the app was revoked on github.com")
@@ -656,6 +670,7 @@ Queued: <b>{html.escape(queued)}</b></p>
 <h2>Tokens</h2>
 <form class="inline" method="post" action="/_mock/expire"><button>Expire access tokens now</button></form>
 <form class="inline" method="post" action="/_mock/revoke"><button>Revoke the app (like github.com)</button></form>
+<form class="inline" method="post" action="/_mock/reset"><button>Reset everything</button></form>
 <form method="post" action="/_mock/settings">
   Access token lifetime <input name="access_ttl" size="7" value="{settings['access_ttl']}">s
   <button>Set</button> <span class="muted">(the app refreshes 60s early, so under ~90 means a refresh on every request)</span>
@@ -719,6 +734,7 @@ def main(argv: list[str] | None = None) -> None:
 
     commands.add_parser("expire", parents=[port], help="expire every access token, so the next request refreshes")
     commands.add_parser("revoke", parents=[port], help="revoke every token, as if the app was revoked on github.com")
+    commands.add_parser("reset", parents=[port], help="forget every code, token, repository and fault")
     setting = commands.add_parser("set", parents=[port], help="change settings, e.g. access_ttl=120 installed=false")
     setting.add_argument("pairs", nargs="+", metavar="key=value")
     commands.add_parser("status", parents=[port], help="print the mock's state as JSON")
@@ -737,7 +753,7 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "fault":
         _control_request(args.port, "fault", {"endpoint": args.endpoint, "kind": args.kind, "seconds": args.seconds})
-    elif args.command in ("expire", "revoke"):
+    elif args.command in ("expire", "revoke", "reset"):
         _control_request(args.port, args.command, {})
     elif args.command == "set":
         changes = dict(pair.split("=", 1) for pair in args.pairs)

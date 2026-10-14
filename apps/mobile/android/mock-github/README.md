@@ -138,7 +138,36 @@ not this JSON (an HTML error page, a truncated body, more than 16 KiB) means the
 know whether the credential was spent, so it treats it like `outcome_unknown`. A lost
 connection after the request body started being sent is treated the same way.
 
-## Tests
+## Device tests
+
+`GitHubMockSignInTest` (in `app/src/androidTest`) connects to GitHub and sets up the Home
+project's repository end to end: the app, the device's real browser, the callback App Link
+and the mock. `run_device_tests.py` starts the mock and runs it on Gradle managed emulators,
+Android 9 (`pixel2Api28`) and Android 17 (`pixel6Api37`) by default:
+
+```sh
+cd apps/mobile/android
+python3 mock-github/run_device_tests.py               # both
+python3 mock-github/run_device_tests.py pixel6Api37   # one
+```
+
+Gradle creates and boots the emulators itself; the first run downloads their Google system
+images, a few GB. They need the Google images because the test uses Chrome, which the
+lighter aosp and ATD images used by the other device tests do not have. The script keeps
+`adb reverse` set on each emulator as it boots, so the app reaches the mock at `127.0.0.1`.
+An emulator's `10.0.2.2` does not work: from Android 17, an app targeting API 37 needs the
+local network permission to reach it, while loopback is always allowed. Add `--software-gpu`
+on a machine without a usable GPU, as CI does.
+
+The test taps through Chrome's first-run screens, approves the callback link for the app
+directly (so it does not depend on the device verifying `auth-dev.holder.ws` over the
+network), and works around a quirk of Google emulator images: they skip the setup wizard,
+which leaves its web dialog claiming every web link ahead of Chrome.
+
+In any build without `-Pholder.githubMock` the test is skipped, so it never runs against the
+real GitHub.
+
+## Tests of the mock
 
 ```sh
 cd apps/mobile/android/mock-github
