@@ -15,6 +15,7 @@ import team.holder.android.diagnostics.ReliabilityNotifier
 import team.holder.android.diagnostics.diagnosticsLogFile
 import team.holder.android.diagnostics.nextConsecutiveFailureCount
 import team.holder.android.diagnostics.shouldNotifyReliabilityFailure
+import team.holder.android.network.LocalNetworkAccess
 import java.io.File
 
 /** [team.holder.android.GitSyncIfDueResult.pushStatus] values that mean the push itself
@@ -74,7 +75,23 @@ class GitSyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                 HolderSettings.gitBackgroundSyncIntervalMinutes(applicationContext).first() * 60
 
             for (project in HolderNative.listProjects()) {
-                if (!project.gitRemoteUrl.isNullOrEmpty()) {
+                val remoteHost = project.gitRemoteUrl?.let(LocalNetworkAccess::hostOfGitRemote)
+                if (!project.gitRemoteUrl.isNullOrEmpty() && LocalNetworkAccess.isBlocked(applicationContext, remoteHost)) {
+                    // Android 17 would drop the connection and the attempt would only fail
+                    // after a long timeout. A background worker cannot ask, so record why and
+                    // count it as a failure: the reliability notification then brings the user
+                    // to a screen that can ask.
+                    anyAttempted = true
+                    anyFailed = true
+                    DiagnosticsLog.append(
+                        logFile,
+                        DiagnosticsEntry(
+                            System.currentTimeMillis() / 1000,
+                            "${project.name} sync skipped: ${LocalNetworkAccess.BLOCKED_MESSAGE} " +
+                                "Or open the project's sync screen and sync once to be asked.",
+                        ),
+                    )
+                } else if (!project.gitRemoteUrl.isNullOrEmpty()) {
                     // Best-effort per project: one project's failure shouldn't stop the rest.
                     runCatching {
                         HolderNative.gitSyncIfDue(project.projectId, intervalSeconds, intervalSeconds)

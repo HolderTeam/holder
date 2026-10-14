@@ -45,7 +45,10 @@ import team.holder.android.git.GitIdentity
 import team.holder.android.git.github.GitHubConnection
 import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.parseGitHubOwnerRepo
+import team.holder.android.network.LocalNetworkAccess
 import team.holder.android.ui.githubErrorMessage
+import team.holder.android.ui.LocalNetworkPermissionDialog
+import team.holder.android.ui.rememberLocalNetworkPermission
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -101,6 +104,8 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val githubOwnerRepo = currentRemoteUrl?.let(::parseGitHubOwnerRepo)
+    val localNetwork = rememberLocalNetworkPermission()
+    LocalNetworkPermissionDialog(localNetwork)
 
     suspend fun refreshSyncStatus() {
         runCatching { withContext(Dispatchers.IO) { HolderNative.gitSyncStatus(project.projectId) } }
@@ -122,13 +127,28 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
         refreshSyncStatus()
     }
 
-    fun runAction(label: String, action: suspend () -> String) {
+    /** Runs [action] against [remote] (the saved remote unless given), first asking for local
+     * network access if that remote needs it: without it, Android 17 drops the connection and
+     * the action only fails after a long timeout. If access is refused, an action that needs
+     * the connection ([stopIfBlocked]) is not run. */
+    fun runAction(
+        label: String,
+        remote: String? = currentRemoteUrl,
+        stopIfBlocked: Boolean = true,
+        action: suspend () -> String,
+    ) {
         if (isBusy) return
         isBusy = true
         statusMessage = null
         scope.launch {
-            statusMessage = runCatching { withContext(Dispatchers.IO) { action() } }
-                .getOrElse { "$label failed: ${it.message ?: it::class.java.simpleName}" }
+            val blocked = localNetwork.ensureAllowed(remote?.let(LocalNetworkAccess::hostOfGitRemote))
+            statusMessage = if (blocked != null && stopIfBlocked) {
+                "$label: $blocked"
+            } else {
+                runCatching { withContext(Dispatchers.IO) { action() } }
+                    .getOrElse { "$label failed: ${it.message ?: it::class.java.simpleName}" } +
+                    (blocked?.let { "\n$it" } ?: "")
+            }
             refreshSyncStatus()
             isBusy = false
         }
@@ -253,11 +273,11 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 Button(
                     enabled = !isBusy && remoteUrlInput.trim() != currentRemoteUrl.orEmpty(),
                     onClick = {
-                        runAction("Save") {
-                            val updated = HolderNative.updateProjectGitRemote(
-                                project.projectId,
-                                remoteUrlInput.trim().ifEmpty { null },
-                            )
+                        // Saving needs no connection, so it goes ahead either way; asking now
+                        // means the first sync with a local remote can work.
+                        val newRemote = remoteUrlInput.trim().ifEmpty { null }
+                        runAction("Save", remote = newRemote, stopIfBlocked = false) {
+                            val updated = HolderNative.updateProjectGitRemote(project.projectId, newRemote)
                             currentRemoteUrl = updated.gitRemoteUrl
                             // A changed remote is a fresh context -- re-derive the default
                             // rather than honoring a toggle choice made about the old one.
@@ -270,7 +290,7 @@ fun GitSyncScreen(project: HolderProject, onBack: () -> Unit) {
                 Button(
                     enabled = !isBusy,
                     onClick = {
-                        runAction("Test") {
+                        runAction("Test", remote = remoteUrlInput.trim()) {
                             val result = HolderNative.probeRemoteUrl(project.projectId, remoteUrlInput.trim())
                             "Test: ${result.status}" + (result.errorMessage?.let { " -- $it" } ?: "")
                         }
