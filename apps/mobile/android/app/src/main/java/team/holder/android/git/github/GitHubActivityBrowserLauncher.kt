@@ -9,6 +9,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.browser.customtabs.CustomTabsService
 import java.util.UUID
 
 /**
@@ -30,28 +31,22 @@ internal class GitHubActivityBrowserLauncher(
         context: Context,
         authorizationUrl: String,
     ): GitHubConnectionCoordinator.BrowserLaunch? {
-        // Resolve a Custom Tabs provider FIRST, then check *that specific* provider's Auth Tab
-        // support -- capability check and eventual launch must use the same resolved package.
-        val customTabsPackage = CustomTabsClient.getPackageName(context, null, false)
-        if (customTabsPackage != null) {
-            val authTabSupported = CustomTabsClient.isAuthTabSupported(context, customTabsPackage)
-            val launchKind = customTabsLaunchKind(authTabSupported)
-            Log.d(
-                "GitHubConnection",
-                "resolveBrowser: provider=$customTabsPackage isAuthTabSupported=$authTabSupported " +
-                    "requestedLaunch=$launchKind",
-            )
-            return GitHubConnectionCoordinator.BrowserLaunch(launchKind, customTabsPackage)
-        }
-        // Intent.resolveActivity() is the wrong check here: it returns null whenever there's
-        // no single unambiguous default, even if one or more real handlers exist (confirmed
-        // live -- this exact call returned null on a real emulator with Chrome genuinely
-        // installed, simply because nothing had been chosen as the default browser yet).
-        // Android's browser-role contract is an unconstrained browsable HTTP handler. Querying
-        // a scheme-only URI means a host-specific App Link filter cannot qualify. The selected
-        // package must separately resolve the exact authorization URI, and that same package is
-        // retained in BrowserLaunch so the eventual OAuth intent can be pinned to it.
-        return resolveExternalBrowser(authorizationUrl) { url -> handlerPackages(context, url) }
+        val packageManager = context.packageManager
+        val launch = selectBrowser(
+            authorizationUrl = authorizationUrl,
+            defaultBrowser = defaultBrowserPackage(context),
+            handlerPackages = { url -> handlerPackages(context, url) },
+            offersCustomTabs = { packageName ->
+                packageManager.resolveService(
+                    Intent(CustomTabsService.ACTION_CUSTOM_TABS_CONNECTION).setPackage(packageName),
+                    0,
+                ) != null
+            },
+            // Checked for the selected package itself: capability and launch must agree.
+            authTabSupported = { packageName -> CustomTabsClient.isAuthTabSupported(context, packageName) },
+        )
+        Log.d("GitHubConnection", "resolveBrowser: provider=${launch?.packageName} requestedLaunch=${launch?.kind}")
+        return launch
     }
 
     override fun launch(
@@ -91,6 +86,15 @@ internal class GitHubActivityBrowserLauncher(
         }
     }
 
+    /** The browser Android opens web links with, or null when there is none: with several
+     * browsers and no default chosen (possible before Android 10's browser role), this
+     * resolves to the system chooser, which is not a browser and so never selected. */
+    private fun defaultBrowserPackage(context: Context): String? =
+        context.packageManager.resolveActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(GENERIC_BROWSER_URI)).addCategory(Intent.CATEGORY_BROWSABLE),
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )?.activityInfo?.packageName
+
     private fun handlerPackages(context: Context, url: String): List<String> =
         context.packageManager.queryIntentActivities(
             Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE),
@@ -111,29 +115,56 @@ internal class GitHubActivityBrowserLauncher(
          * arbitrary probe host for a link-handling app to claim. This works back to API 1. */
         internal const val GENERIC_BROWSER_URI = "http:"
 
-        /** Deterministic seam around the two PackageManager queries. */
-        fun resolveExternalBrowser(
+        /**
+         * The browser to open the authorization page in. Candidates are only generic browsers
+         * that also resolve the exact authorization URI ([eligibleBrowsers]), the default
+         * browser first. The first that offers Custom Tabs gets an Auth Tab or Custom Tab;
+         * only if none does is the first opened as an external browser. Asking the default
+         * browser alone would skip Custom Tabs whenever no default is chosen, even with
+         * Custom Tabs browsers installed (#201).
+         */
+        fun selectBrowser(
             authorizationUrl: String,
+            defaultBrowser: String?,
             handlerPackages: (String) -> List<String>,
+            offersCustomTabs: (String) -> Boolean,
+            authTabSupported: (String) -> Boolean,
         ): GitHubConnectionCoordinator.BrowserLaunch? {
-            val genericBrowserHandlers = handlerPackages(GENERIC_BROWSER_URI).toSet()
-            if (genericBrowserHandlers.isEmpty()) return null
-            val authorizationHandlers = handlerPackages(authorizationUrl)
-            return selectExternalBrowserPackage(
-                authorizationHandlers = authorizationHandlers,
-                genericBrowserHandlers = genericBrowserHandlers,
-            )?.let {
-                GitHubConnectionCoordinator.BrowserLaunch(
-                    GitHubConnectionCoordinator.LaunchKind.ExternalBrowser,
-                    it,
+            val eligible = eligibleBrowsers(authorizationUrl, defaultBrowser, handlerPackages)
+            eligible.firstOrNull(offersCustomTabs)?.let { packageName ->
+                return GitHubConnectionCoordinator.BrowserLaunch(
+                    customTabsLaunchKind(authTabSupported(packageName)),
+                    packageName,
                 )
+            }
+            return eligible.firstOrNull()?.let {
+                GitHubConnectionCoordinator.BrowserLaunch(GitHubConnectionCoordinator.LaunchKind.ExternalBrowser, it)
             }
         }
 
-        /** Select only a generic browser that also resolves the exact authorization URI. */
-        fun selectExternalBrowserPackage(
-            authorizationHandlers: List<String>,
-            genericBrowserHandlers: Set<String>,
-        ): String? = authorizationHandlers.firstOrNull { it in genericBrowserHandlers }
+        /** Generic browsers that also resolve the exact authorization URI, [defaultBrowser]
+         * first when it is one of them, otherwise in PackageManager's order. */
+        fun eligibleBrowsers(
+            authorizationUrl: String,
+            defaultBrowser: String?,
+            handlerPackages: (String) -> List<String>,
+        ): List<String> {
+            val genericBrowserHandlers = handlerPackages(GENERIC_BROWSER_URI).toSet()
+            if (genericBrowserHandlers.isEmpty()) return emptyList()
+            val eligible = handlerPackages(authorizationUrl).filter { it in genericBrowserHandlers }.distinct()
+            return if (defaultBrowser in eligible) listOf(defaultBrowser!!) + (eligible - defaultBrowser) else eligible
+        }
+
+        /** [selectBrowser] when no candidate offers Custom Tabs and there is no default. */
+        fun resolveExternalBrowser(
+            authorizationUrl: String,
+            handlerPackages: (String) -> List<String>,
+        ): GitHubConnectionCoordinator.BrowserLaunch? = selectBrowser(
+            authorizationUrl = authorizationUrl,
+            defaultBrowser = null,
+            handlerPackages = handlerPackages,
+            offersCustomTabs = { false },
+            authTabSupported = { false },
+        )
     }
 }

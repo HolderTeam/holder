@@ -178,6 +178,97 @@ class GitHubBrowserSelectionTest {
         assertEquals(browserPackage, selection?.packageName)
     }
 
+    // #201: with no default browser (or a default without Custom Tabs), use another eligible
+    // browser's Custom Tabs before falling back to a full external browser.
+
+    @Test
+    fun withNoDefaultBrowserACustomTabsBrowserIsStillUsed() {
+        val selection = selectBrowser(
+            defaultBrowser = "android", // the system chooser, as resolveActivity reports it
+            browsers = listOf("org.example.plain", "com.android.chrome", "org.mozilla.firefox"),
+            customTabs = setOf("com.android.chrome", "org.mozilla.firefox"),
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.CustomTab, "com.android.chrome"), selection)
+    }
+
+    @Test
+    fun theDefaultBrowserComesFirstWhenItOffersCustomTabs() {
+        val selection = selectBrowser(
+            defaultBrowser = "org.mozilla.firefox",
+            browsers = listOf("com.android.chrome", "org.mozilla.firefox"),
+            customTabs = setOf("com.android.chrome", "org.mozilla.firefox"),
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.CustomTab, "org.mozilla.firefox"), selection)
+    }
+
+    @Test
+    fun aDefaultBrowserWithoutCustomTabsDefersToOneThatHasThem() {
+        val selection = selectBrowser(
+            defaultBrowser = "org.example.plain",
+            browsers = listOf("org.example.plain", "com.android.chrome"),
+            customTabs = setOf("com.android.chrome"),
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.CustomTab, "com.android.chrome"), selection)
+    }
+
+    @Test
+    fun authTabSupportIsCheckedForTheSelectedBrowser() {
+        val selection = selectBrowser(
+            defaultBrowser = null,
+            browsers = listOf("com.android.chrome"),
+            customTabs = setOf("com.android.chrome"),
+            authTab = setOf("com.android.chrome"),
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.AuthTab, "com.android.chrome"), selection)
+    }
+
+    @Test
+    fun withoutCustomTabsTheDefaultBrowserIsOpenedExternally() {
+        val selection = selectBrowser(
+            defaultBrowser = "org.example.second",
+            browsers = listOf("org.example.first", "org.example.second"),
+            customTabs = emptySet(),
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.ExternalBrowser, "org.example.second"), selection)
+    }
+
+    @Test
+    fun aCustomTabsProviderThatIsNotAGenericBrowserIsNeverSelected() {
+        val impostor = "example.custom-tabs-impostor"
+        val selection = GitHubActivityBrowserLauncher.selectBrowser(
+            authorizationUrl = authorizationUrl,
+            defaultBrowser = impostor,
+            handlerPackages = { url ->
+                when (url) {
+                    GitHubActivityBrowserLauncher.GENERIC_BROWSER_URI -> listOf("org.example.browser")
+                    authorizationUrl -> listOf(impostor, "org.example.browser")
+                    else -> emptyList()
+                }
+            },
+            offersCustomTabs = { it == impostor },
+            authTabSupported = { false },
+        )
+        assertEquals(launch(GitHubConnectionCoordinator.LaunchKind.ExternalBrowser, "org.example.browser"), selection)
+    }
+
+    private fun selectBrowser(
+        defaultBrowser: String?,
+        browsers: List<String>,
+        customTabs: Set<String>,
+        authTab: Set<String> = emptySet(),
+    ) = GitHubActivityBrowserLauncher.selectBrowser(
+        authorizationUrl = authorizationUrl,
+        defaultBrowser = defaultBrowser,
+        handlerPackages = { url ->
+            if (url == GitHubActivityBrowserLauncher.GENERIC_BROWSER_URI || url == authorizationUrl) browsers else emptyList()
+        },
+        offersCustomTabs = { it in customTabs },
+        authTabSupported = { it in authTab },
+    )
+
+    private fun launch(kind: GitHubConnectionCoordinator.LaunchKind, packageName: String) =
+        GitHubConnectionCoordinator.BrowserLaunch(kind, packageName)
+
     private fun resolveExternalBrowser(
         genericHandlers: List<String>,
         authorizationHandlers: List<String>,
