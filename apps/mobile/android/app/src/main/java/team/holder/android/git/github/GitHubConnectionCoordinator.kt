@@ -796,15 +796,35 @@ object GitHubConnectionCoordinator {
         if (query is CredentialStatusQueryResult.Stale) return@withContext currentAuthoritativeStatus()
         val result = (query as CredentialStatusQueryResult.Completed).result
         val status = (result as? GitHubResult.Success)?.value ?: run {
-            if (result is GitHubResult.Failure && result.error == GitHubError.AuthorizationRequired &&
+            val error = (result as GitHubResult.Failure).error
+            lastStatusCheckError = error
+            if (error == GitHubError.AuthorizationRequired &&
                 snapshot.durableState is DurableGitHubCredentialState.Refreshing
             ) {
                 return@withContext publishStatusIfCurrent(snapshot, GitHubStatus.AuthorizationRequired(null))
             }
+            // Any other failure says nothing about the stored sign-in. Until a check succeeds
+            // in this run there is no better answer than "saved, not checked" -- falling back
+            // to the published status would show the startup NotConnected (issue #199).
+            if (error != GitHubError.AuthorizationRequired &&
+                snapshot.durableState is DurableGitHubCredentialState.Ready
+            ) {
+                val current = currentAuthoritativeStatus()
+                if (current is GitHubStatus.NotConnected || current is GitHubStatus.Unchecked) {
+                    return@withContext publishStatusIfCurrent(snapshot, GitHubStatus.Unchecked(error))
+                }
+            }
             return@withContext mutableStatusFlow.value
         }
+        lastStatusCheckError = null
         publishStatusIfCurrent(snapshot, status)
     }
+
+    /** Why the last [status] check failed, or null if it succeeded. When that check kept an
+     * earlier result (Connected, say), this is the only place its failure shows. */
+    @Volatile
+    internal var lastStatusCheckError: GitHubError? = null
+        private set
 
     private suspend fun currentAuthoritativeStatus(): GitHubStatus =
         credentialMutationMutex.withLock { mutableStatusFlow.value }

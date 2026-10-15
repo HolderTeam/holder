@@ -61,6 +61,10 @@ object GitHubConnection {
      * now" without performing a repo/key operation. */
     suspend fun status(context: Context): GitHubStatus = GitHubConnectionCoordinator.status(context)
 
+    /** Why the last [status] check failed, or null if it succeeded. A failed check that kept an
+     * earlier result (for example [GitHubStatus.Connected]) reports its error only here. */
+    val lastStatusCheckError: GitHubError? get() = GitHubConnectionCoordinator.lastStatusCheckError
+
     /** Forward a matching App Link `VIEW` intent here -- see `MainActivity.onNewIntent`. Safe
      * to call for any URI; silently ignored if it isn't this app's OAuth callback endpoint or
      * doesn't match a currently-pending attempt. */
