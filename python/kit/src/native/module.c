@@ -13,6 +13,10 @@
 #define HOLDER_HAS_CARD_COLLECTION_PAGE 0
 #endif
 
+#ifndef HOLDER_HAS_DIRECT_LOOKUP
+#define HOLDER_HAS_DIRECT_LOOKUP 0
+#endif
+
 #ifndef PyCFunction_CAST
 #define PyCFunction_CAST(function) ((PyCFunction)(void (*)(void))(function))
 #endif
@@ -350,6 +354,36 @@ Context_resolve_card(ContextObject *self, PyObject *args, PyObject *kwargs)
     holder_error_destroy(error);
     return json_from_native_string(output);
 }
+
+#if HOLDER_HAS_DIRECT_LOOKUP
+static PyObject *
+Context_get_card(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    const char *card_id = NULL;
+    int scope = 2;
+    static char *keywords[] = {"card_id", "scope", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i:get_card", keywords,
+                                    &card_id, &scope) || !ensure_context_open(self)) {
+        return NULL;
+    }
+    char *output = NULL;
+    holder_error *error = NULL;
+    const int result = holder_card_get(self->context, card_id, scope, &output, &error);
+    if (result != HOLDER_OK) {
+        holder_string_free(output);
+        raise_holder_error(self, result, error);
+        return NULL;
+    }
+    holder_error_destroy(error);
+    return json_from_native_string(output);
+}
+
+static PyObject *
+Context_get_project(ContextObject *self, PyObject *args, PyObject *kwargs)
+{
+    return context_json_read(self, args, kwargs, "project_id", holder_project_get);
+}
+#endif
 
 static PyObject *
 Context_move_card(ContextObject *self, PyObject *args, PyObject *kwargs)
@@ -944,10 +978,18 @@ static PyMethodDef Context_methods[] = {
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a plain Holder project.")},
     {"list_projects", (PyCFunction)Context_list_projects, METH_NOARGS,
      PyDoc_STR("List Holder projects.")},
+#if HOLDER_HAS_DIRECT_LOOKUP
+    {"get_project", PyCFunction_CAST(Context_get_project),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Get one project by exact ID.")},
+#endif
     {"create_card", PyCFunction_CAST(Context_create_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Create a card and return its metadata.")},
     {"list_cards", PyCFunction_CAST(Context_list_cards),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("List live cards in a project.")},
+#if HOLDER_HAS_DIRECT_LOOKUP
+    {"get_card", PyCFunction_CAST(Context_get_card),
+     METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Get one card by exact ID and scope.")},
+#endif
     {"resolve_card", PyCFunction_CAST(Context_resolve_card),
      METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Resolve a live or trashed card through Core.")},
     {"move_card", PyCFunction_CAST(Context_move_card),
@@ -1021,6 +1063,9 @@ holder_module_exec(PyObject *module)
         return -1;
     }
     if (PyModule_AddIntConstant(module, "CARD_COLLECTION_SUPPORTED", HOLDER_HAS_CARD_COLLECTION_PAGE) < 0) {
+        return -1;
+    }
+    if (PyModule_AddIntConstant(module, "DIRECT_LOOKUP_SUPPORTED", HOLDER_HAS_DIRECT_LOOKUP) < 0) {
         return -1;
     }
     if (PyModule_AddIntConstant(module, "CARD_PAGE_MAX_LIMIT", HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT) < 0) {

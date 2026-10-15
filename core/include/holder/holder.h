@@ -14,6 +14,7 @@ extern "C" {
 #define HOLDER_CARD_LIST_COMPLETE_MAX_LIMIT 1000
 #define HOLDER_HAS_PROJECT_IMPORT 1
 #define HOLDER_HAS_CARD_COLLECTION_PAGE 1
+#define HOLDER_HAS_DIRECT_LOOKUP 1
 
 typedef struct holder_context holder_context;
 typedef struct holder_error holder_error;
@@ -55,6 +56,16 @@ int holder_database_rebuild(
 );
 
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error);
+
+// Returns one project's metadata in the same JSON shape as holder_project_list.
+// An unknown project_id returns HOLDER_ERROR_RUNTIME. Release *out_json with
+// holder_string_free; on failure it is null.
+int holder_project_get(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
 
 // Imports one durable plain project into an empty context's database, preserving
 // its project/card identities and rebuilding indexes with existing core policy.
@@ -144,6 +155,21 @@ int holder_location_delete(
 int holder_card_list(
     holder_context* context,
     const char* project_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Returns one card's metadata in the same JSON shape as holder_card_list,
+// including canonical card_id, project_id, hierarchy fields, and deleted_at.
+// scope is 0 for live cards, 1 for Trash, or 2 for either, as in
+// holder_card_reference_resolve. A missing card or a card outside the selected
+// scope returns HOLDER_ERROR_RUNTIME. Metadata comes from the database; card
+// content is not read. Release *out_json with holder_string_free; on failure it
+// is null.
+int holder_card_get(
+    holder_context* context,
+    const char* card_id,
+    int scope,
     char** out_json,
     holder_error** out_error
 );

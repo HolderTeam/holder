@@ -81,6 +81,7 @@ class HolderNativeIntegrationTest {
         assertEquals(title, card.title)
         assertEquals(content, HolderNative.getCardContent(card.cardId))
         assertEquals(card, HolderNative.listCards(project.projectId).single { it.cardId == card.cardId })
+        assertEquals(card, HolderNative.getCard(card.cardId))
 
         val results = HolderNative.searchCards(project.projectId, "résumé")
         assertEquals(1, results.size)
@@ -188,6 +189,8 @@ class HolderNativeIntegrationTest {
         assertTrue(HolderNative.listCards(project.projectId).none { it.cardId == card.cardId })
         val trashed = HolderNative.listTrashedCards(project.projectId).single { it.cardId == card.cardId }
         assertNotNull(trashed.deletedAt)
+        assertThrows(RuntimeException::class.java) { HolderNative.getCard(card.cardId) }
+        assertEquals(trashed, HolderNative.getCard(card.cardId, scope = 1))
 
         val restored = HolderNative.restoreCard(card.cardId)
         assertEquals(card.cardId, restored.cardId)
