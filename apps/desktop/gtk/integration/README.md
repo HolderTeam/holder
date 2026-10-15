@@ -67,3 +67,9 @@ Optional fallback for maintainers who want editable package installs:
 - Add backend-aware lifecycle fixture hooks (shared)
 - Add macOS and Windows drivers implementing the same driver contract
 - Expand shared features gradually (search, edit/save, AI thread/run)
+
+Use `./make.sh linux --access` to opt into the shared source-runtime selector.
+Linux uses AT-SPI. The shared driver adapter applies runtime selection directly
+at the native process launch; future macOS drivers can use the same adapter.
+See the desktop README's accessible source runtime section for preparation,
+inspection and macOS loader details. This does not add a macOS GUI driver.

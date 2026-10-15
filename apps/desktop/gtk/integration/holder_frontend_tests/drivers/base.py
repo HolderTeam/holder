@@ -1,6 +1,24 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import importlib.util
+import os
+from pathlib import Path
+
+
+def launch_environment(env: dict[str, str]) -> dict[str, str]:
+    """Select at the native app launch boundary so macOS retains DYLD_*.
+
+    Available to every driver; accessibility is opt-in via the runner's --access.
+    """
+    if os.environ.get('HOLDER_FRONTEND_ACCESSIBLE') != '1':
+        return env
+    selector = Path(__file__).resolve().parents[3] / 'scripts/accessible_runtime.py'
+    spec = importlib.util.spec_from_file_location('holder_accessible_runtime', selector)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.launch_environment(env)
 
 
 class FrontendDriver(ABC):

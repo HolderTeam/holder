@@ -8,7 +8,7 @@ from typing import Callable, Optional
 
 from dogtail import rawinput
 
-from .base import FrontendDriver
+from .base import FrontendDriver, launch_environment
 
 
 class LinuxDogtailDriver(FrontendDriver):
@@ -39,7 +39,7 @@ class LinuxDogtailDriver(FrontendDriver):
 
         self.proc = subprocess.Popen(
             [self.app_path],
-            env=env,
+            env=launch_environment(env),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
