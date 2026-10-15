@@ -25,10 +25,13 @@ daemon against the SDK that `Core / SDK` builds from `core/` in the same commit,
 anything core does not install is not found, and a boundary check rejects paths
 across the boundary in either direction.
 
-`./make.sh` builds `../core` from source with the daemon for local development.
-`HOLDER_CORE_SDK` selects an installed SDK instead, and `HOLDER_USE_SYSTEM_CORE`
+`./make.sh` incrementally builds and installs core in its own build directory,
+then builds the daemon against that installed package. `HOLDER_CORE_INSTALL`
+selects an existing local installation without updating core. `HOLDER_CORE_SDK`
+selects an installed SDK instead, and `HOLDER_USE_SYSTEM_CORE`
 the packaged `libholder-dev` and `libholder0` (as Ubuntu source packages do). An
 SDK's build configuration must match the daemon's.
+`HOLDER_CORE_SOURCE_DIR` is an explicit opt-in to the old embedded source build.
 
 Core owns its tests and sanitizer coverage; the daemon owns its HTTP and integration
 tests.

@@ -1,37 +1,61 @@
 # Core builds
 
-Core lives beside the daemon in this repository, in `../core`. The daemon always
-builds against the core in the same commit, but it gets it in two ways.
+Core lives beside the daemon in this repository, in `../core`. By default the
+build helper uses core from this checkout, built and installed separately. Daemon CMake consumes the installed package.
 
 ## Local builds
 
-`./make.sh` builds core from `../core` together with the daemon. A change to core
-is picked up the next time you build the daemon; there is nothing to download or
-update. Diagnostic commands default to `Debug` when building core from source.
+`./make.sh` first configures and incrementally builds core in `../core/build`,
+then installs its library, headers and resources into `../core/out/install/local`.
+Only then does it configure and build the daemon against that installed package.
+It reuses the ordinary core build directory, so building core yourself does not
+create a second copy inside the daemon build. A change to core is picked up on the
+next invocation; unchanged files are not recompiled. Core's tests remain a separate
+step, run with `./make.sh test` in core's directory.
+
+Diagnostic commands default to `Debug` for automatic local builds. They use
+separate core build and install directories per diagnostic command and forward
+compiler/instrumentation flags, keeping sanitizer and coverage builds isolated.
 
 ```sh
-./make.sh build               # Build core from ../core with the daemon
-./make.sh test Debug          # Any CMake build type works from source
+./make.sh build               # Update/install core, then build the daemon
+./make.sh test Debug          # Build both as Debug, then run daemon tests
 ```
+
+To manage the steps independently, start at the repository root:
+
+```sh
+(cd core && ./make.sh install RelWithDebInfo)
+(cd daemon && HOLDER_CORE_INSTALL="$PWD/../core/out/install/local" ./make.sh build)
+```
+
+With `HOLDER_CORE_INSTALL` set, the daemon helper does not build or install core.
+You are responsible for updating that installation after core changes. Direct
+CMake builds can use `-DHOLDER_CORE_INSTALL=/absolute/path/to/install` too. The
+installed package records its build type; daemon rejects a mismatch.
 
 ## Choosing core yourself
 
-Set one of these before running `./make.sh` to use something other than `../core`:
+Set one of these before running `./make.sh` to select a dependency explicitly:
 
 | Variable | Core dependency |
 | --- | --- |
-| `HOLDER_CORE_SOURCE_DIR` | Another core source checkout |
+| `HOLDER_CORE_INSTALL` | Installed local core package; no automatic core build |
+| `HOLDER_CORE_SOURCE_DIR` | Explicit opt-in to compiling a core checkout inside the daemon build |
 | `HOLDER_CORE_SDK` | An installed core SDK directory |
 | `HOLDER_USE_SYSTEM_CORE=ON` | An installed core package (`libholder-dev`) |
 
 An SDK's build type must match the daemon's: SDKs are built as `RelWithDebInfo` or
-`Release`. Direct CMake builds use `-DHOLDER_CORE_SOURCE_DIR=<source-path>`, and the
-Windows Debug presets use `../core`.
+`Release`. The source override remains available for development, but is not the
+default.
 
 ## Windows
 
 `./make.sh` uses the `windows-vcpkg-debug` presets and needs `VCPKG_ROOT` set; vcpkg
-installs core's dependencies from this directory's `vcpkg.json`. With
+installs the daemon's dependencies from this directory's `vcpkg.json`. The helper
+builds and installs core separately with its own vcpkg dependencies before
+configuring the daemon; it overrides the presets' source embedding option. Direct
+use of the Windows Debug presets still opts into source embedding. With
 `HOLDER_CORE_SDK` set, it uses the `windows-sdk-tests` preset instead: the SDK
 includes core's dependencies, and `packaging/windows/sdk-deps` installs the
 additional Boost dependencies for the daemon.

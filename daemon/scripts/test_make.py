@@ -22,6 +22,8 @@ if name == "uname":
     sys.exit(0)
 with open(os.environ["MAKE_TEST_LOG"], "a") as log:
     log.write(json.dumps([name, *args]) + "\\n")
+if name == "cmake" and os.environ.get("MAKE_TEST_FAIL_CORE_STAGE") in args:
+    sys.exit(17)
 if name == "cmake" and ("-S" in args or "--preset" in args):
     if "--preset" in args:
         build = Path("out/build") / args[args.index("--preset") + 1]
@@ -79,13 +81,18 @@ class MakeTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def configure_call(self):
-        return next(call for call in self.calls() if call[0] == "cmake" and "--build" not in call)
+        return next(call for call in self.calls() if call[0] == "cmake"
+                    and ("--preset" in call or ("-S" in call and call[call.index("-S") + 1] == ".")))
 
-    def test_no_arguments_builds_core_from_this_checkout_tests_and_runs(self):
+    def test_no_arguments_installs_core_separately_then_builds_tests_and_runs(self):
         self.require_success(self.run_make())
-        self.assertEqual([call[0] for call in self.calls()], ["cmake", "cmake", "ctest", "holderd"])
+        self.assertEqual([call[0] for call in self.calls()], ["cmake", "cmake", "cmake", "cmake", "cmake", "ctest", "holderd"])
         configure = self.configure_call()
-        self.assertIn("-DHOLDER_CORE_SOURCE_DIR=" + str(self.core), configure)
+        self.assertIn("-DHOLDER_CORE_SOURCE_DIR=", configure)
+        self.assertIn("-DHOLDER_CORE_INSTALL=" + str(self.core / "out/install/local"), configure)
+        self.assertEqual(self.calls()[0][1:5], ["-S", str(self.core), "-B", str(self.core / "build")])
+        self.assertEqual(self.calls()[1][1:5], ["--build", str(self.core / "build"), "--target", "holder"])
+        self.assertEqual(self.calls()[2][1:3], ["--install", str(self.core / "build")])
         self.assertIn("-DHOLDER_CORE_SDK=", configure)
         self.assertIn("-DCMAKE_BUILD_TYPE=RelWithDebInfo", configure)
         self.assertEqual(self.calls()[1][-1], "2")
@@ -93,6 +100,7 @@ class MakeTest(unittest.TestCase):
     def test_explicit_sdk_source_and_system_modes_replace_the_default(self):
         for environment, expected in (
             ({"HOLDER_CORE_SDK": str(self.sdk)}, "-DHOLDER_CORE_SDK=" + str(self.sdk)),
+            ({"HOLDER_CORE_INSTALL": str(self.sdk)}, "-DHOLDER_CORE_INSTALL=" + str(self.sdk)),
             ({"HOLDER_CORE_SOURCE_DIR": "../other core"}, "-DHOLDER_CORE_SOURCE_DIR=../other core"),
             ({"HOLDER_USE_SYSTEM_CORE": "ON"}, "-DHOLDER_USE_SYSTEM_CORE=ON"),
         ):
@@ -101,22 +109,33 @@ class MakeTest(unittest.TestCase):
                 self.require_success(self.run_make("build", **environment))
                 configure = self.configure_call()
                 self.assertIn(expected, configure)
+                self.assertEqual(len(self.calls()), 2)
                 if "HOLDER_CORE_SOURCE_DIR" not in environment:
                     self.assertIn("-DHOLDER_CORE_SOURCE_DIR=", configure)
+                if "HOLDER_CORE_INSTALL" not in environment:
+                    self.assertIn("-DHOLDER_CORE_INSTALL=", configure)
         self.assertNotEqual(self.run_make("build", HOLDER_CORE_SOURCE_DIR="../core",
                                          HOLDER_USE_SYSTEM_CORE="ON").returncode, 0)
 
-    def test_any_build_type_works_from_source(self):
+    def test_local_install_and_daemon_build_types_match(self):
         self.require_success(self.run_make("test", "Debug"))
         self.assertIn("-DCMAKE_BUILD_TYPE=Debug", self.configure_call())
+        self.assertIn("-DCMAKE_BUILD_TYPE=Debug", self.calls()[0])
 
-    def test_diagnostic_commands_default_to_debug_from_source_and_sdk_configuration_otherwise(self):
+    def test_diagnostic_commands_use_separate_core_builds_with_matching_flags(self):
         for environment, build_type in (({}, "Debug"), ({"HOLDER_CORE_SDK": str(self.sdk)}, "RelWithDebInfo")):
             for args in (("warnings",), ("san",), ("coverage",), ("memcheck",), ("tidy",)):
                 with self.subTest(args=args, environment=environment):
                     self.log.unlink(missing_ok=True)
                     self.require_success(self.run_make(*args, **environment))
                     self.assertIn("-DCMAKE_BUILD_TYPE=" + build_type, self.configure_call())
+                    if not environment:
+                        core_configure = self.calls()[0]
+                        self.assertIn("-DCMAKE_BUILD_TYPE=Debug", core_configure)
+                        self.assertNotIn(str(self.core / "build"), core_configure)
+                        for flag in self.configure_call():
+                            if flag.startswith(("-DCMAKE_CXX_FLAGS", "-DCMAKE_EXE_LINKER_FLAGS", "-DCMAKE_SHARED_LINKER_FLAGS")):
+                                self.assertIn(flag, core_configure)
 
     def test_missing_core_fails_before_configure(self):
         shutil.rmtree(self.core)
@@ -126,11 +145,37 @@ class MakeTest(unittest.TestCase):
         self.assertEqual(self.calls(), [])
         self.require_success(self.run_make("build", HOLDER_CORE_SDK=str(self.sdk)))
 
-    def test_windows_builds_core_from_source_unless_an_sdk_is_named(self):
+    def test_failed_core_build_or_install_stops_before_daemon_configure(self):
+        for stage in ("--build", "--install"):
+            with self.subTest(stage=stage):
+                self.log.unlink(missing_ok=True)
+                result = self.run_make("build", MAKE_TEST_FAIL_CORE_STAGE=stage)
+                self.assertEqual(result.returncode, 17, result.stdout + result.stderr)
+                self.assertFalse(any("-S" in call and call[call.index("-S") + 1] == "."
+                                     for call in self.calls()))
+
+    def test_explicit_local_install_works_without_core_source(self):
+        shutil.rmtree(self.core)
+        self.require_success(self.run_make("build", HOLDER_CORE_INSTALL=str(self.sdk)))
+        self.assertEqual(len(self.calls()), 2)
+
+    def test_conflicting_core_selections_fail_before_building(self):
+        for environment in ({"HOLDER_CORE_INSTALL": str(self.sdk), "HOLDER_USE_SYSTEM_CORE": "ON"},
+                            {"HOLDER_CORE_INSTALL": str(self.sdk), "HOLDER_CORE_SDK": str(self.sdk)},
+                            {"HOLDER_CORE_INSTALL": str(self.sdk), "HOLDER_CORE_SOURCE_DIR": str(self.core)}):
+            with self.subTest(environment=environment):
+                result = self.run_make("build", **environment)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("Select one core mode", result.stderr)
+                self.assertEqual(self.calls(), [])
+
+    def test_windows_installs_core_separately_unless_an_sdk_is_named(self):
         windows = {"MAKE_TEST_WINDOWS": "1", "VCPKG_ROOT": str(self.root / "vcpkg")}
         self.require_success(self.run_make(**windows))
         self.assertEqual(self.calls()[-1][0], "holderd.exe")
         self.assertIn("windows-vcpkg-tests-debug", self.configure_call())
+        self.assertIn("-DHOLDER_CORE_SOURCE_DIR=", self.configure_call())
+        self.assertIn("-DCMAKE_TOOLCHAIN_FILE=" + windows["VCPKG_ROOT"] + "/scripts/buildsystems/vcpkg.cmake", self.calls()[0])
         self.log.unlink()
         self.require_success(self.run_make("build", "Release", HOLDER_CORE_SDK=str(self.sdk), **windows))
         self.assertIn("windows-sdk-tests", self.configure_call())
