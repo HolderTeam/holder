@@ -2533,4 +2533,95 @@ class GitHubConnectionCoordinatorTest {
         assertNull(GitHubConnectionCoordinator.accessTokenCache)
         assertNull(fakeStore.credential)
     }
+
+    // Issue #199: a stored sign-in that could not be checked must not look like no sign-in.
+
+    @Test
+    fun statusAfterRestartReportsASavedSignInItCouldNotCheck() = runBlocking {
+        val cases = listOf(
+            RelayError.Unexpected to GitHubError.RelayUnavailable,
+            RelayError.RateLimited(30) to GitHubError.RateLimited(30),
+        )
+        for ((relayError, reason) in cases) {
+            val credential = StoredGitHubCredential("refresh_kept", "cap_kept", Long.MAX_VALUE)
+            durableBackend.state = DurableGitHubCredentialState.Ready(credential)
+            restartCredentialProcess()
+            GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Failure(relayError) }
+
+            val status = GitHubConnectionCoordinator.status(fakeContext)
+
+            assertEquals(GitHubStatus.Unchecked(reason), status)
+            assertEquals(status, GitHubConnectionCoordinator.statusFlow.value)
+            assertEquals(DurableGitHubCredentialState.Ready(credential), fakeStore.durableState)
+        }
+    }
+
+    @Test
+    fun statusAfterRestartReportsAnOfflineRefreshAsUnchecked() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
+        restartCredentialProcess()
+        val offline = IOException("offline")
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Failure(RelayError.NetworkError(offline)) }
+
+        val status = GitHubConnectionCoordinator.status(fakeContext)
+
+        assertTrue("$status", status is GitHubStatus.Unchecked && status.reason is GitHubError.NetworkError)
+    }
+
+    @Test
+    fun statusAfterRestartReportsAFailedGitHubRequestAsUnchecked() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
+        restartCredentialProcess()
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotatedTokens()) }
+        GitHubConnectionCoordinator.statusAuthenticatedUserOverride = { GitHubResult.Failure(GitHubError.Unexpected(502, "")) }
+
+        assertEquals(
+            GitHubStatus.Unchecked(GitHubError.Unexpected(502, "")),
+            GitHubConnectionCoordinator.status(fakeContext),
+        )
+    }
+
+    @Test
+    fun aSuccessfulCheckReplacesUnchecked() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
+        restartCredentialProcess()
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Failure(RelayError.Unexpected) }
+        assertTrue(GitHubConnectionCoordinator.status(fakeContext) is GitHubStatus.Unchecked)
+
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotatedTokens()) }
+        GitHubConnectionCoordinator.statusAuthenticatedUserOverride = { GitHubResult.Success(GitHubAuthenticatedUser(42L, "alice")) }
+        GitHubConnectionCoordinator.statusInstallationsOverride = { GitHubResult.Success(listOf(personalInstallation())) }
+
+        val status = GitHubConnectionCoordinator.status(fakeContext)
+
+        assertTrue("$status", status is GitHubStatus.Connected)
+        assertNull(GitHubConnectionCoordinator.lastStatusCheckError)
+    }
+
+    @Test
+    fun aFailedCheckAfterConnectedInTheSameRunKeepsConnectedAndRecordsTheError() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
+        restartCredentialProcess()
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ -> RelayResult.Success(rotatedTokens()) }
+        GitHubConnectionCoordinator.statusAuthenticatedUserOverride = { GitHubResult.Success(GitHubAuthenticatedUser(42L, "alice")) }
+        GitHubConnectionCoordinator.statusInstallationsOverride = { GitHubResult.Success(listOf(personalInstallation())) }
+        val connected = GitHubConnectionCoordinator.status(fakeContext)
+        assertTrue("$connected", connected is GitHubStatus.Connected)
+
+        GitHubConnectionCoordinator.statusAuthenticatedUserOverride = { GitHubResult.Failure(GitHubError.RateLimited(60)) }
+
+        assertEquals(connected, GitHubConnectionCoordinator.status(fakeContext))
+        assertEquals(GitHubError.RateLimited(60), GitHubConnectionCoordinator.lastStatusCheckError)
+    }
+
+    @Test
+    fun aRejectedSignInIsStillAuthorizationRequiredNotUnchecked() = runBlocking {
+        durableBackend.state = DurableGitHubCredentialState.Ready(StoredGitHubCredential("refresh", "cap", Long.MAX_VALUE))
+        restartCredentialProcess()
+        GitHubConnectionCoordinator.relayRefreshOverride = { _, _, _ ->
+            RelayResult.Failure(RelayError.AuthorizationRequired(null))
+        }
+
+        assertEquals(GitHubStatus.AuthorizationRequired(null), GitHubConnectionCoordinator.status(fakeContext))
+    }
 }

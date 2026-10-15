@@ -52,6 +52,7 @@ import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.GitHubStatus
 import team.holder.android.sync.GitSyncScheduler
 import team.holder.android.ui.GitHubBackfillDialog
+import team.holder.android.ui.githubCheckFailureReason
 import team.holder.android.ui.githubErrorMessage
 import team.holder.android.ui.openUrlExternally
 
@@ -113,7 +114,14 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
             val outcome = runCatching { GitHubConnection.status(context) }
             if (run != githubRun) return@launch
             outcome
-                .onSuccess { maybeOfferBackfill(it) }
+                .onSuccess { status ->
+                    // A failed check that kept an earlier result shows its reason here;
+                    // Unchecked shows its own.
+                    if (status !is GitHubStatus.Unchecked) {
+                        githubError = GitHubConnection.lastStatusCheckError?.let(::githubErrorMessage)
+                    }
+                    maybeOfferBackfill(status)
+                }
                 .onFailure { githubError = it.message ?: "Could not check GitHub status" }
             githubBusy = false
         }
@@ -237,6 +245,7 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
                     }
                 },
                 onCheckInstallation = ::recheckGithubStatus,
+                onRetry = ::recheckGithubStatus,
             )
 
             TextButton(
@@ -257,9 +266,9 @@ fun SyncSettingsScreen(onBack: () -> Unit, browserLauncher: GitHubConnectionCoor
 /**
  * GitHub's Settings row -- deliberately not [StorageProviderConnectionRow], since GitHub
  * isn't a storage provider and has more states than connected/disconnected (see
- * GITHUB_INTEGRATION_ANDROID_PLAN.md's "Connection state" section: [GitHubStatus] has four
- * states, not two, and [GitHubStatus.InstallationRequired]/[GitHubStatus.Connected] each
- * need their own secondary action beyond Connect/Disconnect). [status] is null only while
+ * GITHUB_INTEGRATION_ANDROID_PLAN.md's "Connection state" section: [GitHubStatus] has more
+ * states than two, and [GitHubStatus.InstallationRequired]/[GitHubStatus.Connected]/
+ * [GitHubStatus.Unchecked] each need their own actions beyond Connect/Disconnect). [status] is null only while
  * the very first check is in flight -- not a fifth state, just "don't know yet."
  */
 @Composable
@@ -273,6 +282,7 @@ private fun GitHubConnectionSection(
     onOpenUrl: (String) -> Unit,
     onFinishSetup: (String) -> Unit,
     onCheckInstallation: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f)) {
@@ -283,6 +293,8 @@ private fun GitHubConnectionSection(
                     is GitHubStatus.AuthorizationRequired -> "Your GitHub sign-in needs to be renewed."
                     is GitHubStatus.InstallationRequired -> "Signed in -- one more step is needed on GitHub."
                     is GitHubStatus.Connected -> "Connected as @${status.login}"
+                    is GitHubStatus.Unchecked ->
+                        "GitHub sign-in saved; couldn't check it (${githubCheckFailureReason(status.reason)})."
                 },
             )
             error?.let { message -> Text(message, color = MaterialTheme.colorScheme.error) }
@@ -300,6 +312,10 @@ private fun GitHubConnectionSection(
                 TextButton(onClick = onCheckInstallation) { Text("Check installation") }
             }
             status is GitHubStatus.AuthorizationRequired -> Button(onClick = onConnect) { Text("Reconnect") }
+            status is GitHubStatus.Unchecked -> Column {
+                Button(onClick = onRetry) { Text("Try again") }
+                TextButton(onClick = onDisconnect) { Text("Disconnect") }
+            }
             else -> Button(onClick = onConnect) { Text("Connect") }
         }
     }

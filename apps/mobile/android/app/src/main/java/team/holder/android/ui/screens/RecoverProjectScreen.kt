@@ -47,6 +47,7 @@ import team.holder.android.git.github.GitHubResult
 import team.holder.android.git.github.GitHubStatus
 import team.holder.android.git.github.parseGitHubOwnerRepo
 import team.holder.android.ui.GitHubBackfillDialog
+import team.holder.android.ui.githubCheckFailureReason
 import team.holder.android.ui.githubErrorMessage
 import team.holder.android.ui.openUrlExternally
 
@@ -385,6 +386,9 @@ private fun GitHubRecoverySection(
             is GitHubStatus.InstallationRequired ->
                 "Signed in to GitHub -- one more step is needed before this device can sync."
             is GitHubStatus.Connected -> "Registering this device with GitHub..."
+            is GitHubStatus.Unchecked ->
+                "Your GitHub sign-in is saved, but Holder couldn't check it " +
+                    "(${githubCheckFailureReason(status.reason)}). Retry once you're online."
         },
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(top = 4.dp),
@@ -405,6 +409,7 @@ private fun GitHubRecoverySection(
         }
         status is GitHubStatus.NotConnected || status is GitHubStatus.AuthorizationRequired ->
             Button(onClick = onConnect, modifier = Modifier.padding(top = 8.dp)) { Text("Connect to GitHub") }
+        status is GitHubStatus.Unchecked -> TextButton(onClick = onRetry) { Text("Retry") }
         actionUrl != null -> {
             // Connected, but registration hit GitHubError.RepositoryNotAccessible -- the
             // friendly recovery route: a direct link to grant access, not just a retry.

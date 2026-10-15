@@ -29,3 +29,13 @@ fun githubErrorMessage(error: GitHubError): String = when (error) {
     GitHubError.AuthorizationVerificationFailed -> "GitHub sign-in verification failed -- try again"
     GitHubError.BrowserUnavailable -> "No browser is available to sign in with GitHub"
 }
+
+/** Why a check of a saved sign-in failed, as a short phrase for
+ * [team.holder.android.git.github.GitHubStatus.Unchecked]: "couldn't check it (no connection)". */
+fun githubCheckFailureReason(error: GitHubError): String = when (error) {
+    is GitHubError.NetworkError -> "no connection"
+    GitHubError.RelayUnavailable -> "GitHub sign-in service unavailable"
+    is GitHubError.RateLimited -> "GitHub is limiting requests"
+    is GitHubError.Unexpected -> if (error.httpStatus != null) "GitHub error ${error.httpStatus}" else "unexpected error"
+    else -> "unexpected error"
+}

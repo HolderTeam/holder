@@ -92,4 +92,13 @@ sealed interface GitHubStatus {
      * `https://github.com/settings/installations/{id}`) -- usable to drive a "Manage GitHub
      * repository access" link in Settings even outside any error path. */
     data class Connected(val login: String, val installationSettingsUrl: String) : GitHubStatus
+
+    /** A sign-in is stored, but checking it failed for a reason that says nothing about
+     * whether it still works (no connection, the relay or GitHub unavailable, rate limiting)
+     * and nothing has verified it since the app started. Not [NotConnected]: the sign-in is
+     * kept, and [GitHubConnection.status] can report the real state once the check runs.
+     * [reason] is why this check failed. Only [GitHubConnection.status] reports it; once a
+     * check has succeeded in this run, a later failed one keeps that result and records the
+     * error in [GitHubConnection.lastStatusCheckError] instead. */
+    data class Unchecked(val reason: GitHubError) : GitHubStatus
 }
