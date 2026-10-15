@@ -58,7 +58,7 @@ def main():
             print(f"{title}:")
             print("\n".join(f"  {line}" for line in lines))
     if failed:
-        print("Use core's installed interface instead; see daemon/AGENTS.md, python/kit/AGENTS.md and apps/mobile/android/AGENTS.md.", file=sys.stderr)
+        print("Use core's installed interface instead; see daemon/docs/development.md, python/kit/docs/development.md and apps/mobile/android/README.md.", file=sys.stderr)
         return 1
     print("Core boundary: no paths across it in either direction.")
     return 0

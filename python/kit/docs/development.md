@@ -19,9 +19,12 @@ Holder Kit embeds libholder in the Python process. It does not talk to a running
 
 Keep reusable storage and domain behavior in core (`../../core`). The Python
 layer calls core's semantic operations, including tag and milestone edits, rather
-than reimplementing them by parsing or rewriting card files. Kit uses only core's
-C API; see [AGENTS.md](../AGENTS.md). A change that needs both goes in one pull
-request.
+than reimplementing them by parsing or rewriting card files. Kit uses only
+core's stable C API, `#include <holder/holder.h>`. Its native extension must not
+include core's other headers or refer to files in `../../core` by path from code,
+CMake or scripts. Kit consumes core's installed header, CMake package and schema;
+CI checks this boundary by building against a core SDK from the same commit.
+A change that needs both goes in one pull request, with core's own tests.
 
 The package ships the schema from the selected core source or SDK as
 `holderkit/_schema.sql`. Installed packages must work without a source checkout.

@@ -2,6 +2,8 @@
 
 Control your knowledge using Python. This is separate
 from `holder-kit`, which provides native bindings for offline analysis.
+This package is an HTTP client for a running daemon. Keep entity and recovery
+policy in the daemon or core rather than duplicating it here.
 
 This first iteration evaluates
 [openapi-python-client](https://github.com/openapi-generators/openapi-python-client).
@@ -176,6 +178,12 @@ tests/                   Mock HTTP transport and contract coverage checks
 
 Do not hand-edit `src/holder/generated`. It is isolated so we can replace it
 with a handwritten implementation if this experiment is unsuitable.
+Handwritten transport and higher-level APIs can live beside it; the incremental
+change-feed transport is in `src/holder/events.py`.
+
+`openapi/openapi.yaml` is a verbatim snapshot. Fix contract errors in the
+canonical [`api/openapi.yaml`](../../api/openapi.yaml), test them with the
+daemon, then refresh the snapshot using the command below.
 
 ```sh
 # Regenerate using the checked-in snapshot; no sibling checkout needed.
