@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Validate framework component pins against the selected published core SDK."""
+"""Validate staged components against the core SDK their backend was built with.
+
+The selection comes from the backend's own run: Daemon CI records the SDK it built from core/
+in the same commit, and older holder-core integration runs recorded the published SDK they used."""
 import argparse
 import json
 import os
@@ -43,9 +46,8 @@ def load_pin(path, platform="linux"):
     return pin
 
 
-def verify(selection, core, desktop_commit, backend_commit, pin=None, platform="linux", architecture="x86_64", expected_build_type=None):
-    require(core["commit"] == selection["commit"],
-            "Backend core revision differs from the selected SDK; choose a matching backend run")
+def verify(selection, core, desktop_commit, backend_commit, pin=None, platform="linux", architecture="x86_64",
+           expected_build_type=None, backend_repository=None, backend_run_id=None):
     require(core["version"] == selection["version"], "Backend core version differs from selected SDK")
     require(core["platform"] == platform and core["architecture"] == architecture,
             f"Package requires the {platform} {architecture} SDK")
@@ -53,17 +55,27 @@ def verify(selection, core, desktop_commit, backend_commit, pin=None, platform="
               if asset["platform"] == core["platform"] and
               asset["architecture"] == core["architecture"] and
               asset["build_type"] == core["build_type"]]
-    require(len(assets) == 1, "Backend SDK configuration is absent from the selected publication")
+    require(len(assets) == 1, "Backend SDK configuration is absent from the core selection")
+    # A same-run selection records the commit each cached archive was built at (same core/ tree).
+    require(core["commit"] == assets[0].get("commit", selection["commit"]),
+            "Backend core revision differs from the selected SDK; choose a matching backend run")
     if expected_build_type:
         require(core["build_type"] == expected_build_type, "Backend SDK build type differs from selected configuration")
     if pin:
-        require(core["commit"] == pin["core"]["commit"] and
+        require(selection["commit"] == pin["core"]["commit"] and
                 core["build_type"] == pin["core"]["build_type"], "Backend does not match release core pin")
         require(desktop_commit == pin["desktop"]["commit"], "Desktop does not match release pin")
         require(backend_commit == pin["backend"]["commit"], "Backend does not match release pin")
-    return {**core, "repository": selection["repository"],
-            "release_tag": selection["release_tag"], "sdk_asset": assets[0],
-            **({"daemon_commit": backend_commit} if backend_commit else {})}
+    source = selection.get("source", "release")
+    result = {**core, "source": source, "repository": selection.get("repository", backend_repository),
+              "sdk_asset": assets[0]}
+    if source == "release":
+        result["release_tag"] = selection["release_tag"]
+    if backend_repository and backend_run_id:
+        result["backend_run"] = {"repository": backend_repository, "run_id": str(backend_run_id)}
+    if backend_commit:
+        result["daemon_commit"] = backend_commit
+    return result
 
 
 def verify_component_builds(pin, desktop):
@@ -83,22 +95,24 @@ def main():
     parser.add_argument("--desktop-commit")
     parser.add_argument("--build-type", choices=("RelWithDebInfo", "Release"))
     parser.add_argument("--platform", default="linux", choices=("linux", "windows", "macos"))
+    parser.add_argument("--backend-repository")
+    parser.add_argument("--backend-run-id")
     args = parser.parse_args()
     pin = load_pin(args.release_manifest, args.platform) if args.release_manifest else None
     if args.command == "prepare":
         components = ("desktop", "backend")
         values = {name: os.environ.get(name.upper() + "_INPUT", "") for name in
                   ("desktop_run_id", "backend_run_id", "appimage_version")}
-        values["core_ref"] = os.environ.get("CORE_REF_INPUT", "latest-green")
         values["build_type"] = "RelWithDebInfo"
-        for name in components:
-            values[name + "_repository"] = os.environ[name.upper() + "_REPOSITORY_INPUT"]
+        values["backend_repository"] = os.environ["BACKEND_REPOSITORY_INPUT"]
+        # Desktop / CI and Daemon CI run in the same repository.
+        values["desktop_repository"] = values["backend_repository"]
         if pin:
-            require(not any(values[name + "_run_id"] for name in components) and not values["appimage_version"]
-                    and values["core_ref"] == "latest-green",
-                    "Use the release manifest alone, without run, version or core-ref overrides")
-            values.update(core_ref=pin["core"]["commit"], appimage_version=pin["appimage_version"],
-                          build_type=pin["core"]["build_type"])
+            require(not any(values[name + "_run_id"] for name in components) and not values["appimage_version"],
+                    "Use the release manifest alone, without run or version overrides")
+            values.update(appimage_version=pin["appimage_version"], build_type=pin["core"]["build_type"])
+            require(pin["desktop"]["repository"] == pin["backend"]["repository"],
+                    "The desktop and the backend must come from the same repository")
             for name in components:
                 values[name + "_run_id"] = str(pin[name]["run_id"])
                 values[name + "_repository"] = pin[name]["repository"]
@@ -123,12 +137,12 @@ def main():
         result = verify(json.loads(Path(args.selection).read_text()),
                         json.loads(core_path.read_text()), desktop_commit, backend_commit, pin,
                         args.platform, "arm64" if args.platform == "macos" else "x86_64",
-                        args.build_type)
+                        args.build_type, args.backend_repository, args.backend_run_id)
         if pin and pin["core"]["build_type"] == "Release":
             desktop_info = json.loads((Path(args.desktop_root) / "release/holder-desktop-build.json").read_text())
             verify_component_builds(pin, desktop_info)
         Path(args.output).write_text(json.dumps(result, indent=2) + "\n")
-        print(f"Verified framework core SDK {result['commit']} ({result['build_type']})")
+        print(f"Verified core SDK {result['commit']} ({result['build_type']}, {result['source']})")
 
 
 if __name__ == "__main__":

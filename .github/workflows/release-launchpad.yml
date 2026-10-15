@@ -1,0 +1,192 @@
+name: Release / Launchpad
+
+# Uploads the Ubuntu source packages for a Holder release to ppa:holderteam/holder:
+# holder-core (libholder0, libholder-dev), holder-daemon, holder-kit (python3-holder-kit) and
+# holder-desktop (holder-desktop, holder), for each series. A holder-v* tag uploads all four.
+# Launchpad orders the builds: holder-daemon and holder-kit wait for libholder-dev from the same
+# upload. holder-desktop needs nothing from the others to build, and requires the holder-daemon of
+# its release or newer to install. A manual run can upload one package, for a packaging-only fix
+# with a new Debian revision. Pull requests that change the packaging build the source packages
+# unsigned and stop there, so the upload path is tested without publishing anything.
+
+on:
+  push:
+    tags:
+      - "holder-v*"
+  pull_request:
+    paths:
+      - .github/workflows/release-launchpad.yml
+      - core/packaging/linux/debian/**
+      - daemon/packaging/linux/**
+      - python/kit/packaging/linux/**
+      - apps/desktop/gtk/packaging/linux/**
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Source packages to upload
+        type: choice
+        options: [all, core, daemon, kit, desktop]
+        default: all
+      series:
+        description: Ubuntu series to upload for
+        type: choice
+        options: [both, noble, resolute]
+        default: both
+      version:
+        description: Optional expected upstream version, for example 0.2.5
+        required: false
+      package_revision:
+        description: Debian package revision; increment it for every replacement upload
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        series: ${{ fromJSON(inputs.series && inputs.series != 'both' && format('["{0}"]', inputs.series) || '["noble", "resolute"]') }}
+        package: ${{ fromJSON(inputs.packages && inputs.packages != 'all' && format('["{0}"]', inputs.packages) || '["core", "daemon", "kit", "desktop"]') }}
+    defaults:
+      run:
+        working-directory: ${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}
+    env:
+      SOURCE: holder-${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Test package install hook
+        if: matrix.package == 'daemon'
+        run: python3 -B -m unittest tests/linux_postinst_test.py
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends devscripts debhelper dh-python meson dput gnupg equivs
+
+      - name: Copy the contract, holderctl and shared sources into daemon/
+        if: matrix.package == 'daemon'
+        run: |
+          # The source package is built from daemon/ alone, so it carries copies of the HTTP
+          # contract (api/), the holderctl sources (cli/), the platform files holderd and holderctl
+          # share (common/) and VERSION. The Daemon CI package build runs the same script.
+          packaging/linux/prepare-source-tree.sh "${GITHUB_WORKSPACE}" "${PWD}"
+          cp ../VERSION VERSION
+
+      - name: Prepare the versioned source package
+        env:
+          SERIES: ${{ matrix.series }}
+          INPUT_VERSION: ${{ inputs.version }}
+          PACKAGE_REVISION: ${{ inputs.package_revision || '1' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Every package has Holder's one version: the root VERSION, which the parts built on their
+          # own also carry in their own directories (release/scripts/version.py).
+          python3 "$GITHUB_WORKSPACE/release/scripts/version.py" --check
+          version="$(python3 "$GITHUB_WORKSPACE/release/scripts/version.py")"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Launchpad uploads need a stable numeric version; $SOURCE has '$version'" >&2
+            exit 1
+          fi
+          if ! [[ "$PACKAGE_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "package_revision must be a positive integer; got '$PACKAGE_REVISION'" >&2
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = push ]; then
+            tag_version="${GITHUB_REF_NAME#holder-v}"
+            if [ "$tag_version" != "$version" ]; then
+              echo "$SOURCE is at $version but the release tag is $GITHUB_REF_NAME." >&2
+              echo "Every package in a release carries the release version." >&2
+              exit 1
+            fi
+          elif [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$version" ]; then
+            echo "Expected version '$INPUT_VERSION' does not match $SOURCE's '$version'" >&2
+            exit 1
+          fi
+          rm -rf debian build
+          cp -a packaging/linux/debian debian
+          if [ "$SOURCE" = holder-daemon ] || [ "$SOURCE" = holder-kit ]; then
+            # The daemon uses core's C++ headers and Kit installs core's schema, so each builds
+            # against the libholder-dev of the release version. On Launchpad they wait for it from
+            # this upload rather than building against an older core already in the PPA.
+            sed -i "s/libholder-dev (>= [^)]*)/libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)/" debian/control
+            grep -F "libholder-dev (>= ${version}), libholder-dev (<< ${version}.~)" debian/control
+          fi
+          if [ "$SOURCE" = holder-desktop ]; then
+            # The desktop starts its backend with the holderctl of its own release (holderctl
+            # ensure), so it needs that holder-daemon or newer. Debian revisions do not count, so a
+            # packaging-only fix of either package still satisfies it.
+            sed -i "s/holder-daemon (>= [^)]*)/holder-daemon (>= ${version})/" debian/control
+            grep -F "holder-daemon (>= ${version})" debian/control
+          fi
+          package_version="${version}-${PACKAGE_REVISION}~${SERIES}1"
+          cat > debian/changelog <<EOF
+          ${SOURCE} (${package_version}) ${SERIES}; urgency=medium
+
+            * Build package revision ${PACKAGE_REVISION} for ${SERIES}.
+
+           -- Holder Team <holdercardteam@gmail.com>  $(date -R)
+          EOF
+          if [ "$SOURCE" = holder-core ] || [ "$SOURCE" = holder-kit ]; then
+            # These two are quilt source packages (the daemon and the desktop are native). Their
+            # upstream tarball is the package's directory as committed. Launchpad keeps one per
+            # version for every series and revision, so reuse the PPA's if it has one; otherwise
+            # build it reproducibly, so that every series' job builds the same file.
+            directory="${{ fromJSON('{"core":"core","daemon":"daemon","kit":"python/kit","desktop":"apps/desktop/gtk"}')[matrix.package] }}"
+            orig_path="$(cd .. && pwd)/${SOURCE}_${version}.orig.tar.gz"
+            orig="$(cd "$GITHUB_WORKSPACE" && python3 release/scripts/launchpad-orig.py --source "$SOURCE" \
+              --version "$version" --directory "$directory" --output "$orig_path" | tail -n 1)"
+            if [ "$orig" = reused ]; then
+              # Launchpad already has the tarball; the upload must not include it again.
+              echo "DEBUILD_SOURCE_OPTION=-sd" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      - name: Build unsigned source package
+        if: github.event_name == 'pull_request'
+        run: |
+          debuild -S -d ${DEBUILD_SOURCE_OPTION:-} -us -uc
+          ls -l ../"${SOURCE}"_*
+
+      - name: Import PPA signing key
+        if: github.event_name != 'pull_request'
+        env:
+          PPA_GPG_PRIVATE_KEY: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$PPA_GPG_PRIVATE_KEY" ]; then
+            echo 'Configure PPA_GPG_PRIVATE_KEY before uploading' >&2
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "$PPA_GPG_PRIVATE_KEY" | gpg --batch --import
+          keyid="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          test -n "$keyid"
+          echo "DEBSIGN_KEYID=$keyid" >> "$GITHUB_ENV"
+          cat > ~/.gnupg/gpg.conf <<EOF
+          batch
+          yes
+          pinentry-mode loopback
+          EOF
+          cat > ~/.gnupg/gpg-agent.conf <<EOF
+          allow-loopback-pinentry
+          EOF
+          gpgconf --kill gpg-agent
+
+      - name: Build signed source package
+        if: github.event_name != 'pull_request'
+        env:
+          DEBFULLNAME: Holder Team
+          DEBEMAIL: holdercardteam@gmail.com
+        run: debuild -S -d ${DEBUILD_SOURCE_OPTION:-} -k"$DEBSIGN_KEYID"
+
+      - name: Upload to Launchpad PPA
+        if: github.event_name != 'pull_request'
+        run: dput ppa:holderteam/holder "../${SOURCE}_"*_source.changes

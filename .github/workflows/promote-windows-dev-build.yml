@@ -11,7 +11,7 @@ on:
         description: Repository containing the Windows staging artifact
         required: true
         type: string
-        default: HolderTeam/holder-framework
+        default: HolderTeam/holder
       staging_artifact_name:
         description: Name of the Windows tester installer artifact
         required: true
@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Download Windows tester installer
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.staging_artifact_name }}
           path: downloads/windows-dev
@@ -147,11 +147,15 @@ jobs:
               --clobber \
               "${assets[@]}"
           else
-            echo "Creating prerelease ${RELEASE_TAG}"
-            gh release create "${RELEASE_TAG}" \
-              --repo "${RELEASE_REPOSITORY}" \
-              --prerelease \
-              --title "${RELEASE_TITLE}" \
-              --notes-file "${notes}" \
-              "${assets[@]}"
+            create_args=("${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" --prerelease
+              --title "${RELEASE_TITLE}" --notes-file "${notes}")
+            if [[ "${RELEASE_TAG}" == holder-v* ]]; then
+              # A product release starts as a draft, as the other promotions create it: publishing
+              # it would make GitHub create the tag at the tip of main, not on the release commit.
+              create_args+=(--draft)
+              echo "Creating draft ${RELEASE_TAG}"
+            else
+              echo "Creating prerelease ${RELEASE_TAG}"
+            fi
+            gh release create "${create_args[@]}" "${assets[@]}"
           fi

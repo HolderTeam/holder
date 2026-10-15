@@ -14,24 +14,32 @@ The goal is not simply to make another notes application. It is to provide a dur
 
 ## Getting Holder
 
-Download Holder for Windows, macOS or Linux from [holder.team](https://holder.team/), or from the [releases page](https://github.com/HolderTeam/holder-framework/releases).
+Download Holder for Windows, macOS or Linux from [holder.team](https://holder.team/), or from the [releases page](https://github.com/HolderTeam/holder/releases).
 
 ## In this repository
 
+- [`core/`](core/) - Holder Core (`libholder`): the engine, its C API and its own CMake build, which does not depend on anything else here.
 - [`daemon/`](daemon/) - the Holder daemon (`holderd`), its HTTP API and its CMake build, which also builds `holderctl`.
 - [`api/`](api/) - the HTTP contract: `openapi.yaml`, `API_VERSION` and the client documentation.
 - [`cli/`](cli/) - `holderctl`, the command line client, including `holderctl ensure`.
 - [`common/`](common/) - platform code shared by the daemon and `holderctl`.
 - [`staging/`](staging/) - assembles and checks build artifacts for each platform.
-- [`python/`](python/) - an experimental Python client for the Holder daemon's HTTP API.
-- [`release/`](release/) - signing, verification and publishing of releases.
+- [`apps/desktop/gtk/`](apps/desktop/gtk/) - the Holder desktop app (GTK 4 and libadwaita, built with Meson), a client of the daemon's HTTP API on Linux, macOS and Windows.
+- [`apps/mobile/android/`](apps/mobile/android/) - the Holder Android app (Kotlin and Compose), which embeds core through its C API and works without a daemon.
+- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), an experimental Python client for the Holder daemon's HTTP API, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
+- [`release/`](release/) - signing, verification and publishing of releases, and the website ([`release/website/`](release/website/), www.holder.team), including its developer guides.
 
 ## Version
 
-Everything in this repository (the daemon, `holderctl`, the staging and release tooling and the Python client)
-has one version: the [`VERSION`](VERSION) file at the root. Change it there and nowhere else. The daemon's
-[`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not the
-release. `holder-core` and the desktop app have their own versions.
+Everything in this repository (core, the daemon, `holderctl`, the desktop app, Holder Kit, the
+Python client, and the staging and release tooling) has one version: the [`VERSION`](VERSION) file
+at the root. Parts that are built on their own from their own directory also carry it there, because
+their source package holds only that directory: [`core/VERSION`](core/VERSION),
+[`apps/desktop/gtk/VERSION`](apps/desktop/gtk/VERSION) and the Python packages' `pyproject.toml`.
+Change the version with `release/scripts/version.py <version>`, which sets every copy;
+`Repository / Checks` fails a pull request in which they differ. The daemon's
+[`API_VERSION`](api/API_VERSION) is separate: it versions the HTTP contract that clients check, not
+the release. Core's library SONAME is separate too.
 
 ## Licence
 

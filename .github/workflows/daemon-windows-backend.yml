@@ -15,6 +15,8 @@ on:
         type: string
 
 permissions:
+  # actions: write deletes this branch's older compiler and vcpkg binary caches.
+  actions: write
   contents: read
 
 jobs:
@@ -23,9 +25,9 @@ jobs:
 
     steps:
       - name: Check out holder-framework
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
-          repository: HolderTeam/holder-framework
+          repository: HolderTeam/holder
           ref: ${{ inputs.daemon_commit }}
           persist-credentials: false
 
@@ -34,7 +36,7 @@ jobs:
         working-directory: daemon
         run: git submodule update --init --recursive -- submodules/caste
 
-      - uses: HolderTeam/holder-core/.github/actions/core-sdk@main
+      - uses: ./.github/actions/core-sdk
         with:
           commit: ${{ inputs.core_commit }}
           build-type: ${{ inputs.build_type }}
@@ -50,7 +52,7 @@ jobs:
           "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
 
       - name: Restore vcpkg binary package cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('daemon/packaging/windows/sdk-deps/vcpkg.json', 'daemon/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -66,25 +68,81 @@ jobs:
           & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
           New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
+      - name: Install and configure ccache
+        shell: pwsh
+        run: |
+          choco install ccache --no-progress -y
+          # No CCACHE_BASEDIR on any platform: runner checkout paths are fixed, its relative paths make
+          # __FILE__ relative (tests locate fixtures from it), and on Windows Ninja's resolution of the
+          # relative include paths exceeds the path length limit for the core SDK's vcpkg headers.
+          "CCACHE_DIR=${{ github.workspace }}\.ccache" >> $env:GITHUB_ENV
+          "CCACHE_NOHASHDIR=true" >> $env:GITHUB_ENV
+          "CCACHE_COMPILERCHECK=content" >> $env:GITHUB_ENV
+          "CCACHE_MAXSIZE=1500M" >> $env:GITHUB_ENV
+
+      # Pull requests restore the compiler cache that main saves, as with vcpkg's binary cache.
+      - name: Restore compiler cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ inputs.build_type }}-
+
+      # ccache cannot cache objects whose debug information goes to a shared PDB (/Zi), so CI
+      # embeds it in each object instead (/Z7). The linker still writes the executables' PDBs.
       - name: Configure CMake
         shell: pwsh
         working-directory: daemon
-        run: cmake --preset windows-sdk-tests "-DCMAKE_BUILD_TYPE=$env:HOLDER_CORE_BUILD_TYPE"
+        run: >-
+          cmake --preset windows-sdk-tests
+          "-DCMAKE_BUILD_TYPE=$env:HOLDER_CORE_BUILD_TYPE"
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: Save vcpkg binary package cache
         if: success() && github.event_name != 'pull_request'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('daemon/packaging/windows/sdk-deps/vcpkg.json', 'daemon/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Remove older vcpkg binary package caches
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-run-caches.sh "vcpkg-${{ runner.os }}-${{ hashFiles('daemon/packaging/windows/sdk-deps/vcpkg.json', 'daemon/CMakePresets.json') }}-"
+
       - name: Build backend executables and tests
         working-directory: daemon
-        run: cmake --build --preset windows-sdk-tests --parallel
+        run: |
+          ccache --zero-stats
+          cmake --build --preset windows-sdk-tests --parallel
+
+      - name: Show compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+
+      - name: Save compiler cache
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ inputs.build_type }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Remove older compiler caches
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-run-caches.sh "ccache-${{ runner.os }}-${{ inputs.build_type }}-"
 
       - name: Run tests
         working-directory: daemon
-        run: ctest --preset windows-sdk-tests
+        run: ctest --preset windows-sdk-tests --parallel 8
 
       - name: Stage backend artifact
         shell: pwsh
@@ -130,7 +188,7 @@ jobs:
           Pop-Location
 
       - name: Upload backend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: holder-daemon-windows-backend${{ inputs.build_type == 'Release' && '-release' || '' }}
           path: daemon/out/artifacts/windows-backend/*

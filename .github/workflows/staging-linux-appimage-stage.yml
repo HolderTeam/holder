@@ -4,39 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       desktop_run_id:
-        description: Optional holder-desktop Linux run ID; blank uses the latest successful main artifact
+        description: Optional Desktop / CI run ID; blank uses the newest one built from the backend's desktop source (apps/desktop/)
         required: false
         default: ""
         type: string
       backend_run_id:
-        description: Optional run containing a daemon Linux artifact; blank uses the latest successful core integration
+        description: Optional run containing a daemon Linux artifact; blank uses the latest successful Daemon CI run
         required: false
         default: ""
         type: string
-      desktop_repository:
-        description: Repository containing the Linux desktop artifact
-        required: false
-        default: HolderTeam/holder-desktop
-        type: string
-      desktop_ref:
-        description: Branch used when automatically resolving the desktop artifact
-        required: false
-        default: main
-        type: string
       backend_repository:
-        description: Repository containing the daemon artifact (core downstream integration by default)
+        description: Repository whose Daemon CI and Desktop / CI runs to use (the Daemon CI run also holds the core selection)
         required: false
-        default: HolderTeam/holder-core
+        default: HolderTeam/holder
         type: string
       backend_ref:
-        description: Branch used when automatically resolving the backend artifact
+        description: Branch used when automatically resolving the backend and desktop runs
         required: false
         default: main
-        type: string
-      core_ref:
-        description: Core SDK selection for development; latest-green, tag or full SHA
-        required: false
-        default: latest-green
         type: string
       release_manifest:
         description: Optional checked-in JSON manifest pinning core and component runs for an RC/release
@@ -59,7 +44,7 @@ jobs:
 
     steps:
       - name: Check out holder-framework
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: sources/holder-framework
 
@@ -70,11 +55,9 @@ jobs:
         id: pins
         env:
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
-          CORE_REF_INPUT: ${{ inputs.core_ref }}
           DESKTOP_RUN_ID_INPUT: ${{ inputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ inputs.backend_run_id }}
           APPIMAGE_VERSION_INPUT: ${{ inputs.appimage_version }}
-          DESKTOP_REPOSITORY_INPUT: ${{ inputs.desktop_repository }}
           BACKEND_REPOSITORY_INPUT: ${{ inputs.backend_repository }}
         run: |
           options=()
@@ -83,122 +66,18 @@ jobs:
           fi
           python3 sources/holder-framework/staging/scripts/core-provenance.py prepare "${options[@]}"
 
-      - name: Resolve core SDK once
-        id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: ${{ steps.pins.outputs.core_ref }}
-
       - name: Resolve component artifact runs
         id: artifact_runs
         env:
           GH_TOKEN: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           DESKTOP_RUN_ID_INPUT: ${{ steps.pins.outputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ steps.pins.outputs.backend_run_id }}
-          DESKTOP_REPOSITORY: ${{ steps.pins.outputs.desktop_repository }}
-          DESKTOP_REF: ${{ inputs.desktop_ref }}
           BACKEND_REPOSITORY: ${{ steps.pins.outputs.backend_repository }}
           BACKEND_REF: ${{ inputs.backend_ref }}
-          BUILD_TYPE: ${{ steps.pins.outputs.build_type }}
-        run: |
-          set -euo pipefail
-
-          artifact_id_for_run() {
-            local repository="$1"
-            local run_id="$2"
-            local artifact="$3"
-
-            gh api "repos/${repository}/actions/runs/${run_id}/artifacts" \
-              --jq ".artifacts[] | select(.name == \"${artifact}\" and .expired == false) | .id" \
-              | head -n 1
-          }
-
-          resolve_run_id() {
-            local provided_run_id="$1"
-            local repository="$2"
-            local workflow_file="$3"
-            local branch="$4"
-            local artifact="$5"
-            local run_id
-            local conclusion
-
-            if [ -n "${provided_run_id}" ]; then
-              if ! [[ "${provided_run_id}" =~ ^[0-9]+$ ]]; then
-                echo "Provided run ID for ${artifact} is not numeric: ${provided_run_id}" >&2
-                return 1
-              fi
-              conclusion="$(gh api \
-                "repos/${repository}/actions/runs/${provided_run_id}" \
-                --jq '.conclusion')"
-              if [ "${conclusion}" != "success" ]; then
-                echo "Provided run ${repository}#${provided_run_id} did not conclude successfully." >&2
-                return 1
-              fi
-              if [ -z "$(artifact_id_for_run "${repository}" "${provided_run_id}" "${artifact}")" ]; then
-                echo "Provided run ${repository}#${provided_run_id} has no unexpired ${artifact} artifact." >&2
-                return 1
-              fi
-              echo "${provided_run_id}"
-              return
-            fi
-
-            while IFS= read -r run_id; do
-              if [[ "${run_id}" =~ ^[0-9]+$ ]] && \
-                 [ -n "$(artifact_id_for_run "${repository}" "${run_id}" "${artifact}")" ]; then
-                echo "${run_id}"
-                return
-              fi
-            done < <(
-              gh api --method GET \
-                "repos/${repository}/actions/workflows/${workflow_file}/runs" \
-                -f branch="${branch}" \
-                -f status=success \
-                -f per_page=30 \
-                --jq '.workflow_runs[].id'
-            )
-
-            echo "No successful ${workflow_file} run on ${repository}@${branch} has an unexpired ${artifact} artifact." >&2
-            return 1
-          }
-
-          desktop_artifact=holder-desktop-linux-x86_64
-          if [[ "$BUILD_TYPE" == Release ]]; then desktop_artifact+=-release; fi
-          desktop_run_id="$(resolve_run_id \
-            "${DESKTOP_RUN_ID_INPUT}" \
-            "${DESKTOP_REPOSITORY}" \
-            "linux-desktop.yml" \
-            "${DESKTOP_REF}" \
-            "$desktop_artifact")"
-          backend_artifact=holder-daemon-linux-x86_64
-          if [[ "$BUILD_TYPE" == Release ]]; then backend_artifact+=-release; fi
-          backend_workflow=ci.yml
-          if [[ "$BACKEND_REPOSITORY" == HolderTeam/holder-core ]]; then
-            backend_workflow=daemon-integration.yml
-          fi
-          backend_run_id="$(resolve_run_id \
-            "${BACKEND_RUN_ID_INPUT}" \
-            "${BACKEND_REPOSITORY}" \
-            "$backend_workflow" \
-            "${BACKEND_REF}" \
-            "$backend_artifact")"
-
-          {
-            echo "desktop_run_id=${desktop_run_id}"
-            echo "backend_run_id=${backend_run_id}"
-          } >> "${GITHUB_OUTPUT}"
-
-          desktop_url="https://github.com/${DESKTOP_REPOSITORY}/actions/runs/${desktop_run_id}"
-          backend_url="https://github.com/${BACKEND_REPOSITORY}/actions/runs/${backend_run_id}"
-          {
-            echo "## Resolved component runs"
-            echo
-            echo "- Desktop: [${DESKTOP_REPOSITORY}#${desktop_run_id}](${desktop_url})"
-            echo "- Backend: [${BACKEND_REPOSITORY}#${backend_run_id}](${backend_url})"
-          } >> "${GITHUB_STEP_SUMMARY}"
+        run: python3 sources/holder-framework/staging/scripts/resolve-component-runs.py --platform linux --build-type "${{ steps.pins.outputs.build_type }}"
 
       - name: Download desktop artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: holder-desktop-linux-x86_64${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}
           path: downloads/desktop
@@ -207,13 +86,27 @@ jobs:
           run-id: ${{ steps.artifact_runs.outputs.desktop_run_id }}
 
       - name: Download backend artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: holder-daemon-linux-x86_64${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}
           path: downloads/backend
           github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           repository: ${{ steps.pins.outputs.backend_repository }}
           run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Download the backend run's core selection
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: core-selection
+          path: out
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ steps.pins.outputs.backend_repository }}
+          run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Read the core the backend was built against
+        id: core
+        shell: bash
+        run: echo "commit=$(python3 -c 'import json; print(json.load(open("out/core-selection.json"))["commit"])')" >> "$GITHUB_OUTPUT"
 
       - name: Install AppImage assembly dependencies
         run: |
@@ -304,6 +197,8 @@ jobs:
             --selection out/core-selection.json \
             --desktop-root work/desktop-root --backend-root work/backend-root \
             --build-type "${{ steps.pins.outputs.build_type }}" \
+            --backend-repository "${{ steps.pins.outputs.backend_repository }}" \
+            --backend-run-id "${{ steps.artifact_runs.outputs.backend_run_id }}" \
             --output out/core-provenance.json "${options[@]}"
           echo "Core SDK: \`${{ steps.core.outputs.commit }}\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -577,7 +472,7 @@ jobs:
           fi
 
       - name: Upload staged Linux package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Holder-linux-appimage-staged
           path: out/artifacts/*

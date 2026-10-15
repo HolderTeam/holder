@@ -1,0 +1,88 @@
+name: API / Contract
+
+# Checks a pull request's HTTP contract (api/openapi.yaml) against the base branch's for breaking
+# changes; see .github/scripts/check-api-contract.py for the rule.
+
+on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the check runs. Labels can change the outcome, so it also
+  # runs when they change.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+env:
+  OASDIFF_VERSION: 1.32.1
+  OASDIFF_SHA256: 7c8939fc49b75ee11fec66a5b83b37a2fca6aee109fed85013b1ba2ac2a1ee7f
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      api: ${{ steps.select.outputs.api }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        run: |
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(api/openapi\.yaml|api/API_VERSION|\.github/workflows/api-contract\.yml|\.github/scripts/check-api-contract\.py)$' <<< "$changed"; then
+            echo "api=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "api=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install oasdiff
+        run: |
+          set -euo pipefail
+          archive="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${archive}"
+          echo "${OASDIFF_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" oasdiff
+      - name: Compare the contract with the base branch
+        env:
+          UNRELEASED: "${{ contains(github.event.pull_request.labels.*.name, 'api: unreleased change') }}"
+        run: |
+          set -euo pipefail
+          git show HEAD^1:api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
+          git show HEAD^1:api/API_VERSION > "$RUNNER_TEMP/base-API_VERSION"
+          options=()
+          if [ "$UNRELEASED" = true ]; then options=(--unreleased); fi
+          python3 .github/scripts/check-api-contract.py --oasdiff "$RUNNER_TEMP/oasdiff" \
+            --base-spec "$RUNNER_TEMP/base-openapi.yaml" --head-spec api/openapi.yaml \
+            --base-version "$RUNNER_TEMP/base-API_VERSION" --head-version api/API_VERSION "${options[@]}"
+
+  result:
+    name: API contract result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when the
+    # check succeeded or was rightly skipped.
+    if: always()
+    needs: [changes, check]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.api }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (.check.result == (if $selected == "true" then "success" else "skipped" end))' <<< "$RESULTS" > /dev/null

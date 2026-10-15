@@ -1,0 +1,491 @@
+name: Kit / CI
+
+on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the Kit jobs run. Keep its pattern in step with these paths.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - python/kit/**
+      - core/**
+      - .github/workflows/kit-ci.yml
+      - .github/workflows/core-sdk.yml
+      - .github/actions/core-sdk/**
+      - .github/actions/core-ubuntu-packages/**
+      - .github/scripts/fetch-core-debs.sh
+      - .github/scripts/check-core-boundary.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: python/kit
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      kit: ${{ steps.select.outputs.kit }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "kit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(python/kit/|core/|\.github/workflows/(kit-ci|core-sdk)\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+            echo "kit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "kit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  checks:
+    # Fast checks that need no build: no paths or core headers across the core boundary.
+    needs: changes
+    if: needs.changes.outputs.kit == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the core boundary
+        run: python3 .github/scripts/check-core-boundary.py
+
+  core-sdk:
+    # Kit builds against core from this same commit, through core's installed SDK.
+    needs: changes
+    if: needs.changes.outputs.kit == 'true'
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/core-sdk.yml
+
+  linux:
+    needs: [changes, core-sdk]
+    if: needs.changes.outputs.kit == 'true'
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            name: Ubuntu 24.04 / Python 3.12 / compatibility
+            python-version: "3.12"
+            comprehensive: true
+            sanitized: false
+          # Use the canonical SDK's distribution dependency ABI. Native
+          # Ubuntu-series integration belongs to the Debian package builds.
+          - runner: ubuntu-24.04
+            name: Ubuntu 24.04 / Python 3.14 / shim sanitizers
+            python-version: "3.14"
+            comprehensive: false
+            sanitized: true
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            python3-dev \
+            python3-venv \
+            libssl-dev \
+            nlohmann-json3-dev \
+            libyaml-cpp-dev \
+            libspdlog-dev \
+            libsqlite3-dev \
+            libsodium-dev \
+            libgit2-dev \
+            libmd4c-dev \
+            libsecret-1-dev
+
+      - name: Set up selected Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Fetch the core SDK from this run
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+
+      - name: Configure Python build tools
+        shell: bash
+        run: |
+          echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
+          echo "SKBUILD_CMAKE_BUILD_TYPE=$HOLDER_CORE_BUILD_TYPE" >> "$GITHUB_ENV"
+
+      - name: Create isolated CI environment
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/holder-ci-venv"
+          echo "${RUNNER_TEMP}/holder-ci-venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Install packaging tools
+        run: python3 -m pip install --upgrade pip
+
+      - name: Build and install Holder Kit with complete test dependencies
+        if: ${{ matrix.comprehensive }}
+        run: python3 -m pip install --verbose '.[test]'
+
+      - name: Build instrumented Holder Kit for lifecycle smoke tests
+        if: ${{ matrix.sanitized }}
+        run: python3 -m pip install --verbose --config-settings=cmake.define.HOLDER_KIT_SANITIZE=address,undefined . 'pytest>=8'
+
+      - name: Configure sanitizer runtime
+        if: ${{ matrix.sanitized }}
+        run: |
+          asan_library="$(gcc -print-file-name=libasan.so)"
+          if ! file -L "${asan_library}" | grep -q 'ELF'; then
+            asan_library="$(ldconfig -p | awk '/libasan\.so/{print $NF; exit}')"
+          fi
+          test -f "${asan_library}"
+          echo "LD_PRELOAD=${asan_library}" >> "${GITHUB_ENV}"
+          echo "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1" >> "${GITHUB_ENV}"
+          echo "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1" >> "${GITHUB_ENV}"
+
+      - name: Show installed build
+        run: |
+          python3 --version
+          python3 -c 'import sys; print(sys.executable)'
+          python3 -m pip show holder-kit
+          python3 -c 'import holderkit; print(holderkit.__file__)'
+
+      - name: Run instrumented Python lifecycle smoke tests
+        if: ${{ matrix.sanitized }}
+        run: |
+          python3 -m pytest --verbose \
+            tests/test_holder.py::test_native_extension_imports \
+            tests/test_holder.py::test_complete_card_lifecycle \
+            tests/test_holder.py::test_context_destruction_releases_native_resources
+
+      - name: Run complete Python tests
+        if: ${{ matrix.comprehensive }}
+        run: python3 -m pytest --verbose
+
+      - name: Run strict type checking
+        if: ${{ matrix.comprehensive }}
+        run: python3 -m mypy
+
+      - name: Run lifecycle example
+        run: python3 examples/card_lifecycle.py
+
+      - name: Run detached-record and pandas examples
+        if: ${{ matrix.comprehensive }}
+        run: |
+          python3 examples/detached_records.py
+          python3 examples/pandas_analysis.py
+
+      - name: Build wheel
+        if: ${{ matrix.comprehensive }}
+        run: |
+          python3 -m pip install build
+          python3 -m build --wheel --outdir dist
+          ls -lh dist
+
+      - name: Install wheel in a fresh base environment
+        if: ${{ matrix.comprehensive }}
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/holder-wheel-venv"
+          "${RUNNER_TEMP}/holder-wheel-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/holder-wheel-venv/bin/python" -m pip install --verbose dist/*.whl
+
+      - name: Smoke-test installed wheel without pandas
+        if: ${{ matrix.comprehensive }}
+        run: |
+          "${RUNNER_TEMP}/holder-wheel-venv/bin/python" - <<'PY'
+          import importlib.util
+          import json
+          from importlib.metadata import distribution
+          from importlib.resources import files
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          assert importlib.util.find_spec("pandas") is None
+
+          import holderkit
+          from holderkit import _native
+
+          installed = distribution("holder-kit")
+          assert installed.metadata["Name"] == "holder-kit"
+          assert installed.files is not None
+          assert all(path.parts[0] != "holder" for path in installed.files)
+          assert importlib.util.find_spec("holder") is None
+          assert _native.__name__ == "holderkit._native"
+          assert _native.Context.__module__ == "holderkit._native"
+          assert holderkit.HolderError.__module__ == "holderkit._native"
+          resources = files("holderkit")
+          assert resources.joinpath("py.typed").is_file()
+          assert resources.joinpath("_schema.sql").read_text(encoding="utf-8")
+          assert json.loads(resources.joinpath("_core_build.json").read_text(encoding="utf-8"))
+
+          assert "pandas" not in sys.modules
+          with tempfile.TemporaryDirectory(prefix="holder-wheel-smoke-") as temporary:
+              with holderkit.open(Path(temporary) / "data") as context:
+                  project = context.create_project("Wheel smoke test")
+                  card = context.create_card(
+                      project.project_id, "Installed wheel", "standalone body"
+                  )
+                  assert context.get_card_content(card.card_id) == "standalone body"
+                  assert context.cards.to_records(project.project_id)[0]["card_id"] == card.card_id
+                  try:
+                      context.cards.to_dataframe(project.project_id)
+                  except ModuleNotFoundError as error:
+                      assert "holder-kit[pandas]" in str(error)
+                  else:
+                      raise AssertionError("base wheel unexpectedly provided pandas")
+          PY
+
+  macos:
+    needs: [changes, core-sdk]
+    if: needs.changes.outputs.kit == 'true'
+    name: macOS 15 / Python 3.12
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch the core SDK from this run
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+
+      - name: Configure Python build tools
+        shell: bash
+        run: |
+          echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
+          echo "SKBUILD_CMAKE_BUILD_TYPE=$HOLDER_CORE_BUILD_TYPE" >> "$GITHUB_ENV"
+
+      - name: Install native build dependencies
+        run: |
+          brew install \
+            cmake \
+            ninja \
+            pkg-config \
+            nlohmann-json \
+            yaml-cpp \
+            spdlog \
+            sqlite \
+            libsodium \
+            libgit2 \
+            md4c \
+            openssl@3
+
+      - name: Build and install Holder Kit
+        run: |
+          python3 -m pip install --upgrade pip
+          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_PREFIX_PATH=$(brew --prefix);$(brew --prefix openssl@3) -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" \
+            python3 -m pip install --verbose . 'pytest>=8'
+
+      - name: Run base Python tests
+        run: python3 -m pytest --verbose tests/test_holder.py
+
+      - name: Run lifecycle example
+        run: python3 examples/card_lifecycle.py
+
+  windows:
+    needs: [changes, core-sdk]
+    if: needs.changes.outputs.kit == 'true'
+    name: Windows Server 2025 / Python 3.12
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Fetch the core SDK from this run
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+
+      - name: Configure Python build tools
+        shell: bash
+        run: |
+          echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
+          echo "SKBUILD_CMAKE_BUILD_TYPE=$HOLDER_CORE_BUILD_TYPE" >> "$GITHUB_ENV"
+
+      - name: Build and install Holder Kit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --verbose . "pytest>=8"
+
+      - name: Verify native extension and bundled runtime dependencies
+        run: python -c "import holderkit; print(holderkit.__file__)"
+
+      - name: Run base Python tests
+        run: python -m pytest --verbose tests/test_holder.py
+
+      - name: Run lifecycle example
+        run: python examples/card_lifecycle.py
+
+  ubuntu-packages:
+    # python3-holder-kit as Launchpad builds it: from python/kit/ copied out on its own, against
+    # libholder packages for core/ in this commit (from holder-sdk, or built here).
+    needs: changes
+    if: needs.changes.outputs.kit == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
+        # backend build); main and manual runs build for both.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .
+    env:
+      EXPORTED_KIT: /tmp/export/holder-kit
+    steps:
+      - name: Install packaging tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git devscripts equivs debhelper cmake ninja-build
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Core packages for core/ in this commit, from holder-sdk or built
+        uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ matrix.series }}
+      - name: Export python/kit/ on its own, as the Debian source package sees it
+        run: |
+          mkdir -p "$(dirname "${EXPORTED_KIT}")"
+          cp -a python/kit "${EXPORTED_KIT}"
+      - name: Build Kit against the installed core packages
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: ${{ env.EXPORTED_KIT }}
+        run: |
+          cp -a packaging/linux/debian debian
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc -j2
+      - name: Check the package's libholder0 requirement
+        shell: bash
+        working-directory: ${{ env.EXPORTED_KIT }}
+        run: |
+          set -euo pipefail
+          package=$(find .. -maxdepth 1 -name 'python3-holder-kit_*.deb' -print -quit)
+          # Kit installs the schema of the core it was built against, so it must require the
+          # libholder0 of the same upstream version.
+          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
+          depends=$(dpkg-deb -f "$package" Depends)
+          echo "$depends"
+          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
+          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
+          mkdir -p "$GITHUB_WORKSPACE/out/ubuntu-packages"
+          cp "$package" "$GITHUB_WORKSPACE"/out/core-debs/libholder0_*.deb "$GITHUB_WORKSPACE/out/ubuntu-packages/"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-kit-${{ matrix.series }}-packages
+          path: out/ubuntu-packages/*.deb
+          if-no-files-found: error
+
+  ubuntu-runtime:
+    # Installs the packages in a fresh container, without development packages or a compiler.
+    needs: [changes, ubuntu-packages]
+    if: needs.changes.outputs.kit == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
+        # backend build); main and manual runs build for both.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: holder-kit-${{ matrix.series }}-packages
+          path: out/ubuntu-packages
+      - name: Install and test the packages
+        env:
+          SERIES: ${{ matrix.series }}
+        run: bash python/kit/scripts/ubuntu-package-ci.sh "$SERIES" out/ubuntu-packages
+
+  result:
+    name: Kit CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, checks, core-sdk, linux, macos, windows, ubuntu-packages, ubuntu-runtime]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.kit }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "success"))
+             else
+               ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null

@@ -1,0 +1,417 @@
+name: Core / CI
+
+on:
+  # Pull requests always start this workflow so that its required result check is reported;
+  # the changes job decides whether the core jobs run. Keep its pattern in step with these paths.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - core/**
+      - .github/workflows/core-ci.yml
+      - .github/workflows/core-sdk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: core
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      core: ${{ steps.select.outputs.core }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          if grep -qE '^(core/|\.github/workflows/core-(ci|sdk)\.yml$)' <<< "$changed"; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "core=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  linux:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Restore apt package cache
+        uses: actions/cache/restore@v6
+        with:
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-
+            apt-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          mkdir -p "${PWD}/.apt-cache/archives/partial" "${PWD}/.apt-cache/debs"
+          cp "${PWD}"/.apt-cache/debs/*.deb "${PWD}/.apt-cache/archives/" 2>/dev/null || true
+          sudo apt-get update
+          sudo apt-get \
+            -o Dir::Cache::Archives="${PWD}/.apt-cache/archives" \
+            install -y \
+            cmake \
+            catch2 \
+            ninja-build \
+            pkg-config \
+            libssl-dev \
+            nlohmann-json3-dev \
+            libyaml-cpp-dev \
+            libspdlog-dev \
+            libsqlite3-dev \
+            libsodium-dev \
+            libgit2-dev \
+            libmd4c-dev \
+            libsecret-1-dev \
+            lcov \
+            gcovr
+          find "${PWD}/.apt-cache/archives" -maxdepth 1 -type f -name '*.deb' -exec cp {} "${PWD}/.apt-cache/debs/" \;
+
+      - name: Save apt package cache
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: core/.apt-cache/debs
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install
+        run: cmake --install build --prefix out/install/linux
+
+      - name: Verify installed package
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux"
+          cmake --build out/consumer --parallel
+          ctest --test-dir out/consumer --output-on-failure
+          cmake -S tests/installed-consumer -B out/consumer-shared -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/linux" -DHOLDER_CONSUMER_SHARED=ON
+          cmake --build out/consumer-shared --parallel
+          ctest --test-dir out/consumer-shared --output-on-failure
+
+      - name: Test the SDK tooling
+        run: python3 -m unittest discover -s tests -p test_core_sdk.py -v
+
+      - name: Coverage
+        run: ./make.sh coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: holder-core-coverage
+          path: core/build-coverage/coverage/**
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: macos-15
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          brew update
+          # The runner can have a manually linked OpenSSL 1.1 binary that brew unlink misses.
+          brew_prefix="$(brew --prefix)"
+          openssl_bin="$brew_prefix/bin/openssl"
+          if [[ -L "$openssl_bin" && "$(readlink "$openssl_bin")" == "$brew_prefix/opt/openssl@1.1/bin/openssl" ]]; then
+            unlink "$openssl_bin"
+          fi
+          brew install \
+            cmake \
+            catch2 \
+            ninja \
+            pkg-config \
+            nlohmann-json \
+            yaml-cpp \
+            spdlog \
+            sqlite \
+            libsodium \
+            libgit2 \
+            md4c \
+            openssl@3
+
+      - name: Configure
+        run: |
+          brew_prefix="$(brew --prefix)"
+          openssl_prefix="$(brew --prefix openssl@3)"
+
+          cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="${brew_prefix};${openssl_prefix}" \
+            -DOPENSSL_ROOT_DIR="${openssl_prefix}"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install
+        run: cmake --install build --prefix out/install/macos
+
+      - name: Verify installed package
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
+          cmake --build out/consumer --parallel
+          ctest --test-dir out/consumer --output-on-failure
+
+  windows:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    # actions: write deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set vcpkg paths
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=${{ github.workspace }}\.vcpkg" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}\.vcpkg-binary-cache" >> $env:GITHUB_ENV
+
+      - name: Restore vcpkg binary package cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-
+            vcpkg-${{ runner.os }}-
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:VCPKG_ROOT"
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      - name: Configure
+        run: cmake --preset windows-vcpkg-debug
+
+      - name: Build
+        run: cmake --build out/build/windows-vcpkg-debug --parallel
+
+      - name: Run tests
+        run: ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure
+
+      - name: Save vcpkg binary package cache
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Remove older vcpkg binary package caches
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-run-caches.sh "vcpkg-${{ runner.os }}-${{ hashFiles('core/vcpkg.json', 'core/CMakePresets.json') }}-"
+
+      - name: Install
+        run: cmake --install out/build/windows-vcpkg-debug --prefix out/install/windows
+
+      - name: Verify installed package
+        shell: pwsh
+        run: |
+          cmake -S tests/installed-consumer -B out/consumer -G Ninja -DCMAKE_BUILD_TYPE=Debug `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            "-DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.vcpkg-holder-core" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_MANIFEST_MODE=OFF `
+            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/core/out/install/windows"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build out/consumer --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir out/consumer --output-on-failure
+
+  sdk:
+    # Core's SDK for this commit, cached by core/'s tree. Saved from main, it is the latest core
+    # that consumers and pull requests not changing core take instead of building core again.
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/core-sdk.yml
+
+  ubuntu-packages:
+    # Core's libholder0 and libholder-dev packages for both Ubuntu series, built on main for
+    # publish-sdk to add to the core-<tree> release, so Daemon / CI's and Kit / CI's package jobs
+    # take them instead of building core (they build them themselves when core/ changes).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: changes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            series: noble
+          - image: ubuntu:26.04
+            series: resolute
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Install packaging tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git devscripts equivs debhelper cmake ninja-build
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ matrix.series }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-debs-${{ matrix.series }}
+          path: out/core-debs/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-sdk:
+    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree> once core's
+    # tests and SDKs have passed, so pull requests and people building on Holder can take them
+    # instead of building core, and keeps the newest 32 such releases. Only main may use the
+    # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
+    # run this job.
+    needs: [linux, macos, windows, sdk, ubuntu-packages]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: holder-sdk-publish
+    concurrency:
+      group: holder-sdk-publish
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: tree
+        name: Identify core/'s tree
+        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-sdk-*-RelWithDebInfo
+          path: out/core-sdk-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: core-selection
+          path: out
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-debs-*
+          path: out/core-debs
+          merge-multiple: true
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish core-<tree>
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SDK_PACKAGES: out/core-debs
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
+          "${{ steps.tree.outputs.tree }}"
+
+      - name: Keep the newest 32 core-<tree> releases
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: .github/scripts/prune-sdk-releases.sh core- 32
+
+  result:
+    name: Core CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, linux, macos, windows, sdk]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.core }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e --arg selected "$SELECTED" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.linux, .macos, .windows, .sdk] | all(.result == "success"))
+             else
+               ([.linux, .macos, .windows, .sdk] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null

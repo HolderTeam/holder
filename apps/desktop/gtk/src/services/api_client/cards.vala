@@ -1,0 +1,463 @@
+namespace HolderLinux {
+
+public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    public static async ProjectHistoryPage list_project_history(ApiClient client,
+                                                                 string project_id,
+                                                                 int limit = 50,
+                                                                 string? cursor = null,
+                                                                 string? kind = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("limit", limit.to_string());
+        if (cursor != null && ((!) cursor).strip().length > 0) query.insert("cursor", (!) cursor);
+        if (kind != null && ((!) kind).strip().length > 0) query.insert("kind", (!) kind);
+        var root = yield client.request_json(
+            "GET", "/projects/%s/history".printf(Uri.escape_string(project_id)), null, query
+        );
+        return ApiParsersCards.parse_project_history_page(root);
+    }
+
+    public static async Gee.ArrayList<CardSummary> list_cards(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                              string project_id,
+                                                              string view = "tree",
+                                                              string? parent_card_id = null,
+                                                              int limit = 0) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("view", view);
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            query.insert("parent_card_id", parent_card_id);
+        }
+        if (limit > 0) {
+            query.insert("limit", limit.to_string());
+        }
+        var root = yield client.request_json("GET", "/cards", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersCards.parse_cards(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async CardContextData get_card_context(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                         string project_id,
+                                                         string? parent_card_id = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("count", "true");
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            query.insert("parent_card_id", parent_card_id);
+        }
+        var root = yield client.request_json("GET", "/cards/context", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersCards.parse_card_context(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async CardDetail get_card(ApiClient client, string card_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json("GET", "/cards/%s".printf(Uri.escape_string(card_id)), null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersCards.parse_card_detail(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async CardHistoryPage list_card_history(ApiClient client,
+                                                          string project_id,
+                                                          string card_id,
+                                                          int limit = 50,
+                                                          string? cursor = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("limit", limit.to_string());
+        if (cursor != null && ((!) cursor).strip().length > 0) {
+            query.insert("cursor", (!) cursor);
+        }
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/history/cards/%s".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return ApiParsersCards.parse_card_history_page(root);
+    }
+
+    public static async CardHistoryComparison compare_card_history(ApiClient client,
+                                                                   string project_id,
+                                                                   string card_id,
+                                                                   string? from_oid,
+                                                                   string to_oid,
+                                                                   string mode = "since") throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        if (from_oid != null && ((!) from_oid).strip().length > 0) {
+            query.insert("from", (!) from_oid);
+        }
+        query.insert("to", to_oid);
+        query.insert("mode", mode);
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/history/cards/%s/compare".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return ApiParsersCards.parse_card_history_comparison(root);
+    }
+
+    public static async bool restore_card_history(ApiClient client,
+                                                  string project_id,
+                                                  string card_id,
+                                                  string oid) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("oid", oid);
+        yield client.request_json(
+            "POST",
+            "/projects/%s/history/cards/%s/restore".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return true;
+    }
+
+    public static async ProjectCalendar get_project_calendar(ApiClient client,
+                                                             string project_id,
+                                                             int64 from_epoch,
+                                                             int64 to_epoch) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("from", from_epoch.to_string());
+        query.insert("to", to_epoch.to_string());
+        var root = yield client.request_json("GET", "/calendar", null, query);
+        return ApiParsersCards.parse_project_calendar(root);
+    }
+
+    public static async Gee.ArrayList<Milestone> list_card_milestones(ApiClient client,
+                                                                      string card_id) throws Error {
+        var root = yield client.request_json(
+            "GET",
+            "/cards/%s/milestones".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+        return ApiParsersCards.parse_milestones_response(root);
+    }
+
+    public static async Milestone add_card_milestone(ApiClient client,
+                                                     string card_id,
+                                                     int64 start_at,
+                                                     int64? end_at,
+                                                     bool all_day,
+                                                     string? kind,
+                                                     string? description) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("start_at"); body.add_int_value(start_at);
+        body.set_member_name("end_at");
+        if (end_at == null) body.add_null_value(); else body.add_int_value((!) end_at);
+        body.set_member_name("all_day"); body.add_boolean_value(all_day);
+        body.set_member_name("kind");
+        if (kind == null || kind.strip().length == 0) body.add_null_value();
+        else body.add_string_value(kind.strip());
+        body.set_member_name("description");
+        if (description == null || description.strip().length == 0) body.add_null_value();
+        else body.add_string_value(description.strip());
+        body.end_object();
+        var root = yield client.request_json(
+            "POST",
+            "/cards/%s/milestones".printf(Uri.escape_string(card_id)),
+            client.json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestone create response");
+        }
+        return ApiParsersCards.parse_milestone(root.get_object_member("data"));
+    }
+
+    public static async bool remove_card_milestone(ApiClient client,
+                                                   string card_id,
+                                                   string milestone_id) throws Error {
+        var root = yield client.request_json(
+            "DELETE",
+            "/cards/%s/milestones/%s".printf(
+                Uri.escape_string(card_id), Uri.escape_string(milestone_id)
+            ),
+            null,
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestone delete response");
+        }
+        var data = root.get_object_member("data");
+        return data.has_member("removed") && data.get_boolean_member("removed");
+    }
+
+    public static async Milestone update_card_milestone(ApiClient client,
+                                                        string card_id,
+                                                        string milestone_id,
+                                                        int64 start_at,
+                                                        int64? end_at,
+                                                        bool all_day,
+                                                        string? kind,
+                                                        string? description) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("start_at"); body.add_int_value(start_at);
+        body.set_member_name("end_at");
+        if (end_at == null) body.add_null_value(); else body.add_int_value((!) end_at);
+        body.set_member_name("all_day"); body.add_boolean_value(all_day);
+        body.set_member_name("kind");
+        if (kind == null || kind.strip().length == 0) body.add_null_value();
+        else body.add_string_value(kind.strip());
+        body.set_member_name("description");
+        if (description == null || description.strip().length == 0) body.add_null_value();
+        else body.add_string_value(description.strip());
+        body.end_object();
+        var root = yield client.request_json(
+            "PATCH",
+            "/cards/%s/milestones/%s".printf(
+                Uri.escape_string(card_id), Uri.escape_string(milestone_id)
+            ),
+            client.json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestone update response");
+        }
+        return ApiParsersCards.parse_milestone(root.get_object_member("data"));
+    }
+
+    public static async Gee.ArrayList<TagCount> list_project_tags(ApiClient client,
+                                                                  string project_id) throws Error {
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/tags".printf(Uri.escape_string(project_id)),
+            null,
+            null
+        );
+        return ApiParsersCards.parse_project_tags(root);
+    }
+
+    public static async Gee.ArrayList<CardSummary> list_cards_with_tag(ApiClient client,
+                                                                       string project_id,
+                                                                       string tag) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("tag", tag);
+        var root = yield client.request_json("GET", "/cards", null, query);
+        return ApiParsersCards.parse_cards(root);
+    }
+
+    public static async Gee.ArrayList<CardLink> list_card_links(ApiClient client, string card_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "GET",
+            "/cards/%s/links".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+        return ApiParsersCards.parse_card_links(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async Gee.ArrayList<CardLink> list_card_backlinks(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                                    string card_id) throws Error {
+        var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "GET",
+            "/cards/%s/backlinks".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+        return ApiParsersCards.parse_card_links(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async CardLink create_card_link(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                  string from_card_id,
+                                                  string to_card_id,
+                                                  string kind = "ref",
+                                                  string? label = null,
+                                                  string to_type = "card") throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("to_card_id");
+        body.add_string_value(to_card_id);
+        if (to_type != null && to_type.length > 0 && to_type != "card") { // LCOV_EXCL_BR_LINE: short-circuit branch artifact
+            body.set_member_name("to_type");
+            body.add_string_value(to_type);
+        }
+        if (kind != null && kind.strip().length > 0) { // LCOV_EXCL_BR_LINE: short-circuit branch artifact
+            body.set_member_name("kind");
+            body.add_string_value(kind.strip());
+        }
+        if (label != null && label.strip().length > 0) {
+            body.set_member_name("label");
+            body.add_string_value(label.strip());
+        }
+        body.end_object();
+
+        var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "POST",
+            "/cards/%s/links".printf(Uri.escape_string(from_card_id)),
+            client.json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for card link create response"); // LCOV_EXCL_BR_LINE: throw edge artifact
+        }
+        return ApiParsersCards.parse_card_link(root.get_object_member("data")); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async void delete_card_link(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                              string from_card_id,
+                                              string to_card_id,
+                                              string kind,
+                                              string to_type = "card") throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("to_card_id");
+        body.add_string_value(to_card_id);
+        if (to_type != null && to_type.length > 0) { // LCOV_EXCL_BR_LINE: short-circuit branch artifact
+            body.set_member_name("to_type");
+            body.add_string_value(to_type);
+        }
+        if (kind != null && kind.strip().length > 0) { // LCOV_EXCL_BR_LINE: short-circuit branch artifact
+            body.set_member_name("kind");
+            body.add_string_value(kind.strip());
+        }
+        body.end_object();
+
+        yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "DELETE",
+            "/cards/%s/links".printf(Uri.escape_string(from_card_id)),
+            client.json_string_from_builder(body),
+            null
+        );
+    }
+
+    public static async string create_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                           string project_id,
+                                           string title,
+                                           string content,
+                                           string? parent_card_id = null) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("title");
+        body.add_string_value(title);
+        body.set_member_name("content");
+        body.add_string_value(content);
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            body.set_member_name("parent_card_id");
+            body.add_string_value(parent_card_id);
+        }
+        body.end_object();
+
+        var root = yield client.request_json("POST", "/cards", client.json_string_from_builder(body), null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        var data = root.get_object_member("data"); // LCOV_EXCL_BR_LINE: invalid-type branch artifact
+        return data.get_string_member("card_id"); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+
+    public static async void update_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                         string card_id,
+                                         string title,
+                                         string content,
+                                         int64 updated_at) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("title");
+        body.add_string_value(title);
+        body.set_member_name("content");
+        body.add_string_value(content);
+        body.set_member_name("updated_at");
+        body.add_int_value(updated_at);
+        body.end_object();
+
+        yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "PATCH",
+            "/cards/%s".printf(Uri.escape_string(card_id)),
+            client.json_string_from_builder(body),
+            null
+        );
+    }
+
+    public static async void update_card_position(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                  string card_id,
+                                                  string? parent_card_id,
+                                                  double sort_key,
+                                                  int64 updated_at) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("parent_card_id");
+        if (parent_card_id == null || parent_card_id.length == 0) {
+            body.add_null_value();
+        } else {
+            body.add_string_value(parent_card_id);
+        }
+        body.set_member_name("sort_key");
+        body.add_double_value(sort_key);
+        body.set_member_name("updated_at");
+        body.add_int_value(updated_at);
+        body.end_object();
+
+        yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "PATCH",
+            "/cards/%s".printf(Uri.escape_string(card_id)),
+            client.json_string_from_builder(body),
+            null
+        );
+    }
+
+    internal static string delete_card_path(string card_id, bool trash_subtree) {
+        var path = "/cards/%s".printf(Uri.escape_string(card_id));
+        return trash_subtree ? path + "?children=trash_subtree" : path;
+    }
+
+    public static async void delete_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                         string card_id,
+                                         bool trash_subtree = false) throws Error {
+        yield client.request_json(
+            "DELETE",
+            delete_card_path(card_id, trash_subtree),
+            null,
+            null
+        );
+    }
+
+    // Without a parent_card_id the daemon keeps the card's current parent. The field is left out
+    // rather than sent as null, which the daemon reads as the project's top level.
+    internal static string build_move_card_body_text(string project_id,
+                                                     string intent,
+                                                     string? target_card_id,
+                                                     string? parent_card_id) {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("intent");
+        body.add_string_value(intent);
+        if (target_card_id != null && target_card_id.strip().length > 0) {
+            body.set_member_name("target_card_id");
+            body.add_string_value(target_card_id);
+        }
+        if ((intent == "to_start" || intent == "to_end") &&
+            parent_card_id != null && parent_card_id.strip().length > 0) {
+            body.set_member_name("parent_card_id");
+            body.add_string_value(parent_card_id);
+        }
+        body.end_object();
+        return ApiClientTransport.json_string_from_builder(body);
+    }
+
+    public static async CardMoveResult move_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                 string card_id,
+                                                 string project_id,
+                                                 string intent,
+                                                 string? target_card_id = null,
+                                                 string? parent_card_id = null) throws Error {
+        var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "POST",
+            "/cards/%s/move".printf(Uri.escape_string(card_id)),
+            build_move_card_body_text(project_id, intent, target_card_id, parent_card_id),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for move response"); // LCOV_EXCL_BR_LINE: throw edge artifact
+        }
+        return ApiParsersCards.parse_card_move_result(root.get_object_member("data")); // LCOV_EXCL_BR_LINE: call/return branch artifact
+    }
+}
+
+}

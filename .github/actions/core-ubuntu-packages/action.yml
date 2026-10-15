@@ -1,0 +1,66 @@
+name: Core Ubuntu packages
+description: >-
+  Provide core's libholder0 and libholder-dev packages for one Ubuntu series, for core/ in the
+  checked-out commit: from holder-sdk's core-<tree> release (main's green builds) when it has them,
+  otherwise built from core/ as the Launchpad upload builds them. Installs them and leaves them,
+  with a libholder-<series>.sha256, in out/core-debs. Runs as root in an Ubuntu container with
+  the packaging tools installed.
+inputs:
+  series:
+    description: The Ubuntu series, for example noble
+    required: true
+outputs:
+  found:
+    description: "'true' when the packages came from holder-sdk"
+    value: ${{ steps.shelf.outputs.found }}
+runs:
+  using: composite
+  steps:
+    - id: shelf
+      name: Download core's packages for this tree from holder-sdk
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        SERIES: ${{ inputs.series }}
+      run: |
+        set -euo pipefail
+        # The checkout belongs to another user than the container's root.
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        command -v curl >/dev/null || apt-get install -y --no-install-recommends curl
+        .github/scripts/fetch-core-debs.sh "$(git rev-parse HEAD:core)" "$SERIES" out/core-debs
+
+    - name: Build core packages from core/ in this commit
+      if: steps.shelf.outputs.found != 'true'
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        SERIES: ${{ inputs.series }}
+      working-directory: core
+      run: |
+        set -euo pipefail
+        version="$(tr -d '[:space:]' < VERSION)"
+        cp -a packaging/linux/debian debian
+        # Version the packages from VERSION as the Launchpad upload does, so consumers'
+        # libholder-dev requirements are checked against the core being built.
+        cat > debian/changelog <<CHANGELOG
+        holder-core (${version}-1~${SERIES}1) ${SERIES}; urgency=medium
+
+          * Build libholder packages from core tree $(git rev-parse HEAD:./).
+
+         -- Holder Team <holdercardteam@gmail.com>  $(date -R)
+        CHANGELOG
+        mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+        dpkg-buildpackage -b -us -uc -j2
+        mkdir -p ../out/core-debs
+        # GitHub renames release assets with characters such as "~", so give the packages names it
+        # keeps; apt reads the package's name and version from inside the file.
+        for deb in ../libholder0_*.deb ../libholder-dev_*.deb; do
+          cp "$deb" "../out/core-debs/$(basename "$deb" | tr '~' '.')"
+        done
+        (cd ../out/core-debs && sha256sum libholder0_*.deb libholder-dev_*.deb > "libholder-${SERIES}.sha256")
+
+    - name: Install core packages
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: apt-get install -y --no-install-recommends ./out/core-debs/libholder0_*.deb ./out/core-debs/libholder-dev_*.deb

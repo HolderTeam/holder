@@ -1,0 +1,289 @@
+name: Release / Kit to PyPI
+
+# Builds Holder Kit's wheels (CPython 3.10-3.15 on Linux, Windows and macOS) and source archive,
+# and publishes them to TestPyPI or PyPI. Kit is built against Release core SDKs that Core / SDK
+# builds from core/ in the same commit (cached by core/'s tree, so a release usually reuses the
+# SDKs its Daemon CI run built). Publishing requires the holder-v<version> tag, with Kit, core and
+# the repository all at that version.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release-kit-pypi.yml
+      - .github/workflows/core-sdk.yml
+      - .github/actions/core-sdk/**
+      - python/kit/pyproject.toml
+      - python/kit/CMakeLists.txt
+      - python/kit/src/**
+      - python/kit/scripts/*wheel*.py
+      - python/kit/scripts/check-release-distributions.py
+      - python/kit/scripts/pypi_readme.py
+      - python/kit/README.md
+      - python/kit/docs/**
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: Build only, or publish from a holder-v<version> tag after validation
+        type: choice
+        options: [none, testpypi, pypi]
+        default: none
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: python/kit
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.config.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - id: config
+        name: Check the version and the destination
+        env:
+          DESTINATION: ${{ inputs.destination || 'none' }}
+        run: |
+          python - <<'PY'
+          import os, tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+          holder_version = Path('../../VERSION').read_text().strip()
+          if os.environ['DESTINATION'] != 'none':
+              assert version == holder_version, f'Kit is at {version}, not the Holder version {holder_version}'
+              assert os.environ['GITHUB_REF'] == f'refs/tags/holder-v{version}', 'Publishing requires the holder-v<version> tag'
+          elif version != holder_version:
+              print(f'::warning::Kit is at {version}, not the Holder version {holder_version}; it cannot be published')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
+
+  core-sdk:
+    # Kit is built against core from this same commit, through core's Release SDKs.
+    needs: prepare
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/core-sdk.yml
+    with:
+      build_type: Release
+
+  wheels:
+    needs: [prepare, core-sdk]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+        runner: [ubuntu-24.04, windows-2025, macos-15]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Fetch the Release core SDK
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+          build-type: Release
+      - name: Configure Python build tools
+        shell: bash
+        run: |
+          echo 'CMAKE_GENERATOR=Ninja' >> "$GITHUB_ENV"
+          echo "SKBUILD_CMAKE_BUILD_TYPE=$HOLDER_CORE_BUILD_TYPE" >> "$GITHUB_ENV"
+          # The wheel records the SDK's manifest, which names the commit that built that SDK.
+          echo "CORE_COMMIT=$(python -c 'import json, os, pathlib; print(json.loads((pathlib.Path(os.environ["HOLDER_CORE_SDK"]) / "libholder-manifest.json").read_text())["commit"])')" >> "$GITHUB_ENV"
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config \
+            patchelf libssl-dev nlohmann-json3-dev libyaml-cpp-dev libspdlog-dev \
+            libsqlite3-dev libsodium-dev libgit2-dev libmd4c-dev libsecret-1-dev
+      - name: macOS native dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja pkg-config nlohmann-json yaml-cpp spdlog sqlite \
+            libsodium libgit2 md4c openssl@3
+          echo 'MACOSX_DEPLOYMENT_TARGET=15.0' >> "$GITHUB_ENV"
+          echo "CMAKE_ARGS=$CMAKE_ARGS -DCMAKE_PREFIX_PATH=$(brew --prefix);$(brew --prefix openssl@3) -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3) -DCMAKE_OSX_ARCHITECTURES=arm64" >> "$GITHUB_ENV"
+      - name: Build wheel
+        shell: bash
+        run: |
+          python scripts/pypi_readme.py --commit "$GITHUB_SHA"
+          python -m pip install --upgrade pip
+          python -m pip install build wheel twine
+          python -m build --wheel --outdir out/raw
+      - name: Bundle Linux runtime and validate manylinux ABI
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install 'auditwheel==6.8.2'
+          python scripts/repair-linux-wheel.py --output dist out/raw/*.whl
+      - name: Bundle macOS runtime
+        if: runner.os == 'macOS'
+        run: |
+          python -m pip install delocate
+          python scripts/wheel-notices.py --output out/noticed out/raw/*.whl
+          delocate-wheel --require-archs arm64 -v -w dist out/noticed/*.whl
+      - name: Bundle Windows runtime
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python -m pip install delvewheel
+          python scripts/wheel-notices.py --output out/noticed out/raw/*.whl
+          python -m delvewheel repair --add-path "$HOLDER_CORE_SDK/bin" -w dist out/noticed/*.whl
+      - name: Check distribution metadata
+        shell: bash
+        run: python -m twine check --strict dist/*.whl
+      - name: Install wheel in a new virtualenv
+        shell: bash
+        env:
+          KIT_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python -m venv out/test-venv
+          if [ "$RUNNER_OS" = Windows ]; then
+            test_python=out/test-venv/Scripts/python.exe
+          else
+            test_python=out/test-venv/bin/python
+          fi
+          "$test_python" -m pip install --no-deps dist/*.whl
+          env -u HOLDER_CORE_SDK -u CMAKE_ARGS -u LD_LIBRARY_PATH -u DYLD_LIBRARY_PATH \
+            "$test_python" -I scripts/test-installed-wheel.py --core-commit "$CORE_COMMIT" --version "$KIT_VERSION"
+          "$test_python" -m pip install 'pytest>=8' pandas networkx
+          "$test_python" -I -m pytest -v -x -o faulthandler_timeout=60 --import-mode=importlib tests/test_holder.py \
+            tests/test_connections.py tests/test_graph.py tests/test_pandas.py \
+            tests/test_projects.py tests/test_card_batches.py tests/test_live_cards.py tests/test_card_collections.py tests/test_card_movement.py tests/test_card_navigation.py
+      - name: Linux wheel in a clean Debian runtime
+        if: runner.os == 'Linux'
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+          KIT_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          docker run --rm -v "$PWD:/source:ro" \
+            -e CORE_COMMIT -e KIT_VERSION "python:${PYTHON_VERSION}-slim-trixie" \
+            bash -c 'python -m venv /venv && /venv/bin/python -m pip install --no-deps /source/dist/*.whl && cd /tmp && /venv/bin/python -I /source/scripts/test-installed-wheel.py --core-commit "$CORE_COMMIT" --version "$KIT_VERSION"'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kit-wheel-${{ matrix.runner }}-${{ matrix.python }}
+          path: python/kit/dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    needs: [prepare, core-sdk]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python scripts/pypi_readme.py --commit "$GITHUB_SHA"
+          python -m pip install build twine
+          python -m build --sdist --outdir dist
+          python -m twine check --strict dist/*.tar.gz
+      - name: Fetch the Release core SDK
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+          build-type: Release
+      - name: Build and install the source archive with the Release SDK
+        env:
+          KIT_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build pkg-config \
+            libssl-dev nlohmann-json3-dev libyaml-cpp-dev libspdlog-dev libsqlite3-dev \
+            libsodium-dev libgit2-dev libmd4c-dev libsecret-1-dev
+          core_commit="$(jq -r .commit "$HOLDER_CORE_SDK/libholder-manifest.json")"
+          python -m venv out/source-test
+          out/source-test/bin/python -m pip install --no-deps dist/*.tar.gz
+          out/source-test/bin/python -I scripts/test-installed-wheel.py --core-commit "$core_commit" --version "$KIT_VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kit-source-distribution
+          path: python/kit/dist/*.tar.gz
+          if-no-files-found: error
+
+  distributions:
+    needs: [prepare, wheels, sdist]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: kit-wheel-*
+          path: python/kit/dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kit-source-distribution
+          path: python/kit/dist
+      - name: Download the core selection the wheels used
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: core-selection
+          path: python/kit/out
+      - name: Verify the release set
+        env:
+          DESTINATION: ${{ inputs.destination || 'none' }}
+          KIT_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          core_version="$(jq -r .version out/core-selection.json)"
+          if [ "$DESTINATION" != none ] && [ "$core_version" != "$KIT_VERSION" ]; then
+            echo "Core is at $core_version, not the release version $KIT_VERSION." >&2
+            exit 1
+          fi
+          python scripts/check-release-distributions.py dist --selection out/core-selection.json --manifest out/release-manifest.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kit-release-distributions
+          path: python/kit/dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kit-release-manifest
+          path: python/kit/out/release-manifest.json
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.destination != 'none'
+    needs: distributions
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.destination }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kit-release-distributions
+          path: dist
+      - name: Publish to TestPyPI
+        if: inputs.destination == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: inputs.destination == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

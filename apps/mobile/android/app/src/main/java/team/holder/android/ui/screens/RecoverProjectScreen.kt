@@ -1,0 +1,427 @@
+package team.holder.android.ui.screens
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import team.holder.android.HolderNative
+import team.holder.android.HolderProject
+import team.holder.android.RecoveryTokenImportGlobalResult
+import team.holder.android.git.github.GitHubBackfill
+import team.holder.android.git.github.GitHubConnection
+import team.holder.android.git.github.GitHubConnectionCoordinator
+import team.holder.android.git.github.GitHubError
+import team.holder.android.git.github.GitHubResult
+import team.holder.android.git.github.GitHubStatus
+import team.holder.android.git.github.parseGitHubOwnerRepo
+import team.holder.android.ui.GitHubBackfillDialog
+import team.holder.android.ui.githubCheckFailureReason
+import team.holder.android.ui.githubErrorMessage
+import team.holder.android.ui.openUrlExternally
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecoverProjectScreen(
+    onBack: () -> Unit,
+    browserLauncher: GitHubConnectionCoordinator.GitHubBrowserLauncher,
+    initialToken: String? = null,
+) {
+    val context = LocalContext.current
+    var pin by remember { mutableStateOf("") }
+    // initialToken comes from opening a .hrk file directly (see MainActivity's ACTION_VIEW
+    // handling) rather than pasting one by hand -- seeded once, same as every other field here;
+    // still just an editable starting value, not a locked-in source of truth.
+    var token by remember { mutableStateOf(initialToken.orEmpty()) }
+    var isBusy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<RecoveryTokenImportGlobalResult?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    // Mutable copies of result's own pullStatus/pullError -- updated in place after a
+    // successful device-registration retry below, so the "Pull: ..." line reflects the
+    // latest attempt without needing a second HolderNative.importRecoveryTokenGlobal call.
+    var pullStatus by remember { mutableStateOf<String?>(null) }
+    var pullError by remember { mutableStateOf<String?>(null) }
+
+    // GITHUB_INTEGRATION_ANDROID_PLAN.md's wiring point 3: only meaningful once a pull has
+    // actually failed against a github.com remote -- null otherwise, including the entire
+    // happy path where the pull just succeeds. Deliberately does not gate on
+    // GitHubConnection's connection status the way New Project's checkbox does (see the
+    // plan's "Contrast with point 2" note): a device recovering a GitHub-backed project has
+    // no alternative, so this section discovers and drives a GitHub connection from a cold
+    // start rather than requiring one already exist.
+    var githubOwnerRepo by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var githubStatus by remember { mutableStateOf<GitHubStatus?>(null) }
+    var githubBusy by remember { mutableStateOf(false) }
+    // Advanced by each recovery run and by Cancel. A run stops at its next step once this has
+    // moved on, so Cancel also works during the status check before Connect exists.
+    var githubRun by remember { mutableStateOf(0) }
+    var githubError by remember { mutableStateOf<String?>(null) }
+    // Set only for GitHubError.RepositoryNotAccessible -- the friendly recovery route the
+    // plan's "Selective-repository installations" section designed: a direct link to where
+    // the user grants access, rather than just a generic error message.
+    var githubActionUrl by remember { mutableStateOf<String?>(null) }
+    // Non-null only while the one-time "sync your existing projects?" offer is showing --
+    // see GitHubBackfill.checkAndMarkOfferedOnce, called from continueGithubRecovery below.
+    var backfillCandidates by remember { mutableStateOf<List<HolderProject>?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    /** Registers this device's key against [owner]/[repo] and retries the pull -- the
+     * "register device → resync" half of the plan's authorize → install → register →
+     * resync chain. Only reached once [githubStatus] is already [GitHubStatus.Connected]. */
+    suspend fun registerAndRetryPull(projectId: String, owner: String, repo: String) {
+        when (val keyResult = GitHubConnection.registerDeployKey(context, projectId, owner, repo)) {
+            is GitHubResult.Success -> {
+                runCatching {
+                    withContext(Dispatchers.IO) { HolderNative.pullGit(projectId) }
+                }.onSuccess { retried ->
+                    pullStatus = retried.status
+                    pullError = retried.errorMessage
+                }.onFailure { failure ->
+                    // The deploy key really was registered at this point -- worth being
+                    // explicit that this failure is something else, and worth actually
+                    // showing what, rather than a swallowed-exception generic message.
+                    githubError = "Registered this device, but the retry pull failed to run: " +
+                        (failure.message ?: failure::class.java.simpleName)
+                }
+            }
+            is GitHubResult.Failure -> {
+                val failure = keyResult.error
+                githubError = githubErrorMessage(failure)
+                githubActionUrl = (failure as? GitHubError.RepositoryNotAccessible)?.installationSettingsUrl
+            }
+        }
+    }
+
+    /** The full authorize → install → register → resync chain from one call, driving
+     * whatever the current status turns out to be -- see the plan's wiring point 3:
+     * "authorize → install → register device → resync all happen on this one screen... no
+     * detour through Settings." Checks status; if it's [GitHubStatus.NotConnected] or
+     * [GitHubStatus.AuthorizationRequired], immediately runs [GitHubConnection.connect]
+     * itself (per direct steer: skip the extra "Connect to GitHub" tap when a failed pull
+     * already told us she needs this -- no reason to make her ask twice), then re-checks;
+     * once [GitHubStatus.Connected] either way, continues straight into
+     * [registerAndRetryPull]. [GitHubStatus.InstallationRequired] is left alone here --
+     * unlike Connect, "finish installing" opens a heavier one-time GitHub page and stays an
+     * explicit tap (`GitHubRecoverySection`'s own button), so a stale/failed attempt here
+     * never turns into a surprise repeated browser-switch on its own.
+     *
+     * One function, not two mutually-calling ones (an earlier draft tried a separate
+     * startGithubConnect calling back into this) -- Kotlin local functions can't
+     * forward-reference each other in a Composable body, and a single linear chain reads
+     * more clearly here anyway. Called right after a GitHub-eligible import failure, and by
+     * the explicit "check again"/"Retry" buttons alike. */
+    suspend fun continueGithubRecovery(projectId: String, owner: String, repo: String) {
+        val run = ++githubRun
+        githubError = null
+        githubActionUrl = null
+        githubBusy = true
+
+        val statusOutcome = runCatching { GitHubConnection.status(context) }
+        if (run != githubRun) return
+        var status = statusOutcome
+            .onFailure { githubError = it.message ?: "Could not check GitHub status" }
+            .getOrNull()
+        githubStatus = status
+
+        if (status is GitHubStatus.NotConnected || status is GitHubStatus.AuthorizationRequired) {
+            val connectOutcome = runCatching { GitHubConnection.connect(context, browserLauncher) }
+            if (run != githubRun) return
+            connectOutcome.onFailure { failure -> githubError = failure.message ?: "Could not connect to GitHub" }
+            when (val connectResult = connectOutcome.getOrNull()) {
+                is GitHubResult.Success -> status = connectResult.value
+                is GitHubResult.Failure -> githubError = githubErrorMessage(connectResult.error)
+                null -> {} // exception already recorded above
+            }
+            githubStatus = status
+        }
+
+        if (status is GitHubStatus.Connected) {
+            // Idempotent (no-ops after the first real time) -- see
+            // GitHubBackfill.checkAndMarkOfferedOnce's doc comment on why it's safe and
+            // correct to call this from every place a screen learns status is Connected,
+            // not just one canonical trigger. The project being recovered right now is
+            // never a candidate itself: it already has a remote configured by this point.
+            GitHubBackfill.checkAndMarkOfferedOnce(context).let { eligible ->
+                if (eligible.isNotEmpty()) backfillCandidates = eligible
+            }
+            registerAndRetryPull(projectId, owner, repo)
+        }
+        if (run == githubRun) githubBusy = false
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Import Project") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+        ) {
+            Text(
+                "A recovery key allows you to open a project you created on another device, " +
+                    "recover a project after losing or replacing a device, or open a project " +
+                    "that someone has shared with you.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "Paste the recovery key below, and enter its PIN, to import the project onto this device.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = { pin = it },
+                label = { Text("PIN") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            )
+            OutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                label = { Text("Recovery key") },
+                textStyle = MaterialTheme.typography.bodySmall,
+                // A real token is long enough (a few hundred bytes of JSON/base64) that
+                // without a height cap this field grows to fit all of it, pushing Recover
+                // -- and everything below it -- off screen. Capped and internally
+                // scrollable instead; the field's own drag-to-scroll still works normally.
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 160.dp),
+            )
+            Button(
+                enabled = !isBusy && pin.isNotBlank() && token.isNotBlank(),
+                modifier = Modifier.padding(top = 16.dp),
+                onClick = {
+                    if (!isBusy) {
+                        isBusy = true
+                        error = null
+                        result = null
+                        githubOwnerRepo = null
+                        githubStatus = null
+                        githubError = null
+                        scope.launch {
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    HolderNative.importRecoveryTokenGlobal(pin, token)
+                                }
+                            }.fold(
+                                onSuccess = { imported ->
+                                    result = imported
+                                    pullStatus = imported.pullStatus
+                                    pullError = imported.pullError
+                                    // Eligible for GitHub device-registration only once a pull
+                                    // was actually attempted against a real remote and failed
+                                    // -- the happy path (pullStatus == "succeeded") and the
+                                    // no-remote-hint path both skip this entirely.
+                                    if (imported.remoteHintPresent && imported.remoteConfigured &&
+                                        imported.pullStatus != "succeeded"
+                                    ) {
+                                        val remoteUrl = runCatching {
+                                            withContext(Dispatchers.IO) { HolderNative.listProjects() }
+                                        }.getOrNull()?.firstOrNull { it.projectId == imported.projectId }?.gitRemoteUrl
+                                        val ownerRepo = remoteUrl?.let(::parseGitHubOwnerRepo)
+                                        if (ownerRepo != null) {
+                                            githubOwnerRepo = ownerRepo
+                                            continueGithubRecovery(imported.projectId, ownerRepo.first, ownerRepo.second)
+                                        }
+                                    }
+                                },
+                                onFailure = { error = it.message ?: it::class.java.simpleName },
+                            )
+                            isBusy = false
+                        }
+                    }
+                },
+            ) { Text("Import") }
+
+            if (isBusy) {
+                CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
+            }
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp))
+            }
+            result?.let { r ->
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    Text(
+                        if (r.projectCreated) "Project imported (newly created)." else "Project key re-imported.",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (r.remoteHintPresent) {
+                        val remoteSummary = if (r.remoteConfigured) {
+                            "configured"
+                        } else {
+                            "failed to configure" + (r.remoteError?.let { " -- $it" } ?: "")
+                        }
+                        Text("Remote: $remoteSummary")
+                        Text("Pull: $pullStatus" + (pullError?.let { " -- $it" } ?: ""))
+                    }
+                }
+
+                val ownerRepo = githubOwnerRepo
+                if (ownerRepo != null && pullStatus != "succeeded") {
+                    val (owner, repo) = ownerRepo
+
+                    // Unlike SyncSettingsScreen, this screen drives its own multi-step recovery
+                    // chain (continueGithubRecovery) rather than just mirroring GitHubConnection
+                    // .statusFlow directly -- so it watches that Flow itself here, and re-runs
+                    // the chain once when it sees Connected arrive while still waiting on
+                    // installation. MainActivity forwards the Setup URL return (see
+                    // onFinishSetup below) into GitHubConnectionCoordinator, which is what
+                    // actually updates statusFlow -- this effect is just what turns that
+                    // update into finishing recovery, with no second button to press.
+                    val coordinatorStatus by GitHubConnection.statusFlow.collectAsState()
+                    LaunchedEffect(coordinatorStatus) {
+                        if (githubStatus is GitHubStatus.InstallationRequired && coordinatorStatus is GitHubStatus.Connected) {
+                            continueGithubRecovery(r.projectId, owner, repo)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    GitHubRecoverySection(
+                        status = githubStatus,
+                        busy = githubBusy,
+                        error = githubError,
+                        actionUrl = githubActionUrl,
+                        // Only reachable if continueGithubRecovery's own auto-connect attempt
+                        // (see its doc comment) already failed -- a manual fallback, not the
+                        // primary path.
+                        onConnect = { scope.launch { continueGithubRecovery(r.projectId, owner, repo) } },
+                        onCancel = {
+                            githubRun++
+                            githubBusy = false
+                            scope.launch { GitHubConnection.cancelConnect() }
+                        },
+                        onOpenUrl = { url -> openUrlExternally(context, url) },
+                        onFinishSetup = { installUrl ->
+                            scope.launch {
+                                val state = GitHubConnection.beginInstallationReturn()
+                                openUrlExternally(context, "$installUrl/installations/new?state=$state")
+                            }
+                        },
+                        onCheckInstallation = { scope.launch { continueGithubRecovery(r.projectId, owner, repo) } },
+                        onRetry = { scope.launch { continueGithubRecovery(r.projectId, owner, repo) } },
+                    )
+
+                    backfillCandidates?.let { candidates ->
+                        GitHubBackfillDialog(
+                            projects = candidates,
+                            onFinished = { backfillCandidates = null },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The device-registration half of GITHUB_INTEGRATION_ANDROID_PLAN.md's wiring point 3:
+ * authorize (if needed) -> finish installing (if needed) -> register this device -> retry
+ * the pull, all from this one section. [status] null means "not checked yet" (shown as a
+ * brief loading state, not a fifth [GitHubStatus]); [RecoverProjectScreen] only shows this
+ * section at all once it already knows the failed remote is a GitHub one.
+ */
+@Composable
+private fun GitHubRecoverySection(
+    status: GitHubStatus?,
+    busy: Boolean,
+    error: String?,
+    actionUrl: String?,
+    onConnect: () -> Unit,
+    onCancel: () -> Unit,
+    onOpenUrl: (String) -> Unit,
+    onFinishSetup: (String) -> Unit,
+    onCheckInstallation: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Text("GitHub sync", style = MaterialTheme.typography.titleMedium)
+    Text(
+        when (status) {
+            null -> "Checking GitHub..."
+            GitHubStatus.NotConnected, is GitHubStatus.AuthorizationRequired ->
+                "This project syncs through GitHub. Connect your GitHub account to finish " +
+                    "importing it on this device."
+            is GitHubStatus.InstallationRequired ->
+                "Signed in to GitHub -- one more step is needed before this device can sync."
+            is GitHubStatus.Connected -> "Registering this device with GitHub..."
+            is GitHubStatus.Unchecked ->
+                "Your GitHub sign-in is saved, but Holder couldn't check it " +
+                    "(${githubCheckFailureReason(status.reason)}). Retry once you're online."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp)) }
+
+    when {
+        busy -> Row(modifier = Modifier.padding(top = 12.dp)) {
+            CircularProgressIndicator()
+            TextButton(onClick = onCancel) { Text("Cancel sign-in") }
+        }
+        status == null -> {}
+        status is GitHubStatus.InstallationRequired -> {
+            Button(onClick = { onFinishSetup(status.installUrl) }, modifier = Modifier.padding(top = 8.dp)) {
+                Text("Finish installing Holder Project Setup")
+            }
+            TextButton(onClick = onCheckInstallation) { Text("Check installation") }
+        }
+        status is GitHubStatus.NotConnected || status is GitHubStatus.AuthorizationRequired ->
+            Button(onClick = onConnect, modifier = Modifier.padding(top = 8.dp)) { Text("Connect to GitHub") }
+        status is GitHubStatus.Unchecked -> TextButton(onClick = onRetry) { Text("Retry") }
+        actionUrl != null -> {
+            // Connected, but registration hit GitHubError.RepositoryNotAccessible -- the
+            // friendly recovery route: a direct link to grant access, not just a retry.
+            Button(onClick = { onOpenUrl(actionUrl) }, modifier = Modifier.padding(top = 8.dp)) {
+                Text("Grant access on GitHub")
+            }
+            TextButton(onClick = onRetry) { Text("Retry") }
+        }
+        error != null ->
+            // Connected, but the last registration/retry attempt itself failed for some
+            // other reason (rate limited, network error, ...) -- offer a plain retry.
+            TextButton(onClick = onRetry) { Text("Retry") }
+        else -> {}
+    }
+}

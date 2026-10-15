@@ -69,6 +69,11 @@ if(NOT "$ENV{HOLDER_CORE_SDK}" STREQUAL "")
   set(HOLDER_CORE_SDK "$ENV{HOLDER_CORE_SDK}")
 endif()
 file(TO_CMAKE_PATH "${HOLDER_CORE_SDK}" HOLDER_CORE_SDK)
+set(HOLDER_CORE_INSTALL "" CACHE PATH "Installed local core package")
+if(NOT "$ENV{HOLDER_CORE_INSTALL}" STREQUAL "")
+  set(HOLDER_CORE_INSTALL "$ENV{HOLDER_CORE_INSTALL}")
+endif()
+file(TO_CMAKE_PATH "${HOLDER_CORE_INSTALL}" HOLDER_CORE_INSTALL)
 if(WIN32 AND HOLDER_CORE_SDK AND NOT HOLDER_USE_SYSTEM_CORE AND NOT HOLDER_CORE_SOURCE_DIR)
   list(PREPEND CMAKE_PREFIX_PATH "${HOLDER_CORE_SDK}/vcpkg/installed/x64-windows")
 endif()
@@ -240,6 +245,9 @@ endif()
 if(HOLDER_CORE_SOURCE_DIR AND HOLDER_USE_SYSTEM_CORE)
   message(FATAL_ERROR "Select one core mode: source override or system package")
 endif()
+if(HOLDER_CORE_INSTALL AND (HOLDER_CORE_SOURCE_DIR OR HOLDER_CORE_SDK OR HOLDER_USE_SYSTEM_CORE))
+  message(FATAL_ERROR "Select one core mode: local installation, source override, SDK or system package")
+endif()
 if(HOLDER_CORE_SOURCE_DIR)
   # Core owns its test suite. This explicit development path only builds the
   # library required by daemon; daemon's tests are enabled independently below.
@@ -259,8 +267,18 @@ if(HOLDER_CORE_SOURCE_DIR)
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SOURCE_DIR}/schema/schema.sql")
   set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SOURCE_DIR}/resources/WELCOME.md")
+elseif(HOLDER_CORE_INSTALL)
+  set(holder_DIR "${HOLDER_CORE_INSTALL}/lib/cmake/holder" CACHE PATH "Selected core CMake package" FORCE)
+  set(HOLDER_LOCAL_CORE_PACKAGE_DIR "${holder_DIR}" CACHE INTERNAL "Previously selected local core package")
+  find_package(holder CONFIG REQUIRED PATHS "${HOLDER_CORE_INSTALL}/lib/cmake/holder" NO_DEFAULT_PATH)
+  if(NOT DEFINED holder_BUILD_TYPE OR NOT CMAKE_BUILD_TYPE STREQUAL holder_BUILD_TYPE)
+    message(FATAL_ERROR "Installed core build type '${holder_BUILD_TYPE}' does not match daemon '${CMAKE_BUILD_TYPE}'; rebuild and install core with the matching build type")
+  endif()
+  set(HOLDER_CORE_TARGET Holder::Core)
+  set(HOLDER_CORE_SCHEMA "${holder_SCHEMA_FILE}")
+  set(HOLDER_CORE_WELCOME "${holder_WELCOME_FILE}")
 elseif(HOLDER_USE_SYSTEM_CORE)
-  if(holder_DIR STREQUAL "${HOLDER_CORE_SDK}/lib/cmake/holder")
+  if(holder_DIR STREQUAL "${HOLDER_CORE_SDK}/lib/cmake/holder" OR holder_DIR STREQUAL HOLDER_LOCAL_CORE_PACKAGE_DIR)
     unset(holder_DIR CACHE)
   endif()
   find_package(holder CONFIG REQUIRED)
@@ -278,7 +296,7 @@ elseif(HOLDER_USE_SYSTEM_CORE)
   set(HOLDER_CORE_WELCOME "${holder_DATA_DIR}/resources/WELCOME.md")
 else()
   if(NOT EXISTS "${HOLDER_CORE_SDK}/libholder-manifest.json")
-    message(FATAL_ERROR "Missing core SDK. Resolve and fetch with holder-core/scripts/core-sdk.py, then set HOLDER_CORE_SDK. Source builds require an explicit HOLDER_CORE_SOURCE_DIR.")
+    message(FATAL_ERROR "No core selected. Run make.sh to build and install core separately, or select HOLDER_CORE_INSTALL, HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE.")
   endif()
   file(READ "${HOLDER_CORE_SDK}/libholder-manifest.json" _core_manifest)
   string(JSON _core_build_type GET "${_core_manifest}" build_type)
@@ -324,7 +342,7 @@ configure_file("${HOLDER_CORE_WELCOME}"
   "${CMAKE_CURRENT_BINARY_DIR}/config/WELCOME.md" COPYONLY)
 
 # Keep a build-tree schema beside holderd for development runs and staged artifacts.
-# The only tracked schema source remains in holder-core.
+# The only tracked schema source is core's, installed with it.
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/schema")
 configure_file("${HOLDER_CORE_SCHEMA}"
   "${CMAKE_CURRENT_SOURCE_DIR}/schema/schema.sql" COPYONLY)
@@ -395,6 +413,7 @@ add_executable(holderd
   src/api/routes/ai/threads/AiThreadItemRoutes.cpp
   src/api/routes/CardReferenceRoutes.cpp
   src/api/routes/CardRoutes.cpp
+  src/api/routes/ProjectCardRoutes.cpp
   src/api/routes/HistoryRoutes.cpp
   src/api/routes/MilestoneRoutes.cpp
   src/api/routes/ProjectRoutes.cpp
@@ -559,6 +578,7 @@ add_executable(holderctl
   ${HOLDER_CLI_DIR}/src/commands/MilestoneDateTime.cpp
   ${HOLDER_CLI_DIR}/src/commands/Support.cpp
   ${HOLDER_CLI_DIR}/src/commands/card.cpp
+  ${HOLDER_CLI_DIR}/src/commands/hierarchy.cpp
   ${HOLDER_CLI_DIR}/src/commands/history.cpp
   ${HOLDER_CLI_DIR}/src/commands/links.cpp
   ${HOLDER_CLI_DIR}/src/commands/milestones.cpp
@@ -637,4 +657,21 @@ include(CTest)
 if(BUILD_TESTING)
   enable_testing()
   add_subdirectory(tests)
+endif()
+
+# GCC 13 reports a false -Wstringop-overflow in fmt 9's bigint buffer growth.
+# Limit the workaround to the affected source and dependency/compiler versions.
+# https://github.com/fmtlib/fmt/issues/3533
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13
+   AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14
+   AND fmt_VERSION VERSION_GREATER_EQUAL 9
+   AND fmt_VERSION VERSION_LESS 10)
+  set(HOLDER_FMT_WARNING_TARGETS holderd)
+  if(TARGET holder_daemon_tests)
+    list(APPEND HOLDER_FMT_WARNING_TARGETS holder_daemon_tests)
+  endif()
+  set_property(SOURCE src/api/routes/ai/runs/AiRunPostRoute.cpp
+    TARGET_DIRECTORY ${HOLDER_FMT_WARNING_TARGETS}
+    APPEND PROPERTY COMPILE_OPTIONS -Wno-stringop-overflow)
 endif()

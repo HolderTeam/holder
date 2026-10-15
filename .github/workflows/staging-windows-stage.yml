@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       desktop_run_id:
-        description: GitHub Actions run ID that uploaded holder-desktop-windows. Leave blank for latest successful desktop_ref run.
+        description: Optional Desktop / CI run ID; blank uses the newest one built from the backend's desktop source (apps/desktop/)
         required: false
         default: ""
         type: string
@@ -13,30 +13,15 @@ on:
         required: false
         default: ""
         type: string
-      desktop_repository:
-        description: Repository containing the desktop artifact and packaging metadata
-        required: true
-        type: string
-        default: HolderTeam/holder-desktop
-      desktop_ref:
-        description: holder-desktop ref to read VERSION and Windows packaging templates from
-        required: true
-        type: string
-        default: main
       backend_repository:
-        description: Repository containing the backend artifact
+        description: Repository whose Daemon CI and Desktop / CI runs to use
         required: true
         type: string
-        default: HolderTeam/holder-core
+        default: HolderTeam/holder
       release_manifest:
         description: Checked-in framework manifest pinning core and this platform's component runs
         required: false
         default: ""
-        type: string
-      core_ref:
-        description: Core SDK selection; latest-green, tag or full SHA
-        required: false
-        default: latest-green
         type: string
       sign_test_installer:
         description: Build the protected self-signed tester installer (disable for unsigned branch validation)
@@ -57,7 +42,7 @@ jobs:
 
     steps:
       - name: Check out holder-framework
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: sources/holder-framework
 
@@ -70,10 +55,8 @@ jobs:
         shell: bash
         env:
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
-          CORE_REF_INPUT: ${{ inputs.core_ref }}
           DESKTOP_RUN_ID_INPUT: ${{ inputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ inputs.backend_run_id }}
-          DESKTOP_REPOSITORY_INPUT: ${{ inputs.desktop_repository }}
           BACKEND_REPOSITORY_INPUT: ${{ inputs.backend_repository }}
         run: |
           options=()
@@ -83,13 +66,6 @@ jobs:
           python3 sources/holder-framework/staging/scripts/core-provenance.py prepare \
             --platform windows "${options[@]}"
 
-      - name: Resolve core SDK once
-        id: core
-        uses: HolderTeam/holder-core/.github/actions/core-sdk@main
-        with:
-          command: resolve
-          core-ref: ${{ steps.pins.outputs.core_ref }}
-
       - name: Resolve artifact run IDs
         id: artifact_runs
         shell: bash
@@ -97,21 +73,19 @@ jobs:
           GH_TOKEN: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           DESKTOP_RUN_ID_INPUT: ${{ steps.pins.outputs.desktop_run_id }}
           BACKEND_RUN_ID_INPUT: ${{ steps.pins.outputs.backend_run_id }}
-          DESKTOP_REPOSITORY: ${{ steps.pins.outputs.desktop_repository }}
-          DESKTOP_REF: ${{ inputs.desktop_ref }}
           BACKEND_REPOSITORY: ${{ steps.pins.outputs.backend_repository }}
         run: python3 sources/holder-framework/staging/scripts/resolve-component-runs.py --platform windows --build-type "${{ steps.pins.outputs.build_type }}"
 
-      - name: Check out holder-desktop metadata
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out the desktop's commit for its version and packaging files
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ steps.pins.outputs.desktop_repository }}
           ref: ${{ steps.artifact_runs.outputs.desktop_commit }}
-          token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
-          path: sources/holder-desktop
+          persist-credentials: false
+          path: sources/desktop
 
       - name: Download desktop artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: holder-desktop-windows${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}
           path: downloads/desktop
@@ -120,13 +94,27 @@ jobs:
           run-id: ${{ steps.artifact_runs.outputs.desktop_run_id }}
 
       - name: Download backend artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: holder-daemon-windows-backend${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}
           path: downloads/backend
           github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
           repository: ${{ steps.pins.outputs.backend_repository }}
           run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Download the backend run's core selection
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: core-selection
+          path: out
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ steps.pins.outputs.backend_repository }}
+          run-id: ${{ steps.artifact_runs.outputs.backend_run_id }}
+
+      - name: Read the core the backend was built against
+        id: core
+        shell: bash
+        run: echo "commit=$(python3 -c 'import json; print(json.load(open("out/core-selection.json"))["commit"])')" >> "$GITHUB_OUTPUT"
 
       - name: Verify backend core and release pins
         shell: bash
@@ -143,6 +131,8 @@ jobs:
             --selection out/core-selection.json --platform windows \
             --backend-root downloads/backend --desktop-root downloads/desktop \
             --desktop-commit "$DESKTOP_COMMIT" --build-type "$BUILD_TYPE" \
+            --backend-repository "${{ steps.pins.outputs.backend_repository }}" \
+            --backend-run-id "${{ steps.artifact_runs.outputs.backend_run_id }}" \
             --output out/core-provenance.json "${options[@]}"
 
       - name: Install Inno Setup
@@ -155,7 +145,6 @@ jobs:
           BACKEND_REPOSITORY: ${{ steps.pins.outputs.backend_repository }}
           BACKEND_RUN_ID: ${{ steps.artifact_runs.outputs.backend_run_id }}
           DESKTOP_REPOSITORY: ${{ steps.pins.outputs.desktop_repository }}
-          DESKTOP_REF: ${{ inputs.desktop_ref }}
           DESKTOP_RUN_ID: ${{ steps.artifact_runs.outputs.desktop_run_id }}
           PRODUCT_VERSION: ${{ steps.pins.outputs.appimage_version }}
           RELEASE_MANIFEST: ${{ inputs.release_manifest }}
@@ -164,7 +153,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $desktopSourceDir = "sources\holder-desktop"
+          $desktopSourceDir = "sources\desktop\apps\desktop\gtk"
           $desktopDir = "downloads\desktop"
           $backendDir = "downloads\backend"
           $stageDir = "out\artifacts\Holder-windows-staged"
@@ -221,7 +210,7 @@ jobs:
             backend_run_id = $env:BACKEND_RUN_ID
             created_utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss'Z'")
             desktop_artifact = "holder-desktop-windows${{ steps.pins.outputs.build_type == 'Release' && '-release' || '' }}"
-            desktop_ref = $env:DESKTOP_REF
+            desktop_tree = "${{ steps.artifact_runs.outputs.desktop_tree }}"
             desktop_repository = $env:DESKTOP_REPOSITORY
             desktop_run_id = $env:DESKTOP_RUN_ID
             platform = "windows"
@@ -318,7 +307,15 @@ jobs:
           if ((Get-FileHash "$stageDir\core-build.json").Hash -ne (Get-FileHash "downloads\backend\core-build.json").Hash) {
             throw "Staged core provenance differs from backend"
           }
-          if ($metadata.core.commit -ne "${{ steps.core.outputs.commit }}") {
+          # Each SDK in the selection records the commit that built it, which is an earlier commit
+          # with the same core/ tree when the SDK came from the cache.
+          $selection = Get-Content "out\core-selection.json" -Raw | ConvertFrom-Json
+          $sdk = @($selection.assets | Where-Object { $_.platform -eq "windows" -and $_.build_type -eq $metadata.core.build_type })
+          if ($sdk.Count -ne 1) {
+            throw "The core selection has no single Windows $($metadata.core.build_type) SDK"
+          }
+          $sdkCommit = if ($sdk[0].commit) { $sdk[0].commit } else { $selection.commit }
+          if ($metadata.core.commit -ne $sdkCommit) {
             throw "Product core provenance differs from selected SDK"
           }
           Push-Location $stageDir
@@ -332,7 +329,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $desktopSourceDir = "sources\holder-desktop"
+          $desktopSourceDir = "sources\desktop\apps\desktop\gtk"
           $stageDir = (Resolve-Path "out\artifacts\Holder-windows-staged").Path
           $outputDir = (New-Item -ItemType Directory -Force "out\artifacts\windows-unsigned-installer").FullName
           $scriptDir = (New-Item -ItemType Directory -Force "out\artifacts\windows-unsigned-installer-script").FullName
@@ -376,6 +373,16 @@ jobs:
           $installDir = (New-Item -ItemType Directory -Force "out\installer-smoke\Holder-unsigned").FullName
           $logPath = Join-Path (Resolve-Path "out\installer-smoke").Path "unsigned-install.log"
 
+          # Leave the user PATH the way an older installer and an ordinary user do: an entry that needs
+          # expanding, and the old installer's bin directory (the runtime's DLLs), which must go.
+          $environmentKey = "HKCU:\Environment"
+          $originalPath = (Get-Item $environmentKey).GetValue("Path", "", "DoNotExpandEnvironmentNames")
+          $originalKind = try { (Get-Item $environmentKey).GetValueKind("Path").ToString() } catch { "ExpandString" }
+          $seedEntry = "%USERPROFILE%\holder-smoke-seed"
+          $seed = "$seedEntry;" + (Join-Path $installDir "bin")
+          $seeded = if ($originalPath) { "$originalPath;$seed" } else { $seed }
+          New-ItemProperty -Path $environmentKey -Name Path -PropertyType ExpandString -Value $seeded -Force | Out-Null
+
           $process = Start-Process `
             -FilePath $env:UNSIGNED_SETUP_EXE `
             -ArgumentList @(
@@ -411,6 +418,37 @@ jobs:
           & (Join-Path $installDir "bin\holderd.exe") --version
           & (Join-Path $installDir "bin\holderctl.exe") --help
 
+          # The command-line tools: launchers that work, and the only thing the installer puts on PATH.
+          foreach ($launcher in @("holderctl", "holderd")) {
+            if (!(Test-Path (Join-Path $installDir "cli\$launcher.cmd"))) {
+              throw "Missing command-line launcher: cli\$launcher.cmd"
+            }
+          }
+          $ctlHelp = & (Join-Path $installDir "cli\holderctl.cmd") --help 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or $ctlHelp -notmatch "Usage") {
+            throw "cli\holderctl.cmd did not run holderctl (exit $LASTEXITCODE): $ctlHelp"
+          }
+          $daemonVersion = & (Join-Path $installDir "cli\holderd.cmd") --version 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) {
+            throw "cli\holderd.cmd did not run holderd (exit $LASTEXITCODE): $daemonVersion"
+          }
+
+          $key = Get-Item $environmentKey
+          $rawPath = $key.GetValue("Path", "", "DoNotExpandEnvironmentNames")
+          $installedEntries = @($rawPath -split ";" | Where-Object { $_ })
+          if ($installedEntries -notcontains (Join-Path $installDir "cli")) {
+            throw "The cli directory is not on the user PATH by default"
+          }
+          if ($installedEntries -contains (Join-Path $installDir "bin")) {
+            throw "The bin directory (the runtime's DLLs) must not be on the user PATH"
+          }
+          if ($installedEntries -notcontains $seedEntry) {
+            throw "The installer lost or expanded an existing PATH entry: $rawPath"
+          }
+          if ($key.GetValueKind("Path").ToString() -ne "ExpandString") {
+            throw "The installer changed the user PATH to a value type that does not expand variables"
+          }
+
           $uninstaller = Join-Path $installDir "unins000.exe"
           if (Test-Path $uninstaller) {
             Start-Process `
@@ -418,6 +456,26 @@ jobs:
               -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") `
               -Wait
           }
+
+          # The uninstaller re-launches itself from a temporary copy, so wait for it to finish.
+          for ($i = 0; $i -lt 60 -and (Test-Path (Join-Path $installDir "cli")); $i++) {
+            Start-Sleep -Milliseconds 500
+          }
+          if (Test-Path (Join-Path $installDir "cli")) {
+            throw "The uninstaller left the cli directory behind"
+          }
+          $afterEntries = @((Get-Item $environmentKey).GetValue("Path", "", "DoNotExpandEnvironmentNames") -split ";" | Where-Object { $_ })
+          foreach ($leftover in @((Join-Path $installDir "cli"), (Join-Path $installDir "bin"))) {
+            if ($afterEntries -contains $leftover) {
+              throw "The uninstaller left $leftover on the user PATH"
+            }
+          }
+          if ($afterEntries -notcontains $seedEntry) {
+            throw "The uninstaller removed an entry that was not Holder's"
+          }
+
+          # Put the user PATH back as it was.
+          New-ItemProperty -Path $environmentKey -Name Path -PropertyType $originalKind -Value $originalPath -Force | Out-Null
 
       - name: Build self-signed tester package
         if: inputs.sign_test_installer
@@ -527,7 +585,7 @@ jobs:
               Sort-Object |
               Set-Content -Encoding UTF8 (Join-Path $testReleaseDir "staging-sha256.txt")
 
-            $desktopSourceDir = "sources\holder-desktop"
+            $desktopSourceDir = "sources\desktop\apps\desktop\gtk"
             $stageDir = (Resolve-Path $testStage).Path
             $outputDir = (Resolve-Path $installerDir).Path
             $scriptDir = (New-Item -ItemType Directory -Force (Join-Path $testRoot "installer-script")).FullName
@@ -626,7 +684,7 @@ jobs:
           }
 
       - name: Upload unsigned staged package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Holder-windows-staged
           path: out/artifacts/Holder-windows-staged/**
@@ -635,7 +693,7 @@ jobs:
 
       - name: Upload self-signed tester installer
         if: inputs.sign_test_installer
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Holder-windows-test-signed-installer
           path: |

@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+override_dh_auto_configure:
+	dh_auto_configure --buildsystem=meson -- \
+		-Dtests=false \
+		--buildtype=release
+
+override_dh_auto_test:
+	# Tests are covered by CI; package builds disable tests.
+
+override_dh_auto_install:
+	dh_auto_install
+	# The app starts its own backend (holderctl ensure), so the menu entry runs it directly.
+	grep -qx 'Exec=holder-desktop' debian/tmp/usr/share/applications/team.holder.Holder.desktop
+
+%:
+	dh $@ --buildsystem=meson

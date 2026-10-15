@@ -52,6 +52,8 @@ int main(int argc, char* argv[]) {
     if (command == "backlinks") return holder::cli::command_backlinks(paths, argc, argv);
     if (command == "link") return holder::cli::command_link(paths, argc, argv);
     if (command == "trash") return holder::cli::command_trash(paths, argc, argv);
+    if (command == "move") return holder::cli::command_move(paths, argc, argv);
+    if (command == "repair") return holder::cli::command_repair(paths, argc, argv);
     if (command == "restore") return holder::cli::command_restore(paths, argc, argv);
     if (command == "new") return holder::cli::command_new(paths, argc, argv);
     if (command == "append") return holder::cli::command_append(paths, argc, argv);

@@ -1,0 +1,883 @@
+#if __has_include(<catch2/catch_test_macros.hpp>)
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#else
+#include <catch2/catch.hpp>
+#endif
+
+#include "ai/AiMessageFrontMatter.h"
+#include "ai/AiMessagePaths.h"
+#include "ai/AiThreadManifest.h"
+#include "card/CardFrontMatter.h"
+#include "card/CardPaths.h"
+#include "card/CardRepo.h"
+#include "card/CardStore.h"
+#include "core_test_helpers.h"
+#include "git/GitOps.h"
+#include "index/FtsIndexer.h"
+#include "model/Card.h"
+#include "model/Project.h"
+#include "privacy/ProjectPrivacy.h"
+#include "project/ProjectManifest.h"
+#include "project/ProjectRepo.h"
+#include "project/Rebuilder.h"
+#include "project/StartupRecovery.h"
+
+#include <algorithm>
+#include <nlohmann/json.hpp>
+#include <sstream>
+
+namespace {
+
+void write_startup_file(const std::filesystem::path& path, const std::string& text) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream output(path, std::ios::binary | std::ios::trunc);
+  REQUIRE(output.is_open());
+  output << text;
+}
+
+std::vector<std::string> split_lines3_sr(const std::string& envelope) {
+  std::istringstream in(envelope);
+  std::vector<std::string> lines;
+  std::string line;
+  while (std::getline(in, line)) {
+    lines.push_back(line);
+  }
+  REQUIRE(lines.size() >= 3);
+  return {lines[0], lines[1], lines[2]};
+}
+
+std::string join_lines3_sr(const std::vector<std::string>& lines) {
+  REQUIRE(lines.size() == 3);
+  return lines[0] + "\n" + lines[1] + "\n" + lines[2] + "\n";
+}
+
+} // namespace
+
+TEST_CASE("Startup recovery returns empty when projects root is missing", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto projects_root = dir / "does-not-exist";
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("unused");
+      }
+  );
+
+  REQUIRE(recovered.empty());
+}
+
+TEST_CASE("Rebuilder throws when project root is missing", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::store::Rebuilder rebuilder(db, nullptr, nullptr, false);
+
+  holder::model::Project project;
+  project.project_id = "proj-missing-root";
+  project.name = "Missing";
+  project.root_path = (dir / "missing").string();
+  project.created_at = 1;
+  project.updated_at = 1;
+
+  REQUIRE_THROWS_WITH(
+      rebuilder.rebuild_project(project),
+      Catch::Matchers::ContainsSubstring("project root not found")
+  );
+}
+
+TEST_CASE("Rebuilder rejects card front matter without card id", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto root = dir / "project";
+  std::filesystem::create_directories(root / "cards" / "ab" / "cd");
+  {
+    std::ofstream out(
+        root / "cards" / "ab" / "cd" / "abcd1234.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(out.is_open());
+    out << "---\ntitle: Missing Id\n---\n# Missing Id\n";
+  }
+
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::store::Rebuilder rebuilder(db, nullptr, nullptr, false);
+  holder::model::Project project;
+  project.project_id = "proj-card-missing-id";
+  project.name = "Missing Card Id";
+  project.root_path = root.string();
+  project.created_at = 1;
+  project.updated_at = 1;
+
+  REQUIRE_THROWS_WITH(
+      rebuilder.rebuild_project(project),
+      Catch::Matchers::ContainsSubstring("card_id missing in front matter")
+  );
+}
+
+TEST_CASE("Rebuilder rejects a non-UUID canonical card identity", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto root = dir / "project";
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+
+  holder::model::Project project;
+  project.project_id = "project-with-invalid-card";
+  project.name = "Project";
+  project.root_path = root.string();
+  project.privacy_mode = "plain";
+  project.created_at = 1;
+  project.updated_at = 1;
+  holder::project::ProjectRepo(db).create(project);
+
+  holder::model::Card card;
+  card.card_id = "card-one";
+  card.project_id = project.project_id;
+  card.title = "Invalid identity";
+  card.rel_path = holder::core::card_rel_path(card.card_id);
+  card.created_at = 1;
+  card.updated_at = 1;
+  write_startup_file(
+      root / card.rel_path,
+      holder::core::render_card_front_matter(card, {}, {}) + "Body\n"
+  );
+
+  try {
+    (void)holder::store::Rebuilder(db, nullptr).rebuild_project(project);
+    FAIL("Expected a non-UUID card identity to be rejected");
+  } catch (const std::exception& ex) {
+    REQUIRE(std::string(ex.what()) == "invalid card_id in file: expected UUIDv4 or UUIDv7");
+  }
+  holder::card::CardRepo cards(db);
+  REQUIRE_FALSE(cards.get(card.card_id).has_value());
+  REQUIRE(cards.list_all(project.project_id).empty());
+}
+
+TEST_CASE("Rebuilder rejects ai message front matter without message id", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto root = dir / "project";
+  std::filesystem::create_directories(root / "ai_messages" / "ab" / "cd");
+  {
+    std::ofstream out(
+        root / "ai_messages" / "ab" / "cd" / "abcd1234.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(out.is_open());
+    out << "---\nthread_id: thread-1\nrole: assistant\nsource: manual\n---\nhello\n";
+  }
+
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::store::Rebuilder rebuilder(db, nullptr, nullptr, false);
+  holder::model::Project project;
+  project.project_id = "proj-message-missing-id";
+  project.name = "Missing Message Id";
+  project.root_path = root.string();
+  project.created_at = 1;
+  project.updated_at = 1;
+
+  REQUIRE_THROWS_WITH(
+      rebuilder.rebuild_project(project),
+      Catch::Matchers::ContainsSubstring("message_id missing in front matter")
+  );
+}
+
+TEST_CASE("Rebuilder validates durable AI thread manifests", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto root = dir / "project";
+  std::filesystem::create_directories(root);
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+
+  holder::model::Project project;
+  project.project_id = "project-1234";
+  project.name = "Project";
+  project.root_path = root.string();
+  project.privacy_mode = "plain";
+  project.created_at = 1;
+  project.updated_at = 1;
+  holder::project::ProjectRepo(db).create(project);
+
+  holder::model::AiThread thread;
+  thread.thread_id = "thread-1234";
+  thread.project_id = project.project_id;
+  thread.title = "Thread";
+  thread.created_at = 1;
+  thread.updated_at = 2;
+
+  const auto rebuild = [&](bool require_manifests = false) {
+    return holder::store::Rebuilder(db, nullptr, nullptr, false, require_manifests)
+        .rebuild_project(project);
+  };
+
+  SECTION("malformed manifest") {
+    write_startup_file(
+        root / holder::ai::ai_thread_manifest_rel_path(thread.thread_id),
+        "{bad-json"
+    );
+    REQUIRE_THROWS_WITH(
+        rebuild(),
+        Catch::Matchers::ContainsSubstring(
+            "ai_threads/th/re/thread-1234.json: [json.exception.parse_err"
+        )
+    );
+  }
+
+  SECTION("manifest in the wrong shard") {
+    write_startup_file(
+        root / "ai_threads" / "xx" / "yy" / (thread.thread_id + ".json"),
+        holder::ai::render_ai_thread_manifest(project, thread)
+    );
+    REQUIRE_THROWS_WITH(
+        rebuild(),
+        Catch::Matchers::ContainsSubstring("AI thread path does not match id")
+    );
+  }
+
+  SECTION("durable manifest is rebuilt without messages") {
+    write_startup_file(
+        root / holder::ai::ai_thread_manifest_rel_path(thread.thread_id),
+        holder::ai::render_ai_thread_manifest(project, thread)
+    );
+    REQUIRE(rebuild().ai_threads == 1);
+  }
+
+  holder::model::AiMessage message;
+  message.message_id = "message-1234";
+  message.thread_id = "thread-5678";
+  message.role = "user";
+  message.source = "manual";
+  message.created_at = 3;
+  const auto message_text =
+      holder::core::render_ai_message_front_matter(message, project.project_id, {}) + "Hello\n";
+
+  SECTION("message refers to a thread without a matching durable manifest") {
+    write_startup_file(
+        root / holder::ai::ai_thread_manifest_rel_path(thread.thread_id),
+        holder::ai::render_ai_thread_manifest(project, thread)
+    );
+    write_startup_file(root / holder::core::ai_message_rel_path(message.message_id), message_text);
+    REQUIRE_THROWS_WITH(
+        rebuild(),
+        Catch::Matchers::ContainsSubstring(
+            "AI message refers to thread without durable manifest: thread-"
+        )
+    );
+  }
+
+  SECTION("strict rebuilding requires thread manifests") {
+    write_startup_file(root / holder::core::ai_message_rel_path(message.message_id), message_text);
+    REQUIRE_THROWS_WITH(
+        rebuild(true),
+        Catch::Matchers::ContainsSubstring("AI messages exist without durable thread manifests")
+    );
+  }
+}
+
+TEST_CASE("Strict project recovery requires unique durable manifests", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+
+  SECTION("missing manifest") {
+    const auto root = dir / "missing-manifest";
+    std::filesystem::create_directories(root);
+    REQUIRE_THROWS_WITH(
+        holder::project::recover_project_roots(
+            db,
+            nullptr,
+            {root},
+            [] {
+              return std::string("unused");
+            },
+            true
+        ),
+        Catch::Matchers::ContainsSubstring("project has no durable manifest")
+    );
+  }
+
+  const auto write_project = [&](const std::filesystem::path& root) {
+    holder::model::Project project;
+    project.project_id = "project-1234";
+    project.name = "Project";
+    project.root_path = root.string();
+    project.privacy_mode = "plain";
+    project.created_at = 1;
+    project.updated_at = 1;
+    write_startup_file(
+        root / holder::project::kProjectBootstrapPath,
+        holder::project::render_project_bootstrap(project)
+    );
+    write_startup_file(
+        root / holder::project::kProjectManifestPath,
+        holder::project::render_project_manifest(project)
+    );
+  };
+
+  SECTION("an already recovered root is skipped") {
+    const auto root = dir / "existing";
+    write_project(root);
+    holder::model::Project existing;
+    existing.project_id = "project-1234";
+    existing.name = "Project";
+    existing.root_path = root.string();
+    existing.privacy_mode = "plain";
+    existing.created_at = 1;
+    existing.updated_at = 1;
+    holder::project::ProjectRepo(db).create(existing);
+    REQUIRE(holder::project::recover_project_roots(
+                db,
+                nullptr,
+                {root},
+                [] {
+                  return std::string("unused");
+                },
+                true
+    )
+                .empty());
+  }
+
+  SECTION("same project id at different roots is rejected") {
+    const auto first = dir / "first";
+    const auto second = dir / "second";
+    write_project(first);
+    write_project(second);
+    REQUIRE_THROWS_WITH(
+        holder::project::recover_project_roots(
+            db,
+            nullptr,
+            {first, second},
+            [] {
+              return std::string("unused");
+            },
+            true
+        ),
+        Catch::Matchers::ContainsSubstring(
+            "duplicate project_id discovered at different roots: project-"
+        )
+    );
+  }
+}
+
+TEST_CASE(
+    "Startup recovery rebuilds projects and cards from existing project roots",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto original_db_path = dir / "original.db";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto keystore_dir = dir / "keystore";
+  std::filesystem::create_directories(projects_root);
+  std::filesystem::create_directories(keystore_dir);
+  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", keystore_dir.string());
+
+  auto original_db = holder::test::open_db_with_schema(original_db_path);
+  holder::project::ProjectRepo original_project_repo(original_db);
+  holder::model::Project project;
+  project.project_id = "proj-1";
+  project.name = "Home";
+  project.root_path = (projects_root / "home").string();
+  project.privacy_mode = "encrypted_git";
+  project.id_scheme = holder::model::IdScheme::Uuid7;
+  project.created_at = 1;
+  project.updated_at = 1;
+  original_project_repo.create(project);
+
+  holder::git::RealGitOps git;
+  holder::privacy::ensure_encrypted_project_ready(
+      git,
+      original_project_repo,
+      project.project_id,
+      project.root_path,
+      project.project_key_id,
+      project.updated_at,
+      []() {
+        return std::string("generated-key");
+      }
+  );
+  project = original_project_repo.get(project.project_id).value();
+  holder::project::write_project_manifest(git, project);
+
+  holder::index::FtsIndexer original_fts(original_db);
+  holder::card::CardStore original_store(original_db, &original_fts);
+  const std::string uuid4_card_id = "550e8400-e29b-41d4-a716-446655440000";
+  const std::string uuid7_card_id = "01890f3e-7b5a-7cc8-98c4-dc0c0c07398f";
+  holder::model::Card card;
+  card.card_id = uuid4_card_id;
+  card.project_id = project.project_id;
+  card.title = "Welcome to Holder";
+  card.created_at = 1;
+  card.updated_at = 1;
+  original_store.create(card, "# Welcome to Holder\n\nRecovered body.\n");
+
+  holder::model::Card child;
+  child.card_id = uuid7_card_id;
+  child.project_id = project.project_id;
+  child.title = "Child";
+  child.parent_card_id = card.card_id;
+  child.created_at = 2;
+  child.updated_at = 2;
+  original_store.create(child, "# Child\n\nNested body.\n");
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("recovered-proj");
+      }
+  );
+
+  REQUIRE(recovered.size() == 1);
+  REQUIRE(recovered[0].project_id == "proj-1");
+  REQUIRE(recovered[0].name == "Home");
+  REQUIRE(recovered[0].root_path == (projects_root / "home").string());
+  REQUIRE(recovered[0].privacy_mode == "encrypted_git");
+  REQUIRE(recovered[0].id_scheme == holder::model::IdScheme::Uuid7);
+  REQUIRE(recovered[0].project_key_id.has_value());
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  holder::card::CardRepo recovered_card_repo(recovered_db);
+  const auto projects = recovered_project_repo.list();
+  REQUIRE(projects.size() == 1);
+  REQUIRE(projects[0].project_id == "proj-1");
+  REQUIRE(projects[0].id_scheme == holder::model::IdScheme::Uuid7);
+  const auto cards = recovered_card_repo.list_all(projects[0].project_id);
+  REQUIRE(cards.size() == 2);
+
+  holder::card::CardStore recovered_store(recovered_db, &recovered_fts);
+  bool saw_parent = false;
+  bool saw_child = false;
+  for (const auto& rebuilt : cards) {
+    const auto content = recovered_store.get_content(rebuilt);
+    REQUIRE(content.has_value());
+    if (rebuilt.card_id == uuid4_card_id) {
+      saw_parent = true;
+      REQUIRE(rebuilt.title == "Welcome to Holder");
+      REQUIRE(content.value() == "# Welcome to Holder\n\nRecovered body.\n");
+    }
+    if (rebuilt.card_id == uuid7_card_id) {
+      saw_child = true;
+      REQUIRE(rebuilt.parent_card_id.has_value());
+      REQUIRE(rebuilt.parent_card_id.value() == uuid4_card_id);
+      REQUIRE(content.value() == "# Child\n\nNested body.\n");
+    }
+  }
+  REQUIRE(saw_parent);
+  REQUIRE(saw_child);
+}
+
+TEST_CASE(
+    "Startup recovery defaults privacy metadata branches when files are missing fields",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto plain_root = projects_root / "plain-no-metadata";
+  const auto no_key_root = projects_root / "encrypted-no-key-id";
+  const auto plain_card_rel = holder::core::card_rel_path("550e8400-e29b-41d4-a716-446655440000");
+  const auto no_key_card_rel = holder::core::card_rel_path("01890f3e-7b5a-7cc8-98c4-dc0c0c07398f");
+
+  std::filesystem::create_directories((plain_root / plain_card_rel).parent_path());
+  std::filesystem::create_directories((no_key_root / no_key_card_rel).parent_path());
+  std::filesystem::create_directories(no_key_root / ".holder");
+
+  {
+    std::ofstream card(plain_root / plain_card_rel, std::ios::binary | std::ios::trunc);
+    REQUIRE(card.is_open());
+    card << "# Plain no metadata\n\nRecovered.\n";
+  }
+  {
+    std::ofstream privacy(
+        no_key_root / ".holder" / "privacy.json",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(privacy.is_open());
+    privacy << R"({"version":1,"project_id":"proj-nokey","mode":"encrypted_git"})";
+  }
+  {
+    std::ofstream card(no_key_root / no_key_card_rel, std::ios::binary | std::ios::trunc);
+    REQUIRE(card.is_open());
+    card << "# Plain from encrypted metadata\n\nRecovered.\n";
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("generated-recovery-id");
+      }
+  );
+
+  REQUIRE(recovered.size() == 2);
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  const auto projects = recovered_project_repo.list();
+  REQUIRE(projects.size() == 2);
+
+  const auto plain = std::find_if(projects.begin(), projects.end(), [&](const auto& p) {
+    return p.root_path == plain_root.string();
+  });
+  REQUIRE(plain != projects.end());
+  REQUIRE(plain->project_id.size() == 36);
+  REQUIRE(plain->project_id[14] == '4');
+  REQUIRE(plain->id_scheme == holder::model::IdScheme::Uuid4);
+  REQUIRE(plain->privacy_mode == "plain");
+  REQUIRE_FALSE(plain->project_key_id.has_value());
+
+  const auto no_key = std::find_if(projects.begin(), projects.end(), [&](const auto& p) {
+    return p.root_path == no_key_root.string();
+  });
+  REQUIRE(no_key != projects.end());
+  REQUIRE(no_key->project_id == "proj-nokey");
+  REQUIRE(no_key->privacy_mode == "encrypted_git");
+  REQUIRE_FALSE(no_key->project_key_id.has_value());
+}
+
+TEST_CASE(
+    "Startup recovery fails closed when encrypted project key material is missing",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto project_root = projects_root / "plain-project";
+  std::filesystem::create_directories(project_root / "cards" / "ab" / "cd");
+  std::filesystem::create_directories(project_root / ".holder");
+
+  {
+    std::ofstream privacy(
+        project_root / ".holder" / "privacy.json",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(privacy.is_open());
+    privacy
+        << R"({"version":1,"project_id":"proj-plain","key_id":"stale-key","mode":"encrypted_git"})";
+  }
+  {
+    std::ofstream card(
+        project_root / "cards" / "ab" / "cd" / "abcd1234.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(card.is_open());
+    card << "# Plain card\n\nRecovered as plain.\n";
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("generated");
+      }
+  );
+
+  REQUIRE(recovered.empty());
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  holder::card::CardRepo recovered_card_repo(recovered_db);
+  const auto projects = recovered_project_repo.list();
+  REQUIRE(projects.empty());
+  const auto cards = recovered_card_repo.list_all("proj-plain");
+  REQUIRE(cards.empty());
+}
+
+TEST_CASE(
+    "Startup recovery skips encrypted project when privacy error is not retryable",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto original_db_path = dir / "original.db";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto keystore_dir = dir / "keystore";
+  std::filesystem::create_directories(projects_root);
+  std::filesystem::create_directories(keystore_dir);
+  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", keystore_dir.string());
+
+  auto original_db = holder::test::open_db_with_schema(original_db_path);
+  holder::project::ProjectRepo original_project_repo(original_db);
+  holder::model::Project project;
+  project.project_id = "proj-mismatch";
+  project.name = "Mismatch";
+  project.root_path = (projects_root / "mismatch").string();
+  project.privacy_mode = "encrypted_git";
+  project.created_at = 1;
+  project.updated_at = 1;
+  original_project_repo.create(project);
+
+  holder::git::RealGitOps git;
+  holder::privacy::ensure_encrypted_project_ready(
+      git,
+      original_project_repo,
+      project.project_id,
+      project.root_path,
+      project.project_key_id,
+      project.updated_at,
+      []() {
+        return std::string("generated-key");
+      }
+  );
+
+  holder::index::FtsIndexer original_fts(original_db);
+  holder::card::CardStore original_store(original_db, &original_fts);
+  holder::model::Card card;
+  card.card_id = "550e8400-e29b-41d4-a716-446655440000";
+  card.project_id = project.project_id;
+  card.title = "Encrypted card";
+  card.created_at = 1;
+  card.updated_at = 1;
+  original_store.create(card, "# Encrypted card\n\nRecovered body.\n");
+
+  const auto card_path = projects_root / "mismatch" / holder::core::card_rel_path(card.card_id);
+  std::ifstream in(card_path, std::ios::binary);
+  REQUIRE(in.is_open());
+  const std::string envelope(
+      (std::istreambuf_iterator<char>(in)),
+      std::istreambuf_iterator<char>()
+  );
+  auto lines = split_lines3_sr(envelope);
+  auto meta = nlohmann::json::parse(lines[1]);
+  meta["key_id"] = "wrong-key-id";
+  lines[1] = meta.dump();
+  {
+    std::ofstream out(card_path, std::ios::binary | std::ios::trunc);
+    REQUIRE(out.is_open());
+    out << join_lines3_sr(lines);
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("recovered-proj");
+      }
+  );
+
+  REQUIRE(recovered.empty());
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  REQUIRE(recovered_project_repo.list().empty());
+}
+
+TEST_CASE(
+    "Startup recovery keeps encrypted projects encrypted when ai message files are malformed",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto original_db_path = dir / "original.db";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto keystore_dir = dir / "keystore";
+  std::filesystem::create_directories(projects_root);
+  std::filesystem::create_directories(keystore_dir);
+  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", keystore_dir.string());
+
+  auto original_db = holder::test::open_db_with_schema(original_db_path);
+  holder::project::ProjectRepo original_project_repo(original_db);
+  holder::model::Project project;
+  project.project_id = "proj-enc";
+  project.name = "Encrypted";
+  project.root_path = (projects_root / "encrypted").string();
+  project.privacy_mode = "encrypted_git";
+  project.created_at = 1;
+  project.updated_at = 1;
+  original_project_repo.create(project);
+
+  holder::git::RealGitOps git;
+  holder::privacy::ensure_encrypted_project_ready(
+      git,
+      original_project_repo,
+      project.project_id,
+      project.root_path,
+      project.project_key_id,
+      project.updated_at,
+      []() {
+        return std::string("generated-key");
+      }
+  );
+
+  holder::index::FtsIndexer original_fts(original_db);
+  holder::card::CardStore original_store(original_db, &original_fts);
+  holder::model::Card card;
+  card.card_id = "550e8400-e29b-41d4-a716-446655440000";
+  card.project_id = project.project_id;
+  card.title = "Encrypted card";
+  card.created_at = 1;
+  card.updated_at = 1;
+  original_store.create(card, "# Encrypted card\n\nRecovered body.\n");
+
+  std::filesystem::create_directories(projects_root / "encrypted" / "ai_messages" / "aa" / "bb");
+  {
+    std::ofstream bad_message(
+        projects_root / "encrypted" / "ai_messages" / "aa" / "bb" /
+            "aabbccdd-eeff-0011-2233-445566778899.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(bad_message.is_open());
+    bad_message << "";
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("recovered-proj");
+      }
+  );
+
+  REQUIRE(recovered.size() == 1);
+  REQUIRE(recovered[0].project_id == "proj-enc");
+  REQUIRE(recovered[0].privacy_mode == "encrypted_git");
+  REQUIRE(recovered[0].project_key_id.has_value());
+
+  holder::card::CardRepo recovered_card_repo(recovered_db);
+  const auto cards = recovered_card_repo.list_all("proj-enc");
+  REQUIRE(cards.size() == 1);
+  REQUIRE(cards[0].title == "Encrypted card");
+
+  holder::card::CardStore recovered_store(recovered_db, &recovered_fts);
+  const auto content = recovered_store.get_content(cards[0]);
+  REQUIRE(content.has_value());
+  REQUIRE(content.value() == "# Encrypted card\n\nRecovered body.\n");
+}
+
+TEST_CASE(
+    "Startup recovery skips encrypted project with invalid envelope and malformed files",
+    "[startup][recovery]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto original_db_path = dir / "original.db";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto keystore_dir = dir / "keystore";
+  std::filesystem::create_directories(projects_root);
+  std::filesystem::create_directories(keystore_dir);
+  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", keystore_dir.string());
+
+  auto original_db = holder::test::open_db_with_schema(original_db_path);
+  holder::project::ProjectRepo original_project_repo(original_db);
+  holder::model::Project project;
+  project.project_id = "proj-fallback-fail";
+  project.name = "Fallback Fail";
+  project.root_path = (projects_root / "fallback-fail").string();
+  project.privacy_mode = "encrypted_git";
+  project.created_at = 1;
+  project.updated_at = 1;
+  original_project_repo.create(project);
+
+  holder::git::RealGitOps git;
+  holder::privacy::ensure_encrypted_project_ready(
+      git,
+      original_project_repo,
+      project.project_id,
+      project.root_path,
+      project.project_key_id,
+      project.updated_at,
+      []() {
+        return std::string("generated-key");
+      }
+  );
+
+  holder::index::FtsIndexer original_fts(original_db);
+  holder::card::CardStore original_store(original_db, &original_fts);
+  holder::model::Card card;
+  card.card_id = "550e8400-e29b-41d4-a716-446655440000";
+  card.project_id = project.project_id;
+  card.title = "Encrypted card";
+  card.created_at = 1;
+  card.updated_at = 1;
+  original_store.create(card, "# Encrypted card\n\nRecovered body.\n");
+
+  const auto card_path = projects_root / "fallback-fail" /
+                         holder::core::card_rel_path(card.card_id);
+  std::ifstream in(card_path, std::ios::binary);
+  REQUIRE(in.is_open());
+  const std::string envelope(
+      (std::istreambuf_iterator<char>(in)),
+      std::istreambuf_iterator<char>()
+  );
+  auto lines = split_lines3_sr(envelope);
+  auto meta = nlohmann::json::parse(lines[1]);
+  meta["key_id"] = "wrong-key-id";
+  lines[1] = meta.dump();
+  {
+    std::ofstream out(card_path, std::ios::binary | std::ios::trunc);
+    REQUIRE(out.is_open());
+    out << join_lines3_sr(lines);
+  }
+
+  std::filesystem::create_directories(projects_root / "fallback-fail" / "cards" / "zz" / "zz");
+  {
+    std::ofstream bad_card(
+        projects_root / "fallback-fail" / "cards" / "zz" / "zz" / "bad00001.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(bad_card.is_open());
+    bad_card << "# not decryptable as plain\n";
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("recovered-proj");
+      }
+  );
+
+  REQUIRE(recovered.empty());
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  REQUIRE(recovered_project_repo.list().empty());
+}
+
+TEST_CASE("Startup recovery skips malformed plain projects", "[startup][recovery]") {
+  const auto dir = holder::test::make_temp_dir();
+  const auto projects_root = dir / "projects";
+  const auto recovered_db_path = dir / "recovered.db";
+  const auto project_root = projects_root / "bad-plain";
+  std::filesystem::create_directories(project_root / "cards" / "xx" / "yy");
+
+  {
+    std::ofstream card(
+        project_root / "cards" / "xx" / "yy" / "abcd1234.md",
+        std::ios::binary | std::ios::trunc
+    );
+    REQUIRE(card.is_open());
+    card << "# wrong path for card id\n";
+  }
+
+  auto recovered_db = holder::test::open_db_with_schema(recovered_db_path);
+  holder::index::FtsIndexer recovered_fts(recovered_db);
+  const auto recovered = holder::project::recover_projects_from_disk(
+      recovered_db,
+      &recovered_fts,
+      projects_root,
+      []() {
+        return std::string("generated");
+      }
+  );
+
+  REQUIRE(recovered.empty());
+
+  holder::project::ProjectRepo recovered_project_repo(recovered_db);
+  REQUIRE(recovered_project_repo.list().empty());
+}

@@ -473,6 +473,66 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
     REQUIRE(payload["error"]["code"] == "target_not_found");
   }
 
+  SECTION("omitted parent_card_id keeps the parent; explicit null moves to the top level") {
+    const std::string middle = "66666666-6666-4666-8666-666666666666";
+    const std::string nested = "77777777-7777-4777-8777-777777777777";
+    const std::string sibling = "88888888-8888-4888-8888-888888888888";
+    const std::string grandchild = "99999999-9999-4999-8999-999999999999";
+    create(
+        middle,
+        "proj-1",
+        "Middle",
+        30,
+        {{"parent_card_id", "11111111-1111-4111-8111-111111111111"}}
+    );
+    create(nested, "proj-1", "Nested", 31, {{"parent_card_id", middle}, {"sort_key", 1.0}});
+    create(sibling, "proj-1", "Sibling", 32, {{"parent_card_id", middle}, {"sort_key", 2.0}});
+    create(grandchild, "proj-1", "Grandchild", 33, {{"parent_card_id", nested}});
+
+    const auto kept = call(
+        http::verb::post,
+        "/cards/" + nested + "/move",
+        {{"project_id", "proj-1"}, {"intent", "to_end"}}
+    );
+    REQUIRE(kept["ok"] == true);
+    REQUIRE(kept["data"]["parent_card_id"] == middle);
+    REQUIRE(kept["data"]["sort_key"] == 3.0);
+
+    const auto detached = call(
+        http::verb::post,
+        "/cards/" + nested + "/move",
+        {{"project_id", "proj-1"}, {"intent", "to_end"}, {"parent_card_id", nullptr}}
+    );
+    REQUIRE(detached["ok"] == true);
+    REQUIRE(detached["data"]["parent_card_id"].is_null());
+    const auto moved = card_store.get(nested);
+    REQUIRE(moved.has_value());
+    REQUIRE_FALSE(moved->parent_card_id.has_value());
+    const auto child = card_store.get(grandchild);
+    REQUIRE(child.has_value());
+    REQUIRE(child->parent_card_id == nested);
+  }
+
+  SECTION("a move between tied siblings re-spaces them instead of misplacing the card") {
+    const std::string tied_first = "66666666-6666-4666-8666-666666666661";
+    const std::string tied_second = "66666666-6666-4666-8666-666666666662";
+    create(tied_first, "proj-1", "a-tied", 30, {{"sort_key", 50.0}});
+    create(tied_second, "proj-1", "z-tied", 30, {{"sort_key", 50.0}});
+
+    const auto moved = call(
+        http::verb::post,
+        "/cards/11111111-1111-4111-8111-111111111111/move",
+        {{"project_id", "proj-1"}, {"intent", "after"}, {"target_card_id", tied_first}}
+    );
+    REQUIRE(moved["ok"] == true);
+    const double first_key = card_store.get(tied_first)->sort_key;
+    const double moved_key = card_store.get("11111111-1111-4111-8111-111111111111")->sort_key;
+    const double second_key = card_store.get(tied_second)->sort_key;
+    REQUIRE(moved["data"]["sort_key"] == moved_key);
+    REQUIRE(first_key < moved_key);
+    REQUIRE(moved_key < second_key);
+  }
+
   SECTION("left no-op when source not among inferred siblings") {
     create("55555555-5555-4555-8555-555555555555", "proj-1", "Parent", 30);
     const auto payload = call(
@@ -1123,7 +1183,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     REQUIRE(end_payload["ok"] == true);
   }
 
-  SECTION("move up_level from missing parent falls back to root") {
+  SECTION("trashing a parent promotes its child, so up_level is then rejected") {
     create_card("66666666-6666-4666-8666-666666666666", "proj-1", "parent", 40);
     create_card(
         "77777777-7777-4777-8777-777777777777",
@@ -1140,14 +1200,14 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     REQUIRE(trash_status == http::status::ok);
     REQUIRE(trash_payload["ok"] == true);
 
+    // Core moves the trashed card's live children up into its place.
     auto [move_status, move_payload] = call(
         http::verb::post,
         "/cards/77777777-7777-4777-8777-777777777777/move",
         {{"project_id", "proj-1"}, {"intent", "up_level"}}
     );
-    REQUIRE(move_status == http::status::ok);
-    REQUIRE(move_payload["ok"] == true);
-    REQUIRE(move_payload["data"]["parent_card_id"].is_null());
+    REQUIRE(move_status == http::status::unprocessable_entity);
+    REQUIRE(move_payload["error"]["code"] == "invalid_move_intent");
   }
 
   SECTION("move catches bad request from non-string intent") {
@@ -1524,7 +1584,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     REQUIRE(before_status == http::status::ok);
     REQUIRE(before_payload["ok"] == true);
 
-    // parent_card_id null exercises normalize_parent_id(json null) branch.
+    // An explicit null parent_card_id moves the child out to the project's top level.
     auto [to_end_status, to_end_payload] = call(
         http::verb::post,
         "/cards/00000000-0000-4000-8000-000000000011/move",
@@ -1532,6 +1592,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     );
     REQUIRE(to_end_status == http::status::ok);
     REQUIRE(to_end_payload["ok"] == true);
+    REQUIRE(to_end_payload["data"]["parent_card_id"].is_null());
 
     auto [left_status, left_payload] = call(
         http::verb::post,
@@ -1834,4 +1895,68 @@ TEST_CASE("CardRoutes preserves CardStore tag mutation outcomes", "[card-routes]
       call(card_id, http::verb::get, {{"project_id", "proj-1"}, {"tag", "work"}});
   REQUIRE(method_status == http::status::method_not_allowed);
   REQUIRE(method["error"]["code"] == "method_not_allowed");
+}
+
+TEST_CASE("CardRoutes DELETE trashes children by the requested policy", "[card-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  const std::string parent = "77777777-7777-4777-8777-777777777771";
+  const std::string child = "77777777-7777-4777-8777-777777777772";
+  const std::string grandchild = "77777777-7777-4777-8777-777777777773";
+  holder::test::create_card_fixture(card_store, parent, "proj-1", "Parent", "parent", 10);
+  holder::test::create_card_fixture(card_store, child, "proj-1", "Child", "child", 11, parent);
+  holder::test::create_card_fixture(
+      card_store,
+      grandchild,
+      "proj-1",
+      "Grandchild",
+      "grandchild",
+      12,
+      child
+  );
+  auto call = [&](const std::string& card_id, const std::string& children) {
+    const std::string path = "/cards/" + card_id;
+    auto req = make_request(http::verb::delete_, path, "");
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::routes::handle_card_routes(
+        path,
+        req,
+        res,
+        db,
+        &card_store,
+        &fts,
+        [] {
+          return std::string("generated-id");
+        },
+        [&](const std::string& name) {
+          return name == "children" ? children : std::string();
+        }
+    ));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+
+  // An unknown policy is rejected before anything changes.
+  auto [bad_status, bad] = call(parent, "everything");
+  REQUIRE(bad_status == http::status::bad_request);
+  REQUIRE_FALSE(card_store.get(parent)->deleted_at.has_value());
+
+  std::string policy;
+  SECTION("promote by default") { policy = ""; }
+  SECTION("promote explicitly") { policy = "promote"; }
+  SECTION("trash_subtree") { policy = "trash_subtree"; }
+  auto [status, payload] = call(parent, policy);
+  REQUIRE(status == http::status::ok);
+  if (policy != "trash_subtree") {
+    REQUIRE(card_store.get(parent)->deleted_at.has_value());
+    REQUIRE_FALSE(card_store.get(child)->deleted_at.has_value());
+    REQUIRE_FALSE(card_store.get(child)->parent_card_id.has_value());
+    REQUIRE(card_store.get(grandchild)->parent_card_id == child);
+  } else {
+    for (const auto& id : {parent, child, grandchild})
+      REQUIRE(card_store.get(id)->deleted_at.has_value());
+    REQUIRE(card_store.get(grandchild)->parent_card_id == child);
+  }
 }

@@ -1,0 +1,61 @@
+name: Release / Website
+
+# Deploys the website in release/website/ to GitHub Pages (www.holder.team) when it changes on
+# main, or when run by hand. Website / CI builds and checks the same site on pull requests.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - release/website/**
+      - .github/workflows/release-website.yml
+  workflow_dispatch:
+
+# As GitHub's Pages starter workflow: configure-pages reads the Pages site, deploy-pages publishes.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: release/website
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: release/website
+      - id: pages
+        uses: actions/configure-pages@v5
+      - name: Build with Jekyll
+        env:
+          JEKYLL_ENV: production
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: bundle exec jekyll build --baseurl "$BASE_PATH"
+      - name: Test download detection
+        run: node scripts/test-downloads.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: release/website/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

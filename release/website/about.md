@@ -1,0 +1,148 @@
+---
+layout: default
+title: About Holder
+permalink: /about/
+narrow: true
+---
+
+<section class="page-panel">
+  <p class="eyebrow">About</p>
+  <h1>About Holder</h1>
+  <p class="lead">Holder is a free, open-source, volunteer-built personal knowledge system.</p>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>What is this?</h2>
+    <p>Holder is a free, open-source, volunteer-built personal knowledge system.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>When will this be finished?</h2>
+    <p>
+      London is two thousand years old, look up, the skyline is full of cranes, look down they are digging new tube lines.
+    </p>
+    <p>
+      With Holder, it is very new. There are rough edges. Things will change. Some platforms and features are further
+      along than others. No point to pretend otherwise.
+    </p>
+    <p>But that's also why this is an interesting time to get involved.</p>
+    <p>
+      Holder is being built in the open, and I'd like other people to help shape what it becomes, whether that's
+      through code, testing, packaging, documentation, design, ideas, bug reports, or simply trying it and figuring
+      out what doesn't work.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Who is making this?</h2>
+    <p>
+      The optimistically named "Holder Team", which currently consists of me, Zeth, a software engineer from England,
+      but I am hoping others will join and form an open source community around Holder.
+      The project is supported by my company Zeth LTD,
+      which provides administrative and organisational support to the project.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Why are you making this?</h2>
+    <p>
+      When I was young, anything important that I needed to remember, I would write on the back of my hand.
+      If that wasn't enough space then I would write it on the back of an old envelope and use it as a bookmark
+      for the current book that I carried with me. That was enough, it worked.
+    </p>
+    <p>
+      But now a few decades later. I am underwater in an swirling chaotic ocean of information. I have emails,
+      documents, forms, bills, ideas, research, bookmarks, AI conversations, notes, things I need to remember,
+      things I need to write, and an endless stream of crap coming at me.
+    </p>
+    <p>
+      How do I get on top of it? I found existing programs did not suit my needs, my ways of working. They were
+      too closed, too commercial, too annoying. They were often worse than just a directory of text files.
+    </p>
+    <p>
+      So I am building a tool for myself. And it could be useful for other people, so I am trying to make it an
+      open source project. Then other people can contribute and we can collectively bring order to the chaos.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>How can I help?</h2>
+    <p>
+      The most useful way to start is to simply to get it working on your computer, use it seriously to try to
+      organise yourself, and then think: what works, what doesn't, what's confusing, and what's missing.
+    </p>
+    <p>Contributions of all kinds are welcome. Development, testing, art, web design, writing.</p>
+    <p>
+      You don't need to be an expert on the whole project to contribute. If something interests you, pick a
+      repository, have a look around, open an issue, join a discussion, or try building it.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>How Does Holder Fit Together?</h2>
+    <p>
+      Holder is an open ecosystem that hopefully can fit into your workflow. It is a framework that comes with a GUI,
+      but also an HTTP API and a Command Line interface.
+    </p>
+    <p>It is made up in parts, each one does one thing well.</p>
+    <p>
+      The biggest two parts are the frontend and backend. If you have ever made a web application, you can get the idea.
+    </p>
+    <p>The backend has the core logic and the server, which in classic Unix terminology is called a daemon.</p>
+    <p>The frontend has the UI desktop interface.</p>
+    <p>
+      In packaged managed setups like Ubuntu Linux, that is all we need. The service manager (Systemd or OpenRC) starts
+      the daemon and the GUI frontend, the API and command line tool can just expect it to be there.
+    </p>
+    <p>
+      On Mac and Windows there is no service manager doing that for us, so the frontend does it: when it opens, it
+      checks the backend is up and starts it if needed, using the command line tool.
+    </p>
+    <p>
+      All of it, including the workflows that take the source code from repository to release, and this website,
+      lives in one repository.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Where is it?</h2>
+    <p>
+      Holder lives in the open on GitHub. That is where the source code, issues, discussions, contributor notes,
+      and project repositories are collected.
+    </p>
+  </div>
+
+  <div class="button-row">
+    <a class="button primary" href="https://github.com/HolderTeam/">Visit HolderTeam on GitHub</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Where are your Cheesy Infographics?</h2>
+    <p>Alright, if we have to...</p>
+    <p>Human memory and attention are limited, so there is real power in getting information out of your head and into a system you can trust. Better external memory makes information easier to retrieve; retrieval makes more information available for comparison and reasoning; connections make patterns easier to notice; and those patterns can contribute to better-informed judgement and action.</p>
+    <p>Holder does not do your thinking for you: the aim is to provide an external cognitive system that leaves more of your limited attention available for the thinking that matters.</p>
+    <a href="{{ '/assets/img/philosophy/organisation.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/organisation-mid.png' | relative_url }}" alt="How organisation amplifies you"></a>
+    <p>The ultimate objective is to become a wiser, more capable and better-organised human being. Today's objective is to find the boiler warranty. Holder's ambitions live somewhere between those two extremes: take the ordinary chaos of documents, possessions, dates, thoughts and responsibilities, give it enough structure to become useful, and see what happens. Software does nothing by itself; but when the right information appears at the right moment, people can do things differently.</p> 
+    <p>Saving mankind may require a later release; for now, we'll start with getting it to build.</p>
+    <a href="{{ '/assets/img/philosophy/wiser.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/wiser-mid.png' | relative_url }}" alt="Become wiser, fix the boiler"></a>
+    <p>Holder starts with the world as you experience it: people, things, places, events and time. Resources and Milestones give you handles on that world; Cards capture what you observe, remember, believe, infer and intend. As those Cards accumulate, connections, themes and patterns can emerge, helping you move from isolated experiences towards greater understanding.</p>
+    <a href="{{ '/assets/img/philosophy/triangle.png' | relative_url }}"><img src="{{ '/assets/img/philosophy/triangle-mid.png' | relative_url }}" alt="Write cards, gain understanding, hopefully"></a>
+    <p>Whether Holder eventually leads you to Truth, Beauty, the Good or enlightenment is somewhat beyond the scope of the GPL, but at least as free and open source software, you have privacy and control.</p>
+  </div>
+
+</section>

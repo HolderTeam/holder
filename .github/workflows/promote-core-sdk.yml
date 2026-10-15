@@ -1,0 +1,142 @@
+name: Release / Promote core SDK
+
+# Publishes the core SDK archives that a release's daemon was built against to HolderTeam/holder-sdk
+# as the release holder-v<version>, beside main's development snapshots. The archives come from the
+# release's Daemon CI run (dispatched with core_build_type=Release), with that run's core-selection
+# index, so the SDKs people download are exactly the core the shipped daemon uses. Holder's own
+# release holds what users install; the SDKs live in holder-sdk. Run it from main: only main may
+# use the holder-sdk-publish environment, which holds the publishing app's key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Exact release version, for example 0.2.5
+        required: true
+        type: string
+      daemon_ci_run_id:
+        description: Successful Daemon CI run, dispatched with core_build_type=Release, that the release's backends come from
+        required: true
+        type: string
+      release_tag:
+        description: Optional exact release tag; blank uses holder-v<expected_version>
+        required: false
+        default: ""
+        type: string
+
+run-name: Promote core SDK ${{ inputs.expected_version }} to release
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: holder-sdk-publish
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: holder-sdk-publish
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: run
+        name: Check the Daemon CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.daemon_ci_run_id }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "daemon_ci_run_id must be numeric; got '$RUN_ID'" >&2
+            exit 1
+          fi
+          if ! [[ "$EXPECTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "expected_version must be a version like 0.2.5; got '$EXPECTED_VERSION'" >&2
+            exit 1
+          fi
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
+          path="$(jq -r '.path' <<< "$run")"
+          conclusion="$(jq -r '.conclusion' <<< "$run")"
+          if [ "${path}" != .github/workflows/daemon-ci.yml ] || [ "${conclusion}" != success ]; then
+            echo "Run ${RUN_ID} is ${path} with conclusion ${conclusion}; a successful Daemon CI run is required." >&2
+            exit 1
+          fi
+          echo "commit=$(jq -r '.head_sha' <<< "$run")" >> "$GITHUB_OUTPUT"
+          release_tag="${RELEASE_TAG_INPUT:-holder-v${EXPECTED_VERSION}}"
+          if [ "${release_tag}" != "holder-v${EXPECTED_VERSION}" ]; then
+            echo "The release tag must be holder-v${EXPECTED_VERSION}; got '${release_tag}'" >&2
+            exit 1
+          fi
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the run's core selection
+        uses: actions/download-artifact@v8
+        with:
+          name: core-selection
+          path: out
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.daemon_ci_run_id }}
+
+      - name: Download the run's Release SDKs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: core-sdk-*-Release
+          path: out/core-sdk
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.daemon_ci_run_id }}
+
+      - name: Verify the SDKs against the selection and the release version
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          set -euo pipefail
+          # Re-index the downloaded archives and require the same description the run recorded:
+          # the same run commit and core/ tree, version, configurations, per-archive commits, sizes
+          # and checksums.
+          python3 core/scripts/core-sdk.py index --assets out/core-sdk --output out/downloaded-selection.json \
+            --commit "$(jq -r .commit out/core-selection.json)" --tree "$(jq -r .core_tree out/core-selection.json)"
+          python3 - <<'EOF'
+          import json, os, sys
+          recorded = json.load(open("out/core-selection.json"))
+          downloaded = json.load(open("out/downloaded-selection.json"))
+          key = lambda asset: asset["name"]
+          if sorted(recorded["assets"], key=key) != sorted(downloaded["assets"], key=key) or \
+             any(recorded.get(k) != downloaded.get(k) for k in ("commit", "core_tree", "version")):
+              sys.exit("The downloaded SDKs differ from the run's core selection")
+          configurations = {(a["platform"], a["build_type"]) for a in recorded["assets"]}
+          if configurations != {("linux", "Release"), ("macos", "Release"), ("windows", "Release")}:
+              sys.exit(f"Expected Release SDKs for linux, macos and windows; got {sorted(configurations)}")
+          if recorded["version"] != os.environ["EXPECTED_VERSION"]:
+              sys.exit(f"Core is at {recorded['version']}, not the release version {os.environ['EXPECTED_VERSION']}")
+          print(f"Core {recorded['version']} from {recorded['commit']}: {len(recorded['assets'])} Release SDKs")
+          EOF
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish to holder-sdk
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SDK_RELEASE: ${{ steps.run.outputs.release_tag }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.daemon_ci_run_id }}
+        run: >-
+          .github/scripts/publish-core-sdk.sh out/core-sdk out/core-selection.json
+          "$(jq -r .core_tree out/core-selection.json)"

@@ -849,6 +849,82 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CardListItem"
+    HierarchyRepairRequest:
+      type: object
+      properties:
+        apply:
+          type: boolean
+          default: false
+          description: Apply the repair. Without it, only report.
+    HierarchyRepairMove:
+      type: object
+      required: [card_id, parent_card_id]
+      properties:
+        card_id:
+          type: string
+          description: A hidden branch's top card. Its descendants stay attached and move with it.
+        parent_card_id:
+          type: string
+          nullable: true
+          description: Where it goes, or null for the project's top level.
+    HierarchyRepair:
+      type: object
+      required: [applied, moved, changed_card_count, cycle_card_ids]
+      properties:
+        applied:
+          type: boolean
+          description: True when changes were written.
+        moved:
+          type: array
+          items:
+            $ref: "#/components/schemas/HierarchyRepairMove"
+        changed_card_count:
+          type: integer
+          minimum: 0
+          description: Cards whose placement changes, counting siblings re-spaced to make room.
+        cycle_card_ids:
+          type: array
+          items:
+            type: string
+          description: Live cards whose parent chain loops. They are left alone and need moving by hand.
+    HierarchyRepairResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/HierarchyRepair"
+    CardPageItem:
+      allOf:
+        - $ref: "#/components/schemas/CardListItem"
+        - type: object
+          properties:
+            content:
+              type: string
+              description: The card's body. Present only when include_content is true.
+    CardPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardPageItem"
+        next_cursor:
+          type: string
+          nullable: true
+          description: Continue with this cursor, or null when there are no more results.
+    CardPageResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/CardPage"
     ProjectTag:
       type: object
       required: [tag, card_count]
@@ -939,7 +1015,7 @@ components:
         parent_card_id:
           type: string
           nullable: true
-          description: Optional parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used.
+          description: Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level.
         if_revision:
           type: integer
           format: int64
@@ -3239,6 +3315,167 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /projects/{project_id}/repair-hierarchy:
+    post:
+      summary: Find, and optionally fix, cards hidden under missing or trashed parents
+      description: A live card whose parent is missing or trashed cannot be reached by browsing from the project's top level. This can happen after an older client trashed a parent, a card file was removed by hand, or a sync brought either in. Without apply, this only reports, reading the database alone (so it works on a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable ancestor (or the top level), into the place its trashed ancestor held, with its descendants still attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are reported and left alone. The daemon also repairs at startup and core repairs after every pull.
+      parameters:
+        - in: path
+          name: project_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HierarchyRepairRequest"
+      responses:
+        "200":
+          description: The plan, and whether it was applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HierarchyRepairResponse"
+        "400":
+          description: Invalid body, or a privacy error applying to an encrypted project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: The daemon has no card store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The keyring needed to write an encrypted project is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /projects/{project_id}/cards:
+    get:
+      summary: Page through a project's live cards
+      description: Filters combine. Each page reads current data; iteration is not a snapshot.
+      parameters:
+        - in: path
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: tag
+          schema:
+            type: string
+            minLength: 1
+          description: Exact tag match, case-insensitive, without the leading #.
+        - in: query
+          name: parent
+          schema:
+            oneOf:
+              - type: string
+                enum: [roots]
+              - type: string
+                format: uuid
+                pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[47][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          description: Omit for all hierarchy levels; roots selects root cards; a card ID selects its immediate children.
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [card_id_asc, updated_desc]
+            default: card_id_asc
+          description: updated_desc breaks ties by descending card ID.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 200
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 8192
+          description: Continuation from next_cursor. Keep the project, filters and ordering unchanged.
+        - in: query
+          name: include_content
+          schema:
+            type: boolean
+            default: false
+          description: Include each card's body. The page is selected and every body read under one project lock, and the whole page fails if a body cannot be read (for example a locked encrypted project). limit is at most 1000 when true. The cursor is the same with or without content.
+      responses:
+        "200":
+          description: A page of matching cards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPageResponse"
+        "400":
+          description: Invalid parameter or cursor, including a cursor from a different query, or a privacy error reading content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Content pages unavailable because the daemon has no card store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The keyring needed to read an encrypted project's content is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /projects/{project_id}/tags:
     get:
       summary: List project tags with live-card counts
@@ -3540,7 +3777,7 @@ paths:
   /projects/{project_id}/history/cards/{card_id}/restore:
     post:
       summary: Restore a card to a saved snapshot
-      description: Restores the complete card snapshot at the selected commit and records the result as a new commit without rewriting history.
+      description: Restores the complete card snapshot at the selected commit and records the result as a new commit without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was trashed promotes its current live children, as trashing does. Restoring a live snapshot places the card under a reachable parent, as restoring from Trash does.
       parameters:
         - in: path
           name: project_id
@@ -4383,12 +4620,21 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Move card to trash
+      description: "The card and every changed card are written in one commit. With children=promote (the default), the card's immediate live children take its place among its siblings (or the project's top level) in their existing order, keeping their own descendants; children already in Trash stay there. With children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent there, including live cards beneath descendants that were already trashed, which keep their own trash time. Restoring is always single-card: see POST /cards/{card_id}/restore."
       parameters:
         - name: card_id
           in: path
           required: true
           schema:
             type: string
+        - name: children
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [promote, trash_subtree]
+            default: promote
+          description: What happens to the card's live children. Any other value is rejected before anything changes.
       responses:
         "200":
           description: OK
@@ -4396,6 +4642,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CardPatchResponse"
+        "400":
+          description: Invalid children value, or the card cannot be trashed (for example it is already in Trash)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:
@@ -4411,6 +4663,7 @@ paths:
   /cards/{card_id}/move:
     post:
       summary: Move/reparent/reorder a card using card move intent
+      description: Placement is resolved and written under the project lock. When the card's new neighbours leave no room between their sort keys (tied keys, or a gap used up by repeated moves), nearby siblings are re-spaced in the same commit, keeping their order. The response describes only the moved card, so a client holding other cards' sort_key values should refresh the listing.
       parameters:
         - name: card_id
           in: path
@@ -6351,6 +6604,7 @@ paths:
   /cards/{card_id}/restore:
     post:
       summary: Restore a card from trash
+      description: Restores this card only. It returns to its saved parent when that parent is live and reachable, otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if restored afterwards.
       parameters:
         - name: card_id
           in: path
