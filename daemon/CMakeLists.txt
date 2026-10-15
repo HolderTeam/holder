@@ -268,9 +268,12 @@ if(HOLDER_CORE_SOURCE_DIR)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SOURCE_DIR}/schema/schema.sql")
   set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SOURCE_DIR}/resources/WELCOME.md")
 elseif(HOLDER_CORE_INSTALL)
-  set(holder_DIR "${HOLDER_CORE_INSTALL}/lib/cmake/holder" CACHE PATH "Selected core CMake package" FORCE)
+  # Let CMake search the installation prefix so it can locate lib, lib64, or
+  # a platform-specific library directory. Discard a package path cached by
+  # an earlier configuration before selecting this installation.
+  unset(holder_DIR CACHE)
+  find_package(holder CONFIG REQUIRED PATHS "${HOLDER_CORE_INSTALL}" NO_DEFAULT_PATH)
   set(HOLDER_LOCAL_CORE_PACKAGE_DIR "${holder_DIR}" CACHE INTERNAL "Previously selected local core package")
-  find_package(holder CONFIG REQUIRED PATHS "${HOLDER_CORE_INSTALL}/lib/cmake/holder" NO_DEFAULT_PATH)
   if(NOT DEFINED holder_BUILD_TYPE OR NOT CMAKE_BUILD_TYPE STREQUAL holder_BUILD_TYPE)
     message(FATAL_ERROR "Installed core build type '${holder_BUILD_TYPE}' does not match daemon '${CMAKE_BUILD_TYPE}'; rebuild and install core with the matching build type")
   endif()
