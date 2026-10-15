@@ -25,13 +25,14 @@ void validate_link_target(
     holder::platform::Db& db,
     const std::string& project_id,
     const std::string& to_id,
-    const std::string& to_type
+    const std::string& to_type,
+    bool allow_cross_project_card_target
 ) {
   if (to_id.empty()) throw std::invalid_argument("Missing to_card_id.");
   if (to_type == "card") {
     const auto target = CardRepo(db).get(to_id);
     if (!target) throw std::invalid_argument("Target card not found.");
-    if (target->project_id != project_id)
+    if (!allow_cross_project_card_target && target->project_id != project_id)
       throw std::invalid_argument("Target card is in a different project.");
     if (target->deleted_at) throw std::invalid_argument("Target card is trashed.");
     return;
@@ -66,14 +67,17 @@ void validate_link_target(
 void add_card_link(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    const holder::model::CardLink& link
+    const holder::model::CardLink& link,
+    bool allow_cross_project_card_target
 ) {
   const auto source = CardRepo(db).get(link.from_card_id);
   if (!source || source->deleted_at) throw std::invalid_argument("Live source card not found.");
   if (source->project_id != link.project_id)
     throw std::invalid_argument("Source card is in a different project.");
   if (link.kind.empty()) throw std::invalid_argument("kind must not be empty");
-  validate_link_target(db, link.project_id, link.to_card_id, link.to_type);
+  validate_link_target(
+      db, link.project_id, link.to_card_id, link.to_type, allow_cross_project_card_target
+  );
   LinkRepo links(db);
   auto updated = link;
   for (const auto& existing : links.list_outgoing(link.project_id, link.from_card_id)) {

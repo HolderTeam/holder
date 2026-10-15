@@ -17,7 +17,8 @@ namespace holder::card {
 void add_card_link(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    const holder::model::CardLink& link
+    const holder::model::CardLink& link,
+    bool allow_cross_project_card_target = false
 );
 void remove_card_link(
     holder::platform::Db& db,
@@ -31,7 +32,8 @@ void validate_link_target(
     holder::platform::Db& db,
     const std::string& project_id,
     const std::string& to_id,
-    const std::string& to_type
+    const std::string& to_type,
+    bool allow_cross_project_card_target = false
 );
 
 } // namespace holder::card

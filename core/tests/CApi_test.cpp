@@ -3489,6 +3489,47 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
+TEST_CASE("C API legacy card links can target another project", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "first", std::nullopt);
+  seed_git_project(data_dir, "project-2", data_dir / "second", std::nullopt);
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  char* json = nullptr;
+  REQUIRE(holder_card_create(context, "project-1", "Source", "", nullptr, &json, &error) == HOLDER_OK);
+  const std::string source_id = nlohmann::json::parse(json).at("card_id");
+  holder_string_free(json);
+  json = nullptr;
+  REQUIRE(holder_card_create(context, "project-2", "Target", "", nullptr, &json, &error) == HOLDER_OK);
+  const std::string target_id = nlohmann::json::parse(json).at("card_id");
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_card_link_add(
+      context, source_id.c_str(), target_id.c_str(), "references", nullptr, &json, &error
+  ) == HOLDER_OK);
+  const auto links = nlohmann::json::parse(json);
+  REQUIRE(links.size() == 1);
+  REQUIRE(links[0]["to_card_id"] == target_id);
+  holder_string_free(json);
+
+  const auto options = nlohmann::json{
+      {"to_id", target_id}, {"to_type", "card"}, {"kind", "references"}
+  }.dump();
+  json = nullptr;
+  REQUIRE(holder_card_link_add_json(
+      context, source_id.c_str(), options.c_str(), &json, &error
+  ) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  holder_context_destroy(context);
+}
+
 TEST_CASE("C API card_link_add/remove round-trips connections with title enrichment", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);

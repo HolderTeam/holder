@@ -3169,7 +3169,8 @@ int holder_card_link_add(
     }
     link.created_at = now_epoch_seconds();
 
-    holder::card::add_card_link(context->db, &context->fts, link);
+    // The legacy card-only API permits connections between projects. Kit relies on this.
+    holder::card::add_card_link(context->db, &context->fts, link, true);
 
     nlohmann::json outgoing = nlohmann::json::array();
     for (const auto& l :
