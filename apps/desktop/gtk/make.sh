@@ -145,10 +145,14 @@ run_app() {
     export HOLDER_CTL="${sibling_ctl}"
     echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
   fi
+  local -a launch=("./${BUILD_DIR}/holder-desktop")
+  if [[ "${MODE}" == access ]]; then
+    launch=(python3 scripts/accessible_runtime.py run "${launch[@]}")
+  fi
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
     GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
     XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
-    "./${BUILD_DIR}/holder-desktop"
+    "${launch[@]}"
 }
 
 coverage() {
@@ -211,11 +215,14 @@ case "${MODE}" in
   run)
     run_app
     ;;
+  access)
+    run_app
+    ;;
   coverage)
     coverage
     ;;
   *)
-    echo "Usage: $0 [build|test|run|coverage]"
+    echo "Usage: $0 [build|test|run|access|coverage]"
     exit 2
     ;;
 esac

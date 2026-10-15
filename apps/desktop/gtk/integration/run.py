@@ -311,6 +311,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         choices=("linux", "deps-ubuntu", "install-dev"),
     )
     display = parser.add_mutually_exclusive_group()
+    parser.add_argument(
+        "--access", action="store_true",
+        help="Use the shared accessible runtime selector (Linux uses AT-SPI).",
+    )
     display.add_argument(
         "--headless",
         action="store_true",
@@ -333,6 +337,8 @@ def normalize_args(argv: list[str]) -> list[str]:
 def main() -> int:
     runner = Runner()
     args = parse_args(normalize_args(sys.argv[1:]))
+    if args.access:
+        os.environ['HOLDER_FRONTEND_ACCESSIBLE'] = '1'
     if args.mode == "deps-ubuntu":
         print("sudo apt update")
         print(

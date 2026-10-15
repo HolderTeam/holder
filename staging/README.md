@@ -174,3 +174,11 @@ https://github.com/HolderTeam/holder/actions/workflows/staging-macos-stage.yml
 9. Open it:
 
   open Holder.app
+
+## Accessible GTK development runtime
+
+`scripts/build-macos-accessible-gtk.sh` preserves the isolated GTK/AccessKit build
+recipe from PR #26. The desktop's opt-in `./make.sh access` mode uses it through
+the cache and runtime selector documented in `apps/desktop/gtk/README.md`.
+This script does not modify Homebrew packages. Staging and release defaults are
+unchanged; packaged accessibility remains tracked in issue #124.
