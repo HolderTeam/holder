@@ -110,11 +110,9 @@ fun CardViewScreen(
         )
     }
 
-    // There's no single-card fetch, so this piggybacks on the project's full list -- same
-    // approach ConnectionsSummary's Next/Previous/Follows/Precedes already use.
     LaunchedEffect(cardId, projectId, refreshKey) {
         cardMeta = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCards(projectId).find { it.cardId == cardId } }
+            withContext(Dispatchers.IO) { HolderNative.getCard(cardId).takeIf { it.projectId == projectId } }
         }.getOrNull()
     }
 

@@ -41,6 +41,10 @@ def test_complete_card_lifecycle(tmp_path: Path) -> None:
             project.project_id, "First card", "Initial body"
         )
 
+        assert _native.DIRECT_LOOKUP_SUPPORTED
+        assert context._context.get_project(project.project_id)["name"] == "Python test"
+        assert context._context.get_card(card.card_id)["project_id"] == project.project_id
+
         assert context.get_card_content(card.card_id) == "Initial body"
         assert context.list_cards(project.project_id) == [card]
 
@@ -53,6 +57,15 @@ def test_complete_card_lifecycle(tmp_path: Path) -> None:
         assert context.list_cards(project.project_id)[0].title == "Updated card"
 
     assert context.closed
+
+
+def test_direct_lookup_falls_back_with_older_core(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    with holderkit.Context(tmp_path / "holder-data") as context:
+        project = context.create_project("Fallback")
+        card = context.create_card(project.project_id, "One")
+        monkeypatch.setattr(_native, "DIRECT_LOOKUP_SUPPORTED", 0)
+        assert project.name == "Fallback"
+        assert project.cards.get(card.card_id).title == "One"
 
 
 def test_invalid_input_and_native_failures(tmp_path: Path) -> None:

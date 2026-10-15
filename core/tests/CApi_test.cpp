@@ -538,6 +538,96 @@ TEST_CASE("C API lists cards as JSON", "[capi]") {
   holder_context_destroy(context);
 }
 
+TEST_CASE("C API looks up project and card metadata by exact identity", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_project_with_cards(data_dir);
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  const auto schema = read_schema_sql();
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  char* json = nullptr;
+  REQUIRE(holder_project_get(context, "project-1", &json, &error) == HOLDER_OK);
+  const auto project = nlohmann::json::parse(json);
+  REQUIRE(project.at("project_id") == "project-1");
+  REQUIRE(project.at("name") == "Home");
+  REQUIRE(project.at("git_remote_url") == "git@example.com:holder/home.git");
+  holder_string_free(json);
+
+  REQUIRE(holder_card_get(context, "card-2", 0, &json, &error) == HOLDER_OK);
+  const auto card = nlohmann::json::parse(json);
+  REQUIRE(card.at("card_id") == "card-2");
+  REQUIRE(card.at("project_id") == "project-1");
+  REQUIRE(card.at("parent_card_id") == "card-1");
+  REQUIRE(card.at("rel_path") == "Second.md");
+  REQUIRE(card.at("sort_key") == 2.0);
+  REQUIRE(card.at("deleted_at").is_null());
+  holder_string_free(json);
+
+  holder::platform::Db db;
+  db.open(data_dir / "server" / "holder.db");
+  holder::card::CardRepo(db).soft_delete("card-2", 70, 70);
+
+  json = nullptr;
+  REQUIRE(holder_card_get(context, "card-2", 0, &json, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  REQUIRE(std::string(holder_error_message(error)).find("not found") != std::string::npos);
+  holder_error_destroy(error);
+
+  REQUIRE(holder_card_get(context, "card-2", 1, &json, &error) == HOLDER_OK);
+  REQUIRE(nlohmann::json::parse(json).at("deleted_at") == 70);
+  holder_string_free(json);
+  REQUIRE(holder_card_get(context, "card-2", 2, &json, &error) == HOLDER_OK);
+  holder_string_free(json);
+
+  REQUIRE(holder_card_get(context, "card-1", 1, &json, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(holder_card_get(context, "missing-card", 2, &json, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(holder_project_get(context, "missing-project", &json, &error) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  holder_context_destroy(context);
+}
+
+TEST_CASE("C API validates direct metadata lookup arguments", "[capi]") {
+  holder_error* error = nullptr;
+  char* json = reinterpret_cast<char*>(1);
+  REQUIRE(holder_project_get(nullptr, "project-1", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(holder_card_get(nullptr, "card-1", 0, &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+
+  const auto data_dir = holder::test::make_temp_dir();
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+  REQUIRE(holder_project_get(context, "", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(holder_card_get(context, nullptr, 0, &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(holder_card_get(context, "card-1", 3, &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  REQUIRE(
+      holder_project_get(context, "project-1", nullptr, &error) == HOLDER_ERROR_INVALID_ARGUMENT
+  );
+  holder_error_destroy(error);
+  REQUIRE(holder_card_get(context, "card-1", 0, nullptr, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  holder_error_destroy(error);
+  holder_context_destroy(context);
+}
+
 TEST_CASE("C API lists complete cards from authoritative files with opaque pagination", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = read_schema_sql();

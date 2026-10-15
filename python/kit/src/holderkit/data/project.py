@@ -146,7 +146,10 @@ class Project:
         return self._context
 
     def _current(self) -> Mapping[str, Any]:
-        for record in self._live_context().list_projects():
+        context = self._live_context()
+        if _native.DIRECT_LOOKUP_SUPPORTED:
+            return context.get_project(self._project_id)
+        for record in context.list_projects():
             if record["project_id"] == self._project_id:
                 return record
         raise _native.HolderError("project not found: " + self._project_id)
@@ -238,11 +241,21 @@ class Project:
         return ProjectMilestones(self)
 
     def _card_record(self, card_id: str) -> Mapping[str, Any]:
-        result = self._live_context().resolve_card(self.project_id, card_id)
-        record = result.get("card")
-        # Core also resolves prefixes/titles; a handle must resolve only its exact identity.
-        if (result.get("status") != "resolved" or not isinstance(record, dict) or
-                record.get("card_id") != card_id or record.get("project_id") != self.project_id):
+        context = self._live_context()
+        if _native.DIRECT_LOOKUP_SUPPORTED:
+            try:
+                record = context.get_card(card_id)
+            except _native.HolderError as error:
+                if not str(error).startswith("card not found:"):
+                    raise
+                raise KeyError(f"Card not found in this project: {card_id}") from None
+        else:
+            result = context.resolve_card(self.project_id, card_id)
+            resolved_record = result.get("card")
+            if result.get("status") != "resolved" or not isinstance(resolved_record, dict):
+                raise KeyError(f"Card not found in this project: {card_id}")
+            record = resolved_record
+        if record["card_id"] != card_id or record["project_id"] != self.project_id:
             raise KeyError(f"Card not found in this project: {card_id}")
         return record
 

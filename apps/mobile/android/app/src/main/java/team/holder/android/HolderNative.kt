@@ -405,6 +405,7 @@ object HolderNative {
     private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
     private external fun nativeProjectList(contextHandle: Long): String
     private external fun nativeCardList(contextHandle: Long, projectId: String): String
+    private external fun nativeCardGet(contextHandle: Long, cardId: String, scope: Int): String
     private external fun nativeCardQuery(contextHandle: Long, projectId: String, requestJson: String): String
     private external fun nativeBackupSnapshotPage(
         contextHandle: Long,
@@ -714,6 +715,10 @@ object HolderNative {
         val cards = JSONArray(readLane.call { nativeCardList(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
+
+    /** Fetches one card's metadata by exact ID; scope is 0 for live, 1 for Trash, or 2 for either. */
+    fun getCard(cardId: String, scope: Int = 0): HolderCard =
+        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, scope) }))
 
     /** One hierarchy/recency view of projectId's cards, bundling what would otherwise be
      * several one-off native calls (list_roots/list_children/list_all/list_recent_page)

@@ -1692,6 +1692,26 @@ int holder_project_list(holder_context* context, char** out_json, holder_error**
   } // LCOV_EXCL_LINE
 }
 
+int holder_project_get(
+    holder_context* context,
+    const char* project_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || project_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto project = holder::project::ProjectRepo(context->db).get(project_id);
+    if (!project.has_value()) {
+      throw std::runtime_error("project not found: " + std::string(project_id));
+    }
+    return project_to_json(*project);
+  });
+}
+
 int holder_card_list(
     holder_context* context,
     const char* project_id,
@@ -1735,6 +1755,28 @@ int holder_card_list(
   } catch (...) {
     return set_unknown_exception(out_error); // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
+}
+
+int holder_card_get(
+    holder_context* context,
+    const char* card_id,
+    int scope,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (card_id == nullptr || card_id[0] == '\0' || !card_scope_from_int(scope).has_value()) {
+    clear_error(out_error);
+    if (out_json != nullptr) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id and scope must be valid");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto card = holder::card::CardRepo(context->db).get(card_id);
+    if (!card.has_value() || (scope == 0 && card->deleted_at.has_value()) ||
+        (scope == 1 && !card->deleted_at.has_value())) {
+      throw std::runtime_error("card not found: " + std::string(card_id));
+    }
+    return card_to_json(*card);
+  });
 }
 
 int holder_card_list_complete_page(
