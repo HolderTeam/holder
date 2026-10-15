@@ -40,7 +40,8 @@ Examples:
 
 Environment:
   HOLDER_CCACHE                auto (default), 1 to require, or 0 to disable ccache
-  HOLDER_CORE_SOURCE_DIR       Core source to build with the daemon (default ../core)
+  HOLDER_CORE_INSTALL          Use an installed local core package (no automatic build)
+  HOLDER_CORE_SOURCE_DIR       Opt into building core inside the daemon build
   HOLDER_CORE_SDK              Use an installed core SDK instead of building core
   HOLDER_USE_SYSTEM_CORE       1/ON to use the installed system core package instead
   HOLDER_CTEST_TIMEOUT          Per-test timeout (memcheck defaults to 900 seconds)
@@ -102,54 +103,108 @@ system_core_selected() {
   esac
 }
 
-# The daemon builds against core from this checkout (../core) unless an SDK or the system
-# package is chosen. CI builds against core's installed SDK instead; see Core / SDK.
+# Source embedding is an explicit opt-in. Ordinary local builds consume an install.
 core_from_source() {
-  [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ] && return 0
-  [ -z "${HOLDER_CORE_SDK:-}" ] && ! system_core_selected
+  [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]
+}
+
+local_core_selected() {
+  [ -z "${HOLDER_CORE_SOURCE_DIR:-}${HOLDER_CORE_SDK:-}${HOLDER_CORE_INSTALL:-}" ] && ! system_core_selected
+}
+
+build_local_core() {
+  local core_dir build_dir install_dir arg daemon_build_dir=build build_type=RelWithDebInfo
+  local -a core_args=(-DCMAKE_CXX_FLAGS= -DCMAKE_EXE_LINKER_FLAGS= -DCMAKE_SHARED_LINKER_FLAGS=)
+  core_dir="$(cd ../core && pwd)"
+  # Forward compiler, toolchain and instrumentation settings, but keep core's
+  # targets and tests in its own build. Diagnostic configurations stay separate.
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
+    shift
+    case "$arg" in
+      -B) daemon_build_dir="$1"; shift ;;
+      -DCMAKE_BUILD_TYPE=*) build_type="${arg#*=}" ;;
+      -DCMAKE_CXX_FLAGS*|-DCMAKE_EXE_LINKER_FLAGS*|-DCMAKE_SHARED_LINKER_FLAGS*|-DCMAKE_CXX_COMPILER=*|-DCMAKE_TOOLCHAIN_FILE=*|-DCMAKE_OSX_*)
+        core_args+=("$arg") ;;
+    esac
+  done
+  build_dir="${core_dir}/build"
+  install_dir="${core_dir}/out/install/local"
+  if [ "$daemon_build_dir" != build ]; then
+    build_dir="${core_dir}/build-daemon-${daemon_build_dir##*/}"
+    install_dir="${core_dir}/out/install/daemon-${daemon_build_dir##*/}"
+  fi
+  local -a platform_args=(-DHOLDER_CORE_BUILD_SHARED=OFF)
+  if is_windows_shell; then
+    platform_args+=("-DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      "-DVCPKG_TARGET_TRIPLET=x64-windows"
+      "-DVCPKG_INSTALLED_DIR=${core_dir}/../.vcpkg-holder-core")
+  fi
+  if [ ! -f "$build_dir/CMakeCache.txt" ]; then
+    platform_args+=(-G Ninja)
+  fi
+  echo "core: updating separate build ($build_dir)"
+  cmake -S "$core_dir" -B "$build_dir" \
+    "-DCMAKE_BUILD_TYPE=$build_type" -DHOLDER_CORE_SDK=OFF \
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_BIN}" \
+    "${platform_args[@]}" "${core_args[@]}"
+  cmake --build "$build_dir" --target holder --parallel "$(jobs)"
+  cmake --install "$build_dir" --prefix "$install_dir"
+  CORE_CMAKE_ARGS+=("-DHOLDER_CORE_INSTALL=$install_dir")
+  echo "core: installed local package ($install_dir)"
 }
 
 prepare_core() {
-  if [ -z "${HOLDER_CORE_SOURCE_DIR:-}" ] && core_from_source; then
-    if [ ! -f ../core/CMakeLists.txt ]; then
-      echo "Missing ../core: run make.sh from daemon/ in a holder checkout," >&2
-      echo "or set HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE." >&2
-      return 1
-    fi
-    HOLDER_CORE_SOURCE_DIR="$(cd ../core && pwd)"
-    export HOLDER_CORE_SOURCE_DIR
+  local selections=0
+  [ -z "${HOLDER_CORE_SOURCE_DIR:-}" ] || selections=$((selections + 1))
+  [ -z "${HOLDER_CORE_SDK:-}" ] || selections=$((selections + 1))
+  [ -z "${HOLDER_CORE_INSTALL:-}" ] || selections=$((selections + 1))
+  if system_core_selected; then selections=$((selections + 1)); fi
+  if [ "$selections" -gt 1 ]; then
+    echo "Select one core mode: HOLDER_CORE_SOURCE_DIR, HOLDER_CORE_INSTALL, HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE." >&2
+    return 2
   fi
   CORE_CMAKE_ARGS=("-DHOLDER_CORE_SOURCE_DIR=${HOLDER_CORE_SOURCE_DIR:-}"
-                   "-DHOLDER_CORE_SDK=${HOLDER_CORE_SDK:-}" "-DHOLDER_USE_SYSTEM_CORE=OFF")
+                   "-DHOLDER_CORE_SDK=${HOLDER_CORE_SDK:-}"
+                   "-DHOLDER_CORE_INSTALL=${HOLDER_CORE_INSTALL:-}" "-DHOLDER_USE_SYSTEM_CORE=OFF")
   if [ -n "${HOLDER_CORE_SOURCE_DIR:-}" ]; then
-    if system_core_selected; then
-      echo "Select one core mode: HOLDER_CORE_SOURCE_DIR or HOLDER_USE_SYSTEM_CORE." >&2
-      return 2
-    fi
     echo "core: building from source ($HOLDER_CORE_SOURCE_DIR)"
     return
   fi
   case "${HOLDER_USE_SYSTEM_CORE:-OFF}" in
     1|ON|on|TRUE|true|YES|yes)
-      CORE_CMAKE_ARGS=("-DHOLDER_CORE_SOURCE_DIR=" "-DHOLDER_CORE_SDK=" "-DHOLDER_USE_SYSTEM_CORE=ON")
+      CORE_CMAKE_ARGS=("-DHOLDER_CORE_SOURCE_DIR=" "-DHOLDER_CORE_SDK=" "-DHOLDER_CORE_INSTALL=" "-DHOLDER_USE_SYSTEM_CORE=ON")
       echo "core: installed system package"
       return
       ;;
     0|OFF|off|FALSE|false|NO|no|"") ;;
     *) echo "Invalid HOLDER_USE_SYSTEM_CORE value: $HOLDER_USE_SYSTEM_CORE" >&2; return 2 ;;
   esac
+  if [ -n "${HOLDER_CORE_INSTALL:-}" ]; then
+    echo "core: installed local package ($HOLDER_CORE_INSTALL)"
+    return
+  fi
+  if local_core_selected; then
+    if [ ! -f ../core/CMakeLists.txt ]; then
+      echo "Missing ../core: run make.sh from daemon/ in a holder checkout," >&2
+      echo "or set HOLDER_CORE_INSTALL, HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE." >&2
+      return 1
+    fi
+    build_local_core "$@"
+    return
+  fi
   echo "core: installed SDK ($HOLDER_CORE_SDK)"
 }
 
 development_build_type() {
-  if core_from_source; then printf '%s\n' Debug
+  if core_from_source || local_core_selected; then printf '%s\n' Debug
   else printf '%s\n' RelWithDebInfo
   fi
 }
 
 cmake_configure() {
-  prepare_core
   prepare_ccache
+  prepare_core "$@"
   if [ "${CCACHE_STATE}" = "enabled" ]; then
     cmake "$@" "${CORE_CMAKE_ARGS[@]}" -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE_BIN}"
   else
@@ -257,7 +312,7 @@ build_standard() {
       exit 1
     fi
     local preset="windows-sdk-tests"
-    if core_from_source; then preset="windows-vcpkg-debug"; fi
+    if core_from_source || local_core_selected || [ -n "${HOLDER_CORE_INSTALL:-}" ]; then preset="windows-vcpkg-debug"; fi
     cmake_configure --preset "$preset" -DCMAKE_BUILD_TYPE="$build_type"
     cmake --build --preset "$preset" --parallel "$(jobs)"
     return
@@ -275,7 +330,7 @@ test_standard() {
       exit 1
     fi
     local preset="windows-sdk-tests"
-    if core_from_source; then preset="windows-vcpkg-tests-debug"; fi
+    if core_from_source || local_core_selected || [ -n "${HOLDER_CORE_INSTALL:-}" ]; then preset="windows-vcpkg-tests-debug"; fi
     cmake_configure --preset "$preset" -DCMAKE_BUILD_TYPE="$build_type"
     cmake --build --preset "$preset" --parallel "$(jobs)"
     ctest --preset "$preset"
@@ -289,7 +344,7 @@ test_standard() {
 run_standard() {
   if is_windows_shell; then
     local preset=windows-sdk-tests
-    if core_from_source; then preset=windows-vcpkg-tests-debug; fi
+    if core_from_source || local_core_selected || [ -n "${HOLDER_CORE_INSTALL:-}" ]; then preset=windows-vcpkg-tests-debug; fi
     "./out/build/$preset/holderd.exe"
   else
     ./build/holderd

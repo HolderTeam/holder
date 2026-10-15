@@ -259,7 +259,10 @@ For now, Holder consumers should build this repository from source and link `lib
 Holder::Core
 ```
 
-The daemon in `../daemon` builds this directory from source for local development and uses its SDK, built from the same commit, in CI.
+The daemon helper in `../daemon` updates this core build and installs it locally,
+then builds the daemon against the installed package. Set `HOLDER_CORE_INSTALL`
+to use an existing installation without updating it. CI uses a core SDK built
+from the same commit.
 
 Set `-DHOLDER_CORE_BUILD_SHARED=ON` in a standalone CMake build to build and
 install both `libholder.a` (`Holder::Core`) and the shared library

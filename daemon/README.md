@@ -36,16 +36,18 @@ Coverage tooling (optional):
 ## Building
 
 `./make.sh` builds, runs the tests, then starts `holderd`.
-It builds core from `../core` in this repository together with the daemon,
-so a core change is picked up on the next build.
+It first updates core in its own `../core/build` directory and installs it locally,
+then builds the daemon against that installed package. Both builds are incremental,
+so a core change is picked up on the next invocation without compiling core inside
+the daemon build.
 
 ```sh
 ./make.sh build               # Build without starting the daemon
 ./make.sh test                # Build and run the tests
 ```
 
-See [core build options](docs/core-builds.md) for using an installed core SDK or
-package instead, and for how CI and releases build against core.
+See [core build options](docs/core-builds.md) for managing the two steps yourself,
+using a core SDK or system package, and for how CI and releases build against core.
 
 Model catalog config lives at `config/models.yaml` and is served by the API at `/models.yaml`.
 
