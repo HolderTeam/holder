@@ -128,3 +128,82 @@ Override with:
 
 Optional maintainer fallback:
 - `./integration/make.sh install-dev`
+
+## Opt-in accessible source runtime
+
+From this directory, run `./make.sh access` to build, test, and launch with
+accessibility enabled. The existing `build`, `test`, `run`, and `coverage` modes
+keep their current runtime. On Linux, `access` uses GTK's existing AT-SPI backend.
+Windows does not currently offer this mode.
+
+On macOS, install the development dependencies above plus Rust (`brew install
+rust`) and Xcode Command Line Tools (`xcode-select --install`). First use needs
+network access and builds an isolated copy of the Homebrew-selected GTK source
+with AccessKit C 0.18.0. Preparation can take several minutes. The shared recipe
+is `../../../staging/scripts/build-macos-accessible-gtk.sh`, taken from PR #26;
+source archives are checksum verified. It does not install into or alter any
+Homebrew keg, and does not enable accessibility in packaged releases.
+
+The selector caches under `build-access-runtime/` (override with
+`HOLDER_ACCESS_CACHE=/absolute/path`). Cache identity includes source provenance,
+the recipe and selector, architecture, macOS/SDK/compiler, build configuration,
+and the versions, locations and dylib hashes of GTK consumers and their
+pkg-config dependencies. Dependency upgrades select a new cache. Installed GTK
+must match Homebrew's source metadata; incompatible AccessKit APIs fail Meson
+configuration rather than silently omitting accessibility. A modified or
+incomplete cache is rejected with its directory path: remove that specific
+directory and retry to rebuild. Old completed cache directories may be removed
+when no running app uses them.
+
+Prepare without opening Holder, or inspect the loaded libraries:
+
+```bash
+python3 scripts/accessible_runtime.py prepare
+python3 scripts/accessible_runtime.py inspect
+```
+
+Both commands validate the cache and run a native probe that loads libadwaita,
+GtkSourceView, VTE and libspelling together. Inspection reports GTK's version and
+all loaded image paths and rejects multiple GTK libraries or AccessKit loaded
+outside the selected runtime. Source checksums are retained in the runtime's
+`gtk-accessibility-build.json`; cache inputs and artifact hashes live beside it
+in `identity.json`.
+
+The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
+executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or
+`open -a` between selection and the app: macOS can strip loader variables at
+those boundaries. `run` accepts a native executable and its arguments, for
+example `python3 scripts/accessible_runtime.py run ./build/holder-desktop`.
+When running directly, supply `GSETTINGS_SCHEMA_DIR="$PWD/build/data"` as needed;
+`./make.sh access` supplies the normal source-tree environment automatically.
+
+GUI test drivers can import `scripts/accessible_runtime.py` and call
+`launch_environment(base_env)` directly at `subprocess.Popen([native_app],
+env=...)`. The integration drivers share this adapter in `drivers/base.py`;
+`./integration/make.sh linux --access` opts into it and uses AT-SPI. The existing
+integration suite still has only a Linux driver; this mode does not add a macOS
+automation driver.
+
+For manual macOS verification, open Accessibility Inspector (Xcode's developer
+tools) or turn on VoiceOver and inspect the launched Holder process. Check named
+project/card controls, search, editor text/caret and keyboard focus; open and
+close a dialog and the app-menu popover. Check actual app mappings with
+`vmmap <PID>` and confirm one `libgtk-4.1.dylib` from the printed runtime plus its
+AccessKit library. PR #26 found that the bridge exposes named controls but did
+not establish complete VoiceOver usability; menu popover entries remain a known
+verification area.
+
+Cache lifecycle tests can be run with
+`python3 tests/accessible_runtime_test.py`.
+
+Native validation on 2026-10-15 (Apple Silicon, GTK 4.24.1, AccessKit C 0.18.0):
+first-use preparation and reuse passed, including reuse from both the repository
+root and desktop directory. `./make.sh access` passed all 157 Meson tests and
+launched; `vmmap` confirmed one isolated GTK/AccessKit pair alongside Homebrew
+libadwaita 1.10.0, GtkSourceView 5.22.0 and VTE 0.84.1. The native observer needed
+a temporary `.app` wrapper containing a copy of the same source binary. It
+exposed named toolbar controls, toggle states, project/card lists, search and
+the editor role; keyboard focus and opening/dismissing the new-project dialog
+worked. The app-menu popover exposed no individual entries. Editor text/caret
+and full VoiceOver usability remain unchecked. Dependency changes and damaged
+or incomplete caches are covered by the cache lifecycle tests.

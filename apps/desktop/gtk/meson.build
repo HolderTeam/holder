@@ -398,6 +398,9 @@ executable(
 )
 
 if get_option('tests')
+test('holder-accessible-runtime-tests', find_program('python3'),
+  args: files('tests/accessible_runtime_test.py'))
+
 test_exe = executable(
   'holder-linux-tests',
   [
