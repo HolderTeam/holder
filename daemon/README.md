@@ -48,6 +48,8 @@ the daemon build.
 
 See [core build options](docs/core-builds.md) for managing the two steps yourself,
 using a core SDK or system package, and for how CI and releases build against core.
+See [daemon development](docs/development.md) for code ownership, concurrency and
+HTTP route changes.
 
 Model catalog config lives at `config/models.yaml` and is served by the API at `/models.yaml`.
 

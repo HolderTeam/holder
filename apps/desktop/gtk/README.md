@@ -16,6 +16,18 @@ GTK desktop frontend for Holder, plus behavior-level integration tests.
 
 This frontend uses Vala, GTK4/Libadwaita, Meson, and GLib.Test.
 
+Keep the app a thin client of the daemon. Storage, indexing, search, Git
+operations, AI execution and reusable domain behavior belong in the backend
+or core. Use native GTK/libadwaita behavior and preserve the supported runtime
+baseline.
+
+The app uses only the documented [HTTP contract](../../../api/openapi.yaml),
+not daemon or core internals or undocumented response behavior. If the app
+needs a new behavior, update the contract first and follow
+[Changing the contract](../../../api/README.md#changing-the-contract).
+Describe changes in meaning in the contract. `compatibility/daemon-api.json`
+records the `API_VERSION` range the app accepts.
+
 Fresh Ubuntu setup:
 
 ```bash
