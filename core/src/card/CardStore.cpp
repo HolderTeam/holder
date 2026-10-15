@@ -191,7 +191,8 @@ void CardStore::create_batch(
     const std::string& project_id,
     const std::vector<BatchCardInput>& items,
     const std::function<std::string()>& uuid_v4,
-    const std::string& commit_message
+    const std::string& commit_message,
+    const std::map<std::string, std::string>& resource_id_remap
 ) {
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
@@ -227,13 +228,10 @@ void CardStore::create_batch(
 
     std::vector<holder::model::CardLink> links;
     for (const auto& link : item.links) {
-      const auto remapped = id_remap.find(link.to_card_id);
-      if (link.to_type != "card" || remapped == id_remap.end()) {
-        // Dropped, not written dangling: the target either wasn't a card link or didn't make
-        // it into this restore batch (evicted from the snapshot, or a resource-ref -- see
-        // BACKUP_RESTORE_DESIGN.md's "open" section on resource-ref hydration being deferred).
-        continue;
-      }
+      const auto& targets = link.to_type == "resource" ? resource_id_remap : id_remap;
+      const auto remapped = targets.find(link.to_card_id);
+      if ((link.to_type != "card" && link.to_type != "resource") || remapped == targets.end())
+        continue; // A target absent from this snapshot cannot be written as a dangling link.
       holder::model::CardLink resolved = link;
       resolved.to_card_id = remapped->second;
       resolved.project_id = project_id;

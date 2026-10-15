@@ -987,6 +987,48 @@ Java_team_holder_android_HolderNative_nativeCardLinkRemove(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_team_holder_android_HolderNative_nativeCardLinkAddJson(
+    JNIEnv *env, jobject /* thiz */, jlong context_handle, jstring from_card_id,
+    jstring options_json) {
+  holder_context *context = context_from_handle(env, context_handle);
+  if (context == nullptr)
+    return nullptr;
+  UtfChars source(env, from_card_id);
+  UtfChars options(env, options_json);
+  if (source.get() == nullptr || options.get() == nullptr) {
+    throw_runtime(env, "from_card_id and options_json must not be null");
+    return nullptr;
+  }
+  char *json = nullptr;
+  holder_error *error = nullptr;
+  if (holder_card_link_add_json(context, source.get(), options.get(), &json,
+                                &error) != HOLDER_OK) {
+    throw_runtime(env, error_message(error));
+    return nullptr;
+  }
+  return string_result(env, json);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_HolderNative_nativeCardLinkRemoveJson(
+    JNIEnv *env, jobject /* thiz */, jlong context_handle, jstring from_card_id,
+    jstring options_json) {
+  holder_context *context = context_from_handle(env, context_handle);
+  if (context == nullptr)
+    return;
+  UtfChars source(env, from_card_id);
+  UtfChars options(env, options_json);
+  if (source.get() == nullptr || options.get() == nullptr) {
+    throw_runtime(env, "from_card_id and options_json must not be null");
+    return;
+  }
+  holder_error *error = nullptr;
+  if (holder_card_link_remove_json(context, source.get(), options.get(),
+                                   &error) != HOLDER_OK)
+    throw_runtime(env, error_message(error));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_team_holder_android_HolderNative_nativeCardListTags(
     JNIEnv* env,
     jobject /* thiz */,
@@ -1860,6 +1902,29 @@ Java_team_holder_android_HolderNative_nativeLocationPutJson(
   holder_error* error = nullptr;
   const int rc = holder_location_put_json(context, location_json_chars.get(), &json, &error);
   if (rc != HOLDER_OK) {
+    throw_runtime(env, error_message(error));
+    return nullptr;
+  }
+  return string_result(env, json);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_team_holder_android_HolderNative_nativeResourceList(JNIEnv *env,
+                                                         jobject /* thiz */,
+                                                         jlong context_handle,
+                                                         jstring project_id) {
+  holder_context *context = context_from_handle(env, context_handle);
+  if (context == nullptr)
+    return nullptr;
+  UtfChars project(env, project_id);
+  if (project.get() == nullptr) {
+    throw_runtime(env, "project_id must not be null");
+    return nullptr;
+  }
+  char *json = nullptr;
+  holder_error *error = nullptr;
+  if (holder_resource_list(context, project.get(), &json, &error) !=
+      HOLDER_OK) {
     throw_runtime(env, error_message(error));
     return nullptr;
   }

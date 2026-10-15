@@ -5,6 +5,7 @@
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/LinkKindCatalog.h"
+#include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
 #include "card/MilestoneRepo.h"
 #include "card/TagExtractor.h"
@@ -23,8 +24,8 @@
 #include "privacy/PlatformKeyring.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/DefaultProject.h"
-#include "project/ProjectManifest.h"
 #include "project/ProjectImport.h"
+#include "project/ProjectManifest.h"
 #include "project/ProjectPaths.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectStore.h"
@@ -55,6 +56,7 @@
 #include <new>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -2066,11 +2068,9 @@ int holder_card_query_json(
 // carry them explicitly. Tags are deliberately NOT included: they're always #hashtags already
 // present in the card's own body (see GITHUB_INTEGRATION_ANDROID_PLAN.md's card_tags note),
 // so restore's normal card-write path re-derives them from body text the same way any other
-// card write already does -- carrying them here too would just be redundant. Resource
-// references are also not yet included (the resource/asset metadata a card_links
-// to_type='resource' entry points at needs its own ResourceRepo/AssetRepo join, deferred as
-// a follow-up rather than blocking this step) -- the link itself, if a card has one, is not
-// silently dropped, only its target's own descriptive metadata.
+// card write already does -- carrying them here too would just be redundant. Linked
+// resources carry their portable metadata and storage declarations. Object bytes and
+// private storage credentials remain outside Android's size-limited snapshot.
 //
 // cursor_card_id empty/null means "first page." next_cursor in the response is null once a
 // page comes back shorter than limit (nothing left); otherwise it's the caller's cursor for
@@ -2114,6 +2114,8 @@ int holder_backup_snapshot_page(
     holder::card::CardRepo card_repo(context->db);
     holder::card::LinkRepo link_repo(context->db);
     holder::card::MilestoneRepo milestone_repo(context->db);
+    holder::resource::ResourceRepo resource_repo(context->db);
+    holder::resource::LocationRepo location_repo(context->db);
     holder::index::FtsIndexer fts(context->db);
 
     const bool has_cursor = cursor_card_id != nullptr && cursor_card_id[0] != '\0';
@@ -2138,6 +2140,8 @@ int holder_backup_snapshot_page(
       };
 
       nlohmann::json links = nlohmann::json::array();
+      nlohmann::json resources = nlohmann::json::array();
+      std::set<std::string> included_resources;
       for (const auto& link : link_repo.list_outgoing(project_id, card.card_id)) {
         nlohmann::json link_json = {
             {"to_id", link.to_card_id},
@@ -2147,8 +2151,26 @@ int holder_backup_snapshot_page(
         link_json["label"] = link.label.has_value() ? nlohmann::json(*link.label)
                                                     : nlohmann::json(nullptr);
         links.push_back(link_json);
+        if (link.to_type == "resource" && included_resources.insert(link.to_card_id).second) {
+          const auto bundle = resource_repo.get_bundle(link.to_card_id);
+          if (bundle) {
+            auto resource_json = resource_bundle_to_json(*bundle);
+            nlohmann::json locations = nlohmann::json::array();
+            std::set<std::string> included_locations;
+            for (const auto& asset : bundle->assets) {
+              for (const auto& placement : asset.placements) {
+                if (!included_locations.insert(placement.location_id).second) continue;
+                const auto location = location_repo.get(placement.location_id);
+                if (location) locations.push_back(location_to_json(*location));
+              }
+            }
+            resource_json["locations"] = std::move(locations);
+            resources.push_back(std::move(resource_json));
+          }
+        }
       }
       if (!links.empty()) entry["links"] = links;
+      if (!resources.empty()) entry["resources"] = resources;
 
       nlohmann::json milestones = nlohmann::json::array();
       for (const auto& milestone : milestone_repo.list_for_card(project_id, card.card_id)) {
@@ -2226,8 +2248,20 @@ int holder_backup_restore(
 
   try {
     std::vector<holder::card::BatchCardInput> items;
+    std::map<std::string, holder::model::ResourceBundle> snapshot_resources;
+    std::map<std::string, holder::model::Location> snapshot_locations;
     for (const auto& card_json : nlohmann::json::parse(cards_json)) {
-      items.push_back(batch_card_input_from_json(card_json));
+      auto item = batch_card_input_from_json(card_json);
+      for (const auto& resource_json : card_json.value("resources", nlohmann::json::array())) {
+        auto bundle = resource_bundle_from_json(resource_json);
+        snapshot_resources.emplace(bundle.resource.resource_id, std::move(bundle));
+        for (const auto& location_json :
+             resource_json.value("locations", nlohmann::json::array())) {
+          auto location = location_from_json(location_json);
+          snapshot_locations.emplace(location.location_id, std::move(location));
+        }
+      }
+      items.push_back(std::move(item));
     }
 
     holder::model::Project project;
@@ -2242,14 +2276,58 @@ int holder_backup_restore(
         project_store.create(project, holder::identity::uuid_v4, context->data_dir / "projects");
 
     try {
+      std::map<std::string, std::string> location_id_remap;
+      for (auto& [old_id, location] : snapshot_locations) {
+        location_id_remap[old_id] = holder::identity::uuid_v4();
+        location.location_id = location_id_remap.at(old_id);
+        location.project_id = created.project_id;
+        holder::resource::LocationStore(context->db).put(location);
+      }
+      std::map<std::string, std::string> resource_id_remap;
+      for (auto& [old_id, bundle] : snapshot_resources) {
+        const auto new_id = holder::identity::uuid_v4();
+        resource_id_remap[old_id] = new_id;
+        bundle.resource.resource_id = new_id;
+        bundle.resource.project_id = created.project_id;
+        for (auto& asset : bundle.assets) {
+          asset.asset_id = holder::identity::uuid_v4();
+          asset.resource_id = new_id;
+          for (auto& placement : asset.placements) {
+            const auto location = location_id_remap.find(placement.location_id);
+            if (location == location_id_remap.end())
+              throw std::invalid_argument("resource placement location missing from snapshot");
+            placement.placement_id = holder::identity::uuid_v4();
+            placement.asset_id = asset.asset_id;
+            placement.location_id = location->second;
+          }
+        }
+        holder::resource::ResourceStore(context->db).put(bundle);
+      }
+      for (auto& item : items) {
+        for (const auto& [old_id, new_id] : resource_id_remap) {
+          const auto old_ref = "holder://resource/" + old_id;
+          const auto new_ref = "holder://resource/" + new_id;
+          std::size_t at = 0;
+          while ((at = item.content.find(old_ref, at)) != std::string::npos) {
+            item.content.replace(at, old_ref.size(), new_ref);
+            at += new_ref.size();
+          }
+        }
+      }
       holder::card::CardStore card_store(context->db, &context->fts);
-      card_store.create_batch(created.project_id, items, holder::identity::uuid_v4, commit_message);
+      card_store.create_batch(
+          created.project_id,
+          items,
+          holder::identity::uuid_v4,
+          commit_message,
+          resource_id_remap
+      );
     } catch (...) {
-      // The project is brand new and this whole restore attempt failed -- don't leave a
-      // half-populated project around for the caller to stumble on. Same rollback shape as
-      // ProjectStore::create's own on-failure cleanup: remove the row (cascades to any cards
-      // that did get created before the failure), not the working directory.
+      // This project was created solely for this restore. Drop its projection and
+      // durable files so a failed restore cannot leave orphaned manifests behind.
       holder::project::ProjectRepo(context->db).remove(created.project_id);
+      std::error_code ignored;
+      std::filesystem::remove_all(created.root_path, ignored);
       throw;
     }
 
@@ -3091,9 +3169,7 @@ int holder_card_link_add(
     }
     link.created_at = now_epoch_seconds();
 
-    holder::card::LinkRepo(context->db).upsert_links(from_card->project_id, from_card_id, {link});
-    holder::card::CardStore(context->db, &context->fts)
-        .update_links(from_card_id, now_epoch_seconds());
+    holder::card::add_card_link(context->db, &context->fts, link);
 
     nlohmann::json outgoing = nlohmann::json::array();
     for (const auto& l :
@@ -3148,16 +3224,14 @@ int holder_card_link_remove(
       );
     }
 
-    holder::card::LinkRepo(context->db)
-        .delete_link(
-            from_card->project_id,
-            from_card_id,
-            to_card_id,
-            std::string("card"),
-            std::string(kind)
-        );
-    holder::card::CardStore(context->db, &context->fts)
-        .update_links(from_card_id, now_epoch_seconds());
+    holder::card::remove_card_link(
+        context->db,
+        &context->fts,
+        from_card_id,
+        to_card_id,
+        "card",
+        kind
+    );
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
@@ -3166,6 +3240,79 @@ int holder_card_link_remove(
   } catch (...) {
     return set_unknown_exception(out_error); // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
+}
+
+int holder_card_link_add_json(
+    holder_context* context,
+    const char* from_card_id,
+    const char* options_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (from_card_id == nullptr || from_card_id[0] == '\0' || options_json == nullptr) {
+    clear_error(out_error);
+    if (out_json) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "from_card_id and options_json are required"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto options = nlohmann::json::parse(options_json);
+    const auto to_id = options.at("to_id").get<std::string>();
+    const auto to_type = options.at("to_type").get<std::string>();
+    const auto kind = options.at("kind").get<std::string>();
+    if (to_type != "card" && to_type != "resource")
+      throw std::invalid_argument("to_type must be card or resource");
+    const auto source = holder::card::CardRepo(context->db).get(from_card_id);
+    if (!source) throw std::invalid_argument("Source card not found.");
+    holder::model::CardLink link;
+    link.project_id = source->project_id;
+    link.from_card_id = from_card_id;
+    link.to_card_id = to_id;
+    link.to_type = to_type;
+    link.kind = kind;
+    if (options.contains("label") && !options.at("label").is_null())
+      link.label = options.at("label").get<std::string>();
+    link.created_at = now_epoch_seconds();
+    holder::card::add_card_link(context->db, &context->fts, link);
+    nlohmann::json outgoing = nlohmann::json::array();
+    for (const auto& item :
+         holder::card::LinkRepo(context->db).list_outgoing(source->project_id, from_card_id))
+      outgoing.push_back(outgoing_link_to_json(context->db, item));
+    return outgoing;
+  });
+}
+
+int holder_card_link_remove_json(
+    holder_context* context,
+    const char* from_card_id,
+    const char* options_json,
+    holder_error** out_error
+) {
+  if (from_card_id == nullptr || from_card_id[0] == '\0' || options_json == nullptr) {
+    clear_error(out_error);
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "from_card_id and options_json are required"
+    );
+  }
+  return with_void_output(context, out_error, [&]() {
+    const auto options = nlohmann::json::parse(options_json);
+    const auto to_type = options.at("to_type").get<std::string>();
+    if (to_type != "card" && to_type != "resource")
+      throw std::invalid_argument("to_type must be card or resource");
+    holder::card::remove_card_link(
+        context->db,
+        &context->fts,
+        from_card_id,
+        options.at("to_id").get<std::string>(),
+        to_type,
+        options.at("kind").get<std::string>()
+    );
+  });
 }
 
 int holder_card_list_tags(

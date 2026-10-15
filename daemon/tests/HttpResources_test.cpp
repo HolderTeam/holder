@@ -202,6 +202,7 @@ TEST_CASE(
   request(http::verb::delete_, "/resources/" + resource_id);
   REQUIRE(request(http::verb::get, list_path)["data"].empty());
   REQUIRE(request(http::verb::get, "/cards/" + card_id + "/links")["data"].empty());
+  REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
   request(http::verb::delete_, "/cards/" + card_id);
   REQUIRE(request(http::verb::get, list_path, {}, http::status::not_found)["ok"] == false);
   REQUIRE(request(http::verb::post, path, body, http::status::not_found)["ok"] == false);

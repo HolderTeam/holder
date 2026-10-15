@@ -245,11 +245,12 @@ int holder_card_query_json(
 // The Android backup snapshot's query: project_id's cards, most-recently-updated first,
 // cursor-paginated (pass cursor_card_id as null/empty for the first page; for later pages,
 // pass back the previous response's next_cursor fields). Each returned card carries its own
-// project's name/privacy_mode, its body text, and its links/milestones (not its tags -- those
-// are always #hashtags already present in the body, re-derived by the normal card-write path
-// on restore rather than carried here too). Response shape:
+// project's name/privacy_mode, its body text, links, milestones, and portable metadata for
+// linked resources and their storage locations. External object bytes and private storage
+// credentials are not included. Tags are re-derived from the body on restore. Response shape:
 // {"cards": [{"card_id", "project_id", "project_name", "privacy_mode", "title", "body",
-//             "created_at", "updated_at", "links": [...], "milestones": [...]}, ...],
+//             "created_at", "updated_at", "links": [...], "milestones": [...],
+//             "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}, ...],
 //  "next_cursor": {"updated_at", "card_id"} | null}
 // See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1.
 int holder_backup_snapshot_page(
@@ -263,7 +264,8 @@ int holder_backup_snapshot_page(
 );
 
 // Bulk-restores a batch of cards (the shape holder_backup_snapshot_page emits) into a brand
-// new project: fresh project_id, fresh git repo, no remote, one commit for the whole batch
+// new project: fresh project_id, fresh git repo, no remote, one commit for the cards
+// (resource and storage location manifests have their own commits)
 // (message "Restored from Android backup" is the caller's convention, not enforced here --
 // pass whatever commit_message you want). Every restored card also gets a fresh card_id --
 // card_id is a global primary key, not scoped per project, so reusing the snapshot's original
@@ -272,13 +274,14 @@ int holder_backup_snapshot_page(
 // batch, not preserved on the restored cards. Every card lands at the root (no
 // parent_card_id -- restore is deliberately flat, no hierarchy). A link only survives if its
 // to_type is "card" and its to_card_id matches another item's original card_id in the same
-// batch; anything else (a resource-ref, or a link whose target didn't make it into this batch)
-// is dropped rather than written dangling. On failure the partially-created project is removed
-// (row and files) before the error is returned, so a failed restore never leaves a
-// half-written project behind.
+// batch. Resource links survive when their target bundle is present in the snapshot; resource,
+// asset, placement, and location IDs are remapped. Other links and absent targets are dropped
+// rather than written dangling. On failure the newly-created project's database row and
+// working directory are removed.
 // cards_json shape: a JSON array of {"card_id", "title", "body", "created_at", "updated_at",
 // "links": [{"to_id"|"to_card_id", "to_type", "kind", "label"}],
-// "milestones": [{"start_at", "all_day", "end_at", "kind", "description"}]}. Extra fields
+// "milestones": [{"start_at", "all_day", "end_at", "kind", "description"}],
+// "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}. Extra fields
 // (project_id, project_name, privacy_mode) present because the input came straight from
 // holder_backup_snapshot_page are ignored -- project_name/privacy_mode are passed separately
 // since they're project-level, not per-card. Sets *out_json to the created project, same
@@ -513,6 +516,26 @@ int holder_card_link_remove(
     const char* from_card_id,
     const char* to_card_id,
     const char* kind,
+    holder_error** out_error
+);
+
+// Mutates an explicit card-sourced link using options JSON:
+// {"to_id":"...","to_type":"card|resource","kind":"...","label":"..."}.
+// add replaces the label for an existing exact (source, type, target, kind) link
+// and returns the updated outgoing list. remove requires to_id, to_type and kind;
+// it succeeds if the exact link is absent or its target was deleted. The source
+// must be a live card. AI targets are reserved for a later native use case.
+int holder_card_link_add_json(
+    holder_context* context,
+    const char* from_card_id,
+    const char* options_json,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_card_link_remove_json(
+    holder_context* context,
+    const char* from_card_id,
+    const char* options_json,
     holder_error** out_error
 );
 

@@ -498,6 +498,8 @@ object HolderNative {
         toCardId: String,
         kind: String,
     )
+    private external fun nativeCardLinkAddJson(contextHandle: Long, fromCardId: String, optionsJson: String): String
+    private external fun nativeCardLinkRemoveJson(contextHandle: Long, fromCardId: String, optionsJson: String)
     private external fun nativeListLinkKinds(): String
     private external fun nativeCardListTags(contextHandle: Long, cardId: String): String
     private external fun nativeCardTagAdd(contextHandle: Long, cardId: String, tag: String): Int
@@ -582,6 +584,7 @@ object HolderNative {
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeLocationPutJson(contextHandle: Long, locationJson: String): String
     private external fun nativeResourceGet(contextHandle: Long, resourceId: String): String
+    private external fun nativeResourceList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
         projectId: String,
@@ -950,6 +953,21 @@ object HolderNative {
 
     fun removeCardLink(fromCardId: String, toCardId: String, kind: String) {
         saveLane.call { nativeCardLinkRemove(it, fromCardId, toCardId, kind) }
+    }
+
+    /** Attach an existing resource to a live card in the same project. */
+    fun attachResource(cardId: String, resourceId: String, label: String?): List<HolderOutgoingLink> {
+        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
+            .put("kind", "attachment").put("label", label ?: JSONObject.NULL)
+        val outgoing = JSONArray(saveLane.call { nativeCardLinkAddJson(it, cardId, options.toString()) })
+        return List(outgoing.length()) { index -> parseOutgoingLink(outgoing.getJSONObject(index)) }
+    }
+
+    /** Remove only the attachment link; the resource and stored file remain available. */
+    fun detachResource(cardId: String, resourceId: String) {
+        val options = JSONObject().put("to_id", resourceId).put("to_type", "resource")
+            .put("kind", "attachment")
+        saveLane.call { nativeCardLinkRemoveJson(it, cardId, options.toString()) }
     }
 
     @Volatile
@@ -1370,6 +1388,11 @@ object HolderNative {
 
     fun getResource(resourceId: String): HolderResource =
         parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
+
+    fun listResources(projectId: String): List<HolderResource> {
+        val resources = JSONArray(readLane.call { nativeResourceList(it, projectId) })
+        return List(resources.length()) { index -> parseResourceBundle(resources.getJSONObject(index)) }
+    }
 
     /** Imports sourceFilePath into projectId's Resource/Asset model, stores it via
      * locationId's storage provider (see [team.holder.android.resource.AndroidStorageProvider]),
