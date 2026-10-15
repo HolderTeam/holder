@@ -14,6 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[4]
 RECIPE = ROOT / 'staging/scripts/build-macos-accessible-gtk.sh'
+GTK_PATCH = RECIPE.parent / 'patches/gtk-accesskit-presentation-labels.patch'
 PACKAGES = ('gtk4', 'libadwaita-1', 'gtksourceview-5', 'vte-2.91-gtk4',
             'libspelling-1', 'gio-2.0', 'gee-0.8', 'libsoup-3.0', 'json-glib-1.0')
 
@@ -74,6 +75,7 @@ def identity() -> tuple[dict, dict]:
     return {
         'format': 1, 'arch': platform.machine(), 'macos': platform.mac_ver()[0],
         'source': gtk['urls']['stable'], 'recipe': digest(RECIPE),
+        'patches': {GTK_PATCH.name: digest(GTK_PATCH)},
         'selector': digest(Path(__file__)), 'dependencies': dependencies,
         'compiler': output('cc', '--version'), 'rust': output('rustc', '--version'),
         'sdk': output('xcrun', '--show-sdk-path'),
@@ -191,7 +193,7 @@ def launch_environment(base: dict[str, str] | None = None) -> dict[str, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('prepare', 'inspect', 'run'))
+    parser.add_argument('mode', choices=('prepare', 'inspect', 'check-menus', 'run'))
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.mode == 'run':
@@ -205,7 +207,15 @@ def main() -> None:
         os.execve(executable, [str(executable), *args.command[1:]], env)
     else:
         runtime = select_runtime()
-        print(runtime if args.mode == 'prepare' else verify(runtime))
+        if args.mode == 'check-menus':
+            source = ROOT / 'apps/desktop/gtk/tests/macos_menu_accessibility_test.m'
+            executable = runtime.parent / 'menu-accessibility-test'
+            flags = shlex.split(output('pkg-config', '--cflags', '--libs', 'gtk4'))
+            subprocess.run(['cc', str(source), '-o', str(executable),
+                            '-framework', 'Cocoa', *flags], check=True)
+            subprocess.run([str(executable)], env=runtime_env(runtime), check=True, timeout=30)
+        else:
+            print(runtime if args.mode == 'prepare' else verify(runtime))
 
 
 if __name__ == '__main__':
