@@ -3,7 +3,7 @@
 # Shared recipe from PR #26. Output stays isolated from Homebrew.
 set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-gtk_patch="${script_dir}/patches/gtk-accesskit-presentation-labels.patch"
+gtk_patch="${script_dir}/patches/gtk-menu-label-role.patch"
 
 work_dir="${1:?usage: build-macos-accessible-gtk.sh WORK_DIR}"
 mkdir -p "${work_dir}"

@@ -185,11 +185,13 @@ in `identity.json`.
 `check-menus` additionally opens a temporary test window and checks its own
 native macOS accessibility objects for menu names, mnemonic stripping,
 disabled/check states, focus, bounds, activation, reopening, changed labels and
-submenus. It does not use Holder data or require external accessibility
-permissions. The shared recipe includes a small GTK bridge patch: menu labels
-marked as presentation must retain their plain text for AccessKit's
-`labelled-by` name calculation. Its checksum is included in the cache identity
-and source provenance. See `../../../staging/scripts/patches/README.md`.
+submenus, plus normal label roles, markup, and explicit names across text
+updates and reset. It does not use Holder data or require external accessibility
+permissions. The shared recipe patches GTK's internal menu label to use its
+normal `LABEL` role, preserving the existing `labelled-by` relation and matching
+ordinary GTK buttons. This replaces the earlier AccessKit bridge workaround;
+the new patch name and checksum select a fresh runtime cache and are retained
+in source provenance. See `../../../staging/scripts/patches/README.md`.
 
 The launcher sets `GTK_A11Y=accesskit` and `DYLD_LIBRARY_PATH` immediately before
 executing the native Holder binary. Do not put `/bin/sh`, `/usr/bin/env`, or
@@ -214,6 +216,8 @@ close a dialog and the app-menu popover. Check actual app mappings with
 AccessKit library. PR #26 found that the bridge exposes named controls but did
 not establish complete VoiceOver usability. Check menu navigation and actions
 with VoiceOver as well as the automated native menu test.
+The normal label role exposes a text child under each menu item; specifically
+check for duplicate announcements or extra navigation stops.
 
 Cache lifecycle tests can be run with
 `python3 tests/accessible_runtime_test.py`.
@@ -227,10 +231,17 @@ a temporary `.app` wrapper containing a copy of the same source binary. It
 exposed named toolbar controls, toggle states, project/card lists, search and
 the editor role; keyboard focus and opening/dismissing the new-project dialog
 worked. The initial unpatched runtime exposed menu items with empty native
-titles, which the observer omitted. The presentation-label bridge patch fixes
-those names; the native regression fails before and passes after the patch.
+titles, which the observer omitted. The normal-label-role patch fixes those
+names and GTK's own name calculation, replacing the initial backend workaround.
 Holder's menu now exposes Find/Replace, Move Card to Trash, Print, Local info,
 Preferences and About in the native observer; activating About opens its dialog.
 Editor text/caret and full VoiceOver usability remain unchecked. Dependency
-changes and damaged
-or incomplete caches are covered by the cache lifecycle tests.
+changes and damaged or incomplete caches are covered by the cache lifecycle
+tests.
+
+The replacement normal-label-role runtime was freshly prepared and reused on
+the same Mac. Its expanded native regression passes names, markup, explicit
+name preservation/reset, focus, states, activation and reopening; it rejects
+the former bridge workaround's presentation role. `./make.sh access` still
+passes all 157 Meson tests. VoiceOver announcement/navigation behavior remains
+a manual check.

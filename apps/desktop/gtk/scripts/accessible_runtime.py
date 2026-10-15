@@ -14,7 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[4]
 RECIPE = ROOT / 'staging/scripts/build-macos-accessible-gtk.sh'
-GTK_PATCH = RECIPE.parent / 'patches/gtk-accesskit-presentation-labels.patch'
+GTK_PATCH = RECIPE.parent / 'patches/gtk-menu-label-role.patch'
 PACKAGES = ('gtk4', 'libadwaita-1', 'gtksourceview-5', 'vte-2.91-gtk4',
             'libspelling-1', 'gio-2.0', 'gee-0.8', 'libsoup-3.0', 'json-glib-1.0')
 

@@ -5,6 +5,7 @@
 
 static GtkApplication *application;
 static GtkMenuButton *menu_button;
+static GtkWidget *first_model;
 static GMenu *section;
 static unsigned int activations;
 static unsigned int stage;
@@ -53,6 +54,36 @@ static void next_stage(void)
     deadline = g_get_monotonic_time() + 5 * G_TIME_SPAN_SECOND;
 }
 
+static GtkWidget *find_first_model(GtkWidget *widget)
+{
+    if (g_str_equal(G_OBJECT_TYPE_NAME(widget), "GtkModelButton")) {
+        char *text = NULL;
+        g_object_get(widget, "text", &text, NULL);
+        gboolean first = g_strcmp0(text, "First action") == 0;
+        g_free(text);
+        if (first)
+            return widget;
+    }
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child)) {
+        GtkWidget *found = find_first_model(child);
+        if (found)
+            return found;
+    }
+    return NULL;
+}
+
+static gboolean has_normal_label(GtkWidget *model)
+{
+    for (GtkWidget *child = gtk_widget_get_first_child(model); child;
+         child = gtk_widget_get_next_sibling(child)) {
+        if (GTK_IS_LABEL(child) &&
+            g_strcmp0(gtk_label_get_text(GTK_LABEL(child)), "First action") == 0)
+            return gtk_accessible_get_accessible_role(GTK_ACCESSIBLE(child)) == GTK_ACCESSIBLE_ROLE_LABEL;
+    }
+    return FALSE;
+}
+
 static gboolean reopen_menu(gpointer unused)
 {
     gtk_menu_button_popup(menu_button);
@@ -66,11 +97,12 @@ static gboolean check(gpointer unused)
             fail("Timed out waiting for named menu items, state or activation");
             return G_SOURCE_REMOVE;
         }
-        id first = item(stage >= 3 ? @"Renamed action" : @"First action");
+        id first = item(stage == 0 ? @"First action" :
+                        stage >= 7 ? @"Renamed action" : @"Changed visible text");
         if (stage == 0 && first) {
             id disabled = item(@"Disabled action");
             id toggle = item(@"Enabled option");
-            if (!disabled || !toggle || !item(@"More"))
+            if (!disabled || !toggle || !item(@"More") || !item(@"Formatted action"))
                 return G_SOURCE_CONTINUE;
             if (![first isAccessibilityEnabled] || [disabled isAccessibilityEnabled]) {
                 fail("Menu enabled states were not preserved");
@@ -88,24 +120,40 @@ static gboolean check(gpointer unused)
                 return G_SOURCE_REMOVE;
             }
             g_print("PASS: names, mnemonics, disabled state, unchecked state, focus and bounds\n");
+            first_model = find_first_model(GTK_WIDGET(menu_button));
+            if (!first_model || !has_normal_label(first_model)) {
+                fail("Menu item's internal text must have the normal label role");
+                return G_SOURCE_REMOVE;
+            }
+            gtk_accessible_update_property(GTK_ACCESSIBLE(first_model),
+                                           GTK_ACCESSIBLE_PROPERTY_LABEL, "Explicit menu name", -1);
+            next_stage();
+        } else if (stage == 1 && item(@"Explicit menu name")) {
+            g_object_set(first_model, "text", "Changed visible _text", NULL);
+            next_stage();
+        } else if (stage == 2 && item(@"Explicit menu name")) {
+            gtk_accessible_reset_property(GTK_ACCESSIBLE(first_model), GTK_ACCESSIBLE_PROPERTY_LABEL);
+            next_stage();
+        } else if (stage == 3 && first) {
+            g_print("PASS: normal label role, markup, explicit name preservation and reset\n");
             if (![first accessibilityPerformPress]) {
                 fail("Native menu item did not support activation");
                 return G_SOURCE_REMOVE;
             }
             next_stage();
-        } else if (stage == 1 && activations == 1) {
+        } else if (stage == 4 && activations == 1) {
             if (gtk_widget_get_mapped(GTK_WIDGET(gtk_menu_button_get_popover(menu_button))))
                 return G_SOURCE_CONTINUE;
             // Let macOS finish disposing the old popup surface before reopening.
             g_timeout_add(250, reopen_menu, NULL);
             next_stage();
-        } else if (stage == 2 && first && item(@"Enabled option")) {
+        } else if (stage == 5 && first && item(@"Enabled option")) {
             if (![item(@"Enabled option") accessibilityPerformPress]) {
                 fail("Native check item did not support activation");
                 return G_SOURCE_REMOVE;
             }
             next_stage();
-        } else if (stage == 3) {
+        } else if (stage == 6) {
             GAction *toggle = g_action_map_lookup_action(G_ACTION_MAP(application), "toggle");
             GVariant *state = g_action_get_state(toggle);
             gboolean checked = g_variant_get_boolean(state);
@@ -120,7 +168,7 @@ static gboolean check(gpointer unused)
             g_menu_insert(section, 0, "_Renamed action", "app.test");
             g_timeout_add(250, reopen_menu, NULL);
             next_stage();
-        } else if (stage == 4 && first && item(@"Enabled option")) {
+        } else if (stage == 7 && first && item(@"Enabled option")) {
             if (![[item(@"Enabled option") accessibilityValue] boolValue])
                 return G_SOURCE_CONTINUE;
             g_print("PASS: activation, check state, reopening and changed label\n");
@@ -129,13 +177,13 @@ static gboolean check(gpointer unused)
                 return G_SOURCE_REMOVE;
             }
             next_stage();
-        } else if (stage == 5 && item(@"Nested action")) {
+        } else if (stage == 8 && item(@"Nested action")) {
             if (![item(@"Nested action") accessibilityPerformPress]) {
                 fail("Nested item did not support activation");
                 return G_SOURCE_REMOVE;
             }
             next_stage();
-        } else if (stage == 6 && activations == 2) {
+        } else if (stage == 9 && activations == 2) {
             g_print("PASS: submenu name and native activation\n");
             complete = TRUE;
             g_application_quit(G_APPLICATION(application));
@@ -189,6 +237,11 @@ static void activate(GtkApplication *app, gpointer unused)
     g_menu_append(section, "_First action", "app.test");
     g_menu_append(section, "Disabled action", "app.disabled");
     g_menu_append(section, "Enabled option", "app.toggle");
+    GMenuItem *formatted = g_menu_item_new("<b>Formatted</b> _action", "app.test");
+    // GTK's menu tracker enables markup when this string attribute is present.
+    g_menu_item_set_attribute(formatted, "use-markup", "s", "true");
+    g_menu_append_item(section, formatted);
+    g_object_unref(formatted);
     g_menu_append_section(menu, NULL, G_MENU_MODEL(section));
     GMenu *submenu = g_menu_new();
     g_menu_append(submenu, "Nested action", "app.test");
