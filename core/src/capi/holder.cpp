@@ -342,6 +342,9 @@ holder::model::CardLink batch_card_link_from_json(const nlohmann::json& body) {
   link.to_card_id = body.value("to_id", body.value("to_card_id", std::string()));
   link.to_type = body.value("to_type", std::string("card"));
   link.kind = body.value("kind", std::string());
+  if (body.contains("target_project_id") && !body.at("target_project_id").is_null()) {
+    link.target_project_id = body.at("target_project_id").get<std::string>();
+  }
   if (body.contains("label") && !body.at("label").is_null()) {
     link.label = body.at("label").get<std::string>();
   }
@@ -2152,6 +2155,8 @@ int holder_backup_snapshot_page(
         };
         link_json["label"] = link.label.has_value() ? nlohmann::json(*link.label)
                                                     : nlohmann::json(nullptr);
+        if (link.target_project_id.has_value())
+          link_json["target_project_id"] = *link.target_project_id;
         links.push_back(link_json);
         if (link.to_type == "resource" && included_resources.insert(link.to_card_id).second) {
           const auto bundle = resource_repo.get_bundle(link.to_card_id);

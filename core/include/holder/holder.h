@@ -252,6 +252,7 @@ int holder_card_query_json(
 //             "created_at", "updated_at", "links": [...], "milestones": [...],
 //             "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}, ...],
 //  "next_cursor": {"updated_at", "card_id"} | null}
+// A link to a card in another project includes target_project_id. Local links omit it.
 // See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1.
 int holder_backup_snapshot_page(
     holder_context* context,
@@ -272,14 +273,15 @@ int holder_backup_snapshot_page(
 // ids isn't safe (the source project this snapshot came from may still exist on the same
 // device); the input's "card_id" values are used only to resolve link targets within the
 // batch, not preserved on the restored cards. Every card lands at the root (no
-// parent_card_id -- restore is deliberately flat, no hierarchy). A link only survives if its
-// to_type is "card" and its to_card_id matches another item's original card_id in the same
-// batch. Resource links survive when their target bundle is present in the snapshot; resource,
-// asset, placement, and location IDs are remapped. Other links and absent targets are dropped
-// rather than written dangling. On failure the newly-created project's database row and
+// parent_card_id -- restore is deliberately flat, no hierarchy). Local card links survive
+// when their target is in the batch and are remapped to its new card_id. Card links with
+// target_project_id retain that project and card ID even when the target is unavailable.
+// Resource links survive when their target bundle is present in the snapshot; resource,
+// asset, placement, and location IDs are remapped. Other links and absent local targets are
+// dropped rather than written dangling. On failure the newly-created project's database row and
 // working directory are removed.
 // cards_json shape: a JSON array of {"card_id", "title", "body", "created_at", "updated_at",
-// "links": [{"to_id"|"to_card_id", "to_type", "kind", "label"}],
+// "links": [{"to_id"|"to_card_id", "to_type", "kind", "label", "target_project_id"?}],
 // "milestones": [{"start_at", "all_day", "end_at", "kind", "description"}],
 // "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}. Extra fields
 // (project_id, project_name, privacy_mode) present because the input came straight from

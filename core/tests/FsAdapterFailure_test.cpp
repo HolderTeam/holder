@@ -381,6 +381,11 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   card_link.to_type = "card";
   card_link.kind = "ref";
   card_link.created_at = 0; // rebuilt default path
+  auto external_link = card_link;
+  external_link.to_card_id = "card-in-an-unavailable-project";
+  external_link.target_project_id = "proj-2";
+  external_link.kind = "related";
+  external_link.label = "Family notes";
   holder::model::Milestone card_milestone;
   card_milestone.milestone_id = "mile-b1";
   card_milestone.start_at = 500;
@@ -389,7 +394,7 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   card_milestone.updated_at = 0; // rebuilt default path
   write_file(
       root / card_b.rel_path,
-      holder::core::render_card_front_matter(card_b, {card_link}, {card_milestone}) +
+      holder::core::render_card_front_matter(card_b, {card_link, external_link}, {card_milestone}) +
           "linked body #todo\n"
   );
 
@@ -439,7 +444,7 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   REQUIRE(stats.cards == 3);
   REQUIRE(stats.ai_messages == 3);
   REQUIRE(stats.ai_threads == 3);
-  REQUIRE(stats.links == 2);
+  REQUIRE(stats.links == 3);
   REQUIRE(stats.tags == 1);
   REQUIRE(stats.milestones == 1);
 
@@ -480,10 +485,21 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   // Message link + card link were inserted and normalized by rebuilder.
   holder::card::LinkRepo links(db);
   const auto out_card = links.list_outgoing(project_id, card_b_id);
-  REQUIRE(out_card.size() == 1);
-  REQUIRE(out_card[0].to_type == "card");
-  REQUIRE(out_card[0].kind == "ref");
-  REQUIRE(out_card[0].created_at > 0);
+  REQUIRE(out_card.size() == 2);
+  const auto rebuilt_local = std::find_if(out_card.begin(), out_card.end(), [](const auto& link) {
+    return link.kind == "ref";
+  });
+  const auto rebuilt_external =
+      std::find_if(out_card.begin(), out_card.end(), [](const auto& link) {
+        return link.kind == "related";
+      });
+  REQUIRE(rebuilt_local != out_card.end());
+  REQUIRE(rebuilt_local->to_type == "card");
+  REQUIRE(rebuilt_local->created_at > 0);
+  REQUIRE(rebuilt_external != out_card.end());
+  REQUIRE(rebuilt_external->to_card_id == "card-in-an-unavailable-project");
+  REQUIRE(rebuilt_external->target_project_id == "proj-2");
+  REQUIRE(rebuilt_external->label == "Family notes");
   const auto out_msg = links.list_outgoing(project_id, "msgb5678");
   REQUIRE(out_msg.size() == 1);
   REQUIRE(out_msg[0].to_type == "card");
