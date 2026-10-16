@@ -77,7 +77,8 @@ def sync_detailed(
 ) -> Response[ErrorResponse | MilestoneResponse]:
     """Add a milestone to a card
 
-     Milestones carry optional kind and description fields and have no independent title.
+     Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and
+    have no independent title.
 
     Args:
         card_id (str):
@@ -111,7 +112,8 @@ def sync(
 ) -> ErrorResponse | MilestoneResponse | None:
     """Add a milestone to a card
 
-     Milestones carry optional kind and description fields and have no independent title.
+     Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and
+    have no independent title.
 
     Args:
         card_id (str):
@@ -140,7 +142,8 @@ async def asyncio_detailed(
 ) -> Response[ErrorResponse | MilestoneResponse]:
     """Add a milestone to a card
 
-     Milestones carry optional kind and description fields and have no independent title.
+     Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and
+    have no independent title.
 
     Args:
         card_id (str):
@@ -172,7 +175,8 @@ async def asyncio(
 ) -> ErrorResponse | MilestoneResponse | None:
     """Add a milestone to a card
 
-     Milestones carry optional kind and description fields and have no independent title.
+     Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and
+    have no independent title.
 
     Args:
         card_id (str):

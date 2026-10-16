@@ -62,6 +62,9 @@ def sync_detailed(
 ) -> Response[ErrorResponse | MilestoneListResponse]:
     """List milestones attached to a card
 
+     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
+    midnight. Labelled dates are not exposed by this daemon route yet.
+
     Args:
         card_id (str):
 
@@ -91,6 +94,9 @@ def sync(
 ) -> ErrorResponse | MilestoneListResponse | None:
     """List milestones attached to a card
 
+     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
+    midnight. Labelled dates are not exposed by this daemon route yet.
+
     Args:
         card_id (str):
 
@@ -114,6 +120,9 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | MilestoneListResponse]:
     """List milestones attached to a card
+
+     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
+    midnight. Labelled dates are not exposed by this daemon route yet.
 
     Args:
         card_id (str):
@@ -141,6 +150,9 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | MilestoneListResponse | None:
     """List milestones attached to a card
+
+     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
+    midnight. Labelled dates are not exposed by this daemon route yet.
 
     Args:
         card_id (str):
