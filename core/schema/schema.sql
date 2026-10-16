@@ -472,7 +472,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 9 if empty
+-- Initialize schema version to 8 if empty
 INSERT INTO schema_version(version)
-SELECT 9
+SELECT 8
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
