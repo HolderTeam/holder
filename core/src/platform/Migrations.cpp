@@ -184,18 +184,19 @@ UPDATE schema_version SET version = 4 WHERE version = 3;
   tx.commit();
 }
 
-bool projects_has_id_scheme(Db& db) {
+bool table_has_column(Db& db, const char* table, const char* column) {
   sqlite3_stmt* stmt = nullptr;
+  const std::string sql = "PRAGMA table_info(" + std::string(table) + ");";
   if (sqlite3_prepare_v2(
           db.handle(),
-          "PRAGMA table_info(projects);",
+          sql.c_str(),
           -1,
           &stmt,
           nullptr
       ) != // LCOV_EXCL_START - SQLite prepare failure requires engine fault injection.
       SQLITE_OK) {
     throw std::runtime_error(
-        std::string("failed to inspect projects schema: ") + sqlite3_errmsg(db.handle())
+        std::string("failed to inspect table schema: ") + sqlite3_errmsg(db.handle())
     );
   } // LCOV_EXCL_STOP
 
@@ -203,7 +204,7 @@ bool projects_has_id_scheme(Db& db) {
     const int rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
       const auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-      if (name != nullptr && std::string_view(name) == "id_scheme") {
+      if (name != nullptr && std::string_view(name) == column) {
         sqlite3_finalize(stmt);
         return true;
       }
@@ -213,7 +214,7 @@ bool projects_has_id_scheme(Db& db) {
     if (rc !=
         SQLITE_DONE) { // LCOV_EXCL_START - SQLite step failure requires engine fault injection.
       throw std::runtime_error(
-          std::string("failed to inspect projects schema: ") + sqlite3_errmsg(db.handle())
+          std::string("failed to inspect table schema: ") + sqlite3_errmsg(db.handle())
       );
     } // LCOV_EXCL_STOP
     return false;
@@ -222,7 +223,7 @@ bool projects_has_id_scheme(Db& db) {
 
 void migrate_v4_to_v5(Db& db) {
   Tx tx(db);
-  if (!projects_has_id_scheme(db)) {
+  if (!table_has_column(db, "projects", "id_scheme")) {
     db.exec("ALTER TABLE projects ADD COLUMN id_scheme TEXT NOT NULL DEFAULT 'uuid4' "
             "CHECK(id_scheme IN ('uuid4', 'uuid7'));");
   }
@@ -266,6 +267,14 @@ UPDATE schema_version SET version = 7 WHERE version = 6;
 
   Tx tx(db);
   db.exec(SQL);
+  tx.commit();
+}
+
+void migrate_v7_to_v8(Db& db) {
+  Tx tx(db);
+  if (!table_has_column(db, "card_links", "target_project_id"))
+    db.exec("ALTER TABLE card_links ADD COLUMN target_project_id TEXT NULL;");
+  db.exec("UPDATE schema_version SET version = 8 WHERE version = 7;");
   tx.commit();
 }
 
@@ -360,6 +369,11 @@ bool Migrations::migrate_to_latest(Db& db) {
     case 6:
       migrate_v6_to_v7(db);
       version = 7;
+      migrated = true;
+      break;
+    case 7:
+      migrate_v7_to_v8(db);
+      version = 8;
       migrated = true;
       break;
     default:

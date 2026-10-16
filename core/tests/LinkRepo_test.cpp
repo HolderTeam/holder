@@ -118,11 +118,14 @@ TEST_CASE("LinkRepo upsert/list/delete", "[linkrepo]") {
 
   auto outgoing = repo.list_outgoing("proj-1", "card-a");
   REQUIRE(outgoing.size() == 2);
+  REQUIRE_FALSE(outgoing[0].target_project_id.has_value());
+  REQUIRE_FALSE(outgoing[1].target_project_id.has_value());
 
   auto backlinks = repo.list_backlinks("proj-1", "card-b");
   REQUIRE(backlinks.size() == 1);
   REQUIRE(backlinks[0].from_card_id == "card-a");
   REQUIRE(backlinks[0].label.has_value());
+  REQUIRE_FALSE(backlinks[0].target_project_id.has_value());
 
   const auto incoming_resources = repo.list_incoming_typed("proj-1", "resource");
   REQUIRE(incoming_resources.size() == 1);
@@ -139,6 +142,34 @@ TEST_CASE("LinkRepo upsert/list/delete", "[linkrepo]") {
   repo.delete_links_from("proj-1", "card-a");
   outgoing = repo.list_outgoing("proj-1", "card-a");
   REQUIRE(outgoing.empty());
+}
+
+TEST_CASE("LinkRepo preserves an explicit target project ID", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  create_card(db, "card-b", "proj-1");
+
+  holder::model::CardLink link;
+  link.project_id = "proj-1";
+  link.from_card_id = "card-a";
+  link.to_card_id = "card-b";
+  link.target_project_id = "proj-2";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  holder::card::LinkRepo repo(db);
+  repo.upsert_links("proj-1", "card-a", {link});
+
+  const auto outgoing = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(outgoing.size() == 1);
+  REQUIRE(outgoing[0].target_project_id == "proj-2");
+  REQUIRE(repo.list_backlinks("proj-1", "card-b").empty());
+  repo.delete_links_to_typed("proj-1", "card-b", "card");
+  REQUIRE(repo.list_outgoing("proj-1", "card-a").size() == 1);
 }
 
 TEST_CASE("LinkRepo upsert rejects project/from mismatch", "[linkrepo]") {
