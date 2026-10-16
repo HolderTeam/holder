@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "openapi/openapi.yaml"
+SCHEMA = ROOT.parents[1] / "api/openapi.yaml"
 TARGET = ROOT / "src/holder/generated"
 VERSIONS = {"openapi-python-client": "0.29.1", "ruff": "0.16.10"}
 
@@ -30,28 +30,32 @@ def main() -> int:
     parser.add_argument(
         "--check", action="store_true", help="Compare without writing files"
     )
-    parser.add_argument(
-        "--source",
-        type=Path,
-        help="Refresh from a tested daemon OpenAPI file, or verify snapshot freshness with --check",
-    )
     args = parser.parse_args()
-    if args.check and args.source and args.source.read_bytes() != SCHEMA.read_bytes():
+    try:
+        data = SCHEMA.read_bytes()
+    except FileNotFoundError:
         parser.error(
-            "Contract snapshot differs from the owning API; test the daemon contract, "
-            "then refresh with --source without --check"
+            f"Owning contract not found at {SCHEMA}; run from a Holder repository checkout"
         )
+
+    provenance_path = ROOT / "openapi/provenance.json"
+    provenance = {
+        "source": "api/openapi.yaml",
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "generator": VERSIONS,
+    }
+    if args.check and (
+        not provenance_path.exists()
+        or json.loads(provenance_path.read_text()) != provenance
+    ):
+        parser.error(
+            "The owning api/openapi.yaml or generator versions changed; "
+            "regenerate the Python client"
+        )
+
     for package, version in VERSIONS.items():
         if importlib.metadata.version(package) != version:
             parser.error(f"Install {package}=={version} before regenerating")
-
-    schema = args.source.resolve() if args.source and not args.check else SCHEMA
-    data = schema.read_bytes()
-    provenance_path = ROOT / "openapi/provenance.json"
-    if not args.source or args.check:
-        provenance = json.loads(provenance_path.read_text())
-        if provenance["sha256"] != hashlib.sha256(data).hexdigest():
-            parser.error("Schema differs from its provenance; refresh with --source")
 
     # Use the generator and Ruff installed beside this Python, independent of shell activation.
     env = os.environ.copy()
@@ -65,7 +69,7 @@ def main() -> int:
                 "openapi_python_client",
                 "generate",
                 "--path",
-                str(schema),
+                str(SCHEMA),
                 "--config",
                 str(ROOT / "openapi/generator.yaml"),
                 "--meta",
@@ -106,38 +110,7 @@ def main() -> int:
             path = TARGET / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
-        if args.source:
-            revision = subprocess.check_output(
-                ["git", "-C", str(schema.parent), "rev-parse", "HEAD"], text=True
-            ).strip()
-            dirty = bool(
-                subprocess.check_output(
-                    [
-                        "git",
-                        "-C",
-                        str(schema.parent),
-                        "status",
-                        "--porcelain",
-                        "--",
-                        schema.name,
-                    ],
-                    text=True,
-                ).strip()
-            )
-            SCHEMA.write_bytes(data)
-            provenance_path.write_text(
-                json.dumps(
-                    {
-                        "source": "api/openapi.yaml",
-                        "revision": revision,
-                        "schema_dirty": dirty,
-                        "sha256": hashlib.sha256(data).hexdigest(),
-                        "generator": VERSIONS,
-                    },
-                    indent=2,
-                )
-                + "\n"
-            )
+        provenance_path.write_text(json.dumps(provenance, indent=2) + "\n")
         print(f"Generated {len(generated)} files in {TARGET.relative_to(ROOT)}.")
     return 0
 
