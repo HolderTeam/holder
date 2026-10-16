@@ -2506,20 +2506,18 @@ TEST_CASE(
     );
 
     holder::card::MilestoneRepo milestone_repo(db);
-    milestone_repo.replace_for_card(
-        "project-1",
-        card_ids[2],
-        {{"m1",
-          "project-1",
-          card_ids[2],
-          999,
-          1'111,
-          true,
-          std::string("Deadline"),
-          std::string("ship it"),
-          300,
-          300}}
-    );
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "m1";
+    milestone.project_id = "project-1";
+    milestone.card_id = card_ids[2];
+    milestone.dates = {
+        holder::model::milestone_date_from_legacy("start", 999, true),
+        holder::model::milestone_date_from_legacy("end", 1'111, true)
+    };
+    milestone.kind = "Deadline";
+    milestone.description = "ship it";
+    milestone.created_at = milestone.updated_at = 300;
+    milestone_repo.replace_for_card("project-1", card_ids[2], {milestone});
   }
 
   // First page: the two most recently updated cards, newest first.
@@ -2691,25 +2689,34 @@ TEST_CASE(
         "project-1",
         card_ids[2],
         {{"project-1", card_ids[2], card_ids[0], "card", "related", std::string("see also"), 300},
-         {"project-1", card_ids[2], card_ids[0], "card", "citation", std::string("other fork"), 301, "project-2"},
-         {"project-1", card_ids[2], "absent-card", "card", "external", std::string("offline"), 302, "project-3"}}
+         {"project-1",
+          card_ids[2],
+          card_ids[0],
+          "card",
+          "citation",
+          std::string("other fork"),
+          301,
+          "project-2"},
+         {"project-1",
+          card_ids[2],
+          "absent-card",
+          "card",
+          "external",
+          std::string("offline"),
+          302,
+          "project-3"}}
     );
 
     holder::card::MilestoneRepo milestone_repo(db);
-    milestone_repo.replace_for_card(
-        "project-1",
-        card_ids[2],
-        {{"m1",
-          "project-1",
-          card_ids[2],
-          999,
-          std::nullopt,
-          true,
-          std::string("Deadline"),
-          std::string("ship it"),
-          300,
-          300}}
-    );
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "m1";
+    milestone.project_id = "project-1";
+    milestone.card_id = card_ids[2];
+    milestone.dates = {holder::model::milestone_date_from_legacy("start", 999, true)};
+    milestone.kind = "Deadline";
+    milestone.description = "ship it";
+    milestone.created_at = milestone.updated_at = 300;
+    milestone_repo.replace_for_card("project-1", card_ids[2], {milestone});
   }
 
   char* page_json = nullptr;
@@ -4683,7 +4690,7 @@ TEST_CASE(
   auto after_first = nlohmann::json::parse(json);
   REQUIRE(after_first.size() == 1);
   const std::string first_id = after_first[0]["milestone_id"].get<std::string>();
-  REQUIRE(after_first[0]["start_at"] == 1000);
+  REQUIRE(after_first[0]["start_at"] == 0);
   REQUIRE(after_first[0]["end_at"].is_null());
   REQUIRE(after_first[0]["all_day"] == true);
   REQUIRE(after_first[0]["kind"] == "Renewal");
@@ -4733,7 +4740,7 @@ TEST_CASE(
   );
   auto in_range = nlohmann::json::parse(json);
   REQUIRE(in_range.size() == 2);
-  REQUIRE(in_range[0]["start_at"] == 1000);
+  REQUIRE(in_range[0]["start_at"] == 0);
   REQUIRE(in_range[0]["card_title"] == "My Car");
   REQUIRE(in_range[1]["start_at"] == 2000);
   REQUIRE(in_range[1]["end_at"] == 2500);
@@ -4792,6 +4799,147 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
+TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+  char* json = nullptr;
+  REQUIRE(
+      holder_card_create(context, "project-1", "Task card", "body", nullptr, &json, &error) ==
+      HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(json).at("card_id").get<std::string>();
+  holder_string_free(json);
+
+  REQUIRE(
+      holder_card_milestone_add_json(
+          context,
+          card_id.c_str(),
+          R"({"dates":[],"kind":"Task","description":"Call family"})",
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto added = nlohmann::json::parse(json);
+  const auto milestone_id = added.at("milestone_id").get<std::string>();
+  CHECK(added.at("dates").empty());
+  holder_string_free(json);
+
+  REQUIRE(holder_card_list_milestones(context, card_id.c_str(), &json, &error) == HOLDER_OK);
+  CHECK(nlohmann::json::parse(json).empty());
+  holder_string_free(json);
+  REQUIRE(
+      holder_card_list_milestones_with_dates(context, card_id.c_str(), &json, &error) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).size() == 1);
+  holder_string_free(json);
+
+  const auto update =
+      R"({"dates":[{"role":"start","date":"2026-10-16"},{"role":"start","date":"2026-10-17"},{"role":"resolved","datetime":"2026-10-17T09:30:00+01:00"}]})";
+  REQUIRE(
+      holder_card_milestone_update_json(
+          context,
+          "project-1",
+          card_id.c_str(),
+          milestone_id.c_str(),
+          update,
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).at("dates").size() == 3);
+  holder_string_free(json);
+
+  REQUIRE(holder_card_list_milestones(context, card_id.c_str(), &json, &error) == HOLDER_OK);
+  CHECK(nlohmann::json::parse(json).empty());
+  holder_string_free(json);
+
+  REQUIRE(
+      holder_project_list_milestones_by_day(
+          context,
+          "project-1",
+          "start",
+          "2026-10-16",
+          "2026-10-16",
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).at(0).at("card_title") == "Task card");
+  holder_string_free(json);
+  REQUIRE(
+      holder_project_list_milestones_by_day(
+          context, "project-1", "start", "2026-10-16", "2026-10-17", &json, &error
+      ) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).size() == 1);
+  holder_string_free(json);
+  const auto at = holder::model::milestone_datetime_epoch("2026-10-17T09:30:00+01:00");
+  REQUIRE(
+      holder_project_list_milestones_by_instant(
+          context,
+          "project-1",
+          "resolved",
+          at,
+          at,
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).size() == 1);
+  holder_string_free(json);
+
+  REQUIRE(holder_reindex(context, &error) == HOLDER_OK);
+  REQUIRE(
+      holder_card_list_milestones_with_dates(context, card_id.c_str(), &json, &error) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).at(0).at("dates").size() == 3);
+  holder_string_free(json);
+
+  REQUIRE(
+      holder_backup_snapshot_page(context, "project-1", 0, nullptr, 10, &json, &error) == HOLDER_OK
+  );
+  const auto snapshot = nlohmann::json::parse(json);
+  holder_string_free(json);
+  REQUIRE(snapshot.at("cards").size() == 1);
+  const auto saved_dates = snapshot.at("cards").at(0).at("milestones").at(0).at("dates");
+  CHECK(saved_dates.size() == 3);
+  const auto cards_json = snapshot.at("cards").dump();
+  REQUIRE(
+      holder_backup_restore(
+          context,
+          "Restored",
+          "plain",
+          cards_json.c_str(),
+          "Restore dates",
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto restored_project_id = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  REQUIRE(
+      holder_backup_snapshot_page(
+          context,
+          restored_project_id.c_str(),
+          0,
+          nullptr,
+          10,
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto restored_snapshot = nlohmann::json::parse(json);
+  CHECK(restored_snapshot.at("cards").at(0).at("milestones").at(0).at("dates") == saved_dates);
+  holder_string_free(json);
+  holder_context_destroy(context);
+}
+
 TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
@@ -4843,8 +4991,8 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_noop = nlohmann::json::parse(json);
-  REQUIRE(after_noop["start_at"] == 1000);
-  REQUIRE(after_noop["end_at"] == 5000);
+  REQUIRE(after_noop["start_at"] == 0);
+  REQUIRE(after_noop["end_at"] == 0);
   REQUIRE(after_noop["all_day"] == true);
   REQUIRE(after_noop["kind"] == "Renewal");
   REQUIRE(after_noop["description"] == "Car insurance renewal");
@@ -4864,8 +5012,8 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_start = nlohmann::json::parse(json);
-  REQUIRE(after_start["start_at"] == 2000);
-  REQUIRE(after_start["end_at"] == 5000);
+  REQUIRE(after_start["start_at"] == 0);
+  REQUIRE(after_start["end_at"] == 0);
   REQUIRE(after_start["kind"] == "Renewal");
   REQUIRE(after_start["description"] == "Car insurance renewal");
   holder_string_free(json);
@@ -4884,7 +5032,7 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_clear = nlohmann::json::parse(json);
-  REQUIRE(after_clear["start_at"] == 2000);
+  REQUIRE(after_clear["start_at"] == 0);
   REQUIRE(after_clear["end_at"].is_null());
   REQUIRE(after_clear["kind"].is_null());
   REQUIRE(after_clear["description"].is_null());

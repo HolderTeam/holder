@@ -80,9 +80,10 @@ def sync_detailed(
 ) -> Response[ErrorResponse | ProjectCalendarResponse]:
     """List project milestones and card activity in a time range
 
-     Milestones are selected by start_at and card activity by its corresponding timestamp; both from and
-    to are inclusive. Date parsing and timezone conversion are client concerns because this endpoint
-    accepts epoch seconds.
+     This legacy calendar view selects milestone start values and card activity by epoch timestamps; both
+    from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are
+    omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts
+    epoch seconds.
 
     Args:
         project_id (str):
@@ -119,9 +120,10 @@ def sync(
 ) -> ErrorResponse | ProjectCalendarResponse | None:
     """List project milestones and card activity in a time range
 
-     Milestones are selected by start_at and card activity by its corresponding timestamp; both from and
-    to are inclusive. Date parsing and timezone conversion are client concerns because this endpoint
-    accepts epoch seconds.
+     This legacy calendar view selects milestone start values and card activity by epoch timestamps; both
+    from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are
+    omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts
+    epoch seconds.
 
     Args:
         project_id (str):
@@ -153,9 +155,10 @@ async def asyncio_detailed(
 ) -> Response[ErrorResponse | ProjectCalendarResponse]:
     """List project milestones and card activity in a time range
 
-     Milestones are selected by start_at and card activity by its corresponding timestamp; both from and
-    to are inclusive. Date parsing and timezone conversion are client concerns because this endpoint
-    accepts epoch seconds.
+     This legacy calendar view selects milestone start values and card activity by epoch timestamps; both
+    from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are
+    omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts
+    epoch seconds.
 
     Args:
         project_id (str):
@@ -190,9 +193,10 @@ async def asyncio(
 ) -> ErrorResponse | ProjectCalendarResponse | None:
     """List project milestones and card activity in a time range
 
-     Milestones are selected by start_at and card activity by its corresponding timestamp; both from and
-    to are inclusive. Date parsing and timezone conversion are client concerns because this endpoint
-    accepts epoch seconds.
+     This legacy calendar view selects milestone start values and card activity by epoch timestamps; both
+    from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are
+    omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts
+    epoch seconds.
 
     Args:
         project_id (str):

@@ -291,7 +291,7 @@ TEST_CASE("HistoryRoutes lists and filters project activities", "[http][history]
   milestone.milestone_id = "route-milestone";
   milestone.project_id = "history-project";
   milestone.card_id = "abcd-project-route";
-  milestone.start_at = 1;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 1, false)};
   milestone.kind = "Review";
   milestone.description = "Project review";
   git.write_file(

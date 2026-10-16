@@ -25,13 +25,13 @@ def test_milestone_lifecycle_and_partial_updates(tmp_path: Path) -> None:
         assert milestone["description"] == "Café"
         assert milestone["all_day"] is False
         second = context.milestones.add(card.card_id, 100, all_day=True)
-        assert [row["start_at"] for row in second] == [100, 200]
+        assert [row["start_at"] for row in second] == [0, 200]
         assert second[0]["end_at"] is None
         assert second[0]["kind"] is None and second[0]["description"] is None
         updated = context.milestones.update(project.project_id, card.card_id, milestone["milestone_id"], {
             "start_at": 150, "all_day": True, "end_at": None,
         })
-        assert updated["start_at"] == 150 and updated["all_day"] is True
+        assert updated["start_at"] == 0 and updated["all_day"] is True
         assert updated["end_at"] is None
         assert updated["description"] == "Café" and updated["kind"] == "Appointment"
         cleared = context.milestones.update(project.project_id, card.card_id, milestone["milestone_id"], {

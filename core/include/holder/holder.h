@@ -282,7 +282,8 @@ int holder_backup_snapshot_page(
 // working directory are removed.
 // cards_json shape: a JSON array of {"card_id", "title", "body", "created_at", "updated_at",
 // "links": [{"to_id"|"to_card_id", "to_type", "kind", "label", "target_project_id"?}],
-// "milestones": [{"start_at", "all_day", "end_at", "kind", "description"}],
+// "milestones": [{"dates": [{"role", "date"|"datetime"}],
+//                  "kind", "description"}],
 // "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}. Extra fields
 // (project_id, project_name, privacy_mode) present because the input came straight from
 // holder_backup_snapshot_page are ignored -- project_name/privacy_mode are passed separately
@@ -636,7 +637,9 @@ int holder_project_list_tags(
     holder_error** out_error
 );
 
-// Lists card_id's milestones, ordered by start_at: *out_json becomes
+// Legacy scheduled-only listing. Milestones without exactly one `start` value are omitted.
+// Calendar dates are projected as UTC midnight with all_day=true.
+// Results are ordered by start_at: *out_json becomes
 // [{milestone_id, card_id, start_at, end_at, all_day, kind, description,
 // created_at, updated_at}, ...]. end_at/kind/description are null when unset.
 int holder_card_list_milestones(
@@ -646,12 +649,33 @@ int holder_card_list_milestones(
     holder_error** out_error
 );
 
-// Adds a new milestone to card_id. has_end_at is 0 to omit end_at (a point
-// in time rather than a span); all_day/has_end_at are 0 or 1; kind and
-// description may be NULL. Sets *out_json to card_id's updated milestone
-// list, same shape as holder_card_list_milestones. The card must be live and
-// end_at must not precede start_at. If response allocation fails after the
-// Git commit, the new milestone may already exist; list before retrying.
+// Complete milestone records, including undated milestones. Each `dates` entry has a free-form
+// `role` and exactly one of `date` (YYYY-MM-DD) or `datetime` (RFC 3339 with offset).
+// Roles may repeat. Results are ordered by creation time and ID; dates retain their list order.
+int holder_card_list_milestones_with_dates(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Adds a milestone to a live card. milestone_json contains `dates` (possibly empty), optional
+// `kind`, and optional `description`. Returns the complete new milestone record.
+int holder_card_milestone_add_json(
+    holder_context* context,
+    const char* card_id,
+    const char* milestone_json,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Legacy scheduled milestone creation. Adds a new milestone to card_id. has_end_at is 0 to omit
+// end_at (a point in time rather than a span); all_day/has_end_at are 0 or 1; kind and description
+// may be NULL. When all_day is 1, input epochs select UTC calendar dates and returned epochs
+// are normalized to UTC midnight. Sets *out_json to card_id's updated milestone list, same shape as
+// holder_card_list_milestones. The card must be live and end_at must not precede start_at. If
+// response allocation fails after the Git commit, the new milestone may already exist; list before
+// retrying.
 int holder_card_milestone_add(
     holder_context* context,
     const char* card_id,
@@ -675,6 +699,9 @@ int holder_card_milestone_add(
 //   - "end_at" (integer or null), "kind" (string or null), "description" (string or null):
 //     present with a value sets it, present as JSON null explicitly clears it, absent leaves
 //     it unchanged
+//   - "dates" (array): replaces the complete labelled-date set, including with an empty array.
+//     It cannot be combined with start_at/end_at/all_day in one update. An update using `dates`
+//     returns the complete labelled-date JSON shape; a legacy update returns the old shape.
 // Example update_json: {"start_at": 1234567890, "kind": "Renewal", "end_at": null} changes the
 // start time and kind, clears any end time, and leaves all_day/description untouched.
 // Sets *out_json to the single updated milestone (same shape as one entry of
@@ -699,9 +726,9 @@ int holder_card_milestone_remove(
     holder_error** out_error
 );
 
-// Lists every milestone in project_id whose start_at falls within [from, to]
-// (inclusive), ordered by start_at -- the Calendar's primary query. *out_json
-// becomes [{..same fields as holder_card_list_milestones, plus card_title},
+// Legacy timestamp query. Lists every milestone in project_id whose `start` value falls within
+// [from, to] (inclusive), ordered by start_at -- the Calendar's primary query. *out_json becomes
+// [{..same fields as holder_card_list_milestones, plus card_title},
 // ...]. Never includes a trashed card's milestones. card_title is null when
 // the card can't be resolved.
 int holder_project_list_milestones_in_range(
@@ -709,6 +736,28 @@ int holder_project_list_milestones_in_range(
     const char* project_id,
     long long from,
     long long to,
+    char** out_json,
+    holder_error** out_error
+);
+
+// Query one role by calendar day or exact instant, inclusive. Both return distinct complete
+// milestone records with card_title and omit trashed cards. A milestone with several matching
+// values of the requested role appears once, ordered by its earliest matching value.
+int holder_project_list_milestones_by_day(
+    holder_context* context,
+    const char* project_id,
+    const char* role,
+    const char* from_date,
+    const char* to_date,
+    char** out_json,
+    holder_error** out_error
+);
+int holder_project_list_milestones_by_instant(
+    holder_context* context,
+    const char* project_id,
+    const char* role,
+    long long from_at,
+    long long to_at,
     char** out_json,
     holder_error** out_error
 );
