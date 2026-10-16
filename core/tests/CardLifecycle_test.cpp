@@ -304,6 +304,144 @@ TEST_CASE(
   REQUIRE_FALSE(holder::card::CardMutation::pending(f.project.root_path));
 }
 
+TEST_CASE("Milestone mutations roll back file, index, and Git failures", "[cardstore][milestone]") {
+  for (const std::string operation_name : {"add", "update", "remove"}) {
+    for (const std::string failure : {"write", "stage", "sqlite", "commit", "post_commit"}) {
+      INFO(operation_name << " / " << failure);
+      Fixture f;
+      f.add(parent_id);
+      holder::model::Milestone base;
+      base.milestone_id = "milestone-base";
+      base.project_id = f.project.project_id;
+      base.card_id = parent_id;
+      base.start_at = 10;
+      f.store.add_milestone(base, 2);
+      const auto bytes = f.bytes(parent_id);
+      const auto head = f.head();
+      const auto index = f.fs.read_file(std::filesystem::path(f.project.root_path) / ".git/index");
+      const auto card_updated_at = f.cards.get(parent_id)->updated_at;
+
+      if (failure == "write") f.git.writes_until_failure = 1;
+      if (failure == "stage") f.git.fail_stage = true;
+      if (failure == "sqlite") {
+        f.db.exec(
+            "CREATE TRIGGER reject_milestone BEFORE DELETE ON milestones BEGIN SELECT RAISE(ABORT, 'injected SQL failure'); END;"
+        );
+      }
+      if (failure == "commit") f.git.fail_commit = true;
+      if (failure == "post_commit") f.git.fail_after_commit = true;
+
+      if (operation_name == "add") {
+        auto second = base;
+        second.milestone_id = "milestone-second";
+        REQUIRE_THROWS(f.store.add_milestone(second, 3));
+      } else if (operation_name == "update") {
+        holder::card::MilestoneUpdate update;
+        update.start_at = 20;
+        REQUIRE_THROWS(
+            f.store.update_milestone(f.project.project_id, parent_id, base.milestone_id, update, 3)
+        );
+      } else {
+        REQUIRE_THROWS(
+            f.store.remove_milestone(f.project.project_id, parent_id, base.milestone_id, 3)
+        );
+      }
+      REQUIRE(f.bytes(parent_id) == bytes);
+      REQUIRE(f.head() == head);
+      REQUIRE(f.fs.read_file(std::filesystem::path(f.project.root_path) / ".git/index") == index);
+      REQUIRE(f.cards.get(parent_id)->updated_at == card_updated_at);
+      auto milestones =
+          holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
+      REQUIRE(milestones.size() == 1);
+      REQUIRE(milestones[0].milestone_id == base.milestone_id);
+      REQUIRE(milestones[0].start_at == base.start_at);
+      REQUIRE_FALSE(holder::card::CardMutation::pending(f.project.root_path));
+      f.db.exec("DROP TRIGGER IF EXISTS reject_milestone;");
+      f.rebuild();
+      milestones = holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
+      REQUIRE(milestones.size() == 1);
+      REQUIRE(milestones[0].milestone_id == base.milestone_id);
+    }
+  }
+}
+
+TEST_CASE("Milestone add validates the live card and planned span", "[cardstore][milestone]") {
+  Fixture f;
+  f.add(parent_id);
+  holder::model::Milestone milestone;
+  milestone.project_id = f.project.project_id;
+  milestone.card_id = parent_id;
+  milestone.start_at = 10;
+  milestone.end_at = 9;
+  REQUIRE_THROWS_AS(f.store.add_milestone(milestone, 2), std::invalid_argument);
+  REQUIRE(holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id).empty());
+
+  milestone.end_at = 11;
+  milestone.project_id = "another-project";
+  REQUIRE_THROWS(f.store.add_milestone(milestone, 2));
+  milestone.project_id = f.project.project_id;
+  const auto head = f.head();
+  REQUIRE_FALSE(f.store.remove_milestone(f.project.project_id, parent_id, "missing", 2));
+  REQUIRE(f.head() == head);
+
+  const auto file = std::filesystem::path(f.project.root_path) /
+                    holder::core::card_rel_path(parent_id);
+  const auto bytes = f.bytes(parent_id);
+  f.fs.remove(file);
+  REQUIRE_THROWS_WITH(f.store.add_milestone(milestone, 2), "card content missing");
+  REQUIRE(holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id).empty());
+  f.fs.write_file(file, bytes);
+
+  f.store.trash(parent_id, 3);
+  REQUIRE_THROWS(f.store.add_milestone(milestone, 4));
+  REQUIRE_THROWS(f.store.remove_milestone(f.project.project_id, parent_id, "missing", 4));
+}
+
+TEST_CASE("Encrypted milestone mutations rebuild from Git", "[cardstore][milestone][privacy]") {
+  Fixture f;
+  holder::test::EnvGuard keystore("HOLDER_TEST_KEYSTORE_DIR", (f.dir / "keystore").string());
+  holder::project::ProjectRepo projects(f.db);
+  f.db.exec(
+      "UPDATE projects SET privacy_mode = 'encrypted_git' WHERE project_id = 'project-lifecycle'"
+  );
+  holder::privacy::ensure_encrypted_project_ready(
+      f.git.real,
+      projects,
+      f.project.project_id,
+      f.project.root_path,
+      {},
+      2,
+      [] { return "milestone-key"; }
+  );
+  f.project = *projects.get(f.project.project_id);
+  f.add(parent_id);
+
+  holder::model::Milestone milestone;
+  milestone.project_id = f.project.project_id;
+  milestone.card_id = parent_id;
+  milestone.start_at = 10;
+  milestone.description = "private deadline";
+  const auto added = f.store.add_milestone(milestone, 3);
+  REQUIRE(f.bytes(parent_id).find("private deadline") == std::string::npos);
+  f.rebuild();
+  auto milestones = holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
+  REQUIRE(milestones.size() == 1);
+  REQUIRE(milestones[0].milestone_id == added.milestone_id);
+  REQUIRE(milestones[0].description == milestone.description);
+
+  holder::card::MilestoneUpdate update;
+  update.has_description = true;
+  update.description = "changed private deadline";
+  REQUIRE(
+      f.store.update_milestone(f.project.project_id, parent_id, added.milestone_id, update, 4)
+          .has_value()
+  );
+  REQUIRE(f.bytes(parent_id).find("changed private deadline") == std::string::npos);
+  REQUIRE(f.store.remove_milestone(f.project.project_id, parent_id, added.milestone_id, 5));
+  f.rebuild();
+  REQUIRE(holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id).empty());
+}
+
 TEST_CASE(
     "Successful promotion commits only affected files and preserves the staged index",
     "[cardstore][lifecycle]"

@@ -249,10 +249,7 @@ bool handle_milestone_routes(
       milestone.created_at = support::now_epoch_seconds();
       milestone.updated_at = milestone.created_at;
 
-      auto milestones = repo.list_for_card(card->project_id, card_id);
-      milestones.push_back(milestone);
-      repo.replace_for_card(card->project_id, card_id, milestones);
-      card_store->update_milestones(card_id, support::now_epoch_seconds());
+      milestone = card_store->add_milestone(milestone, milestone.created_at);
       res = support::json_response(
           http::status::created,
           {{"ok", true}, {"data", milestone_json(milestone)}}
@@ -269,23 +266,12 @@ bool handle_milestone_routes(
         );
         return true;
       }
-      auto milestones = repo.list_for_card(card->project_id, card_id);
-      const auto before = milestones.size();
-      milestones.erase(
-          std::remove_if(
-              milestones.begin(),
-              milestones.end(),
-              [&](const auto& milestone) {
-                return milestone.milestone_id == *milestone_id;
-              }
-          ),
-          milestones.end()
+      const bool removed = card_store->remove_milestone(
+          card->project_id,
+          card_id,
+          *milestone_id,
+          support::now_epoch_seconds()
       );
-      const bool removed = milestones.size() != before;
-      if (removed) {
-        repo.replace_for_card(card->project_id, card_id, milestones);
-        card_store->update_milestones(card_id, support::now_epoch_seconds());
-      }
       res = support::json_response(
           http::status::ok,
           {{"ok", true},

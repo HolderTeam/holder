@@ -102,8 +102,8 @@ TEST_CASE(
       milestone_for(project.project_id, card.card_id, "22222222-2222-4222-8222-222222222222");
   second.start_at = 300;
   second.end_at.reset();
-  milestones.replace_for_card(project.project_id, card.card_id, {original, second});
-  store.update_milestones(card.card_id, 20);
+  store.add_milestone(original, 10);
+  store.add_milestone(second, 10);
 
   holder::git::GitRepo git;
   git.open_existing(project.root_path);
@@ -184,8 +184,7 @@ TEST_CASE(
       first_card.card_id,
       "11111111-1111-4111-8111-111111111111"
   );
-  milestones.replace_for_card(first_project.project_id, first_card.card_id, {original});
-  store.update_milestones(first_card.card_id, 20);
+  store.add_milestone(original, 10);
 
   holder::card::MilestoneUpdate update;
   update.start_at = 120;
