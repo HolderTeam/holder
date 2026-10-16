@@ -2537,6 +2537,7 @@ TEST_CASE(
   REQUIRE(page1["cards"][0]["privacy_mode"] == "plain");
   REQUIRE(page1["cards"][0]["links"][0]["to_id"] == card_ids[0]);
   REQUIRE(page1["cards"][0]["links"][0]["label"] == "see also");
+  REQUIRE_FALSE(page1["cards"][0]["links"][0].contains("target_project_id"));
   REQUIRE(page1["cards"][0]["milestones"][0]["kind"] == "Deadline");
   REQUIRE(page1["cards"][0]["milestones"][0]["description"] == "ship it");
   REQUIRE(page1["cards"][1]["title"] == "Middle");
@@ -2657,7 +2658,8 @@ TEST_CASE(
 
   // Same source setup as the backup_snapshot_page test above: three cards, one card-to-card
   // link, one milestone -- so this test proves the actual round trip, not just a hand-built
-  // input shape.
+  // input shape. Cross-project links cover both an unavailable target and a target ID that
+  // happens to match a card in the restored batch.
   std::vector<std::string> card_ids;
   for (const std::string& title : {"Oldest", "Middle", "Newest"}) {
     char* json = nullptr;
@@ -2688,7 +2690,9 @@ TEST_CASE(
     link_repo.upsert_links(
         "project-1",
         card_ids[2],
-        {{"project-1", card_ids[2], card_ids[0], "card", "related", std::string("see also"), 300}}
+        {{"project-1", card_ids[2], card_ids[0], "card", "related", std::string("see also"), 300},
+         {"project-1", card_ids[2], card_ids[0], "card", "citation", std::string("other fork"), 301, "project-2"},
+         {"project-1", card_ids[2], "absent-card", "card", "external", std::string("offline"), 302, "project-3"}}
     );
 
     holder::card::MilestoneRepo milestone_repo(db);
@@ -2716,6 +2720,11 @@ TEST_CASE(
   const auto page = nlohmann::json::parse(page_json);
   holder_string_free(page_json);
   REQUIRE(page["cards"].size() == 3);
+  const auto& source_links = page["cards"][0]["links"];
+  REQUIRE(source_links.size() == 3);
+  REQUIRE(source_links[0]["target_project_id"] == "project-3");
+  REQUIRE(source_links[1]["target_project_id"] == "project-2");
+  REQUIRE_FALSE(source_links[2].contains("target_project_id"));
   const std::string cards_json = page["cards"].dump();
 
   char* restored_json = nullptr;
@@ -2791,8 +2800,28 @@ TEST_CASE(
   REQUIRE(oldest != restored_cards.end());
   REQUIRE(is_canonical_uuid_version((*newest)["card_id"].get<std::string>(), '7'));
   REQUIRE(is_canonical_uuid_version((*oldest)["card_id"].get<std::string>(), '7'));
-  REQUIRE((*newest)["links"][0]["to_id"] == (*oldest)["card_id"]);
-  REQUIRE((*newest)["links"][0]["label"] == "see also");
+  const auto& restored_links = (*newest)["links"];
+  REQUIRE(restored_links.size() == 3);
+  const auto find_link = [&](const std::string& kind) {
+    return std::find_if(restored_links.begin(), restored_links.end(), [&](const auto& link) {
+      return link["kind"] == kind;
+    });
+  };
+  const auto local = find_link("related");
+  const auto fork = find_link("citation");
+  const auto unavailable = find_link("external");
+  REQUIRE(local != restored_links.end());
+  REQUIRE(fork != restored_links.end());
+  REQUIRE(unavailable != restored_links.end());
+  REQUIRE((*local)["to_id"] == (*oldest)["card_id"]);
+  REQUIRE((*local)["label"] == "see also");
+  REQUIRE_FALSE((*local).contains("target_project_id"));
+  REQUIRE((*fork)["to_id"] == card_ids[0]);
+  REQUIRE((*fork)["target_project_id"] == "project-2");
+  REQUIRE((*fork)["label"] == "other fork");
+  REQUIRE((*unavailable)["to_id"] == "absent-card");
+  REQUIRE((*unavailable)["target_project_id"] == "project-3");
+  REQUIRE((*unavailable)["label"] == "offline");
   REQUIRE((*newest)["milestones"][0]["kind"] == "Deadline");
 
   // One commit for the whole batch, on top of ProjectStore::create's own "Create project

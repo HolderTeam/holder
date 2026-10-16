@@ -228,13 +228,22 @@ void CardStore::create_batch(
 
     std::vector<holder::model::CardLink> links;
     for (const auto& link : item.links) {
+      // An explicit target project identifies a card outside this restored project. Keep
+      // that identity even when its card ID also appears among this batch's local cards.
+      if (link.to_type == "card" && link.target_project_id.has_value()) {
+        holder::model::CardLink resolved = link;
+        resolved.project_id = project_id;
+        resolved.from_card_id = card.card_id;
+        if (resolved.created_at <= 0) resolved.created_at = card.updated_at;
+        links.push_back(std::move(resolved));
+        continue;
+      }
       const auto& targets = link.to_type == "resource" ? resource_id_remap : id_remap;
       const auto remapped = targets.find(link.to_card_id);
       if ((link.to_type != "card" && link.to_type != "resource") || remapped == targets.end())
         continue; // A target absent from this snapshot cannot be written as a dangling link.
       holder::model::CardLink resolved = link;
       resolved.to_card_id = remapped->second;
-      resolved.target_project_id.reset();
       resolved.project_id = project_id;
       resolved.from_card_id = card.card_id;
       if (resolved.created_at <= 0) {
