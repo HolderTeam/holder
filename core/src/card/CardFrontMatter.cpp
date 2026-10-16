@@ -62,14 +62,15 @@ std::string render_card_front_matter(
   for (const auto& milestone : milestones) {
     out << YAML::BeginMap;
     out << YAML::Key << "milestone_id" << YAML::Value << milestone.milestone_id;
-    out << YAML::Key << "start_at" << YAML::Value << milestone.start_at;
-    out << YAML::Key << "end_at" << YAML::Value;
-    if (milestone.end_at.has_value()) {
-      out << milestone.end_at.value();
-    } else {
-      out << YAML::Null;
+    out << YAML::Key << "dates" << YAML::Value << YAML::BeginSeq;
+    for (const auto& value : milestone.dates) {
+      out << YAML::BeginMap;
+      out << YAML::Key << "role" << YAML::Value << value.role;
+      if (value.date) out << YAML::Key << "date" << YAML::Value << *value.date;
+      if (value.datetime) out << YAML::Key << "datetime" << YAML::Value << *value.datetime;
+      out << YAML::EndMap;
     }
-    out << YAML::Key << "all_day" << YAML::Value << milestone.all_day;
+    out << YAML::EndSeq;
     out << YAML::Key << "kind" << YAML::Value;
     if (milestone.kind.has_value()) {
       out << milestone.kind.value();
@@ -171,11 +172,33 @@ ParsedCardFile parse_card_file(const std::string& raw) {
         milestone.project_id = card.project_id;
         milestone.card_id = card.card_id;
         if (item["milestone_id"]) milestone.milestone_id = item["milestone_id"].as<std::string>();
-        if (item["start_at"]) milestone.start_at = item["start_at"].as<long long>();
-        if (item["end_at"] && !item["end_at"].IsNull()) {
-          milestone.end_at = item["end_at"].as<long long>();
+        if (item["dates"]) {
+          if (!item["dates"].IsSequence())
+            throw std::invalid_argument("milestone dates must be a sequence");
+          for (const auto& date_node : item["dates"]) {
+            if (!date_node.IsMap())
+              throw std::invalid_argument("milestone date must be a map");
+            holder::model::MilestoneDate value;
+            if (date_node["role"]) value.role = date_node["role"].as<std::string>();
+            if (date_node["date"] && !date_node["date"].IsNull())
+              value.date = date_node["date"].as<std::string>();
+            if (date_node["datetime"] && !date_node["datetime"].IsNull())
+              value.datetime = date_node["datetime"].as<std::string>();
+            holder::model::validate_milestone_date(value);
+            milestone.dates.push_back(std::move(value));
+          }
+        } else {
+          // Older card files store one planned span as epoch seconds. All-day values are
+          // interpreted as UTC calendar dates during this pre-release migration.
+          const bool all_day = item["all_day"] && item["all_day"].as<bool>();
+          const auto add_legacy = [&](const char* key, const char* role) {
+            if (!item[key] || item[key].IsNull()) return;
+            const auto at = item[key].as<long long>();
+            milestone.dates.push_back(holder::model::milestone_date_from_legacy(role, at, all_day));
+          };
+          add_legacy("start_at", "start");
+          add_legacy("end_at", "end");
         }
-        if (item["all_day"]) milestone.all_day = item["all_day"].as<bool>();
         if (item["kind"] && !item["kind"].IsNull()) {
           milestone.kind = item["kind"].as<std::string>();
         }

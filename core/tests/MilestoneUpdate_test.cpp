@@ -66,9 +66,10 @@ holder::model::Milestone milestone_for(
   milestone.project_id = project_id;
   milestone.card_id = card_id;
   milestone.milestone_id = milestone_id;
-  milestone.start_at = 100;
-  milestone.end_at = 200;
-  milestone.all_day = false;
+  milestone.dates = {
+      holder::model::milestone_date_from_legacy("start", 100, false),
+      holder::model::milestone_date_from_legacy("end", 200, false)
+  };
   milestone.kind = "Review";
   milestone.description = "Original description";
   milestone.created_at = 10;
@@ -100,8 +101,7 @@ TEST_CASE(
       milestone_for(project.project_id, card.card_id, "11111111-1111-4111-8111-111111111111");
   auto second =
       milestone_for(project.project_id, card.card_id, "22222222-2222-4222-8222-222222222222");
-  second.start_at = 300;
-  second.end_at.reset();
+  second.dates = {holder::model::milestone_date_from_legacy("start", 300, false)};
   store.add_milestone(original, 10);
   store.add_milestone(second, 10);
 
@@ -121,9 +121,7 @@ TEST_CASE(
   CHECK(result->card_id == original.card_id);
   CHECK(result->created_at == original.created_at);
   CHECK(result->updated_at == 30);
-  CHECK(result->start_at == original.start_at);
-  CHECK(result->end_at == original.end_at);
-  CHECK(result->all_day == original.all_day);
+  CHECK(result->dates == original.dates);
   CHECK(result->kind == std::optional<std::string>("Renewal"));
   CHECK(result->description == original.description);
 
@@ -203,16 +201,16 @@ TEST_CASE(
       30
   );
   REQUIRE(changed.has_value());
-  CHECK(changed->start_at == 120);
-  CHECK(changed->end_at == std::optional<long long>(300));
-  CHECK(changed->all_day);
+  CHECK(holder::model::milestone_epoch_for_role(*changed, "start") == 0);
+  CHECK(holder::model::milestone_epoch_for_role(*changed, "end") == 0);
+  CHECK(holder::model::milestone_unique_date_for_role(*changed, "start")->date == "1970-01-01");
   CHECK_FALSE(changed->kind.has_value());
   CHECK_FALSE(changed->description.has_value());
   CHECK(changed->milestone_id == original.milestone_id);
   CHECK(changed->created_at == original.created_at);
 
   holder::card::MilestoneUpdate invalid_start;
-  invalid_start.start_at = 301;
+  invalid_start.start_at = 86'400;
   CHECK_THROWS_AS(
       store.update_milestone(
           first_project.project_id,
@@ -225,7 +223,7 @@ TEST_CASE(
   );
   holder::card::MilestoneUpdate invalid_end;
   invalid_end.has_end_at = true;
-  invalid_end.end_at = 119;
+  invalid_end.end_at = -86'400;
   CHECK_THROWS_AS(
       store.update_milestone(
           first_project.project_id,
@@ -238,8 +236,8 @@ TEST_CASE(
   );
   const auto after_invalid = milestones.list_for_card(first_project.project_id, first_card.card_id);
   REQUIRE(after_invalid.size() == 1);
-  CHECK(after_invalid[0].start_at == 120);
-  CHECK(after_invalid[0].end_at == std::optional<long long>(300));
+  CHECK(holder::model::milestone_epoch_for_role(after_invalid[0], "start") == 0);
+  CHECK(holder::model::milestone_epoch_for_role(after_invalid[0], "end") == 0);
   CHECK(after_invalid[0].updated_at == 30);
 
   CHECK_FALSE(store

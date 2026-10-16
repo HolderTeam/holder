@@ -388,7 +388,7 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   external_link.label = "Family notes";
   holder::model::Milestone card_milestone;
   card_milestone.milestone_id = "mile-b1";
-  card_milestone.start_at = 500;
+  card_milestone.dates = {holder::model::milestone_date_from_legacy("start", 500, false)};
   card_milestone.kind = "Renewal";
   card_milestone.created_at = 0; // rebuilt default path
   card_milestone.updated_at = 0; // rebuilt default path
@@ -513,7 +513,7 @@ TEST_CASE("Rebuilder rebuilds cards/messages with defaults, links, trash and FTS
   REQUIRE(card_milestones[0].milestone_id == "mile-b1");
   REQUIRE(card_milestones[0].project_id == project_id);
   REQUIRE(card_milestones[0].card_id == card_b_id);
-  REQUIRE(card_milestones[0].start_at == 500);
+  REQUIRE(holder::model::milestone_epoch_for_role(card_milestones[0], "start") == 500);
   REQUIRE(card_milestones[0].kind == std::optional<std::string>("Renewal"));
   REQUIRE(card_milestones[0].created_at > 0);
   REQUIRE(card_milestones[0].updated_at > 0);
@@ -551,7 +551,7 @@ TEST_CASE("Rebuilder excludes a trashed card's milestones from the index", "[reb
 
   holder::model::Milestone milestone;
   milestone.milestone_id = "mile-t1";
-  milestone.start_at = 100;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, false)};
   milestone.created_at = 1;
   milestone.updated_at = 1;
   write_file(

@@ -4,6 +4,7 @@ on:
   # Pull requests always start this workflow so that its required result check is reported;
   # the changes job decides whether the Kit jobs run. Keep its pattern in step with these paths.
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
@@ -374,7 +375,7 @@ jobs:
     # python3-holder-kit as Launchpad builds it: from python/kit/ copied out on its own, against
     # libholder packages for core/ in this commit (from holder-sdk, or built here).
     needs: changes
-    if: needs.changes.outputs.kit == 'true'
+    if: needs.changes.outputs.kit == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
     strategy:
       fail-fast: false
       matrix:
@@ -439,7 +440,7 @@ jobs:
   ubuntu-runtime:
     # Installs the packages in a fresh container, without development packages or a compiler.
     needs: [changes, ubuntu-packages]
-    if: needs.changes.outputs.kit == 'true'
+    if: needs.changes.outputs.kit == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
     strategy:
       fail-fast: false
       matrix:
@@ -480,12 +481,22 @@ jobs:
         env:
           SELECTED: ${{ needs.changes.outputs.kit }}
           RESULTS: ${{ toJSON(needs) }}
+          SKIP_LAUNCHPAD: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages') }}
         run: |
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
-          jq -e --arg selected "$SELECTED" '
+          if [[ "$SKIP_LAUNCHPAD" == true && "$SELECTED" == true ]]; then
+            echo '::warning::Ubuntu package and runtime builds skipped by ci:skip-launchpad-packages label'
+            echo 'Ubuntu package and runtime builds skipped by the `ci:skip-launchpad-packages` PR label.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          jq -e --arg selected "$SELECTED" --arg skip "$SKIP_LAUNCHPAD" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "success"))
+               ([.checks, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
+               (if $skip == "true" then
+                  ([.["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "skipped"))
+                else
+                  ([.["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "success"))
+                end)
              else
                ([.checks, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"], .["ubuntu-runtime"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

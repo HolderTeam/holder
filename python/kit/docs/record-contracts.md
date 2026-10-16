@@ -402,7 +402,10 @@ propagate without returning partial exports; closed contexts raise `RuntimeError
 ## Milestone records and operations
 
 `context.milestones.list(card_id)` returns detached `MilestoneRecord` dictionaries
-in core's ascending `start_at` order. `MILESTONE_RECORD_FIELDS` defines their schema:
+from Core's scheduled timestamp view in ascending `start_at` order. Undated
+milestones are not exposed through these Kit methods yet. Calendar days appear
+as UTC-midnight timestamps with `all_day=True`.
+`MILESTONE_RECORD_FIELDS` defines their schema:
 
 | Field | Python type | Meaning |
 |---|---|---|
@@ -410,7 +413,7 @@ in core's ascending `start_at` order. `MILESTONE_RECORD_FIELDS` defines their sc
 | `card_id` | `str` | Owning card identifier |
 | `start_at` | `int` | Start time in Unix seconds |
 | `end_at` | `int \| None` | Optional end time; None denotes a point |
-| `all_day` | `bool` | Core's all-day flag; no Python timezone/date normalization |
+| `all_day` | `bool` | Legacy all-day flag; no Python timezone/date normalization |
 | `kind` | `str \| None` | Optional kind, including custom values |
 | `description` | `str \| None` | Optional description |
 | `created_at` | `int` | Core creation time in Unix seconds |
@@ -445,8 +448,10 @@ propagate rather than silently clipping or changing precision.
 description=None)` returns the **full updated card milestone list**, not just the
 new row. Each addition gets a new core ID; repeating a successful add creates
 another milestone. Empty kind/description strings on add are normalized to None
-by core. `milestones.remove(card_id, milestone_id)` returns None; absent IDs and
-IDs owned by another card are no-ops, but an unknown card raises `HolderError`.
+by core. With `all_day=True`, input epochs select UTC calendar dates and returned
+epochs are normalized to UTC midnight. `milestones.remove(card_id, milestone_id)`
+returns None; absent IDs and IDs owned by another card are no-ops, but an
+unknown card raises `HolderError`.
 
 `milestones.update(project_id, card_id, milestone_id, changes)` accepts a typed
 `MilestoneUpdate` dictionary and returns the single updated `MilestoneRecord`:

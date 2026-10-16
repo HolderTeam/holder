@@ -38,10 +38,13 @@ enum class RemoveTagResult {
   InvalidTag,
 };
 
-// A partial milestone update. std::optional fields whose value cannot be null use
+// A partial milestone update. `dates` replaces all current role values when supplied.
+// The old timestamp fields remain adapters for the installed scheduled-milestone APIs.
+// std::optional fields whose value cannot be null use
 // nullopt to mean "unchanged". Nullable fields have an accompanying has_* flag so
 // callers can distinguish "unchanged" from "clear this field".
 struct MilestoneUpdate {
+  std::optional<std::vector<holder::model::MilestoneDate>> dates;
   std::optional<long long> start_at;
   bool has_end_at = false;
   std::optional<long long> end_at;

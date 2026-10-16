@@ -57,7 +57,7 @@ holder::model::Milestone make_milestone(
   milestone.milestone_id = milestone_id;
   milestone.project_id = project_id;
   milestone.card_id = card_id;
-  milestone.start_at = start_at;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", start_at, false)};
   milestone.created_at = start_at;
   milestone.updated_at = start_at;
   return milestone;
@@ -73,11 +73,15 @@ TEST_CASE(
   holder::card::MilestoneRepo repo(db);
   REQUIRE_THROWS_WITH(
       repo.replace_for_card("proj-1", "card-a", {}),
-      Catch::Matchers::ContainsSubstring("prepare delete milestones failed: unknown sqlite error")
+      Catch::Matchers::ContainsSubstring(
+          "prepare delete milestone dates failed: unknown sqlite error"
+      )
   );
   REQUIRE_THROWS_WITH(
       repo.delete_for_card("proj-1", "card-a"),
-      Catch::Matchers::ContainsSubstring("prepare delete milestones failed: unknown sqlite error")
+      Catch::Matchers::ContainsSubstring(
+          "prepare delete milestone dates failed: unknown sqlite error"
+      )
   );
   REQUIRE_THROWS_WITH(
       repo.list_for_card("proj-1", "card-a"),
@@ -109,7 +113,7 @@ TEST_CASE("MilestoneRepo reports a duplicate insert in one replacement", "[miles
 }
 
 TEST_CASE(
-    "MilestoneRepo replace_for_card inserts and list_for_card reads them back ordered by start_at",
+    "MilestoneRepo replace_for_card inserts and list_for_card reads them back ordered by creation",
     "[milestonerepo]"
 ) {
   const auto dir = holder::test::make_temp_dir();
@@ -205,15 +209,17 @@ TEST_CASE(
   REQUIRE_NOTHROW(repo.delete_for_card("proj-1", "card-a"));
 }
 
-TEST_CASE("MilestoneRepo preserves nullable end_at, kind, and description", "[milestonerepo]") {
+TEST_CASE("MilestoneRepo preserves date roles and nullable text", "[milestonerepo]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   create_project(db, "proj-1");
   create_card(db, "card-a", "proj-1");
 
   holder::model::Milestone milestone = make_milestone("mile-1", "proj-1", "card-a", 100);
-  milestone.end_at = 150;
-  milestone.all_day = true;
+  milestone.dates = {
+      holder::model::milestone_date_from_legacy("start", 100, true),
+      holder::model::milestone_date_from_legacy("end", 150, true)
+  };
   milestone.kind = "Renewal";
   milestone.description = "Car insurance renewal";
 
@@ -222,9 +228,8 @@ TEST_CASE("MilestoneRepo preserves nullable end_at, kind, and description", "[mi
 
   const auto milestones = repo.list_for_card("proj-1", "card-a");
   REQUIRE(milestones.size() == 1);
-  REQUIRE(milestones[0].end_at.has_value());
-  REQUIRE(milestones[0].end_at.value() == 150);
-  REQUIRE(milestones[0].all_day);
+  REQUIRE(holder::model::milestone_epoch_for_role(milestones[0], "end") == 0);
+  REQUIRE(holder::model::milestone_unique_date_for_role(milestones[0], "start")->date == "1970-01-01");
   REQUIRE(milestones[0].kind == std::optional<std::string>("Renewal"));
   REQUIRE(milestones[0].description == std::optional<std::string>("Car insurance renewal"));
 
@@ -232,8 +237,9 @@ TEST_CASE("MilestoneRepo preserves nullable end_at, kind, and description", "[mi
   repo.replace_for_card("proj-1", "card-a", {bare});
   const auto bare_milestones = repo.list_for_card("proj-1", "card-a");
   REQUIRE(bare_milestones.size() == 1);
-  REQUIRE_FALSE(bare_milestones[0].end_at.has_value());
-  REQUIRE_FALSE(bare_milestones[0].all_day);
+  REQUIRE(holder::model::milestone_unique_date_for_role(bare_milestones[0], "end") == nullptr);
+  REQUIRE(holder::model::milestone_unique_date_for_role(bare_milestones[0], "start")->datetime.has_value()
+  );
   REQUIRE_FALSE(bare_milestones[0].kind.has_value());
   REQUIRE_FALSE(bare_milestones[0].description.has_value());
 }
@@ -260,6 +266,74 @@ TEST_CASE(
   REQUIRE(milestones.size() == 2);
   REQUIRE(milestones[0].milestone_id == "mile-early");
   REQUIRE(milestones[1].milestone_id == "mile-late");
+}
+
+TEST_CASE(
+    "MilestoneRepo indexes free-form day and datetime roles independently",
+    "[milestonerepo]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  holder::card::MilestoneRepo repo(db);
+
+  auto undated = make_milestone("undated", "proj-1", "card-a", 1);
+  undated.dates.clear();
+  auto calendar_day = make_milestone("day", "proj-1", "card-a", 2);
+  calendar_day.dates = {{"start", std::string("2026-10-16"), std::nullopt}};
+  auto instant = make_milestone("instant", "proj-1", "card-a", 3);
+  instant.dates = {
+      {"start", std::nullopt, std::string("2026-10-16T00:30:00+01:00")},
+      {"resolved", std::string("2026-10-17"), std::nullopt}
+  };
+  repo.replace_for_card("proj-1", "card-a", {undated, calendar_day, instant});
+
+  const auto all = repo.list_for_card("proj-1", "card-a");
+  REQUIRE(all.size() == 3);
+  CHECK(all[0].dates.empty());
+  CHECK(holder::model::milestone_unique_date_for_role(all[1], "start")->date == "2026-10-16");
+  CHECK(
+      holder::model::milestone_unique_date_for_role(all[2], "start")->datetime ==
+      "2026-10-16T00:30:00+01:00"
+  );
+
+  const auto days = repo.list_days_in_range("proj-1", "start", "2026-10-16", "2026-10-16");
+  REQUIRE(days.size() == 1);
+  CHECK(days[0].milestone_id == "day");
+  const auto resolved = repo.list_days_in_range("proj-1", "resolved", "2026-10-17", "2026-10-17");
+  REQUIRE(resolved.size() == 1);
+  CHECK(resolved[0].milestone_id == "instant");
+  const auto at = holder::model::milestone_datetime_epoch("2026-10-16T00:30:00+01:00");
+  const auto instants = repo.list_instants_in_range("proj-1", "start", at, at);
+  REQUIRE(instants.size() == 1);
+  CHECK(instants[0].milestone_id == "instant");
+  CHECK(repo.list_instants_in_range("proj-1", "start", at + 1, at + 1).empty());
+}
+
+TEST_CASE("MilestoneRepo validates values and preserves repeated roles", "[milestonerepo]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+  holder::card::MilestoneRepo repo(db);
+  auto milestone = make_milestone("m", "proj-1", "card-a", 1);
+  milestone.dates = {{"start", std::string("2026-02-30"), std::nullopt}};
+  REQUIRE_THROWS_AS(repo.replace_for_card("proj-1", "card-a", {milestone}), std::invalid_argument);
+  milestone.dates = {{"start", std::nullopt, std::string("2026-10-16T25:00:00Z")}};
+  REQUIRE_THROWS_AS(repo.replace_for_card("proj-1", "card-a", {milestone}), std::invalid_argument);
+  milestone.dates = {
+      {"start", std::string("2026-10-16"), std::nullopt},
+      {"start", std::string("2026-10-17"), std::nullopt}
+  };
+  REQUIRE_NOTHROW(repo.replace_for_card("proj-1", "card-a", {milestone}));
+  const auto saved = repo.list_for_card("proj-1", "card-a");
+  REQUIRE(saved.size() == 1);
+  CHECK(saved[0].dates == milestone.dates);
+  CHECK(holder::model::milestone_unique_date_for_role(saved[0], "start") == nullptr);
+  const auto days = repo.list_days_in_range("proj-1", "start", "2026-10-16", "2026-10-17");
+  REQUIRE(days.size() == 1);
+  CHECK(days[0].milestone_id == "m");
 }
 
 TEST_CASE("MilestoneRepo list_in_range excludes milestones outside the range", "[milestonerepo]") {
