@@ -46,6 +46,8 @@ holder::model::CardLink read_link(sqlite3_stmt* stmt) {
     link.label = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
   }
   link.created_at = sqlite3_column_int64(stmt, 6);
+  if (sqlite3_column_type(stmt, 7) != SQLITE_NULL)
+    link.target_project_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
   return link;
 } // LCOV_EXCL_LINE
 
@@ -60,10 +62,11 @@ void LinkRepo::upsert_links(
     const std::vector<holder::model::CardLink>& links
 ) {
   static constexpr const char* SQL =
-      "INSERT INTO card_links(project_id, from_card_id, to_card_id, to_type, kind, label, created_at) "
-      "VALUES(?, ?, ?, ?, ?, ?, ?) "
+      "INSERT INTO card_links(project_id, from_card_id, to_card_id, to_type, kind, label, "
+      "created_at, target_project_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(project_id, from_card_id, to_card_id, to_type, kind) DO UPDATE SET "
-      "label=excluded.label, created_at=excluded.created_at;";
+      "label=excluded.label, created_at=excluded.created_at, "
+      "target_project_id=excluded.target_project_id;";
 
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -87,6 +90,7 @@ void LinkRepo::upsert_links(
     bind_text(stmt, 5, link.kind);
     bind_text_optional(stmt, 6, link.label);
     bind_int64(stmt, 7, link.created_at);
+    bind_text_optional(stmt, 8, link.target_project_id);
 
     const int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -103,7 +107,8 @@ std::vector<holder::model::CardLink> LinkRepo::list_outgoing(
     const std::string& from_card_id
 ) const {
   static constexpr const char* SQL =
-      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at "
+      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at, "
+      "target_project_id "
       "FROM card_links WHERE project_id = ? AND from_card_id = ? "
       "ORDER BY created_at DESC;";
 
@@ -136,8 +141,10 @@ std::vector<holder::model::CardLink> LinkRepo::list_backlinks(
     const std::string& to_card_id
 ) const {
   static constexpr const char* SQL =
-      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at "
+      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at, "
+      "target_project_id "
       "FROM card_links WHERE project_id = ? AND to_card_id = ? "
+      "AND (target_project_id IS NULL OR target_project_id = project_id) "
       "ORDER BY created_at DESC;";
 
   sqlite3_stmt* stmt = nullptr;
@@ -170,8 +177,10 @@ std::vector<holder::model::CardLink> LinkRepo::list_backlinks_typed(
     const std::string& to_type
 ) const {
   static constexpr const char* SQL =
-      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at "
+      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at, "
+      "target_project_id "
       "FROM card_links WHERE project_id = ? AND to_card_id = ? AND to_type = ? "
+      "AND (target_project_id IS NULL OR target_project_id = project_id) "
       "ORDER BY created_at DESC;";
 
   sqlite3_stmt* stmt = nullptr;
@@ -204,8 +213,10 @@ std::vector<holder::model::CardLink> LinkRepo::list_incoming_typed(
     const std::string& to_type
 ) const {
   static constexpr const char* SQL =
-      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at "
+      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at, "
+      "target_project_id "
       "FROM card_links WHERE project_id = ? AND to_type = ? "
+      "AND (target_project_id IS NULL OR target_project_id = project_id) "
       "ORDER BY to_card_id ASC, created_at DESC;";
 
   sqlite3_stmt* stmt = nullptr;
@@ -290,7 +301,8 @@ void LinkRepo::delete_links_to_typed(
     const std::string& to_type
 ) {
   static constexpr const char* SQL =
-      "DELETE FROM card_links WHERE project_id = ? AND to_card_id = ? AND to_type = ?;";
+      "DELETE FROM card_links WHERE project_id = ? AND to_card_id = ? AND to_type = ? "
+      "AND (target_project_id IS NULL OR target_project_id = project_id);";
 
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {

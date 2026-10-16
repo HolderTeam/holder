@@ -1,4 +1,4 @@
--- schema.sql (schema version 7)
+-- schema.sql (schema version 8)
 -- Local-first holder schema: projects, cards, links, milestones, resources, AI threads/messages, and FTS5.
 -- The app/server is responsible for keeping FTS tables in sync (no triggers in v0.1).
 
@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS card_links (
   kind          TEXT NOT NULL,           -- e.g. 'wiki', 'ref', 'tag', 'related'
   label         TEXT NULL,
   created_at    INTEGER NOT NULL,
+  target_project_id TEXT NULL,          -- null means the source project
 
   FOREIGN KEY(project_id)   REFERENCES projects(project_id) ON DELETE CASCADE,
 
@@ -467,7 +468,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 7 if empty
+-- Initialize schema version to 8 if empty
 INSERT INTO schema_version(version)
-SELECT 7
+SELECT 8
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
