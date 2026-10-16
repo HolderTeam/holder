@@ -10,6 +10,8 @@
 #include "card/CardPaths.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
+#include "card/LinkRepo.h"
+#include "card/MilestoneRepo.h"
 #include "core_test_helpers.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
@@ -88,7 +90,34 @@ TEST_CASE(
   card.card_id = kSharedCardId;
   card.project_id = project_id;
   card.title = "Shared";
-  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git).create(card, "base");
+  holder::model::CardLink self_link;
+  self_link.project_id = project_id;
+  self_link.from_card_id = card.card_id;
+  self_link.to_card_id = card.card_id;
+  self_link.to_type = "card";
+  self_link.kind = "ref";
+  self_link.label = "self";
+  self_link.created_at = 1;
+  auto external_link = self_link;
+  external_link.target_project_id = "another-project";
+  external_link.label = "outside";
+  auto resource_link = self_link;
+  resource_link.to_card_id = "resource-id";
+  resource_link.to_type = "resource";
+  resource_link.label = "attachment";
+  holder::model::Milestone milestone;
+  milestone.milestone_id = "milestone-original";
+  milestone.project_id = project_id;
+  milestone.card_id = card.card_id;
+  milestone.start_at = 100;
+  milestone.end_at = 200;
+  milestone.all_day = true;
+  milestone.kind = "Deadline";
+  milestone.description = "Ship it";
+  milestone.created_at = 1;
+  milestone.updated_at = 1;
+  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
+      .create(card, "base", std::nullopt, {self_link, external_link, resource_link}, {milestone});
 
   // Local clones that base state.
   holder::git::RealGitOps local_git;
@@ -148,6 +177,48 @@ TEST_CASE(
   const auto content = local_store.get_content(*duplicate);
   REQUIRE(content.has_value());
   REQUIRE(*content == "local edit");
+
+  auto assert_copy_metadata = [&]() {
+    const auto links =
+        holder::card::LinkRepo(local_db).list_outgoing(project_id, duplicate->card_id);
+    REQUIRE(links.size() == 3);
+    bool found_self = false;
+    bool found_external = false;
+    bool found_resource = false;
+    for (const auto& link : links) {
+      REQUIRE(link.from_card_id == duplicate->card_id);
+      if (link.to_type == "resource") {
+        REQUIRE(link.to_card_id == "resource-id");
+        REQUIRE(link.label == "attachment");
+        found_resource = true;
+      } else if (!link.target_project_id) {
+        REQUIRE(link.to_card_id == duplicate->card_id);
+        REQUIRE(link.label == "self");
+        found_self = true;
+      } else {
+        REQUIRE(link.target_project_id == "another-project");
+        REQUIRE(link.to_card_id == kSharedCardId);
+        REQUIRE(link.label == "outside");
+        found_external = true;
+      }
+    }
+    REQUIRE(found_self);
+    REQUIRE(found_external);
+    REQUIRE(found_resource);
+    const auto milestones =
+        holder::card::MilestoneRepo(local_db).list_for_card(project_id, duplicate->card_id);
+    REQUIRE(milestones.size() == 1);
+    REQUIRE(milestones[0].milestone_id != "milestone-original");
+    REQUIRE(milestones[0].card_id == duplicate->card_id);
+    REQUIRE(milestones[0].start_at == 100);
+    REQUIRE(milestones[0].end_at == 200);
+    REQUIRE(milestones[0].all_day);
+    REQUIRE(milestones[0].kind == "Deadline");
+    REQUIRE(milestones[0].description == "Ship it");
+  };
+  assert_copy_metadata();
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  assert_copy_metadata();
 }
 
 TEST_CASE(
@@ -305,6 +376,105 @@ TEST_CASE("resolve_pull_conflicts creates UUIDv4 copies for UUIDv4 projects", "[
   REQUIRE(duplicate->card_id[14] == '4');
 }
 
+TEST_CASE("resolve_pull_conflicts preserves links and parents between copied cards", "[sync]") {
+  const auto dir = make_temp_dir();
+  const std::string project_id = "proj-1";
+  const auto remote_dir = dir / "remote";
+  const auto local_dir = dir / "local";
+  const std::string child_id = "22222222-2222-4222-8222-222222222222";
+
+  auto remote_db = open_db_with_schema(dir / "remote.db");
+  holder::index::FtsIndexer remote_fts(remote_db);
+  holder::project::ProjectRepo remote_projects(remote_db);
+  holder::git::RealGitOps remote_git;
+  create_plain_project(remote_projects, project_id, remote_dir);
+
+  holder::model::Card parent;
+  parent.card_id = kSharedCardId;
+  parent.project_id = project_id;
+  parent.title = "Parent";
+  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
+      .create(parent, "parent base");
+
+  holder::model::CardLink child_link;
+  child_link.project_id = project_id;
+  child_link.from_card_id = child_id;
+  child_link.to_card_id = parent.card_id;
+  child_link.to_type = "card";
+  child_link.kind = "ref";
+  child_link.created_at = 1;
+  holder::model::Card child;
+  child.card_id = child_id;
+  child.project_id = project_id;
+  child.title = "Child";
+  child.parent_card_id = parent.card_id;
+  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
+      .create(child, "child base", std::nullopt, {child_link});
+
+  holder::git::RealGitOps local_git;
+  local_git.open_or_init(local_dir);
+  local_git.set_remote("origin", remote_dir.string());
+  local_git.pull_remote_ff_only("origin");
+
+  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
+      .update_content(parent.card_id, "parent remote", std::nullopt, 2);
+  holder::card::CardStore(remote_db, &remote_fts, nullptr, &remote_git)
+      .update_content(child.card_id, "child remote", std::nullopt, 2);
+
+  auto local_db = open_db_with_schema(dir / "local.db");
+  holder::index::FtsIndexer local_fts(local_db);
+  holder::project::ProjectRepo local_projects(local_db);
+  create_plain_project(local_projects, project_id, local_dir);
+  const auto local_project = local_projects.get(project_id).value();
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)
+      .update_content(parent.card_id, "parent local", std::nullopt, 2);
+  holder::card::CardStore(local_db, &local_fts, nullptr, &local_git)
+      .update_content(child.card_id, "child local", std::nullopt, 2);
+
+  holder::git::NonFastForwardPullError diverged("", "", "");
+  bool diverged_seen = false;
+  try {
+    local_git.pull_remote_ff_only("origin");
+  } catch (const holder::git::NonFastForwardPullError& error) {
+    diverged_seen = true;
+    diverged = error;
+  }
+  REQUIRE(diverged_seen);
+  REQUIRE(
+      holder::sync::resolve_pull_conflicts(
+          local_db,
+          &local_fts,
+          local_project,
+          local_git,
+          diverged,
+          3
+      ) == 2
+  );
+
+  const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
+  const auto parent_copy = std::find_if(cards.begin(), cards.end(), [&](const auto& card) {
+    return card.title == "Parent (conflicted copy)";
+  });
+  const auto child_copy = std::find_if(cards.begin(), cards.end(), [&](const auto& card) {
+    return card.title == "Child (conflicted copy)";
+  });
+  REQUIRE(parent_copy != cards.end());
+  REQUIRE(child_copy != cards.end());
+  REQUIRE(child_copy->parent_card_id == parent_copy->card_id);
+  auto links = holder::card::LinkRepo(local_db).list_outgoing(project_id, child_copy->card_id);
+  REQUIRE(links.size() == 1);
+  REQUIRE(links[0].to_card_id == parent_copy->card_id);
+
+  holder::store::Rebuilder(local_db, &local_fts).rebuild_project(local_project);
+  const auto rebuilt_child = holder::card::CardRepo(local_db).get(child_copy->card_id);
+  REQUIRE(rebuilt_child.has_value());
+  REQUIRE(rebuilt_child->parent_card_id == parent_copy->card_id);
+  links = holder::card::LinkRepo(local_db).list_outgoing(project_id, child_copy->card_id);
+  REQUIRE(links.size() == 1);
+  REQUIRE(links[0].to_card_id == parent_copy->card_id);
+}
+
 TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sync]") {
   const auto dir = make_temp_dir();
   auto db = open_db_with_schema(dir / "holder.db");
@@ -332,10 +502,10 @@ TEST_CASE("resolve_pull_conflicts rejects a project that no longer exists", "[sy
   );
 }
 
-TEST_CASE("resolve_pull_conflicts skips a conflict it cannot copy into the index", "[sync]") {
+TEST_CASE("resolve_pull_conflicts reports a conflict copy it cannot create", "[sync]") {
   // Same divergence as the UUIDv4 test above, but the project's recorded root is then pointed at
-  // a regular file, so CardStore::create cannot open a repository there. One unwritable copy must
-  // not fail the whole pull: the conflict is skipped and nothing is reported as resolved.
+  // a regular file, so CardStore::create cannot open a repository there. The pull must report
+  // the failure rather than claiming the local conflict was preserved.
   const auto dir = make_temp_dir();
   const std::string project_id = "proj-1";
   const auto remote_dir = dir / "remote";
@@ -384,18 +554,17 @@ TEST_CASE("resolve_pull_conflicts skips a conflict it cannot copy into the index
   std::ofstream(not_a_directory) << "plain file";
   holder::project::ProjectRepo(local_db).update_root_path(project_id, not_a_directory.string(), 3);
 
-  int resolved = -1;
-  REQUIRE_NOTHROW(
-      resolved = holder::sync::resolve_pull_conflicts(
+  REQUIRE_THROWS_WITH(
+      holder::sync::resolve_pull_conflicts(
           local_db,
           &local_fts,
           local_project,
           local_git,
           diverged,
           3
-      )
+      ),
+      Catch::Matchers::ContainsSubstring("failed to preserve conflicted card")
   );
-  REQUIRE(resolved == 0);
   const auto cards = holder::card::CardRepo(local_db).list_all(project_id);
   REQUIRE(cards.size() == 1);
   REQUIRE(cards.front().card_id == kSharedCardId);
