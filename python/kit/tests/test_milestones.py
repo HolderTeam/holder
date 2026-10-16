@@ -198,24 +198,21 @@ def test_milestone_queries_exclude_trashed_cards(tmp_path: Path) -> None:
             context.milestones.update(project.project_id, card.card_id, milestone["milestone_id"], {})
 
 
-def test_missing_body_mutation_failure_preserves_core_index_semantics(tmp_path: Path) -> None:
+def test_missing_body_mutation_failure_leaves_milestone_index_unchanged(tmp_path: Path) -> None:
     with holderkit.open(tmp_path / "data") as context:
         project = context.create_project("Missing body")
         card = context.create_card(project.project_id, "Card")
         original = context.milestones.add(card.card_id, 100)[0]
         (Path(project.root_path) / card.rel_path).unlink()
-        # Updates check the durable file before replacing index rows.
         with pytest.raises(holderkit.HolderError, match="card content missing"):
             context.milestones.update(project.project_id, card.card_id, original["milestone_id"], {"kind": "new"})
         assert context.milestones.list(card.card_id) == [original]
-        # Existing core add/remove replace index rows BEFORE writing the file.
-        # An exception therefore cannot imply rollback of their index changes.
         with pytest.raises(holderkit.HolderError, match="card content missing"):
             context.milestones.add(card.card_id, 200)
-        assert [row["start_at"] for row in context.milestones.list(card.card_id)] == [100, 200]
+        assert context.milestones.list(card.card_id) == [original]
         with pytest.raises(holderkit.HolderError, match="card content missing"):
             context.milestones.remove(card.card_id, original["milestone_id"])
-        assert [row["start_at"] for row in context.milestones.list(card.card_id)] == [200]
+        assert context.milestones.list(card.card_id) == [original]
 
 
 def test_milestone_read_failure_propagates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

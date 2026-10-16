@@ -605,6 +605,95 @@ void CardStore::update_milestones(const std::string& card_id, long long updated_
   git_->commit("Update milestones for " + card.title);
 }
 
+bool CardStore::change_milestones(
+    const std::string& project_id,
+    const std::string& card_id,
+    long long updated_at,
+    const std::string& message,
+    const std::function<bool(std::vector<holder::model::Milestone>&)>& change,
+    bool missing_card_is_noop
+) {
+  auto card = card_repo_.get(card_id);
+  if (!card || card->project_id != project_id || card->deleted_at) {
+    if (missing_card_is_noop) return false;
+    throw std::runtime_error("live card not found: " + card_id);
+  }
+  const auto project = require_project(project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  card = card_repo_.get(card_id);
+  if (!card || card->project_id != project_id || card->deleted_at) {
+    if (missing_card_is_noop) return false;
+    throw std::runtime_error("live card not found: " + card_id);
+  }
+  git_->open_or_init(project.root_path);
+  if (project.git_remote_url) git_->set_remote("origin", *project.git_remote_url);
+
+  if (card->rel_path != holder::core::card_rel_path(card_id))
+    throw std::runtime_error("card rel_path does not match card_id");
+  const auto path = git_->repo_dir() / card->rel_path;
+  if (!fs_->exists(path)) throw std::runtime_error("card content missing");
+  auto target = holder::core::parse_card_file(decode_card_blob(project, fs_->read_file(path)));
+  if (!target.has_front_matter || target.card.card_id != card_id ||
+      target.card.project_id != project_id)
+    throw std::runtime_error("card front matter identity mismatch");
+  target.card = *card;
+  // Even an absent remove must surface a broken projection rather than claim success.
+  milestone_repo_.list_for_card(project_id, card_id);
+  if (!change(target.milestones)) return false;
+  target.card.updated_at = updated_at;
+  apply_card_changes(project, *card, std::move(target), {}, message + card->title);
+  return true;
+}
+
+holder::model::Milestone CardStore::add_milestone(
+    holder::model::Milestone milestone,
+    long long updated_at
+) {
+  if (milestone.project_id.empty() || milestone.card_id.empty())
+    throw std::invalid_argument("milestone project_id/card_id must not be empty");
+  if (milestone.end_at && *milestone.end_at < milestone.start_at)
+    throw std::invalid_argument("milestone end_at must not be before start_at");
+  if (milestone.milestone_id.empty()) milestone.milestone_id = holder::identity::uuid_v4();
+  if (milestone.created_at == 0) milestone.created_at = updated_at;
+  milestone.updated_at = updated_at;
+  change_milestones(
+      milestone.project_id,
+      milestone.card_id,
+      updated_at,
+      "Add milestone for ",
+      [&](auto& milestones) {
+        if (std::any_of(milestones.begin(), milestones.end(), [&](const auto& existing) {
+              return existing.milestone_id == milestone.milestone_id;
+            }))
+          throw std::invalid_argument("milestone ID already exists");
+        milestones.push_back(milestone);
+        return true;
+      }
+  );
+  return milestone;
+}
+
+bool CardStore::remove_milestone(
+    const std::string& project_id,
+    const std::string& card_id,
+    const std::string& milestone_id,
+    long long updated_at
+) {
+  return change_milestones(
+      project_id,
+      card_id,
+      updated_at,
+      "Remove milestone from ",
+      [&](auto& milestones) {
+        const auto before = milestones.size();
+        std::erase_if(milestones, [&](const auto& value) {
+          return value.milestone_id == milestone_id;
+        });
+        return milestones.size() != before;
+      }
+  );
+}
+
 std::optional<holder::model::Milestone> CardStore::update_milestone(
     const std::string& project_id,
     const std::string& card_id,
@@ -618,58 +707,41 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
     return std::nullopt;
   }
 
-  auto milestones = milestone_repo_.list_for_card(project_id, card_id);
-  const auto position = std::find_if(milestones.begin(), milestones.end(), [&](const auto& value) {
-    return value.milestone_id == milestone_id;
-  });
-  if (position == milestones.end()) return std::nullopt;
-
-  auto updated = *position;
-  if (update.start_at.has_value()) updated.start_at = *update.start_at;
-  if (update.has_end_at) updated.end_at = update.end_at;
-  if (update.all_day.has_value()) updated.all_day = *update.all_day;
-  if (update.has_kind) updated.kind = update.kind;
-  if (update.has_description) updated.description = update.description;
-
-  if (updated.end_at.has_value() && *updated.end_at < updated.start_at) {
-    throw std::invalid_argument("milestone end_at must not be before start_at");
-  }
-
-  const bool changed = updated.start_at != position->start_at ||
-                       updated.end_at != position->end_at || updated.all_day != position->all_day ||
-                       updated.kind != position->kind ||
-                       updated.description != position->description;
-  if (!changed) return *position;
-
-  updated.updated_at = updated_at;
-  *position = updated;
-
-  auto card = *card_opt;
-  const auto project = require_project(project_id);
-  auto operation = git_->lock_operation(project.root_path);
-  git_->open_or_init(project.root_path);
-  if (project.git_remote_url.has_value()) git_->set_remote("origin", *project.git_remote_url);
-  const std::string expected = holder::core::card_rel_path(card.card_id);
-  if (card.rel_path != expected) {
-    throw std::runtime_error("card rel_path does not match card_id");
-  }
-
-  const auto full_path = git_->repo_dir() / card.rel_path;
-  if (!fs_->exists(full_path)) {
-    throw std::runtime_error("card content missing");
-  }
-  const auto raw = fs_->read_file(full_path);
-  const auto plain = decode_card_blob(project, raw);
-  const auto parsed = holder::core::parse_card_file(plain);
-
-  card.updated_at = updated_at;
-  write_card_file(*git_, project, card, parsed.links, milestones, parsed.body);
-  git_->stage_path(card.rel_path);
-  assert_project_staged_blobs_safe(project, {card.rel_path});
-  milestone_repo_.replace_for_card(project_id, card_id, milestones);
-  card_repo_.touch_updated(card_id, updated_at);
-  git_->commit("Update milestone for " + card.title);
-  return updated;
+  std::optional<holder::model::Milestone> result;
+  change_milestones(
+      project_id,
+      card_id,
+      updated_at,
+      "Update milestone for ",
+      [&](auto& milestones) {
+        const auto position =
+            std::find_if(milestones.begin(), milestones.end(), [&](const auto& value) {
+              return value.milestone_id == milestone_id;
+            });
+        if (position == milestones.end()) return false;
+        auto updated = *position;
+        if (update.start_at) updated.start_at = *update.start_at;
+        if (update.has_end_at) updated.end_at = update.end_at;
+        if (update.all_day) updated.all_day = *update.all_day;
+        if (update.has_kind) updated.kind = update.kind;
+        if (update.has_description) updated.description = update.description;
+        if (updated.end_at && *updated.end_at < updated.start_at)
+          throw std::invalid_argument("milestone end_at must not be before start_at");
+        const bool changed = updated.start_at != position->start_at ||
+                             updated.end_at != position->end_at ||
+                             updated.all_day != position->all_day ||
+                             updated.kind != position->kind ||
+                             updated.description != position->description;
+        if (changed) {
+          updated.updated_at = updated_at;
+          *position = updated;
+        }
+        result = updated;
+        return changed;
+      },
+      true
+  );
+  return result;
 }
 
 CardStore::CardChange CardStore::placement_change(

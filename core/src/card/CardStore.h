@@ -152,7 +152,20 @@ class CardStore {
       long long updated_at
   );
   void update_links(const std::string& card_id, long long updated_at);
+  // Legacy index-to-file projection. New milestone changes must use the operations below.
   void update_milestones(const std::string& card_id, long long updated_at);
+  // Add/update/remove use the card mutation journal: file, projection and branch are restored
+  // together on a handled failure; startup recovery settles an interrupted journal. A caller
+  // whose result formatting fails after success must read the card before retrying creation.
+  // No idempotent retry is promised by an exception alone.
+  holder::model::Milestone add_milestone(holder::model::Milestone milestone, long long updated_at);
+  // Missing milestone is a no-op on a live card. Missing, foreign, or trashed cards are errors.
+  bool remove_milestone(
+      const std::string& project_id,
+      const std::string& card_id,
+      const std::string& milestone_id,
+      long long updated_at
+  );
   // Updates one milestone only when project_id, card_id, and milestone_id identify the same
   // live card milestone. Returns nullopt for a missing card/milestone or any ownership mismatch.
   // The resulting milestone range is validated before the card file, projection, or Git history
@@ -256,6 +269,14 @@ class CardStore {
   CardChange placement_change(
       const holder::model::Project& project,
       const holder::model::Card& placed
+  );
+  bool change_milestones(
+      const std::string& project_id,
+      const std::string& card_id,
+      long long updated_at,
+      const std::string& message,
+      const std::function<bool(std::vector<holder::model::Milestone>&)>& change,
+      bool missing_card_is_noop = false
   );
   // Writes every change in one journalled operation: one SQLite transaction and one Git commit,
   // rolled back together on failure.

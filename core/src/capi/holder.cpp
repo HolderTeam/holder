@@ -508,7 +508,8 @@ class CApiStorageProviderHandle final : public holder::resource::StorageProvider
     }
     std::string message =
         error_ptr != nullptr
-            ? std::string(error_ptr
+            ? std::string(
+                  error_ptr
               ) // LCOV_EXCL_LINE - callback failures without text use the documented fallback.
             : (std::string("storage provider ") + op + " failed");
     if (error_ptr != nullptr) std::free(error_ptr);
@@ -652,21 +653,20 @@ nlohmann::json outgoing_link_to_json(
     const holder::model::CardLink& link
 ) {
   const auto to_card = link.to_type == "card" ? holder::card::CardRepo(db).get(link.to_card_id)
-                                           : std::nullopt;
+                                              : std::nullopt;
   nlohmann::json body = {
       {"to_card_id", link.to_card_id},
-      {"target_project_id", link.target_project_id ? nlohmann::json(*link.target_project_id)
-                                                      : nlohmann::json(nullptr)},
+      {"target_project_id",
+       link.target_project_id ? nlohmann::json(*link.target_project_id) : nlohmann::json(nullptr)},
       {"to_type", link.to_type},
       {"kind", link.kind},
       {"created_at", link.created_at},
   };
   body["label"] = link.label.has_value() ? nlohmann::json(*link.label) : nlohmann::json(nullptr);
-  body["to_title"] =
-      to_card.has_value() &&
-              to_card->project_id == link.target_project_id.value_or(link.project_id)
-          ? nlohmann::json(to_card->title)
-          : nlohmann::json(nullptr);
+  body["to_title"] = to_card.has_value() &&
+                             to_card->project_id == link.target_project_id.value_or(link.project_id)
+                         ? nlohmann::json(to_card->title)
+                         : nlohmann::json(nullptr);
   return body;
 }
 
@@ -1243,11 +1243,18 @@ int holder_project_import(
   }
   *out_json = nullptr;
   if (context == nullptr || project_root == nullptr || project_root[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context and project_root are required");
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "context and project_root are required"
+    );
   }
   try {
     const auto project = holder::project::import_project_into_empty_database(
-        context->db, context->fts, context->data_dir, project_root
+        context->db,
+        context->fts,
+        context->data_dir,
+        project_root
     );
     return return_json(project_to_json(project), out_json, out_error);
   } catch (const std::bad_alloc&) {
@@ -3692,11 +3699,7 @@ int holder_card_milestone_add(
       return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
     }
 
-    holder::card::MilestoneRepo milestone_repo(context->db);
-    auto milestones = milestone_repo.list_for_card(card->project_id, card_id);
-
     holder::model::Milestone milestone;
-    milestone.milestone_id = holder::identity::uuid_v4();
     milestone.project_id = card->project_id;
     milestone.card_id = card_id;
     milestone.start_at = start_at;
@@ -3712,14 +3715,12 @@ int holder_card_milestone_add(
     }
     milestone.created_at = now_epoch_seconds();
     milestone.updated_at = milestone.created_at;
-    milestones.push_back(milestone);
-
-    milestone_repo.replace_for_card(card->project_id, card_id, milestones);
     holder::card::CardStore(context->db, &context->fts)
-        .update_milestones(card_id, now_epoch_seconds());
+        .add_milestone(milestone, milestone.created_at);
 
     nlohmann::json body = nlohmann::json::array();
-    for (const auto& m : milestone_repo.list_for_card(card->project_id, card_id)) {
+    for (const auto& m :
+         holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)) {
       body.push_back(milestone_to_json(m));
     }
     auto* out = duplicate_string(body.dump());
@@ -3824,26 +3825,8 @@ int holder_card_milestone_remove(
       return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
     }
 
-    holder::card::MilestoneRepo milestone_repo(context->db);
-    auto milestones = milestone_repo.list_for_card(card->project_id, card_id);
-    const auto before = milestones.size();
-    milestones.erase(
-        std::remove_if(
-            milestones.begin(),
-            milestones.end(),
-            [&](const holder::model::Milestone& m) {
-              return m.milestone_id == milestone_id;
-            }
-        ),
-        milestones.end()
-    );
-    if (milestones.size() == before) {
-      return HOLDER_OK;
-    }
-
-    milestone_repo.replace_for_card(card->project_id, card_id, milestones);
     holder::card::CardStore(context->db, &context->fts)
-        .update_milestones(card_id, now_epoch_seconds());
+        .remove_milestone(card->project_id, card_id, milestone_id, now_epoch_seconds());
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
@@ -4463,8 +4446,8 @@ int holder_git_probe_remote_url(
         // LCOV_EXCL_STOP
         {"remote_has_head", probe.remote_has_head},
         {"error_message",
-         probe.error_message.empty() ? nlohmann::json(nullptr) : nlohmann::json(probe.error_message)
-        },
+         probe.error_message.empty() ? nlohmann::json(nullptr)
+                                     : nlohmann::json(probe.error_message)},
     };
 
     auto* out = duplicate_string(body.dump());

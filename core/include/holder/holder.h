@@ -649,7 +649,9 @@ int holder_card_list_milestones(
 // Adds a new milestone to card_id. has_end_at is 0 to omit end_at (a point
 // in time rather than a span); all_day/has_end_at are 0 or 1; kind and
 // description may be NULL. Sets *out_json to card_id's updated milestone
-// list, same shape as holder_card_list_milestones.
+// list, same shape as holder_card_list_milestones. The card must be live and
+// end_at must not precede start_at. If response allocation fails after the
+// Git commit, the new milestone may already exist; list before retrying.
 int holder_card_milestone_add(
     holder_context* context,
     const char* card_id,
@@ -689,7 +691,7 @@ int holder_card_milestone_update_json(
 );
 
 // Removes milestone_id from card_id, if present. A no-op, not an error, if
-// milestone_id doesn't exist or belongs to a different card.
+// milestone_id doesn't exist or belongs to a different card. The card must be live.
 int holder_card_milestone_remove(
     holder_context* context,
     const char* card_id,

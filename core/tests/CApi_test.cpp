@@ -4653,6 +4653,17 @@ TEST_CASE(
   REQUIRE(nlohmann::json::parse(json).empty());
   holder_string_free(json);
 
+  json = nullptr;
+  REQUIRE(
+      holder_card_milestone_add(
+          context, card_id.c_str(), 2000, 1, 1000, 0, nullptr, nullptr, &json, &error
+      ) == HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(json == nullptr);
+  REQUIRE(error != nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+
   // A point-in-time, all-day milestone (no end_at).
   json = nullptr;
   REQUIRE(
@@ -4755,6 +4766,21 @@ TEST_CASE(
 
   // Trashing the card removes it from the range query, mirroring tags/the Calendar's own guard.
   REQUIRE(holder_card_delete(context, card_id.c_str(), &error) == HOLDER_OK);
+  json = nullptr;
+  REQUIRE(
+      holder_card_milestone_add(
+          context, card_id.c_str(), 3000, 0, 0, 0, nullptr, nullptr, &json, &error
+      ) == HOLDER_ERROR_RUNTIME
+  );
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+  REQUIRE(
+      holder_card_milestone_remove(context, card_id.c_str(), first_id.c_str(), &error) ==
+      HOLDER_ERROR_RUNTIME
+  );
+  holder_error_destroy(error);
+  error = nullptr;
   json = nullptr;
   REQUIRE(
       holder_project_list_milestones_in_range(context, "project-1", 0, 5000, &json, &error) ==
