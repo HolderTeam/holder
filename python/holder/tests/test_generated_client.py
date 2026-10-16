@@ -38,10 +38,11 @@ from holder.generated.models import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = ROOT.parents[1] / "api/openapi.yaml"
 
 
 def test_every_contract_operation_is_generated():
-    schema = YAML(typ="safe").load((ROOT / "openapi/openapi.yaml").read_text())
+    schema = YAML(typ="safe").load(SCHEMA.read_text())
     expected = {
         (method, re.sub(r"\{[^}]+\}", "{}", path))
         for path, operations in schema["paths"].items()
@@ -71,12 +72,14 @@ def test_every_contract_operation_is_generated():
     assert actual == expected
 
 
-def test_snapshot_matches_provenance():
+def test_owning_contract_matches_provenance():
     provenance = json.loads((ROOT / "openapi/provenance.json").read_text())
-    assert (
-        hashlib.sha256((ROOT / "openapi/openapi.yaml").read_bytes()).hexdigest()
-        == provenance["sha256"]
-    )
+    assert hashlib.sha256(SCHEMA.read_bytes()).hexdigest() == provenance["sha256"]
+    assert provenance["source"] == "api/openapi.yaml"
+    assert provenance["generator"] == {
+        "openapi-python-client": "0.29.1",
+        "ruff": "0.16.10",
+    }
 
 
 def test_all_generated_modules_import():

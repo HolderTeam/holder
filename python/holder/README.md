@@ -169,7 +169,8 @@ statuses. Transport errors propagate from HTTPX.
 ## Layout and regeneration
 
 ```text
-openapi/                 Verbatim contract snapshot, provenance and generator config
+../../api/openapi.yaml  Owning HTTP contract for generation
+openapi/                 Generator config and contract/tool provenance
 src/holder/generated/    Generated transport, endpoint modules and models
 src/holder/events.py     Handwritten incremental asyncio change-feed transport
 scripts/generate.py      Regeneration and comparison against checked-in code
@@ -181,29 +182,24 @@ with a handwritten implementation if this experiment is unsuitable.
 Handwritten transport and higher-level APIs can live beside it; the incremental
 change-feed transport is in `src/holder/events.py`.
 
-`openapi/openapi.yaml` is a verbatim snapshot. Fix contract errors in the
-canonical [`api/openapi.yaml`](../../api/openapi.yaml), test them with the
-daemon, then refresh the snapshot using the command below.
+Fix contract errors in the canonical [`api/openapi.yaml`](../../api/openapi.yaml)
+and test them with the daemon before regenerating the client. The generator
+finds that contract from its own location, regardless of the caller's working
+directory.
 
 ```sh
-# Regenerate using the checked-in snapshot; no sibling checkout needed.
+# Regenerate from the owning contract.
 python scripts/generate.py
 
-# Compare generated output without changing files.
+# Compare the owning contract, provenance and generated output without changing files.
 python scripts/generate.py --check
-
-# Also verify the snapshot against the owning contract (used by CI).
-python scripts/generate.py --check --source ../../api/openapi.yaml
-
-# Refresh after changes have been tested in the contract's owning repository.
-python scripts/generate.py --source ../../api/openapi.yaml
 ```
 
 The generator and Ruff versions are pinned in `pyproject.toml`. Generation runs
 in a temporary directory and fails on warnings before replacing the package.
-The provenance file records the Framework Git revision, whether the source schema
-had uncommitted changes, its SHA-256 and tool versions. No schema transformations
-or custom templates are used. The config treats YAML download responses as
-plain text so their bodies are retained. CI checks snapshot freshness against
-`api/openapi.yaml`, generation, tests and builds
-on Python 3.11 and 3.14.
+The provenance file records the contract's SHA-256 and tool versions. No schema
+transformations or custom templates are used. The config treats YAML download
+responses as plain text so their bodies are retained. CI checks the owning
+contract against the generated client, runs tests and builds on Python 3.11
+and 3.14. Installed packages contain the generated code and do not need the
+repository contract.
