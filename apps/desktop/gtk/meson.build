@@ -68,7 +68,12 @@ test_env.set('XDG_CACHE_HOME', test_home_dir / 'cache')
 test_env.set('XDG_CONFIG_HOME', test_home_dir / 'config')
 test_env.set('XDG_DATA_HOME', test_home_dir / 'data')
 test_env.set('XDG_STATE_HOME', test_home_dir / 'state')
-add_test_setup('default', env: test_env, is_default: true)
+add_test_setup(
+  'default',
+  env: test_env,
+  exe_wrapper: [find_program('python3'), meson.current_source_dir() / 'tests/run_with_test_tmp.py'],
+  is_default: true,
+)
 
 install_data(
   'data/team.holder.Holder.desktop',

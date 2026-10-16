@@ -74,6 +74,16 @@ meson compile -C build-macos
 meson test -C build-macos --print-errorlogs
 ```
 
+Meson's default test setup runs each desktop test executable in its own
+`holder_gtk_test_*` scratch tree. This includes directories made by GLib's
+`DirUtils.make_tmp`, files placed under `Environment.get_tmp_dir()`, and the
+test process's XDG homes. The wrapper removes the tree after a passing or
+failing test; direct execution of a test binary bypasses the wrapper. Set
+`HOLDER_TEST_KEEP_TMP=1` when running `meson test` to retain the tree and print
+its location. A crash or forced termination of the wrapper can leave its
+tree behind for manual inspection or removal. The wrapper never removes
+directories supplied by a caller as application profiles.
+
 To run the frontend directly:
 
 ```bash
