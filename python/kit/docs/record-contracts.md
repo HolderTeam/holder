@@ -283,15 +283,16 @@ non-card targets; use `to_type` to distinguish those targets.
 | `kind` | `str` | Relationship kind; custom kinds are allowed |
 | `label` | `str \| None` | Optional connection label |
 | `created_at` | `int` | Core timestamp in Unix seconds; core refreshes it on upsert |
-| `to_title` | `str \| None` | Target card title when it is loaded locally, or `None` |
+| `to_title` | `str \| None` | Target card title when a loaded card belongs to the declared target project, or `None` |
 
 Core has no separate connection ID. Identity is the tuple
-`(project_id, from_card_id, to_card_id, to_type, kind)`. Several kinds may connect
+`(project_id, from_card_id, target_project_id or project_id, to_card_id, to_type, kind)`. Several kinds may connect
 the same ordered pair; reverse-direction links and self-links are distinct.
 `CONNECTION_RECORD_FIELDS` defines column order, including for empty exports.
 The pandas adapter uses nullable string columns and UTC timestamps with the
 same rules as the other tables. Join `from_card_id` to card records' `card_id`,
-and join card targets by `to_card_id` after selecting `to_type == "card"`.
+and join card targets by both the effective target project and `to_card_id` after
+selecting `to_type == "card"`.
 
 Extraction first selects card metadata and then calls `holder_card_list_links`
 once per source card. It does not read bodies or provide an atomic snapshot

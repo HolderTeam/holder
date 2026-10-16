@@ -278,6 +278,43 @@ void migrate_v7_to_v8(Db& db) {
   tx.commit();
 }
 
+void migrate_v8_to_v9(Db& db) {
+  static constexpr const char* SQL = R"sql(
+CREATE TABLE card_links_v9 (
+  project_id TEXT NOT NULL,
+  from_card_id TEXT NOT NULL,
+  to_card_id TEXT NOT NULL,
+  to_type TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  label TEXT NULL,
+  created_at INTEGER NOT NULL,
+  target_project_id TEXT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(project_id) ON DELETE CASCADE
+);
+
+INSERT INTO card_links_v9
+  (project_id, from_card_id, to_card_id, to_type, kind, label, created_at, target_project_id)
+SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at,
+       NULLIF(target_project_id, project_id)
+FROM card_links;
+
+DROP TABLE card_links;
+ALTER TABLE card_links_v9 RENAME TO card_links;
+
+CREATE UNIQUE INDEX idx_card_links_identity
+  ON card_links(project_id, from_card_id, to_card_id, to_type, kind,
+                COALESCE(target_project_id, project_id));
+CREATE INDEX idx_card_links_from ON card_links(project_id, from_card_id);
+CREATE INDEX idx_card_links_to ON card_links(project_id, to_card_id);
+
+UPDATE schema_version SET version = 9 WHERE version = 8;
+)sql";
+
+  Tx tx(db);
+  db.exec(SQL);
+  tx.commit();
+}
+
 } // namespace
 
 std::string Migrations::read_file(const std::filesystem::path& p) {
@@ -374,6 +411,11 @@ bool Migrations::migrate_to_latest(Db& db) {
     case 7:
       migrate_v7_to_v8(db);
       version = 8;
+      migrated = true;
+      break;
+    case 8:
+      migrate_v8_to_v9(db);
+      version = 9;
       migrated = true;
       break;
     default:

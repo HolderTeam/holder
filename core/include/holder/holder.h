@@ -498,7 +498,7 @@ int holder_card_list_links(
     holder_error** out_error
 );
 
-// Adds (or updates, if from_card_id/to_card_id/kind already matches) an explicit
+// Adds (or updates, if source/target project/target card/kind matches) an explicit
 // outgoing connection. A target in another loaded project is stored with its
 // target_project_id; label may be NULL. Sets *out_json to from_card_id's
 // updated outgoing connection list, same shape as holder_card_list_links's
@@ -514,6 +514,8 @@ int holder_card_link_add(
 );
 
 // Removes the from_card_id -> to_card_id connection of the given kind, if any.
+// If that card ID and kind identify targets in multiple projects, returns an
+// ambiguity error; use holder_card_link_remove_json with target_project_id.
 int holder_card_link_remove(
     holder_context* context,
     const char* from_card_id,
@@ -525,10 +527,14 @@ int holder_card_link_remove(
 // Mutates an explicit card-sourced link using options JSON:
 // {"to_id":"...","to_type":"card|resource","kind":"...","label":"...",
 //  "target_project_id":"..."}. target_project_id is optional and only
-// supported for card targets; when given it must match the loaded target card.
-// add replaces the label for an existing exact (source, type, target, kind) link
-// and returns the updated outgoing list. remove requires to_id, to_type and kind;
-// it succeeds if the exact link is absent or its target was deleted. The source
+// supported for card targets. An explicit external project ID may be stored even
+// when the target project/card is not loaded; this does not verify its existence.
+// An explicit source project ID is normalized to a local link. Add replaces the
+// label for an existing qualified (source, type, target project/card, kind) link
+// and returns the updated outgoing list. Remove requires to_id, to_type and kind;
+// target_project_id disambiguates equal card IDs in different projects. Without
+// it, removal fails if several links match. It succeeds if the selected link is
+// absent or its target was deleted. The source
 // must be a live card. AI targets are reserved for a later native use case.
 int holder_card_link_add_json(
     holder_context* context,

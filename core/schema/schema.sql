@@ -85,10 +85,14 @@ CREATE TABLE IF NOT EXISTS card_links (
   created_at    INTEGER NOT NULL,
   target_project_id TEXT NULL,          -- null means the source project
 
-  FOREIGN KEY(project_id)   REFERENCES projects(project_id) ON DELETE CASCADE,
-
-  PRIMARY KEY(project_id, from_card_id, to_card_id, to_type, kind)
+  FOREIGN KEY(project_id)   REFERENCES projects(project_id) ON DELETE CASCADE
 );
+
+-- A null target_project_id means project_id. An expression index makes the
+-- effective target project part of link identity without changing that contract.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_card_links_identity
+  ON card_links(project_id, from_card_id, to_card_id, to_type, kind,
+                COALESCE(target_project_id, project_id));
 
 CREATE INDEX IF NOT EXISTS idx_card_links_from
   ON card_links(project_id, from_card_id);
@@ -468,7 +472,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 8 if empty
+-- Initialize schema version to 9 if empty
 INSERT INTO schema_version(version)
-SELECT 8
+SELECT 9
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);

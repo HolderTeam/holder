@@ -64,7 +64,8 @@ void LinkRepo::upsert_links(
   static constexpr const char* SQL =
       "INSERT INTO card_links(project_id, from_card_id, to_card_id, to_type, kind, label, "
       "created_at, target_project_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
-      "ON CONFLICT(project_id, from_card_id, to_card_id, to_type, kind) DO UPDATE SET "
+      "ON CONFLICT(project_id, from_card_id, to_card_id, to_type, kind, "
+      "COALESCE(target_project_id, project_id)) DO UPDATE SET "
       "label=excluded.label, created_at=excluded.created_at, "
       "target_project_id=excluded.target_project_id;";
 
@@ -90,7 +91,10 @@ void LinkRepo::upsert_links(
     bind_text(stmt, 5, link.kind);
     bind_text_optional(stmt, 6, link.label);
     bind_int64(stmt, 7, link.created_at);
-    bind_text_optional(stmt, 8, link.target_project_id);
+    bind_text_optional(
+        stmt, 8,
+        link.target_project_id == link.project_id ? std::nullopt : link.target_project_id
+    );
 
     const int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -293,6 +297,32 @@ void LinkRepo::delete_link(
   if (rc != SQLITE_DONE) {
     throw_sqlite(db_.handle(), "delete link failed");
   }
+}
+
+void LinkRepo::delete_link_exact(
+    const std::string& project_id,
+    const std::string& from_card_id,
+    const std::string& to_card_id,
+    const std::string& to_type,
+    const std::string& kind,
+    const std::string& target_project_id
+) {
+  static constexpr const char* SQL =
+      "DELETE FROM card_links WHERE project_id = ? AND from_card_id = ? "
+      "AND to_card_id = ? AND to_type = ? AND kind = ? "
+      "AND COALESCE(target_project_id, project_id) = ?;";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
+    throw_sqlite(db_.handle(), "prepare delete exact link failed");
+  bind_text(stmt, 1, project_id);
+  bind_text(stmt, 2, from_card_id);
+  bind_text(stmt, 3, to_card_id);
+  bind_text(stmt, 4, to_type);
+  bind_text(stmt, 5, kind);
+  bind_text(stmt, 6, target_project_id);
+  const int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) throw_sqlite(db_.handle(), "delete exact link failed");
 }
 
 void LinkRepo::delete_links_to_typed(

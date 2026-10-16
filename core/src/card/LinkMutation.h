@@ -2,6 +2,7 @@
 
 #include "model/CardLink.h"
 
+#include <optional>
 #include <string>
 
 namespace holder::platform {
@@ -25,7 +26,8 @@ void remove_card_link(
     const std::string& from_card_id,
     const std::string& to_id,
     const std::string& to_type,
-    const std::string& kind
+    const std::string& kind,
+    const std::optional<std::string>& target_project_id = std::nullopt
 );
 void validate_link_target(
     holder::platform::Db& db,

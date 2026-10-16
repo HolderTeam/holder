@@ -32,9 +32,13 @@ void validate_link_target(
   if (target_project_id.has_value() && target_project_id->empty())
     throw std::invalid_argument("target_project_id must not be empty.");
   if (to_type == "card") {
+    const auto effective_project_id = target_project_id.value_or(project_id);
     const auto target = CardRepo(db).get(to_id);
+    if (effective_project_id != project_id &&
+        (!target || target->project_id != effective_project_id))
+      return; // An explicit external target can remain unresolved locally.
     if (!target) throw std::invalid_argument("Target card not found.");
-    if (target->project_id != target_project_id.value_or(project_id))
+    if (target->project_id != effective_project_id)
       throw std::invalid_argument("Target card is in a different project.");
     if (target->deleted_at) throw std::invalid_argument("Target card is trashed.");
     return;
@@ -78,15 +82,19 @@ void add_card_link(
   if (source->project_id != link.project_id)
     throw std::invalid_argument("Source card is in a different project.");
   if (link.kind.empty()) throw std::invalid_argument("kind must not be empty");
+  auto updated = link;
+  if (updated.target_project_id == updated.project_id)
+    updated.target_project_id.reset();
   validate_link_target(
-      db, link.project_id, link.to_card_id, link.to_type, link.target_project_id
+      db, updated.project_id, updated.to_card_id, updated.to_type, updated.target_project_id
   );
   LinkRepo links(db);
-  auto updated = link;
   for (const auto& existing : links.list_outgoing(link.project_id, link.from_card_id)) {
-    if (existing.to_card_id == link.to_card_id && existing.to_type == link.to_type &&
-        existing.kind == link.kind && existing.target_project_id == link.target_project_id) {
-      if (existing.label == link.label) return;
+    if (existing.to_card_id == updated.to_card_id && existing.to_type == updated.to_type &&
+        existing.kind == updated.kind &&
+        existing.target_project_id.value_or(existing.project_id) ==
+            updated.target_project_id.value_or(updated.project_id)) {
+      if (existing.label == updated.label) return;
       updated.created_at = existing.created_at;
       break;
     }
@@ -101,21 +109,30 @@ void remove_card_link(
     const std::string& from_card_id,
     const std::string& to_id,
     const std::string& to_type,
-    const std::string& kind
+    const std::string& kind,
+    const std::optional<std::string>& target_project_id
 ) {
   const auto source = CardRepo(db).get(from_card_id);
   if (!source || source->deleted_at) throw std::invalid_argument("Live source card not found.");
   if (to_id.empty() || kind.empty()) throw std::invalid_argument("to_id and kind are required");
+  if (target_project_id.has_value() && target_project_id->empty())
+    throw std::invalid_argument("target_project_id must not be empty.");
   LinkRepo links(db);
-  bool present = false;
+  std::optional<std::string> matched_project_id;
   for (const auto& existing : links.list_outgoing(source->project_id, from_card_id)) {
     if (existing.to_card_id == to_id && existing.to_type == to_type && existing.kind == kind) {
-      present = true;
-      break;
+      const auto effective_project_id =
+          existing.target_project_id.value_or(existing.project_id);
+      if (target_project_id.has_value() && effective_project_id != *target_project_id) continue;
+      if (matched_project_id.has_value() && !target_project_id.has_value())
+        throw std::invalid_argument("target_project_id is required to disambiguate links.");
+      matched_project_id = effective_project_id;
     }
   }
-  if (!present) return;
-  links.delete_link(source->project_id, from_card_id, to_id, to_type, kind);
+  if (!matched_project_id.has_value()) return;
+  links.delete_link_exact(
+      source->project_id, from_card_id, to_id, to_type, kind, *matched_project_id
+  );
   CardStore(db, fts).update_links(from_card_id, now_seconds());
 }
 

@@ -651,7 +651,8 @@ nlohmann::json outgoing_link_to_json(
     holder::platform::Db& db,
     const holder::model::CardLink& link
 ) {
-  const auto to_card = holder::card::CardRepo(db).get(link.to_card_id);
+  const auto to_card = link.to_type == "card" ? holder::card::CardRepo(db).get(link.to_card_id)
+                                           : std::nullopt;
   nlohmann::json body = {
       {"to_card_id", link.to_card_id},
       {"target_project_id", link.target_project_id ? nlohmann::json(*link.target_project_id)
@@ -661,7 +662,11 @@ nlohmann::json outgoing_link_to_json(
       {"created_at", link.created_at},
   };
   body["label"] = link.label.has_value() ? nlohmann::json(*link.label) : nlohmann::json(nullptr);
-  body["to_title"] = to_card.has_value() ? nlohmann::json(to_card->title) : nlohmann::json(nullptr);
+  body["to_title"] =
+      to_card.has_value() &&
+              to_card->project_id == link.target_project_id.value_or(link.project_id)
+          ? nlohmann::json(to_card->title)
+          : nlohmann::json(nullptr);
   return body;
 }
 
@@ -3322,7 +3327,10 @@ int holder_card_link_remove_json(
         from_card_id,
         options.at("to_id").get<std::string>(),
         to_type,
-        options.at("kind").get<std::string>()
+        options.at("kind").get<std::string>(),
+        options.contains("target_project_id") && !options.at("target_project_id").is_null()
+            ? std::optional<std::string>(options.at("target_project_id").get<std::string>())
+            : std::nullopt
     );
   });
 }

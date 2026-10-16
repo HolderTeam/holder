@@ -3574,6 +3574,147 @@ TEST_CASE("C API card links record the target project explicitly", "[capi]") {
   holder_context_destroy(context);
 }
 
+TEST_CASE("C API card links use qualified targets and survive external target purge", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "first", std::nullopt);
+  seed_git_project(data_dir, "project-2", data_dir / "second", std::nullopt);
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  auto create_card = [&](const char* project_id, const char* title) {
+    char* json = nullptr;
+    REQUIRE(holder_card_create(context, project_id, title, "", nullptr, &json, &error) == HOLDER_OK);
+    const auto id = nlohmann::json::parse(json).at("card_id").get<std::string>();
+    holder_string_free(json);
+    return id;
+  };
+  const auto source_id = create_card("project-1", "Source");
+  const auto local_id = create_card("project-1", "Local target");
+  const auto external_id = create_card("project-2", "External target");
+
+  auto add_link = [&](const nlohmann::json& options) {
+    char* json = nullptr;
+    REQUIRE(holder_card_link_add_json(
+        context, source_id.c_str(), options.dump().c_str(), &json, &error
+    ) == HOLDER_OK);
+    auto links = nlohmann::json::parse(json);
+    holder_string_free(json);
+    return links;
+  };
+  auto list_links = [&]() {
+    char* json = nullptr;
+    REQUIRE(holder_card_list_links(context, source_id.c_str(), &json, &error) == HOLDER_OK);
+    auto links = nlohmann::json::parse(json).at("outgoing");
+    holder_string_free(json);
+    return links;
+  };
+
+  add_link({{"to_id", local_id}, {"to_type", "card"}, {"kind", "ref"},
+            {"target_project_id", "project-1"}});
+  add_link({{"to_id", local_id}, {"to_type", "card"}, {"kind", "ref"},
+            {"target_project_id", "project-2"}, {"label", "Other project"}});
+  add_link({{"to_id", local_id}, {"to_type", "card"}, {"kind", "ref"},
+            {"target_project_id", "unloaded-project"}});
+  auto links = list_links();
+  REQUIRE(links.size() == 3);
+  for (const auto& link : links) {
+    if (link.at("target_project_id").is_null()) {
+      REQUIRE(link.at("to_title") == "Local target");
+    } else {
+      REQUIRE(link.at("to_title").is_null());
+      if (link.at("target_project_id") == "project-2")
+        REQUIRE(link.at("label") == "Other project");
+    }
+  }
+
+  {
+    holder::platform::Db raw_db;
+    raw_db.open(data_dir / "server" / "holder.db");
+    holder::index::FtsIndexer raw_fts(raw_db);
+    const auto project = holder::project::ProjectRepo(raw_db).get("project-1").value();
+    holder::store::Rebuilder(raw_db, &raw_fts).rebuild_project(project);
+  }
+  REQUIRE(list_links().size() == 3);
+  {
+    char* json = nullptr;
+    REQUIRE(holder_backup_snapshot_page(
+        context, "project-1", 0, nullptr, 10, &json, &error
+    ) == HOLDER_OK);
+    const auto page = nlohmann::json::parse(json).at("cards");
+    holder_string_free(json);
+    bool found_source = false;
+    for (const auto& card : page) {
+      if (card.at("card_id") == source_id) {
+        REQUIRE(card.at("links").size() == 3);
+        std::set<std::string> target_projects;
+        for (const auto& link : card.at("links")) {
+          REQUIRE(link.at("to_id") == local_id);
+          target_projects.insert(link.value("target_project_id", "project-1"));
+        }
+        const std::set<std::string> expected_projects = {
+            "project-1", "project-2", "unloaded-project"
+        };
+        REQUIRE(target_projects == expected_projects);
+        found_source = true;
+      }
+    }
+    REQUIRE(found_source);
+  }
+
+  REQUIRE(holder_card_link_remove(
+      context, source_id.c_str(), local_id.c_str(), "ref", &error
+  ) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(error != nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+  const auto remove_external = nlohmann::json{
+      {"to_id", local_id}, {"to_type", "card"}, {"kind", "ref"},
+      {"target_project_id", "project-2"}
+  }.dump();
+  REQUIRE(holder_card_link_remove_json(
+      context, source_id.c_str(), remove_external.c_str(), &error
+  ) == HOLDER_OK);
+  REQUIRE(list_links().size() == 2);
+
+  add_link({{"to_id", external_id}, {"to_type", "card"}, {"kind", "ref"},
+            {"target_project_id", "project-2"}});
+  links = list_links();
+  bool found_loaded_target = false;
+  for (const auto& link : links) {
+    if (link.at("to_card_id") == external_id) {
+      REQUIRE(link.at("to_title") == "External target");
+      found_loaded_target = true;
+    }
+  }
+  REQUIRE(found_loaded_target);
+  REQUIRE(holder_card_delete(context, external_id.c_str(), &error) == HOLDER_OK);
+  REQUIRE(holder_card_purge(context, external_id.c_str(), &error) == HOLDER_OK);
+  links = list_links();
+  REQUIRE(links.size() == 3);
+  bool found_purged_target = false;
+  for (const auto& link : links) {
+    if (link.at("to_card_id") == external_id) {
+      REQUIRE(link.at("target_project_id") == "project-2");
+      REQUIRE(link.at("to_title").is_null());
+      found_purged_target = true;
+    }
+  }
+  REQUIRE(found_purged_target);
+
+  REQUIRE(holder_card_delete(context, source_id.c_str(), &error) == HOLDER_OK);
+  REQUIRE(holder_card_purge(context, source_id.c_str(), &error) == HOLDER_OK);
+  {
+    holder::platform::Db raw_db;
+    raw_db.open(data_dir / "server" / "holder.db");
+    REQUIRE(holder::card::LinkRepo(raw_db).list_outgoing("project-1", source_id).empty());
+  }
+  holder_context_destroy(context);
+}
+
 TEST_CASE("C API card_link_add/remove round-trips connections with title enrichment", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
