@@ -4,6 +4,7 @@ on:
   # Pull requests always start this workflow so that its required result check is reported;
   # the changes job decides whether the daemon jobs run. Keep its pattern in step with these paths.
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
     paths:
@@ -195,7 +196,9 @@ jobs:
         run: .github/scripts/prune-sdk-releases.sh daemon- 32
 
   ubuntu-packages:
-    if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release'
+    # Maintainers can label a PR when Launchpad is unavailable. The required result check
+    # records the skipped package build; all non-package builds still have to pass.
+    if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
     needs: resolve
     strategy:
       fail-fast: false
@@ -287,13 +290,22 @@ jobs:
         env:
           SELECTED: ${{ needs.changes.outputs.daemon }}
           RESULTS: ${{ toJSON(needs) }}
+          SKIP_LAUNCHPAD: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages') }}
         run: |
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
-          jq -e --arg selected "$SELECTED" '
+          if [[ "$SKIP_LAUNCHPAD" == true && "$SELECTED" == true ]]; then
+            echo '::warning::Ubuntu package build skipped by ci:skip-launchpad-packages label'
+            echo 'Ubuntu package build skipped by the `ci:skip-launchpad-packages` PR label.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          jq -e --arg selected "$SELECTED" --arg skip "$SKIP_LAUNCHPAD" '
             .changes.result == "success" and
             (if $selected == "true" then
                ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
-               (.["ubuntu-packages"].result | IN("success", "skipped"))
+               (if $skip == "true" then
+                  .["ubuntu-packages"].result == "skipped"
+                else
+                  (.["ubuntu-packages"].result | IN("success", "skipped"))
+                end)
              else
                ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
