@@ -3489,7 +3489,7 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
-TEST_CASE("C API legacy card links can target another project", "[capi]") {
+TEST_CASE("C API card links record the target project explicitly", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
   seed_git_project(data_dir, "project-1", data_dir / "first", std::nullopt);
   seed_git_project(data_dir, "project-2", data_dir / "second", std::nullopt);
@@ -3516,6 +3516,7 @@ TEST_CASE("C API legacy card links can target another project", "[capi]") {
   const auto links = nlohmann::json::parse(json);
   REQUIRE(links.size() == 1);
   REQUIRE(links[0]["to_card_id"] == target_id);
+  REQUIRE(links[0]["target_project_id"] == "project-2");
   holder_string_free(json);
 
   const auto options = nlohmann::json{
@@ -3527,6 +3528,20 @@ TEST_CASE("C API legacy card links can target another project", "[capi]") {
   ) == HOLDER_ERROR_RUNTIME);
   REQUIRE(json == nullptr);
   holder_error_destroy(error);
+  error = nullptr;
+
+  const auto explicit_options = nlohmann::json{
+      {"to_id", target_id},
+      {"to_type", "card"},
+      {"kind", "references"},
+      {"target_project_id", "project-2"}
+  }.dump();
+  REQUIRE(holder_card_link_add_json(
+      context, source_id.c_str(), explicit_options.c_str(), &json, &error
+  ) == HOLDER_OK);
+  const auto typed_links = nlohmann::json::parse(json);
+  REQUIRE(typed_links[0]["target_project_id"] == "project-2");
+  holder_string_free(json);
   holder_context_destroy(context);
 }
 

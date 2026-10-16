@@ -497,7 +497,8 @@ int holder_card_list_links(
 );
 
 // Adds (or updates, if from_card_id/to_card_id/kind already matches) an explicit
-// outgoing connection. label may be NULL. Sets *out_json to from_card_id's
+// outgoing connection. A target in another loaded project is stored with its
+// target_project_id; label may be NULL. Sets *out_json to from_card_id's
 // updated outgoing connection list, same shape as holder_card_list_links's
 // "outgoing" array.
 int holder_card_link_add(
@@ -520,7 +521,9 @@ int holder_card_link_remove(
 );
 
 // Mutates an explicit card-sourced link using options JSON:
-// {"to_id":"...","to_type":"card|resource","kind":"...","label":"..."}.
+// {"to_id":"...","to_type":"card|resource","kind":"...","label":"...",
+//  "target_project_id":"..."}. target_project_id is optional and only
+// supported for card targets; when given it must match the loaded target card.
 // add replaces the label for an existing exact (source, type, target, kind) link
 // and returns the updated outgoing list. remove requires to_id, to_type and kind;
 // it succeeds if the exact link is absent or its target was deleted. The source

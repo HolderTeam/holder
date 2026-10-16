@@ -234,6 +234,7 @@ void CardStore::create_batch(
         continue; // A target absent from this snapshot cannot be written as a dangling link.
       holder::model::CardLink resolved = link;
       resolved.to_card_id = remapped->second;
+      resolved.target_project_id.reset();
       resolved.project_id = project_id;
       resolved.from_card_id = card.card_id;
       if (resolved.created_at <= 0) {

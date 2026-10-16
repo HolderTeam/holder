@@ -651,6 +651,8 @@ nlohmann::json outgoing_link_to_json(
   const auto to_card = holder::card::CardRepo(db).get(link.to_card_id);
   nlohmann::json body = {
       {"to_card_id", link.to_card_id},
+      {"target_project_id", link.target_project_id ? nlohmann::json(*link.target_project_id)
+                                                      : nlohmann::json(nullptr)},
       {"to_type", link.to_type},
       {"kind", link.kind},
       {"created_at", link.created_at},
@@ -3150,7 +3152,8 @@ int holder_card_link_add(
           "card not found: " + std::string(from_card_id)
       );
     }
-    if (!cards.get(to_card_id).has_value()) {
+    const auto target_card = cards.get(to_card_id);
+    if (!target_card.has_value()) {
       return set_error(
           out_error,
           HOLDER_ERROR_RUNTIME,
@@ -3162,6 +3165,8 @@ int holder_card_link_add(
     link.project_id = from_card->project_id;
     link.from_card_id = from_card_id;
     link.to_card_id = to_card_id;
+    if (target_card->project_id != from_card->project_id)
+      link.target_project_id = target_card->project_id;
     link.to_type = "card";
     link.kind = kind;
     if (label != nullptr && label[0] != '\0') {
@@ -3169,8 +3174,7 @@ int holder_card_link_add(
     }
     link.created_at = now_epoch_seconds();
 
-    // The legacy card-only API permits connections between projects. Kit relies on this.
-    holder::card::add_card_link(context->db, &context->fts, link, true);
+    holder::card::add_card_link(context->db, &context->fts, link);
 
     nlohmann::json outgoing = nlohmann::json::array();
     for (const auto& l :
@@ -3272,6 +3276,8 @@ int holder_card_link_add_json(
     link.project_id = source->project_id;
     link.from_card_id = from_card_id;
     link.to_card_id = to_id;
+    if (options.contains("target_project_id") && !options.at("target_project_id").is_null())
+      link.target_project_id = options.at("target_project_id").get<std::string>();
     link.to_type = to_type;
     link.kind = kind;
     if (options.contains("label") && !options.at("label").is_null())

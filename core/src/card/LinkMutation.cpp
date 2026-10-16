@@ -26,17 +26,21 @@ void validate_link_target(
     const std::string& project_id,
     const std::string& to_id,
     const std::string& to_type,
-    bool allow_cross_project_card_target
+    const std::optional<std::string>& target_project_id
 ) {
   if (to_id.empty()) throw std::invalid_argument("Missing to_card_id.");
+  if (target_project_id.has_value() && target_project_id->empty())
+    throw std::invalid_argument("target_project_id must not be empty.");
   if (to_type == "card") {
     const auto target = CardRepo(db).get(to_id);
     if (!target) throw std::invalid_argument("Target card not found.");
-    if (!allow_cross_project_card_target && target->project_id != project_id)
+    if (target->project_id != target_project_id.value_or(project_id))
       throw std::invalid_argument("Target card is in a different project.");
     if (target->deleted_at) throw std::invalid_argument("Target card is trashed.");
     return;
   }
+  if (target_project_id.has_value())
+    throw std::invalid_argument("target_project_id is only supported for card targets.");
   if (to_type == "resource") {
     const auto target = holder::resource::ResourceRepo(db).get(to_id);
     if (!target) throw std::invalid_argument("Target resource not found.");
@@ -67,8 +71,7 @@ void validate_link_target(
 void add_card_link(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    const holder::model::CardLink& link,
-    bool allow_cross_project_card_target
+    const holder::model::CardLink& link
 ) {
   const auto source = CardRepo(db).get(link.from_card_id);
   if (!source || source->deleted_at) throw std::invalid_argument("Live source card not found.");
@@ -76,13 +79,13 @@ void add_card_link(
     throw std::invalid_argument("Source card is in a different project.");
   if (link.kind.empty()) throw std::invalid_argument("kind must not be empty");
   validate_link_target(
-      db, link.project_id, link.to_card_id, link.to_type, allow_cross_project_card_target
+      db, link.project_id, link.to_card_id, link.to_type, link.target_project_id
   );
   LinkRepo links(db);
   auto updated = link;
   for (const auto& existing : links.list_outgoing(link.project_id, link.from_card_id)) {
     if (existing.to_card_id == link.to_card_id && existing.to_type == link.to_type &&
-        existing.kind == link.kind) {
+        existing.kind == link.kind && existing.target_project_id == link.target_project_id) {
       if (existing.label == link.label) return;
       updated.created_at = existing.created_at;
       break;

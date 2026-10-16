@@ -9,6 +9,7 @@ class ConnectionRecord(TypedDict):
     project_id: str
     from_card_id: str
     to_card_id: str
+    target_project_id: str | None
     to_type: str
     kind: str
     label: str | None
@@ -20,6 +21,7 @@ CONNECTION_RECORD_FIELDS: tuple[str, ...] = (
     "project_id",
     "from_card_id",
     "to_card_id",
+    "target_project_id",
     "to_type",
     "kind",
     "label",
