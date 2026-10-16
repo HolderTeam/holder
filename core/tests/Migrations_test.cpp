@@ -7,6 +7,7 @@
 
 #include "platform/Db.h"
 #include "platform/Migrations.h"
+#include "card/LinkRepo.h"
 #include "project/ProjectRepo.h"
 
 #include <sqlite3.h>
@@ -193,6 +194,15 @@ TEST_CASE("migrate_to_latest adds UUID4 ID scheme to v4 projects", "[migrations]
           "card_id TEXT NOT NULL,"
           "tag TEXT NOT NULL"
           ");"
+          "CREATE TABLE card_links ("
+          "project_id TEXT NOT NULL,"
+          "from_card_id TEXT NOT NULL,"
+          "to_card_id TEXT NOT NULL,"
+          "to_type TEXT NOT NULL,"
+          "kind TEXT NOT NULL,"
+          "label TEXT NULL,"
+          "created_at INTEGER NOT NULL"
+          ");"
           "CREATE TABLE schema_version(version INTEGER NOT NULL);"
           "INSERT INTO schema_version VALUES(4);"
           "INSERT INTO projects(project_id,name,root_path,privacy_mode,created_at,updated_at) "
@@ -278,6 +288,27 @@ TEST_CASE("migrate_to_latest adds the collection page indexes to v6", "[migratio
       Names{"project_id", "parent_card_id", "updated_at", "card_id"}
   );
   REQUIRE(columns("idx_card_tags_tag") == Names{"project_id", "tag", "card_id"});
+}
+
+TEST_CASE("migrate_to_latest adds nullable target project IDs to v7 links", "[migrations]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  db.exec("CREATE TABLE card_links ("
+          "project_id TEXT NOT NULL, from_card_id TEXT NOT NULL, to_card_id TEXT NOT NULL, "
+          "to_type TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NULL, "
+          "created_at INTEGER NOT NULL, "
+          "PRIMARY KEY(project_id, from_card_id, to_card_id, to_type, kind));"
+          "CREATE TABLE schema_version(version INTEGER NOT NULL);"
+          "INSERT INTO schema_version VALUES(7);"
+          "INSERT INTO card_links VALUES('source', 'card-a', 'card-b', 'card', 'ref', NULL, 10);");
+
+  REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
+  REQUIRE(holder::platform::Migrations::read_schema_version(db) == 8);
+  const auto links = holder::card::LinkRepo(db).list_outgoing("source", "card-a");
+  REQUIRE(links.size() == 1);
+  REQUIRE_FALSE(links[0].target_project_id.has_value());
+  REQUIRE_FALSE(holder::platform::Migrations::migrate_to_latest(db));
 }
 
 TEST_CASE("migrate_to_latest rejects databases newer than this build", "[migrations]") {
