@@ -17,6 +17,7 @@
 #include "project/ProjectRepo.h"
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -120,7 +121,8 @@ class CardStore {
       const std::string& project_id,
       const std::vector<BatchCardInput>& items,
       const std::function<std::string()>& uuid_v4,
-      const std::string& commit_message
+      const std::string& commit_message,
+      const std::map<std::string, std::string>& resource_id_remap = {}
   );
   void update_content(
       const std::string& card_id,

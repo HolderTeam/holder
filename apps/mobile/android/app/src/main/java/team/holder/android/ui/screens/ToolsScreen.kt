@@ -236,7 +236,7 @@ fun ToolsScreen(
             connectionsSummary(cardId, it.value, allCards)
         }
         val resourceAttachments = (linksState as? LoadState.Success)?.value?.outgoing
-            ?.filter { it.toType == "resource" }
+            ?.filter { it.toType == "resource" && it.kind == "attachment" }
 
         LazyColumn(modifier = Modifier.padding(innerPadding)) {
             allCards.find { it.cardId == cardId }?.let { card ->

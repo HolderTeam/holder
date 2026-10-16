@@ -149,6 +149,7 @@ set(HOLDER_CORE_SOURCES
   src/card/CardStore.cpp
   src/card/LinkKindCatalog.cpp
   src/card/LinkRepo.cpp
+  src/card/LinkMutation.cpp
   src/card/MilestoneRepo.cpp
   src/card/TagExtractor.cpp
   src/card/TagLineEditor.cpp

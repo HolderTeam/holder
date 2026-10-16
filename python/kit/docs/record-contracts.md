@@ -278,11 +278,12 @@ non-card targets; use `to_type` to distinguish those targets.
 | `project_id` | `str` | Source card's owning project |
 | `from_card_id` | `str` | Source card identifier |
 | `to_card_id` | `str` | Target identifier |
+| `target_project_id` | `str \| None` | Explicit target project, or `None` for the source project |
 | `to_type` | `str` | Core target type, such as `card` or `resource` |
 | `kind` | `str` | Relationship kind; custom kinds are allowed |
 | `label` | `str \| None` | Optional connection label |
 | `created_at` | `int` | Core timestamp in Unix seconds; core refreshes it on upsert |
-| `to_title` | `str \| None` | Resolved target card title, or `None` |
+| `to_title` | `str \| None` | Target card title when it is loaded locally, or `None` |
 
 Core has no separate connection ID. Identity is the tuple
 `(project_id, from_card_id, to_card_id, to_type, kind)`. Several kinds may connect
@@ -296,7 +297,9 @@ Extraction first selects card metadata and then calls `holder_card_list_links`
 once per source card. It does not read bodies or provide an atomic snapshot
 across cards/projects. Errors propagate instead of returning a partial list.
 Targets may be outside the selected project, unresolved, or trashed; target
-liveness is not guaranteed by this export. Records retain no context handles.
+liveness is not guaranteed by this export. A cross-project link retains its
+target project ID even if the target title cannot be loaded. Records retain no
+context handles.
 
 ## NetworkX conversion
 
@@ -312,6 +315,8 @@ Selected card nodes have `exported=True`. Referenced card targets lacking a
 selected record receive a minimal node containing `card_id`, core's nullable
 target title and `exported=False`. This preserves outgoing cross-project and
 unresolved connections without claiming complete metadata for those endpoints.
+Graph nodes are keyed by card ID alone, so this adapter cannot distinguish
+cards with the same ID in different projects (for example, after a fork).
 Non-card connections are preserved by records/DataFrames but omitted from the
 card graph. Hierarchy remains a node attribute, not a fabricated explicit edge.
 All graph data is detached; mutation has no automatic write-back.

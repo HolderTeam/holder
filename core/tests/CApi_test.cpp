@@ -2802,6 +2802,177 @@ TEST_CASE(
   holder_context_destroy(context);
 }
 
+TEST_CASE("C API typed resource links survive snapshot restore with remapped metadata", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "repo", std::nullopt);
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+  char* json = nullptr;
+  REQUIRE(
+      holder_card_create(
+          context,
+          "project-1",
+          "With attachment",
+          "![notes](holder://resource/resource-original)",
+          nullptr,
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto card_id = nlohmann::json::parse(json).at("card_id").get<std::string>();
+  holder_string_free(json);
+
+  const nlohmann::json location = {
+      {"location_id", "location-original"},
+      {"project_id", "project-1"},
+      {"name", "Files"},
+      {"provider", "local"},
+      {"configuration", nlohmann::json::object()},
+      {"created_at", 10},
+      {"updated_at", 10}
+  };
+  json = nullptr;
+  REQUIRE(holder_location_put_json(context, location.dump().c_str(), &json, &error) == HOLDER_OK);
+  holder_string_free(json);
+  const nlohmann::json bundle = {
+      {"resource",
+       {{"resource_id", "resource-original"},
+        {"project_id", "project-1"},
+        {"type", "document"},
+        {"label", "Notes.pdf"},
+        {"metadata", nlohmann::json::object()},
+        {"created_at", 10},
+        {"updated_at", 10}}},
+      {"assets",
+       nlohmann::json::array(
+           {{{"asset_id", "asset-original"},
+             {"resource_id", "resource-original"},
+             {"original_filename", "Notes.pdf"},
+             {"media_type", "application/pdf"},
+             {"byte_size", 4},
+             {"plaintext_sha256", std::string(64, 'a')},
+             {"created_at", 10},
+             {"updated_at", 10},
+             {"placements",
+              nlohmann::json::array(
+                  {{{"placement_id", "placement-original"},
+                    {"asset_id", "asset-original"},
+                    {"location_id", "location-original"},
+                    {"object_key", "remote/notes"},
+                    {"encoding", "plain"},
+                    {"stored_byte_size", 4},
+                    {"stored_sha256", std::string(64, 'a')},
+                    {"created_at", 10}}}
+              )}}}
+       )}
+  };
+  json = nullptr;
+  REQUIRE(holder_resource_put_json(context, bundle.dump().c_str(), &json, &error) == HOLDER_OK);
+  holder_string_free(json);
+
+  const auto options =
+      nlohmann::json{
+          {"to_id", "resource-original"},
+          {"to_type", "resource"},
+          {"kind", "attachment"},
+          {"label", "Notes.pdf"}
+      }
+          .dump();
+  json = nullptr;
+  REQUIRE(
+      holder_card_link_add_json(context, card_id.c_str(), options.c_str(), &json, &error) ==
+      HOLDER_OK
+  );
+  const auto first_outgoing = nlohmann::json::parse(json);
+  REQUIRE(first_outgoing.size() == 1);
+  holder_string_free(json);
+  json = nullptr;
+  REQUIRE(
+      holder_card_link_add_json(context, card_id.c_str(), options.c_str(), &json, &error) ==
+      HOLDER_OK
+  );
+  const auto repeated_outgoing = nlohmann::json::parse(json);
+  REQUIRE(repeated_outgoing.size() == 1);
+  REQUIRE(repeated_outgoing.at(0).at("created_at") == first_outgoing.at(0).at("created_at"));
+  holder_string_free(json);
+  json = nullptr;
+  const auto missing_target =
+      nlohmann::json{{"to_id", "missing-resource"}, {"to_type", "resource"}, {"kind", "attachment"}}
+          .dump();
+  REQUIRE(
+      holder_card_link_add_json(context, card_id.c_str(), missing_target.c_str(), &json, &error) ==
+      HOLDER_ERROR_RUNTIME
+  );
+  holder_error_destroy(error);
+  error = nullptr;
+  REQUIRE(
+      holder_backup_snapshot_page(context, "project-1", 0, nullptr, 10, &json, &error) == HOLDER_OK
+  );
+  const auto snapshot = nlohmann::json::parse(json).at("cards");
+  holder_string_free(json);
+  REQUIRE(snapshot.at(0).at("resources").size() == 1);
+
+  json = nullptr;
+  REQUIRE(
+      holder_backup_restore(
+          context,
+          "Restored attachment",
+          "plain",
+          snapshot.dump().c_str(),
+          "Restore",
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto restored_project = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  json = nullptr;
+  REQUIRE(
+      holder_backup_snapshot_page(
+          context,
+          restored_project.c_str(),
+          0,
+          nullptr,
+          10,
+          &json,
+          &error
+      ) == HOLDER_OK
+  );
+  const auto restored_card = nlohmann::json::parse(json).at("cards").at(0);
+  holder_string_free(json);
+  const auto new_resource_id = restored_card.at("links").at(0).at("to_id").get<std::string>();
+  REQUIRE(new_resource_id != "resource-original");
+  REQUIRE(restored_card.at("body") ==
+          "![notes](holder://resource/" + new_resource_id + ")");
+  REQUIRE(restored_card.at("resources").at(0).at("resource").at("resource_id") == new_resource_id);
+  REQUIRE(
+      restored_card.at("resources")
+          .at(0)
+          .at("assets")
+          .at(0)
+          .at("placements")
+          .at(0)
+          .at("object_key") == "remote/notes"
+  );
+
+  const auto remove_options =
+      nlohmann::json{{"to_id", new_resource_id}, {"to_type", "resource"}, {"kind", "attachment"}}
+          .dump();
+  REQUIRE(
+      holder_card_link_remove_json(
+          context,
+          restored_card.at("card_id").get<std::string>().c_str(),
+          remove_options.c_str(),
+          &error
+      ) == HOLDER_OK
+  );
+  holder_context_destroy(context);
+}
+
 TEST_CASE("C API backup_restore rolls back the new project if the batch fails partway", "[capi]") {
   const auto data_dir = holder::test::make_temp_dir();
 
@@ -3315,6 +3486,62 @@ TEST_CASE(
   );
   holder_error_destroy(error);
 
+  holder_context_destroy(context);
+}
+
+TEST_CASE("C API card links record the target project explicitly", "[capi]") {
+  const auto data_dir = holder::test::make_temp_dir();
+  seed_git_project(data_dir, "project-1", data_dir / "first", std::nullopt);
+  seed_git_project(data_dir, "project-2", data_dir / "second", std::nullopt);
+  const auto schema = read_schema_sql();
+  holder_context* context = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(
+      holder_context_open(data_dir.string().c_str(), schema.c_str(), &context, &error) == HOLDER_OK
+  );
+
+  char* json = nullptr;
+  REQUIRE(holder_card_create(context, "project-1", "Source", "", nullptr, &json, &error) == HOLDER_OK);
+  const std::string source_id = nlohmann::json::parse(json).at("card_id");
+  holder_string_free(json);
+  json = nullptr;
+  REQUIRE(holder_card_create(context, "project-2", "Target", "", nullptr, &json, &error) == HOLDER_OK);
+  const std::string target_id = nlohmann::json::parse(json).at("card_id");
+  holder_string_free(json);
+
+  json = nullptr;
+  REQUIRE(holder_card_link_add(
+      context, source_id.c_str(), target_id.c_str(), "references", nullptr, &json, &error
+  ) == HOLDER_OK);
+  const auto links = nlohmann::json::parse(json);
+  REQUIRE(links.size() == 1);
+  REQUIRE(links[0]["to_card_id"] == target_id);
+  REQUIRE(links[0]["target_project_id"] == "project-2");
+  holder_string_free(json);
+
+  const auto options = nlohmann::json{
+      {"to_id", target_id}, {"to_type", "card"}, {"kind", "references"}
+  }.dump();
+  json = nullptr;
+  REQUIRE(holder_card_link_add_json(
+      context, source_id.c_str(), options.c_str(), &json, &error
+  ) == HOLDER_ERROR_RUNTIME);
+  REQUIRE(json == nullptr);
+  holder_error_destroy(error);
+  error = nullptr;
+
+  const auto explicit_options = nlohmann::json{
+      {"to_id", target_id},
+      {"to_type", "card"},
+      {"kind", "references"},
+      {"target_project_id", "project-2"}
+  }.dump();
+  REQUIRE(holder_card_link_add_json(
+      context, source_id.c_str(), explicit_options.c_str(), &json, &error
+  ) == HOLDER_OK);
+  const auto typed_links = nlohmann::json::parse(json);
+  REQUIRE(typed_links[0]["target_project_id"] == "project-2");
+  holder_string_free(json);
   holder_context_destroy(context);
 }
 

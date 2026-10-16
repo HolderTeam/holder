@@ -50,6 +50,8 @@ def test_card_connections_take_cards_and_export_only_their_source(tmp_path: Path
         assert len(records) == 2
         assert all(tuple(r) == holderkit.CONNECTION_RECORD_FIELDS for r in records)
         assert {r['to_card_id'] for r in records} == {target.card_id, external.card_id}
+        external_record = next(r for r in records if r['to_card_id'] == external.card_id)
+        assert external_record['target_project_id'] == other_project.project_id
         assert all(r['from_card_id'] == source.card_id for r in records)
         assert next(r['label'] for r in records if r['to_card_id'] == target.card_id) == 'Updated'
         assert records == [r for r in project.connections.to_records() if r['from_card_id'] == source.card_id]

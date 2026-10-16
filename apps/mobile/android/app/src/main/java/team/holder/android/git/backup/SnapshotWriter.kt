@@ -97,6 +97,7 @@ object SnapshotWriter {
      * The tested core: streams [lines] (each the literal per-card JSON object
      * `holder_backup_snapshot_page` returns, already `.toString()`'d -- card_id, project_id,
      * project_name, privacy_mode, title, body, created_at, updated_at, links, milestones,
+     * linked resource metadata and portable storage declarations (not stored file bytes),
      * unchanged, so restore can group cards back into projects without a separate per-project
      * header record) one per line into a gzip stream at [destination], stopping *before*
      * writing whichever line would push the compressed output over [budgetBytes] -- checked

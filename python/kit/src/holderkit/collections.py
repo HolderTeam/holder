@@ -185,6 +185,10 @@ class ConnectionCollection:
                     "project_id": card["project_id"],
                     "from_card_id": card["card_id"],
                     "to_card_id": str(link["to_card_id"]),
+                    "target_project_id": (
+                        None if link["target_project_id"] is None
+                        else str(link["target_project_id"])
+                    ),
                     "to_type": str(link["to_type"]),
                     "kind": str(link["kind"]),
                     "label": None if link["label"] is None else str(link["label"]),

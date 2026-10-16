@@ -5,8 +5,8 @@
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 #include "card/CardRepo.h"
+#include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
-#include "resource/ResourceRepo.h"
 
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
@@ -62,73 +62,18 @@ bool validate_link_target(
     const std::string& to_type_raw,
     std::string& error
 ) {
-  if (to_id.empty()) {
-    error = "Missing to_card_id.";
+  try {
+    holder::card::validate_link_target(
+        db,
+        project_id,
+        to_id,
+        to_type_raw.empty() ? "card" : to_type_raw
+    );
+    return true;
+  } catch (const std::invalid_argument& ex) {
+    error = ex.what();
     return false;
   }
-
-  const std::string to_type = to_type_raw.empty() ? "card" : to_type_raw;
-  if (to_type == "card") {
-    holder::card::CardRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target card not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target card is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "ai_thread") {
-    holder::ai::AiThreadRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target ai thread not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target ai thread is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "resource") {
-    holder::resource::ResourceRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target resource not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target resource is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "ai_message") {
-    holder::ai::AiMessageRepo repo(db, nullptr);
-    const auto message = repo.get(to_id);
-    if (!message.has_value()) {
-      error = "Target ai message not found.";
-      return false;
-    }
-    holder::ai::AiThreadRepo thread_repo(db);
-    const auto thread = thread_repo.get(message->thread_id);
-    if (!thread.has_value()) {
-      error = "Target ai message thread not found.";
-      return false;
-    }
-    if (thread->project_id != project_id) {
-      error = "Target ai message is in a different project.";
-      return false;
-    }
-    return true;
-  }
-
-  error = "Unsupported to_type.";
-  return false;
 }
 
 } // namespace

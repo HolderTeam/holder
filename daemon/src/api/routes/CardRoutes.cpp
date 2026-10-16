@@ -7,6 +7,7 @@
 #include "card/CardPaths.h"
 #include "card/CardPlacementResolver.h"
 #include "card/CardRepo.h"
+#include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
 #include "card/TagExtractor.h"
 #include "card/TagRepo.h"
@@ -74,73 +75,18 @@ bool validate_link_target(
     const std::string& to_type_raw,
     std::string& error
 ) {
-  if (to_id.empty()) {
-    error = "Missing to_card_id.";
+  try {
+    holder::card::validate_link_target(
+        db,
+        project_id,
+        to_id,
+        to_type_raw.empty() ? "card" : to_type_raw
+    );
+    return true;
+  } catch (const std::invalid_argument& ex) {
+    error = ex.what();
     return false;
   }
-
-  const std::string to_type = to_type_raw.empty() ? "card" : to_type_raw;
-  if (to_type == "card") {
-    holder::card::CardRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target card not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target card is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "ai_thread") {
-    holder::ai::AiThreadRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target ai thread not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target ai thread is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "resource") {
-    holder::resource::ResourceRepo repo(db);
-    const auto target = repo.get(to_id);
-    if (!target.has_value()) {
-      error = "Target resource not found.";
-      return false;
-    }
-    if (target->project_id != project_id) {
-      error = "Target resource is in a different project.";
-      return false;
-    }
-    return true;
-  }
-  if (to_type == "ai_message") {
-    holder::ai::AiMessageRepo repo(db, nullptr);
-    const auto message = repo.get(to_id);
-    if (!message.has_value()) {
-      error = "Target ai message not found.";
-      return false;
-    }
-    holder::ai::AiThreadRepo thread_repo(db);
-    const auto thread = thread_repo.get(message->thread_id);
-    if (!thread.has_value()) {
-      error = "Target ai message thread not found.";
-      return false;
-    }
-    if (thread->project_id != project_id) {
-      error = "Target ai message is in a different project.";
-      return false;
-    }
-    return true;
-  }
-
-  error = "Unsupported to_type.";
-  return false;
 }
 
 // LCOV_EXCL_START
@@ -1001,7 +947,8 @@ bool handle_card_routes(
             return true;
           }
           const auto resource = holder::resource::ResourceRepo(db).get(resource_id);
-          if (!resource.has_value()) {
+          const bool attaching = req.method() == http::verb::post;
+          if (!resource.has_value() && attaching) {
             res = support::error_response(
                 http::status::not_found,
                 "not_found",
@@ -1009,7 +956,8 @@ bool handle_card_routes(
             );
             return true;
           }
-          if (card->project_id != project_id || resource->project_id != project_id) {
+          if (card->project_id != project_id ||
+              (resource.has_value() && resource->project_id != project_id)) {
             res = support::error_response(
                 http::status::unprocessable_entity,
                 "cross_project_resource_forbidden",
@@ -1023,7 +971,6 @@ bool handle_card_routes(
             return link.to_card_id == resource_id && link.to_type == "resource" &&
                    link.kind == "attachment";
           });
-          const bool attaching = req.method() == http::verb::post;
           const bool changed = attaching != present;
           if (changed) {
             if (attaching) {
@@ -1034,11 +981,17 @@ bool handle_card_routes(
               link.to_type = "resource";
               link.kind = "attachment";
               link.created_at = support::now_epoch_seconds();
-              links.upsert_links(project_id, card_id, {link});
+              holder::card::add_card_link(db, fts, link);
             } else {
-              links.delete_link(project_id, card_id, resource_id, "resource", "attachment");
+              holder::card::remove_card_link(
+                  db,
+                  fts,
+                  card_id,
+                  resource_id,
+                  "resource",
+                  "attachment"
+              );
             }
-            card_store->update_links(card_id, support::now_epoch_seconds());
           }
           res = support::json_response(
               http::status::ok,
@@ -1137,8 +1090,14 @@ bool handle_card_routes(
                       validation_error
                   );
                 } else {
-                  repo.upsert_links(card.project_id, card.card_id, {link});
-                  card_store->update_links(card.card_id, support::now_epoch_seconds());
+                  holder::card::add_card_link(db, fts, link);
+                  for (const auto& saved : repo.list_outgoing(card.project_id, card.card_id)) {
+                    if (saved.to_card_id == link.to_card_id && saved.to_type == link.to_type &&
+                        saved.kind == link.kind) {
+                      link.created_at = saved.created_at;
+                      break;
+                    }
+                  }
 
                   nlohmann::json payload;
                   payload["ok"] = true;
@@ -1171,12 +1130,15 @@ bool handle_card_routes(
                   kind = body.at("kind").get<std::string>();
                 }
               }
-              if (to_card_id.has_value()) {
+              if (to_card_id.has_value() && to_type.has_value() && kind.has_value()) {
+                holder::card::remove_card_link(db, fts, card.card_id, *to_card_id, *to_type, *kind);
+              } else if (to_card_id.has_value()) {
                 repo.delete_link(card.project_id, card.card_id, to_card_id.value(), to_type, kind);
               } else {
                 repo.delete_links_from(card.project_id, card.card_id);
               }
-              card_store->update_links(card.card_id, support::now_epoch_seconds());
+              if (!to_card_id.has_value() || !to_type.has_value() || !kind.has_value())
+                card_store->update_links(card.card_id, support::now_epoch_seconds());
 
               nlohmann::json payload;
               payload["ok"] = true;

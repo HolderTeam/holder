@@ -211,6 +211,7 @@ def test_combined_project_scope_preserves_external_targets(tmp_path: Path) -> No
         assert scoped["cards"]["card_id"].tolist() == [source.card_id]
         assert scoped["connections"]["from_card_id"].tolist() == [source.card_id]
         assert scoped["connections"]["to_card_id"].tolist() == [target.card_id]
+        assert scoped["connections"]["target_project_id"].tolist() == [second.project_id]
         assert target.card_id not in scoped["cards"]["card_id"].tolist()
         empty_tables = context.to_dataframes(empty.project_id)
         assert empty_tables["projects"]["project_id"].tolist() == [empty.project_id]
