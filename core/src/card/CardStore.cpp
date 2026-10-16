@@ -132,7 +132,9 @@ holder::model::Project CardStore::require_project(const std::string& project_id)
 void CardStore::create(
     holder::model::Card card,
     const std::string& content,
-    const std::optional<double>& explicit_sort_key
+    const std::optional<double>& explicit_sort_key,
+    const std::vector<holder::model::CardLink>& links,
+    const std::vector<holder::model::Milestone>& milestones
 ) {
   const auto project = require_project(card.project_id);
   auto operation = git_->lock_operation(project.root_path);
@@ -161,28 +163,40 @@ void CardStore::create(
     throw std::runtime_error("conflict: card file already exists");
   }
 
-  const auto links = link_repo_.list_outgoing(card.project_id, card.card_id);
-  write_card_file(*git_, project, card, links, {}, content);
+  for (const auto& link : links) {
+    if (link.project_id != card.project_id || link.from_card_id != card.card_id)
+      throw std::invalid_argument("card link source does not match new card");
+  }
+  for (const auto& milestone : milestones) {
+    if (milestone.project_id != card.project_id || milestone.card_id != card.card_id)
+      throw std::invalid_argument("milestone owner does not match new card");
+  }
+
+  write_card_file(*git_, project, card, links, milestones, content);
 
   git_->stage_path(card.rel_path);
   assert_project_staged_blobs_safe(project, {card.rel_path});
 
   try {
+    holder::platform::Tx tx(db_);
     card_repo_.create(card);
+    if (fts_) {
+      fts_->upsert_card(card.card_id, card.project_id, card.title, content);
+    }
+    tag_repo_.set_tags_for_card(
+        card.project_id,
+        card.card_id,
+        holder::core::extract_tags(content),
+        card.created_at
+    );
+    if (!links.empty()) link_repo_.upsert_links(card.project_id, card.card_id, links);
+    if (!milestones.empty())
+      milestone_repo_.replace_for_card(card.project_id, card.card_id, milestones);
+    tx.commit();
   } catch (...) {
     fs_->remove(git_->repo_dir() / card.rel_path);
     throw;
   }
-
-  if (fts_) {
-    fts_->upsert_card(card.card_id, card.project_id, card.title, content);
-  }
-  tag_repo_.set_tags_for_card(
-      card.project_id,
-      card.card_id,
-      holder::core::extract_tags(content),
-      card.created_at
-  );
 
   git_->commit("Add card " + card.title);
 }

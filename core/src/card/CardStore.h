@@ -106,7 +106,9 @@ class CardStore {
   void create(
       holder::model::Card card,
       const std::string& content,
-      const std::optional<double>& explicit_sort_key = std::nullopt
+      const std::optional<double>& explicit_sort_key = std::nullopt,
+      const std::vector<holder::model::CardLink>& links = {},
+      const std::vector<holder::model::Milestone>& milestones = {}
   );
 
   // Writes every item as a root-level card (no parent_card_id -- batch restore is flat, no

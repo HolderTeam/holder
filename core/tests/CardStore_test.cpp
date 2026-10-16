@@ -1133,7 +1133,7 @@ TEST_CASE("CardStore create cleanup removes file when DB write fails", "[cardsto
 
   REQUIRE_THROWS_WITH(
       store.create(card, "x"),
-      Catch::Matchers::ContainsSubstring("prepare insert card failed: unknown sqlite error")
+      Catch::Matchers::ContainsSubstring("sqlite exec failed")
   );
   REQUIRE_FALSE(std::filesystem::exists(project_root / holder::core::card_rel_path(card.card_id)));
 }
