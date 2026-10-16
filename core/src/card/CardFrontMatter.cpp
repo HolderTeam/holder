@@ -68,8 +68,6 @@ std::string render_card_front_matter(
       out << YAML::Key << "role" << YAML::Value << value.role;
       if (value.date) out << YAML::Key << "date" << YAML::Value << *value.date;
       if (value.datetime) out << YAML::Key << "datetime" << YAML::Value << *value.datetime;
-      if (value.legacy_all_day_at)
-        out << YAML::Key << "legacy_all_day_at" << YAML::Value << *value.legacy_all_day_at;
       out << YAML::EndMap;
     }
     out << YAML::EndSeq;
@@ -186,25 +184,17 @@ ParsedCardFile parse_card_file(const std::string& raw) {
               value.date = date_node["date"].as<std::string>();
             if (date_node["datetime"] && !date_node["datetime"].IsNull())
               value.datetime = date_node["datetime"].as<std::string>();
-            if (date_node["legacy_all_day_at"] && !date_node["legacy_all_day_at"].IsNull())
-              value.legacy_all_day_at = date_node["legacy_all_day_at"].as<long long>();
             holder::model::validate_milestone_date(value);
             milestone.dates.push_back(std::move(value));
           }
         } else {
-          // Older card files store one planned span as local-midnight epochs or UTC instants.
-          // Keep the all-day epoch opaque: its original timezone was never recorded.
+          // Older card files store one planned span as epoch seconds. All-day values are
+          // interpreted as UTC calendar dates during this pre-release migration.
           const bool all_day = item["all_day"] && item["all_day"].as<bool>();
           const auto add_legacy = [&](const char* key, const char* role) {
             if (!item[key] || item[key].IsNull()) return;
-            holder::model::MilestoneDate value;
-            value.role = role;
             const auto at = item[key].as<long long>();
-            if (all_day)
-              value.legacy_all_day_at = at;
-            else
-              value.datetime = holder::model::milestone_datetime_utc(at);
-            milestone.dates.push_back(std::move(value));
+            milestone.dates.push_back(holder::model::milestone_date_from_legacy(role, at, all_day));
           };
           add_legacy("start_at", "start");
           add_legacy("end_at", "end");

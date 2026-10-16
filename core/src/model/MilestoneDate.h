@@ -10,14 +10,12 @@
 
 namespace holder::model {
 
-// A milestone has at most one current value for each free-form role. A calendar day is not
-// an instant: it has no timezone and must not move when displayed on another device.
-// legacy_all_day_at preserves the old local-midnight epoch without guessing its timezone.
+// A calendar day is not an instant: it has no timezone and must not move when displayed on
+// another device. Roles are free-form and may repeat within one milestone.
 struct MilestoneDate {
   std::string role;
   std::optional<std::string> date;
   std::optional<std::string> datetime;
-  std::optional<long long> legacy_all_day_at;
 
   bool operator==(const MilestoneDate&) const = default;
 };
@@ -90,8 +88,7 @@ inline std::string milestone_datetime_utc(long long at) {
 
 inline void validate_milestone_date(const MilestoneDate& value) {
   if (value.role.empty()) throw std::invalid_argument("milestone date role must not be empty");
-  const int forms = int(value.date.has_value()) + int(value.datetime.has_value()) +
-                    int(value.legacy_all_day_at.has_value());
+  const int forms = int(value.date.has_value()) + int(value.datetime.has_value());
   if (forms != 1) throw std::invalid_argument("milestone date needs exactly one value");
   if (value.date) {
     if (value.date->size() != 10) throw std::invalid_argument("milestone date must use YYYY-MM-DD");
@@ -102,14 +99,30 @@ inline void validate_milestone_date(const MilestoneDate& value) {
 
 inline std::optional<long long> milestone_date_epoch(const MilestoneDate& value) {
   if (value.datetime) return milestone_datetime_epoch(*value.datetime);
-  return value.legacy_all_day_at;
+  return std::nullopt;
+}
+
+inline long long milestone_day_utc_epoch(const std::string& date) {
+  return std::chrono::duration_cast<std::chrono::seconds>(
+             milestone_calendar_day(date).time_since_epoch()
+  ).count();
+}
+
+inline std::string milestone_utc_date(long long at) {
+  return milestone_datetime_utc(at).substr(0, 10);
+}
+
+// The timestamp-only APIs interpret all-day inputs as a UTC calendar day.
+inline std::optional<long long> milestone_legacy_epoch(const MilestoneDate& value) {
+  if (value.date) return milestone_day_utc_epoch(*value.date);
+  return milestone_date_epoch(value);
 }
 
 inline MilestoneDate milestone_date_from_legacy(std::string role, long long at, bool all_day) {
   MilestoneDate value;
   value.role = std::move(role);
   if (all_day)
-    value.legacy_all_day_at = at;
+    value.date = milestone_utc_date(at);
   else
     value.datetime = milestone_datetime_utc(at);
   return value;

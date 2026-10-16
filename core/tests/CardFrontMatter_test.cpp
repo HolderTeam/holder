@@ -179,9 +179,9 @@ TEST_CASE("parse_card_file reads milestones", "[card_front_matter]") {
   REQUIRE(first.milestone_id == "mile-1");
   REQUIRE(first.project_id == "proj-1");
   REQUIRE(first.card_id == "abcd1234");
-  REQUIRE(holder::model::milestone_epoch_for_role(first, "start") == 100);
-  REQUIRE(holder::model::milestone_date_for_role(first, "end") == nullptr);
-  REQUIRE(holder::model::milestone_date_for_role(first, "start")->legacy_all_day_at == 100);
+  REQUIRE(holder::model::milestone_epoch_for_role(first, "start") == 0);
+  REQUIRE(holder::model::milestone_unique_date_for_role(first, "end") == nullptr);
+  REQUIRE(holder::model::milestone_unique_date_for_role(first, "start")->date == "1970-01-01");
   REQUIRE(first.kind.has_value());
   REQUIRE(first.kind.value() == "Renewal");
   REQUIRE(first.description.has_value());
@@ -193,7 +193,7 @@ TEST_CASE("parse_card_file reads milestones", "[card_front_matter]") {
   REQUIRE(second.milestone_id == "mile-2");
   REQUIRE(holder::model::milestone_epoch_for_role(second, "start") == 200);
   REQUIRE(holder::model::milestone_epoch_for_role(second, "end") == 250);
-  REQUIRE(holder::model::milestone_date_for_role(second, "start")->datetime.has_value());
+  REQUIRE(holder::model::milestone_unique_date_for_role(second, "start")->datetime.has_value());
   REQUIRE_FALSE(second.kind.has_value());
   REQUIRE_FALSE(second.description.has_value());
 }
@@ -331,8 +331,8 @@ TEST_CASE(
   planned.project_id = card.project_id;
   planned.card_id = card.card_id;
   planned.dates = {
-      {"start", std::string("2026-10-16"), std::nullopt, std::nullopt},
-      {"resolved", std::nullopt, std::string("2026-10-17T09:30:00+01:00"), std::nullopt}
+      {"start", std::string("2026-10-16"), std::nullopt},
+      {"resolved", std::nullopt, std::string("2026-10-17T09:30:00+01:00")}
   };
   holder::model::Milestone undated = planned;
   undated.milestone_id = "undated";

@@ -3,6 +3,7 @@
 #include "model/MilestoneDate.h"
 
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -20,7 +21,8 @@ struct Milestone {
   long long updated_at = 0;
 };
 
-inline const MilestoneDate* milestone_date_for_role(
+// Timestamp-only adapters can represent a role only when it has one value.
+inline const MilestoneDate* milestone_unique_date_for_role(
     const Milestone& milestone,
     const std::string& role
 ) {
@@ -28,33 +30,20 @@ inline const MilestoneDate* milestone_date_for_role(
       std::find_if(milestone.dates.begin(), milestone.dates.end(), [&](const auto& value) {
         return value.role == role;
       });
-  return it == milestone.dates.end() ? nullptr : &*it;
+  if (it == milestone.dates.end()) return nullptr;
+  return std::find_if(std::next(it), milestone.dates.end(), [&](const auto& value) {
+           return value.role == role;
+         }) == milestone.dates.end()
+             ? &*it
+             : nullptr;
 }
 
 inline std::optional<long long> milestone_epoch_for_role(
     const Milestone& milestone,
     const std::string& role
 ) {
-  const auto* value = milestone_date_for_role(milestone, role);
-  return value ? milestone_date_epoch(*value) : std::nullopt;
-}
-
-inline void set_milestone_date(Milestone& milestone, MilestoneDate value) {
-  validate_milestone_date(value);
-  const auto it =
-      std::find_if(milestone.dates.begin(), milestone.dates.end(), [&](const auto& current) {
-        return current.role == value.role;
-      });
-  if (it == milestone.dates.end())
-    milestone.dates.push_back(std::move(value));
-  else
-    *it = std::move(value);
-}
-
-inline void clear_milestone_date(Milestone& milestone, const std::string& role) {
-  std::erase_if(milestone.dates, [&](const auto& value) {
-    return value.role == role;
-  });
+  const auto* value = milestone_unique_date_for_role(milestone, role);
+  return value ? milestone_legacy_epoch(*value) : std::nullopt;
 }
 
 } // namespace holder::model

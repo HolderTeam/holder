@@ -2030,8 +2030,7 @@ TEST_CASE(
   store.update_links(card.card_id, 2);
 
   auto original_milestone = make_milestone_for("original-milestone", card.project_id, card.card_id);
-  holder::model::set_milestone_date(
-      original_milestone,
+  original_milestone.dates.push_back(
       holder::model::milestone_date_from_legacy("end", 200, false)
   );
   original_milestone.kind = "Review";
@@ -2057,10 +2056,7 @@ TEST_CASE(
   store.update_links(card.card_id, 4);
 
   auto current_milestone = make_milestone_for("current-milestone", card.project_id, card.card_id);
-  holder::model::set_milestone_date(
-      current_milestone,
-      holder::model::milestone_date_from_legacy("start", 300, false)
-  );
+  current_milestone.dates[0] = holder::model::milestone_date_from_legacy("start", 300, false);
   current_milestone.kind = "Current";
   milestones.replace_for_card(card.project_id, card.card_id, {current_milestone});
   store.update_milestones(card.card_id, 5);

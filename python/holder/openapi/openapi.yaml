@@ -4180,7 +4180,7 @@ paths:
   /calendar:
     get:
       summary: List project milestones and card activity in a time range
-      description: This legacy calendar view selects milestone start instants and card activity by their epoch timestamps; both from and to are inclusive. Undated and calendar-day-only milestones are not included yet. Date parsing and timezone conversion are client concerns because this endpoint accepts epoch seconds.
+      description: This legacy calendar view selects milestone start values and card activity by epoch timestamps; both from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts epoch seconds.
       parameters:
         - in: query
           name: project_id
@@ -4223,7 +4223,7 @@ paths:
   /cards/{card_id}/milestones:
     get:
       summary: List milestones attached to a card
-      description: This scheduled timestamp view omits undated and calendar-day-only milestones. Labelled dates are not exposed by this daemon route yet.
+      description: This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC midnight. Labelled dates are not exposed by this daemon route yet.
       parameters:
         - in: path
           name: card_id

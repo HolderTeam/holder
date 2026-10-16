@@ -145,20 +145,18 @@ CREATE TABLE IF NOT EXISTS milestones (
 CREATE INDEX IF NOT EXISTS idx_milestones_project_card
   ON milestones(project_id, card_id);
 
--- One current value per free-form role. A date has no timezone; a datetime is
--- RFC 3339 with an offset and has an indexed UTC epoch. The legacy column only
--- preserves all-day epochs written before labelled dates existed.
+-- Roles may repeat. Position preserves the card front matter's sequence order.
+-- A date has no timezone; a datetime is RFC 3339 with an offset and has an indexed UTC epoch.
 CREATE TABLE IF NOT EXISTS milestone_dates (
   milestone_id       TEXT NOT NULL,
+  position           INTEGER NOT NULL,
   role               TEXT NOT NULL CHECK(length(role) > 0),
   date_value         TEXT NULL,
   datetime_value     TEXT NULL,
-  legacy_all_day_at  INTEGER NULL,
   at_epoch           INTEGER NULL,
-  PRIMARY KEY(milestone_id, role),
+  PRIMARY KEY(milestone_id, position),
   FOREIGN KEY(milestone_id) REFERENCES milestones(milestone_id) ON DELETE CASCADE,
-  CHECK ((date_value IS NOT NULL) + (datetime_value IS NOT NULL) +
-         (legacy_all_day_at IS NOT NULL) = 1),
+  CHECK ((date_value IS NOT NULL) + (datetime_value IS NOT NULL) = 1),
   CHECK ((date_value IS NOT NULL AND at_epoch IS NULL) OR
          (date_value IS NULL AND at_epoch IS NOT NULL))
 );

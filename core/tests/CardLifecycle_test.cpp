@@ -373,7 +373,7 @@ TEST_CASE("Milestone add validates the live card and date roles", "[cardstore][m
   milestone.card_id = parent_id;
   milestone.dates = {
       holder::model::milestone_date_from_legacy("start", 10, false),
-      holder::model::milestone_date_from_legacy("start", 9, false)
+      holder::model::milestone_date_from_legacy("", 9, false)
   };
   REQUIRE_THROWS_AS(f.store.add_milestone(milestone, 2), std::invalid_argument);
   REQUIRE(holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id).empty());

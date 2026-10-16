@@ -4690,7 +4690,7 @@ TEST_CASE(
   auto after_first = nlohmann::json::parse(json);
   REQUIRE(after_first.size() == 1);
   const std::string first_id = after_first[0]["milestone_id"].get<std::string>();
-  REQUIRE(after_first[0]["start_at"] == 1000);
+  REQUIRE(after_first[0]["start_at"] == 0);
   REQUIRE(after_first[0]["end_at"].is_null());
   REQUIRE(after_first[0]["all_day"] == true);
   REQUIRE(after_first[0]["kind"] == "Renewal");
@@ -4740,7 +4740,7 @@ TEST_CASE(
   );
   auto in_range = nlohmann::json::parse(json);
   REQUIRE(in_range.size() == 2);
-  REQUIRE(in_range[0]["start_at"] == 1000);
+  REQUIRE(in_range[0]["start_at"] == 0);
   REQUIRE(in_range[0]["card_title"] == "My Car");
   REQUIRE(in_range[1]["start_at"] == 2000);
   REQUIRE(in_range[1]["end_at"] == 2500);
@@ -4840,7 +4840,7 @@ TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]"
   holder_string_free(json);
 
   const auto update =
-      R"({"dates":[{"role":"start","date":"2026-10-16"},{"role":"resolved","datetime":"2026-10-17T09:30:00+01:00"}]})";
+      R"({"dates":[{"role":"start","date":"2026-10-16"},{"role":"start","date":"2026-10-17"},{"role":"resolved","datetime":"2026-10-17T09:30:00+01:00"}]})";
   REQUIRE(
       holder_card_milestone_update_json(
           context,
@@ -4852,7 +4852,11 @@ TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]"
           &error
       ) == HOLDER_OK
   );
-  CHECK(nlohmann::json::parse(json).at("dates").size() == 2);
+  CHECK(nlohmann::json::parse(json).at("dates").size() == 3);
+  holder_string_free(json);
+
+  REQUIRE(holder_card_list_milestones(context, card_id.c_str(), &json, &error) == HOLDER_OK);
+  CHECK(nlohmann::json::parse(json).empty());
   holder_string_free(json);
 
   REQUIRE(
@@ -4867,6 +4871,13 @@ TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]"
       ) == HOLDER_OK
   );
   CHECK(nlohmann::json::parse(json).at(0).at("card_title") == "Task card");
+  holder_string_free(json);
+  REQUIRE(
+      holder_project_list_milestones_by_day(
+          context, "project-1", "start", "2026-10-16", "2026-10-17", &json, &error
+      ) == HOLDER_OK
+  );
+  CHECK(nlohmann::json::parse(json).size() == 1);
   holder_string_free(json);
   const auto at = holder::model::milestone_datetime_epoch("2026-10-17T09:30:00+01:00");
   REQUIRE(
@@ -4887,7 +4898,7 @@ TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]"
   REQUIRE(
       holder_card_list_milestones_with_dates(context, card_id.c_str(), &json, &error) == HOLDER_OK
   );
-  CHECK(nlohmann::json::parse(json).at(0).at("dates").size() == 2);
+  CHECK(nlohmann::json::parse(json).at(0).at("dates").size() == 3);
   holder_string_free(json);
 
   REQUIRE(
@@ -4897,7 +4908,7 @@ TEST_CASE("C API exposes undated milestones and labelled date queries", "[capi]"
   holder_string_free(json);
   REQUIRE(snapshot.at("cards").size() == 1);
   const auto saved_dates = snapshot.at("cards").at(0).at("milestones").at(0).at("dates");
-  CHECK(saved_dates.size() == 2);
+  CHECK(saved_dates.size() == 3);
   const auto cards_json = snapshot.at("cards").dump();
   REQUIRE(
       holder_backup_restore(
@@ -4980,8 +4991,8 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_noop = nlohmann::json::parse(json);
-  REQUIRE(after_noop["start_at"] == 1000);
-  REQUIRE(after_noop["end_at"] == 5000);
+  REQUIRE(after_noop["start_at"] == 0);
+  REQUIRE(after_noop["end_at"] == 0);
   REQUIRE(after_noop["all_day"] == true);
   REQUIRE(after_noop["kind"] == "Renewal");
   REQUIRE(after_noop["description"] == "Car insurance renewal");
@@ -5001,8 +5012,8 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_start = nlohmann::json::parse(json);
-  REQUIRE(after_start["start_at"] == 2000);
-  REQUIRE(after_start["end_at"] == 5000);
+  REQUIRE(after_start["start_at"] == 0);
+  REQUIRE(after_start["end_at"] == 0);
   REQUIRE(after_start["kind"] == "Renewal");
   REQUIRE(after_start["description"] == "Car insurance renewal");
   holder_string_free(json);
@@ -5021,7 +5032,7 @@ TEST_CASE("C API card_milestone_update_json applies tri-state partial updates", 
       ) == HOLDER_OK
   );
   auto after_clear = nlohmann::json::parse(json);
-  REQUIRE(after_clear["start_at"] == 2000);
+  REQUIRE(after_clear["start_at"] == 0);
   REQUIRE(after_clear["end_at"].is_null());
   REQUIRE(after_clear["kind"].is_null());
   REQUIRE(after_clear["description"].is_null());

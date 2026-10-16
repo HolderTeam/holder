@@ -3,7 +3,6 @@
 #include <sqlite3.h>
 
 #include <stdexcept>
-#include <unordered_set>
 
 namespace holder::card {
 namespace {
@@ -55,8 +54,8 @@ holder::model::Milestone read_milestone(sqlite3_stmt* stmt) {
 
 void load_dates(sqlite3* db, holder::model::Milestone& milestone) {
   static constexpr const char* SQL =
-      "SELECT role, date_value, datetime_value, legacy_all_day_at FROM milestone_dates "
-      "WHERE milestone_id = ? ORDER BY role;";
+      "SELECT role, date_value, datetime_value FROM milestone_dates "
+      "WHERE milestone_id = ? ORDER BY position;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db, SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db, "prepare milestone dates failed");
@@ -74,8 +73,6 @@ void load_dates(sqlite3* db, holder::model::Milestone& milestone) {
       value.date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
     if (sqlite3_column_type(stmt, 2) != SQLITE_NULL)
       value.datetime = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-    if (sqlite3_column_type(stmt, 3) != SQLITE_NULL)
-      value.legacy_all_day_at = sqlite3_column_int64(stmt, 3);
     milestone.dates.push_back(std::move(value));
   }
   sqlite3_finalize(stmt);
@@ -94,12 +91,7 @@ void MilestoneRepo::replace_for_card(
   for (const auto& milestone : milestones) {
     if (milestone.project_id != project_id || milestone.card_id != card_id)
       throw std::runtime_error("milestone project_id/card_id mismatch");
-    std::unordered_set<std::string> roles;
-    for (const auto& value : milestone.dates) {
-      holder::model::validate_milestone_date(value);
-      if (!roles.insert(value.role).second)
-        throw std::invalid_argument("duplicate milestone date role: " + value.role);
-    }
+    for (const auto& value : milestone.dates) holder::model::validate_milestone_date(value);
   }
   static constexpr const char* DELETE_DATES_SQL =
       "DELETE FROM milestone_dates WHERE milestone_id IN "
@@ -136,8 +128,8 @@ void MilestoneRepo::replace_for_card(
       "INSERT INTO milestones(milestone_id, project_id, card_id, kind, description, "
       "created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?);";
   static constexpr const char* INSERT_DATE_SQL =
-      "INSERT INTO milestone_dates(milestone_id, role, date_value, datetime_value, "
-      "legacy_all_day_at, at_epoch) VALUES(?, ?, ?, ?, ?, ?);";
+      "INSERT INTO milestone_dates(milestone_id, position, role, date_value, datetime_value, "
+      "at_epoch) VALUES(?, ?, ?, ?, ?, ?);";
   sqlite3_stmt* insert_stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), INSERT_SQL, -1, &insert_stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare insert milestone failed"); // LCOV_EXCL_LINE
@@ -170,21 +162,17 @@ void MilestoneRepo::replace_for_card(
       sqlite3_finalize(insert_date_stmt);
       throw std::runtime_error("insert milestone failed: " + error);
     }
-    for (const auto& value : milestone.dates) {
+    for (std::size_t position = 0; position < milestone.dates.size(); ++position) {
+      const auto& value = milestone.dates[position];
       sqlite3_reset(insert_date_stmt);
       sqlite3_clear_bindings(insert_date_stmt);
       bind_text(insert_date_stmt, 1, milestone.milestone_id);
-      bind_text(insert_date_stmt, 2, value.role);
-      bind_text_optional(insert_date_stmt, 3, value.date);
-      bind_text_optional(insert_date_stmt, 4, value.datetime);
-      if (value.legacy_all_day_at)
-        bind_int64(insert_date_stmt, 5, *value.legacy_all_day_at);
-      else
-        sqlite3_bind_null(insert_date_stmt, 5);
+      bind_int64(insert_date_stmt, 2, static_cast<long long>(position));
+      bind_text(insert_date_stmt, 3, value.role);
+      bind_text_optional(insert_date_stmt, 4, value.date);
+      bind_text_optional(insert_date_stmt, 5, value.datetime);
       if (value.datetime)
         bind_int64(insert_date_stmt, 6, holder::model::milestone_datetime_epoch(*value.datetime));
-      else if (value.legacy_all_day_at)
-        bind_int64(insert_date_stmt, 6, *value.legacy_all_day_at);
       else
         sqlite3_bind_null(insert_date_stmt, 6);
       if (sqlite3_step(insert_date_stmt) != SQLITE_DONE) {
@@ -263,7 +251,44 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
     long long from,
     long long to
 ) const {
-  return list_instants_in_range(project_id, "start", from, to);
+  // The old epoch API projects calendar dates to UTC midnight solely for its timestamp view.
+  static constexpr const char* SQL =
+      "SELECT m.milestone_id, m.project_id, m.card_id, m.kind, m.description, "
+      "m.created_at, m.updated_at "
+      "FROM milestones m "
+      "JOIN milestone_dates d ON d.milestone_id = m.milestone_id "
+      "JOIN cards c ON c.card_id = m.card_id "
+      "WHERE m.project_id = ? AND d.role = 'start' AND c.deleted_at IS NULL "
+      "AND COALESCE(d.at_epoch, CAST(strftime('%s', d.date_value) AS INTEGER)) BETWEEN ? AND ? "
+      "GROUP BY m.milestone_id "
+      "ORDER BY MIN(COALESCE(d.at_epoch, CAST(strftime('%s', d.date_value) AS INTEGER))) ASC, "
+      "m.milestone_id ASC;";
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
+    throw_sqlite(db_.handle(), "prepare list milestones in range failed");
+  bind_text(stmt, 1, project_id);
+  bind_int64(stmt, 2, from);
+  bind_int64(stmt, 3, to);
+  std::vector<holder::model::Milestone> out;
+  while (true) {
+    const int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_DONE) break;
+    if (rc != SQLITE_ROW) {
+      sqlite3_finalize(stmt);
+      throw_sqlite(db_.handle(), "list milestones in range failed");
+    }
+    auto milestone = read_milestone(stmt);
+    load_dates(db_.handle(), milestone);
+    const bool has_end = std::any_of(
+        milestone.dates.begin(), milestone.dates.end(),
+        [](const auto& value) { return value.role == "end"; }
+    );
+    if (holder::model::milestone_unique_date_for_role(milestone, "start") &&
+        (!has_end || holder::model::milestone_unique_date_for_role(milestone, "end")))
+      out.push_back(std::move(milestone));
+  }
+  sqlite3_finalize(stmt);
+  return out;
 }
 
 std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
@@ -281,7 +306,7 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
       "JOIN cards c ON c.card_id = m.card_id "
       "WHERE m.project_id = ? AND d.role = ? AND c.deleted_at IS NULL "
       "AND d.at_epoch >= ? AND d.at_epoch <= ? "
-      "ORDER BY d.at_epoch ASC;";
+      "GROUP BY m.milestone_id ORDER BY MIN(d.at_epoch) ASC, m.milestone_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list milestones in range failed");
@@ -327,7 +352,7 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_days_in_range(
       "JOIN cards c ON c.card_id = m.card_id "
       "WHERE m.project_id = ? AND d.role = ? AND c.deleted_at IS NULL "
       "AND d.date_value >= ? AND d.date_value <= ? "
-      "ORDER BY d.date_value ASC;";
+      "GROUP BY m.milestone_id ORDER BY MIN(d.date_value) ASC, m.milestone_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db_.handle(), "prepare list milestone days failed");

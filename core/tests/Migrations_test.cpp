@@ -359,7 +359,7 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
 }
 
 TEST_CASE(
-    "v8 milestone migration preserves IDs, instants, and opaque all-day epochs",
+    "v8 milestone migration preserves IDs and converts all-day epochs to UTC dates",
     "[migrations]"
 ) {
   const auto dir = make_temp_dir();
@@ -390,11 +390,11 @@ TEST_CASE(
   REQUIRE(all.size() == 2);
   CHECK(all[0].milestone_id == "timed");
   CHECK(
-      holder::model::milestone_date_for_role(all[0], "start")->datetime == "1970-01-01T00:01:40Z"
+      holder::model::milestone_unique_date_for_role(all[0], "start")->datetime == "1970-01-01T00:01:40Z"
   );
   CHECK(holder::model::milestone_epoch_for_role(all[0], "end") == 200);
   CHECK(all[1].milestone_id == "day");
-  CHECK(holder::model::milestone_date_for_role(all[1], "start")->legacy_all_day_at == 300);
+  CHECK(holder::model::milestone_unique_date_for_role(all[1], "start")->date == "1970-01-01");
 }
 
 TEST_CASE("migrate_to_latest rejects databases newer than this build", "[migrations]") {

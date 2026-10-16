@@ -351,18 +351,26 @@ holder::model::CardLink batch_card_link_from_json(const nlohmann::json& body) {
   return link;
 } // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
 
+holder::model::MilestoneDate milestone_date_from_json(const nlohmann::json& item) {
+  if (!item.is_object()) throw std::invalid_argument("milestone date must be an object");
+  for (auto it = item.begin(); it != item.end(); ++it) {
+    const auto& key = it.key();
+    if (key != "role" && key != "date" && key != "datetime")
+      throw std::invalid_argument("unknown milestone date field: " + key);
+  }
+  holder::model::MilestoneDate result;
+  result.role = item.at("role").get<std::string>();
+  if (item.contains("date")) result.date = item.at("date").get<std::string>();
+  if (item.contains("datetime")) result.datetime = item.at("datetime").get<std::string>();
+  holder::model::validate_milestone_date(result);
+  return result;
+}
+
 holder::model::Milestone batch_milestone_from_json(const nlohmann::json& body) {
   holder::model::Milestone milestone;
   if (body.contains("dates")) {
     for (const auto& item : body.at("dates")) {
-      holder::model::MilestoneDate value;
-      value.role = item.at("role").get<std::string>();
-      if (item.contains("date")) value.date = item.at("date").get<std::string>();
-      if (item.contains("datetime")) value.datetime = item.at("datetime").get<std::string>();
-      if (item.contains("legacy_all_day_at"))
-        value.legacy_all_day_at = item.at("legacy_all_day_at").get<long long>();
-      holder::model::validate_milestone_date(value);
-      milestone.dates.push_back(std::move(value));
+      milestone.dates.push_back(milestone_date_from_json(item));
     }
   } else if (body.contains("start_at")) {
     const bool all_day = body.value("all_day", false);
@@ -740,23 +748,16 @@ nlohmann::json optional_json(const std::optional<long long>& value) {
 }
 
 nlohmann::json milestone_to_json(const holder::model::Milestone& milestone) {
-  const auto find_role = [&](const char* role) -> const holder::model::MilestoneDate* {
-    const auto it =
-        std::find_if(milestone.dates.begin(), milestone.dates.end(), [&](const auto& value) {
-          return value.role == role;
-        });
-    return it == milestone.dates.end() ? nullptr : &*it;
-  };
-  const auto* start = find_role("start");
-  const auto start_at = start ? holder::model::milestone_date_epoch(*start) : std::nullopt;
-  if (!start_at) throw std::invalid_argument("milestone has no legacy-compatible start instant");
-  const auto* end = find_role("end");
-  const auto end_at = end ? holder::model::milestone_date_epoch(*end) : std::nullopt;
+  const auto* start = holder::model::milestone_unique_date_for_role(milestone, "start");
+  const auto start_at = start ? holder::model::milestone_legacy_epoch(*start) : std::nullopt;
+  if (!start_at) throw std::invalid_argument("milestone has no legacy-compatible start value");
+  const auto* end = holder::model::milestone_unique_date_for_role(milestone, "end");
+  const auto end_at = end ? holder::model::milestone_legacy_epoch(*end) : std::nullopt;
   nlohmann::json body = {
       {"milestone_id", milestone.milestone_id},
       {"card_id", milestone.card_id},
       {"start_at", *start_at},
-      {"all_day", start->legacy_all_day_at.has_value()},
+      {"all_day", start->date.has_value()},
       {"created_at", milestone.created_at},
       {"updated_at", milestone.updated_at},
   };
@@ -780,7 +781,6 @@ nlohmann::json milestone_dates_to_json(const holder::model::Milestone& milestone
     nlohmann::json date = {{"role", value.role}};
     if (value.date) date["date"] = *value.date;
     if (value.datetime) date["datetime"] = *value.datetime;
-    if (value.legacy_all_day_at) date["legacy_all_day_at"] = *value.legacy_all_day_at;
     body["dates"].push_back(std::move(date));
   }
   return body;
@@ -790,11 +790,12 @@ nlohmann::json legacy_milestone_list_to_json(const std::vector<holder::model::Mi
 ) {
   nlohmann::json body = nlohmann::json::array();
   for (const auto& milestone : milestones) {
-    const auto start =
-        std::find_if(milestone.dates.begin(), milestone.dates.end(), [](const auto& value) {
-          return value.role == "start" && holder::model::milestone_date_epoch(value).has_value();
-        });
-    if (start != milestone.dates.end()) body.push_back(milestone_to_json(milestone));
+    if (holder::model::milestone_unique_date_for_role(milestone, "start") &&
+        (!std::any_of(milestone.dates.begin(), milestone.dates.end(), [](const auto& value) {
+          return value.role == "end";
+        }) ||
+         holder::model::milestone_unique_date_for_role(milestone, "end")))
+      body.push_back(milestone_to_json(milestone));
   }
   std::sort(body.begin(), body.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
     return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
@@ -812,14 +813,7 @@ holder::card::MilestoneUpdate milestone_update_from_json(const nlohmann::json& b
     if (!body.at("dates").is_array()) throw std::invalid_argument("dates must be an array");
     update.dates = std::vector<holder::model::MilestoneDate>{};
     for (const auto& item : body.at("dates")) {
-      holder::model::MilestoneDate value;
-      value.role = item.at("role").get<std::string>();
-      if (item.contains("date")) value.date = item.at("date").get<std::string>();
-      if (item.contains("datetime")) value.datetime = item.at("datetime").get<std::string>();
-      if (item.contains("legacy_all_day_at"))
-        value.legacy_all_day_at = item.at("legacy_all_day_at").get<long long>();
-      holder::model::validate_milestone_date(value);
-      update.dates->push_back(std::move(value));
+      update.dates->push_back(milestone_date_from_json(item));
     }
   }
   if (update.dates &&
@@ -3931,10 +3925,11 @@ int holder_card_milestone_update_json(
     if (!result.has_value()) {
       throw std::runtime_error("milestone not found: " + std::string(milestone_id));
     }
-    if (update.dates ||
-        std::none_of(result->dates.begin(), result->dates.end(), [](const auto& value) {
-          return value.role == "start" && holder::model::milestone_date_epoch(value).has_value();
-        }))
+    if (update.dates || !holder::model::milestone_unique_date_for_role(*result, "start") ||
+        (std::any_of(result->dates.begin(), result->dates.end(), [](const auto& value) {
+           return value.role == "end";
+         }) &&
+         !holder::model::milestone_unique_date_for_role(*result, "end")))
       return milestone_dates_to_json(*result);
     return milestone_to_json(*result);
   });

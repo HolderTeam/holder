@@ -26,6 +26,15 @@ nlohmann::json optional_string_json(const std::optional<std::string>& value) {
   return value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
 }
 
+bool has_timestamp_view(const holder::model::Milestone& milestone) {
+  if (!holder::model::milestone_epoch_for_role(milestone, "start")) return false;
+  const bool has_end = std::any_of(
+      milestone.dates.begin(), milestone.dates.end(),
+      [](const auto& value) { return value.role == "end"; }
+  );
+  return !has_end || holder::model::milestone_unique_date_for_role(milestone, "end");
+}
+
 nlohmann::json milestone_json(
     const holder::model::Milestone& milestone,
     const std::optional<std::string>& card_title = std::nullopt
@@ -33,13 +42,13 @@ nlohmann::json milestone_json(
   const auto start_at = holder::model::milestone_epoch_for_role(milestone, "start");
   if (!start_at) throw std::invalid_argument("milestone has no timestamp start");
   const auto end_at = holder::model::milestone_epoch_for_role(milestone, "end");
-  const auto* start = holder::model::milestone_date_for_role(milestone, "start");
+  const auto* start = holder::model::milestone_unique_date_for_role(milestone, "start");
   nlohmann::json body = {
       {"milestone_id", milestone.milestone_id},
       {"card_id", milestone.card_id},
       {"start_at", *start_at},
       {"end_at", end_at.has_value() ? nlohmann::json(*end_at) : nlohmann::json(nullptr)},
-      {"all_day", start->legacy_all_day_at.has_value()},
+      {"all_day", start->date.has_value()},
       {"kind", optional_string_json(milestone.kind)},
       {"description", optional_string_json(milestone.description)},
       {"created_at", milestone.created_at},
@@ -210,7 +219,7 @@ bool handle_milestone_routes(
     if (!milestone_id.has_value() && req.method() == http::verb::get) {
       nlohmann::json data = nlohmann::json::array();
       for (const auto& milestone : repo.list_for_card(card->project_id, card_id)) {
-        if (!holder::model::milestone_epoch_for_role(milestone, "start")) continue;
+        if (!has_timestamp_view(milestone)) continue;
         data.push_back(milestone_json(milestone));
       }
       std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {

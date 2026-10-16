@@ -103,14 +103,14 @@ def test_card_milestones_match_project_results_and_isolate_ownership(tmp_path: P
         identity = added[0]['milestone_id']
         foreign = other.milestones.add(300)[0]['milestone_id']
         updated = milestones.update(identity, {'description':None, 'start_at':150})
-        assert updated['description'] is None and updated['start_at'] == 150
-        assert added[0]['start_at'] == 100
+        assert updated['description'] is None and updated['start_at'] == 0
+        assert added[0]['start_at'] == 0
         with pytest.raises(holderkit.HolderError):
             milestones.update(foreign, {'start_at':400})
         milestones.remove(foreign)  # Existing Core policy: an unmatched ID is a no-op.
         assert other.milestones.list()[0]['start_at'] == 300
         with pytest.raises(holderkit.HolderError):
-            milestones.update(identity, {'end_at':1})
+            milestones.update(identity, {'end_at':-86400})
         with pytest.raises(TypeError):
             milestones.update(identity, {'start_at':True})
         assert milestones.list()[0] == updated

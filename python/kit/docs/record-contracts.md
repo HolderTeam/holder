@@ -402,8 +402,9 @@ propagate without returning partial exports; closed contexts raise `RuntimeError
 ## Milestone records and operations
 
 `context.milestones.list(card_id)` returns detached `MilestoneRecord` dictionaries
-from Core's scheduled timestamp view in ascending `start_at` order. Undated and
-calendar-day-only milestones are not exposed through these Kit methods yet.
+from Core's scheduled timestamp view in ascending `start_at` order. Undated
+milestones are not exposed through these Kit methods yet. Calendar days appear
+as UTC-midnight timestamps with `all_day=True`.
 `MILESTONE_RECORD_FIELDS` defines their schema:
 
 | Field | Python type | Meaning |
@@ -447,8 +448,10 @@ propagate rather than silently clipping or changing precision.
 description=None)` returns the **full updated card milestone list**, not just the
 new row. Each addition gets a new core ID; repeating a successful add creates
 another milestone. Empty kind/description strings on add are normalized to None
-by core. `milestones.remove(card_id, milestone_id)` returns None; absent IDs and
-IDs owned by another card are no-ops, but an unknown card raises `HolderError`.
+by core. With `all_day=True`, input epochs select UTC calendar dates and returned
+epochs are normalized to UTC midnight. `milestones.remove(card_id, milestone_id)`
+returns None; absent IDs and IDs owned by another card are no-ops, but an
+unknown card raises `HolderError`.
 
 `milestones.update(project_id, card_id, milestone_id, changes)` accepts a typed
 `MilestoneUpdate` dictionary and returns the single updated `MilestoneRecord`:
