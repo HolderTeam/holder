@@ -15,6 +15,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -170,6 +171,48 @@ TEST_CASE("LinkRepo preserves an explicit target project ID", "[linkrepo]") {
   REQUIRE(repo.list_backlinks("proj-1", "card-b").empty());
   repo.delete_links_to_typed("proj-1", "card-b", "card");
   REQUIRE(repo.list_outgoing("proj-1", "card-a").size() == 1);
+}
+
+TEST_CASE("LinkRepo distinguishes target projects sharing a card ID", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-a", "proj-1");
+
+  holder::model::CardLink link;
+  link.project_id = "proj-1";
+  link.from_card_id = "card-a";
+  link.to_card_id = "shared-card-id";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  auto external = link;
+  external.target_project_id = "proj-2";
+  external.label = "Other project";
+  auto explicit_local = link;
+  explicit_local.target_project_id = "proj-1";
+  explicit_local.label = "Local project";
+
+  holder::card::LinkRepo repo(db);
+  repo.upsert_links("proj-1", "card-a", {link, external, explicit_local});
+  const auto outgoing = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(outgoing.size() == 2);
+  const auto external_it = std::find_if(outgoing.begin(), outgoing.end(), [](const auto& item) {
+    return item.target_project_id == "proj-2";
+  });
+  const auto local_it = std::find_if(outgoing.begin(), outgoing.end(), [](const auto& item) {
+    return !item.target_project_id.has_value();
+  });
+  REQUIRE(external_it != outgoing.end());
+  REQUIRE(local_it != outgoing.end());
+  REQUIRE(local_it->label == "Local project");
+
+  repo.delete_link_exact("proj-1", "card-a", "shared-card-id", "card", "ref", "proj-2");
+  const auto remaining = repo.list_outgoing("proj-1", "card-a");
+  REQUIRE(remaining.size() == 1);
+  REQUIRE_FALSE(remaining[0].target_project_id.has_value());
 }
 
 TEST_CASE("LinkRepo upsert rejects project/from mismatch", "[linkrepo]") {

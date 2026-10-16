@@ -290,24 +290,35 @@ TEST_CASE("migrate_to_latest adds the collection page indexes to v6", "[migratio
   REQUIRE(columns("idx_card_tags_tag") == Names{"project_id", "tag", "card_id"});
 }
 
-TEST_CASE("migrate_to_latest adds nullable target project IDs to v7 links", "[migrations]") {
+TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrations]") {
   const auto dir = make_temp_dir();
   holder::platform::Db db;
   db.open(dir / "holder.db");
-  db.exec("CREATE TABLE card_links ("
+  db.exec("CREATE TABLE projects(project_id TEXT PRIMARY KEY);"
+          "INSERT INTO projects VALUES('source');"
+          "CREATE TABLE card_links ("
           "project_id TEXT NOT NULL, from_card_id TEXT NOT NULL, to_card_id TEXT NOT NULL, "
           "to_type TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NULL, "
           "created_at INTEGER NOT NULL, "
           "PRIMARY KEY(project_id, from_card_id, to_card_id, to_type, kind));"
           "CREATE TABLE schema_version(version INTEGER NOT NULL);"
           "INSERT INTO schema_version VALUES(7);"
-          "INSERT INTO card_links VALUES('source', 'card-a', 'card-b', 'card', 'ref', NULL, 10);");
+          "INSERT INTO card_links VALUES('source', 'card-a', 'card-b', 'card', 'ref', "
+          "'old label', 10);");
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
   REQUIRE(holder::platform::Migrations::read_schema_version(db) == 8);
-  const auto links = holder::card::LinkRepo(db).list_outgoing("source", "card-a");
-  REQUIRE(links.size() == 1);
-  REQUIRE_FALSE(links[0].target_project_id.has_value());
+  holder::card::LinkRepo links(db);
+  const auto migrated = links.list_outgoing("source", "card-a");
+  REQUIRE(migrated.size() == 1);
+  REQUIRE_FALSE(migrated[0].target_project_id.has_value());
+  REQUIRE(migrated[0].label == "old label");
+
+  auto other = migrated[0];
+  other.target_project_id = "other";
+  other.label = "external label";
+  links.upsert_links("source", "card-a", {other});
+  REQUIRE(links.list_outgoing("source", "card-a").size() == 2);
   REQUIRE_FALSE(holder::platform::Migrations::migrate_to_latest(db));
 }
 

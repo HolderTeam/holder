@@ -271,10 +271,39 @@ UPDATE schema_version SET version = 7 WHERE version = 6;
 }
 
 void migrate_v7_to_v8(Db& db) {
+  static constexpr const char* SQL = R"sql(
+CREATE TABLE card_links_v8 (
+  project_id TEXT NOT NULL,
+  from_card_id TEXT NOT NULL,
+  to_card_id TEXT NOT NULL,
+  to_type TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  label TEXT NULL,
+  created_at INTEGER NOT NULL,
+  target_project_id TEXT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(project_id) ON DELETE CASCADE
+);
+
+INSERT INTO card_links_v8
+  (project_id, from_card_id, to_card_id, to_type, kind, label, created_at, target_project_id)
+SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at,
+       NULL
+FROM card_links;
+
+DROP TABLE card_links;
+ALTER TABLE card_links_v8 RENAME TO card_links;
+
+CREATE UNIQUE INDEX idx_card_links_identity
+  ON card_links(project_id, from_card_id, to_card_id, to_type, kind,
+                COALESCE(target_project_id, project_id));
+CREATE INDEX idx_card_links_from ON card_links(project_id, from_card_id);
+CREATE INDEX idx_card_links_to ON card_links(project_id, to_card_id);
+
+UPDATE schema_version SET version = 8 WHERE version = 7;
+)sql";
+
   Tx tx(db);
-  if (!table_has_column(db, "card_links", "target_project_id"))
-    db.exec("ALTER TABLE card_links ADD COLUMN target_project_id TEXT NULL;");
-  db.exec("UPDATE schema_version SET version = 8 WHERE version = 7;");
+  db.exec(SQL);
   tx.commit();
 }
 
