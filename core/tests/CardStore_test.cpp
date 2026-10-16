@@ -104,7 +104,7 @@ holder::model::Milestone make_milestone_for(
   milestone.milestone_id = milestone_id;
   milestone.project_id = project_id;
   milestone.card_id = card_id;
-  milestone.start_at = 100;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, false)};
   milestone.created_at = 1;
   milestone.updated_at = 1;
   return milestone;
@@ -1939,7 +1939,7 @@ TEST_CASE(
   milestone.milestone_id = "mile-1";
   milestone.project_id = "proj-1";
   milestone.card_id = noop.card_id;
-  milestone.start_at = 100;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, false)};
   milestone.kind = "Renewal";
   milestone.created_at = 1;
   milestone.updated_at = 1;
@@ -2030,7 +2030,10 @@ TEST_CASE(
   store.update_links(card.card_id, 2);
 
   auto original_milestone = make_milestone_for("original-milestone", card.project_id, card.card_id);
-  original_milestone.end_at = 200;
+  holder::model::set_milestone_date(
+      original_milestone,
+      holder::model::milestone_date_from_legacy("end", 200, false)
+  );
   original_milestone.kind = "Review";
   original_milestone.description = "Original milestone";
   milestones.replace_for_card(card.project_id, card.card_id, {original_milestone});
@@ -2054,7 +2057,10 @@ TEST_CASE(
   store.update_links(card.card_id, 4);
 
   auto current_milestone = make_milestone_for("current-milestone", card.project_id, card.card_id);
-  current_milestone.start_at = 300;
+  holder::model::set_milestone_date(
+      current_milestone,
+      holder::model::milestone_date_from_legacy("start", 300, false)
+  );
   current_milestone.kind = "Current";
   milestones.replace_for_card(card.project_id, card.card_id, {current_milestone});
   store.update_milestones(card.card_id, 5);
@@ -2080,7 +2086,7 @@ TEST_CASE(
   const auto restored_milestones = milestones.list_for_card(card.project_id, card.card_id);
   REQUIRE(restored_milestones.size() == 1);
   CHECK(restored_milestones[0].milestone_id == "original-milestone");
-  CHECK(restored_milestones[0].end_at == std::optional<long long>(200));
+  CHECK(holder::model::milestone_epoch_for_role(restored_milestones[0], "end") == 200);
   CHECK(restored_milestones[0].kind == std::optional<std::string>("Review"));
   CHECK(restored_milestones[0].description == std::optional<std::string>("Original milestone"));
   CHECK(std::filesystem::exists(project_root / holder::core::card_rel_path(card.card_id)));
@@ -2533,7 +2539,7 @@ TEST_CASE("CardStore mutations reject a bad rel_path or a missing durable file",
   bad_milestone.milestone_id = "ms-bad";
   bad_milestone.card_id = bad_rel.card_id;
   bad_milestone.project_id = "proj-1";
-  bad_milestone.start_at = 100;
+  bad_milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, false)};
   bad_milestone.created_at = 1;
   bad_milestone.updated_at = 1;
   milestones.replace_for_card("proj-1", bad_rel.card_id, {bad_milestone});

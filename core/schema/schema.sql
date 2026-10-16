@@ -133,9 +133,6 @@ CREATE TABLE IF NOT EXISTS milestones (
   milestone_id  TEXT PRIMARY KEY,         -- UUID
   project_id    TEXT NOT NULL,
   card_id       TEXT NOT NULL,
-  start_at      INTEGER NOT NULL,         -- epoch seconds (UTC)
-  end_at        INTEGER NULL,
-  all_day       INTEGER NOT NULL DEFAULT 0, -- 0/1
   kind          TEXT NULL,                -- e.g. 'Deadline', 'Appointment', 'Birthday' -- vocabulary, not schema
   description   TEXT NULL,
   created_at    INTEGER NOT NULL,
@@ -148,8 +145,27 @@ CREATE TABLE IF NOT EXISTS milestones (
 CREATE INDEX IF NOT EXISTS idx_milestones_project_card
   ON milestones(project_id, card_id);
 
-CREATE INDEX IF NOT EXISTS idx_milestones_project_start
-  ON milestones(project_id, start_at);
+-- One current value per free-form role. A date has no timezone; a datetime is
+-- RFC 3339 with an offset and has an indexed UTC epoch. The legacy column only
+-- preserves all-day epochs written before labelled dates existed.
+CREATE TABLE IF NOT EXISTS milestone_dates (
+  milestone_id       TEXT NOT NULL,
+  role               TEXT NOT NULL CHECK(length(role) > 0),
+  date_value         TEXT NULL,
+  datetime_value     TEXT NULL,
+  legacy_all_day_at  INTEGER NULL,
+  at_epoch           INTEGER NULL,
+  PRIMARY KEY(milestone_id, role),
+  FOREIGN KEY(milestone_id) REFERENCES milestones(milestone_id) ON DELETE CASCADE,
+  CHECK ((date_value IS NOT NULL) + (datetime_value IS NOT NULL) +
+         (legacy_all_day_at IS NOT NULL) = 1),
+  CHECK ((date_value IS NOT NULL AND at_epoch IS NULL) OR
+         (date_value IS NULL AND at_epoch IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_milestone_dates_day
+  ON milestone_dates(role, date_value, milestone_id);
+CREATE INDEX IF NOT EXISTS idx_milestone_dates_instant
+  ON milestone_dates(role, at_epoch, milestone_id);
 
 -- ----------------------------
 -- Project Resources: rebuildable projection of Git manifests
@@ -472,7 +488,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 8 if empty
+-- Initialize schema version to 9 if empty
 INSERT INTO schema_version(version)
-SELECT 8
+SELECT 9
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);

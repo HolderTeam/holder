@@ -179,9 +179,9 @@ TEST_CASE("parse_card_file reads milestones", "[card_front_matter]") {
   REQUIRE(first.milestone_id == "mile-1");
   REQUIRE(first.project_id == "proj-1");
   REQUIRE(first.card_id == "abcd1234");
-  REQUIRE(first.start_at == 100);
-  REQUIRE_FALSE(first.end_at.has_value());
-  REQUIRE(first.all_day);
+  REQUIRE(holder::model::milestone_epoch_for_role(first, "start") == 100);
+  REQUIRE(holder::model::milestone_date_for_role(first, "end") == nullptr);
+  REQUIRE(holder::model::milestone_date_for_role(first, "start")->legacy_all_day_at == 100);
   REQUIRE(first.kind.has_value());
   REQUIRE(first.kind.value() == "Renewal");
   REQUIRE(first.description.has_value());
@@ -191,10 +191,9 @@ TEST_CASE("parse_card_file reads milestones", "[card_front_matter]") {
 
   const auto& second = parsed.milestones[1];
   REQUIRE(second.milestone_id == "mile-2");
-  REQUIRE(second.start_at == 200);
-  REQUIRE(second.end_at.has_value());
-  REQUIRE(second.end_at.value() == 250);
-  REQUIRE_FALSE(second.all_day);
+  REQUIRE(holder::model::milestone_epoch_for_role(second, "start") == 200);
+  REQUIRE(holder::model::milestone_epoch_for_role(second, "end") == 250);
+  REQUIRE(holder::model::milestone_date_for_role(second, "start")->datetime.has_value());
   REQUIRE_FALSE(second.kind.has_value());
   REQUIRE_FALSE(second.description.has_value());
 }
@@ -232,9 +231,10 @@ TEST_CASE("render_card_front_matter includes milestones", "[card_front_matter]")
   milestone.milestone_id = "mile-1";
   milestone.project_id = "proj-1";
   milestone.card_id = "abcd1234";
-  milestone.start_at = 100;
-  milestone.end_at = 150;
-  milestone.all_day = false;
+  milestone.dates = {
+      holder::model::milestone_date_from_legacy("start", 100, false),
+      holder::model::milestone_date_from_legacy("end", 150, false)
+  };
   milestone.kind = "Service";
   milestone.description = "Annual service at garage";
   milestone.created_at = 30;
@@ -243,14 +243,15 @@ TEST_CASE("render_card_front_matter includes milestones", "[card_front_matter]")
   const auto front_matter = holder::core::render_card_front_matter(card, {}, {milestone});
   REQUIRE(front_matter.find("milestones:") != std::string::npos);
   REQUIRE(front_matter.find("milestone_id: mile-1") != std::string::npos);
-  REQUIRE(front_matter.find("start_at: 100") != std::string::npos);
-  REQUIRE(front_matter.find("end_at: 150") != std::string::npos);
+  REQUIRE(front_matter.find("role: start") != std::string::npos);
+  REQUIRE(front_matter.find("datetime: 1970-01-01T00:01:40Z") != std::string::npos);
+  REQUIRE(front_matter.find("role: end") != std::string::npos);
   REQUIRE(front_matter.find("kind: Service") != std::string::npos);
   REQUIRE(front_matter.find("description: Annual service at garage") != std::string::npos);
 }
 
 TEST_CASE(
-    "render_card_front_matter writes null end_at, kind, and description",
+    "render_card_front_matter writes absent end date and null text fields",
     "[card_front_matter]"
 ) {
   holder::model::Card card;
@@ -266,8 +267,7 @@ TEST_CASE(
   milestone.milestone_id = "mile-1";
   milestone.project_id = "proj-1";
   milestone.card_id = "abcd1234";
-  milestone.start_at = 100;
-  milestone.all_day = true;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, true)};
   milestone.created_at = 30;
   milestone.updated_at = 30;
 
@@ -276,7 +276,7 @@ TEST_CASE(
     return front_matter.find(key + ": ~") != std::string::npos ||
            front_matter.find(key + ": null") != std::string::npos;
   };
-  REQUIRE(has_null("end_at"));
+  REQUIRE(front_matter.find("role: end") == std::string::npos);
   REQUIRE(has_null("kind"));
   REQUIRE(has_null("description"));
 }
@@ -295,9 +295,10 @@ TEST_CASE("milestones round-trip through render and parse", "[card_front_matter]
   milestone.milestone_id = "mile-1";
   milestone.project_id = "proj-1";
   milestone.card_id = "abcd1234";
-  milestone.start_at = 100;
-  milestone.end_at = 150;
-  milestone.all_day = false;
+  milestone.dates = {
+      holder::model::milestone_date_from_legacy("start", 100, false),
+      holder::model::milestone_date_from_legacy("end", 150, false)
+  };
   milestone.kind = "Service";
   milestone.description = "Annual service at garage";
   milestone.created_at = 30;
@@ -309,13 +310,42 @@ TEST_CASE("milestones round-trip through render and parse", "[card_front_matter]
   REQUIRE(parsed.milestones.size() == 1);
   const auto& round_tripped = parsed.milestones[0];
   REQUIRE(round_tripped.milestone_id == milestone.milestone_id);
-  REQUIRE(round_tripped.start_at == milestone.start_at);
-  REQUIRE(round_tripped.end_at == milestone.end_at);
-  REQUIRE(round_tripped.all_day == milestone.all_day);
+  REQUIRE(round_tripped.dates == milestone.dates);
   REQUIRE(round_tripped.kind == milestone.kind);
   REQUIRE(round_tripped.description == milestone.description);
   REQUIRE(round_tripped.created_at == milestone.created_at);
   REQUIRE(round_tripped.updated_at == milestone.updated_at);
+}
+
+TEST_CASE(
+    "labelled calendar dates, datetimes, and undated milestones round-trip",
+    "[card_front_matter]"
+) {
+  holder::model::Card card;
+  card.card_id = "abcd1234";
+  card.project_id = "proj-1";
+  card.title = "Plan";
+  card.rel_path = "cards/ab/cd/abcd1234.md";
+  holder::model::Milestone planned;
+  planned.milestone_id = "planned";
+  planned.project_id = card.project_id;
+  planned.card_id = card.card_id;
+  planned.dates = {
+      {"start", std::string("2026-10-16"), std::nullopt, std::nullopt},
+      {"resolved", std::nullopt, std::string("2026-10-17T09:30:00+01:00"), std::nullopt}
+  };
+  holder::model::Milestone undated = planned;
+  undated.milestone_id = "undated";
+  undated.dates.clear();
+
+  const auto raw = holder::core::render_card_front_matter(card, {}, {planned, undated}) + "Body\n";
+  const auto parsed = holder::core::parse_card_file(raw);
+  REQUIRE(parsed.milestones.size() == 2);
+  CHECK(parsed.milestones[0].dates == planned.dates);
+  CHECK(parsed.milestones[1].dates.empty());
+  CHECK(raw.find("date: 2026-10-16") != std::string::npos);
+  CHECK(raw.find("datetime: 2026-10-17T09:30:00+01:00") != std::string::npos);
+  CHECK(raw.find("start_at:") == std::string::npos);
 }
 
 TEST_CASE("parse_card_file falls back when front matter is unterminated", "[card_front_matter]") {

@@ -1,3 +1,4 @@
+#include "LegacyMilestoneSchema.h"
 #include "TestCommand.h"
 #include "http_test_helpers.h"
 
@@ -228,6 +229,7 @@ TEST_CASE("CLI upgrades a v1 database and backfills card tags", "[cli][migration
         project_id + "','Invalid path','../outside.md',999,102,102);"
     );
     db.exec("DROP TABLE card_tags;");
+    holder::test::use_v8_milestone_schema(db);
     db.exec("UPDATE schema_version SET version = 1;");
   }
 

@@ -1,3 +1,4 @@
+#include "LegacyMilestoneSchema.h"
 #include "http_test_helpers.h"
 
 #include "api/routes/ProjectRoutes.h"
@@ -139,6 +140,7 @@ TEST_CASE("Encrypted Home survives restart and schema upgrade", "[home-lifecycle
   SECTION("ordinary restart") {}
   SECTION("upgrade from schema v5") {
     // v6 adds only this index; remove it to construct the actual v5 schema.
+    holder::test::use_v8_milestone_schema(fixture.db);
     fixture.db.exec("DROP INDEX idx_cards_project_card_id;");
     fixture.db.exec("UPDATE schema_version SET version = 5;");
   }
@@ -257,6 +259,7 @@ TEST_CASE(
 
   SECTION("ordinary restart") {}
   SECTION("upgrade after removal") {
+    holder::test::use_v8_milestone_schema(fixture.db);
     fixture.db.exec("DROP INDEX idx_cards_project_card_id;");
     fixture.db.exec("UPDATE schema_version SET version = 5;");
   }

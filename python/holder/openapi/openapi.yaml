@@ -4180,7 +4180,7 @@ paths:
   /calendar:
     get:
       summary: List project milestones and card activity in a time range
-      description: Milestones are selected by start_at and card activity by its corresponding timestamp; both from and to are inclusive. Date parsing and timezone conversion are client concerns because this endpoint accepts epoch seconds.
+      description: This legacy calendar view selects milestone start instants and card activity by their epoch timestamps; both from and to are inclusive. Undated and calendar-day-only milestones are not included yet. Date parsing and timezone conversion are client concerns because this endpoint accepts epoch seconds.
       parameters:
         - in: query
           name: project_id
@@ -4223,6 +4223,7 @@ paths:
   /cards/{card_id}/milestones:
     get:
       summary: List milestones attached to a card
+      description: This scheduled timestamp view omits undated and calendar-day-only milestones. Labelled dates are not exposed by this daemon route yet.
       parameters:
         - in: path
           name: card_id
@@ -4244,7 +4245,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Add a milestone to a card
-      description: Milestones carry optional kind and description fields and have no independent title.
+      description: Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and have no independent title.
       parameters:
         - in: path
           name: card_id

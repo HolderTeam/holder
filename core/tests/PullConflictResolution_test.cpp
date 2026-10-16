@@ -109,9 +109,10 @@ TEST_CASE(
   milestone.milestone_id = "milestone-original";
   milestone.project_id = project_id;
   milestone.card_id = card.card_id;
-  milestone.start_at = 100;
-  milestone.end_at = 200;
-  milestone.all_day = true;
+  milestone.dates = {
+      {"start", std::string("2026-10-16"), std::nullopt, std::nullopt},
+      {"resolved", std::nullopt, std::string("2026-10-17T09:30:00+01:00"), std::nullopt}
+  };
   milestone.kind = "Deadline";
   milestone.description = "Ship it";
   milestone.created_at = 1;
@@ -210,9 +211,11 @@ TEST_CASE(
     REQUIRE(milestones.size() == 1);
     REQUIRE(milestones[0].milestone_id != "milestone-original");
     REQUIRE(milestones[0].card_id == duplicate->card_id);
-    REQUIRE(milestones[0].start_at == 100);
-    REQUIRE(milestones[0].end_at == 200);
-    REQUIRE(milestones[0].all_day);
+    REQUIRE(holder::model::milestone_date_for_role(milestones[0], "start")->date == "2026-10-16");
+    REQUIRE(
+        holder::model::milestone_date_for_role(milestones[0], "resolved")->datetime ==
+        "2026-10-17T09:30:00+01:00"
+    );
     REQUIRE(milestones[0].kind == "Deadline");
     REQUIRE(milestones[0].description == "Ship it");
   };

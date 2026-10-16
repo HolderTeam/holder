@@ -30,13 +30,16 @@ nlohmann::json milestone_json(
     const holder::model::Milestone& milestone,
     const std::optional<std::string>& card_title = std::nullopt
 ) {
+  const auto start_at = holder::model::milestone_epoch_for_role(milestone, "start");
+  if (!start_at) throw std::invalid_argument("milestone has no timestamp start");
+  const auto end_at = holder::model::milestone_epoch_for_role(milestone, "end");
+  const auto* start = holder::model::milestone_date_for_role(milestone, "start");
   nlohmann::json body = {
       {"milestone_id", milestone.milestone_id},
       {"card_id", milestone.card_id},
-      {"start_at", milestone.start_at},
-      {"end_at",
-       milestone.end_at.has_value() ? nlohmann::json(*milestone.end_at) : nlohmann::json(nullptr)},
-      {"all_day", milestone.all_day},
+      {"start_at", *start_at},
+      {"end_at", end_at.has_value() ? nlohmann::json(*end_at) : nlohmann::json(nullptr)},
+      {"all_day", start->legacy_all_day_at.has_value()},
       {"kind", optional_string_json(milestone.kind)},
       {"description", optional_string_json(milestone.description)},
       {"created_at", milestone.created_at},
@@ -207,8 +210,12 @@ bool handle_milestone_routes(
     if (!milestone_id.has_value() && req.method() == http::verb::get) {
       nlohmann::json data = nlohmann::json::array();
       for (const auto& milestone : repo.list_for_card(card->project_id, card_id)) {
+        if (!holder::model::milestone_epoch_for_role(milestone, "start")) continue;
         data.push_back(milestone_json(milestone));
       }
+      std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+        return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
+      });
       res = support::json_response(http::status::ok, {{"ok", true}, {"data", data}});
       return true;
     } // LCOV_EXCL_LINE: GCC duplicate cleanup line after the covered response.
@@ -230,20 +237,27 @@ bool handle_milestone_routes(
       milestone.milestone_id = uuid_v4();
       milestone.project_id = card->project_id;
       milestone.card_id = card_id;
-      milestone.start_at = body.at("start_at").get<long long>();
+      const auto start_at = body.at("start_at").get<long long>();
+      std::optional<long long> end_at;
       if (body.contains("end_at") && !body.at("end_at").is_null()) {
         if (!body.at("end_at").is_number_integer()) {
           throw std::invalid_argument("end_at must be an epoch-second integer or null.");
         }
-        milestone.end_at = body.at("end_at").get<long long>();
-        if (*milestone.end_at < milestone.start_at) {
+        end_at = body.at("end_at").get<long long>();
+        if (*end_at < start_at) {
           throw std::invalid_argument("end_at must not be before start_at.");
         }
       }
       if (body.contains("all_day") && !body.at("all_day").is_boolean()) {
         throw std::invalid_argument("all_day must be a boolean.");
       }
-      milestone.all_day = body.value("all_day", false);
+      const bool all_day = body.value("all_day", false);
+      milestone.dates.push_back(
+          holder::model::milestone_date_from_legacy("start", start_at, all_day)
+      );
+      if (end_at)
+        milestone.dates.push_back(holder::model::milestone_date_from_legacy("end", *end_at, all_day)
+        );
       milestone.kind = nullable_string(body, "kind");
       milestone.description = nullable_string(body, "description");
       milestone.created_at = support::now_epoch_seconds();

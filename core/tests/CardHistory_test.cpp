@@ -729,7 +729,7 @@ TEST_CASE(
   milestone.milestone_id = "mile-semantic";
   milestone.project_id = card.project_id;
   milestone.card_id = card.card_id;
-  milestone.start_at = 1'000;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 1'000, false)};
   milestone.kind = "Review";
   milestone.created_at = 3;
   milestone.updated_at = 3;

@@ -651,8 +651,12 @@ holder::model::Milestone CardStore::add_milestone(
 ) {
   if (milestone.project_id.empty() || milestone.card_id.empty())
     throw std::invalid_argument("milestone project_id/card_id must not be empty");
-  if (milestone.end_at && *milestone.end_at < milestone.start_at)
-    throw std::invalid_argument("milestone end_at must not be before start_at");
+  std::set<std::string> roles;
+  for (const auto& value : milestone.dates) {
+    holder::model::validate_milestone_date(value);
+    if (!roles.insert(value.role).second)
+      throw std::invalid_argument("duplicate milestone date role: " + value.role);
+  }
   if (milestone.milestone_id.empty()) milestone.milestone_id = holder::identity::uuid_v4();
   if (milestone.created_at == 0) milestone.created_at = updated_at;
   milestone.updated_at = updated_at;
@@ -720,17 +724,55 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
             });
         if (position == milestones.end()) return false;
         auto updated = *position;
-        if (update.start_at) updated.start_at = *update.start_at;
-        if (update.has_end_at) updated.end_at = update.end_at;
-        if (update.all_day) updated.all_day = *update.all_day;
+        if (update.dates) updated.dates = *update.dates;
+        if (update.start_at || update.has_end_at || update.all_day) {
+          const auto find_role = [&](const std::string& role) {
+            return std::find_if(updated.dates.begin(), updated.dates.end(), [&](const auto& value) {
+              return value.role == role;
+            });
+          };
+          const auto start = find_role("start");
+          const auto old_start = start != updated.dates.end()
+                                     ? holder::model::milestone_date_epoch(*start)
+                                     : std::nullopt;
+          if (!update.start_at && !old_start)
+            throw std::invalid_argument("legacy milestone update requires an instant start");
+          const auto at = update.start_at ? *update.start_at : *old_start;
+          const bool all_day = update.all_day.value_or(
+              start != updated.dates.end() && start->legacy_all_day_at.has_value()
+          );
+          const auto new_start = holder::model::milestone_date_from_legacy("start", at, all_day);
+          if (start == updated.dates.end())
+            updated.dates.push_back(new_start);
+          else
+            *start = new_start;
+          const auto end = find_role("end");
+          auto end_at = end != updated.dates.end() ? holder::model::milestone_date_epoch(*end)
+                                                   : std::nullopt;
+          if (end != updated.dates.end() && !end_at && !update.has_end_at)
+            throw std::invalid_argument("legacy milestone update requires an instant end");
+          if (update.has_end_at) end_at = update.end_at;
+          if (end_at && *end_at < at)
+            throw std::invalid_argument("milestone end_at must not be before start_at");
+          if (end_at) {
+            const auto new_end = holder::model::milestone_date_from_legacy("end", *end_at, all_day);
+            if (end == updated.dates.end())
+              updated.dates.push_back(new_end);
+            else
+              *end = new_end;
+          } else if (end != updated.dates.end()) {
+            updated.dates.erase(end);
+          }
+        }
         if (update.has_kind) updated.kind = update.kind;
         if (update.has_description) updated.description = update.description;
-        if (updated.end_at && *updated.end_at < updated.start_at)
-          throw std::invalid_argument("milestone end_at must not be before start_at");
-        const bool changed = updated.start_at != position->start_at ||
-                             updated.end_at != position->end_at ||
-                             updated.all_day != position->all_day ||
-                             updated.kind != position->kind ||
+        std::set<std::string> roles;
+        for (const auto& value : updated.dates) {
+          holder::model::validate_milestone_date(value);
+          if (!roles.insert(value.role).second)
+            throw std::invalid_argument("duplicate milestone date role: " + value.role);
+        }
+        const bool changed = updated.dates != position->dates || updated.kind != position->kind ||
                              updated.description != position->description;
         if (changed) {
           updated.updated_at = updated_at;

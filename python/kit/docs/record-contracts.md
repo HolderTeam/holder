@@ -402,7 +402,9 @@ propagate without returning partial exports; closed contexts raise `RuntimeError
 ## Milestone records and operations
 
 `context.milestones.list(card_id)` returns detached `MilestoneRecord` dictionaries
-in core's ascending `start_at` order. `MILESTONE_RECORD_FIELDS` defines their schema:
+from Core's scheduled timestamp view in ascending `start_at` order. Undated and
+calendar-day-only milestones are not exposed through these Kit methods yet.
+`MILESTONE_RECORD_FIELDS` defines their schema:
 
 | Field | Python type | Meaning |
 |---|---|---|
@@ -410,7 +412,7 @@ in core's ascending `start_at` order. `MILESTONE_RECORD_FIELDS` defines their sc
 | `card_id` | `str` | Owning card identifier |
 | `start_at` | `int` | Start time in Unix seconds |
 | `end_at` | `int \| None` | Optional end time; None denotes a point |
-| `all_day` | `bool` | Core's all-day flag; no Python timezone/date normalization |
+| `all_day` | `bool` | Legacy all-day flag; no Python timezone/date normalization |
 | `kind` | `str \| None` | Optional kind, including custom values |
 | `description` | `str \| None` | Optional description |
 | `created_at` | `int` | Core creation time in Unix seconds |

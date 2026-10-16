@@ -314,7 +314,7 @@ TEST_CASE("Milestone mutations roll back file, index, and Git failures", "[cards
       base.milestone_id = "milestone-base";
       base.project_id = f.project.project_id;
       base.card_id = parent_id;
-      base.start_at = 10;
+      base.dates = {holder::model::milestone_date_from_legacy("start", 10, false)};
       f.store.add_milestone(base, 2);
       const auto bytes = f.bytes(parent_id);
       const auto head = f.head();
@@ -354,7 +354,7 @@ TEST_CASE("Milestone mutations roll back file, index, and Git failures", "[cards
           holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
       REQUIRE(milestones.size() == 1);
       REQUIRE(milestones[0].milestone_id == base.milestone_id);
-      REQUIRE(milestones[0].start_at == base.start_at);
+      REQUIRE(holder::model::milestone_epoch_for_role(milestones[0], "start") == 10);
       REQUIRE_FALSE(holder::card::CardMutation::pending(f.project.root_path));
       f.db.exec("DROP TRIGGER IF EXISTS reject_milestone;");
       f.rebuild();
@@ -365,18 +365,20 @@ TEST_CASE("Milestone mutations roll back file, index, and Git failures", "[cards
   }
 }
 
-TEST_CASE("Milestone add validates the live card and planned span", "[cardstore][milestone]") {
+TEST_CASE("Milestone add validates the live card and date roles", "[cardstore][milestone]") {
   Fixture f;
   f.add(parent_id);
   holder::model::Milestone milestone;
   milestone.project_id = f.project.project_id;
   milestone.card_id = parent_id;
-  milestone.start_at = 10;
-  milestone.end_at = 9;
+  milestone.dates = {
+      holder::model::milestone_date_from_legacy("start", 10, false),
+      holder::model::milestone_date_from_legacy("start", 9, false)
+  };
   REQUIRE_THROWS_AS(f.store.add_milestone(milestone, 2), std::invalid_argument);
   REQUIRE(holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id).empty());
 
-  milestone.end_at = 11;
+  milestone.dates[1].role = "end";
   milestone.project_id = "another-project";
   REQUIRE_THROWS(f.store.add_milestone(milestone, 2));
   milestone.project_id = f.project.project_id;
@@ -411,7 +413,9 @@ TEST_CASE("Encrypted milestone mutations rebuild from Git", "[cardstore][milesto
       f.project.root_path,
       {},
       2,
-      [] { return "milestone-key"; }
+      [] {
+        return "milestone-key";
+      }
   );
   f.project = *projects.get(f.project.project_id);
   f.add(parent_id);
@@ -419,12 +423,13 @@ TEST_CASE("Encrypted milestone mutations rebuild from Git", "[cardstore][milesto
   holder::model::Milestone milestone;
   milestone.project_id = f.project.project_id;
   milestone.card_id = parent_id;
-  milestone.start_at = 10;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 10, false)};
   milestone.description = "private deadline";
   const auto added = f.store.add_milestone(milestone, 3);
   REQUIRE(f.bytes(parent_id).find("private deadline") == std::string::npos);
   f.rebuild();
-  auto milestones = holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
+  auto milestones =
+      holder::card::MilestoneRepo(f.db).list_for_card(f.project.project_id, parent_id);
   REQUIRE(milestones.size() == 1);
   REQUIRE(milestones[0].milestone_id == added.milestone_id);
   REQUIRE(milestones[0].description == milestone.description);
@@ -432,10 +437,8 @@ TEST_CASE("Encrypted milestone mutations rebuild from Git", "[cardstore][milesto
   holder::card::MilestoneUpdate update;
   update.has_description = true;
   update.description = "changed private deadline";
-  REQUIRE(
-      f.store.update_milestone(f.project.project_id, parent_id, added.milestone_id, update, 4)
-          .has_value()
-  );
+  REQUIRE(f.store.update_milestone(f.project.project_id, parent_id, added.milestone_id, update, 4)
+              .has_value());
   REQUIRE(f.bytes(parent_id).find("changed private deadline") == std::string::npos);
   REQUIRE(f.store.remove_milestone(f.project.project_id, parent_id, added.milestone_id, 5));
   f.rebuild();
@@ -699,7 +702,7 @@ TEST_CASE(
   milestone.milestone_id = "milestone-child";
   milestone.project_id = f.project.project_id;
   milestone.card_id = child_id;
-  milestone.start_at = 100;
+  milestone.dates = {holder::model::milestone_date_from_legacy("start", 100, false)};
   milestone.created_at = milestone.updated_at = 2;
   milestones.replace_for_card(f.project.project_id, child_id, {milestone});
   f.store.update_milestones(child_id, 2);
@@ -839,15 +842,16 @@ TEST_CASE("Promotion re-spaces only the siblings around tied sort keys", "[cards
   f.add(child_id, parent_id);
   f.store.trash(parent_id, 20);
   REQUIRE(
-      f.order() == std::vector<std::string>{
-                       ancestor_id,
-                       child1_id,
-                       before_id,
-                       child_id,
-                       after_id,
-                       child2_id,
-                       grandchild_id
-                   }
+      f.order() ==
+      std::vector<std::string>{
+          ancestor_id,
+          child1_id,
+          before_id,
+          child_id,
+          after_id,
+          child2_id,
+          grandchild_id
+      }
   );
   for (const auto& [id, key] : std::vector<std::pair<std::string, double>>{
            {ancestor_id, 1},

@@ -353,13 +353,30 @@ holder::model::CardLink batch_card_link_from_json(const nlohmann::json& body) {
 
 holder::model::Milestone batch_milestone_from_json(const nlohmann::json& body) {
   holder::model::Milestone milestone;
-  milestone.start_at = body.at("start_at").get<long long>();
-  milestone.all_day = body.value("all_day", false);
-  if (body.contains("end_at") && !body.at("end_at").is_null()) {
-    // The true branch is exercised by backup restore; GCC gives the optional
-    // assignment no counter even though the surrounding condition records it as
-    // taken.
-    milestone.end_at = body.at("end_at").get<long long>(); // LCOV_EXCL_LINE
+  if (body.contains("dates")) {
+    for (const auto& item : body.at("dates")) {
+      holder::model::MilestoneDate value;
+      value.role = item.at("role").get<std::string>();
+      if (item.contains("date")) value.date = item.at("date").get<std::string>();
+      if (item.contains("datetime")) value.datetime = item.at("datetime").get<std::string>();
+      if (item.contains("legacy_all_day_at"))
+        value.legacy_all_day_at = item.at("legacy_all_day_at").get<long long>();
+      holder::model::validate_milestone_date(value);
+      milestone.dates.push_back(std::move(value));
+    }
+  } else if (body.contains("start_at")) {
+    const bool all_day = body.value("all_day", false);
+    milestone.dates.push_back(holder::model::milestone_date_from_legacy(
+        "start",
+        body.at("start_at").get<long long>(),
+        all_day
+    ));
+    if (body.contains("end_at") && !body.at("end_at").is_null())
+      milestone.dates.push_back(holder::model::milestone_date_from_legacy(
+          "end",
+          body.at("end_at").get<long long>(),
+          all_day
+      ));
   }
   if (body.contains("kind") && !body.at("kind").is_null()) {
     milestone.kind = body.at("kind").get<std::string>();
@@ -723,17 +740,65 @@ nlohmann::json optional_json(const std::optional<long long>& value) {
 }
 
 nlohmann::json milestone_to_json(const holder::model::Milestone& milestone) {
+  const auto find_role = [&](const char* role) -> const holder::model::MilestoneDate* {
+    const auto it =
+        std::find_if(milestone.dates.begin(), milestone.dates.end(), [&](const auto& value) {
+          return value.role == role;
+        });
+    return it == milestone.dates.end() ? nullptr : &*it;
+  };
+  const auto* start = find_role("start");
+  const auto start_at = start ? holder::model::milestone_date_epoch(*start) : std::nullopt;
+  if (!start_at) throw std::invalid_argument("milestone has no legacy-compatible start instant");
+  const auto* end = find_role("end");
+  const auto end_at = end ? holder::model::milestone_date_epoch(*end) : std::nullopt;
   nlohmann::json body = {
       {"milestone_id", milestone.milestone_id},
       {"card_id", milestone.card_id},
-      {"start_at", milestone.start_at},
-      {"all_day", milestone.all_day},
+      {"start_at", *start_at},
+      {"all_day", start->legacy_all_day_at.has_value()},
       {"created_at", milestone.created_at},
       {"updated_at", milestone.updated_at},
   };
-  body["end_at"] = optional_json(milestone.end_at);
+  body["end_at"] = optional_json(end_at);
   body["kind"] = optional_json(milestone.kind);
   body["description"] = optional_json(milestone.description);
+  return body;
+}
+
+nlohmann::json milestone_dates_to_json(const holder::model::Milestone& milestone) {
+  nlohmann::json body = {
+      {"milestone_id", milestone.milestone_id},
+      {"card_id", milestone.card_id},
+      {"kind", optional_json(milestone.kind)},
+      {"description", optional_json(milestone.description)},
+      {"created_at", milestone.created_at},
+      {"updated_at", milestone.updated_at},
+      {"dates", nlohmann::json::array()},
+  };
+  for (const auto& value : milestone.dates) {
+    nlohmann::json date = {{"role", value.role}};
+    if (value.date) date["date"] = *value.date;
+    if (value.datetime) date["datetime"] = *value.datetime;
+    if (value.legacy_all_day_at) date["legacy_all_day_at"] = *value.legacy_all_day_at;
+    body["dates"].push_back(std::move(date));
+  }
+  return body;
+}
+
+nlohmann::json legacy_milestone_list_to_json(const std::vector<holder::model::Milestone>& milestones
+) {
+  nlohmann::json body = nlohmann::json::array();
+  for (const auto& milestone : milestones) {
+    const auto start =
+        std::find_if(milestone.dates.begin(), milestone.dates.end(), [](const auto& value) {
+          return value.role == "start" && holder::model::milestone_date_epoch(value).has_value();
+        });
+    if (start != milestone.dates.end()) body.push_back(milestone_to_json(milestone));
+  }
+  std::sort(body.begin(), body.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+    return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
+  });
   return body;
 }
 
@@ -743,6 +808,23 @@ nlohmann::json milestone_to_json(const holder::model::Milestone& milestone) {
 // explicitly cleared, so a present- but-null value for either is a caller error.
 holder::card::MilestoneUpdate milestone_update_from_json(const nlohmann::json& body) {
   holder::card::MilestoneUpdate update;
+  if (body.contains("dates")) {
+    if (!body.at("dates").is_array()) throw std::invalid_argument("dates must be an array");
+    update.dates = std::vector<holder::model::MilestoneDate>{};
+    for (const auto& item : body.at("dates")) {
+      holder::model::MilestoneDate value;
+      value.role = item.at("role").get<std::string>();
+      if (item.contains("date")) value.date = item.at("date").get<std::string>();
+      if (item.contains("datetime")) value.datetime = item.at("datetime").get<std::string>();
+      if (item.contains("legacy_all_day_at"))
+        value.legacy_all_day_at = item.at("legacy_all_day_at").get<long long>();
+      holder::model::validate_milestone_date(value);
+      update.dates->push_back(std::move(value));
+    }
+  }
+  if (update.dates &&
+      (body.contains("start_at") || body.contains("end_at") || body.contains("all_day")))
+    throw std::invalid_argument("dates cannot be mixed with legacy milestone fields");
   if (body.contains("start_at")) {
     if (body.at("start_at").is_null()) {
       // LCOV_EXCL_START - C ABI validates null before helper dispatch.
@@ -819,9 +901,10 @@ holder::card::CardPlacementRequest card_placement_request_from_json(const nlohma
 // doesn't already know which card each milestone belongs to -- unlike the card-scoped list.
 nlohmann::json milestone_with_card_title_to_json(
     holder::platform::Db& db,
-    const holder::model::Milestone& milestone
+    const holder::model::Milestone& milestone,
+    bool with_dates = false
 ) {
-  auto body = milestone_to_json(milestone);
+  auto body = with_dates ? milestone_dates_to_json(milestone) : milestone_to_json(milestone);
   const auto card = holder::card::CardRepo(db).get(milestone.card_id);
   body["card_title"] = card.has_value() ? nlohmann::json(card->title) : nlohmann::json(nullptr);
   return body;
@@ -2193,17 +2276,11 @@ int holder_backup_snapshot_page(
 
       nlohmann::json milestones = nlohmann::json::array();
       for (const auto& milestone : milestone_repo.list_for_card(project_id, card.card_id)) {
-        nlohmann::json milestone_json = {
-            {"start_at", milestone.start_at},
-            {"all_day", milestone.all_day},
-        };
-        milestone_json["end_at"] = milestone.end_at.has_value() ? nlohmann::json(*milestone.end_at)
-                                                                : nlohmann::json(nullptr);
-        milestone_json["kind"] = milestone.kind.has_value() ? nlohmann::json(*milestone.kind)
-                                                            : nlohmann::json(nullptr);
-        milestone_json["description"] = milestone.description.has_value()
-                                            ? nlohmann::json(*milestone.description)
-                                            : nlohmann::json(nullptr);
+        auto milestone_json = milestone_dates_to_json(milestone);
+        milestone_json.erase("milestone_id");
+        milestone_json.erase("card_id");
+        milestone_json.erase("created_at");
+        milestone_json.erase("updated_at");
         milestones.push_back(milestone_json);
       }
       if (!milestones.empty()) entry["milestones"] = milestones;
@@ -3645,11 +3722,9 @@ int holder_card_list_milestones(
       return set_error(out_error, HOLDER_ERROR_RUNTIME, "card not found: " + std::string(card_id));
     }
 
-    nlohmann::json body = nlohmann::json::array();
-    for (const auto& milestone :
-         holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)) {
-      body.push_back(milestone_to_json(milestone));
-    }
+    const auto body = legacy_milestone_list_to_json(
+        holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)
+    );
 
     auto* out = duplicate_string(body.dump());
     if (out == nullptr) {
@@ -3665,6 +3740,62 @@ int holder_card_list_milestones(
   } catch (...) {
     return set_unknown_exception(out_error); // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
+}
+
+int holder_card_list_milestones_with_dates(
+    holder_context* context,
+    const char* card_id,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (card_id == nullptr || card_id[0] == '\0') {
+    clear_error(out_error);
+    if (out_json) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "card_id must not be empty");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto card = holder::card::CardRepo(context->db).get(card_id);
+    if (!card) throw std::runtime_error("card not found: " + std::string(card_id));
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& milestone :
+         holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id))
+      body.push_back(milestone_dates_to_json(milestone));
+    return body;
+  });
+}
+
+int holder_card_milestone_add_json(
+    holder_context* context,
+    const char* card_id,
+    const char* milestone_json,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (card_id == nullptr || card_id[0] == '\0' || milestone_json == nullptr) {
+    clear_error(out_error);
+    if (out_json) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "card_id and milestone_json are required"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    const auto card = holder::card::CardRepo(context->db).get(card_id);
+    if (!card) throw std::runtime_error("card not found: " + std::string(card_id));
+    const auto body = nlohmann::json::parse(milestone_json);
+    if (!body.contains("dates") || !body.at("dates").is_array())
+      throw std::invalid_argument("dates must be an array");
+    auto milestone = batch_milestone_from_json(body);
+    milestone.project_id = card->project_id;
+    milestone.card_id = card_id;
+    const auto now = now_epoch_seconds();
+    milestone.created_at = now;
+    milestone.updated_at = now;
+    return milestone_dates_to_json(
+        holder::card::CardStore(context->db, &context->fts).add_milestone(std::move(milestone), now)
+    );
+  });
 }
 
 int holder_card_milestone_add(
@@ -3702,11 +3833,16 @@ int holder_card_milestone_add(
     holder::model::Milestone milestone;
     milestone.project_id = card->project_id;
     milestone.card_id = card_id;
-    milestone.start_at = start_at;
+    if (has_end_at != 0 && end_at < start_at)
+      throw std::invalid_argument("milestone end_at must not be before start_at");
+    milestone.dates.push_back(
+        holder::model::milestone_date_from_legacy("start", start_at, all_day != 0)
+    );
     if (has_end_at != 0) {
-      milestone.end_at = end_at;
+      milestone.dates.push_back(
+          holder::model::milestone_date_from_legacy("end", end_at, all_day != 0)
+      );
     }
-    milestone.all_day = (all_day != 0);
     if (kind != nullptr && kind[0] != '\0') {
       milestone.kind = std::string(kind);
     }
@@ -3718,11 +3854,9 @@ int holder_card_milestone_add(
     holder::card::CardStore(context->db, &context->fts)
         .add_milestone(milestone, milestone.created_at);
 
-    nlohmann::json body = nlohmann::json::array();
-    for (const auto& m :
-         holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)) {
-      body.push_back(milestone_to_json(m));
-    }
+    const auto body = legacy_milestone_list_to_json(
+        holder::card::MilestoneRepo(context->db).list_for_card(card->project_id, card_id)
+    );
     auto* out = duplicate_string(body.dump());
     if (out == nullptr) {
       return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
@@ -3797,6 +3931,11 @@ int holder_card_milestone_update_json(
     if (!result.has_value()) {
       throw std::runtime_error("milestone not found: " + std::string(milestone_id));
     }
+    if (update.dates ||
+        std::none_of(result->dates.begin(), result->dates.end(), [](const auto& value) {
+          return value.role == "start" && holder::model::milestone_date_epoch(value).has_value();
+        }))
+      return milestone_dates_to_json(*result);
     return milestone_to_json(*result);
   });
 }
@@ -3879,6 +4018,56 @@ int holder_project_list_milestones_in_range(
   } catch (...) {
     return set_unknown_exception(out_error); // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
+}
+
+int holder_project_list_milestones_by_day(
+    holder_context* context,
+    const char* project_id,
+    const char* role,
+    const char* from_date,
+    const char* to_date,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || role == nullptr || from_date == nullptr || to_date == nullptr) {
+    clear_error(out_error);
+    if (out_json) *out_json = nullptr;
+    return set_error(
+        out_error,
+        HOLDER_ERROR_INVALID_ARGUMENT,
+        "project, role and day range are required"
+    );
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& milestone : holder::card::MilestoneRepo(context->db)
+                                     .list_days_in_range(project_id, role, from_date, to_date))
+      body.push_back(milestone_with_card_title_to_json(context->db, milestone, true));
+    return body;
+  });
+}
+
+int holder_project_list_milestones_by_instant(
+    holder_context* context,
+    const char* project_id,
+    const char* role,
+    long long from_at,
+    long long to_at,
+    char** out_json,
+    holder_error** out_error
+) {
+  if (project_id == nullptr || role == nullptr) {
+    clear_error(out_error);
+    if (out_json) *out_json = nullptr;
+    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project and role are required");
+  }
+  return with_json_output(context, out_json, out_error, [&]() {
+    nlohmann::json body = nlohmann::json::array();
+    for (const auto& milestone : holder::card::MilestoneRepo(context->db)
+                                     .list_instants_in_range(project_id, role, from_at, to_at))
+      body.push_back(milestone_with_card_title_to_json(context->db, milestone, true));
+    return body;
+  });
 }
 
 int holder_link_kind_list(char** out_json, holder_error** out_error) {

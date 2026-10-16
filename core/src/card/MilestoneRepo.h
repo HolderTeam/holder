@@ -28,11 +28,24 @@ class MilestoneRepo {
       const std::string& card_id
   ) const;
 
-  // Every milestone in the project whose start_at falls within [from, to] (inclusive), ordered
-  // by start_at -- the Calendar's primary query. Never includes a trashed card's milestones,
-  // same defensive join TagRepo's read paths use.
+  // Legacy Calendar query: the `start` role as an instant in [from, to].
   std::vector<holder::model::Milestone> list_in_range(
       const std::string& project_id,
+      long long from,
+      long long to
+  ) const;
+
+  // Query any free-form role. Day values and instants are deliberately separate ranges.
+  // Both exclude milestones on trashed cards.
+  std::vector<holder::model::Milestone> list_days_in_range(
+      const std::string& project_id,
+      const std::string& role,
+      const std::string& from,
+      const std::string& to
+  ) const;
+  std::vector<holder::model::Milestone> list_instants_in_range(
+      const std::string& project_id,
+      const std::string& role,
       long long from,
       long long to
   ) const;
