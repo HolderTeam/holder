@@ -752,21 +752,23 @@ std::optional<holder::model::Milestone> CardStore::update_milestone(
           else
             *start = new_start;
           const auto end = find_role("end");
-          auto end_at = end != updated.dates.end() ? holder::model::milestone_legacy_epoch(*end)
-                                                   : std::nullopt;
+          std::optional<long long> end_at;
+          if (end != updated.dates.end()) end_at = holder::model::milestone_legacy_epoch(*end);
           if (end != updated.dates.end() && !end_at && !update.has_end_at)
             throw std::invalid_argument("legacy milestone update requires a single end value");
           if (update.has_end_at) end_at = update.end_at;
           const auto normalized_start = holder::model::milestone_legacy_epoch(new_start).value();
-          const auto normalized_end = end_at && all_day
-                                          ? holder::model::milestone_day_utc_epoch(
-                                                holder::model::milestone_utc_date(*end_at)
-                                            )
-                                          : end_at.value_or(0);
-          if (end_at && normalized_end < normalized_start)
-            throw std::invalid_argument("milestone end_at must not be before start_at");
           if (end_at) {
-            const auto new_end = holder::model::milestone_date_from_legacy("end", *end_at, all_day);
+            const long long end_epoch = *end_at;
+            long long normalized_end = end_epoch;
+            if (all_day)
+              normalized_end = holder::model::milestone_day_utc_epoch(
+                  holder::model::milestone_utc_date(end_epoch)
+              );
+            if (normalized_end < normalized_start)
+              throw std::invalid_argument("milestone end_at must not be before start_at");
+            const auto new_end =
+                holder::model::milestone_date_from_legacy("end", end_epoch, all_day);
             if (end == updated.dates.end())
               updated.dates.push_back(new_end);
             else
