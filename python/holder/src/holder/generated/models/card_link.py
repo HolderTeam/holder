@@ -23,6 +23,8 @@ class CardLink:
         created_at (int):
         target_project_id (str | Unset): Present for a card target in another project; omitted for a local target. The
             link grants no access to the target.
+        source_project_id (str | Unset): Present on a cross-project backlink; identifies the available project that owns
+            the link.
         label (None | str | Unset):
     """
 
@@ -32,6 +34,7 @@ class CardLink:
     kind: str
     created_at: int
     target_project_id: str | Unset = UNSET
+    source_project_id: str | Unset = UNSET
     label: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -47,6 +50,8 @@ class CardLink:
         created_at = self.created_at
 
         target_project_id = self.target_project_id
+
+        source_project_id = self.source_project_id
 
         label: None | str | Unset
         if isinstance(self.label, Unset):
@@ -67,6 +72,8 @@ class CardLink:
         )
         if target_project_id is not UNSET:
             field_dict["target_project_id"] = target_project_id
+        if source_project_id is not UNSET:
+            field_dict["source_project_id"] = source_project_id
         if label is not UNSET:
             field_dict["label"] = label
 
@@ -87,6 +94,8 @@ class CardLink:
 
         target_project_id = d.pop("target_project_id", UNSET)
 
+        source_project_id = d.pop("source_project_id", UNSET)
+
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -103,6 +112,7 @@ class CardLink:
             kind=kind,
             created_at=created_at,
             target_project_id=target_project_id,
+            source_project_id=source_project_id,
             label=label,
         )
 

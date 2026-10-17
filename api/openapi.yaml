@@ -1113,6 +1113,9 @@ components:
         target_project_id:
           type: string
           description: Present for a card target in another project; omitted for a local target. The link grants no access to the target.
+        source_project_id:
+          type: string
+          description: Present on a cross-project backlink; identifies the available project that owns the link.
         to_type:
           type: string
           description: Target type (card, ai_message, ai_thread, resource).
@@ -1166,6 +1169,24 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CardLink"
+    CardBacklinkListResponse:
+      type: object
+      required: [ok, data, scope, coverage]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardLink"
+        scope:
+          type: string
+          enum: [local, external, all_available]
+        coverage:
+          type: string
+          enum: [target_project, available_projects]
+          description: External backlinks cover only source projects available to this daemon request, never all possible projects.
     CardLinkDeleteRequest:
       type: object
       properties:
@@ -5310,7 +5331,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /cards/{card_id}/backlinks:
     get:
-      summary: List backlinks to a card
+      summary: List backlinks to a card from selected available projects
       parameters:
         - name: card_id
           in: path
@@ -5324,13 +5345,27 @@ paths:
             type: integer
             enum: [0, 1]
           description: Include backlinks from deleted sources.
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [local, external, all_available]
+            default: local
+          description: Local sources only (default), external available projects only, or both. External results are best effort and exclude unavailable projects.
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CardLinkListResponse"
+                $ref: "#/components/schemas/CardBacklinkListResponse"
+        "400":
+          description: Invalid scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:

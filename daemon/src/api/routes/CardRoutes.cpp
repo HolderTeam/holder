@@ -22,8 +22,10 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <unordered_map>
 #include <vector>
 
@@ -69,6 +71,30 @@ bool should_include_backlink_source(
     return !as_msg->deleted_at.has_value();
   }
   return false;
+}
+
+bool should_include_external_backlink_source(
+    holder::card::CardRepo& card_repo,
+    holder::ai::AiMessageRepo& msg_repo,
+    holder::ai::AiThreadRepo& thread_repo,
+    const holder::model::CardLink& link,
+    bool include_deleted
+) {
+  const auto as_card = card_repo.get(link.from_card_id);
+  if (as_card.has_value() && as_card->project_id == link.project_id) {
+    return include_deleted || !as_card->deleted_at.has_value();
+  }
+  const auto as_msg = msg_repo.get(link.from_card_id);
+  if (!as_msg.has_value()) return false;
+  const auto thread = thread_repo.get(as_msg->thread_id);
+  return thread.has_value() && thread->project_id == link.project_id &&
+         (include_deleted || !as_msg->deleted_at.has_value());
+}
+
+bool project_is_available(const holder::model::Project& project) {
+  // The bearer token covers registered projects; only projects with local roots join this view.
+  std::error_code error;
+  return std::filesystem::is_directory(project.root_path, error);
 }
 
 bool validate_link_target(
@@ -1202,12 +1228,64 @@ bool handle_card_routes(
             holder::ai::AiMessageRepo msg_repo(db, fts);
             const bool include_deleted = !param_get("include_deleted").empty() &&
                                          param_get("include_deleted") != "0";
-            const auto links = repo.list_backlinks_typed(card.project_id, card.card_id, "card");
-            nlohmann::json data = nlohmann::json::array();
-            for (const auto& link : links) {
-              if (!should_include_backlink_source(card_repo, msg_repo, link, include_deleted)) {
-                continue;
+            std::string scope = param_get("scope");
+            if (scope.empty()) scope = "local";
+            if (scope != "local" && scope != "external" && scope != "all_available") {
+              throw std::invalid_argument("scope must be local, external, or all_available.");
+            }
+            const bool include_local = scope != "external";
+            const bool include_external = scope != "local";
+            std::vector<holder::model::CardLink> links;
+            if (include_local) {
+              links = repo.list_backlinks_typed(card.project_id, card.card_id, "card");
+            }
+            if (include_external) {
+              holder::project::ProjectRepo projects(db);
+              const auto target_project = projects.get(card.project_id);
+              if (!target_project.has_value() || !project_is_available(*target_project)) {
+                res = support::error_response(
+                    http::status::not_found,
+                    "not_found",
+                    "Card not found."
+                );
+                return true;
               }
+              std::vector<std::string> available_sources;
+              for (const auto& project : projects.list()) {
+                if (project.project_id != card.project_id && project_is_available(project)) {
+                  available_sources.push_back(project.project_id);
+                }
+              }
+              auto external = repo.list_external_backlinks_typed(
+                  card.project_id,
+                  card.card_id,
+                  "card",
+                  available_sources
+              );
+              links.insert(links.end(), external.begin(), external.end());
+            }
+            std::sort(links.begin(), links.end(), [](const auto& left, const auto& right) {
+              if (left.created_at != right.created_at) return left.created_at > right.created_at;
+              if (left.project_id != right.project_id) return left.project_id < right.project_id;
+              if (left.from_card_id != right.from_card_id)
+                return left.from_card_id < right.from_card_id;
+              return left.kind < right.kind;
+            });
+            nlohmann::json data = nlohmann::json::array();
+            holder::ai::AiThreadRepo thread_repo(db);
+            for (const auto& link : links) {
+              const bool external = link.project_id != card.project_id;
+              const bool include_source =
+                  external
+                      ? should_include_external_backlink_source(
+                            card_repo,
+                            msg_repo,
+                            thread_repo,
+                            link,
+                            include_deleted
+                        )
+                      : should_include_backlink_source(card_repo, msg_repo, link, include_deleted);
+              if (!include_source) continue;
               nlohmann::json item;
               item["from_card_id"] = link.from_card_id;
               item["to_card_id"] = link.to_card_id;
@@ -1216,11 +1294,17 @@ bool handle_card_routes(
               item["created_at"] = link.created_at;
               item["label"] = link.label.has_value() ? nlohmann::json(link.label.value())
                                                      : nlohmann::json(nullptr);
+              if (external) {
+                item["source_project_id"] = link.project_id;
+                item["target_project_id"] = *link.target_project_id;
+              }
               data.push_back(std::move(item));
             }
             nlohmann::json payload;
             payload["ok"] = true;
             payload["data"] = data;
+            payload["scope"] = scope;
+            payload["coverage"] = include_external ? "available_projects" : "target_project";
             res = support::json_response(http::status::ok, payload);
           }
         } catch (const holder::privacy::PrivacyError& ex) {

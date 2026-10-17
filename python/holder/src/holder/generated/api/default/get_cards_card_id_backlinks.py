@@ -6,11 +6,12 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_link_list_response import CardLinkListResponse
+from ...models.card_backlink_list_response import CardBacklinkListResponse
 from ...models.error_response import ErrorResponse
 from ...models.get_cards_card_id_backlinks_include_deleted import (
     GetCardsCardIdBacklinksIncludeDeleted,
 )
+from ...models.get_cards_card_id_backlinks_scope import GetCardsCardIdBacklinksScope
 from ...types import UNSET, Response, Unset
 
 
@@ -18,6 +19,7 @@ def _get_kwargs(
     card_id: str,
     *,
     include_deleted: GetCardsCardIdBacklinksIncludeDeleted | Unset = UNSET,
+    scope: GetCardsCardIdBacklinksScope | Unset = GetCardsCardIdBacklinksScope.LOCAL,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -27,6 +29,12 @@ def _get_kwargs(
         json_include_deleted = include_deleted.value
 
     params["include_deleted"] = json_include_deleted
+
+    json_scope: str | Unset = UNSET
+    if not isinstance(scope, Unset):
+        json_scope = scope.value
+
+    params["scope"] = json_scope
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -43,11 +51,16 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardLinkListResponse | ErrorResponse | None:
+) -> CardBacklinkListResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardLinkListResponse.from_dict(response.json())
+        response_200 = CardBacklinkListResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
@@ -67,7 +80,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardLinkListResponse | ErrorResponse]:
+) -> Response[CardBacklinkListResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -81,24 +94,28 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     include_deleted: GetCardsCardIdBacklinksIncludeDeleted | Unset = UNSET,
-) -> Response[CardLinkListResponse | ErrorResponse]:
-    """List backlinks to a card
+    scope: GetCardsCardIdBacklinksScope | Unset = GetCardsCardIdBacklinksScope.LOCAL,
+) -> Response[CardBacklinkListResponse | ErrorResponse]:
+    """List backlinks to a card from selected available projects
 
     Args:
         card_id (str):
         include_deleted (GetCardsCardIdBacklinksIncludeDeleted | Unset):
+        scope (GetCardsCardIdBacklinksScope | Unset):  Default:
+            GetCardsCardIdBacklinksScope.LOCAL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardLinkListResponse | ErrorResponse]
+        Response[CardBacklinkListResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
         card_id=card_id,
         include_deleted=include_deleted,
+        scope=scope,
     )
 
     response = client.get_httpx_client().request(
@@ -113,25 +130,29 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     include_deleted: GetCardsCardIdBacklinksIncludeDeleted | Unset = UNSET,
-) -> CardLinkListResponse | ErrorResponse | None:
-    """List backlinks to a card
+    scope: GetCardsCardIdBacklinksScope | Unset = GetCardsCardIdBacklinksScope.LOCAL,
+) -> CardBacklinkListResponse | ErrorResponse | None:
+    """List backlinks to a card from selected available projects
 
     Args:
         card_id (str):
         include_deleted (GetCardsCardIdBacklinksIncludeDeleted | Unset):
+        scope (GetCardsCardIdBacklinksScope | Unset):  Default:
+            GetCardsCardIdBacklinksScope.LOCAL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardLinkListResponse | ErrorResponse
+        CardBacklinkListResponse | ErrorResponse
     """
 
     return sync_detailed(
         card_id=card_id,
         client=client,
         include_deleted=include_deleted,
+        scope=scope,
     ).parsed
 
 
@@ -140,24 +161,28 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     include_deleted: GetCardsCardIdBacklinksIncludeDeleted | Unset = UNSET,
-) -> Response[CardLinkListResponse | ErrorResponse]:
-    """List backlinks to a card
+    scope: GetCardsCardIdBacklinksScope | Unset = GetCardsCardIdBacklinksScope.LOCAL,
+) -> Response[CardBacklinkListResponse | ErrorResponse]:
+    """List backlinks to a card from selected available projects
 
     Args:
         card_id (str):
         include_deleted (GetCardsCardIdBacklinksIncludeDeleted | Unset):
+        scope (GetCardsCardIdBacklinksScope | Unset):  Default:
+            GetCardsCardIdBacklinksScope.LOCAL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardLinkListResponse | ErrorResponse]
+        Response[CardBacklinkListResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
         card_id=card_id,
         include_deleted=include_deleted,
+        scope=scope,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -170,19 +195,22 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     include_deleted: GetCardsCardIdBacklinksIncludeDeleted | Unset = UNSET,
-) -> CardLinkListResponse | ErrorResponse | None:
-    """List backlinks to a card
+    scope: GetCardsCardIdBacklinksScope | Unset = GetCardsCardIdBacklinksScope.LOCAL,
+) -> CardBacklinkListResponse | ErrorResponse | None:
+    """List backlinks to a card from selected available projects
 
     Args:
         card_id (str):
         include_deleted (GetCardsCardIdBacklinksIncludeDeleted | Unset):
+        scope (GetCardsCardIdBacklinksScope | Unset):  Default:
+            GetCardsCardIdBacklinksScope.LOCAL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardLinkListResponse | ErrorResponse
+        CardBacklinkListResponse | ErrorResponse
     """
 
     return (
@@ -190,5 +218,6 @@ async def asyncio(
             card_id=card_id,
             client=client,
             include_deleted=include_deleted,
+            scope=scope,
         )
     ).parsed
