@@ -56,6 +56,15 @@ environments). It publishes only from the `holder-v<version>` tag, with Kit,
 core and `VERSION` all at that version. See
 [`python/kit/docs/packaging.md`](../python/kit/docs/packaging.md).
 
+## Holder for Python on PyPI
+
+`Release / Holder Python to PyPI` builds and checks the `holder-python` wheel
+and source archive, then publishes from a matching `holder-v<version>` tag via
+Trusted Publishing. The initial `0.2.5` package-only backfill can use
+`holder-python-v0.2.5`. See
+[`python/holder/docs/publishing.md`](../python/holder/docs/publishing.md) for
+the one-time PyPI project setup and release steps.
+
 ## Ubuntu packages
 
 `Release / Launchpad` uploads the `holder-core`, `holder-daemon`, `holder-kit` and
