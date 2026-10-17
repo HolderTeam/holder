@@ -1,11 +1,10 @@
 """Resolve the README's inline Markdown links for the package description."""
 
 import argparse
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
-
 
 LINK = re.compile(r'(?P<image>!)?\[(?P<label>[^\]\n]+)\]\((?P<url>[^\s)]+)(?P<title>\s+"[^"\n]*")?\)')
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
