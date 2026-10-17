@@ -1,5 +1,8 @@
 # Holder for Python
 
+Holder is an open-source, local-first knowledge app for organising your ideas
+and digital information as index cards and the connections between them.
+
 Use Python to read and update the projects and cards in your running Holder
 installation. Changes you make in a script appear in Holder too.
 
