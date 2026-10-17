@@ -171,6 +171,107 @@ TEST_CASE("HTTP card links create/list/delete", "[http]") {
   server_thread.join();
 }
 
+TEST_CASE("HTTP card links retain qualified targets and delete them exactly", "[http]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1", (dir / "source").string());
+  create_project(db, "proj-2", (dir / "target").string());
+  ensure_uuid_seeded();
+
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  holder::test::create_card_fixture(card_store, "source", "proj-1", "Source", "body", 10);
+  holder::test::create_card_fixture(card_store, "shared-id", "proj-1", "Local", "body", 11);
+  holder::test::create_card_fixture(card_store, "loaded-id", "proj-2", "Private title", "body", 12);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& ex) {
+    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
+  }
+  holder::core::SignalHandler signals;
+  std::thread server_thread([&server, &signals]() { server.run(signals); });
+
+  const auto create = [&](const std::string& id, const std::string& project,
+                          const std::string& label) {
+    return http_json_request(
+        bound.bind, bound.port, token, boost::beast::http::verb::post,
+        "/cards/source/links",
+        {{"to_card_id", id}, {"to_type", "card"}, {"kind", "ref"},
+         {"target_project_id", project}, {"label", label}},
+        boost::beast::http::status::created
+    );
+  };
+  REQUIRE(create("shared-id", "proj-1", "Local label")["data"]["label"] == "Local label");
+  REQUIRE(create("shared-id", "not-loaded", "External label")["data"]["target_project_id"] ==
+          "not-loaded");
+  REQUIRE(create("loaded-id", "proj-2", "Loaded label")["data"]["target_project_id"] ==
+          "proj-2");
+
+  const auto listed = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/source/links", nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(listed["data"].size() == 3);
+  bool saw_local = false;
+  bool saw_unavailable = false;
+  bool saw_loaded = false;
+  for (const auto& link : listed["data"]) {
+    REQUIRE_FALSE(link.contains("title"));
+    if (link["to_card_id"] == "shared-id" && !link.contains("target_project_id")) {
+      REQUIRE(link["label"] == "Local label");
+      saw_local = true;
+    } else if (link.value("target_project_id", "") == "not-loaded") {
+      REQUIRE(link["label"] == "External label");
+      saw_unavailable = true;
+    } else if (link.value("target_project_id", "") == "proj-2") {
+      REQUIRE(link["label"] == "Loaded label");
+      saw_loaded = true;
+    }
+  }
+  REQUIRE(saw_local);
+  REQUIRE(saw_unavailable);
+  REQUIRE(saw_loaded);
+
+  http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::delete_,
+      "/cards/loaded-id", nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  const auto after_target_trash = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/source/links", nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(after_target_trash["data"].size() == 3);
+
+  const auto unauthorized = http_json_request(
+      bound.bind, bound.port, "wrong-token", boost::beast::http::verb::get,
+      "/cards/source/links", nlohmann::json::object(), boost::beast::http::status::unauthorized
+  );
+  REQUIRE(unauthorized["ok"] == false);
+  REQUIRE_FALSE(unauthorized.contains("data"));
+
+  http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::delete_,
+      "/cards/source/links",
+      {{"to_card_id", "shared-id"}, {"to_type", "card"}, {"kind", "ref"},
+       {"target_project_id", "not-loaded"}},
+      boost::beast::http::status::ok
+  );
+  const auto after_delete = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/source/links", nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(after_delete["data"].size() == 2);
+  for (const auto& link : after_delete["data"])
+    REQUIRE(link.value("target_project_id", "") != "not-loaded");
+
+  server.stop();
+  server_thread.join();
+}
+
 TEST_CASE("HTTP card links validate non-card targets and filter ai-message sources", "[http]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";

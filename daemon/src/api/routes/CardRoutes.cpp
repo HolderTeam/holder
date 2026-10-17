@@ -40,6 +40,9 @@ bool should_include_link_target(
 ) {
   if (include_deleted) return true;
   if (link.to_type == "card") {
+    // The source owns external links even when their target cannot be loaded.
+    if (link.target_project_id.has_value() && *link.target_project_id != link.project_id)
+      return true;
     const auto target = card_repo.get(link.to_card_id);
     return target.has_value() && !target->deleted_at.has_value();
   }
@@ -73,6 +76,7 @@ bool validate_link_target(
     const std::string& project_id,
     const std::string& to_id,
     const std::string& to_type_raw,
+    const std::optional<std::string>& target_project_id,
     std::string& error
 ) {
   try {
@@ -80,7 +84,8 @@ bool validate_link_target(
         db,
         project_id,
         to_id,
-        to_type_raw.empty() ? "card" : to_type_raw
+        to_type_raw.empty() ? "card" : to_type_raw,
+        target_project_id
     );
     return true;
   } catch (const std::invalid_argument& ex) {
@@ -1037,6 +1042,8 @@ bool handle_card_routes(
                 item["created_at"] = link.created_at;
                 item["label"] = link.label.has_value() ? nlohmann::json(link.label.value())
                                                        : nlohmann::json(nullptr);
+                if (link.target_project_id.has_value())
+                  item["target_project_id"] = *link.target_project_id;
                 data.push_back(std::move(item));
               }
               nlohmann::json payload;
@@ -1071,6 +1078,10 @@ bool handle_card_routes(
                 if (body.contains("label") && !body.at("label").is_null()) {
                   link.label = body.at("label").get<std::string>();
                 }
+                if (body.contains("target_project_id") && !body.at("target_project_id").is_null()) {
+                  link.target_project_id = body.at("target_project_id").get<std::string>();
+                  if (link.target_project_id == card.project_id) link.target_project_id.reset();
+                }
                 if (body.contains("created_at") && !body.at("created_at").is_null()) {
                   link.created_at = body.at("created_at").get<long long>();
                 } else {
@@ -1082,6 +1093,7 @@ bool handle_card_routes(
                         card.project_id,
                         link.to_card_id,
                         link.to_type,
+                        link.target_project_id,
                         validation_error
                     )) {
                   res = support::error_response(
@@ -1093,7 +1105,8 @@ bool handle_card_routes(
                   holder::card::add_card_link(db, fts, link);
                   for (const auto& saved : repo.list_outgoing(card.project_id, card.card_id)) {
                     if (saved.to_card_id == link.to_card_id && saved.to_type == link.to_type &&
-                        saved.kind == link.kind) {
+                        saved.kind == link.kind &&
+                        saved.target_project_id == link.target_project_id) {
                       link.created_at = saved.created_at;
                       break;
                     }
@@ -1111,6 +1124,8 @@ bool handle_card_routes(
                        link.label.has_value() ? nlohmann::json(link.label.value())
                                               : nlohmann::json(nullptr)},
                   };
+                  if (link.target_project_id.has_value())
+                    payload["data"]["target_project_id"] = *link.target_project_id;
                   res = support::json_response(http::status::created, payload);
                 }
               }
@@ -1118,6 +1133,7 @@ bool handle_card_routes(
               std::optional<std::string> to_card_id;
               std::optional<std::string> to_type;
               std::optional<std::string> kind;
+              std::optional<std::string> target_project_id;
               if (!req.body().empty()) {
                 const auto body = nlohmann::json::parse(req.body());
                 if (body.contains("to_card_id") && !body.at("to_card_id").is_null()) {
@@ -1129,9 +1145,20 @@ bool handle_card_routes(
                 if (body.contains("kind") && !body.at("kind").is_null()) {
                   kind = body.at("kind").get<std::string>();
                 }
+                if (body.contains("target_project_id") && !body.at("target_project_id").is_null()) {
+                  target_project_id = body.at("target_project_id").get<std::string>();
+                }
+              }
+              if (target_project_id.has_value() &&
+                  (!to_card_id.has_value() || !to_type.has_value() || !kind.has_value())) {
+                throw std::invalid_argument(
+                    "to_card_id, to_type and kind are required with target_project_id."
+                );
               }
               if (to_card_id.has_value() && to_type.has_value() && kind.has_value()) {
-                holder::card::remove_card_link(db, fts, card.card_id, *to_card_id, *to_type, *kind);
+                holder::card::remove_card_link(
+                    db, fts, card.card_id, *to_card_id, *to_type, *kind, target_project_id
+                );
               } else if (to_card_id.has_value()) {
                 repo.delete_link(card.project_id, card.card_id, to_card_id.value(), to_type, kind);
               } else {
