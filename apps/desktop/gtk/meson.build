@@ -1,4 +1,4 @@
-project('holder-linux', ['vala', 'c'], version: run_command('cat', 'VERSION', check: true).stdout().strip())
+project('holder-gtk', ['vala', 'c'], version: run_command('cat', 'VERSION', check: true).stdout().strip())
 
 gnome = import('gnome')
 datadir = get_option('datadir')
@@ -407,7 +407,7 @@ test('holder-accessible-runtime-tests', find_program('python3'),
   args: files('tests/accessible_runtime_test.py'))
 
 test_exe = executable(
-  'holder-linux-tests',
+  'holder-gtk-tests',
   [
     'src/utils/text_utils.vala',
     'tests/text_utils_test.vala',
@@ -425,10 +425,10 @@ test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tests', test_exe)
+test('holder-gtk-tests', test_exe)
 
 editor_whitespace_cleaner_test_exe = executable(
-  'holder-linux-editor-whitespace-cleaner-tests',
+  'holder-gtk-editor-whitespace-cleaner-tests',
   [
     'src/views/editor_whitespace_cleaner.vala',
     'tests/editor_whitespace_cleaner_test.vala',
@@ -444,10 +444,10 @@ editor_whitespace_cleaner_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-whitespace-cleaner-tests', editor_whitespace_cleaner_test_exe)
+test('holder-gtk-editor-whitespace-cleaner-tests', editor_whitespace_cleaner_test_exe)
 
 ai_controller_test_exe = executable(
-  'holder-linux-ai-controller-tests',
+  'holder-gtk-ai-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/ai_run_fakes.vala',
@@ -478,10 +478,10 @@ ai_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-controller-tests', ai_controller_test_exe)
+test('holder-gtk-ai-controller-tests', ai_controller_test_exe)
 
 ai_nudge_controller_test_exe = executable(
-  'holder-linux-ai-nudge-controller-tests',
+  'holder-gtk-ai-nudge-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -530,10 +530,10 @@ ai_nudge_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-nudge-controller-tests', ai_nudge_controller_test_exe)
+test('holder-gtk-ai-nudge-controller-tests', ai_nudge_controller_test_exe)
 
 main_controller_test_exe = executable(
-  'holder-linux-main-controller-tests',
+  'holder-gtk-main-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -579,10 +579,10 @@ main_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-main-controller-tests', main_controller_test_exe)
+test('holder-gtk-main-controller-tests', main_controller_test_exe)
 
 editor_save_test_exe = executable(
-  'holder-linux-editor-save-tests',
+  'holder-gtk-editor-save-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -628,10 +628,10 @@ editor_save_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-save-tests', editor_save_test_exe)
+test('holder-gtk-editor-save-tests', editor_save_test_exe)
 
 main_extracted_controllers_test_exe = executable(
-  'holder-linux-main-extracted-controllers-tests',
+  'holder-gtk-main-extracted-controllers-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -677,10 +677,10 @@ main_extracted_controllers_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-main-extracted-controllers-tests', main_extracted_controllers_test_exe)
+test('holder-gtk-main-extracted-controllers-tests', main_extracted_controllers_test_exe)
 
 selection_controller_test_exe = executable(
-  'holder-linux-selection-controller-tests',
+  'holder-gtk-selection-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -727,10 +727,10 @@ selection_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-selection-controller-tests', selection_controller_test_exe)
+test('holder-gtk-selection-controller-tests', selection_controller_test_exe)
 
 editor_recovery_draft_service_test_exe = executable(
-  'holder-linux-editor-recovery-draft-service-tests',
+  'holder-gtk-editor-recovery-draft-service-tests',
   [
     'src/services/editor_recovery_draft_service.vala',
     'tests/editor_recovery_draft_service_test.vala',
@@ -746,10 +746,10 @@ editor_recovery_draft_service_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-recovery-draft-service-tests', editor_recovery_draft_service_test_exe)
+test('holder-gtk-editor-recovery-draft-service-tests', editor_recovery_draft_service_test_exe)
 
 git_sync_controller_test_exe = executable(
-  'holder-linux-git-sync-controller-tests',
+  'holder-gtk-git-sync-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -788,10 +788,10 @@ git_sync_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
+test('holder-gtk-git-sync-controller-tests', git_sync_controller_test_exe)
 
 git_sync_presenter_test_exe = executable(
-  'holder-linux-git-sync-presenter-tests',
+  'holder-gtk-git-sync-presenter-tests',
   [
     'src/models/activity_details.vala',
     'src/models/git.vala',
@@ -810,10 +810,10 @@ git_sync_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-git-sync-presenter-tests', git_sync_presenter_test_exe)
+test('holder-gtk-git-sync-presenter-tests', git_sync_presenter_test_exe)
 
 git_sync_rules_test_exe = executable(
-  'holder-linux-git-sync-rules-tests',
+  'holder-gtk-git-sync-rules-tests',
   [
     'src/models/activity_details.vala',
     'src/models/git.vala',
@@ -836,10 +836,10 @@ git_sync_rules_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-git-sync-rules-tests', git_sync_rules_test_exe)
+test('holder-gtk-git-sync-rules-tests', git_sync_rules_test_exe)
 
 resources_controller_test_exe = executable(
-  'holder-linux-resources-controller-tests',
+  'holder-gtk-resources-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -872,10 +872,10 @@ resources_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-resources-controller-tests', resources_controller_test_exe)
+test('holder-gtk-resources-controller-tests', resources_controller_test_exe)
 
 resources_service_test_exe = executable(
-  'holder-linux-resources-service-tests',
+  'holder-gtk-resources-service-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -906,10 +906,10 @@ resources_service_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-resources-service-tests', resources_service_test_exe)
+test('holder-gtk-resources-service-tests', resources_service_test_exe)
 
 connections_controller_test_exe = executable(
-  'holder-linux-connections-controller-tests',
+  'holder-gtk-connections-controller-tests',
   [
     'tests/support/main_controller_fakes.vala',
     'src/services/editor_recovery_draft_service.vala',
@@ -941,10 +941,10 @@ connections_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-controller-tests', connections_controller_test_exe)
+test('holder-gtk-connections-controller-tests', connections_controller_test_exe)
 
 connections_tool_view_test_exe = executable(
-  'holder-linux-connections-tool-view-tests',
+  'holder-gtk-connections-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -994,10 +994,10 @@ connections_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe)
+test('holder-gtk-connections-tool-view-tests', connections_tool_view_test_exe)
 
 connections_refresh_planner_test_exe = executable(
-  'holder-linux-connections-refresh-planner-tests',
+  'holder-gtk-connections-refresh-planner-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -1029,10 +1029,10 @@ connections_refresh_planner_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-refresh-planner-tests', connections_refresh_planner_test_exe)
+test('holder-gtk-connections-refresh-planner-tests', connections_refresh_planner_test_exe)
 
 connections_empty_state_test_exe = executable(
-  'holder-linux-connections-empty-state-tests',
+  'holder-gtk-connections-empty-state-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -1064,10 +1064,10 @@ connections_empty_state_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-empty-state-tests', connections_empty_state_test_exe)
+test('holder-gtk-connections-empty-state-tests', connections_empty_state_test_exe)
 
 connections_add_link_test_exe = executable(
-  'holder-linux-connections-add-link-tests',
+  'holder-gtk-connections-add-link-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -1099,10 +1099,10 @@ connections_add_link_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-add-link-tests', connections_add_link_test_exe)
+test('holder-gtk-connections-add-link-tests', connections_add_link_test_exe)
 
 connections_relations_presenter_test_exe = executable(
-  'holder-linux-connections-relations-presenter-tests',
+  'holder-gtk-connections-relations-presenter-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -1134,10 +1134,10 @@ connections_relations_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-relations-presenter-tests', connections_relations_presenter_test_exe)
+test('holder-gtk-connections-relations-presenter-tests', connections_relations_presenter_test_exe)
 
 connections_board_presenter_test_exe = executable(
-  'holder-linux-connections-board-presenter-tests',
+  'holder-gtk-connections-board-presenter-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -1169,10 +1169,10 @@ connections_board_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-board-presenter-tests', connections_board_presenter_test_exe)
+test('holder-gtk-connections-board-presenter-tests', connections_board_presenter_test_exe)
 
 terminal_controller_test_exe = executable(
-  'holder-linux-terminal-controller-tests',
+  'holder-gtk-terminal-controller-tests',
   [
     'src/controllers/terminal.vala',
     'tests/terminal_controller_test.vala',
@@ -1189,10 +1189,10 @@ terminal_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-terminal-controller-tests', terminal_controller_test_exe)
+test('holder-gtk-terminal-controller-tests', terminal_controller_test_exe)
 
 powershell_transcript_test_exe = executable(
-  'holder-linux-powershell-transcript-tests',
+  'holder-gtk-powershell-transcript-tests',
   [
     'src/models/terminal_session.vala',
     'src/services/powershell_transcript.vala',
@@ -1208,10 +1208,10 @@ powershell_transcript_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-powershell-transcript-tests', powershell_transcript_test_exe)
+test('holder-gtk-powershell-transcript-tests', powershell_transcript_test_exe)
 
 windows_terminal_services_test_exe = executable(
-  'holder-linux-windows-terminal-services-tests',
+  'holder-gtk-windows-terminal-services-tests',
   [
     'src/models/terminal_session.vala',
     'src/services/app_settings.vala',
@@ -1235,10 +1235,10 @@ windows_terminal_services_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-windows-terminal-services-tests', windows_terminal_services_test_exe)
+test('holder-gtk-windows-terminal-services-tests', windows_terminal_services_test_exe)
 
 terminal_presenter_test_exe = executable(
-  'holder-linux-terminal-presenter-tests',
+  'holder-gtk-terminal-presenter-tests',
   [
     'src/models/terminal_session.vala',
     'src/services/app_settings.vala',
@@ -1261,10 +1261,10 @@ terminal_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-terminal-presenter-tests', terminal_presenter_test_exe)
+test('holder-gtk-terminal-presenter-tests', terminal_presenter_test_exe)
 
 windows_terminal_view_compile_test_exe = executable(
-  'holder-linux-windows-terminal-view-compile-tests',
+  'holder-gtk-windows-terminal-view-compile-tests',
   [
     'src/models/project.vala',
     'src/models/card.vala',
@@ -1298,10 +1298,10 @@ windows_terminal_view_compile_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-windows-terminal-view-compile-tests', windows_terminal_view_compile_test_exe)
+test('holder-gtk-windows-terminal-view-compile-tests', windows_terminal_view_compile_test_exe)
 
 git_sync_service_test_exe = executable(
-  'holder-linux-git-sync-service-tests',
+  'holder-gtk-git-sync-service-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -1335,10 +1335,10 @@ git_sync_service_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-git-sync-service-tests', git_sync_service_test_exe)
+test('holder-gtk-git-sync-service-tests', git_sync_service_test_exe)
 
 ai_catalog_controller_test_exe = executable(
-  'holder-linux-ai-catalog-controller-tests',
+  'holder-gtk-ai-catalog-controller-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -1365,10 +1365,10 @@ ai_catalog_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-catalog-controller-tests', ai_catalog_controller_test_exe)
+test('holder-gtk-ai-catalog-controller-tests', ai_catalog_controller_test_exe)
 
 ai_config_presenter_test_exe = executable(
-  'holder-linux-ai-config-presenter-tests',
+  'holder-gtk-ai-config-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -1396,10 +1396,10 @@ ai_config_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-config-presenter-tests', ai_config_presenter_test_exe)
+test('holder-gtk-ai-config-presenter-tests', ai_config_presenter_test_exe)
 
 flowboard_controller_test_exe = executable(
-  'holder-linux-flowboard-controller-tests',
+  'holder-gtk-flowboard-controller-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -1427,10 +1427,10 @@ flowboard_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-flowboard-controller-tests', flowboard_controller_test_exe)
+test('holder-gtk-flowboard-controller-tests', flowboard_controller_test_exe)
 
 sidebar_data_renderer_test_exe = executable(
-  'holder-linux-sidebar-data-renderer-tests',
+  'holder-gtk-sidebar-data-renderer-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -1456,10 +1456,10 @@ sidebar_data_renderer_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-sidebar-data-renderer-tests', sidebar_data_renderer_test_exe)
+test('holder-gtk-sidebar-data-renderer-tests', sidebar_data_renderer_test_exe)
 
 local_info_controller_test_exe = executable(
-  'holder-linux-local-info-controller-tests',
+  'holder-gtk-local-info-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -1492,10 +1492,10 @@ local_info_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-local-info-controller-tests', local_info_controller_test_exe)
+test('holder-gtk-local-info-controller-tests', local_info_controller_test_exe)
 
 local_info_flow_controller_test_exe = executable(
-  'holder-linux-local-info-flow-controller-tests',
+  'holder-gtk-local-info-flow-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -1529,10 +1529,10 @@ local_info_flow_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-local-info-flow-controller-tests', local_info_flow_controller_test_exe)
+test('holder-gtk-local-info-flow-controller-tests', local_info_flow_controller_test_exe)
 
 local_info_presenter_test_exe = executable(
-  'holder-linux-local-info-presenter-tests',
+  'holder-gtk-local-info-presenter-tests',
   [
     'src/controllers/local_info_presenter.vala',
     'tests/local_info_presenter_test.vala',
@@ -1547,10 +1547,10 @@ local_info_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-local-info-presenter-tests', local_info_presenter_test_exe)
+test('holder-gtk-local-info-presenter-tests', local_info_presenter_test_exe)
 
 local_info_view_adapter_test_exe = executable(
-  'holder-linux-local-info-view-adapter-tests',
+  'holder-gtk-local-info-view-adapter-tests',
   [
     'src/controllers/local_info_presenter.vala',
     'src/views/adapters/local_info.vala',
@@ -1566,10 +1566,10 @@ local_info_view_adapter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-local-info-view-adapter-tests', local_info_view_adapter_test_exe)
+test('holder-gtk-local-info-view-adapter-tests', local_info_view_adapter_test_exe)
 
 api_client_test_exe = executable(
-  'holder-linux-api-client-tests',
+  'holder-gtk-api-client-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1620,10 +1620,10 @@ api_client_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-tests', api_client_test_exe)
+test('holder-gtk-api-client-tests', api_client_test_exe)
 
 api_client_ai_test_exe = executable(
-  'holder-linux-api-client-ai-tests',
+  'holder-gtk-api-client-ai-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1674,10 +1674,10 @@ api_client_ai_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-ai-tests', api_client_ai_test_exe)
+test('holder-gtk-api-client-ai-tests', api_client_ai_test_exe)
 
 api_client_health_test_exe = executable(
-  'holder-linux-api-client-health-tests',
+  'holder-gtk-api-client-health-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1728,10 +1728,10 @@ api_client_health_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-health-tests', api_client_health_test_exe)
+test('holder-gtk-api-client-health-tests', api_client_health_test_exe)
 
 api_client_search_test_exe = executable(
-  'holder-linux-api-client-search-tests',
+  'holder-gtk-api-client-search-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1782,10 +1782,10 @@ api_client_search_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-search-tests', api_client_search_test_exe)
+test('holder-gtk-api-client-search-tests', api_client_search_test_exe)
 
 api_client_trash_test_exe = executable(
-  'holder-linux-api-client-trash-tests',
+  'holder-gtk-api-client-trash-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1836,10 +1836,10 @@ api_client_trash_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-trash-tests', api_client_trash_test_exe)
+test('holder-gtk-api-client-trash-tests', api_client_trash_test_exe)
 
 api_client_resources_test_exe = executable(
-  'holder-linux-api-client-resources-tests',
+  'holder-gtk-api-client-resources-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1890,10 +1890,10 @@ api_client_resources_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-resources-tests', api_client_resources_test_exe)
+test('holder-gtk-api-client-resources-tests', api_client_resources_test_exe)
 
 api_client_projects_test_exe = executable(
-  'holder-linux-api-client-projects-tests',
+  'holder-gtk-api-client-projects-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1944,10 +1944,10 @@ api_client_projects_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-projects-tests', api_client_projects_test_exe)
+test('holder-gtk-api-client-projects-tests', api_client_projects_test_exe)
 
 api_client_cards_test_exe = executable(
-  'holder-linux-api-client-cards-tests',
+  'holder-gtk-api-client-cards-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -1998,10 +1998,10 @@ api_client_cards_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-cards-tests', api_client_cards_test_exe)
+test('holder-gtk-api-client-cards-tests', api_client_cards_test_exe)
 
 api_client_git_test_exe = executable(
-  'holder-linux-api-client-git-tests',
+  'holder-gtk-api-client-git-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -2052,10 +2052,10 @@ api_client_git_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-git-tests', api_client_git_test_exe)
+test('holder-gtk-api-client-git-tests', api_client_git_test_exe)
 
 api_client_ai_stream_test_exe = executable(
-  'holder-linux-api-client-ai-stream-tests',
+  'holder-gtk-api-client-ai-stream-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -2106,10 +2106,10 @@ api_client_ai_stream_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-ai-stream-tests', api_client_ai_stream_test_exe)
+test('holder-gtk-api-client-ai-stream-tests', api_client_ai_stream_test_exe)
 
 presence_stream_test_exe = executable(
-  'holder-linux-presence-stream-tests',
+  'holder-gtk-presence-stream-tests',
   [
     holder_config,
     'tests/support/test_utils.vala',
@@ -2162,10 +2162,10 @@ presence_stream_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-presence-stream-tests', presence_stream_test_exe)
+test('holder-gtk-presence-stream-tests', presence_stream_test_exe)
 
 backend_ensure_test_exe = executable(
-  'holder-linux-backend-ensure-tests',
+  'holder-gtk-backend-ensure-tests',
   [
     holder_config,
     'tests/support/test_utils.vala',
@@ -2219,10 +2219,10 @@ backend_ensure_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-backend-ensure-tests', backend_ensure_test_exe)
+test('holder-gtk-backend-ensure-tests', backend_ensure_test_exe)
 
 bundle_environment_test_exe = executable(
-  'holder-linux-bundle-environment-tests',
+  'holder-gtk-bundle-environment-tests',
   [
     holder_config,
     'tests/support/test_utils.vala',
@@ -2276,10 +2276,10 @@ bundle_environment_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-bundle-environment-tests', bundle_environment_test_exe)
+test('holder-gtk-bundle-environment-tests', bundle_environment_test_exe)
 
 api_client_transport_test_exe = executable(
-  'holder-linux-api-client-transport-tests',
+  'holder-gtk-api-client-transport-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -2330,10 +2330,10 @@ api_client_transport_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-transport-tests', api_client_transport_test_exe)
+test('holder-gtk-api-client-transport-tests', api_client_transport_test_exe)
 
 api_client_core_test_exe = executable(
-  'holder-linux-api-client-core-tests',
+  'holder-gtk-api-client-core-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/api_client_fakes.vala',
@@ -2384,10 +2384,10 @@ api_client_core_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-api-client-core-tests', api_client_core_test_exe)
+test('holder-gtk-api-client-core-tests', api_client_core_test_exe)
 
 discovery_test_exe = executable(
-  'holder-linux-discovery-tests',
+  'holder-gtk-discovery-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2415,10 +2415,10 @@ discovery_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-discovery-tests', discovery_test_exe)
+test('holder-gtk-discovery-tests', discovery_test_exe)
 
 ui_adapters_test_exe = executable(
-  'holder-linux-ui-adapters-tests',
+  'holder-gtk-ui-adapters-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2448,10 +2448,10 @@ ui_adapters_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ui-adapters-tests', ui_adapters_test_exe)
+test('holder-gtk-ui-adapters-tests', ui_adapters_test_exe)
 
 app_settings_test_exe = executable(
-  'holder-linux-app-settings-tests',
+  'holder-gtk-app-settings-tests',
   [
     'src/services/app_settings.vala',
     'tests/app_settings_test.vala',
@@ -2467,10 +2467,10 @@ app_settings_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-app-settings-tests', app_settings_test_exe)
+test('holder-gtk-app-settings-tests', app_settings_test_exe)
 
 update_check_test_exe = executable(
-  'holder-linux-update-check-tests',
+  'holder-gtk-update-check-tests',
   [
     holder_config,
     'src/models/server.vala',
@@ -2502,10 +2502,10 @@ update_check_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-update-check-tests', update_check_test_exe)
+test('holder-gtk-update-check-tests', update_check_test_exe)
 
 window_geometry_test_exe = executable(
-  'holder-linux-window-geometry-tests',
+  'holder-gtk-window-geometry-tests',
   [
     'src/controllers/window_geometry.vala',
     'tests/window_geometry_test.vala',
@@ -2520,10 +2520,10 @@ window_geometry_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-geometry-tests', window_geometry_test_exe)
+test('holder-gtk-window-geometry-tests', window_geometry_test_exe)
 
 workspace_layout_test_exe = executable(
-  'holder-linux-workspace-layout-tests',
+  'holder-gtk-workspace-layout-tests',
   [
     'src/controllers/workspace_layout.vala',
     'tests/workspace_layout_test.vala',
@@ -2538,10 +2538,10 @@ workspace_layout_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-workspace-layout-tests', workspace_layout_test_exe)
+test('holder-gtk-workspace-layout-tests', workspace_layout_test_exe)
 
 panel_width_tracker_test_exe = executable(
-  'holder-linux-panel-width-tracker-tests',
+  'holder-gtk-panel-width-tracker-tests',
   [
     'src/controllers/workspace_layout.vala',
     'src/controllers/panel_width_tracker.vala',
@@ -2557,10 +2557,10 @@ panel_width_tracker_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-panel-width-tracker-tests', panel_width_tracker_test_exe)
+test('holder-gtk-panel-width-tracker-tests', panel_width_tracker_test_exe)
 
 toolbox_header_breadcrumbs_test_exe = executable(
-  'holder-linux-toolbox-header-breadcrumbs-tests',
+  'holder-gtk-toolbox-header-breadcrumbs-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2588,10 +2588,10 @@ toolbox_header_breadcrumbs_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-toolbox-header-breadcrumbs-tests', toolbox_header_breadcrumbs_test_exe)
+test('holder-gtk-toolbox-header-breadcrumbs-tests', toolbox_header_breadcrumbs_test_exe)
 
 markdown_key_map_test_exe = executable(
-  'holder-linux-markdown-key-map-tests',
+  'holder-gtk-markdown-key-map-tests',
   [
     'src/controllers/markdown_editing.vala',
     'src/controllers/markdown_key_map.vala',
@@ -2609,10 +2609,10 @@ markdown_key_map_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-markdown-key-map-tests', markdown_key_map_test_exe)
+test('holder-gtk-markdown-key-map-tests', markdown_key_map_test_exe)
 
 asset_preview_test_exe = executable(
-  'holder-linux-asset-preview-tests',
+  'holder-gtk-asset-preview-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2641,10 +2641,10 @@ asset_preview_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-asset-preview-tests', asset_preview_test_exe)
+test('holder-gtk-asset-preview-tests', asset_preview_test_exe)
 
 asset_preview_pane_test_exe = executable(
-  'holder-linux-asset-preview-pane-tests',
+  'holder-gtk-asset-preview-pane-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2676,10 +2676,10 @@ asset_preview_pane_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-asset-preview-pane-tests', asset_preview_pane_test_exe)
+test('holder-gtk-asset-preview-pane-tests', asset_preview_pane_test_exe)
 
 tool_scope_presenter_test_exe = executable(
-  'holder-linux-tool-scope-presenter-tests',
+  'holder-gtk-tool-scope-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2707,10 +2707,10 @@ tool_scope_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tool-scope-presenter-tests', tool_scope_presenter_test_exe)
+test('holder-gtk-tool-scope-presenter-tests', tool_scope_presenter_test_exe)
 
 resource_draft_test_exe = executable(
-  'holder-linux-resource-draft-tests',
+  'holder-gtk-resource-draft-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2740,10 +2740,10 @@ resource_draft_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-resource-draft-tests', resource_draft_test_exe)
+test('holder-gtk-resource-draft-tests', resource_draft_test_exe)
 
 resources_presenter_test_exe = executable(
-  'holder-linux-resources-presenter-tests',
+  'holder-gtk-resources-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2773,10 +2773,10 @@ resources_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-resources-presenter-tests', resources_presenter_test_exe)
+test('holder-gtk-resources-presenter-tests', resources_presenter_test_exe)
 
 storage_locations_test_exe = executable(
-  'holder-linux-storage-locations-tests',
+  'holder-gtk-storage-locations-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/storage_api_fakes.vala',
@@ -2810,10 +2810,10 @@ storage_locations_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-storage-locations-tests', storage_locations_test_exe)
+test('holder-gtk-storage-locations-tests', storage_locations_test_exe)
 
 google_drive_connect_test_exe = executable(
-  'holder-linux-google-drive-connect-tests',
+  'holder-gtk-google-drive-connect-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/storage_api_fakes.vala',
@@ -2848,10 +2848,10 @@ google_drive_connect_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-google-drive-connect-tests', google_drive_connect_test_exe)
+test('holder-gtk-google-drive-connect-tests', google_drive_connect_test_exe)
 
 flowboard_presenter_test_exe = executable(
-  'holder-linux-flowboard-presenter-tests',
+  'holder-gtk-flowboard-presenter-tests',
   [
     'src/models/flowboard.vala',
     'src/utils/text_utils.vala',
@@ -2868,10 +2868,10 @@ flowboard_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-flowboard-presenter-tests', flowboard_presenter_test_exe)
+test('holder-gtk-flowboard-presenter-tests', flowboard_presenter_test_exe)
 
 editor_navigation_resolver_test_exe = executable(
-  'holder-linux-editor-navigation-resolver-tests',
+  'holder-gtk-editor-navigation-resolver-tests',
   [
     'src/models/project.vala',
     'src/models/card.vala',
@@ -2894,10 +2894,10 @@ editor_navigation_resolver_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-navigation-resolver-tests', editor_navigation_resolver_test_exe)
+test('holder-gtk-editor-navigation-resolver-tests', editor_navigation_resolver_test_exe)
 
 dialog_text_presenter_test_exe = executable(
-  'holder-linux-dialog-text-presenter-tests',
+  'holder-gtk-dialog-text-presenter-tests',
   [
     'src/controllers/dialog_text_presenter.vala',
     'tests/dialog_text_presenter_test.vala',
@@ -2912,10 +2912,10 @@ dialog_text_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-dialog-text-presenter-tests', dialog_text_presenter_test_exe)
+test('holder-gtk-dialog-text-presenter-tests', dialog_text_presenter_test_exe)
 
 window_feedback_format_test_exe = executable(
-  'holder-linux-window-feedback-format-tests',
+  'holder-gtk-window-feedback-format-tests',
   [
     'src/models/activity_details.vala',
     'src/controllers/window_feedback_format.vala',
@@ -2932,13 +2932,13 @@ window_feedback_format_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-feedback-format-tests', window_feedback_format_test_exe)
+test('holder-gtk-window-feedback-format-tests', window_feedback_format_test_exe)
 
 # WorkspacePane, ToolboxPane and MainController are compiled alone by dozens of other test targets;
 # tests/window_activity_feedback_test.vala carries lightweight local stand-ins for them instead of
 # linking the real workspace_pane.vala/toolbox.vala/main.vala.
 window_activity_feedback_test_exe = executable(
-  'holder-linux-window-activity-feedback-tests',
+  'holder-gtk-window-activity-feedback-tests',
   [
     'src/models/project.vala',
     'src/models/card.vala',
@@ -2963,10 +2963,10 @@ window_activity_feedback_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-activity-feedback-tests', window_activity_feedback_test_exe)
+test('holder-gtk-window-activity-feedback-tests', window_activity_feedback_test_exe)
 
 app_transition_test_exe = executable(
-  'holder-linux-app-transition-tests',
+  'holder-gtk-app-transition-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -2996,10 +2996,10 @@ app_transition_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-app-transition-tests', app_transition_test_exe)
+test('holder-gtk-app-transition-tests', app_transition_test_exe)
 
 app_state_test_exe = executable(
-  'holder-linux-app-state-tests',
+  'holder-gtk-app-state-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3026,10 +3026,10 @@ app_state_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-app-state-tests', app_state_test_exe)
+test('holder-gtk-app-state-tests', app_state_test_exe)
 
 editor_draft_state_test_exe = executable(
-  'holder-linux-editor-draft-state-tests',
+  'holder-gtk-editor-draft-state-tests',
   [
     'src/models/card.vala',
     'src/state/editor_draft_state.vala',
@@ -3045,10 +3045,10 @@ editor_draft_state_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-draft-state-tests', editor_draft_state_test_exe)
+test('holder-gtk-editor-draft-state-tests', editor_draft_state_test_exe)
 
 selection_transition_test_exe = executable(
-  'holder-linux-selection-transition-tests',
+  'holder-gtk-selection-transition-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3079,10 +3079,10 @@ selection_transition_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-selection-transition-tests', selection_transition_test_exe)
+test('holder-gtk-selection-transition-tests', selection_transition_test_exe)
 
 selection_intent_test_exe = executable(
-  'holder-linux-selection-intent-tests',
+  'holder-gtk-selection-intent-tests',
   [
     'src/controllers/selection_intent.vala',
     'tests/selection_intent_test.vala',
@@ -3097,10 +3097,10 @@ selection_intent_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-selection-intent-tests', selection_intent_test_exe)
+test('holder-gtk-selection-intent-tests', selection_intent_test_exe)
 
 selection_intent_orchestrator_test_exe = executable(
-  'holder-linux-selection-intent-orchestrator-tests',
+  'holder-gtk-selection-intent-orchestrator-tests',
   [
     'src/controllers/selection_intent_orchestrator.vala',
     'tests/selection_intent_orchestrator_test.vala',
@@ -3116,10 +3116,10 @@ selection_intent_orchestrator_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-selection-intent-orchestrator-tests', selection_intent_orchestrator_test_exe)
+test('holder-gtk-selection-intent-orchestrator-tests', selection_intent_orchestrator_test_exe)
 
 activity_log_controller_test_exe = executable(
-  'holder-linux-activity-log-controller-tests',
+  'holder-gtk-activity-log-controller-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3146,10 +3146,10 @@ activity_log_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-activity-log-controller-tests', activity_log_controller_test_exe)
+test('holder-gtk-activity-log-controller-tests', activity_log_controller_test_exe)
 
 activity_reducer_test_exe = executable(
-  'holder-linux-activity-reducer-tests',
+  'holder-gtk-activity-reducer-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3177,10 +3177,10 @@ activity_reducer_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-activity-reducer-tests', activity_reducer_test_exe)
+test('holder-gtk-activity-reducer-tests', activity_reducer_test_exe)
 
 ai_panel_event_orchestrator_test_exe = executable(
-  'holder-linux-ai-panel-event-orchestrator-tests',
+  'holder-gtk-ai-panel-event-orchestrator-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3207,10 +3207,10 @@ ai_panel_event_orchestrator_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-panel-event-orchestrator-tests', ai_panel_event_orchestrator_test_exe)
+test('holder-gtk-ai-panel-event-orchestrator-tests', ai_panel_event_orchestrator_test_exe)
 
 card_append_test_exe = executable(
-  'holder-linux-card-append-tests',
+  'holder-gtk-card-append-tests',
   [
     'src/controllers/card_append.vala',
     'tests/card_append_test.vala',
@@ -3225,10 +3225,10 @@ card_append_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-card-append-tests', card_append_test_exe)
+test('holder-gtk-card-append-tests', card_append_test_exe)
 
 explorer_selection_test_exe = executable(
-  'holder-linux-explorer-selection-tests',
+  'holder-gtk-explorer-selection-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3255,10 +3255,10 @@ explorer_selection_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-explorer-selection-tests', explorer_selection_test_exe)
+test('holder-gtk-explorer-selection-tests', explorer_selection_test_exe)
 
 find_replace_test_exe = executable(
-  'holder-linux-find-replace-tests',
+  'holder-gtk-find-replace-tests',
   [
     'src/controllers/find_replace_ops.vala',
     'src/controllers/find_replace.vala',
@@ -3274,10 +3274,10 @@ find_replace_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-find-replace-tests', find_replace_test_exe)
+test('holder-gtk-find-replace-tests', find_replace_test_exe)
 
 window_find_replace_ops_test_exe = executable(
-  'holder-linux-window-find-replace-ops-tests',
+  'holder-gtk-window-find-replace-ops-tests',
   [
     'src/controllers/find_replace_ops.vala',
     'src/views/adapters/window_find_replace_ops.vala',
@@ -3297,10 +3297,10 @@ window_find_replace_ops_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-find-replace-ops-tests', window_find_replace_ops_test_exe)
+test('holder-gtk-window-find-replace-ops-tests', window_find_replace_ops_test_exe)
 
 search_selection_test_exe = executable(
-  'holder-linux-search-selection-tests',
+  'holder-gtk-search-selection-tests',
   [
     'src/controllers/search_selection.vala',
     'tests/search_selection_test.vala',
@@ -3316,10 +3316,10 @@ search_selection_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-search-selection-tests', search_selection_test_exe)
+test('holder-gtk-search-selection-tests', search_selection_test_exe)
 
 selection_request_test_exe = executable(
-  'holder-linux-selection-request-tests',
+  'holder-gtk-selection-request-tests',
   [
     'src/controllers/selection_request.vala',
     'tests/selection_request_test.vala',
@@ -3335,10 +3335,10 @@ selection_request_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-selection-request-tests', selection_request_test_exe)
+test('holder-gtk-selection-request-tests', selection_request_test_exe)
 
 share_controller_test_exe = executable(
-  'holder-linux-share-controller-tests',
+  'holder-gtk-share-controller-tests',
   [
     'src/services/uri_launcher.vala',
     'src/controllers/share.vala',
@@ -3354,10 +3354,10 @@ share_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-share-controller-tests', share_controller_test_exe)
+test('holder-gtk-share-controller-tests', share_controller_test_exe)
 
 tool_help_test_exe = executable(
-  'holder-linux-tool-help-tests',
+  'holder-gtk-tool-help-tests',
   [
     'src/controllers/tool_help.vala',
     'tests/tool_help_test.vala',
@@ -3373,10 +3373,10 @@ tool_help_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tool-help-tests', tool_help_test_exe)
+test('holder-gtk-tool-help-tests', tool_help_test_exe)
 
 internal_link_test_exe = executable(
-  'holder-linux-internal-link-tests',
+  'holder-gtk-internal-link-tests',
   [
     'src/controllers/internal_link.vala',
     'tests/internal_link_test.vala',
@@ -3392,10 +3392,10 @@ internal_link_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-internal-link-tests', internal_link_test_exe)
+test('holder-gtk-internal-link-tests', internal_link_test_exe)
 
 markdown_editing_test_exe = executable(
-  'holder-linux-markdown-editing-tests',
+  'holder-gtk-markdown-editing-tests',
   [
     'src/controllers/markdown_editing.vala',
     'tests/markdown_editing_test.vala',
@@ -3410,10 +3410,10 @@ markdown_editing_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-markdown-editing-tests', markdown_editing_test_exe)
+test('holder-gtk-markdown-editing-tests', markdown_editing_test_exe)
 
 markdown_links_test_exe = executable(
-  'holder-linux-markdown-links-tests',
+  'holder-gtk-markdown-links-tests',
   [
     'src/controllers/markdown_links.vala',
     'tests/markdown_links_test.vala',
@@ -3428,10 +3428,10 @@ markdown_links_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-markdown-links-tests', markdown_links_test_exe)
+test('holder-gtk-markdown-links-tests', markdown_links_test_exe)
 
 markdown_resource_images_test_exe = executable(
-  'holder-linux-markdown-resource-images-tests',
+  'holder-gtk-markdown-resource-images-tests',
   [
     'src/models/project.vala',
     'src/controllers/markdown_resource_images.vala',
@@ -3461,13 +3461,13 @@ markdown_resource_images_test_env.set(
 )
 markdown_resource_images_test_env.set('GTK_A11Y', 'none')
 test(
-  'holder-linux-markdown-resource-images-tests',
+  'holder-gtk-markdown-resource-images-tests',
   markdown_resource_images_test_exe,
   env: markdown_resource_images_test_env,
 )
 
 inline_resource_image_renderer_test_exe = executable(
-  'holder-linux-inline-resource-image-renderer-tests',
+  'holder-gtk-inline-resource-image-renderer-tests',
   [
     'src/models/project.vala',
     'src/controllers/markdown_resource_images.vala',
@@ -3491,13 +3491,13 @@ inline_resource_image_renderer_test_exe = executable(
 inline_resource_image_renderer_test_env = environment()
 inline_resource_image_renderer_test_env.set('GTK_A11Y', 'none')
 test(
-  'holder-linux-inline-resource-image-renderer-tests',
+  'holder-gtk-inline-resource-image-renderer-tests',
   inline_resource_image_renderer_test_exe,
   env: inline_resource_image_renderer_test_env,
 )
 
 holder_markdown_language_test_exe = executable(
-  'holder-linux-holder-markdown-language-tests',
+  'holder-gtk-holder-markdown-language-tests',
   [
     'tests/holder_markdown_language_test.vala',
   ],
@@ -3519,13 +3519,13 @@ holder_markdown_language_test_env.set(
 )
 
 test(
-  'holder-linux-holder-markdown-language-tests',
+  'holder-gtk-holder-markdown-language-tests',
   holder_markdown_language_test_exe,
   env: holder_markdown_language_test_env,
 )
 
 project_create_test_exe = executable(
-  'holder-linux-project-create-tests',
+  'holder-gtk-project-create-tests',
   [
     'src/controllers/project_create.vala',
     'tests/project_create_test.vala',
@@ -3540,10 +3540,10 @@ project_create_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-project-create-tests', project_create_test_exe)
+test('holder-gtk-project-create-tests', project_create_test_exe)
 
 local_info_ui_test_exe = executable(
-  'holder-linux-local-info-ui-tests',
+  'holder-gtk-local-info-ui-tests',
   [
     'src/controllers/local_info_flow.vala',
     'src/controllers/local_info_ui.vala',
@@ -3559,10 +3559,10 @@ local_info_ui_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-local-info-ui-tests', local_info_ui_test_exe)
+test('holder-gtk-local-info-ui-tests', local_info_ui_test_exe)
 
 window_feedback_orchestrator_test_exe = executable(
-  'holder-linux-window-feedback-orchestrator-tests',
+  'holder-gtk-window-feedback-orchestrator-tests',
   [
     'src/controllers/window_feedback_orchestrator.vala',
     'tests/window_feedback_orchestrator_test.vala',
@@ -3577,10 +3577,10 @@ window_feedback_orchestrator_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-feedback-orchestrator-tests', window_feedback_orchestrator_test_exe)
+test('holder-gtk-window-feedback-orchestrator-tests', window_feedback_orchestrator_test_exe)
 
 window_event_binders_test_exe = executable(
-  'holder-linux-window-event-binders-tests',
+  'holder-gtk-window-event-binders-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3621,10 +3621,10 @@ window_event_binders_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-event-binders-tests', window_event_binders_test_exe)
+test('holder-gtk-window-event-binders-tests', window_event_binders_test_exe)
 
 main_signal_binder_test_exe = executable(
-  'holder-linux-main-signal-binder-tests',
+  'holder-gtk-main-signal-binder-tests',
   [
     'tests/support/ai_run_fakes.vala',
     'src/models/server.vala',
@@ -3654,10 +3654,10 @@ main_signal_binder_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-main-signal-binder-tests', main_signal_binder_test_exe)
+test('holder-gtk-main-signal-binder-tests', main_signal_binder_test_exe)
 
 toolbox_event_orchestrator_test_exe = executable(
-  'holder-linux-toolbox-event-orchestrator-tests',
+  'holder-gtk-toolbox-event-orchestrator-tests',
   [
     'src/models/project.vala',
     'src/models/activity_details.vala',
@@ -3675,10 +3675,10 @@ toolbox_event_orchestrator_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-toolbox-event-orchestrator-tests', toolbox_event_orchestrator_test_exe)
+test('holder-gtk-toolbox-event-orchestrator-tests', toolbox_event_orchestrator_test_exe)
 
 window_action_binder_test_exe = executable(
-  'holder-linux-window-action-binder-tests',
+  'holder-gtk-window-action-binder-tests',
   [
     'src/controllers/window_action_binder.vala',
     'tests/window_action_binder_test.vala',
@@ -3693,10 +3693,10 @@ window_action_binder_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-action-binder-tests', window_action_binder_test_exe)
+test('holder-gtk-window-action-binder-tests', window_action_binder_test_exe)
 
 dialog_adapters_test_exe = executable(
-  'holder-linux-dialog-adapters-tests',
+  'holder-gtk-dialog-adapters-tests',
   [
     holder_config,
     'tests/support/test_utils.vala',
@@ -3740,7 +3740,7 @@ dialog_adapters_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-dialog-adapters-tests', dialog_adapters_test_exe)
+test('holder-gtk-dialog-adapters-tests', dialog_adapters_test_exe)
 
 # This target does not link the real window.vala, toolbox.vala, workspace_pane.vala or sidebar.vala:
 # tests/window_event_endpoints_test.vala carries its own copies of the interfaces
@@ -3749,7 +3749,7 @@ test('holder-linux-dialog-adapters-tests', dialog_adapters_test_exe)
 # ToolboxPane/WorkspacePane/SidebarPane, since both adapters are pure signal-forwarding glue between
 # those and only need their public shape.
 window_event_endpoints_test_exe = executable(
-  'holder-linux-window-event-endpoints-tests',
+  'holder-gtk-window-event-endpoints-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -3784,10 +3784,10 @@ window_event_endpoints_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-event-endpoints-tests', window_event_endpoints_test_exe)
+test('holder-gtk-window-event-endpoints-tests', window_event_endpoints_test_exe)
 
 recovery_ui_test_exe = executable(
-  'holder-linux-recovery-ui-tests',
+  'holder-gtk-recovery-ui-tests',
   [
     'src/controllers/recovery_dialog_ops.vala',
     'src/controllers/recovery_ui.vala',
@@ -3803,10 +3803,10 @@ recovery_ui_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-recovery-ui-tests', recovery_ui_test_exe)
+test('holder-gtk-recovery-ui-tests', recovery_ui_test_exe)
 
 flowboard_context_test_exe = executable(
-  'holder-linux-flowboard-context-tests',
+  'holder-gtk-flowboard-context-tests',
   [
     'src/controllers/flowboard_context.vala',
     'tests/flowboard_context_test.vala',
@@ -3821,10 +3821,10 @@ flowboard_context_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-flowboard-context-tests', flowboard_context_test_exe)
+test('holder-gtk-flowboard-context-tests', flowboard_context_test_exe)
 
 sidebar_selection_renderer_test_exe = executable(
-  'holder-linux-sidebar-selection-renderer-tests',
+  'holder-gtk-sidebar-selection-renderer-tests',
   [
     'src/controllers/sidebar_selection_renderer.vala',
     'tests/sidebar_selection_renderer_test.vala',
@@ -3840,10 +3840,10 @@ sidebar_selection_renderer_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-sidebar-selection-renderer-tests', sidebar_selection_renderer_test_exe)
+test('holder-gtk-sidebar-selection-renderer-tests', sidebar_selection_renderer_test_exe)
 
 toolbox_nav_models_test_exe = executable(
-  'holder-linux-toolbox-nav-models-tests',
+  'holder-gtk-toolbox-nav-models-tests',
   [
     'src/models/toolbox_nav.vala',
     'tests/toolbox_nav_models_test.vala',
@@ -3858,10 +3858,10 @@ toolbox_nav_models_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-toolbox-nav-models-tests', toolbox_nav_models_test_exe)
+test('holder-gtk-toolbox-nav-models-tests', toolbox_nav_models_test_exe)
 
 models_test_exe = executable(
-  'holder-linux-models-tests',
+  'holder-gtk-models-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -3886,10 +3886,10 @@ models_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-models-tests', models_test_exe)
+test('holder-gtk-models-tests', models_test_exe)
 
 app_test_exe = executable(
-  'holder-linux-app-tests',
+  'holder-gtk-app-tests',
   [
     holder_config,
     'src/app.vala',
@@ -3907,10 +3907,10 @@ app_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-app-tests', app_test_exe)
+test('holder-gtk-app-tests', app_test_exe)
 
 print_service_test_exe = executable(
-  'holder-linux-print-service-tests',
+  'holder-gtk-print-service-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -3940,10 +3940,10 @@ print_service_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-print-service-tests', print_service_test_exe)
+test('holder-gtk-print-service-tests', print_service_test_exe)
 
 trash_tool_view_test_exe = executable(
-  'holder-linux-trash-tool-view-tests',
+  'holder-gtk-trash-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -3980,10 +3980,10 @@ trash_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-trash-tool-view-tests', trash_tool_view_test_exe)
+test('holder-gtk-trash-tool-view-tests', trash_tool_view_test_exe)
 
 resources_tool_view_test_exe = executable(
-  'holder-linux-resources-tool-view-tests',
+  'holder-gtk-resources-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -4034,10 +4034,10 @@ resources_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-resources-tool-view-tests', resources_tool_view_test_exe)
+test('holder-gtk-resources-tool-view-tests', resources_tool_view_test_exe)
 
 milestones_tool_view_test_exe = executable(
-  'holder-linux-milestones-tool-view-tests',
+  'holder-gtk-milestones-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -4077,10 +4077,10 @@ milestones_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-milestones-tool-view-tests', milestones_tool_view_test_exe)
+test('holder-gtk-milestones-tool-view-tests', milestones_tool_view_test_exe)
 
 milestones_presenter_test_exe = executable(
-  'holder-linux-milestones-presenter-tests',
+  'holder-gtk-milestones-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4108,10 +4108,10 @@ milestones_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-milestones-presenter-tests', milestones_presenter_test_exe)
+test('holder-gtk-milestones-presenter-tests', milestones_presenter_test_exe)
 
 milestone_draft_test_exe = executable(
-  'holder-linux-milestone-draft-tests',
+  'holder-gtk-milestone-draft-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4140,10 +4140,10 @@ milestone_draft_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-milestone-draft-tests', milestone_draft_test_exe)
+test('holder-gtk-milestone-draft-tests', milestone_draft_test_exe)
 
 milestones_controller_test_exe = executable(
-  'holder-linux-milestones-controller-tests',
+  'holder-gtk-milestones-controller-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4173,10 +4173,10 @@ milestones_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-milestones-controller-tests', milestones_controller_test_exe)
+test('holder-gtk-milestones-controller-tests', milestones_controller_test_exe)
 
 history_tool_view_test_exe = executable(
-  'holder-linux-history-tool-view-tests',
+  'holder-gtk-history-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -4216,10 +4216,10 @@ history_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-history-tool-view-tests', history_tool_view_test_exe)
+test('holder-gtk-history-tool-view-tests', history_tool_view_test_exe)
 
 history_lane_layout_test_exe = executable(
-  'holder-linux-history-lane-layout-tests',
+  'holder-gtk-history-lane-layout-tests',
   [
     'src/controllers/history_lane_layout.vala',
     'tests/history_lane_layout_test.vala',
@@ -4236,10 +4236,10 @@ history_lane_layout_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-history-lane-layout-tests', history_lane_layout_test_exe)
+test('holder-gtk-history-lane-layout-tests', history_lane_layout_test_exe)
 
 history_presenter_test_exe = executable(
-  'holder-linux-history-presenter-tests',
+  'holder-gtk-history-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4267,10 +4267,10 @@ history_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-history-presenter-tests', history_presenter_test_exe)
+test('holder-gtk-history-presenter-tests', history_presenter_test_exe)
 
 history_controller_test_exe = executable(
-  'holder-linux-history-controller-tests',
+  'holder-gtk-history-controller-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -4300,10 +4300,10 @@ history_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-history-controller-tests', history_controller_test_exe)
+test('holder-gtk-history-controller-tests', history_controller_test_exe)
 
 git_sync_tool_view_test_exe = executable(
-  'holder-linux-git-sync-tool-view-tests',
+  'holder-gtk-git-sync-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -4361,10 +4361,10 @@ git_sync_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-git-sync-tool-view-tests', git_sync_tool_view_test_exe)
+test('holder-gtk-git-sync-tool-view-tests', git_sync_tool_view_test_exe)
 
 trash_controller_test_exe = executable(
-  'holder-linux-trash-controller-tests',
+  'holder-gtk-trash-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -4396,10 +4396,10 @@ trash_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-trash-controller-tests', trash_controller_test_exe)
+test('holder-gtk-trash-controller-tests', trash_controller_test_exe)
 
 recovery_controller_test_exe = executable(
-  'holder-linux-recovery-controller-tests',
+  'holder-gtk-recovery-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/ai_run_fakes.vala',
@@ -4431,10 +4431,10 @@ recovery_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-recovery-controller-tests', recovery_controller_test_exe)
+test('holder-gtk-recovery-controller-tests', recovery_controller_test_exe)
 
 recovery_service_test_exe = executable(
-  'holder-linux-recovery-service-tests',
+  'holder-gtk-recovery-service-tests',
   [
     'src/services/recovery_service.vala',
     'tests/recovery_service_test.vala',
@@ -4449,10 +4449,10 @@ recovery_service_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-recovery-service-tests', recovery_service_test_exe)
+test('holder-gtk-recovery-service-tests', recovery_service_test_exe)
 
 parsers_health_test_exe = executable(
-  'holder-linux-parsers-health-tests',
+  'holder-gtk-parsers-health-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4483,10 +4483,10 @@ parsers_health_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-health-tests', parsers_health_test_exe)
+test('holder-gtk-parsers-health-tests', parsers_health_test_exe)
 
 parsers_trash_test_exe = executable(
-  'holder-linux-parsers-trash-tests',
+  'holder-gtk-parsers-trash-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4517,10 +4517,10 @@ parsers_trash_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-trash-tests', parsers_trash_test_exe)
+test('holder-gtk-parsers-trash-tests', parsers_trash_test_exe)
 
 parsers_search_test_exe = executable(
-  'holder-linux-parsers-search-tests',
+  'holder-gtk-parsers-search-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4550,10 +4550,10 @@ parsers_search_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-search-tests', parsers_search_test_exe)
+test('holder-gtk-parsers-search-tests', parsers_search_test_exe)
 
 parsers_ai_test_exe = executable(
-  'holder-linux-parsers-ai-tests',
+  'holder-gtk-parsers-ai-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4584,10 +4584,10 @@ parsers_ai_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-ai-tests', parsers_ai_test_exe)
+test('holder-gtk-parsers-ai-tests', parsers_ai_test_exe)
 
 parsers_cards_test_exe = executable(
-  'holder-linux-parsers-cards-tests',
+  'holder-gtk-parsers-cards-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4618,10 +4618,10 @@ parsers_cards_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-cards-tests', parsers_cards_test_exe)
+test('holder-gtk-parsers-cards-tests', parsers_cards_test_exe)
 
 parsers_common_test_exe = executable(
-  'holder-linux-parsers-common-tests',
+  'holder-gtk-parsers-common-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4651,10 +4651,10 @@ parsers_common_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-common-tests', parsers_common_test_exe)
+test('holder-gtk-parsers-common-tests', parsers_common_test_exe)
 
 parsers_git_test_exe = executable(
-  'holder-linux-parsers-git-tests',
+  'holder-gtk-parsers-git-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4685,10 +4685,10 @@ parsers_git_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-git-tests', parsers_git_test_exe)
+test('holder-gtk-parsers-git-tests', parsers_git_test_exe)
 
 parsers_projects_test_exe = executable(
-  'holder-linux-parsers-projects-tests',
+  'holder-gtk-parsers-projects-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4719,10 +4719,10 @@ parsers_projects_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-projects-tests', parsers_projects_test_exe)
+test('holder-gtk-parsers-projects-tests', parsers_projects_test_exe)
 
 parsers_resources_test_exe = executable(
-  'holder-linux-parsers-resources-tests',
+  'holder-gtk-parsers-resources-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4753,10 +4753,10 @@ parsers_resources_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-parsers-resources-tests', parsers_resources_test_exe)
+test('holder-gtk-parsers-resources-tests', parsers_resources_test_exe)
 
 toolbox_breadcrumb_controller_test_exe = executable(
-  'holder-linux-toolbox-breadcrumb-controller-tests',
+  'holder-gtk-toolbox-breadcrumb-controller-tests',
   [
     'src/controllers/toolbox_breadcrumb.vala',
     'tests/toolbox_breadcrumb_controller_test.vala',
@@ -4773,10 +4773,10 @@ toolbox_breadcrumb_controller_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-toolbox-breadcrumb-controller-tests', toolbox_breadcrumb_controller_test_exe)
+test('holder-gtk-toolbox-breadcrumb-controller-tests', toolbox_breadcrumb_controller_test_exe)
 
 tool_shell_test_exe = executable(
-  'holder-linux-tool-shell-tests',
+  'holder-gtk-tool-shell-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4807,10 +4807,10 @@ tool_shell_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tool-shell-tests', tool_shell_test_exe)
+test('holder-gtk-tool-shell-tests', tool_shell_test_exe)
 
 toolbox_small_views_test_exe = executable(
-  'holder-linux-toolbox-small-views-tests',
+  'holder-gtk-toolbox-small-views-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4849,10 +4849,10 @@ toolbox_small_views_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-toolbox-small-views-tests', toolbox_small_views_test_exe)
+test('holder-gtk-toolbox-small-views-tests', toolbox_small_views_test_exe)
 
 flowboard_pane_test_exe = executable(
-  'holder-linux-flowboard-pane-tests',
+  'holder-gtk-flowboard-pane-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -4891,10 +4891,10 @@ flowboard_pane_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-flowboard-pane-tests', flowboard_pane_test_exe)
+test('holder-gtk-flowboard-pane-tests', flowboard_pane_test_exe)
 
 sidebar_pane_test_exe = executable(
-  'holder-linux-sidebar-pane-tests',
+  'holder-gtk-sidebar-pane-tests',
   [
     'src/models/project.vala',
     'src/models/card.vala',
@@ -4916,10 +4916,10 @@ sidebar_pane_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-sidebar-pane-tests', sidebar_pane_test_exe)
+test('holder-gtk-sidebar-pane-tests', sidebar_pane_test_exe)
 
 preferences_dialog_test_exe = executable(
-  'holder-linux-preferences-dialog-tests',
+  'holder-gtk-preferences-dialog-tests',
   [
     'src/services/app_settings.vala',
     'src/services/editor_font_style.vala',
@@ -4943,10 +4943,10 @@ preferences_dialog_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-preferences-dialog-tests', preferences_dialog_test_exe)
+test('holder-gtk-preferences-dialog-tests', preferences_dialog_test_exe)
 
 window_actions_test_exe = executable(
-  'holder-linux-window-actions-tests',
+  'holder-gtk-window-actions-tests',
   [
     holder_config,
     'src/services/app_settings.vala',
@@ -4972,10 +4972,10 @@ window_actions_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-actions-tests', window_actions_test_exe)
+test('holder-gtk-window-actions-tests', window_actions_test_exe)
 
 ai_catalog_panel_view_test_exe = executable(
-  'holder-linux-ai-catalog-panel-view-tests',
+  'holder-gtk-ai-catalog-panel-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -5009,10 +5009,10 @@ ai_catalog_panel_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-catalog-panel-view-tests', ai_catalog_panel_view_test_exe)
+test('holder-gtk-ai-catalog-panel-view-tests', ai_catalog_panel_view_test_exe)
 
 ai_config_panel_view_test_exe = executable(
-  'holder-linux-ai-config-panel-view-tests',
+  'holder-gtk-ai-config-panel-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -5048,10 +5048,10 @@ ai_config_panel_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-config-panel-view-tests', ai_config_panel_view_test_exe)
+test('holder-gtk-ai-config-panel-view-tests', ai_config_panel_view_test_exe)
 
 ai_panel_view_test_exe = executable(
-  'holder-linux-ai-panel-view-tests',
+  'holder-gtk-ai-panel-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -5088,10 +5088,10 @@ ai_panel_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-ai-panel-view-tests', ai_panel_view_test_exe)
+test('holder-gtk-ai-panel-view-tests', ai_panel_view_test_exe)
 
 tag_navigation_test_exe = executable(
-  'holder-linux-tag-navigation-tests',
+  'holder-gtk-tag-navigation-tests',
   [
     'src/models/card.vala',
     'src/controllers/tag_navigation.vala',
@@ -5107,10 +5107,10 @@ tag_navigation_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tag-navigation-tests', tag_navigation_test_exe)
+test('holder-gtk-tag-navigation-tests', tag_navigation_test_exe)
 
 tag_highlighting_test_exe = executable(
-  'holder-linux-tag-highlighting-tests',
+  'holder-gtk-tag-highlighting-tests',
   [
     'src/models/card.vala',
     'src/controllers/tag_highlighting.vala',
@@ -5127,10 +5127,10 @@ tag_highlighting_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tag-highlighting-tests', tag_highlighting_test_exe)
+test('holder-gtk-tag-highlighting-tests', tag_highlighting_test_exe)
 
 tags_tool_view_test_exe = executable(
-  'holder-linux-tags-tool-view-tests',
+  'holder-gtk-tags-tool-view-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
@@ -5167,11 +5167,11 @@ tags_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tags-tool-view-tests', tags_tool_view_test_exe)
+test('holder-gtk-tags-tool-view-tests', tags_tool_view_test_exe)
 endif
 
 tags_presenter_test_exe = executable(
-  'holder-linux-tags-presenter-tests',
+  'holder-gtk-tags-presenter-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -5200,10 +5200,10 @@ tags_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-tags-presenter-tests', tags_presenter_test_exe)
+test('holder-gtk-tags-presenter-tests', tags_presenter_test_exe)
 
 asset_preview_presenter_test_exe = executable(
-  'holder-linux-asset-preview-presenter-tests',
+  'holder-gtk-asset-preview-presenter-tests',
   [
     'src/controllers/asset_preview_presenter.vala',
     'tests/asset_preview_presenter_test.vala',
@@ -5221,10 +5221,10 @@ asset_preview_presenter_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-asset-preview-presenter-tests', asset_preview_presenter_test_exe)
+test('holder-gtk-asset-preview-presenter-tests', asset_preview_presenter_test_exe)
 
 inline_image_decoration_plan_test_exe = executable(
-  'holder-linux-inline-image-decoration-plan-tests',
+  'holder-gtk-inline-image-decoration-plan-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -5254,10 +5254,10 @@ inline_image_decoration_plan_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-inline-image-decoration-plan-tests', inline_image_decoration_plan_test_exe)
+test('holder-gtk-inline-image-decoration-plan-tests', inline_image_decoration_plan_test_exe)
 
 connections_board_geometry_test_exe = executable(
-  'holder-linux-connections-board-geometry-tests',
+  'holder-gtk-connections-board-geometry-tests',
   [
     'src/controllers/connections_board_geometry.vala',
     'tests/connections_board_geometry_test.vala',
@@ -5275,10 +5275,10 @@ connections_board_geometry_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-board-geometry-tests', connections_board_geometry_test_exe)
+test('holder-gtk-connections-board-geometry-tests', connections_board_geometry_test_exe)
 
 connections_board_builder_test_exe = executable(
-  'holder-linux-connections-board-builder-tests',
+  'holder-gtk-connections-board-builder-tests',
   [
     'src/models/server.vala',
     'src/models/project.vala',
@@ -5310,10 +5310,10 @@ connections_board_builder_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-board-builder-tests', connections_board_builder_test_exe)
+test('holder-gtk-connections-board-builder-tests', connections_board_builder_test_exe)
 
 window_close_guard_test_exe = executable(
-  'holder-linux-window-close-guard-tests',
+  'holder-gtk-window-close-guard-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -5342,10 +5342,10 @@ window_close_guard_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-close-guard-tests', window_close_guard_test_exe)
+test('holder-gtk-window-close-guard-tests', window_close_guard_test_exe)
 
 asset_import_flow_test_exe = executable(
-  'holder-linux-asset-import-flow-tests',
+  'holder-gtk-asset-import-flow-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -5378,10 +5378,10 @@ asset_import_flow_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-asset-import-flow-tests', asset_import_flow_test_exe)
+test('holder-gtk-asset-import-flow-tests', asset_import_flow_test_exe)
 
 attachment_selection_test_exe = executable(
-  'holder-linux-attachment-selection-tests',
+  'holder-gtk-attachment-selection-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -5411,10 +5411,10 @@ attachment_selection_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-attachment-selection-tests', attachment_selection_test_exe)
+test('holder-gtk-attachment-selection-tests', attachment_selection_test_exe)
 
 inline_image_refresh_test_exe = executable(
-  'holder-linux-inline-image-refresh-tests',
+  'holder-gtk-inline-image-refresh-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -5445,10 +5445,10 @@ inline_image_refresh_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-inline-image-refresh-tests', inline_image_refresh_test_exe)
+test('holder-gtk-inline-image-refresh-tests', inline_image_refresh_test_exe)
 
 window_logic_test_exe = executable(
-  'holder-linux-window-logic-tests',
+  'holder-gtk-window-logic-tests',
   [
     'tests/support/test_utils.vala',
     'src/models/server.vala',
@@ -5479,4 +5479,4 @@ window_logic_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-window-logic-tests', window_logic_test_exe)
+test('holder-gtk-window-logic-tests', window_logic_test_exe)
