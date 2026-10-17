@@ -1110,6 +1110,9 @@ components:
           type: string
         to_card_id:
           type: string
+        target_project_id:
+          type: string
+          description: Present for a card target in another project; omitted for a local target. The link grants no access to the target.
         to_type:
           type: string
           description: Target type (card, ai_message, ai_thread, resource).
@@ -1127,6 +1130,9 @@ components:
       properties:
         to_card_id:
           type: string
+        target_project_id:
+          type: string
+          description: Optional for card targets. A named external target project need not be loaded locally.
         to_type:
           type: string
           description: Optional; defaults to "card".
@@ -1165,6 +1171,9 @@ components:
       properties:
         to_card_id:
           type: string
+        target_project_id:
+          type: string
+          description: Selects the target project. Requires to_card_id, to_type and kind; use it to distinguish equal card IDs in different projects.
         to_type:
           type: string
         kind:
@@ -4929,7 +4938,7 @@ paths:
           schema:
             type: integer
             enum: [0, 1]
-          description: Include links to deleted targets.
+          description: Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.
       responses:
         "200":
           description: OK
@@ -4990,7 +4999,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete links from a card
-      description: Provide to_card_id (and optional kind) to delete a specific link. If omitted, deletes all outgoing links.
+      description: Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.
       parameters:
         - name: card_id
           in: path
@@ -6468,7 +6477,7 @@ paths:
           schema:
             type: integer
             enum: [0, 1]
-          description: Include links to deleted targets.
+          description: Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.
       responses:
         "200":
           description: OK
@@ -6529,7 +6538,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete links from an AI message
-      description: Provide to_card_id (and optional to_type/kind) to delete a specific link. If omitted, deletes all outgoing links.
+      description: Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.
       parameters:
         - name: message_id
           in: path

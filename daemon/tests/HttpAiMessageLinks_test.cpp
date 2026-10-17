@@ -37,6 +37,77 @@ http::request<http::string_body> make_route_request(
   return req;
 }
 
+TEST_CASE("AI message links preserve qualified card targets", "[http]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1", (dir / "project_repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::ai::AiThreadRepo thread_repo(db);
+  thread_repo.create({"thread-1", "proj-1", std::nullopt, "Thread", 1, 1});
+  holder::ai::AiMessageRepo msg_repo(db, &fts);
+  holder::model::AiMessage msg;
+  msg.message_id = "msg-1";
+  msg.thread_id = "thread-1";
+  msg.role = "user";
+  msg.source = "manual";
+  msg.content = "source";
+  msg.created_at = 1;
+  msg_repo.append(msg);
+
+  const auto route = "/ai/messages/msg-1/links";
+  auto no_query = [](const std::string&) { return std::string(); };
+  http::response<http::string_body> res;
+  auto request = [&](http::verb method, const nlohmann::json& body) {
+    auto req = make_route_request(method, route, body.dump());
+    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_link_routes(
+        route, req, res, db, &fts, no_query
+    ));
+    return nlohmann::json::parse(res.body());
+  };
+
+  const auto created = request(
+      http::verb::post,
+      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
+       {"target_project_id", "not-loaded"}, {"label", "Source label"}}
+  );
+  REQUIRE(res.result() == http::status::created);
+  REQUIRE(created["data"]["target_project_id"] == "not-loaded");
+
+  auto req = make_route_request(http::verb::get, route);
+  REQUIRE(holder::api::routes::ai::messages::handle_ai_message_link_routes(
+      route, req, res, db, &fts, no_query
+  ));
+  const auto listed = nlohmann::json::parse(res.body());
+  REQUIRE(listed["data"].size() == 1);
+  REQUIRE(listed["data"][0]["target_project_id"] == "not-loaded");
+  REQUIRE(listed["data"][0]["label"] == "Source label");
+  REQUIRE_FALSE(listed["data"][0].contains("title"));
+
+  holder::model::CardLink local;
+  local.project_id = "proj-1";
+  local.from_card_id = "msg-1";
+  local.to_card_id = "remote-card";
+  local.to_type = "card";
+  local.kind = "ref";
+  local.created_at = 1;
+  holder::card::LinkRepo(db).upsert_links("proj-1", "msg-1", {local});
+  request(
+      http::verb::delete_,
+      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"}}
+  );
+  REQUIRE(res.result() == http::status::bad_request);
+
+  request(
+      http::verb::delete_,
+      {{"to_card_id", "remote-card"}, {"to_type", "card"}, {"kind", "ref"},
+       {"target_project_id", "not-loaded"}}
+  );
+  REQUIRE(res.result() == http::status::ok);
+  const auto remaining = holder::card::LinkRepo(db).list_outgoing("proj-1", "msg-1");
+  REQUIRE(remaining.size() == 1);
+  REQUIRE_FALSE(remaining[0].target_project_id.has_value());
+}
+
 void create_card(
     holder::platform::Db& db,
     const std::string& id,

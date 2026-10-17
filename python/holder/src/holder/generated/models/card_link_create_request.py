@@ -17,6 +17,8 @@ class CardLinkCreateRequest:
     """
     Attributes:
         to_card_id (str):
+        target_project_id (str | Unset): Optional for card targets. A named external target project need not be loaded
+            locally.
         to_type (str | Unset): Optional; defaults to "card".
         kind (str | Unset): Optional; defaults to "ref".
         label (None | str | Unset):
@@ -24,6 +26,7 @@ class CardLinkCreateRequest:
     """
 
     to_card_id: str
+    target_project_id: str | Unset = UNSET
     to_type: str | Unset = UNSET
     kind: str | Unset = UNSET
     label: None | str | Unset = UNSET
@@ -32,6 +35,8 @@ class CardLinkCreateRequest:
 
     def to_dict(self) -> dict[str, Any]:
         to_card_id = self.to_card_id
+
+        target_project_id = self.target_project_id
 
         to_type = self.to_type
 
@@ -52,6 +57,8 @@ class CardLinkCreateRequest:
                 "to_card_id": to_card_id,
             }
         )
+        if target_project_id is not UNSET:
+            field_dict["target_project_id"] = target_project_id
         if to_type is not UNSET:
             field_dict["to_type"] = to_type
         if kind is not UNSET:
@@ -67,6 +74,8 @@ class CardLinkCreateRequest:
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
         to_card_id = d.pop("to_card_id")
+
+        target_project_id = d.pop("target_project_id", UNSET)
 
         to_type = d.pop("to_type", UNSET)
 
@@ -85,6 +94,7 @@ class CardLinkCreateRequest:
 
         card_link_create_request = cls(
             to_card_id=to_card_id,
+            target_project_id=target_project_id,
             to_type=to_type,
             kind=kind,
             label=label,
