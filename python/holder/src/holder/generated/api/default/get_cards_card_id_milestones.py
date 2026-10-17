@@ -62,8 +62,9 @@ def sync_detailed(
 ) -> Response[ErrorResponse | MilestoneListResponse]:
     """List milestones attached to a card
 
-     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
-    midnight. Labelled dates are not exposed by this daemon route yet.
+     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
+    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
+    the complete model.
 
     Args:
         card_id (str):
@@ -94,8 +95,9 @@ def sync(
 ) -> ErrorResponse | MilestoneListResponse | None:
     """List milestones attached to a card
 
-     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
-    midnight. Labelled dates are not exposed by this daemon route yet.
+     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
+    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
+    the complete model.
 
     Args:
         card_id (str):
@@ -121,8 +123,9 @@ async def asyncio_detailed(
 ) -> Response[ErrorResponse | MilestoneListResponse]:
     """List milestones attached to a card
 
-     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
-    midnight. Labelled dates are not exposed by this daemon route yet.
+     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
+    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
+    the complete model.
 
     Args:
         card_id (str):
@@ -151,8 +154,9 @@ async def asyncio(
 ) -> ErrorResponse | MilestoneListResponse | None:
     """List milestones attached to a card
 
-     This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC
-    midnight. Labelled dates are not exposed by this daemon route yet.
+     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
+    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
+    the complete model.
 
     Args:
         card_id (str):

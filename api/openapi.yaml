@@ -1282,6 +1282,99 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Milestone"
+    MilestoneDateValue:
+      type: object
+      required: [role]
+      additionalProperties: false
+      description: Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved.
+      properties:
+        role:
+          type: string
+          minLength: 1
+        date:
+          type: string
+          format: date
+          description: Calendar day with no timezone; YYYY-MM-DD.
+        datetime:
+          type: string
+          description: RFC 3339 timestamp with seconds and an explicit Z or numeric offset.
+    MilestoneWithDates:
+      type: object
+      required: [milestone_id, card_id, dates, kind, description, created_at, updated_at]
+      properties:
+        milestone_id:
+          type: string
+          format: uuid
+        card_id:
+          type: string
+        dates:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneDateValue"
+        kind:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+    MilestoneWithDatesCreateRequest:
+      type: object
+      required: [dates]
+      additionalProperties: false
+      properties:
+        dates:
+          type: array
+          description: May be empty for an undated milestone.
+          items:
+            $ref: "#/components/schemas/MilestoneDateValue"
+        kind:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+    MilestoneWithDatesUpdateRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      description: Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.
+      properties:
+        dates:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneDateValue"
+        kind:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+    MilestoneWithDatesResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/MilestoneWithDates"
+    MilestoneWithDatesListResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneWithDates"
     MilestoneRemoveResult:
       type: object
       required: [card_id, milestone_id, removed]
@@ -4229,10 +4322,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /projects/{project_id}/milestones-with-dates:
+    get:
+      summary: Query project milestones by a labelled date role
+      description: Returns each matching milestone once with its complete ordered dates array. Calendar days and instants are queried separately; both range bounds are inclusive. Milestones on trashed cards are excluded. Roles are free-form, and this endpoint does not infer outstanding or completion state.
+      parameters:
+        - in: path
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: role
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: value_type
+          required: true
+          schema:
+            type: string
+            enum: [date, datetime]
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+          description: YYYY-MM-DD when value_type=date; Unix epoch seconds when value_type=datetime.
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+          description: Inclusive upper bound in the same form as from.
+      responses:
+        "200":
+          description: Matching milestones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneWithDatesListResponse"
+        "400":
+          description: Invalid role or range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /cards/{card_id}/milestones-with-dates:
+    get:
+      summary: List all milestones on a live card with their labelled dates
+      description: Includes undated milestones and repeated roles. Dates remain in stored order. The existing /cards/{card_id}/milestones route remains a scheduled timestamp view.
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All milestones on the card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneWithDatesListResponse"
+        "404":
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Add a milestone with labelled dates to a live card
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneWithDatesCreateRequest"
+      responses:
+        "201":
+          description: Created milestone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneWithDatesResponse"
+        "400":
+          description: Invalid milestone dates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /cards/{card_id}/milestones-with-dates/{milestone_id}:
+    patch:
+      summary: Update a milestone's labelled dates and metadata
+      description: Supplying dates replaces the complete ordered array. Milestone identity and creation time remain unchanged.
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: milestone_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneWithDatesUpdateRequest"
+      responses:
+        "200":
+          description: Updated milestone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneWithDatesResponse"
+        "400":
+          description: Invalid update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Card or milestone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Remove a milestone from a live card
+      description: Equivalent to deleting the same milestone through the scheduled timestamp route.
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: milestone_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Removal result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneRemoveResponse"
+        "404":
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /cards/{card_id}/milestones:
     get:
       summary: List milestones attached to a card
-      description: This scheduled timestamp view omits undated milestones and projects calendar-day values to UTC midnight. Labelled dates are not exposed by this daemon route yet.
+      description: This compatibility timestamp view omits undated milestones and milestones with repeated start or end roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for the complete model.
       parameters:
         - in: path
           name: card_id
