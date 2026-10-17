@@ -1,205 +1,92 @@
-# holder-python
+# Holder for Python
 
-Control your knowledge using Python. This is separate
-from `holder-kit`, which provides native bindings for offline analysis.
-This package is an HTTP client for a running daemon. Keep entity and recovery
-policy in the daemon or core rather than duplicating it here.
+Use Python to read and update the projects and cards in your running Holder
+installation. Changes you make in a script appear in Holder too.
 
-This first iteration evaluates
-[openapi-python-client](https://github.com/openapi-generators/openapi-python-client).
-The generator is a development dependency;
-installed clients only need HTTPX, attrs and typing-extensions.
+## Get started
 
-## Setup
-
-Requires Python 3.11 or newer. Run these commands from the `python/holder/` directory of the
-holder repository.
+You need Python 3.11 or newer and a local Holder installation with `holderctl`
+available on your PATH. Install the Python library with:
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[dev]'
-python -m pytest
-python scripts/generate.py --check
-python -m build
+python3 -m pip install holder-python
 ```
 
-## Use Holder
-
-`Holder()` discovers or starts your local daemon using `holderctl` on PATH.
-Supply `url` and `token` together to connect explicitly instead.
+Save this as `list_cards.py` and run it with `python3 list_cards.py`:
 
 ```python
 from holder import Holder
 
-with Holder() as h:
-    for project in h:  # also h.projects
+with Holder() as holder:
+    for project in holder.projects:
         print(project.name)
         for card in project.cards:
-            print(card.title)
-
-    project = h.projects.filter(name="Research")[0]
-    card = project.cards.get(card_id)
-    card.update(title="A better title")
+            print("  ", card.title)
 ```
 
+`Holder()` finds or starts your local Holder daemon using `holderctl`. The
+`with` block closes the Python connection when the script ends; it does not
+stop Holder.
+
+## Create and edit cards
+
+This example creates a project and two cards. Run it once: each run creates
+another project named `Research`.
+
 ```python
-with Holder() as h:
-    project = h.projects.create(name="Research")
+from holder import Holder
+
+with Holder() as holder:
+    project = holder.projects.create(name="Research")
     card = project.cards.create(title="An idea", content="My notes")
     child = card.children.create(title="Next step")
     child.update(content="Try it out")
-    project.update(name="Research notes")
+    card.tags.add("research")
 ```
 
-The daemon chooses IDs, paths, timestamps and card placement. Project creation
-also accepts `root_path` (including `Path`) and `privacy_mode="plain"` or
-`"encrypted_git"`; omitting privacy uses the daemon's encrypted Git default.
-Creation returns a fully loaded object. Use `.refresh()` on previously evaluated
-collections to see new objects. Listing filters do not supply creation values;
-`card.children.create(...)` supplies the parent.
-
-Tags are project-scoped models with a collection of matching cards:
+To work with an existing project, find it by name and get a card by its ID:
 
 ```python
-card.tags.add("research")
-card.tags.remove("draft")
-tag = card.tags[0]  # or project.tags.get("research")
-for related_card in tag.cards:
-    print(related_card.title)
+from holder import Holder
+
+with Holder() as holder:
+    matches = holder.projects.filter(name="Research")
+    project = matches[0]
+    for card in project.cards:
+        print(card.id, card.title)
+
+    # Replace this with an ID printed above.
+    card = project.cards.get("card-id-here")
+    card.update(title="A better title")
 ```
 
-Tag collections are lazy and cached. Mutations refresh the card and invalidate
-its tag cache; other collections use explicit `.refresh()`. The daemon validates
-and normalizes tag inputs. `.get(name)` uses the normalized name. Removal edits
-the trailing tag line; body mentions remain until you edit the content.
-Project tags include `card_count`, ordered by descending count then name.
+The name filter matches part of a name. If there are no matches, `[0]` raises
+`IndexError`. Card content is available as `card.content`; use `card.update(...)`
+to save edits. Card attributes cannot be assigned directly.
 
-Move cards using exactly one target:
+## Find cards
+
+Search within a project and inspect the matching text:
 
 ```python
-card.move(parent=another_card)  # append as a child
-card.move(parent=None)  # append at the project's top level
-card.move(before=sibling)
-card.move(after=sibling)
+from holder import Holder
+
+with Holder() as holder:
+    project = holder.projects.filter(name="Research")[0]
+    for result in project.cards.search("research notes"):
+        print(result.title, result.snippet)
 ```
 
-Relative moves adopt the target's parent, including when the target is a root.
-The daemon enforces hierarchy and project rules. Moves refresh the card; refresh
-previously evaluated listings explicitly. A move may re-space nearby siblings'
-sort keys to make room, so refresh listings rather than patching one card.
+You can also list cards with a tag using
+`project.cards.filter(tag="research")`, or list just top-level cards with
+`project.cards.roots()`.
 
-Trash and restore cards:
+## More help
 
-```python
-card.trash()                         # its children move up a level
-card.trash(children="trash_subtree") # its live descendants go to Trash too
-card.restore()                       # single-card: children stay where they are
-```
+- [More scripting tasks](docs/scripting.md): moves, Trash, tags, collection
+  refreshes, and connecting to a specific daemon.
+- [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
+- [Development](docs/development.md): tests, builds, and generated code.
 
-Find, and fix, cards hidden under missing or trashed parents (left by older
-clients, files removed by hand, or a sync bringing either in):
-
-```python
-repair = project.repair_hierarchy()           # report only
-repair = project.repair_hierarchy(apply=True) # move hidden branches back
-```
-
-The daemon also repairs at startup, and every pull repairs what it brings in.
-
-Search returns lazy, relevance-ordered results with matching snippets:
-
-```python
-for result in project.cards.search("research notes"):
-    print(result.title, result.snippet)
-    print(result.card.content)  # fetches the full Card on first access
-```
-
-Queries use the daemon's full-text syntax and are passed through unchanged.
-Search collections support indexing, `.all()` and `.refresh()`. Result metadata
-comes from the query; `result.card` loads and caches the current project-scoped
-card. Pagination observes live data. Search cannot combine tag or hierarchy
-filters, so searching a filtered card collection raises `ValueError`.
-
-Collections fetch lazily and cache results as you iterate. Use `.all()` for an
-independent query and `.refresh()` to discard cached results. Project filters are
-`name` (substring), `updated_after`, and `updated_before`; card queries support
-`.filter(tag="research")`, `.roots()`, and `card.children`. Tag filters combine
-with hierarchy queries. Card iteration excludes trashed cards. Cards are always
-scoped to a project.
-`get(id)` fetches directly; indexing accepts nonnegative integers.
-
-Card bodies load when you read `card.content`. Explicit `.update(title=...,
-content=...)` writes; attribute assignment does not. Both objects support
-`.refresh()`. Iteration observes live data rather than a frozen snapshot, and its
-cache grows with visited results. Context exit closes the client without stopping
-the daemon. Failures raise exceptions from `holder.exceptions`.
-
-## Use the low-level client
-
-Supply the daemon URL and bearer token explicitly. This experiment does not
-discover daemon connection details or read credentials from the machine.
-
-```python
-import os
-
-from holder.generated import AuthenticatedClient
-from holder.generated.api.default import get_health
-from holder.generated.models import HealthResponse
-
-with AuthenticatedClient(
-    base_url="http://127.0.0.1:11499",
-    token=os.environ["HOLDER_TOKEN"],
-    raise_on_unexpected_status=True,
-) as client:
-    response = get_health.sync_detailed(client=client)
-    if isinstance(response.parsed, HealthResponse):
-        print(response.parsed.data.server_version)
-    else:
-        print(response.status_code, response.parsed)
-```
-
-`Client` supports public endpoints such as `get_ping`. Endpoint modules expose
-`sync`, `sync_detailed`, `asyncio` and `asyncio_detailed`; use `async with` for
-asynchronous clients. Detailed responses retain status, headers, raw bytes and
-the parsed response. Documented HTTP errors return an `ErrorResponse` when the
-contract specifies one; `raise_on_unexpected_status` applies to undocumented
-statuses. Transport errors propagate from HTTPX.
-
-## Layout and regeneration
-
-```text
-../../api/openapi.yaml  Owning HTTP contract for generation
-openapi/                 Generator config and contract/tool provenance
-src/holder/generated/    Generated transport, endpoint modules and models
-src/holder/events.py     Handwritten incremental asyncio change-feed transport
-scripts/generate.py      Regeneration and comparison against checked-in code
-tests/                   Mock HTTP transport and contract coverage checks
-```
-
-Do not hand-edit `src/holder/generated`. It is isolated so we can replace it
-with a handwritten implementation if this experiment is unsuitable.
-Handwritten transport and higher-level APIs can live beside it; the incremental
-change-feed transport is in `src/holder/events.py`.
-
-Fix contract errors in the canonical [`api/openapi.yaml`](../../api/openapi.yaml)
-and test them with the daemon before regenerating the client. The generator
-finds that contract from its own location, regardless of the caller's working
-directory.
-
-```sh
-# Regenerate from the owning contract.
-python scripts/generate.py
-
-# Compare the owning contract, provenance and generated output without changing files.
-python scripts/generate.py --check
-```
-
-The generator and Ruff versions are pinned in `pyproject.toml`. Generation runs
-in a temporary directory and fails on warnings before replacing the package.
-The provenance file records the contract's SHA-256 and tool versions. No schema
-transformations or custom templates are used. The config treats YAML download
-responses as plain text so their bodies are retained. CI checks the owning
-contract against the generated client, runs tests and builds on Python 3.11
-and 3.14. Installed packages contain the generated code and do not need the
-repository contract.
+For offline analysis and bulk work without a running Holder installation, see
+[Holder Kit](../kit/).
