@@ -25,6 +25,10 @@ on:
 permissions:
   contents: read
 
+# A missing named time zone must fail the DST tests on every desktop CI platform.
+env:
+  HOLDER_TEST_REQUIRE_TIMEZONE: "1"
+
 defaults:
   run:
     working-directory: apps/desktop/gtk
@@ -431,17 +435,6 @@ jobs:
 
       - name: Build and test
         run: bash ./make-win.sh test
-
-      # Meson hides the output of passing tests, so a test that calls Test.skip looks like a pass.
-      # Print the time zone tests verbosely to see whether their DST cases ran or were skipped.
-      - name: Show time zone test results
-        if: always()
-        run: |
-          GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${PWD}/build-win/data" \
-            meson test -C build-win --no-rebuild --verbose \
-              holder-gtk-milestone-draft-tests \
-              holder-gtk-milestones-presenter-tests \
-              holder-gtk-milestones-controller-tests
 
       - name: Stage desktop artifact
         run: |
