@@ -46,8 +46,8 @@ std::filesystem::path make_temp_dir() {
 }
 
 // Older tests start with the current schema and stamp an earlier version. Restore the
-// milestone shape those versions really had before exercising the migration chain.
-void use_v8_milestones(holder::platform::Db& db) {
+// pre-v8 milestone shape before exercising the migration chain.
+void use_v7_milestones(holder::platform::Db& db) {
   db.exec(R"sql(
 DROP TABLE IF EXISTS milestone_dates;
 DROP INDEX IF EXISTS idx_milestones_project_card;
@@ -114,7 +114,7 @@ TEST_CASE("migrate_to_latest upgrades v1 databases with card tags", "[migrations
   holder::platform::Db db;
   db.open(db_path);
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   db.exec("DROP TABLE card_tags;");
   db.exec("UPDATE schema_version SET version = 1;");
 
@@ -134,7 +134,7 @@ TEST_CASE("migrate_to_latest tolerates a v1 database that already has card tags"
   holder::platform::Db db;
   db.open(db_path);
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   db.exec("UPDATE schema_version SET version = 1;");
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
@@ -154,7 +154,7 @@ TEST_CASE(
   holder::platform::Db db;
   db.open(db_path);
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   db.exec("DROP TABLE milestones;");
   db.exec("CREATE TABLE alerts ("
           "  alert_id TEXT PRIMARY KEY,"
@@ -188,7 +188,7 @@ TEST_CASE("migrate_to_latest tolerates a v2 database that already has milestones
   holder::platform::Db db;
   db.open(db_path);
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   db.exec("UPDATE schema_version SET version = 2;");
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
@@ -238,7 +238,7 @@ TEST_CASE("migrate_to_latest adds UUID4 ID scheme to v4 projects", "[migrations]
           "INSERT INTO schema_version VALUES(4);"
           "INSERT INTO projects(project_id,name,root_path,privacy_mode,created_at,updated_at) "
           "VALUES('legacy','Legacy','/tmp/legacy','plain',1,2);");
-  use_v8_milestones(db);
+  use_v7_milestones(db);
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
   REQUIRE_NOTHROW(holder::platform::Migrations::ensure_schema_version(
@@ -261,7 +261,7 @@ TEST_CASE("migrate_to_latest adds the project card ID lookup index to v5", "[mig
   holder::platform::Db db;
   db.open(dir / "holder.db");
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   db.exec("DROP INDEX idx_cards_project_card_id;");
   db.exec("UPDATE schema_version SET version = 5;");
 
@@ -279,7 +279,7 @@ TEST_CASE("migrate_to_latest adds the collection page indexes to v6", "[migratio
   holder::platform::Db db;
   db.open(dir / "holder.db");
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   // Recreate the v6 indexes.
   db.exec("DROP INDEX idx_cards_project_parent_card_id;"
           "DROP INDEX idx_cards_project_parent_updated;"
@@ -340,10 +340,13 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
           "INSERT INTO schema_version VALUES(7);"
           "INSERT INTO card_links VALUES('source', 'card-a', 'card-b', 'card', 'ref', "
           "'old label', 10);");
-  use_v8_milestones(db);
+  use_v7_milestones(db);
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
-  REQUIRE(holder::platform::Migrations::read_schema_version(db) == 9);
+  REQUIRE(
+      holder::platform::Migrations::read_schema_version(db) ==
+      holder::platform::Migrations::latest_schema_version
+  );
   holder::card::LinkRepo links(db);
   const auto migrated = links.list_outgoing("source", "card-a");
   REQUIRE(migrated.size() == 1);
@@ -355,18 +358,31 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
   other.label = "external label";
   links.upsert_links("source", "card-a", {other});
   REQUIRE(links.list_outgoing("source", "card-a").size() == 2);
+  REQUIRE(links.list_external_backlinks_typed("other", "card-b", "card", {"source"}).size() == 1);
+
+  sqlite3_stmt* stmt = nullptr;
+  REQUIRE(sqlite3_prepare_v2(
+      db.handle(),
+      "EXPLAIN QUERY PLAN SELECT * FROM card_links WHERE target_project_id = ? "
+      "AND to_card_id = ? AND to_type = ? AND project_id = ?;",
+      -1, &stmt, nullptr
+  ) == SQLITE_OK);
+  REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+  const std::string plan = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+  sqlite3_finalize(stmt);
+  REQUIRE(plan.find("idx_card_links_external_target") != std::string::npos);
   REQUIRE_FALSE(holder::platform::Migrations::migrate_to_latest(db));
 }
 
 TEST_CASE(
-    "v8 milestone migration preserves IDs and converts all-day epochs to UTC dates",
+    "v7 milestone migration preserves IDs and converts all-day epochs to UTC dates",
     "[migrations]"
 ) {
   const auto dir = make_temp_dir();
   holder::platform::Db db;
   db.open(dir / "holder.db");
   holder::platform::Migrations::ensure_schema(db, find_schema_sql());
-  use_v8_milestones(db);
+  use_v7_milestones(db);
   holder::model::Project project;
   project.project_id = "project";
   project.name = "Project";
@@ -383,7 +399,7 @@ TEST_CASE(
   db.exec("INSERT INTO milestones VALUES"
           "('timed','project','card',100,200,0,'Review','Timed',1,2),"
           "('day','project','card',300,NULL,1,'Deadline','All day',3,4);");
-  db.exec("UPDATE schema_version SET version = 8;");
+  db.exec("UPDATE schema_version SET version = 7;");
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
   const auto all = holder::card::MilestoneRepo(db).list_for_card("project", "card");

@@ -173,6 +173,77 @@ TEST_CASE("LinkRepo preserves an explicit target project ID", "[linkrepo]") {
   REQUIRE(repo.list_outgoing("proj-1", "card-a").size() == 1);
 }
 
+TEST_CASE("LinkRepo external backlinks require an allowed source and exact target", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "source-a");
+  create_project(db, "source-b");
+  create_project(db, "target");
+  create_card(db, "from-a", "source-a");
+  create_card(db, "from-b", "source-b");
+  create_card(db, "target-card", "target");
+
+  holder::card::LinkRepo repo(db);
+  holder::model::CardLink link;
+  link.project_id = "source-a";
+  link.from_card_id = "from-a";
+  link.to_card_id = "target-card";
+  link.target_project_id = "target";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 10;
+  repo.upsert_links("source-a", "from-a", {link});
+
+  auto other_source = link;
+  other_source.project_id = "source-b";
+  other_source.from_card_id = "from-b";
+  other_source.created_at = 20;
+  repo.upsert_links("source-b", "from-b", {other_source});
+
+  auto other_target = link;
+  other_target.target_project_id = "other-target";
+  other_target.created_at = 30;
+  repo.upsert_links("source-a", "from-a", {other_target});
+
+  auto other_type = link;
+  other_type.to_type = "resource";
+  other_type.created_at = 40;
+  repo.upsert_links("source-a", "from-a", {other_type});
+
+  auto local = link;
+  local.target_project_id.reset();
+  local.created_at = 50;
+  repo.upsert_links("source-a", "from-a", {local});
+
+  REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {}).empty());
+  REQUIRE(repo.list_external_backlinks_typed("target", "target-card", "card", {"target"}).empty());
+  const auto allowed = repo.list_external_backlinks_typed(
+      "target", "target-card", "card", {"source-a", "source-a"}
+  );
+  REQUIRE(allowed.size() == 1);
+  REQUIRE(allowed[0].project_id == "source-a");
+  REQUIRE(allowed[0].target_project_id == "target");
+
+  const auto both = repo.list_external_backlinks_typed(
+      "target", "target-card", "card", {"source-a", "source-b"}
+  );
+  REQUIRE(both.size() == 2);
+  REQUIRE(both[0].project_id == "source-b");
+  REQUIRE(both[1].project_id == "source-a");
+  REQUIRE(repo.list_external_backlinks_typed(
+      "other-target", "target-card", "card", {"source-a"}
+  ).size() == 1);
+  REQUIRE(repo.list_external_backlinks_typed(
+      "target", "target-card", "resource", {"source-a"}
+  ).size() == 1);
+  REQUIRE(repo.list_external_backlinks_typed(
+      "target", "different-card", "card", {"source-a", "source-b"}
+  ).empty());
+  REQUIRE(repo.list_backlinks("source-a", "target-card").size() == 1);
+}
+
 TEST_CASE("LinkRepo distinguishes target projects sharing a card ID", "[linkrepo]") {
   const auto dir = make_temp_dir();
   holder::platform::Db db;

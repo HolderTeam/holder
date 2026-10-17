@@ -100,6 +100,9 @@ CREATE INDEX IF NOT EXISTS idx_card_links_from
 CREATE INDEX IF NOT EXISTS idx_card_links_to
   ON card_links(project_id, to_card_id);
 
+CREATE INDEX IF NOT EXISTS idx_card_links_external_target
+  ON card_links(target_project_id, to_card_id, to_type, project_id);
+
 -- ----------------------------
 -- Card tags: a disposable index over #tag occurrences in card bodies.
 -- Markdown source is the source of truth; this table is rebuilt from it,
@@ -486,7 +489,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 9 if empty
+-- Initialize schema version to 8 if empty
 INSERT INTO schema_version(version)
-SELECT 9
+SELECT 8
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);

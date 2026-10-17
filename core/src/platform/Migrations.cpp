@@ -298,18 +298,10 @@ CREATE UNIQUE INDEX idx_card_links_identity
                 COALESCE(target_project_id, project_id));
 CREATE INDEX idx_card_links_from ON card_links(project_id, from_card_id);
 CREATE INDEX idx_card_links_to ON card_links(project_id, to_card_id);
+CREATE INDEX idx_card_links_external_target
+  ON card_links(target_project_id, to_card_id, to_type, project_id);
 
-UPDATE schema_version SET version = 8 WHERE version = 7;
-)sql";
-
-  Tx tx(db);
-  db.exec(SQL);
-  tx.commit();
-}
-
-void migrate_v8_to_v9(Db& db) {
-  static constexpr const char* SQL = R"sql(
-CREATE TABLE milestones_v9 (
+CREATE TABLE milestones_v8 (
   milestone_id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
   card_id TEXT NOT NULL,
@@ -320,7 +312,7 @@ CREATE TABLE milestones_v9 (
   FOREIGN KEY(project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
   FOREIGN KEY(card_id) REFERENCES cards(card_id) ON DELETE CASCADE
 );
-INSERT INTO milestones_v9
+INSERT INTO milestones_v8
   (milestone_id, project_id, card_id, kind, description, created_at, updated_at)
 SELECT milestone_id, project_id, card_id, kind, description, created_at, updated_at
 FROM milestones;
@@ -333,7 +325,7 @@ CREATE TABLE milestone_dates (
   datetime_value TEXT NULL,
   at_epoch INTEGER NULL,
   PRIMARY KEY(milestone_id, position),
-  FOREIGN KEY(milestone_id) REFERENCES milestones_v9(milestone_id) ON DELETE CASCADE,
+  FOREIGN KEY(milestone_id) REFERENCES milestones_v8(milestone_id) ON DELETE CASCADE,
   CHECK ((date_value IS NOT NULL) + (datetime_value IS NOT NULL) = 1),
   CHECK ((date_value IS NOT NULL AND at_epoch IS NULL) OR
          (date_value IS NULL AND at_epoch IS NOT NULL))
@@ -356,11 +348,11 @@ FROM milestones WHERE end_at IS NOT NULL;
 DROP INDEX idx_milestones_project_card;
 DROP INDEX idx_milestones_project_start;
 DROP TABLE milestones;
-ALTER TABLE milestones_v9 RENAME TO milestones;
+ALTER TABLE milestones_v8 RENAME TO milestones;
 CREATE INDEX idx_milestones_project_card ON milestones(project_id, card_id);
 CREATE INDEX idx_milestone_dates_day ON milestone_dates(role, date_value, milestone_id);
 CREATE INDEX idx_milestone_dates_instant ON milestone_dates(role, at_epoch, milestone_id);
-UPDATE schema_version SET version = 9 WHERE version = 8;
+UPDATE schema_version SET version = 8 WHERE version = 7;
 )sql";
   Tx tx(db);
   db.exec(SQL);
@@ -463,11 +455,6 @@ bool Migrations::migrate_to_latest(Db& db) {
     case 7:
       migrate_v7_to_v8(db);
       version = 8;
-      migrated = true;
-      break;
-    case 8:
-      migrate_v8_to_v9(db);
-      version = 9;
       migrated = true;
       break;
     default:
