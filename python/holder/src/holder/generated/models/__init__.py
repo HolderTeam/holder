@@ -160,6 +160,9 @@ from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
 from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKind
+from .get_projects_project_id_milestones_with_dates_value_type import (
+    GetProjectsProjectIdMilestonesWithDatesValueType,
+)
 from .health_data import HealthData
 from .health_data_crypt_filter import HealthDataCryptFilter
 from .health_response import HealthResponse
@@ -172,11 +175,17 @@ from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
 from .milestone import Milestone
 from .milestone_create_request import MilestoneCreateRequest
+from .milestone_date_value import MilestoneDateValue
 from .milestone_list_response import MilestoneListResponse
 from .milestone_remove_response import MilestoneRemoveResponse
 from .milestone_remove_result import MilestoneRemoveResult
 from .milestone_response import MilestoneResponse
 from .milestone_update_request import MilestoneUpdateRequest
+from .milestone_with_dates import MilestoneWithDates
+from .milestone_with_dates_create_request import MilestoneWithDatesCreateRequest
+from .milestone_with_dates_list_response import MilestoneWithDatesListResponse
+from .milestone_with_dates_response import MilestoneWithDatesResponse
+from .milestone_with_dates_update_request import MilestoneWithDatesUpdateRequest
 from .patch_locations_location_id_body import PatchLocationsLocationIdBody
 from .patch_locations_location_id_body_configuration import (
     PatchLocationsLocationIdBodyConfiguration,
@@ -449,6 +458,7 @@ __all__ = (
     "GetProjectsProjectIdCardsParentType0",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
+    "GetProjectsProjectIdMilestonesWithDatesValueType",
     "HealthData",
     "HealthDataCryptFilter",
     "HealthResponse",
@@ -461,11 +471,17 @@ __all__ = (
     "LocationBindingRequestValues",
     "Milestone",
     "MilestoneCreateRequest",
+    "MilestoneDateValue",
     "MilestoneListResponse",
     "MilestoneRemoveResponse",
     "MilestoneRemoveResult",
     "MilestoneResponse",
     "MilestoneUpdateRequest",
+    "MilestoneWithDates",
+    "MilestoneWithDatesCreateRequest",
+    "MilestoneWithDatesListResponse",
+    "MilestoneWithDatesResponse",
+    "MilestoneWithDatesUpdateRequest",
     "PatchLocationsLocationIdBody",
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",

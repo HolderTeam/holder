@@ -151,6 +151,120 @@ TEST_CASE(
   REQUIRE(after_delete["data"].empty());
 }
 
+TEST_CASE("HTTP labelled milestones preserve undated and repeated dates", "[http][milestones]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  create_project(db, "proj-1", (dir / "project_repo").string());
+  const std::string token = "testtoken";
+  RunningServer running(db, token);
+  running.cards.create(card("card-a", "Tasks", 100, 100), "Notes\n");
+
+  const auto undated = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::post,
+      "/cards/card-a/milestones-with-dates",
+      {{"dates", nlohmann::json::array()}, {"kind", "task"}},
+      boost::beast::http::status::created
+  );
+  REQUIRE(undated["data"]["dates"].empty());
+  const auto undated_id = undated["data"]["milestone_id"].get<std::string>();
+  const auto incompatible_update = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::patch,
+      "/cards/card-a/milestones/" + undated_id, {{"kind", "changed"}},
+      boost::beast::http::status::bad_request
+  );
+  REQUIRE(incompatible_update["ok"] == false);
+
+  const nlohmann::json dates = nlohmann::json::array({
+      {{"role", "deadline"}, {"date", "2026-06-01"}},
+      {{"role", "deadline"}, {"date", "2026-06-03"}},
+      {{"role", "occurred"}, {"datetime", "2026-06-02T12:30:00+02:30"}},
+  });
+  const auto created = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::post,
+      "/cards/card-a/milestones-with-dates",
+      {{"dates", dates}, {"description", "Track work"}},
+      boost::beast::http::status::created
+  );
+  REQUIRE(created["data"]["dates"] == dates);
+  const auto milestone_id = created["data"]["milestone_id"].get<std::string>();
+
+  const auto full = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::get,
+      "/cards/card-a/milestones-with-dates", nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  REQUIRE(full["data"].size() == 2);
+  bool saw_undated = false;
+  bool saw_dated = false;
+  for (const auto& milestone : full["data"]) {
+    if (milestone["milestone_id"] == undated_id) {
+      REQUIRE(milestone["dates"].empty());
+      REQUIRE(milestone["kind"] == "task");
+      saw_undated = true;
+    }
+    if (milestone["milestone_id"] == milestone_id) {
+      REQUIRE(milestone["dates"] == dates);
+      saw_dated = true;
+    }
+  }
+  REQUIRE(saw_undated);
+  REQUIRE(saw_dated);
+
+  const auto scheduled = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::get,
+      "/cards/card-a/milestones", nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(scheduled["data"].empty());
+
+  const auto day_matches = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::get,
+      "/projects/proj-1/milestones-with-dates?role=deadline&value_type=date&from=2026-06-01&to=2026-06-03",
+      nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(day_matches["data"].size() == 1);
+  REQUIRE(day_matches["data"][0]["milestone_id"] == milestone_id);
+  REQUIRE(day_matches["data"][0]["dates"] == dates);
+
+  const auto occurred_at = holder::model::milestone_datetime_epoch("2026-06-02T12:30:00+02:30");
+  const auto instant_matches = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::get,
+      "/projects/proj-1/milestones-with-dates?role=occurred&value_type=datetime&from=" +
+          std::to_string(occurred_at) + "&to=" + std::to_string(occurred_at),
+      nlohmann::json::object(), boost::beast::http::status::ok
+  );
+  REQUIRE(instant_matches["data"].size() == 1);
+  REQUIRE(instant_matches["data"][0]["milestone_id"] == milestone_id);
+
+  const nlohmann::json revised_dates = nlohmann::json::array({
+      {{"role", "deadline"}, {"date", "2026-06-05"}},
+      {{"role", "occurred"}, {"datetime", "2026-06-02T12:30:00+02:30"}},
+      {{"role", "resolved"}, {"datetime", "2026-06-04T09:00:00Z"}},
+  });
+  const auto updated = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::patch,
+      "/cards/card-a/milestones-with-dates/" + milestone_id,
+      {{"dates", revised_dates}}, boost::beast::http::status::ok
+  );
+  REQUIRE(updated["data"]["dates"] == revised_dates);
+  REQUIRE(updated["data"]["description"] == "Track work");
+
+  const auto invalid = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::post,
+      "/cards/card-a/milestones-with-dates",
+      {{"dates", nlohmann::json::array({{{"role", "deadline"}, {"date", "2026-06-01"},
+                                          {"datetime", "2026-06-01T00:00:00Z"}}})}},
+      boost::beast::http::status::bad_request
+  );
+  REQUIRE(invalid["ok"] == false);
+
+  const auto removed = http_json_request(
+      running.bound.bind, running.bound.port, token, boost::beast::http::verb::delete_,
+      "/cards/card-a/milestones-with-dates/" + milestone_id, nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  REQUIRE(removed["data"]["removed"] == true);
+}
+
 TEST_CASE("HTTP milestone and calendar routes validate inputs", "[http][milestones]") {
   const auto dir = make_temp_dir();
   auto db = open_db_with_schema(dir / "holder.db");

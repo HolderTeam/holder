@@ -58,6 +58,54 @@ nlohmann::json milestone_json(
   return body;
 }
 
+nlohmann::json milestone_with_dates_json(const holder::model::Milestone& milestone) {
+  nlohmann::json dates = nlohmann::json::array();
+  for (const auto& value : milestone.dates) {
+    nlohmann::json item = {{"role", value.role}};
+    if (value.date) item["date"] = *value.date;
+    if (value.datetime) item["datetime"] = *value.datetime;
+    dates.push_back(std::move(item));
+  }
+  return {
+      {"milestone_id", milestone.milestone_id},
+      {"card_id", milestone.card_id},
+      {"kind", optional_string_json(milestone.kind)},
+      {"description", optional_string_json(milestone.description)},
+      {"created_at", milestone.created_at},
+      {"updated_at", milestone.updated_at},
+      {"dates", std::move(dates)},
+  };
+}
+
+std::vector<holder::model::MilestoneDate> parse_milestone_dates(const nlohmann::json& body) {
+  if (!body.is_array()) throw std::invalid_argument("dates must be an array.");
+  std::vector<holder::model::MilestoneDate> dates;
+  for (const auto& item : body) {
+    if (!item.is_object()) throw std::invalid_argument("milestone date must be an object.");
+    for (const auto& [name, value] : item.items()) {
+      (void)value;
+      if (name != "role" && name != "date" && name != "datetime")
+        throw std::invalid_argument("unknown milestone date field: " + name);
+    }
+    holder::model::MilestoneDate date;
+    date.role = item.at("role").get<std::string>();
+    if (item.contains("date")) date.date = item.at("date").get<std::string>();
+    if (item.contains("datetime")) date.datetime = item.at("datetime").get<std::string>();
+    holder::model::validate_milestone_date(date);
+    dates.push_back(std::move(date));
+  }
+  return dates;
+}
+
+void validate_labelled_fields(const nlohmann::json& body) {
+  if (!body.is_object()) throw std::invalid_argument("milestone body must be an object.");
+  for (const auto& [name, value] : body.items()) {
+    (void)value;
+    if (name != "dates" && name != "kind" && name != "description")
+      throw std::invalid_argument("unknown milestone field: " + name);
+  }
+}
+
 nlohmann::json card_activity_json(const holder::model::Card& card) {
   return {
       {"card_id", card.card_id},
@@ -102,15 +150,18 @@ std::optional<std::string> nullable_string(const nlohmann::json& body, const std
 bool parse_card_milestone_path(
     const std::string& path,
     std::string& card_id,
-    std::optional<std::string>& milestone_id
+    std::optional<std::string>& milestone_id,
+    bool& with_dates
 ) {
   static const std::string prefix = "/cards/";
-  static const std::string marker = "/milestones";
+  static const std::string legacy_marker = "/milestones";
+  static const std::string labelled_marker = "/milestones-with-dates";
   if (path.rfind(prefix, 0) != 0) return false;
   const auto marker_pos = path.find('/', prefix.size());
-  if (marker_pos == std::string::npos || path.compare(marker_pos, marker.size(), marker) != 0) {
-    return false;
-  }
+  if (marker_pos == std::string::npos) return false;
+  with_dates = path.compare(marker_pos, labelled_marker.size(), labelled_marker) == 0;
+  const auto& marker = with_dates ? labelled_marker : legacy_marker;
+  if (path.compare(marker_pos, marker.size(), marker) != 0) return false;
   card_id = path.substr(prefix.size(), marker_pos - prefix.size());
   const auto suffix = path.substr(marker_pos + marker.size());
   if (suffix.empty()) {
@@ -200,9 +251,62 @@ bool handle_milestone_routes(
     return true;
   }
 
+  static const std::string project_prefix = "/projects/";
+  static const std::string project_suffix = "/milestones-with-dates";
+  if (path.rfind(project_prefix, 0) == 0 &&
+      path.size() > project_prefix.size() + project_suffix.size() &&
+      path.ends_with(project_suffix) && req.method() == http::verb::get) {
+    const auto project_id = path.substr(
+        project_prefix.size(), path.size() - project_prefix.size() - project_suffix.size()
+    );
+    if (project_id.find('/') != std::string::npos) return false;
+    if (!holder::project::ProjectRepo(db).get(project_id).has_value()) {
+      res = support::error_response(http::status::not_found, "not_found", "Project not found.");
+      return true;
+    }
+    const auto role = param_get("role");
+    const auto value_type = param_get("value_type");
+    if (role.empty() || (value_type != "date" && value_type != "datetime")) {
+      res = support::error_response(
+          http::status::bad_request, "bad_request",
+          "role and value_type (date or datetime) are required."
+      );
+      return true;
+    }
+    try {
+      std::vector<holder::model::Milestone> matches;
+      if (value_type == "date") {
+        const auto from = param_get("from");
+        const auto to = param_get("to");
+        if (from.size() != 10 || to.size() != 10)
+          throw std::invalid_argument("from and to must use YYYY-MM-DD for date queries.");
+        holder::model::milestone_calendar_day(from);
+        holder::model::milestone_calendar_day(to);
+        if (from > to) throw std::invalid_argument("from must not be after to.");
+        matches = holder::card::MilestoneRepo(db).list_days_in_range(project_id, role, from, to);
+      } else {
+        const auto from = parse_required_epoch(param_get("from"), "from", res);
+        if (!from.has_value()) return true;
+        const auto to = parse_required_epoch(param_get("to"), "to", res);
+        if (!to.has_value()) return true;
+        if (*from > *to) throw std::invalid_argument("from must not be after to.");
+        matches = holder::card::MilestoneRepo(db).list_instants_in_range(
+            project_id, role, *from, *to
+        );
+      }
+      nlohmann::json data = nlohmann::json::array();
+      for (const auto& milestone : matches) data.push_back(milestone_with_dates_json(milestone));
+      res = support::json_response(http::status::ok, {{"ok", true}, {"data", std::move(data)}});
+    } catch (const std::exception& ex) {
+      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
+    }
+    return true;
+  }
+
   std::string card_id;
   std::optional<std::string> milestone_id;
-  if (!parse_card_milestone_path(path, card_id, milestone_id)) return false;
+  bool with_dates = false;
+  if (!parse_card_milestone_path(path, card_id, milestone_id, with_dates)) return false;
   if (card_id.empty()) {
     res = support::error_response(http::status::bad_request, "bad_request", "Missing card_id.");
     return true;
@@ -219,12 +323,17 @@ bool handle_milestone_routes(
     if (!milestone_id.has_value() && req.method() == http::verb::get) {
       nlohmann::json data = nlohmann::json::array();
       for (const auto& milestone : repo.list_for_card(card->project_id, card_id)) {
+        if (with_dates) {
+          data.push_back(milestone_with_dates_json(milestone));
+          continue;
+        }
         if (!has_timestamp_view(milestone)) continue;
         data.push_back(milestone_json(milestone));
       }
-      std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
-        return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
-      });
+      if (!with_dates)
+        std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+          return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
+        });
       res = support::json_response(http::status::ok, {{"ok", true}, {"data", data}});
       return true;
     } // LCOV_EXCL_LINE: GCC duplicate cleanup line after the covered response.
@@ -239,34 +348,40 @@ bool handle_milestone_routes(
         return true;
       }
       const auto body = nlohmann::json::parse(req.body());
-      if (!body.contains("start_at") || !body.at("start_at").is_number_integer()) {
-        throw std::invalid_argument("start_at must be an epoch-second integer.");
-      }
       holder::model::Milestone milestone;
       milestone.milestone_id = uuid_v4();
       milestone.project_id = card->project_id;
       milestone.card_id = card_id;
-      const auto start_at = body.at("start_at").get<long long>();
-      std::optional<long long> end_at;
-      if (body.contains("end_at") && !body.at("end_at").is_null()) {
-        if (!body.at("end_at").is_number_integer()) {
-          throw std::invalid_argument("end_at must be an epoch-second integer or null.");
+      if (with_dates) {
+        validate_labelled_fields(body);
+        if (!body.contains("dates")) throw std::invalid_argument("dates must be an array.");
+        milestone.dates = parse_milestone_dates(body.at("dates"));
+      } else {
+        if (!body.contains("start_at") || !body.at("start_at").is_number_integer()) {
+          throw std::invalid_argument("start_at must be an epoch-second integer.");
         }
-        end_at = body.at("end_at").get<long long>();
-        if (*end_at < start_at) {
-          throw std::invalid_argument("end_at must not be before start_at.");
+        const auto start_at = body.at("start_at").get<long long>();
+        std::optional<long long> end_at;
+        if (body.contains("end_at") && !body.at("end_at").is_null()) {
+          if (!body.at("end_at").is_number_integer()) {
+            throw std::invalid_argument("end_at must be an epoch-second integer or null.");
+          }
+          end_at = body.at("end_at").get<long long>();
+          if (*end_at < start_at) {
+            throw std::invalid_argument("end_at must not be before start_at.");
+          }
         }
-      }
-      if (body.contains("all_day") && !body.at("all_day").is_boolean()) {
-        throw std::invalid_argument("all_day must be a boolean.");
-      }
-      const bool all_day = body.value("all_day", false);
-      milestone.dates.push_back(
-          holder::model::milestone_date_from_legacy("start", start_at, all_day)
-      );
-      if (end_at)
-        milestone.dates.push_back(holder::model::milestone_date_from_legacy("end", *end_at, all_day)
+        if (body.contains("all_day") && !body.at("all_day").is_boolean()) {
+          throw std::invalid_argument("all_day must be a boolean.");
+        }
+        const bool all_day = body.value("all_day", false);
+        milestone.dates.push_back(
+            holder::model::milestone_date_from_legacy("start", start_at, all_day)
         );
+        if (end_at)
+          milestone.dates.push_back(holder::model::milestone_date_from_legacy("end", *end_at, all_day)
+          );
+      }
       milestone.kind = nullable_string(body, "kind");
       milestone.description = nullable_string(body, "description");
       milestone.created_at = support::now_epoch_seconds();
@@ -275,7 +390,8 @@ bool handle_milestone_routes(
       milestone = card_store->add_milestone(milestone, milestone.created_at);
       res = support::json_response(
           http::status::created,
-          {{"ok", true}, {"data", milestone_json(milestone)}}
+          {{"ok", true},
+           {"data", with_dates ? milestone_with_dates_json(milestone) : milestone_json(milestone)}}
       );
       return true;
     }
@@ -312,19 +428,36 @@ bool handle_milestone_routes(
         );
         return true;
       }
+      if (!with_dates) {
+        const auto milestones = repo.list_for_card(card->project_id, card_id);
+        const auto existing = std::find_if(
+            milestones.begin(), milestones.end(),
+            [&](const auto& value) { return value.milestone_id == *milestone_id; }
+        );
+        if (existing != milestones.end() && !has_timestamp_view(*existing)) {
+          res = support::error_response(
+              http::status::bad_request, "bad_request",
+              "Milestone requires the labelled dates route."
+          );
+          return true;
+        }
+      }
       const auto body = nlohmann::json::parse(req.body());
       if (!body.is_object() || body.empty()) {
         throw std::invalid_argument("milestone update must contain at least one field.");
       }
+      if (with_dates) validate_labelled_fields(body);
       for (const auto& [name, value] : body.items()) {
         (void)value;
-        if (name != "start_at" && name != "end_at" && name != "all_day" && name != "kind" &&
-            name != "description") {
+        if (!with_dates && name != "start_at" && name != "end_at" && name != "all_day" &&
+            name != "kind" && name != "description") {
           throw std::invalid_argument("unknown milestone update field: " + name);
         }
       }
 
       holder::card::MilestoneUpdate update;
+      if (with_dates && body.contains("dates"))
+        update.dates = parse_milestone_dates(body.at("dates"));
       if (body.contains("start_at")) {
         if (!body.at("start_at").is_number_integer()) {
           throw std::invalid_argument("start_at must be an epoch-second integer.");
@@ -368,7 +501,8 @@ bool handle_milestone_routes(
       }
       res = support::json_response(
           http::status::ok,
-          {{"ok", true}, {"data", milestone_json(*updated)}}
+          {{"ok", true},
+           {"data", with_dates ? milestone_with_dates_json(*updated) : milestone_json(*updated)}}
       );
       return true;
     }
