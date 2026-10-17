@@ -26,7 +26,7 @@ Download Holder for Windows, macOS or Linux from [holder.team](https://holder.te
 - [`staging/`](staging/) - assembles and checks build artifacts for each platform.
 - [`apps/desktop/gtk/`](apps/desktop/gtk/) - the Holder desktop app (GTK 4 and libadwaita, built with Meson), a client of the daemon's HTTP API on Linux, macOS and Windows.
 - [`apps/mobile/android/`](apps/mobile/android/) - the Holder Android app (Kotlin and Compose), which embeds core through its C API and works without a daemon.
-- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), an experimental Python client for the Holder daemon's HTTP API, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
+- [`python/`](python/) - Python libraries: [`holder/`](python/holder/), Holder for Python scripts that work with a running Holder installation, and [`kit/`](python/kit/), Holder Kit, which embeds core for offline work.
 - [`release/`](release/) - signing, verification and publishing of releases, and the website ([`release/website/`](release/website/), www.holder.team), including its developer guides.
 
 ## Developing Holder
@@ -36,7 +36,7 @@ Start with the guide for the component you are changing:
 - [Core](core/README.md#consumption-model) and [daemon](daemon/docs/development.md), including [core build options](daemon/docs/core-builds.md)
 - [HTTP contract](api/README.md#changing-the-contract) and [GTK desktop](apps/desktop/gtk/README.md#development)
 - [Android](apps/mobile/android/README.md#local-development) and its [development notes](apps/mobile/android/DEVELOPMENT.md)
-- [Python HTTP client](python/holder/README.md#layout-and-regeneration) and [Holder Kit](python/kit/docs/development.md)
+- [Holder for Python](python/holder/docs/development.md) and [Holder Kit](python/kit/docs/development.md)
 
 These guides describe the current interfaces and build boundaries. When changing an
 interface, update its owning contract and tests in the same pull request.
