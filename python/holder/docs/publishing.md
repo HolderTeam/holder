@@ -8,11 +8,10 @@ platforms. The version follows the repository's root `VERSION`.
 builds both files, checks their metadata, installs each in a fresh virtual
 environment, and saves them as the `holder-python-distributions` artifact. A
 pull request or a manual run with `destination=none` only builds. Publishing
-uses Trusted Publishing and requires a manual run from the
+uses Trusted Publishing. PyPI requires a manual run from the
 `holder-v<version>` tag with a matching `python/holder/pyproject.toml` version.
-For the initial `0.2.5` upload only, the workflow also accepts
-`holder-python-v0.2.5`. That tag releases this package alone and starts no
-Holder-wide release workflow.
+The initial package-only `0.2.5` release also accepts
+`holder-python-v0.2.5-r2`; this tag does not start a Holder-wide release.
 
 ## One-time setup for each package index
 
@@ -32,32 +31,40 @@ Use these values on both sites:
 | Environment name | `pypi` on PyPI; `testpypi` on TestPyPI |
 
 The repository's GitHub environments must have those exact names. If they use
-deployment tag rules, allow `holder-v*` and, for the backfill,
-`holder-python-v0.2.5`; add required reviewers if desired. The Kit release
-workflow already uses these environment names, but **each PyPI project needs
-its own Trusted Publisher entry**. No PyPI
-API token or GitHub secret is needed. A pending publisher does not reserve the
+deployment branch or tag rules, allow `main`, `holder-v*`, and, for the
+backfill, `holder-python-v0.2.5-r2`; add required reviewers if desired. The Kit
+release workflow already uses these environment names, but **each PyPI project
+needs its own Trusted Publisher entry**. No PyPI API token or GitHub secret is
+needed. A pending publisher does not reserve the
 project name until the first successful upload.
 
-## First `0.2.5` package-only release
+## TestPyPI previews
 
-1. Merge the publishing workflow. Check that `holder-python` version `0.2.5`
-   has not already been uploaded to either index. The existing
-   `holder-v0.2.5` tag points to an older commit, so leave it alone.
-2. In GitHub Actions, run **Release / Holder Python to PyPI** on `main` with
-   `destination=none`. Download the `holder-python-distributions` artifact and
-   inspect the wheel and source archive if desired. Pull requests also run the
-   same build checks.
-3. Create and push `holder-python-v0.2.5` on the reviewed `main` commit. Run
-   this workflow from that **tag**, first with `destination=testpypi`. The
-   selected GitHub environment and the corresponding TestPyPI publisher must
-   both be configured before the upload. The workflow then downloads the
-   published wheel from TestPyPI and imports it in a fresh environment; wait
-   for that check to pass before proceeding.
-4. Run the same workflow from the same tag with `destination=pypi`. Confirm
-   that `0.2.5` appears on the `holder-python` PyPI project page and
-   install it in a fresh environment with
-   `python -m pip install holder-python==0.2.5`.
+TestPyPI already has `holder-python 0.2.5` from the original README. Uploaded
+files cannot be replaced, even after deleting the project. Keep that project
+and use a new preview number for each revised build:
+
+1. Merge the changes to `main`. In GitHub Actions, run **Release / Holder
+   Python to PyPI** on `main` with `destination=testpypi` and
+   `preview_number=1`. The build temporarily changes the package version to
+   `0.2.5.post1`; the committed `pyproject.toml` and root `VERSION` stay at
+   `0.2.5`.
+2. Wait for the TestPyPI upload and published-wheel install check to pass.
+   Review the `0.2.5.post1` page on TestPyPI.
+3. If the description needs another edit, merge that edit and repeat from
+   `main` with `preview_number=2`, then `3`, and so on. Each number creates
+   new wheel and source filenames. A preview number can only publish to
+   TestPyPI from `main`.
+
+## First `0.2.5` PyPI release
+
+After accepting a preview, create `holder-python-v0.2.5-r2` on its reviewed
+`main` commit. The original `holder-python-v0.2.5` tag points to the old README
+and must not be moved. Run **Release / Holder Python to PyPI** from the new tag
+with `destination=pypi` and `preview_number=0`. This publishes version `0.2.5`
+with the corrected README to real PyPI, which has not received that version.
+Confirm the project page and install it in a fresh environment with
+`python -m pip install holder-python==0.2.5`.
 
 ## Later releases
 
@@ -66,7 +73,7 @@ publish `holder-python` from the matching `holder-v<version>` tag as part of
 the normal Holder release. The package-specific tag is accepted only for
 `0.2.5`.
 
-The workflow resolves README links to URLs at the release commit in its build
-checkout, so the PyPI description links back to that exact source. A failed
-upload does not make an existing file replaceable: inspect the index before
-retrying, and choose a new version if its files were already published.
+The workflow resolves README links to URLs at the build commit, so the project
+description links back to that exact source. A failed upload does not make an
+existing file replaceable: inspect the index before retrying, and choose a new
+preview number if its files were already published.

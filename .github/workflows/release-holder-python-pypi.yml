@@ -1,8 +1,8 @@
 name: Release / Holder Python to PyPI
 
 # Build the pure-Python wheel and source archive on pull requests or manual runs.
-# Publishing requires a matching root VERSION and a release tag. The one-time
-# holder-python-v0.2.5 tag backfills this package without releasing other components.
+# PyPI publishing requires a matching root VERSION and a release tag. TestPyPI
+# previews use a fresh post-release version from main without changing repository versions.
 on:
   pull_request:
     paths:
@@ -12,10 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       destination:
-        description: Build only, or publish from an allowed release tag
+        description: Build only, publish a TestPyPI preview, or publish from a release tag
         type: choice
         options: [none, testpypi, pypi]
         default: none
+      preview_number:
+        description: TestPyPI preview number (0 for a tagged release; 1 makes <version>.post1)
+        type: number
+        default: 0
 
 permissions:
   contents: read
@@ -36,27 +40,40 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
-      - name: Check the version and destination
+      - name: Prepare the version and destination
         id: config
         env:
           DESTINATION: ${{ inputs.destination || 'none' }}
+          PREVIEW_NUMBER: ${{ inputs.preview_number || '0' }}
         run: |
           python - <<'PY'
           import os
           from pathlib import Path
           import tomllib
 
-          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+          pyproject = Path('pyproject.toml')
+          contents = pyproject.read_text()
+          version = tomllib.loads(contents)['project']['version']
           holder_version = Path('../../VERSION').read_text().strip()
-          if os.environ['DESTINATION'] != 'none':
-              assert version == holder_version, f'Python package is at {version}, not Holder {holder_version}'
+          assert version == holder_version, f'Python package is at {version}, not Holder {holder_version}'
+          preview = int(os.environ['PREVIEW_NUMBER'])
+          assert preview >= 0, 'Preview number must be non-negative'
+          destination = os.environ['DESTINATION']
+          ref = os.environ['GITHUB_REF']
+          if preview:
+              assert destination == 'testpypi', 'Preview versions may only publish to TestPyPI'
+              assert ref == 'refs/heads/main', 'Preview versions must be built from main'
+              candidate = f'{version}.post{preview}'
+              original = f'version = "{version}"'
+              assert contents.count(original) == 1, 'Expected one project version field'
+              pyproject.write_text(contents.replace(original, f'version = "{candidate}"', 1))
+              version = candidate
+          elif destination != 'none':
               release_tag = f'refs/tags/holder-v{version}'
-              backfill_tag = 'refs/tags/holder-python-v0.2.5'
-              assert os.environ['GITHUB_REF'] == release_tag or (
-                  version == '0.2.5' and os.environ['GITHUB_REF'] == backfill_tag
-              ), 'Publishing requires the matching Holder release tag or the one-time holder-python-v0.2.5 backfill tag'
-          elif version != holder_version:
-              print(f'::warning::Python package is at {version}, not Holder {holder_version}; it cannot be published')
+              backfill_tags = {'refs/tags/holder-python-v0.2.5-r2'}
+              assert ref == release_tag or (version == '0.2.5' and ref in backfill_tags), (
+                  'Publishing requires the matching Holder release tag or an allowed 0.2.5 package-only tag'
+              )
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
           PY
