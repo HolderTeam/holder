@@ -439,9 +439,9 @@ jobs:
         run: |
           GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${PWD}/build-win/data" \
             meson test -C build-win --no-rebuild --verbose \
-              holder-linux-milestone-draft-tests \
-              holder-linux-milestones-presenter-tests \
-              holder-linux-milestones-controller-tests
+              holder-gtk-milestone-draft-tests \
+              holder-gtk-milestones-presenter-tests \
+              holder-gtk-milestones-controller-tests
 
       - name: Stage desktop artifact
         run: |
