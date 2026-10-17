@@ -1,12 +1,21 @@
 # Holder for Python
 
+Holder is an open-source, local-first knowledge app for organising your ideas
+and digital information as index cards and the connections between them.
+
 Use Python to read and update the projects and cards in your running Holder
 installation. Changes you make in a script appear in Holder too.
 
 ## Get started
 
-You need Python 3.11 or newer and a local Holder installation with `holderctl`
-available on your PATH. Install the Python library with:
+1. You need the Holder application on your computer.
+Get it from https://www.holder.team/
+
+2. You need Python 3.11 or newer.
+If in doubt, get the latest version (i.e. 3.15) from:
+https://www.python.org/downloads/
+
+3. Install the Holder Python library with:
 
 ```sh
 python3 -m pip install holder-python
