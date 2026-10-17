@@ -83,8 +83,10 @@ def sync_detailed(
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Delete links from a card
 
-     Provide to_card_id (and optional kind) to delete a specific link. If omitted, deletes all outgoing
-    links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         card_id (str):
@@ -118,8 +120,10 @@ def sync(
 ) -> CardPatchResponse | ErrorResponse | None:
     """Delete links from a card
 
-     Provide to_card_id (and optional kind) to delete a specific link. If omitted, deletes all outgoing
-    links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         card_id (str):
@@ -148,8 +152,10 @@ async def asyncio_detailed(
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Delete links from a card
 
-     Provide to_card_id (and optional kind) to delete a specific link. If omitted, deletes all outgoing
-    links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         card_id (str):
@@ -181,8 +187,10 @@ async def asyncio(
 ) -> CardPatchResponse | ErrorResponse | None:
     """Delete links from a card
 
-     Provide to_card_id (and optional kind) to delete a specific link. If omitted, deletes all outgoing
-    links.
+     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
+    without target_project_id is rejected if more than one target project matches. Provide
+    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
+    to_card_id is omitted, deletes all outgoing links.
 
     Args:
         card_id (str):
