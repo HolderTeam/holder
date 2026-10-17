@@ -343,7 +343,10 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
   use_v8_milestones(db);
 
   REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
-  REQUIRE(holder::platform::Migrations::read_schema_version(db) == 9);
+  REQUIRE(
+      holder::platform::Migrations::read_schema_version(db) ==
+      holder::platform::Migrations::latest_schema_version
+  );
   holder::card::LinkRepo links(db);
   const auto migrated = links.list_outgoing("source", "card-a");
   REQUIRE(migrated.size() == 1);
@@ -356,6 +359,53 @@ TEST_CASE("migrate_to_latest gives v7 links qualified target identity", "[migrat
   links.upsert_links("source", "card-a", {other});
   REQUIRE(links.list_outgoing("source", "card-a").size() == 2);
   REQUIRE_FALSE(holder::platform::Migrations::migrate_to_latest(db));
+}
+
+TEST_CASE("v9 migration indexes existing external links", "[migrations]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  holder::platform::Migrations::ensure_schema(db, find_schema_sql());
+  db.exec("DROP INDEX idx_card_links_external_target;"
+          "UPDATE schema_version SET version = 9;");
+
+  holder::model::Project source;
+  source.project_id = "source";
+  source.name = "Source";
+  source.root_path = (dir / "source").string();
+  source.created_at = source.updated_at = 1;
+  holder::project::ProjectRepo(db).create(source);
+
+  holder::model::CardLink link;
+  link.project_id = "source";
+  link.from_card_id = "from-card";
+  link.to_card_id = "target-card";
+  link.target_project_id = "target";
+  link.to_type = "card";
+  link.kind = "ref";
+  link.created_at = 1;
+  holder::card::LinkRepo links(db);
+  links.upsert_links("source", "from-card", {link});
+
+  REQUIRE(holder::platform::Migrations::migrate_to_latest(db));
+  REQUIRE(holder::platform::Migrations::read_schema_version(db) == 10);
+  const auto matches = links.list_external_backlinks_typed(
+      "target", "target-card", "card", {"source"}
+  );
+  REQUIRE(matches.size() == 1);
+  REQUIRE(matches[0].from_card_id == "from-card");
+
+  sqlite3_stmt* stmt = nullptr;
+  REQUIRE(sqlite3_prepare_v2(
+      db.handle(),
+      "EXPLAIN QUERY PLAN SELECT * FROM card_links WHERE target_project_id = ? "
+      "AND to_card_id = ? AND to_type = ? AND project_id = ?;",
+      -1, &stmt, nullptr
+  ) == SQLITE_OK);
+  REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+  const std::string plan = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+  sqlite3_finalize(stmt);
+  REQUIRE(plan.find("idx_card_links_external_target") != std::string::npos);
 }
 
 TEST_CASE(

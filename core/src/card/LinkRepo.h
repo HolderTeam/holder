@@ -33,6 +33,14 @@ class LinkRepo {
       const std::string& to_card_id,
       const std::string& to_type
   ) const;
+  // Cross-project links to an exact target. Only the named source projects are searched;
+  // callers decide which projects are available and authorized.
+  std::vector<holder::model::CardLink> list_external_backlinks_typed(
+      const std::string& target_project_id,
+      const std::string& to_card_id,
+      const std::string& to_type,
+      const std::vector<std::string>& source_project_ids
+  ) const;
   std::vector<holder::model::CardLink> list_incoming_typed(
       const std::string& project_id,
       const std::string& to_type

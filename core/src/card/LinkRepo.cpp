@@ -2,6 +2,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -211,6 +212,61 @@ std::vector<holder::model::CardLink> LinkRepo::list_backlinks_typed(
   sqlite3_finalize(stmt);
   return out;
 } // LCOV_EXCL_LINE
+
+std::vector<holder::model::CardLink> LinkRepo::list_external_backlinks_typed(
+    const std::string& target_project_id,
+    const std::string& to_card_id,
+    const std::string& to_type,
+    const std::vector<std::string>& source_project_ids
+) const {
+  if (source_project_ids.empty()) return {};
+
+  static constexpr const char* SQL =
+      "SELECT project_id, from_card_id, to_card_id, to_type, kind, label, created_at, "
+      "target_project_id "
+      "FROM card_links WHERE target_project_id = ? AND to_card_id = ? "
+      "AND to_type = ? AND project_id = ? AND target_project_id <> project_id;";
+
+  sqlite3_stmt* stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
+    throw_sqlite(db_.handle(), "prepare list external backlinks failed");
+  }
+
+  auto sources = source_project_ids;
+  std::sort(sources.begin(), sources.end());
+  sources.erase(std::unique(sources.begin(), sources.end()), sources.end());
+
+  std::vector<holder::model::CardLink> out;
+  for (const auto& source_project_id : sources) {
+    if (source_project_id == target_project_id) continue;
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    bind_text(stmt, 1, target_project_id);
+    bind_text(stmt, 2, to_card_id);
+    bind_text(stmt, 3, to_type);
+    bind_text(stmt, 4, source_project_id);
+
+    while (true) {
+      const int rc = sqlite3_step(stmt);
+      if (rc == SQLITE_ROW) {
+        out.push_back(read_link(stmt));
+        continue;
+      }
+      if (rc == SQLITE_DONE) break;
+      sqlite3_finalize(stmt); // LCOV_EXCL_LINE
+      throw_sqlite(db_.handle(), "list external backlinks failed"); // LCOV_EXCL_LINE
+    }
+  }
+
+  sqlite3_finalize(stmt);
+  std::sort(out.begin(), out.end(), [](const auto& left, const auto& right) {
+    if (left.created_at != right.created_at) return left.created_at > right.created_at;
+    if (left.project_id != right.project_id) return left.project_id < right.project_id;
+    if (left.from_card_id != right.from_card_id) return left.from_card_id < right.from_card_id;
+    return left.kind < right.kind;
+  });
+  return out;
+}
 
 std::vector<holder::model::CardLink> LinkRepo::list_incoming_typed(
     const std::string& project_id,

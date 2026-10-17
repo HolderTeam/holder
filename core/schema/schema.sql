@@ -1,4 +1,4 @@
--- schema.sql (schema version 8)
+-- schema.sql (schema version 10)
 -- Local-first holder schema: projects, cards, links, milestones, resources, AI threads/messages, and FTS5.
 -- The app/server is responsible for keeping FTS tables in sync (no triggers in v0.1).
 
@@ -99,6 +99,9 @@ CREATE INDEX IF NOT EXISTS idx_card_links_from
 
 CREATE INDEX IF NOT EXISTS idx_card_links_to
   ON card_links(project_id, to_card_id);
+
+CREATE INDEX IF NOT EXISTS idx_card_links_external_target
+  ON card_links(target_project_id, to_card_id, to_type, project_id);
 
 -- ----------------------------
 -- Card tags: a disposable index over #tag occurrences in card bodies.
@@ -486,7 +489,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER NOT NULL
 );
 
--- Initialize schema version to 9 if empty
+-- Initialize schema version to 10 if empty
 INSERT INTO schema_version(version)
-SELECT 9
+SELECT 10
 WHERE NOT EXISTS (SELECT 1 FROM schema_version);

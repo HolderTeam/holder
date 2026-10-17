@@ -367,6 +367,16 @@ UPDATE schema_version SET version = 9 WHERE version = 8;
   tx.commit();
 }
 
+void migrate_v9_to_v10(Db& db) {
+  Tx tx(db);
+  db.exec(R"sql(
+CREATE INDEX IF NOT EXISTS idx_card_links_external_target
+  ON card_links(target_project_id, to_card_id, to_type, project_id);
+UPDATE schema_version SET version = 10 WHERE version = 9;
+)sql");
+  tx.commit();
+}
+
 } // namespace
 
 std::string Migrations::read_file(const std::filesystem::path& p) {
@@ -468,6 +478,11 @@ bool Migrations::migrate_to_latest(Db& db) {
     case 8:
       migrate_v8_to_v9(db);
       version = 9;
+      migrated = true;
+      break;
+    case 9:
+      migrate_v9_to_v10(db);
+      version = 10;
       migrated = true;
       break;
     default:
