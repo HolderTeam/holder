@@ -87,6 +87,7 @@ You can also list cards with a tag using
   refreshes, and connecting to a specific daemon.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
 - [Development](docs/development.md): tests, builds, and generated code.
+- [Publishing](docs/publishing.md): PyPI setup and release steps.
 
 For offline analysis and bulk work without a running Holder installation, see
 [Holder Kit](../kit/).
