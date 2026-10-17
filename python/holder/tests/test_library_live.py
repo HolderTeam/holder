@@ -176,6 +176,64 @@ def test_tag_collections_and_body_mentions_against_daemon(daemon):
         assert list(card.tags) == []
 
 
+def test_qualified_card_links_and_available_backlinks_against_daemon(daemon):
+    url, token, _, _ = daemon
+    with Holder(url=url, token=token) as h:
+        first = h.projects.create(name="Link source", privacy_mode="plain")
+        second = h.projects.create(name="Link peer", privacy_mode="plain")
+        source = first.cards.create(title="Source")
+        target = first.cards.create(title="Target")
+        peer = second.cards.create(title="Peer")
+
+        local = source.links.add(target.id, label="Local")
+        same_uuid_other_project = source.links.add(
+            target.id, target_project_id=second.id, label="External fork"
+        )
+        unknown = source.links.add(
+            "not-present", target_project_id="unregistered-project", label="Unresolved"
+        )
+        assert local.target_project_id == first.id
+        assert same_uuid_other_project.target_project_id == second.id
+        assert unknown.target_project_id == "unregistered-project"
+        assert {row.target_project_id for row in source.links} == {
+            first.id,
+            second.id,
+            "unregistered-project",
+        }
+        with pytest.raises(NotFoundError):
+            h.projects.get("unregistered-project")
+
+        peer.links.add(target.id, target_project_id=first.id, label="Backlink")
+        assert {row.source_project_id for row in target.backlinks} == {first.id}
+        external = target.backlinks.filter(scope="external")
+        assert {row.source_project_id for row in external} == {second.id}
+        assert external.coverage == "available_projects"
+        both = target.backlinks.filter(scope="all_available")
+        assert {row.source_project_id for row in both} == {first.id, second.id}
+
+        # The same UUID in two qualified target identities must delete separately.
+        source.links.remove(target.id, target_project_id=second.id)
+        assert any(row.target_project_id == first.id for row in source.links)
+        assert not any(row.target_project_id == second.id for row in source.links)
+        assert len(list(target.backlinks)) == 1  # Cached until explicit refresh.
+
+        source.links.add(target.id, target_project_id=second.id)
+
+        root = Path(second.root_path)
+        unavailable_root = root.with_name(root.name + "-unavailable")
+        root.rename(unavailable_root)
+        try:
+            assert list(external.refresh()) == []
+            assert external.coverage == "available_projects"
+            assert any(
+                row.target_project_id == "unregistered-project"
+                for row in source.links.refresh()
+            )
+            assert any(row.target_project_id == second.id for row in source.links)
+        finally:
+            unavailable_root.rename(root)
+
+
 def test_card_moves_against_daemon(daemon):
     url, token, raw, _ = daemon
     with Holder(url=url, token=token) as h:

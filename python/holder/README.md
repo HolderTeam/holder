@@ -90,6 +90,41 @@ You can also list cards with a tag using
 `project.cards.filter(tag="research")`, or list just top-level cards with
 `project.cards.roots()`.
 
+## Connect cards
+
+Links keep the target's project ID as part of their identity. An external
+target may remain unresolved on this device; listing a link does not load or
+grant access to its target.
+
+```python
+from holder import Holder
+
+with Holder() as holder:
+    project = holder.projects.filter(name="Research")[0]
+    source = project.cards.get("source-card-id")
+    link = source.links.add(
+        "target-card-id", target_project_id="other-project-id", label="Related work"
+    )
+    print(link.source_project_id, link.target_project_id, link.target_id)
+    for link in source.links:
+        print(link.target_type, link.kind, link.label)
+    source.links.remove("target-card-id", target_project_id="other-project-id")
+    source.links.refresh()  # Reread changes made elsewhere.
+```
+
+`add` updates a link with the same qualified target, type, and kind. Use
+`to_type` and `kind` when linking to a local AI message, thread, or resource.
+`remove` deletes exactly one qualified target/type/kind; there is no bulk
+delete method in this high-level API.
+
+`card.backlinks` reads local backlinks by default. Choose
+`card.backlinks.filter(scope="external")` or
+`card.backlinks.filter(scope="all_available")` for other source projects.
+After fetching, `coverage` is `"target_project"` for local results or
+`"available_projects"` for the other scopes. Those scopes include only
+projects available to the daemon for this request, and never claim to cover
+every possible project. Each collection caches its results until `refresh()`.
+
 ## More help
 
 - [More scripting tasks](docs/scripting.md): moves, Trash, tags, collection

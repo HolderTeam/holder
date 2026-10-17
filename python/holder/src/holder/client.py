@@ -125,7 +125,12 @@ class Holder:
         return iter(self.projects)
 
     def _call(
-        self, endpoint: Any, *args: Any, write: bool = False, **kwargs: Any
+        self,
+        endpoint: Any,
+        *args: Any,
+        write: bool = False,
+        return_envelope: bool = False,
+        **kwargs: Any,
     ) -> Any:
         client = self._active()
         for attempt in range(2):
@@ -176,7 +181,7 @@ class Holder:
                 or getattr(response.parsed, "ok", None) is not True
             ):
                 raise ProtocolError("Invalid daemon success envelope")
-            return response.parsed.data
+            return response.parsed if return_envelope else response.parsed.data
         raise AuthenticationError(
             401, "unauthorized", "Daemon rejected refreshed credentials"
         )
