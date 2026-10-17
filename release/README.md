@@ -61,7 +61,7 @@ core and `VERSION` all at that version. See
 `Release / Holder Python to PyPI` builds and checks the `holder-python` wheel
 and source archive, then publishes from a matching `holder-v<version>` tag via
 Trusted Publishing. The initial `0.2.5` package-only backfill can use
-`holder-python-v0.2.5`. See
+`holder-python-v0.2.5-r2` after TestPyPI previews from `main`. See
 [`python/holder/docs/publishing.md`](../python/holder/docs/publishing.md) for
 the one-time PyPI project setup and release steps.
 
