@@ -8,12 +8,13 @@ import json
 import os
 import subprocess
 import time
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 import pytest
 
-from holder import Holder
+from holder import Holder, MilestoneDate
 from holder.exceptions import APIError, NotFoundError
 
 DAEMON = os.environ.get("HOLDER_TEST_DAEMON")
@@ -232,6 +233,70 @@ def test_qualified_card_links_and_available_backlinks_against_daemon(daemon):
             assert any(row.target_project_id == second.id for row in source.links)
         finally:
             unavailable_root.rename(root)
+
+
+def test_full_card_milestones_against_daemon(daemon):
+    url, token, raw, _ = daemon
+    with Holder(url=url, token=token) as h:
+        project = h.projects.create(name="Python milestones", privacy_mode="plain")
+        card = project.cards.create(title="Dates")
+        milestones = card.milestones
+        assert list(milestones) == []
+        undated = milestones.create(kind="task", description="Track this")
+        assert undated.dates == ()
+        assert {item.id for item in milestones} == {undated.id}
+
+        occurred = datetime(
+            2026, 6, 2, 0, 30, tzinfo=timezone(timedelta(hours=2, minutes=30))
+        )
+        dated = milestones.create(
+            dates=[
+                MilestoneDate("deadline", date(2026, 6, 2)),
+                MilestoneDate("deadline", date(2026, 6, 3)),
+                MilestoneDate("occurred", occurred),
+            ],
+            description="A dated event",
+        )
+        assert dated.dates[0].value == date(2026, 6, 2)
+        assert dated.dates[1].value == date(2026, 6, 3)
+        assert dated.dates[2].value == occurred
+        assert {item.id for item in milestones} == {undated.id, dated.id}
+
+        # The calendar day stays June 2; the offset instant is June 1 in UTC.
+        days = raw.get(
+            f"/projects/{project.id}/milestones-with-dates",
+            params={
+                "role": "deadline",
+                "value_type": "date",
+                "from": "2026-06-02",
+                "to": "2026-06-02",
+            },
+        )
+        assert days.status_code == 200
+        assert [item["milestone_id"] for item in days.json()["data"]] == [str(dated.id)]
+        epoch = int(occurred.astimezone(UTC).timestamp())
+        instants = raw.get(
+            f"/projects/{project.id}/milestones-with-dates",
+            params={
+                "role": "occurred",
+                "value_type": "datetime",
+                "from": epoch,
+                "to": epoch,
+            },
+        )
+        assert instants.status_code == 200
+        assert [item["milestone_id"] for item in instants.json()["data"]] == [
+            str(dated.id)
+        ]
+
+        assert dated.update(description=None) is dated
+        assert dated.description is None
+        assert dated.dates[2].value == occurred
+        assert dated.update(dates=[]) is dated
+        assert dated.dates == ()
+        assert milestones.get(dated.id).dates == ()
+        assert undated.remove() is True
+        assert {item.id for item in milestones} == {dated.id}
 
 
 def test_card_moves_against_daemon(daemon):

@@ -30,6 +30,7 @@ from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
 )
 from ..generated.types import UNSET, Unset
 from .link import CardBacklinkCollection, CardLinkCollection
+from .milestone import CardMilestoneCollection
 from .search import CardSearchCollection
 from .tag import CardTagCollection
 
@@ -163,6 +164,10 @@ class Card:
     @cached_property
     def backlinks(self) -> CardBacklinkCollection:
         return CardBacklinkCollection(self)
+
+    @cached_property
+    def milestones(self) -> CardMilestoneCollection:
+        return CardMilestoneCollection(self)
 
     @classmethod
     def _from(cls, project: Project, data: Any) -> Self:

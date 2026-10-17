@@ -72,6 +72,45 @@ After fetching, `coverage` is `"target_project"` for local results or
 projects available to the daemon for this request, and never claim to cover
 every possible project. Each collection caches its results until `refresh()`.
 
+## Track milestones on a card
+
+`card.milestones` includes every milestone on the live card, including undated
+ones. Each milestone has a stable `id`, optional `kind` and `description`, and
+an ordered tuple of labelled dates. Roles are free-form and can repeat.
+
+```python
+from datetime import date, datetime, timedelta, timezone
+
+from holder import MilestoneDate
+
+task = card.milestones.create(kind="task")  # No dates yet.
+event = card.milestones.create(
+    dates=[
+        MilestoneDate("deadline", date(2026, 6, 2)),
+        MilestoneDate("deadline", date(2026, 6, 3)),
+        MilestoneDate(
+            "occurred",
+            datetime(2026, 6, 2, 12, 30, tzinfo=timezone(timedelta(hours=2, minutes=30))),
+        ),
+    ],
+    description="Workshop",
+)
+event.update(description=None)  # Clear only the description.
+event.update(dates=[])          # Clear all dates; keep the milestone.
+task.remove()
+card.milestones.refresh()       # Reread changes made elsewhere.
+```
+
+Use `datetime.date` for a calendar day with no timezone. Use a timezone-aware
+`datetime.datetime` for an instant; its UTC offset is preserved, but a named
+timezone is not stored. Datetimes must have whole seconds and a minute-aligned
+offset. An update leaves omitted fields unchanged; `None` clears `kind` or
+`description`, and an empty `dates` list clears every date. Supplying dates
+replaces the full ordered list. No completion or outstanding state is inferred
+from any role. The older scheduled timestamp route and project calendar view
+do not represent all of these values, so this workflow uses the complete
+card-level date route.
+
 ## Move, trash and restore cards
 
 Supply exactly one target when moving a card:
