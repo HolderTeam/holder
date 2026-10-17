@@ -64,6 +64,9 @@ from .asset_placement import AssetPlacement
 from .asset_placement_encoding import AssetPlacementEncoding
 from .bye_response import ByeResponse
 from .calendar_card_activity import CalendarCardActivity
+from .card_backlink_list_response import CardBacklinkListResponse
+from .card_backlink_list_response_coverage import CardBacklinkListResponseCoverage
+from .card_backlink_list_response_scope import CardBacklinkListResponseScope
 from .card_context_breadcrumb import CardContextBreadcrumb
 from .card_context_breadcrumb_type import CardContextBreadcrumbType
 from .card_context_card import CardContextCard
@@ -144,6 +147,7 @@ from .get_ai_messages_message_id_links_include_deleted import (
 from .get_cards_card_id_backlinks_include_deleted import (
     GetCardsCardIdBacklinksIncludeDeleted,
 )
+from .get_cards_card_id_backlinks_scope import GetCardsCardIdBacklinksScope
 from .get_cards_card_id_links_include_deleted import GetCardsCardIdLinksIncludeDeleted
 from .get_cards_context_order import GetCardsContextOrder
 from .get_cards_order import GetCardsOrder
@@ -372,6 +376,9 @@ __all__ = (
     "AssetPlacementEncoding",
     "ByeResponse",
     "CalendarCardActivity",
+    "CardBacklinkListResponse",
+    "CardBacklinkListResponseCoverage",
+    "CardBacklinkListResponseScope",
     "CardContextBreadcrumb",
     "CardContextBreadcrumbType",
     "CardContextCard",
@@ -446,6 +453,7 @@ __all__ = (
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
     "GetCardsCardIdBacklinksIncludeDeleted",
+    "GetCardsCardIdBacklinksScope",
     "GetCardsCardIdLinksIncludeDeleted",
     "GetCardsContextOrder",
     "GetCardsOrder",

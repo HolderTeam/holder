@@ -2,6 +2,7 @@
 
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
+#include "card/LinkRepo.h"
 #include "model/AiMessage.h"
 #include "model/AiThread.h"
 #include "model/Resource.h"
@@ -267,6 +268,234 @@ TEST_CASE("HTTP card links retain qualified targets and delete them exactly", "[
   REQUIRE(after_delete["data"].size() == 2);
   for (const auto& link : after_delete["data"])
     REQUIRE(link.value("target_project_id", "") != "not-loaded");
+
+  server.stop();
+  server_thread.join();
+}
+
+TEST_CASE("HTTP card backlinks select local and available external sources", "[http]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  const auto target_root = dir / "target";
+  const auto source_root = dir / "source";
+  create_project(db, "target-project", target_root.string());
+  create_project(db, "source-project", source_root.string());
+  ensure_uuid_seeded();
+
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  holder::test::create_card_fixture(
+      card_store,
+      "target-card",
+      "target-project",
+      "Target",
+      "body",
+      10
+  );
+  holder::test::create_card_fixture(
+      card_store,
+      "local-source",
+      "target-project",
+      "Local",
+      "body",
+      11
+  );
+  holder::test::create_card_fixture(
+      card_store,
+      "external-source",
+      "source-project",
+      "External",
+      "body",
+      12
+  );
+  holder::model::AiThread thread;
+  thread.thread_id = "source-thread";
+  thread.project_id = "source-project";
+  thread.title = "Source thread";
+  thread.created_at = thread.updated_at = 1;
+  holder::ai::AiThreadRepo(db).create(thread);
+  holder::model::AiMessage message;
+  message.message_id = "source-message";
+  message.thread_id = thread.thread_id;
+  message.role = "user";
+  message.source = "manual";
+  message.content = "Link to target";
+  message.created_at = 2;
+  holder::ai::AiMessageRepo(db, &fts).append(message);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& ex) {
+    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
+  }
+  holder::core::SignalHandler signals;
+  std::thread server_thread([&server, &signals]() {
+    server.run(signals);
+  });
+
+  const auto request = [&](boost::beast::http::verb method,
+                           const std::string& path,
+                           const nlohmann::json& body,
+                           boost::beast::http::status expected) {
+    return http_json_request(bound.bind, bound.port, token, method, path, body, expected);
+  };
+  request(
+      boost::beast::http::verb::post,
+      "/cards/local-source/links",
+      {{"to_card_id", "target-card"}, {"kind", "ref"}, {"label", "Local label"}},
+      boost::beast::http::status::created
+  );
+  request(
+      boost::beast::http::verb::post,
+      "/cards/external-source/links",
+      {{"to_card_id", "target-card"},
+       {"target_project_id", "target-project"},
+       {"kind", "ref"},
+       {"label", "External label"}},
+      boost::beast::http::status::created
+  );
+  // The same card ID qualified to a different target project is a different link.
+  request(
+      boost::beast::http::verb::post,
+      "/cards/external-source/links",
+      {{"to_card_id", "target-card"},
+       {"target_project_id", "fork-project"},
+       {"kind", "ref"},
+       {"label", "Fork label"}},
+      boost::beast::http::status::created
+  );
+
+  const auto get_backlinks = [&](const std::string& suffix) {
+    return request(
+        boost::beast::http::verb::get,
+        "/cards/target-card/backlinks" + suffix,
+        nlohmann::json::object(),
+        boost::beast::http::status::ok
+    );
+  };
+  const auto default_links = get_backlinks("");
+  REQUIRE(default_links["scope"] == "local");
+  REQUIRE(default_links["coverage"] == "target_project");
+  REQUIRE(default_links["data"].size() == 1);
+  REQUIRE(default_links["data"][0]["from_card_id"] == "local-source");
+  REQUIRE_FALSE(default_links["data"][0].contains("source_project_id"));
+
+  const auto external = get_backlinks("?scope=external");
+  REQUIRE(external["scope"] == "external");
+  REQUIRE(external["coverage"] == "available_projects");
+  REQUIRE(external["data"].size() == 1);
+  REQUIRE(external["data"][0]["from_card_id"] == "external-source");
+  REQUIRE(external["data"][0]["source_project_id"] == "source-project");
+  REQUIRE(external["data"][0]["target_project_id"] == "target-project");
+  REQUIRE(external["data"][0]["label"] == "External label");
+
+  const auto both = get_backlinks("?scope=all_available");
+  REQUIRE(both["data"].size() == 2);
+  REQUIRE(both["coverage"] == "available_projects");
+
+  request(
+      boost::beast::http::verb::post,
+      "/ai/messages/source-message/links",
+      {{"to_card_id", "target-card"},
+       {"target_project_id", "target-project"},
+       {"to_type", "card"},
+       {"kind", "ref"},
+       {"label", "Message label"}},
+      boost::beast::http::status::created
+  );
+  const auto with_message = get_backlinks("?scope=external");
+  REQUIRE(with_message["data"].size() == 2);
+  bool saw_message = false;
+  for (const auto& link : with_message["data"]) {
+    if (link["from_card_id"] == "source-message") {
+      REQUIRE(link["source_project_id"] == "source-project");
+      saw_message = true;
+    }
+  }
+  REQUIRE(saw_message);
+
+  holder::model::CardLink wrong_owner;
+  wrong_owner.project_id = "source-project";
+  wrong_owner.from_card_id = "local-source";
+  wrong_owner.to_card_id = "target-card";
+  wrong_owner.target_project_id = "target-project";
+  wrong_owner.to_type = "card";
+  wrong_owner.kind = "ref";
+  wrong_owner.label = "Wrong owner";
+  wrong_owner.created_at = 1;
+  holder::card::LinkRepo(db).upsert_links("source-project", "local-source", {wrong_owner});
+  REQUIRE(get_backlinks("?scope=external&include_deleted=1")["data"].size() == 2);
+
+  const auto invalid = request(
+      boost::beast::http::verb::get,
+      "/cards/target-card/backlinks?scope=global",
+      nlohmann::json::object(),
+      boost::beast::http::status::bad_request
+  );
+  REQUIRE(invalid["ok"] == false);
+  const auto unauthorized = http_json_request(
+      bound.bind,
+      bound.port,
+      "wrong-token",
+      boost::beast::http::verb::get,
+      "/cards/target-card/backlinks?scope=external",
+      nlohmann::json::object(),
+      boost::beast::http::status::unauthorized
+  );
+  REQUIRE_FALSE(unauthorized.contains("data"));
+
+  const auto unavailable_root = dir / "source-unavailable";
+  std::filesystem::rename(source_root, unavailable_root);
+  REQUIRE(get_backlinks("?scope=external")["data"].empty());
+  REQUIRE(get_backlinks("?scope=all_available")["data"].size() == 1);
+  std::filesystem::rename(unavailable_root, source_root);
+  REQUIRE(get_backlinks("?scope=external")["data"].size() == 2);
+
+  const auto unavailable_target_root = dir / "target-unavailable";
+  std::filesystem::rename(target_root, unavailable_target_root);
+  const auto unavailable_target = request(
+      boost::beast::http::verb::get,
+      "/cards/target-card/backlinks?scope=external",
+      nlohmann::json::object(),
+      boost::beast::http::status::not_found
+  );
+  REQUIRE_FALSE(unavailable_target.contains("data"));
+  std::filesystem::rename(unavailable_target_root, target_root);
+
+  request(
+      boost::beast::http::verb::delete_,
+      "/cards/external-source",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  REQUIRE(get_backlinks("?scope=external")["data"].size() == 1);
+  REQUIRE(get_backlinks("?scope=external&include_deleted=1")["data"].size() == 2);
+
+  request(
+      boost::beast::http::verb::delete_,
+      "/cards/target-card",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  request(
+      boost::beast::http::verb::delete_,
+      "/trash/card/target-card",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  const auto purged = request(
+      boost::beast::http::verb::get,
+      "/cards/target-card/backlinks?scope=external",
+      nlohmann::json::object(),
+      boost::beast::http::status::not_found
+  );
+  REQUIRE(purged["ok"] == false);
+  REQUIRE(
+      holder::card::LinkRepo(db).list_outgoing("source-project", "external-source").size() == 2
+  );
 
   server.stop();
   server_thread.join();
