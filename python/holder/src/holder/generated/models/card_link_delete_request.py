@@ -17,17 +17,22 @@ class CardLinkDeleteRequest:
     """
     Attributes:
         to_card_id (str | Unset):
+        target_project_id (str | Unset): Selects the target project. Requires to_card_id, to_type and kind; use it to
+            distinguish equal card IDs in different projects.
         to_type (str | Unset):
         kind (str | Unset):
     """
 
     to_card_id: str | Unset = UNSET
+    target_project_id: str | Unset = UNSET
     to_type: str | Unset = UNSET
     kind: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         to_card_id = self.to_card_id
+
+        target_project_id = self.target_project_id
 
         to_type = self.to_type
 
@@ -38,6 +43,8 @@ class CardLinkDeleteRequest:
         field_dict.update({})
         if to_card_id is not UNSET:
             field_dict["to_card_id"] = to_card_id
+        if target_project_id is not UNSET:
+            field_dict["target_project_id"] = target_project_id
         if to_type is not UNSET:
             field_dict["to_type"] = to_type
         if kind is not UNSET:
@@ -50,12 +57,15 @@ class CardLinkDeleteRequest:
         d = dict(src_dict)
         to_card_id = d.pop("to_card_id", UNSET)
 
+        target_project_id = d.pop("target_project_id", UNSET)
+
         to_type = d.pop("to_type", UNSET)
 
         kind = d.pop("kind", UNSET)
 
         card_link_delete_request = cls(
             to_card_id=to_card_id,
+            target_project_id=target_project_id,
             to_type=to_type,
             kind=kind,
         )

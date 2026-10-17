@@ -21,6 +21,8 @@ class CardLink:
         to_type (str): Target type (card, ai_message, ai_thread, resource).
         kind (str):
         created_at (int):
+        target_project_id (str | Unset): Present for a card target in another project; omitted for a local target. The
+            link grants no access to the target.
         label (None | str | Unset):
     """
 
@@ -29,6 +31,7 @@ class CardLink:
     to_type: str
     kind: str
     created_at: int
+    target_project_id: str | Unset = UNSET
     label: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -42,6 +45,8 @@ class CardLink:
         kind = self.kind
 
         created_at = self.created_at
+
+        target_project_id = self.target_project_id
 
         label: None | str | Unset
         if isinstance(self.label, Unset):
@@ -60,6 +65,8 @@ class CardLink:
                 "created_at": created_at,
             }
         )
+        if target_project_id is not UNSET:
+            field_dict["target_project_id"] = target_project_id
         if label is not UNSET:
             field_dict["label"] = label
 
@@ -78,6 +85,8 @@ class CardLink:
 
         created_at = d.pop("created_at")
 
+        target_project_id = d.pop("target_project_id", UNSET)
+
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -93,6 +102,7 @@ class CardLink:
             to_type=to_type,
             kind=kind,
             created_at=created_at,
+            target_project_id=target_project_id,
             label=label,
         )
 
