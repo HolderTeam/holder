@@ -90,12 +90,6 @@ You can also list cards with a tag using
 `project.cards.filter(tag="research")`, or list just top-level cards with
 `project.cards.roots()`.
 
-## Connect cards
-
-Use `card.links` to create and list links, and `card.backlinks` to see links to
-a card. See [Connect cards](docs/scripting.md#connect-cards) for qualified
-targets, backlink scopes, and refresh examples.
-
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, moves, Trash, tags,
