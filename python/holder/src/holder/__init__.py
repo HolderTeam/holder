@@ -3,6 +3,7 @@
 from .client import Holder
 from .models import (
     Card,
+    CardLink,
     CardSearchResult,
     HierarchyRepair,
     Project,
@@ -12,6 +13,7 @@ from .models import (
 
 __all__ = [
     "Card",
+    "CardLink",
     "CardSearchResult",
     "HierarchyRepair",
     "Holder",
