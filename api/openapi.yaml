@@ -2675,6 +2675,19 @@ components:
           type: array
           items:
             type: string
+        items:
+          type: array
+          description: Historical display details for the affected paths, when available.
+          items:
+            type: object
+            required: [path]
+            properties:
+              path:
+                type: string
+              title:
+                type: string
+              detail:
+                type: string
     ProjectHistoryActivity:
       type: object
       required: [oid, parent_oids, author, authored_at, committed_at, message, affected_objects, is_merge]

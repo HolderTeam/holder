@@ -29,6 +29,14 @@ from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
     GetProjectsProjectIdCardsParentType0 as CardParent,
 )
 from ..generated.types import UNSET, Unset
+from .history import (
+    CardChange,
+    CardComparison,
+    CardHistoryCollection,
+    CardRestoreResult,
+    CardSave,
+    CardVersion,
+)
 from .link import CardBacklinkCollection, CardLinkCollection
 from .milestone import CardMilestoneCollection
 from .search import CardSearchCollection
@@ -120,6 +128,10 @@ class CardCollection(Collection["Card"]):
             raise NotFoundError(404, "not_found", "Card not found in this project")
         return Card._from(self._project, data)
 
+    def history(self, card_id: str) -> CardHistoryCollection:
+        """History by ID, including a card no longer available as a live Card."""
+        return CardHistoryCollection(self._project, card_id)
+
 
 @dataclass(frozen=True, eq=False)
 class Card:
@@ -168,6 +180,31 @@ class Card:
     @cached_property
     def milestones(self) -> CardMilestoneCollection:
         return CardMilestoneCollection(self)
+
+    @cached_property
+    def history(self) -> CardHistoryCollection:
+        return self._project.cards.history(self.id)
+
+    def version(
+        self, revision: str | CardChange | CardSave | CardVersion
+    ) -> CardVersion:
+        return self.history.version(revision)
+
+    def compare(
+        self,
+        before: str | CardChange | CardSave | CardVersion,
+        after: str | CardChange | CardSave | CardVersion,
+    ) -> CardComparison:
+        return self.history.compare(before, after)
+
+    def restore_version(
+        self, revision: str | CardChange | CardSave | CardVersion
+    ) -> CardRestoreResult:
+        """Restore a saved card state as a new revision, then refresh this card."""
+        result = self.history.restore_version(revision)
+        if result.deleted_at is None:
+            self.refresh()
+        return result
 
     @classmethod
     def _from(cls, project: Project, data: Any) -> Self:

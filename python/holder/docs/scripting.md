@@ -133,6 +133,54 @@ card.restore()                        # restore this card alone
 
 When you restore a card, children that were moved up stay where they are.
 
+## Browse activity and recover a saved card version
+
+Project activity shows saved changes across the project. Card history shows
+changes to one card; nearby edits can be grouped into one `CardChange`, with
+each exact save available through `change.saves`. Both collections load pages as
+you iterate and cache results until `.refresh()`.
+
+```python
+for activity in project.activity.filter(kind="card"):
+    print(activity.when, activity.message)
+    for affected in activity.affected_objects:
+        for item in affected.items:
+            print(item.title or item.path, item.detail)
+
+change = card.history[0]             # most recent displayed change
+print(change.summary, change.when)
+print(change.version().content)       # state at its final save
+print(change.saves[0].version().content)  # state at an exact save
+print(change.diff().text)             # change across the whole displayed entry
+```
+
+`card.version(revision)` reads an immutable historical `CardVersion` with
+`exists`, `title`, `content`, and its canonical full `revision`. When `exists`
+is false, the card was absent at that revision. A trashed card can still exist
+in a historical version. Use `card.compare(before, after)` to compare any two
+saved revisions; its result also has structured `lines` and `truncated`.
+Revision arguments can be full or unique abbreviated commit IDs, `CardChange`,
+`CardSave`, or `CardVersion` objects. A comparison uses the card's state at
+each revision, even if that commit changed something else in the project.
+
+```python
+older = card.history[1]
+newer = card.history[0]
+print(card.compare(older, newer).summary)
+result = card.restore_version(older)
+print(result.restored_from_revision, result.result_revision)
+```
+
+Restoring a version writes a new commit; it does not remove later history.
+It restores the complete historical card state, including links, milestones,
+placement, and Trash state. `card.restore()` still means restore from Trash.
+The `Card` object refreshes after restoring a live version; refresh other
+previously loaded listings yourself. If the selected version is trashed, use
+`project.cards.history(card_id)` to continue browsing without loading a live
+card. This ID-based entry point also works when the current card is unavailable.
+History requires a usable project Git repository and, for encrypted projects,
+an available project key. Individual history responses have a 2 MiB limit.
+
 ## Find and repair hidden cards
 
 Older clients, manual file removal, or sync can leave cards under a missing or

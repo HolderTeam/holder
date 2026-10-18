@@ -247,6 +247,9 @@ from .project_git_test_remote_response_data_status import (
 )
 from .project_history_activity import ProjectHistoryActivity
 from .project_history_affected_object import ProjectHistoryAffectedObject
+from .project_history_affected_object_items_item import (
+    ProjectHistoryAffectedObjectItemsItem,
+)
 from .project_history_affected_object_kind import ProjectHistoryAffectedObjectKind
 from .project_history_page_data import ProjectHistoryPageData
 from .project_history_page_response import ProjectHistoryPageResponse
@@ -529,6 +532,7 @@ __all__ = (
     "ProjectGitTestRemoteResponseDataStatus",
     "ProjectHistoryActivity",
     "ProjectHistoryAffectedObject",
+    "ProjectHistoryAffectedObjectItemsItem",
     "ProjectHistoryAffectedObjectKind",
     "ProjectHistoryPageData",
     "ProjectHistoryPageResponse",

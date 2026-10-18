@@ -26,6 +26,7 @@ from ..generated.models import (
 )
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
+from .history import ProjectActivityCollection
 from .tag import TagCollection
 
 if TYPE_CHECKING:
@@ -150,6 +151,11 @@ class Project:
     @cached_property
     def cards(self) -> CardCollection:
         return CardCollection(self)
+
+    @cached_property
+    def activity(self) -> ProjectActivityCollection:
+        """Project-wide saved activity, newest first."""
+        return ProjectActivityCollection(self)
 
     @cached_property
     def tags(self) -> TagCollection:
