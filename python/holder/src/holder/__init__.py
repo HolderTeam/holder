@@ -20,6 +20,7 @@ from .models import (
     ProjectActivity,
     RepairedCard,
     Tag,
+    TrashItem,
 )
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "ProjectActivity",
     "RepairedCard",
     "Tag",
+    "TrashItem",
 ]

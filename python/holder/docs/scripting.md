@@ -133,6 +133,29 @@ card.restore()                        # restore this card alone
 
 When you restore a card, children that were moved up stay where they are.
 
+Browse a project's Trash through `project.trash`. The listing loads on first
+use and caches its results until `.refresh()`:
+
+```python
+for item in project.trash:
+    print(item.type, item.id, item.when, item.title or item.role)
+
+trashed_card = project.trash.cards()[0]
+card = trashed_card.restore()  # returns the live Card
+
+for message in project.trash.messages():
+    print(message.thread_id, message.role)
+```
+
+`project.trash.cards()` and `.messages()` ask the daemon to filter the
+listing. Restoring an AI message returns `None`, since the friendly library
+does not yet have a live AI message object. To remove one item, call
+`item.delete_permanently()`. To remove all items in the project, call
+`project.trash.empty()`; use `project.trash.cards().empty()` or
+`project.trash.messages().empty()` to limit it to one type. These operations
+only act on items currently in Trash. They do not erase older card revisions
+from Git history. Refresh a listing after restoring or removing items.
+
 ## Browse activity and recover a saved card version
 
 Project activity shows saved changes across the project. Card history shows

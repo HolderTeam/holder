@@ -28,6 +28,7 @@ from ..generated.types import UNSET, Unset
 from .card import CardCollection
 from .history import ProjectActivityCollection
 from .tag import TagCollection
+from .trash import TrashCollection
 
 if TYPE_CHECKING:
     from ..client import Holder
@@ -156,6 +157,11 @@ class Project:
     def activity(self) -> ProjectActivityCollection:
         """Project-wide saved activity, newest first."""
         return ProjectActivityCollection(self)
+
+    @cached_property
+    def trash(self) -> TrashCollection:
+        """Browse and manage this project's Trash."""
+        return TrashCollection(self)
 
     @cached_property
     def tags(self) -> TagCollection:

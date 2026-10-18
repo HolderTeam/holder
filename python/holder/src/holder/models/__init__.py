@@ -17,6 +17,7 @@ from .milestone import Milestone, MilestoneDate
 from .project import HierarchyRepair, Project, RepairedCard
 from .search import CardSearchResult
 from .tag import Tag
+from .trash import TrashItem
 
 __all__ = [
     "ActivityItem",
@@ -37,4 +38,5 @@ __all__ = [
     "ProjectActivity",
     "RepairedCard",
     "Tag",
+    "TrashItem",
 ]
