@@ -2505,7 +2505,7 @@ components:
           type: string
         provider:
           type: string
-          enum: [local_directory, s3_compatible, google-drive]
+          enum: [local_directory, s3_compatible]
         configuration:
           type: object
           additionalProperties:
@@ -2535,7 +2535,7 @@ components:
           type: string
         provider:
           type: string
-          enum: [local_directory, s3_compatible, google-drive]
+          enum: [local_directory, s3_compatible]
         configuration:
           type: object
           additionalProperties:
@@ -2594,19 +2594,6 @@ components:
           properties:
             available:
               type: boolean
-    LocationOAuthResponse:
-      type: object
-      required: [ok, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          required: [authorization_url]
-          properties:
-            authorization_url:
-              type: string
     LocationBindingRequest:
       type: object
       required: [values]
@@ -6617,25 +6604,6 @@ paths:
                 $ref: "#/components/schemas/LocationTestResponse"
         "400":
           description: Missing binding or storage failure
-  /locations/{location_id}/oauth/google-drive/authorize:
-    post:
-      summary: Begin this device's Google Drive authorization
-      description: Returns a browser URL. The callback binds the location on this daemon after authorization.
-      parameters:
-        - *locationId
-      responses:
-        "200":
-          description: Authorization URL
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LocationOAuthResponse"
-        "400":
-          description: Location or OAuth configuration invalid
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /locations/preferred:
     put:
       summary: Set this device's preferred project storage location

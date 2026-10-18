@@ -181,8 +181,6 @@ from .location_action_response import LocationActionResponse
 from .location_action_response_data import LocationActionResponseData
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
-from .location_o_auth_response import LocationOAuthResponse
-from .location_o_auth_response_data import LocationOAuthResponseData
 from .location_test_response import LocationTestResponse
 from .location_test_response_data import LocationTestResponseData
 from .milestone import Milestone
@@ -491,8 +489,6 @@ __all__ = (
     "LocationActionResponseData",
     "LocationBindingRequest",
     "LocationBindingRequestValues",
-    "LocationOAuthResponse",
-    "LocationOAuthResponseData",
     "LocationTestResponse",
     "LocationTestResponseData",
     "Milestone",

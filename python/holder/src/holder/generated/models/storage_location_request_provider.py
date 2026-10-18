@@ -2,7 +2,6 @@ from enum import StrEnum
 
 
 class StorageLocationRequestProvider(StrEnum):
-    GOOGLE_DRIVE = "google-drive"
     LOCAL_DIRECTORY = "local_directory"
     S3_COMPATIBLE = "s3_compatible"
 

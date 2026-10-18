@@ -202,11 +202,9 @@ so a restart can make a job ID unavailable. Downloads stream to a temporary
 file and replace the destination only after success.
 
 For S3 compatible storage, pass portable `configuration` at creation and
-device-specific credentials to `location.bind(values)`. For a Google Drive
-location, open `location.authorization_url()` in a browser and then refresh the
-location to see its new binding. `project.storage_locations.preferred_id` reads
-this device's current preference. A location with live asset placements cannot
-be deleted.
+device-specific credentials to `location.bind(values)`.
+`project.storage_locations.preferred_id` reads this device's current
+preference. A location with live asset placements cannot be deleted.
 
 ## Browse activity and recover a saved card version
 

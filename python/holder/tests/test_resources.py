@@ -310,24 +310,6 @@ def test_attachment_list_rejects_wrong_card():
         list(holder.projects.get("p-0").cards.get("c-0000").attachments)
 
 
-def test_google_drive_authorization_url_uses_location_route():
-    requests = []
-
-    def respond(request):
-        if request.url.path == "/projects/p-0":
-            return ok(project_payload())
-        if request.url.path == "/locations/l-1" and request.method == "GET":
-            return ok({**location_data(), "provider": "google-drive"})
-        requests.append(request)
-        return ok({"authorization_url": "https://accounts.example.test/authorize"})
-
-    with holder_for(respond) as holder:
-        location = holder.projects.get("p-0").storage_locations.get("l-1")
-        assert location.authorization_url() == "https://accounts.example.test/authorize"
-    assert requests[0].url.path == "/locations/l-1/oauth/google-drive/authorize"
-    assert requests[0].method == "POST"
-
-
 def test_import_wait_reports_failure_and_times_out():
     def respond(request):
         if request.url.path == "/projects/p-0":

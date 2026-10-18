@@ -14,7 +14,6 @@ from ..generated.api.default import (
     get_locations_location_id,
     patch_locations_location_id,
     post_locations,
-    post_locations_location_id_oauth_google_drive_authorize,
     post_locations_location_id_test,
     put_locations_location_id_binding,
     put_locations_preferred,
@@ -139,18 +138,6 @@ class StorageLocation:
             post_locations_location_id_test, self.id, write=True
         )
         return result.available
-
-    def authorization_url(self) -> str:
-        """Start Google Drive OAuth and return the URL to open in a browser."""
-        if self.provider != "google-drive":
-            raise ValueError("Authorization URL is only for Google Drive locations")
-        self._project.storage_locations.get(self.id)
-        result = self._project._holder._call(
-            post_locations_location_id_oauth_google_drive_authorize,
-            self.id,
-            write=True,
-        )
-        return result.authorization_url
 
     def make_preferred(self) -> StorageLocation:
         self._project.storage_locations.get(self.id)
