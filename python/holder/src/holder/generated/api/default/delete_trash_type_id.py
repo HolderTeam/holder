@@ -40,6 +40,21 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -63,7 +78,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | TrashDeleteResponse]:
-    """Permanently delete a trashed item
+    """Permanently delete a trashed item (legacy global-ID route)
+
+     The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
         type_ (str):
@@ -95,7 +112,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | TrashDeleteResponse | None:
-    """Permanently delete a trashed item
+    """Permanently delete a trashed item (legacy global-ID route)
+
+     The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
         type_ (str):
@@ -122,7 +141,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | TrashDeleteResponse]:
-    """Permanently delete a trashed item
+    """Permanently delete a trashed item (legacy global-ID route)
+
+     The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
         type_ (str):
@@ -152,7 +173,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | TrashDeleteResponse | None:
-    """Permanently delete a trashed item
+    """Permanently delete a trashed item (legacy global-ID route)
+
+     The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
         type_ (str):

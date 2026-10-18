@@ -59,6 +59,8 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
   };
 
   if (resource == "projects" || resource == "recovery-token") {
+    if (resource == "projects" && handle_trash_routes(path, req, res, db, card_store, fts, param))
+      return {};
     if (resource == "projects" &&
         handle_milestone_routes(path, req, res, db, card_store, uuid_v4, decoded_param))
       return {};

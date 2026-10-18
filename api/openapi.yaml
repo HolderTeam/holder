@@ -6577,6 +6577,58 @@ paths:
                 $ref: "#/components/schemas/AssetImportJobResponse"
         "404":
           description: Job not found
+  /projects/{project_id}/trash/{type}/{id}:
+    delete:
+      summary: Permanently remove a trashed item from one project
+      description: The item must belong to the named project and still be in Trash. For cards, older Git revisions remain available; this operation does not erase repository history.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [card, ai_message]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trashed item removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrashDeleteResponse"
+        "400":
+          description: Invalid item type or identifier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Item not found in the named project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Item is not in Trash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Card store unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /trash:
     get:
       summary: List trashed items by project
@@ -6634,7 +6686,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /trash/{type}/{id}:
     delete:
-      summary: Permanently delete a trashed item
+      summary: Permanently delete a trashed item (legacy global-ID route)
+      description: The item must still be in Trash. Use the project-scoped route for new clients.
       parameters:
         - name: type
           in: path
@@ -6655,6 +6708,24 @@ paths:
                 $ref: "#/components/schemas/TrashDeleteResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Item is not in Trash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Card store unavailable
           content:
             application/json:
               schema:

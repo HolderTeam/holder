@@ -1,6 +1,8 @@
 #include "http_test_helpers.h"
 
+#include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
+#include "card/CardRepo.h"
 #include "model/AiThread.h"
 
 using holder::test::create_project;
@@ -311,9 +313,118 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       boost::beast::http::verb::delete_,
       "/trash/card/no-such-card",
       nlohmann::json::object(),
-      boost::beast::http::status::bad_request
+      boost::beast::http::status::not_found
   );
-  REQUIRE(bad_card_delete["error"]["code"] == "bad_request");
+  REQUIRE(bad_card_delete["error"]["code"] == "not_found");
+
+  create_project(db, "proj-2", (dir / "other_repo").string());
+  holder::model::AiThread other_thread = thread;
+  other_thread.thread_id = "thread-2";
+  other_thread.project_id = "proj-2";
+  thread_repo.create(other_thread);
+
+  holder::test::create_card_fixture(card_store, "live-card", "proj-1", "Live", "Body", 12);
+  holder::test::create_card_fixture(card_store, "other-card", "proj-2", "Other", "Body", 12);
+  http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::delete_,
+      "/cards/other-card",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+
+  auto add_message = [&](const std::string& id, const std::string& thread_id) {
+    nlohmann::json body = {
+        {"message_id", id},
+        {"thread_id", thread_id},
+        {"role", "user"},
+        {"source", "manual"},
+        {"content", "Body"},
+        {"created_at", 12}
+    };
+    http_json_request(
+        bound.bind,
+        bound.port,
+        token,
+        boost::beast::http::verb::post,
+        "/ai/messages",
+        body,
+        boost::beast::http::status::created
+    );
+  };
+  add_message("live-message", "thread-1");
+  add_message("other-message", "thread-2");
+  http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::delete_,
+      "/ai/messages/other-message",
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+
+  for (const auto& [type, id] :
+       {std::pair<std::string, std::string>{"card", "other-card"},
+        {"ai_message", "other-message"}}) {
+    auto foreign = http_json_request(
+        bound.bind,
+        bound.port,
+        token,
+        boost::beast::http::verb::delete_,
+        "/projects/proj-1/trash/" + type + "/" + id,
+        nlohmann::json::object(),
+        boost::beast::http::status::not_found
+    );
+    REQUIRE(foreign["error"]["code"] == "not_found");
+  }
+  REQUIRE(holder::card::CardRepo(db).get("other-card")->deleted_at.has_value());
+  REQUIRE(holder::ai::AiMessageRepo(db, &fts).get("other-message")->deleted_at.has_value());
+
+  for (const auto& [type, id] :
+       {std::pair<std::string, std::string>{"card", "live-card"}, {"ai_message", "live-message"}}) {
+    auto live = http_json_request(
+        bound.bind,
+        bound.port,
+        token,
+        boost::beast::http::verb::delete_,
+        "/projects/proj-1/trash/" + type + "/" + id,
+        nlohmann::json::object(),
+        boost::beast::http::status::conflict
+    );
+    REQUIRE(live["error"]["code"] == "not_trashed");
+  }
+  auto legacy_live = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::delete_,
+      "/trash/ai_message/live-message",
+      nlohmann::json::object(),
+      boost::beast::http::status::conflict
+  );
+  REQUIRE(legacy_live["error"]["code"] == "not_trashed");
+  REQUIRE(holder::card::CardRepo(db).get("live-card")->deleted_at == std::nullopt);
+  REQUIRE(holder::ai::AiMessageRepo(db, &fts).get("live-message")->deleted_at == std::nullopt);
+
+  for (const auto& [type, id] :
+       {std::pair<std::string, std::string>{"card", "other-card"},
+        {"ai_message", "other-message"}}) {
+    auto removed = http_json_request(
+        bound.bind,
+        bound.port,
+        token,
+        boost::beast::http::verb::delete_,
+        "/projects/proj-2/trash/" + type + "/" + id,
+        nlohmann::json::object(),
+        boost::beast::http::status::ok
+    );
+    REQUIRE(removed["ok"] == true);
+  }
+  REQUIRE_FALSE(holder::card::CardRepo(db).get("other-card").has_value());
+  REQUIRE_FALSE(holder::ai::AiMessageRepo(db, &fts).get("other-message").has_value());
 
   std::raise(SIGTERM);
   server_thread.join();

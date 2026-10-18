@@ -206,7 +206,10 @@ class CardStore {
       const std::string& historical_oid,
       long long updated_at
   );
-  void hard_delete(const std::string& card_id);
+  void hard_delete(
+      const std::string& card_id,
+      const std::optional<std::string>& expected_project_id = std::nullopt
+  );
   std::optional<holder::model::Card> get(const std::string& card_id) const;
   std::optional<std::string> get_content(const holder::model::Card& card);
   // Reads one card_id-ordered page while holding one project operation lock across both the

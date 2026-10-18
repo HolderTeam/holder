@@ -393,6 +393,29 @@ void AiMessageRepo::restore(const std::string& message_id) {
   git_->commit("Restore ai message " + message_id);
 }
 
+void AiMessageRepo::remove_trashed(const std::string& project_id, const std::string& message_id) {
+  const auto message = get(message_id);
+  if (!message.has_value()) throw std::runtime_error("ai message not found: " + message_id);
+  const auto thread = thread_repo_.get(message->thread_id);
+  if (!thread.has_value() || thread->project_id != project_id) {
+    throw std::runtime_error("ai message not found in project: " + message_id);
+  }
+  const auto project = project_repo_.get(project_id);
+  if (!project.has_value()) throw std::runtime_error("project not found: " + project_id);
+
+  auto operation = git_->lock_operation(project->root_path);
+  const auto current = get(message_id);
+  if (!current.has_value()) throw std::runtime_error("ai message not found: " + message_id);
+  const auto current_thread = thread_repo_.get(current->thread_id);
+  if (!current_thread.has_value() || current_thread->project_id != project_id) {
+    throw std::runtime_error("ai message not found in project: " + message_id);
+  }
+  if (!current->deleted_at.has_value()) {
+    throw std::runtime_error("ai message is not deleted");
+  }
+  remove(message_id);
+}
+
 void AiMessageRepo::remove(const std::string& message_id) {
   static constexpr const char* SQL = "DELETE FROM ai_messages WHERE message_id = ?;";
 
