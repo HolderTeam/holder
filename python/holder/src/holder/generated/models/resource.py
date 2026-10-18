@@ -7,9 +7,12 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.resource_asset import ResourceAsset
     from ..models.resource_metadata import ResourceMetadata
+    from ..models.resource_referenced_by_cards_item import ResourceReferencedByCardsItem
 
 
 T = TypeVar("T", bound="Resource")
@@ -27,6 +30,7 @@ class Resource:
         assets (list[ResourceAsset]):
         created_at (int):
         updated_at (int):
+        referenced_by_cards (list[ResourceReferencedByCardsItem] | Unset):
     """
 
     resource_id: str
@@ -37,6 +41,7 @@ class Resource:
     assets: list[ResourceAsset]
     created_at: int
     updated_at: int
+    referenced_by_cards: list[ResourceReferencedByCardsItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,6 +64,13 @@ class Resource:
 
         updated_at = self.updated_at
 
+        referenced_by_cards: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.referenced_by_cards, Unset):
+            referenced_by_cards = []
+            for referenced_by_cards_item_data in self.referenced_by_cards:
+                referenced_by_cards_item = referenced_by_cards_item_data.to_dict()
+                referenced_by_cards.append(referenced_by_cards_item)
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -73,6 +85,8 @@ class Resource:
                 "updated_at": updated_at,
             }
         )
+        if referenced_by_cards is not UNSET:
+            field_dict["referenced_by_cards"] = referenced_by_cards
 
         return field_dict
 
@@ -80,6 +94,9 @@ class Resource:
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         from ..models.resource_asset import ResourceAsset
         from ..models.resource_metadata import ResourceMetadata
+        from ..models.resource_referenced_by_cards_item import (
+            ResourceReferencedByCardsItem,
+        )
 
         d = dict(src_dict)
         resource_id = d.pop("resource_id")
@@ -103,6 +120,17 @@ class Resource:
 
         updated_at = d.pop("updated_at")
 
+        _referenced_by_cards = d.pop("referenced_by_cards", UNSET)
+        referenced_by_cards: list[ResourceReferencedByCardsItem] | Unset = UNSET
+        if _referenced_by_cards is not UNSET:
+            referenced_by_cards = []
+            for referenced_by_cards_item_data in _referenced_by_cards:
+                referenced_by_cards_item = ResourceReferencedByCardsItem.from_dict(
+                    referenced_by_cards_item_data
+                )
+
+                referenced_by_cards.append(referenced_by_cards_item)
+
         resource = cls(
             resource_id=resource_id,
             project_id=project_id,
@@ -112,6 +140,7 @@ class Resource:
             assets=assets,
             created_at=created_at,
             updated_at=updated_at,
+            referenced_by_cards=referenced_by_cards,
         )
 
         resource.additional_properties = d

@@ -1,33 +1,63 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="GetLocationsLocationIdResponse200")
+if TYPE_CHECKING:
+    from ..models.storage_location import StorageLocation
+
+
+T = TypeVar("T", bound="StorageLocationResponse")
 
 
 @_attrs_define
-class GetLocationsLocationIdResponse200:
+class StorageLocationResponse:
+    """
+    Attributes:
+        ok (bool):
+        data (StorageLocation):
+    """
+
+    ok: bool
+    data: StorageLocation
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        ok = self.ok
+
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
+        field_dict.update(
+            {
+                "ok": ok,
+                "data": data,
+            }
+        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        get_locations_location_id_response_200 = cls()
+        from ..models.storage_location import StorageLocation
 
-        get_locations_location_id_response_200.additional_properties = d
-        return get_locations_location_id_response_200
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = StorageLocation.from_dict(d.pop("data"))
+
+        storage_location_response = cls(
+            ok=ok,
+            data=data,
+        )
+
+        storage_location_response.additional_properties = d
+        return storage_location_response
 
     @property
     def additional_keys(self) -> list[str]:

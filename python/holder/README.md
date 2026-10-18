@@ -93,8 +93,9 @@ You can also list cards with a tag using
 ## More help
 
 - [More scripting tasks](docs/scripting.md): links, milestones, moves, Trash,
-  tags, project activity, card history, collection refreshes, and connecting
-  to a specific daemon.
+  resources, attachments, file imports, downloads, storage locations, tags,
+  project activity, card history, collection refreshes, and connecting to a
+  specific daemon.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
 - [Development](docs/development.md): tests, builds, and generated code.
 - [Publishing](docs/publishing.md): PyPI setup and release steps.

@@ -7,6 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.patch_locations_location_id_body import PatchLocationsLocationIdBody
+from ...models.storage_location_response import StorageLocationResponse
 from ...types import Response
 
 
@@ -34,9 +35,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Any | None:
+) -> StorageLocationResponse | None:
     if response.status_code == 200:
-        return None
+        response_200 = StorageLocationResponse.from_dict(response.json())
+
+        return response_200
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -46,7 +49,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Any]:
+) -> Response[StorageLocationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -60,7 +63,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: PatchLocationsLocationIdBody,
-) -> Response[Any]:
+) -> Response[StorageLocationResponse]:
     """Update a storage location declaration
 
     Args:
@@ -72,7 +75,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -87,12 +90,12 @@ def sync_detailed(
     return _build_response(client=client, response=response)
 
 
-async def asyncio_detailed(
+def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
     body: PatchLocationsLocationIdBody,
-) -> Response[Any]:
+) -> StorageLocationResponse | None:
     """Update a storage location declaration
 
     Args:
@@ -104,7 +107,34 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any]
+        StorageLocationResponse
+    """
+
+    return sync_detailed(
+        location_id=location_id,
+        client=client,
+        body=body,
+    ).parsed
+
+
+async def asyncio_detailed(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchLocationsLocationIdBody,
+) -> Response[StorageLocationResponse]:
+    """Update a storage location declaration
+
+    Args:
+        location_id (str):
+        body (PatchLocationsLocationIdBody):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -115,3 +145,32 @@ async def asyncio_detailed(
     response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    location_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchLocationsLocationIdBody,
+) -> StorageLocationResponse | None:
+    """Update a storage location declaration
+
+    Args:
+        location_id (str):
+        body (PatchLocationsLocationIdBody):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        StorageLocationResponse
+    """
+
+    return (
+        await asyncio_detailed(
+            location_id=location_id,
+            client=client,
+            body=body,
+        )
+    ).parsed
