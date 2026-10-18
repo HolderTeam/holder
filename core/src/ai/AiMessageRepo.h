@@ -35,6 +35,9 @@ class AiMessageRepo {
   void trash(const std::string& message_id, long long deleted_at);
   void restore(const std::string& message_id);
   void remove(const std::string& message_id);
+  // Only remove a trashed message in the expected project. Checks again while
+  // holding the project operation lock before delegating to remove().
+  void remove_trashed(const std::string& project_id, const std::string& message_id);
 
  private:
   holder::platform::Db& db_;

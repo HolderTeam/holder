@@ -1116,18 +1116,28 @@ void CardStore::restore_version(
   );
 }
 
-void CardStore::hard_delete(const std::string& card_id) {
+void CardStore::hard_delete(
+    const std::string& card_id,
+    const std::optional<std::string>& expected_project_id
+) {
   const auto card_opt = card_repo_.get(card_id);
   if (!card_opt.has_value()) {
     throw std::runtime_error("card not found: " + card_id);
   }
-  const auto& card = card_opt.value();
-  if (!card.deleted_at.has_value()) {
+  if (expected_project_id && card_opt->project_id != *expected_project_id) {
+    throw std::runtime_error("card not found in project: " + card_id);
+  }
+  const auto project = require_project(card_opt->project_id);
+  auto operation = git_->lock_operation(project.root_path);
+  const auto current = card_repo_.get(card_id);
+  if (!current.has_value() || current->project_id != project.project_id ||
+      (expected_project_id && current->project_id != *expected_project_id)) {
+    throw std::runtime_error("card not found in project: " + card_id);
+  }
+  if (!current->deleted_at.has_value()) {
     throw std::runtime_error("card is not deleted");
   }
-
-  const auto project = require_project(card.project_id);
-  auto operation = git_->lock_operation(project.root_path);
+  const auto& card = *current;
   git_->open_or_init(project.root_path);
   if (project.git_remote_url.has_value()) git_->set_remote("origin", *project.git_remote_url);
   const std::string trash_rel = holder::core::card_trash_rel_path(card.card_id);

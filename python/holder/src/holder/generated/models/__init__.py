@@ -129,6 +129,9 @@ from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
 from .delete_cards_card_id_children import DeleteCardsCardIdChildren
 from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
+from .delete_projects_project_id_trash_type_id_type import (
+    DeleteProjectsProjectIdTrashTypeIdType,
+)
 from .error import Error
 from .error_response import ErrorResponse
 from .event_checkpoint import EventCheckpoint
@@ -444,6 +447,7 @@ __all__ = (
     "ChangeEventDataEntity",
     "DeleteCardsCardIdChildren",
     "DeleteCardsCardIdResourcesBody",
+    "DeleteProjectsProjectIdTrashTypeIdType",
     "Error",
     "ErrorResponse",
     "EventCheckpoint",
