@@ -9,6 +9,7 @@ from typing import Any, Self
 
 import httpx
 
+from .changes import Changes
 from .exceptions import (
     APIError,
     AuthenticationError,
@@ -49,6 +50,7 @@ class Holder:
         self._client: AuthenticatedClient | None = None
         self._closed = False
         self.projects = ProjectCollection(self)
+        self.changes = Changes(self)
 
     def _command(self, *args: str) -> str:
         try:

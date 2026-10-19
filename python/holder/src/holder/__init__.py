@@ -1,5 +1,6 @@
 """Holder Python Library - control your knowledge using Python."""
 
+from .changes import ChangeCheckpoint, ChangeReady, EntityChange, ResyncRequired
 from .client import Holder
 from .models import (
     ActivityItem,
@@ -50,8 +51,11 @@ __all__ = [
     "CardSave",
     "CardSearchResult",
     "CardVersion",
+    "ChangeCheckpoint",
+    "ChangeReady",
     "DiffLine",
     "EncryptionCheck",
+    "EntityChange",
     "HierarchyRepair",
     "Holder",
     "ImportJob",
@@ -68,6 +72,7 @@ __all__ = [
     "RepairedCard",
     "Resource",
     "ResourceReference",
+    "ResyncRequired",
     "StorageLocation",
     "SyncResult",
     "Tag",
