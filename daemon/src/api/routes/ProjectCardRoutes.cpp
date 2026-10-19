@@ -192,6 +192,8 @@ bool handle_project_card_routes(
     const auto order = order_raw.empty() ? "card_id_asc" : order_raw;
     if (order == "updated_desc")
       query.order = holder::card::CardPageOrder::UpdatedDesc;
+    else if (order == "sort_key_asc")
+      query.order = holder::card::CardPageOrder::SortKeyAsc;
     else if (order != "card_id_asc")
       throw std::invalid_argument("Invalid order.");
     const nlohmann::json scope =
@@ -209,6 +211,11 @@ bool handle_project_card_routes(
                static_cast<unsigned long long>(std::numeric_limits<long long>::max())))
         throw std::invalid_argument("Invalid cursor.");
       query.cursor = holder::card::CardPageCursor{id, timestamp.get<long long>()};
+      if (order == "sort_key_asc") {
+        const auto& key = decoded.at("sort_key");
+        if (!key.is_number()) throw std::invalid_argument("Invalid cursor.");
+        query.cursor->sort_key = key.get<double>();
+      }
     }
     holder::project::ProjectRepo projects(db);
     if (!projects.get(project_id).has_value()) {
@@ -233,8 +240,11 @@ bool handle_project_card_routes(
       auto rows = cards.list_collection_page(project_id, query, limit + 1);
       if (rows.size() > static_cast<std::size_t>(limit)) {
         rows.resize(static_cast<std::size_t>(limit));
-        page.next_cursor =
-            holder::card::CardPageCursor{rows.back().card_id, rows.back().updated_at};
+        page.next_cursor = holder::card::CardPageCursor{
+            rows.back().card_id,
+            rows.back().updated_at,
+            rows.back().sort_key
+        };
       }
       for (auto& card : rows)
         page.cards.push_back({std::move(card), {}});
@@ -245,7 +255,8 @@ bool handle_project_card_routes(
           {{"version", 1},
            {"query", scope},
            {"card_id", page.next_cursor->card_id},
-           {"updated_at", *page.next_cursor->updated_at}}
+           {"updated_at", *page.next_cursor->updated_at},
+           {"sort_key", page.next_cursor->sort_key}}
       );
     }
     auto items = nlohmann::json::array();

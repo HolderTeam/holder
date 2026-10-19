@@ -25,6 +25,7 @@ from ..generated.models import (
     CardMoveRequest,
     CardUpdateRequest,
     DeleteCardsCardIdChildren,
+    GetProjectsProjectIdCardsOrder,
 )
 from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
     GetProjectsProjectIdCardsParentType0 as CardParent,
@@ -51,8 +52,14 @@ if TYPE_CHECKING:
 
 
 class CardCollection(Collection["Card"]):
-    def __init__(self, project: Project, query: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        project: Project,
+        query: dict[str, Any] | None = None,
+        max_items: int | None = None,
+    ) -> None:
         self._project = project
+        self._max_items = max_items
         super().__init__(project._holder, query)
 
     def create(self, *, title: str, content: str = "") -> Card:
@@ -82,7 +89,7 @@ class CardCollection(Collection["Card"]):
         return self.get(data.card_id)
 
     def _clone(self, query: dict[str, Any]) -> Self:
-        return type(self)(self._project, query)
+        return type(self)(self._project, query, self._max_items)
 
     def filter(self, *, tag: str) -> Self:
         if not isinstance(tag, str) or not tag.strip():
@@ -90,7 +97,23 @@ class CardCollection(Collection["Card"]):
         return self._clone({**self._query, "tag": tag})
 
     def roots(self) -> Self:
-        return self._clone({**self._query, "parent": CardParent.ROOTS})
+        return self._clone(
+            {
+                **self._query,
+                "parent": CardParent.ROOTS,
+                "order": GetProjectsProjectIdCardsOrder.SORT_KEY_ASC,
+            }
+        )
+
+    def recent(self, limit: int = 20) -> Self:
+        """Recently updated live cards, newest first, up to ``limit`` cards."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+            raise ValueError("limit must be a positive integer")
+        return type(self)(
+            self._project,
+            {**self._query, "order": GetProjectsProjectIdCardsOrder.UPDATED_DESC},
+            limit,
+        )
 
     def search(self, query: str) -> CardSearchCollection:
         """Search this project's cards using the daemon's full-text query syntax.
@@ -106,10 +129,15 @@ class CardCollection(Collection["Card"]):
         return CardSearchCollection(self._project, query)
 
     def _fetch_page(self) -> tuple[list[Card], str | None]:
+        remaining = (
+            200
+            if self._max_items is None
+            else min(200, self._max_items - len(self._cache))
+        )
         data = self._holder._call(
             get_projects_project_id_cards,
             self._project.id,
-            limit=200,
+            limit=remaining,
             cursor=self._next or UNSET,
             **self._query,
         )
@@ -117,6 +145,11 @@ class CardCollection(Collection["Card"]):
         if any(card.project_id != self._project.id for card in rows):
             raise ProtocolError("Card listing returned an object from another project")
         cursor = data.next_cursor
+        if (
+            self._max_items is not None
+            and len(self._cache) + len(rows) >= self._max_items
+        ):
+            cursor = None
         if cursor is not None and (
             not isinstance(cursor, str)
             or not cursor
@@ -167,7 +200,10 @@ class Card:
 
     @cached_property
     def children(self) -> CardCollection:
-        return CardCollection(self._project, {"parent": self.id})
+        return CardCollection(
+            self._project,
+            {"parent": self.id, "order": GetProjectsProjectIdCardsOrder.SORT_KEY_ASC},
+        )
 
     @cached_property
     def tags(self) -> CardTagCollection:

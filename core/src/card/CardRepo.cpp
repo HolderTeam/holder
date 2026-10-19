@@ -356,6 +356,7 @@ std::vector<holder::model::Card> CardRepo::list_collection_page(
   switch (query.order) {
   case CardPageOrder::CardIdAsc:
   case CardPageOrder::UpdatedDesc:
+  case CardPageOrder::SortKeyAsc:
     break;
   default:
     throw std::invalid_argument("unsupported card page order");
@@ -368,6 +369,9 @@ std::vector<holder::model::Card> CardRepo::list_collection_page(
   if (query.cursor.has_value() && query.order == CardPageOrder::UpdatedDesc &&
       !query.cursor->updated_at.has_value())
     throw std::invalid_argument("updated-order cursor must include updated_at");
+  if (query.cursor.has_value() && query.order == CardPageOrder::SortKeyAsc &&
+      !query.cursor->sort_key.has_value())
+    throw std::invalid_argument("sort-order cursor must include sort_key");
   if (query.tag.has_value() && !holder::core::is_valid_tag(*query.tag))
     throw std::invalid_argument("Invalid tag.");
   // A tag filter starts from the tag's index entries, so a page costs the same whether the tag
@@ -387,13 +391,19 @@ std::vector<holder::model::Card> CardRepo::list_collection_page(
   else if (children)
     sql += " AND c.parent_card_id = ?3";
   if (query.cursor.has_value()) {
-    sql += query.order == CardPageOrder::CardIdAsc
-               ? std::string(" AND ") + id + " > ?4"
-               : " AND (c.updated_at < ?5 OR (c.updated_at = ?5 AND c.card_id < ?4))";
+    if (query.order == CardPageOrder::CardIdAsc)
+      sql += std::string(" AND ") + id + " > ?4";
+    else if (query.order == CardPageOrder::UpdatedDesc)
+      sql += " AND (c.updated_at < ?5 OR (c.updated_at = ?5 AND c.card_id < ?4))";
+    else
+      sql += " AND (c.sort_key > ?7 OR (c.sort_key = ?7 AND c.card_id > ?4))";
   }
-  sql += query.order == CardPageOrder::CardIdAsc
-             ? std::string(" ORDER BY ") + id + " ASC LIMIT ?6;"
-             : " ORDER BY c.updated_at DESC, c.card_id DESC LIMIT ?6;";
+  if (query.order == CardPageOrder::CardIdAsc)
+    sql += std::string(" ORDER BY ") + id + " ASC LIMIT ?6;";
+  else if (query.order == CardPageOrder::UpdatedDesc)
+    sql += " ORDER BY c.updated_at DESC, c.card_id DESC LIMIT ?6;";
+  else
+    sql += " ORDER BY c.sort_key ASC, c.card_id ASC LIMIT ?6;";
   sqlite3_stmt* raw = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), sql.c_str(), -1, &raw, nullptr) != SQLITE_OK)
     throw_sqlite(db_.handle(), "prepare card collection page failed");
@@ -404,6 +414,7 @@ std::vector<holder::model::Card> CardRepo::list_collection_page(
   if (query.cursor.has_value()) {
     bind_text(raw, 4, query.cursor->card_id);
     if (query.order == CardPageOrder::UpdatedDesc) bind_int64(raw, 5, *query.cursor->updated_at);
+    if (query.order == CardPageOrder::SortKeyAsc) bind_double(raw, 7, *query.cursor->sort_key);
   }
   bind_int64(raw, 6, limit);
   std::vector<holder::model::Card> out;
