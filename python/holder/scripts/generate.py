@@ -88,6 +88,44 @@ def main() -> int:
             for name, content in files(output).items()
             if Path(name).suffix == ".py" or name == "py.typed"
         }
+        # openapi-python-client 0.29.1 drops nullable on a required inline enum.
+        # The sync endpoint uses null when its push phase was not attempted.
+        push_phase = "models/project_git_sync_operation_response_data_push.py"
+        source = generated[push_phase].decode()
+        expected_fragments = (
+            "status (ProjectGitSyncOperationResponseDataPushStatus):",
+            "status: ProjectGitSyncOperationResponseDataPushStatus",
+            "status = self.status.value",
+            'status = ProjectGitSyncOperationResponseDataPushStatus(d.pop("status"))',
+        )
+        if any(source.count(fragment) != 1 for fragment in expected_fragments):
+            raise RuntimeError(
+                "Review nullable push status correction for this generator output"
+            )
+        source = (
+            source.replace(
+                "status (ProjectGitSyncOperationResponseDataPushStatus):",
+                "status (ProjectGitSyncOperationResponseDataPushStatus | None):",
+            )
+            .replace(
+                "status: ProjectGitSyncOperationResponseDataPushStatus",
+                "status: ProjectGitSyncOperationResponseDataPushStatus | None",
+            )
+            .replace(
+                "status = self.status.value",
+                "status = self.status.value if self.status is not None else None",
+            )
+            .replace(
+                'status = ProjectGitSyncOperationResponseDataPushStatus(d.pop("status"))',
+                'raw_status = d.pop("status")\n'
+                "        status = (\n"
+                "            ProjectGitSyncOperationResponseDataPushStatus(raw_status)\n"
+                "            if raw_status is not None\n"
+                "            else None\n"
+                "        )",
+            )
+        )
+        generated[push_phase] = source.encode()
         if args.check:
             existing = files(TARGET)
             changed = sorted(

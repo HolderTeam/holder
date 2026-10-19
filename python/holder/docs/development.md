@@ -54,8 +54,9 @@ python scripts/generate.py --check
 
 The generator and Ruff versions are pinned in `pyproject.toml`. Generation runs
 in a temporary directory and fails on warnings before replacing the package.
-The provenance file records the contract's SHA-256 and tool versions. No schema
-transformations or custom templates are used. The config treats YAML download
+The provenance file records the contract's SHA-256 and tool versions. A small
+post-generation correction preserves the nullable push-phase status that
+openapi-python-client 0.29.1 otherwise drops. The config treats YAML download
 responses as plain text so their bodies are retained. CI checks the owning
 contract against the generated client, runs tests and builds on Python 3.11
 and 3.14. Installed packages contain the generated code and do not need the

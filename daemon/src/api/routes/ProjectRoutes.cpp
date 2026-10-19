@@ -859,6 +859,9 @@ bool handle_project_routes(
 
         git.open_or_init(project.root_path);
         git.set_remote("origin", project.git_remote_url.value());
+        if (project.privacy_mode == "encrypted_git") {
+          holder::privacy::assert_encryption_push_safe(project.root_path);
+        }
         const auto push = git.push_branch("origin", branch, set_upstream);
         const bool push_ok = push.status == holder::git::PushStatus::Pushed ||
                              push.status == holder::git::PushStatus::UpToDate;
@@ -898,6 +901,8 @@ bool handle_project_routes(
                                        : std::optional<std::string>(push.error_message)
         );
         res = support::json_response(http::status::ok, payload);
+      } catch (const holder::privacy::PrivacyError& ex) {
+        res = privacy_error_response(ex);
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }
