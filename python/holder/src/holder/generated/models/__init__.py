@@ -67,6 +67,9 @@ from .calendar_card_activity import CalendarCardActivity
 from .card_backlink_list_response import CardBacklinkListResponse
 from .card_backlink_list_response_coverage import CardBacklinkListResponseCoverage
 from .card_backlink_list_response_scope import CardBacklinkListResponseScope
+from .card_breadcrumb import CardBreadcrumb
+from .card_breadcrumb_kind import CardBreadcrumbKind
+from .card_breadcrumbs_response import CardBreadcrumbsResponse
 from .card_context_breadcrumb import CardContextBreadcrumb
 from .card_context_breadcrumb_type import CardContextBreadcrumbType
 from .card_context_card import CardContextCard
@@ -389,6 +392,9 @@ __all__ = (
     "CardBacklinkListResponse",
     "CardBacklinkListResponseCoverage",
     "CardBacklinkListResponseScope",
+    "CardBreadcrumb",
+    "CardBreadcrumbKind",
+    "CardBreadcrumbsResponse",
     "CardContextBreadcrumb",
     "CardContextBreadcrumbType",
     "CardContextCard",

@@ -6,7 +6,7 @@ import os
 import time
 from dataclasses import dataclass, field, fields
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
@@ -14,6 +14,7 @@ from ..generated.api.default import (
     delete_cards_card_id,
     get_cards_card_id,
     get_projects_project_id_cards,
+    get_projects_project_id_cards_card_id_breadcrumbs,
     patch_cards_card_id,
     post_cards,
     post_cards_card_id_move,
@@ -49,6 +50,15 @@ from .tag import CardTagCollection
 
 if TYPE_CHECKING:
     from .project import Project
+
+
+@dataclass(frozen=True)
+class CardBreadcrumb:
+    """One project or card step in a live card's path."""
+
+    kind: Literal["project", "card"]
+    id: str
+    title: str
 
 
 class CardCollection(Collection["Card"]):
@@ -95,6 +105,10 @@ class CardCollection(Collection["Card"]):
         if not isinstance(tag, str) or not tag.strip():
             raise ValueError("tag must be a nonempty string")
         return self._clone({**self._query, "tag": tag})
+
+    def with_child_counts(self) -> Self:
+        """Include each returned card's number of live immediate children."""
+        return self._clone({**self._query, "include_child_count": True})
 
     def roots(self) -> Self:
         return self._clone(
@@ -197,6 +211,26 @@ class Card:
         if self._content is None:
             raise ProtocolError("Card response did not include content")
         return self._content
+
+    @property
+    def breadcrumbs(self) -> tuple[CardBreadcrumb, ...]:
+        """The current live path from this project to this card."""
+        rows = self._project._holder._call(
+            get_projects_project_id_cards_card_id_breadcrumbs,
+            self._project.id,
+            self.id,
+        )
+        steps = tuple(CardBreadcrumb(str(row.kind), row.id, row.title) for row in rows)
+        if (
+            len(steps) < 2
+            or steps[0].kind != "project"
+            or steps[0].id != self._project.id
+            or steps[-1].kind != "card"
+            or steps[-1].id != self.id
+            or any(step.kind != "card" for step in steps[1:])
+        ):
+            raise ProtocolError("Invalid card breadcrumb path")
+        return steps
 
     @cached_property
     def children(self) -> CardCollection:

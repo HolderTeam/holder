@@ -632,6 +632,10 @@ TEST_CASE(
   CHECK(parameter_named(operation, "project_id")["in"].as<std::string>() == "path");
   CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
   CHECK(parameter_named(operation, "limit")["schema"]["maximum"].as<int>() == 5000);
+  CHECK(
+      parameter_named(operation, "include_child_count")["schema"]["type"].as<std::string>() ==
+      "boolean"
+  );
   CHECK(parameter_named(operation, "parent")["schema"]["oneOf"].size() == 2);
   CHECK(
       parameter_named(operation, "order")["schema"]["enum"].as<std::vector<std::string>>() ==
@@ -640,6 +644,10 @@ TEST_CASE(
   for (const auto& param : operation["parameters"])
     CHECK(param["name"].as<std::string>() != "include_deleted");
   require_json_response_ref(operation, "200", "CardPageResponse");
+  const auto breadcrumbs =
+      document["paths"]["/projects/{project_id}/cards/{card_id}/breadcrumbs"]["get"];
+  require_json_response_ref(breadcrumbs, "200", "CardBreadcrumbsResponse");
+  CHECK(breadcrumbs["responses"]["409"].IsDefined());
   CHECK(
       required_properties(document["components"]["schemas"]["CardPage"]) ==
       std::vector<std::string>{"items", "next_cursor"}

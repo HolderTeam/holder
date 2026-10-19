@@ -1,6 +1,6 @@
 """Project, card, tag and search result models for the Holder client."""
 
-from .card import Card
+from .card import Card, CardBreadcrumb
 from .history import (
     ActivityItem,
     AffectedObject,
@@ -42,6 +42,7 @@ __all__ = [
     "Asset",
     "AssetPlacement",
     "Card",
+    "CardBreadcrumb",
     "CardChange",
     "CardComparison",
     "CardLink",

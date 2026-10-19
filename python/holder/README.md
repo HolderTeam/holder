@@ -90,6 +90,8 @@ You can also list cards with a tag using
 `project.cards.filter(tag="research")`, or list just top-level cards with
 `project.cards.roots()`. For the latest changes, use
 `project.cards.recent(limit=20)`. Roots and `card.children` follow sibling order.
+Use `.with_child_counts()` on a card collection for counts, or
+`card.breadcrumbs` for its current project-to-card path.
 
 ## More help
 

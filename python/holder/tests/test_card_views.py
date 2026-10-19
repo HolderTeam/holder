@@ -3,6 +3,9 @@
 import pytest
 from test_library import card_payload, holder_for, ok, project_payload
 
+from holder import CardBreadcrumb
+from holder.exceptions import ProtocolError
+
 
 def test_recent_cards_are_limited_cached_and_refreshable():
     requests = []
@@ -73,3 +76,70 @@ def test_sibling_views_request_sort_key_order(scope, parent):
         assert cards[0].id == "c-0001"
     assert requests[0].url.params["parent"] == parent
     assert requests[0].url.params["order"] == "sort_key_asc"
+
+
+def test_child_counts_are_optional_on_existing_card_collections():
+    requests = []
+
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        requests.append(request)
+        item = card_payload()
+        if request.url.params.get("include_child_count") == "true":
+            item["child_count"] = 2
+        return ok({"items": [item], "next_cursor": None})
+
+    with holder_for(respond) as holder:
+        roots = holder.projects.get("p-0").cards.roots()
+        assert roots[0].child_count is None
+        counted = roots.with_child_counts()
+        assert counted[0].child_count == 2
+        assert roots[0].child_count is None
+    assert requests[0].url.params["include_child_count"] == "false"
+    assert requests[1].url.params["include_child_count"] == "true"
+
+
+def test_card_breadcrumbs_return_project_and_live_card_steps():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        if request.url.path == "/cards/c-0000":
+            return ok(card_payload(content=True))
+        assert request.url.path == "/projects/p-0/cards/c-0000/breadcrumbs"
+        return ok(
+            [
+                {"kind": "project", "id": "p-0", "title": "Research"},
+                {"kind": "card", "id": "c-0000", "title": "Card 0"},
+            ]
+        )
+
+    with holder_for(respond) as holder:
+        card = holder.projects.get("p-0").cards.get("c-0000")
+        assert card.breadcrumbs == (
+            CardBreadcrumb("project", "p-0", "Research"),
+            CardBreadcrumb("card", "c-0000", "Card 0"),
+        )
+    assert requests[-1].url.path == "/projects/p-0/cards/c-0000/breadcrumbs"
+
+
+def test_breadcrumbs_reject_a_path_for_another_card():
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        if request.url.path == "/cards/c-0000":
+            return ok(card_payload(content=True))
+        return ok(
+            [
+                {"kind": "project", "id": "p-0", "title": "Research"},
+                {"kind": "card", "id": "c-9999", "title": "Other"},
+            ]
+        )
+
+    with holder_for(respond) as holder:
+        card = holder.projects.get("p-0").cards.get("c-0000")
+        with pytest.raises(ProtocolError):
+            _ = card.breadcrumbs
