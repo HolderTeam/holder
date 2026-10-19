@@ -837,7 +837,7 @@ components:
         child_count:
           type: integer
           minimum: 0
-          description: Present when count=true.
+          description: Present when requested by the listing route (include_child_count=true on project card pages).
     CardListResponse:
       type: object
       required: [ok, data]
@@ -925,6 +925,29 @@ components:
           enum: [true]
         data:
           $ref: "#/components/schemas/CardPage"
+    CardBreadcrumb:
+      type: object
+      required: [kind, id, title]
+      properties:
+        kind:
+          type: string
+          enum: [project, card]
+        id:
+          type: string
+        title:
+          type: string
+    CardBreadcrumbsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: array
+          description: Project first, then live ancestor cards from root to the requested card.
+          items:
+            $ref: "#/components/schemas/CardBreadcrumb"
     ProjectTag:
       type: object
       required: [tag, card_count]
@@ -3622,6 +3645,12 @@ paths:
             type: boolean
             default: false
           description: Include each card's body. The page is selected and every body read under one project lock, and the whole page fails if a body cannot be read (for example a locked encrypted project). limit is at most 1000 when true. The cursor is the same with or without content.
+        - in: query
+          name: include_child_count
+          schema:
+            type: boolean
+            default: false
+          description: Include each returned live card's immediate live child count. The cursor is the same with or without counts.
       responses:
         "200":
           description: A page of matching cards
@@ -3661,6 +3690,58 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The keyring needed to read an encrypted project's content is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /projects/{project_id}/cards/{card_id}/breadcrumbs:
+    get:
+      summary: Read a live card's project-to-card breadcrumb trail
+      description: Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken or cyclic ancestor chain returns 409 rather than a partial trail.
+      parameters:
+        - in: path
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project and live card path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardBreadcrumbsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Card's ancestor chain is broken or cyclic
           content:
             application/json:
               schema:

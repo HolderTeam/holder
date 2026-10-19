@@ -38,10 +38,20 @@ for root in project.cards.roots():
     print(root.title)
     for child in root.children:
         print("  ", child.title)
+
+for root in project.cards.roots().with_child_counts():
+    print(root.title, root.child_count)
+
+for step in card.breadcrumbs:
+    print(step.kind, step.id, step.title)
 ```
 
 These are paginated queries over current data, so changing the tree during
-iteration may change later pages. Use `refresh()` to read again.
+iteration may change later pages. Use `refresh()` to read a collection again.
+`with_child_counts()` includes each listed card's immediate live child count;
+without it, `child_count` is `None`. `card.breadcrumbs` reads the current live
+path from the project to that card on each access. A broken ancestor chain is
+reported as an error instead of a partial path.
 
 ## Work with tags
 

@@ -189,6 +189,71 @@ TEST_CASE("Project card pages follow sibling sort keys across cursors", "[card-p
   CHECK(call(params).first == http::status::bad_request);
 }
 
+TEST_CASE(
+    "Project card pages include requested child counts and live breadcrumbs",
+    "[card-pages]"
+) {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "p", (dir / "repo").string());
+  holder::test::create_project(db, "other", (dir / "other").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string parent = "00000000-0000-4000-8000-000000000010";
+  const std::string child = "00000000-0000-4000-8000-000000000011";
+  holder::test::create_card_fixture(store, parent, "p", "Parent", "parent body", 1);
+  holder::test::create_card_fixture(store, child, "p", "Child", "child body", 2, parent);
+  auto call = [&](const std::string& path,
+                  Params params = {},
+                  http::verb method = http::verb::get) {
+    http::request<http::string_body> req{method, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(
+        holder::api::routes::handle_project_card_routes(path, req, res, db, getter(params), &store)
+    );
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+  const auto list_path = std::string("/projects/p/cards");
+  const auto plain = call(list_path, {{"parent", "roots"}}).second["data"]["items"];
+  REQUIRE(plain.size() == 1);
+  CHECK_FALSE(plain[0].contains("child_count"));
+  for (const auto& content : {"false", "true"}) {
+    const auto items =
+        call(
+            list_path,
+            {{"parent", "roots"}, {"include_child_count", "true"}, {"include_content", content}}
+        ).second["data"]["items"];
+    REQUIRE(items.size() == 1);
+    CHECK(items[0]["child_count"] == 1);
+  }
+  const auto children =
+      call(list_path, {{"parent", parent}, {"include_child_count", "1"}}).second["data"]["items"];
+  CHECK(children[0]["child_count"] == 0);
+  CHECK(call(list_path, {{"include_child_count", "yes"}}).first == http::status::bad_request);
+
+  const auto path = "/projects/p/cards/" + child + "/breadcrumbs";
+  const auto [status, response] = call(path);
+  REQUIRE(status == http::status::ok);
+  REQUIRE(response["data"].size() == 3);
+  CHECK(
+      response["data"][0] == nlohmann::json{{"kind", "project"}, {"id", "p"}, {"title", "Project"}}
+  );
+  CHECK(response["data"][1]["id"] == parent);
+  CHECK(response["data"][1]["title"] == "Parent");
+  CHECK(response["data"][2]["id"] == child);
+  CHECK(call(path, {}, http::verb::post).first == http::status::method_not_allowed);
+  CHECK(call("/projects/other/cards/" + child + "/breadcrumbs").first == http::status::not_found);
+  holder::card::CardRepo(db).move(parent, child, 0.0, 3);
+  const auto cyclic = call(path);
+  CHECK(cyclic.first == http::status::conflict);
+  CHECK(cyclic.second["error"]["code"] == "hierarchy_invalid");
+  holder::card::CardRepo(db).move(parent, std::nullopt, 0.0, 4);
+  holder::card::CardRepo(db).soft_delete(parent, 3, 3);
+  const auto broken = call(path);
+  CHECK(broken.first == http::status::conflict);
+  CHECK(broken.second["error"]["code"] == "hierarchy_invalid");
+}
+
 TEST_CASE("Project query values decode once and match complete parameter names", "[http-query]") {
   using holder::api::support::decoded_query_param_value;
   CHECK(

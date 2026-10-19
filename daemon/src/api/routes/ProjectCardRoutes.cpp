@@ -12,6 +12,8 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_set>
+#include <vector>
 
 namespace holder::api::routes {
 namespace {
@@ -123,6 +125,68 @@ void repair_hierarchy_route(
   }
 }
 
+void card_breadcrumbs_route(
+    const std::string& project_id,
+    const std::string& card_id,
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db
+) {
+  if (req.method() != http::verb::get) {
+    res =
+        support::error_response(http::status::method_not_allowed, "method_not_allowed", "Use GET.");
+    return;
+  }
+  try {
+    const auto project = holder::project::ProjectRepo(db).get(project_id);
+    if (!project.has_value()) {
+      res = support::error_response(http::status::not_found, "not_found", "Project not found.");
+      return;
+    }
+    holder::card::CardRepo cards(db);
+    std::vector<holder::model::Card> chain;
+    std::unordered_set<std::string> visited;
+    std::optional<std::string> current = card_id;
+    while (current.has_value()) {
+      if (chain.size() >= 1024 || !visited.insert(*current).second) {
+        res = support::error_response(
+            http::status::conflict,
+            "hierarchy_invalid",
+            "Card ancestry is cyclic or too deep."
+        );
+        return;
+      }
+      const auto card = cards.find_by_id(project_id, *current, holder::model::CardScope::Live);
+      if (!card.has_value()) {
+        if (chain.empty())
+          res = support::error_response(
+              http::status::not_found,
+              "not_found",
+              "Card not found in this project."
+          );
+        else
+          res = support::error_response(
+              http::status::conflict,
+              "hierarchy_invalid",
+              "Card ancestry is broken."
+          );
+        return;
+      }
+      chain.push_back(*card);
+      current = card->parent_card_id;
+      if (current.has_value() && current->empty()) current = std::nullopt;
+    }
+    auto breadcrumbs = nlohmann::json::array();
+    breadcrumbs.push_back({{"kind", "project"}, {"id", project_id}, {"title", project->name}});
+    for (auto it = chain.rbegin(); it != chain.rend(); ++it)
+      breadcrumbs.push_back({{"kind", "card"}, {"id", it->card_id}, {"title", it->title}});
+    res =
+        support::json_response(http::status::ok, {{"ok", true}, {"data", std::move(breadcrumbs)}});
+  } catch (const std::exception& ex) {
+    res = support::error_response(http::status::internal_server_error, "error", ex.what());
+  }
+}
+
 } // namespace
 
 bool handle_project_card_routes(
@@ -142,6 +206,19 @@ bool handle_project_card_routes(
     if (project_id.find('/') != std::string::npos) return false;
     repair_hierarchy_route(project_id, req, res, db, card_store);
     return true;
+  }
+  constexpr std::string_view breadcrumbs_suffix = "/breadcrumbs";
+  const auto cards_at = path.find("/cards/", prefix.size());
+  if (path.starts_with(prefix) && path.ends_with(breadcrumbs_suffix) &&
+      cards_at != std::string::npos) {
+    const auto project_id = path.substr(prefix.size(), cards_at - prefix.size());
+    const auto card_id =
+        path.substr(cards_at + 7, path.size() - breadcrumbs_suffix.size() - (cards_at + 7));
+    if (!project_id.empty() && !card_id.empty() && project_id.find('/') == std::string::npos &&
+        card_id.find('/') == std::string::npos) {
+      card_breadcrumbs_route(project_id, card_id, req, res, db);
+      return true;
+    }
   }
   constexpr std::string_view suffix = "/cards";
   if (!path.starts_with(prefix) || !path.ends_with(suffix) ||
@@ -186,6 +263,11 @@ bool handle_project_card_routes(
         content_raw != "false" && content_raw != "0")
       throw std::invalid_argument("include_content must be true or false.");
     const bool include_content = content_raw == "true" || content_raw == "1";
+    const auto count_raw = param_get("include_child_count");
+    if (!count_raw.empty() && count_raw != "true" && count_raw != "1" && count_raw != "false" &&
+        count_raw != "0")
+      throw std::invalid_argument("include_child_count must be true or false.");
+    const bool include_child_count = count_raw == "true" || count_raw == "1";
     if (include_content && limit > 1000)
       throw std::invalid_argument("limit must be from 1 to 1000 when include_content is true.");
     const auto order_raw = param_get("order");
@@ -260,6 +342,7 @@ bool handle_project_card_routes(
       );
     }
     auto items = nlohmann::json::array();
+    holder::card::CardRepo count_repo(db);
     for (const auto& [card, content] : page.cards) {
       items.push_back(
           {{"card_id", card.card_id},
@@ -273,10 +356,13 @@ bool handle_project_card_routes(
             card.parent_card_id.has_value() ? nlohmann::json(*card.parent_card_id)
                                             : nlohmann::json(nullptr)},
            {"deleted_at",
-            card.deleted_at.has_value() ? nlohmann::json(*card.deleted_at) : nlohmann::json(nullptr)
-           }}
+            card.deleted_at.has_value() ? nlohmann::json(*card.deleted_at)
+                                        : nlohmann::json(nullptr)}}
       );
       if (include_content) items.back()["content"] = content;
+      if (include_child_count)
+        items.back()["child_count"] =
+            count_repo.count_children_not_deleted(project_id, card.card_id);
     }
     res = support::json_response(
         http::status::ok,

@@ -25,7 +25,8 @@ class CardContextCard:
         updated_at (int):
         parent_card_id (None | str | Unset):
         deleted_at (int | None | Unset):
-        child_count (int | Unset): Present when count=true.
+        child_count (int | Unset): Present when requested by the listing route (include_child_count=true on project card
+            pages).
     """
 
     card_id: str
