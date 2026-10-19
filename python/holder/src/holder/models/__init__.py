@@ -1,6 +1,7 @@
 """Project, card, tag and search result models for the Holder client."""
 
 from .card import Card, CardBreadcrumb
+from .card_reference import CardReferenceCandidate, CardReferenceResult
 from .history import (
     ActivityItem,
     AffectedObject,
@@ -46,6 +47,8 @@ __all__ = [
     "CardChange",
     "CardComparison",
     "CardLink",
+    "CardReferenceCandidate",
+    "CardReferenceResult",
     "CardRestoreResult",
     "CardSave",
     "CardSearchResult",

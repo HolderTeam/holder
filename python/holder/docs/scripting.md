@@ -53,6 +53,35 @@ without it, `child_count` is `None`. `card.breadcrumbs` reads the current live
 path from the project to that card on each access. A broken ancestor chain is
 reported as an error instead of a partial path.
 
+## Find a card by name or partial ID
+
+`project.cards.resolve(reference)` finds a live card by its full ID, an
+unambiguous ID prefix, or an exact, case-sensitive title. It returns `None`
+when there is no match and raises `AmbiguousCardReferenceError` when more than
+one card matches. Its `candidates` attribute gives two example IDs and titles.
+
+```python
+from holder.exceptions import AmbiguousCardReferenceError
+
+try:
+    card = project.cards.resolve("Roadmap")
+except AmbiguousCardReferenceError as error:
+    for candidate in error.candidates:
+        print(candidate.id, candidate.title)
+else:
+    if card is not None:
+        print(card.title)
+```
+
+Use `project.cards.lookup(reference, scope="either")` when you need to inspect
+the match status, how it matched, or a card in Trash. It returns a
+`CardReferenceResult` with `status`, `match_kind`, `card`, and `candidates`.
+The `card` and candidates here are lightweight summaries; they do not load
+card content. Scopes are `"live"` (the default), `"trashed"`, and `"either"`.
+Both methods look across the project, even when called on a filtered card
+collection. `project.cards.get(id)` remains the direct lookup for a known,
+full card ID.
+
 ## Work with tags
 
 Tags belong to a project. Add and remove them on a card, or list cards sharing

@@ -1,5 +1,12 @@
 """Errors raised by the high-level Holder API."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .models.card_reference import CardReferenceCandidate
+
 
 class HolderError(Exception):
     """Base error for the high-level client."""
@@ -33,3 +40,14 @@ class AuthenticationError(APIError):
 
 class NotFoundError(APIError):
     """The requested object was not found within its scope."""
+
+
+class AmbiguousCardReferenceError(HolderError):
+    """A card reference matched more than one card in the project."""
+
+    def __init__(
+        self, reference: str, candidates: tuple[CardReferenceCandidate, ...]
+    ) -> None:
+        self.reference = reference
+        self.candidates = candidates
+        super().__init__(f"Card reference {reference!r} is ambiguous")
