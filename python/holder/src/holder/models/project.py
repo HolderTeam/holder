@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
+from ..changes import Changes
 from ..collections import Collection
 from ..exceptions import ProtocolError
 from ..generated.api.default import (
@@ -246,6 +247,11 @@ class Project:
     def git(self) -> ProjectGit:
         """Live remote checks, Git status, pull, push, and sync."""
         return ProjectGit(self)
+
+    @cached_property
+    def changes(self) -> Changes:
+        """Checkpoints and live change notifications scoped to this project."""
+        return Changes(self._holder, self.id)
 
     @classmethod
     def _from(cls, holder: Holder, data: Any) -> Self:

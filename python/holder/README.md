@@ -95,7 +95,8 @@ You can also list cards with a tag using
 - [More scripting tasks](docs/scripting.md): links, milestones, moves, Trash,
   resources, attachments, file imports, downloads, storage locations, tags,
   project Git sync, remote checks, recovery tokens, encryption checks,
-  project removal, project activity, card history, collection refreshes, and connecting to a
+  project removal, live change notifications, project activity, card history,
+  collection refreshes, and connecting to a
   specific daemon.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.
 - [Development](docs/development.md): tests, builds, and generated code.

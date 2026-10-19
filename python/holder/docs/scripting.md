@@ -206,6 +206,53 @@ device-specific credentials to `location.bind(values)`.
 `project.storage_locations.preferred_id` reads this device's current
 preference. A location with live asset placements cannot be deleted.
 
+## Watch project changes
+
+Use a checkpoint to close the gap between reading a snapshot and starting a
+watch. The watcher yields typed invalidations; fetch an entity when you need
+its current contents. A `deleted` flag means the entity disappeared from the
+daemon's observed database, while moving a card to Trash is an ordinary change.
+
+```python
+import asyncio
+
+from holder import EntityChange, Holder, ResyncRequired
+
+
+async def watch_project(project):
+    while True:
+        checkpoint = project.changes.checkpoint()
+        cards = list(project.cards.all())  # initial or refreshed snapshot
+        print(f"Watching {len(cards)} cards")
+        async with project.changes.watch(after=checkpoint) as watcher:
+            async for notice in watcher:
+                if isinstance(notice, ResyncRequired):
+                    break  # take a new checkpoint and snapshot
+                if isinstance(notice, EntityChange) and notice.entity == "card":
+                    project.cards.refresh()
+                    print(notice.id, notice.deleted)
+
+
+with Holder() as holder:
+    project = holder.projects.filter(name="Research")[0]
+    asyncio.run(watch_project(project))
+```
+
+`holder.changes` watches all projects; `project.changes` filters to one.
+`watch()` starts at the current tail when `after` is omitted. A `ChangeReady`
+notice confirms the connection and includes a current checkpoint. A
+`ResyncRequired` notice includes a checkpoint and ends that watcher; refresh
+state before creating another. The cursor is process local and replay is
+bounded. `watcher.cursor` advances after the consumer requests the next notice,
+so replay may repeat the last delivered change if processing stopped midway.
+The checkpoint carried by `ChangeReady` may be newer than its frame cursor;
+use `watcher.cursor` when saving processing progress.
+Applications should handle repeated invalidations. The watcher owns and closes
+its async connection. Entity reads through `Holder` are synchronous and can
+block an event loop; use `asyncio.to_thread` for substantial reads in an async
+application. `project.activity` remains the saved project history, independent
+of these live notifications.
+
 ## Sync a project and check its remote
 
 `project.git` runs live Git operations. `project.sync` is the status snapshot
