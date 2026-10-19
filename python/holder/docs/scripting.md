@@ -111,6 +111,37 @@ from any role. The older scheduled timestamp route and project calendar view
 do not represent all of these values, so this workflow uses the complete
 card-level date route.
 
+## Search milestone dates across a project
+
+Use `project.milestones.between(start, end, role=...)` to find milestones on
+live cards whose labelled date has that role and falls within the inclusive
+range. Both bounds must be calendar dates or both must be timezone-aware
+datetimes. The two value types are searched separately.
+
+```python
+from datetime import date, datetime, timezone
+
+upcoming = project.milestones.between(
+    date(2026, 6, 1), date(2026, 6, 30), role="deadline"
+)
+for milestone in upcoming:
+    print(milestone.card_id, milestone.description, milestone.dates)
+    # milestone.card fetches the card only if needed.
+
+instants = project.milestones.between(
+    datetime(2026, 6, 1, tzinfo=timezone.utc),
+    datetime(2026, 6, 30, 23, 59, 59, tzinfo=timezone.utc),
+    role="occurred",
+)
+```
+
+Each matching milestone appears once, even if several of its dates match.
+Its `dates` tuple contains all labelled dates, including those outside the
+search range. Results are lazy and cached until `upcoming.refresh()`. The
+returned `Milestone` supports `refresh()`, `update()`, and `remove()` just like
+one from `card.milestones`; `milestone.card` fetches its live card on demand.
+Milestones on trashed cards do not appear in these searches.
+
 ## Move, trash and restore cards
 
 Supply exactly one target when moving a card:
