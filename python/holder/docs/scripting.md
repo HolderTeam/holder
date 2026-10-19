@@ -156,6 +156,56 @@ does not yet have a live AI message object. To remove one item, call
 only act on items currently in Trash. They do not erase older card revisions
 from Git history. Refresh a listing after restoring or removing items.
 
+## Resources, attachments, and files
+
+Resources belong to a project and can be attached to several cards. Detaching
+one leaves the project resource available; deleting the resource removes its
+card links. Resource metadata maps each key to an ordered list of strings.
+
+```python
+resource = project.resources.create(
+    type="website", label="Reference",
+    metadata={"identifier": ["https://example.com"]},
+)
+card.attach(resource)                    # True if a link was created
+for attached in card.attachments:        # lazy, paginated listing
+    print(attached.label, attached.assets)
+card.detach(resource)                    # resource still exists
+resource.update(metadata={"identifier": []})  # remove this metadata key
+```
+
+Use storage locations for file assets. A location declaration is portable;
+its binding holds a path or credentials on the device running the daemon.
+Binding values are never returned by the API. For example, on a local daemon:
+
+```python
+location = project.storage_locations.create(
+    name="Files", provider="local_directory"
+)
+location.bind({"root_path": "/path/to/asset-store"}, preview="Asset store")
+location.test()                          # uploads, checks, and removes a probe
+location.make_preferred()
+
+job = card.import_file("/path/to/report.pdf")  # uses the preferred location
+finished = job.wait(timeout=120)
+if finished.status == "failed":
+    raise RuntimeError(finished.error)
+resource = finished.resource
+resource.assets[0].download_to("report-copy.pdf")
+```
+
+The import source path must be readable **on the daemon's machine**. Connecting
+to a remote daemon does not upload a file from the Python machine. Imports run
+in the background; `wait()` polls and returns on completion or failure, and
+raises `TimeoutError` at its deadline. Job records are held in daemon memory,
+so a restart can make a job ID unavailable. Downloads stream to a temporary
+file and replace the destination only after success.
+
+For S3 compatible storage, pass portable `configuration` at creation and
+device-specific credentials to `location.bind(values)`.
+`project.storage_locations.preferred_id` reads this device's current
+preference. A location with live asset placements cannot be deleted.
+
 ## Browse activity and recover a saved card version
 
 Project activity shows saved changes across the project. Card history shows

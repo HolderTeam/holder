@@ -22,6 +22,7 @@ class AssetImportJob:
         duplicate_reused (bool):
         resource_id (None | str | Unset):
         asset_id (None | str | Unset):
+        link_created (bool | Unset):
         error (None | str | Unset):
     """
 
@@ -30,6 +31,7 @@ class AssetImportJob:
     duplicate_reused: bool
     resource_id: None | str | Unset = UNSET
     asset_id: None | str | Unset = UNSET
+    link_created: bool | Unset = UNSET
     error: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -52,6 +54,8 @@ class AssetImportJob:
         else:
             asset_id = self.asset_id
 
+        link_created = self.link_created
+
         error: None | str | Unset
         if isinstance(self.error, Unset):
             error = UNSET
@@ -71,6 +75,8 @@ class AssetImportJob:
             field_dict["resource_id"] = resource_id
         if asset_id is not UNSET:
             field_dict["asset_id"] = asset_id
+        if link_created is not UNSET:
+            field_dict["link_created"] = link_created
         if error is not UNSET:
             field_dict["error"] = error
 
@@ -103,6 +109,8 @@ class AssetImportJob:
 
         asset_id = _parse_asset_id(d.pop("asset_id", UNSET))
 
+        link_created = d.pop("link_created", UNSET)
+
         def _parse_error(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -118,6 +126,7 @@ class AssetImportJob:
             duplicate_reused=duplicate_reused,
             resource_id=resource_id,
             asset_id=asset_id,
+            link_created=link_created,
             error=error,
         )
 

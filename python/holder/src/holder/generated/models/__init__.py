@@ -156,7 +156,6 @@ from .get_cards_context_order import GetCardsContextOrder
 from .get_cards_order import GetCardsOrder
 from .get_cards_view import GetCardsView
 from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
-from .get_locations_location_id_response_200 import GetLocationsLocationIdResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order import GetProjectsOrder
 from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
@@ -178,8 +177,12 @@ from .hierarchy_repair_move import HierarchyRepairMove
 from .hierarchy_repair_request import HierarchyRepairRequest
 from .hierarchy_repair_response import HierarchyRepairResponse
 from .local_model import LocalModel
+from .location_action_response import LocationActionResponse
+from .location_action_response_data import LocationActionResponseData
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
+from .location_test_response import LocationTestResponse
+from .location_test_response_data import LocationTestResponseData
 from .milestone import Milestone
 from .milestone_create_request import MilestoneCreateRequest
 from .milestone_date_value import MilestoneDateValue
@@ -199,7 +202,6 @@ from .patch_locations_location_id_body_configuration import (
 )
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
 from .post_cards_card_id_resources_body import PostCardsCardIdResourcesBody
-from .post_locations_response_201 import PostLocationsResponse201
 from .project import Project
 from .project_calendar_response import ProjectCalendarResponse
 from .project_calendar_response_data import ProjectCalendarResponseData
@@ -300,6 +302,7 @@ from .resource_delete_response import ResourceDeleteResponse
 from .resource_delete_response_data import ResourceDeleteResponseData
 from .resource_list_response import ResourceListResponse
 from .resource_metadata import ResourceMetadata
+from .resource_referenced_by_cards_item import ResourceReferencedByCardsItem
 from .resource_response import ResourceResponse
 from .resource_update_request import ResourceUpdateRequest
 from .runner_capabilities_data import RunnerCapabilitiesData
@@ -320,6 +323,7 @@ from .storage_location_provider import StorageLocationProvider
 from .storage_location_request import StorageLocationRequest
 from .storage_location_request_configuration import StorageLocationRequestConfiguration
 from .storage_location_request_provider import StorageLocationRequestProvider
+from .storage_location_response import StorageLocationResponse
 from .trash_delete_response import TrashDeleteResponse
 from .trash_delete_response_data import TrashDeleteResponseData
 from .trash_item import TrashItem
@@ -466,7 +470,6 @@ __all__ = (
     "GetCardsOrder",
     "GetCardsView",
     "GetGitProvidersJsonResponse200",
-    "GetLocationsLocationIdResponse200",
     "GetPingResponse200",
     "GetProjectsOrder",
     "GetProjectsProjectIdCardsOrder",
@@ -482,8 +485,12 @@ __all__ = (
     "HierarchyRepairRequest",
     "HierarchyRepairResponse",
     "LocalModel",
+    "LocationActionResponse",
+    "LocationActionResponseData",
     "LocationBindingRequest",
     "LocationBindingRequestValues",
+    "LocationTestResponse",
+    "LocationTestResponseData",
     "Milestone",
     "MilestoneCreateRequest",
     "MilestoneDateValue",
@@ -501,7 +508,6 @@ __all__ = (
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",
     "PostCardsCardIdResourcesBody",
-    "PostLocationsResponse201",
     "Project",
     "ProjectCalendarResponse",
     "ProjectCalendarResponseData",
@@ -574,6 +580,7 @@ __all__ = (
     "ResourceDeleteResponseData",
     "ResourceListResponse",
     "ResourceMetadata",
+    "ResourceReferencedByCardsItem",
     "ResourceResponse",
     "ResourceUpdateRequest",
     "RunnerCapabilitiesData",
@@ -594,6 +601,7 @@ __all__ = (
     "StorageLocationRequest",
     "StorageLocationRequestConfiguration",
     "StorageLocationRequestProvider",
+    "StorageLocationResponse",
     "TrashDeleteResponse",
     "TrashDeleteResponseData",
     "TrashItem",

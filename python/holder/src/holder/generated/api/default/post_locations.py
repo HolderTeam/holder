@@ -5,8 +5,8 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.post_locations_response_201 import PostLocationsResponse201
 from ...models.storage_location_request import StorageLocationRequest
+from ...models.storage_location_response import StorageLocationResponse
 from ...types import Response
 
 
@@ -31,9 +31,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> PostLocationsResponse201 | None:
+) -> StorageLocationResponse | None:
     if response.status_code == 201:
-        response_201 = PostLocationsResponse201.from_dict(response.json())
+        response_201 = StorageLocationResponse.from_dict(response.json())
 
         return response_201
 
@@ -45,7 +45,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[PostLocationsResponse201]:
+) -> Response[StorageLocationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -58,7 +58,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: StorageLocationRequest,
-) -> Response[PostLocationsResponse201]:
+) -> Response[StorageLocationResponse]:
     """Create a storage location declaration
 
     Args:
@@ -69,7 +69,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[PostLocationsResponse201]
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -87,7 +87,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: StorageLocationRequest,
-) -> PostLocationsResponse201 | None:
+) -> StorageLocationResponse | None:
     """Create a storage location declaration
 
     Args:
@@ -98,7 +98,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        PostLocationsResponse201
+        StorageLocationResponse
     """
 
     return sync_detailed(
@@ -111,7 +111,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: StorageLocationRequest,
-) -> Response[PostLocationsResponse201]:
+) -> Response[StorageLocationResponse]:
     """Create a storage location declaration
 
     Args:
@@ -122,7 +122,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[PostLocationsResponse201]
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -138,7 +138,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: StorageLocationRequest,
-) -> PostLocationsResponse201 | None:
+) -> StorageLocationResponse | None:
     """Create a storage location declaration
 
     Args:
@@ -149,7 +149,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        PostLocationsResponse201
+        StorageLocationResponse
     """
 
     return (

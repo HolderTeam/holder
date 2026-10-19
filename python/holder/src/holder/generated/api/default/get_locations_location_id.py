@@ -6,9 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.get_locations_location_id_response_200 import (
-    GetLocationsLocationIdResponse200,
-)
+from ...models.storage_location_response import StorageLocationResponse
 from ...types import Response
 
 
@@ -28,9 +26,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> GetLocationsLocationIdResponse200 | None:
+) -> StorageLocationResponse | None:
     if response.status_code == 200:
-        response_200 = GetLocationsLocationIdResponse200.from_dict(response.json())
+        response_200 = StorageLocationResponse.from_dict(response.json())
 
         return response_200
 
@@ -42,7 +40,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[GetLocationsLocationIdResponse200]:
+) -> Response[StorageLocationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -55,7 +53,7 @@ def sync_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[GetLocationsLocationIdResponse200]:
+) -> Response[StorageLocationResponse]:
     """Get a storage location
 
     Args:
@@ -66,7 +64,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[GetLocationsLocationIdResponse200]
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -84,7 +82,7 @@ def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> GetLocationsLocationIdResponse200 | None:
+) -> StorageLocationResponse | None:
     """Get a storage location
 
     Args:
@@ -95,7 +93,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        GetLocationsLocationIdResponse200
+        StorageLocationResponse
     """
 
     return sync_detailed(
@@ -108,7 +106,7 @@ async def asyncio_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[GetLocationsLocationIdResponse200]:
+) -> Response[StorageLocationResponse]:
     """Get a storage location
 
     Args:
@@ -119,7 +117,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[GetLocationsLocationIdResponse200]
+        Response[StorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -135,7 +133,7 @@ async def asyncio(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> GetLocationsLocationIdResponse200 | None:
+) -> StorageLocationResponse | None:
     """Get a storage location
 
     Args:
@@ -146,7 +144,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        GetLocationsLocationIdResponse200
+        StorageLocationResponse
     """
 
     return (

@@ -2378,6 +2378,23 @@ components:
         updated_at:
           type: integer
           format: int64
+        referenced_by_cards:
+          type: array
+          items:
+            type: object
+            required: [card_id, title, updated_at, link_kinds]
+            properties:
+              card_id:
+                type: string
+              title:
+                type: string
+              updated_at:
+                type: integer
+                format: int64
+              link_kinds:
+                type: array
+                items:
+                  type: string
     ResourceCreateRequest:
       type: object
       required: [project_id, type, label]
@@ -2537,6 +2554,46 @@ components:
         preferred_location_id:
           type: string
           nullable: true
+    StorageLocationResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/StorageLocation"
+    LocationActionResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [location_id]
+          properties:
+            location_id:
+              type: string
+            bound:
+              type: boolean
+            binding_preview:
+              type: string
+              nullable: true
+    LocationTestResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [available]
+          properties:
+            available:
+              type: boolean
     LocationBindingRequest:
       type: object
       required: [values]
@@ -2577,6 +2634,8 @@ components:
           type: string
           nullable: true
         duplicate_reused:
+          type: boolean
+        link_created:
           type: boolean
         error:
           type: string
@@ -6447,7 +6506,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/StorageLocationResponse"
   /locations/{location_id}:
     get:
       summary: Get a storage location
@@ -6464,7 +6523,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/StorageLocationResponse"
     patch:
       summary: Update a storage location declaration
       parameters:
@@ -6485,6 +6544,10 @@ paths:
       responses:
         "200":
           description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageLocationResponse"
     delete:
       summary: Delete an unused storage location declaration
       parameters:
@@ -6492,6 +6555,10 @@ paths:
       responses:
         "200":
           description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationActionResponse"
         "409":
           description: A live placement still uses the location
   /locations/{location_id}/binding:
@@ -6508,6 +6575,10 @@ paths:
       responses:
         "200":
           description: Bound; secret values are not returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationActionResponse"
     delete:
       summary: Remove this device's private binding
       parameters:
@@ -6515,6 +6586,10 @@ paths:
       responses:
         "200":
           description: Unbound
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationActionResponse"
   /locations/{location_id}/test:
     post:
       summary: Upload, verify, and remove a storage probe
@@ -6523,6 +6598,10 @@ paths:
       responses:
         "200":
           description: Location available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationTestResponse"
         "400":
           description: Missing binding or storage failure
   /locations/preferred:
@@ -6543,6 +6622,10 @@ paths:
       responses:
         "200":
           description: Preferred location saved in the device keyring
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationActionResponse"
   /imports:
     post:
       summary: Start a local-file asset import

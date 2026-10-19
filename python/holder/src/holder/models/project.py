@@ -27,6 +27,8 @@ from ..generated.models import (
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
 from .history import ProjectActivityCollection
+from .resource import ResourceCollection
+from .storage import StorageLocationCollection
 from .tag import TagCollection
 from .trash import TrashCollection
 
@@ -162,6 +164,16 @@ class Project:
     def trash(self) -> TrashCollection:
         """Browse and manage this project's Trash."""
         return TrashCollection(self)
+
+    @cached_property
+    def resources(self) -> ResourceCollection:
+        """Reusable resources in this project."""
+        return ResourceCollection(self)
+
+    @cached_property
+    def storage_locations(self) -> StorageLocationCollection:
+        """Storage declarations and this device's bindings."""
+        return StorageLocationCollection(self)
 
     @cached_property
     def tags(self) -> TagCollection:

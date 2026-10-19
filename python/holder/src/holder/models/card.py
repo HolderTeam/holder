@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field, fields
 from functools import cached_property
@@ -37,9 +38,12 @@ from .history import (
     CardSave,
     CardVersion,
 )
+from .import_job import ImportJob, start_import
 from .link import CardBacklinkCollection, CardLinkCollection
 from .milestone import CardMilestoneCollection
+from .resource import CardAttachmentCollection, Resource
 from .search import CardSearchCollection
+from .storage import StorageLocation
 from .tag import CardTagCollection
 
 if TYPE_CHECKING:
@@ -180,6 +184,23 @@ class Card:
     @cached_property
     def milestones(self) -> CardMilestoneCollection:
         return CardMilestoneCollection(self)
+
+    @cached_property
+    def attachments(self) -> CardAttachmentCollection:
+        """Resources attached to this live card."""
+        return CardAttachmentCollection(self)
+
+    def attach(self, resource: Resource | str) -> bool:
+        return self.attachments.attach(resource)
+
+    def detach(self, resource: Resource | str) -> bool:
+        return self.attachments.detach(resource)
+
+    def import_file(
+        self, source: str | os.PathLike[str], *, location: StorageLocation | None = None
+    ) -> ImportJob:
+        """Import a daemon-readable file using a location or this device's preference."""
+        return start_import(self, source, location)
 
     @cached_property
     def history(self) -> CardHistoryCollection:
