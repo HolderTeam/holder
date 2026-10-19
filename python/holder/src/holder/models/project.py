@@ -36,6 +36,7 @@ from ..generated.models import (
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
 from .history import ProjectActivityCollection
+from .milestone import ProjectMilestones
 from .project_git import ProjectGit
 from .resource import ResourceCollection
 from .storage import StorageLocationCollection
@@ -218,6 +219,11 @@ class Project:
     @cached_property
     def cards(self) -> CardCollection:
         return CardCollection(self)
+
+    @cached_property
+    def milestones(self) -> ProjectMilestones:
+        """Search labelled milestone dates across this project."""
+        return ProjectMilestones(self)
 
     @cached_property
     def activity(self) -> ProjectActivityCollection:

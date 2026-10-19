@@ -92,7 +92,8 @@ You can also list cards with a tag using
 
 ## More help
 
-- [More scripting tasks](docs/scripting.md): links, milestones, moves, Trash,
+- [More scripting tasks](docs/scripting.md): links, milestones, project-wide
+  milestone date searches, moves, Trash,
   resources, attachments, file imports, downloads, storage locations, tags,
   project Git sync, remote checks, recovery tokens, encryption checks,
   project removal, live change notifications, project activity, card history,
