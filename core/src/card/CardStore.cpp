@@ -1214,7 +1214,7 @@ CollectionCardPage CardStore::list_collection_page(
     if (metadata.size() > static_cast<std::size_t>(limit)) {
       metadata.resize(static_cast<std::size_t>(limit));
       const auto& last = metadata.back();
-      page.next_cursor = CardPageCursor{last.card_id, last.updated_at};
+      page.next_cursor = CardPageCursor{last.card_id, last.updated_at, last.sort_key};
     }
     for (auto& card : metadata) {
       std::string content;

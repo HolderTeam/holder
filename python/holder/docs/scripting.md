@@ -23,6 +23,26 @@ Creation returns a fully loaded object. Filters on a collection do not supply
 values when you create an object through it; `card.children.create(...)` does
 supply the parent.
 
+## Browse recent cards and the card tree
+
+`project.cards.recent(limit=20)` lists live cards with the most recently
+updated first. `project.cards.roots()` and `card.children` list one level at a
+time in sibling order. Each returns the usual `Card` objects and can be
+refreshed after changes made elsewhere.
+
+```python
+for card in project.cards.recent(limit=10):
+    print(card.title)
+
+for root in project.cards.roots():
+    print(root.title)
+    for child in root.children:
+        print("  ", child.title)
+```
+
+These are paginated queries over current data, so changing the tree during
+iteration may change later pages. Use `refresh()` to read again.
+
 ## Work with tags
 
 Tags belong to a project. Add and remove them on a card, or list cards sharing

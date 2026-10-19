@@ -633,6 +633,10 @@ TEST_CASE(
   CHECK(parameter_named(operation, "project_id")["required"].as<bool>());
   CHECK(parameter_named(operation, "limit")["schema"]["maximum"].as<int>() == 5000);
   CHECK(parameter_named(operation, "parent")["schema"]["oneOf"].size() == 2);
+  CHECK(
+      parameter_named(operation, "order")["schema"]["enum"].as<std::vector<std::string>>() ==
+      std::vector<std::string>{"card_id_asc", "updated_desc", "sort_key_asc"}
+  );
   for (const auto& param : operation["parameters"])
     CHECK(param["name"].as<std::string>() != "include_deleted");
   require_json_response_ref(operation, "200", "CardPageResponse");

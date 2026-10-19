@@ -88,7 +88,8 @@ with Holder() as holder:
 
 You can also list cards with a tag using
 `project.cards.filter(tag="research")`, or list just top-level cards with
-`project.cards.roots()`.
+`project.cards.roots()`. For the latest changes, use
+`project.cards.recent(limit=20)`. Roots and `card.children` follow sibling order.
 
 ## More help
 

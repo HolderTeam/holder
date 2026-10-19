@@ -3599,9 +3599,9 @@ paths:
           name: order
           schema:
             type: string
-            enum: [card_id_asc, updated_desc]
+            enum: [card_id_asc, updated_desc, sort_key_asc]
             default: card_id_asc
-          description: updated_desc breaks ties by descending card ID.
+          description: updated_desc breaks ties by descending card ID. sort_key_asc follows sibling order and breaks ties by ascending card ID; use it with parent=roots or a parent card ID.
         - in: query
           name: limit
           schema:

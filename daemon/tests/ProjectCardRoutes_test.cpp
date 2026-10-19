@@ -149,6 +149,46 @@ TEST_CASE("Project card routes decline unrelated paths", "[card-pages]") {
   }
 }
 
+TEST_CASE("Project card pages follow sibling sort keys across cursors", "[card-pages]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "p", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore store(db, &fts);
+  const std::string parent = "00000000-0000-4000-8000-000000000010";
+  const std::string first = "00000000-0000-4000-8000-000000000003";
+  const std::string second = "00000000-0000-4000-8000-000000000001";
+  const std::string third = "00000000-0000-4000-8000-000000000002";
+  holder::test::create_card_fixture(store, parent, "p", "parent", "parent", 1);
+  holder::test::create_card_fixture(store, first, "p", "first", "first", 2, parent, 10.0);
+  holder::test::create_card_fixture(store, second, "p", "second", "second", 3, parent, 20.0);
+  holder::test::create_card_fixture(store, third, "p", "third", "third", 4, parent, 20.0);
+  auto call = [&](Params params) {
+    const std::string path = "/projects/p/cards";
+    http::request<http::string_body> req{http::verb::get, path, 11};
+    http::response<http::string_body> res;
+    REQUIRE(
+        holder::api::routes::handle_project_card_routes(path, req, res, db, getter(params), &store)
+    );
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+  Params params{{"parent", parent}, {"order", "sort_key_asc"}, {"limit", "1"}};
+  auto [status, payload] = call(params);
+  REQUIRE(status == http::status::ok);
+  CHECK(payload["data"]["items"][0]["card_id"] == first);
+  params["cursor"] = payload["data"]["next_cursor"].get<std::string>();
+  payload = call(params).second;
+  CHECK(payload["data"]["items"][0]["card_id"] == second);
+  params["cursor"] = payload["data"]["next_cursor"].get<std::string>();
+  params["include_content"] = "true";
+  payload = call(params).second;
+  CHECK(payload["data"]["items"][0]["card_id"] == third);
+  CHECK(payload["data"]["items"][0]["content"] == "third");
+  CHECK(payload["data"]["next_cursor"].is_null());
+  params["order"] = "updated_desc";
+  CHECK(call(params).first == http::status::bad_request);
+}
+
 TEST_CASE("Project query values decode once and match complete parameter names", "[http-query]") {
   using holder::api::support::decoded_query_param_value;
   CHECK(
