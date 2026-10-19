@@ -24,6 +24,7 @@ from ..generated.api.default import (
     post_recovery_token_import,
 )
 from ..generated.models import (
+    GetProjectsOrder,
     HierarchyRepairRequest,
     ProjectCreateRequest,
     ProjectCreateRequestPrivacyMode,
@@ -131,9 +132,43 @@ class ProjectCollection(Collection["Project"]):
                 raise TypeError(f"{key} must be an integer")
         return self._clone({**self._query, **values})
 
+    def order_by(
+        self,
+        field: Literal["name", "created_at", "updated_at"],
+        *,
+        descending: bool = False,
+    ) -> Self:
+        """List projects by name, creation time, or last update time."""
+        if field not in ("name", "created_at", "updated_at"):
+            raise ValueError("field must be name, created_at, or updated_at")
+        if not isinstance(descending, bool):
+            raise TypeError("descending must be a bool")
+        direction = "desc" if descending else "asc"
+        return self._clone(
+            {**self._query, "order": GetProjectsOrder(f"{field}_{direction}")}
+        )
+
+    def alphabetical(self) -> Self:
+        """List projects by name, A to Z."""
+        return self.order_by("name")
+
+    def recent(self) -> Self:
+        """List the most recently updated projects first."""
+        return self.order_by("updated_at", descending=True)
+
+    def with_card_counts(self) -> Self:
+        """Include each project's live card and root card counts."""
+        return self._clone({**self._query, "count": True})
+
     def _fetch_page(self) -> tuple[list[Project], int | None]:
         offset = cast(int, self._next or 0)
         data = self._holder._call(get_projects, limit=100, offset=offset, **self._query)
+        if self._query.get("count") and any(
+            isinstance(item.card_count, Unset)
+            or isinstance(item.root_card_count, Unset)
+            for item in data
+        ):
+            raise ProtocolError("Project listing omitted requested card counts")
         rows = [Project._from(self._holder, item) for item in data]
         next_offset = offset + len(data) if len(data) == 100 else None
         return rows, next_offset

@@ -114,6 +114,10 @@ class CardCollection(Collection["Card"]):
         """Include each returned card's number of live immediate children."""
         return self._clone({**self._query, "include_child_count": True})
 
+    def with_content(self) -> Self:
+        """Load card bodies with each page, avoiding a request per card."""
+        return self._clone({**self._query, "include_content": True})
+
     def roots(self) -> Self:
         return self._clone(
             {
@@ -159,6 +163,10 @@ class CardCollection(Collection["Card"]):
             cursor=self._next or UNSET,
             **self._query,
         )
+        if self._query.get("include_content") and any(
+            isinstance(item.content, Unset) for item in data.items
+        ):
+            raise ProtocolError("Card listing omitted requested content")
         rows = [Card._from(self._project, item) for item in data.items]
         if any(card.project_id != self._project.id for card in rows):
             raise ProtocolError("Card listing returned an object from another project")
