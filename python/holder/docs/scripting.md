@@ -206,6 +206,54 @@ device-specific credentials to `location.bind(values)`.
 `project.storage_locations.preferred_id` reads this device's current
 preference. A location with live asset placements cannot be deleted.
 
+## Sync a project and check its remote
+
+`project.git` runs live Git operations. `project.sync` is the status snapshot
+loaded with the project; use `project.git.status()` for current persisted state.
+
+```python
+probe = project.git.test_remote()  # or test_remote(url="https://example.org/repo.git")
+if probe.reachable:
+    result = project.git.sync()     # pull and reconcile, then push
+    print(result.succeeded, result.pull.status, result.push.status)
+
+print(project.git.status().last_sync_error)
+```
+
+Use `project.git.set_remote(url)` to configure a remote or
+`project.git.set_remote(None)` to disconnect it. It returns whether the URL
+changed and refreshes the project. `test_remote(url=...)` only probes the given
+URL. `pull()` uses the checked-out branch; `push()` and `sync()` accept optional
+`branch` and `set_upstream` arguments. Git failures arrive as structured
+results even when the HTTP request succeeds: inspect `result.succeeded`,
+`result.status`, and the phase details. A failed pull skips the push phase.
+
+## Check encryption and recover a project
+
+```python
+check = project.check_encryption()
+if not check.ok:
+    print(check.unsafe_paths)
+
+token = project.export_recovery_token(pin="your-pin")
+# Store the token and PIN privately. To restore this project's key later:
+project.import_recovery_token(token, pin="your-pin")
+
+# On a device where the project may not yet be registered:
+recovery = holder.projects.recover(token, pin="your-pin")
+print(recovery.project.name, recovery.project_created)
+print(recovery.remote_configured, recovery.pull_status, recovery.pull_error)
+```
+
+`recover()` can create a project and then fail to configure its suggested
+remote or pull from it. Inspect the returned remote and pull fields. The
+serialized `.hrk` token and PIN are not cached on returned objects. For an
+encrypted project, both `push()` and `sync()` check project blobs before
+pushing; `check_encryption()` provides the detailed list of unsafe paths.
+
+`project.remove_from_device()` unregisters the project locally. Holder keeps
+its files and encryption keys for explicit recovery; it does not purge them.
+
 ## Browse activity and recover a saved card version
 
 Project activity shows saved changes across the project. Card history shows

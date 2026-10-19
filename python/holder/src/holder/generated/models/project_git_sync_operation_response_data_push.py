@@ -19,7 +19,7 @@ class ProjectGitSyncOperationResponseDataPush:
     """
     Attributes:
         attempted (bool):
-        status (ProjectGitSyncOperationResponseDataPushStatus):
+        status (ProjectGitSyncOperationResponseDataPushStatus | None):
         ahead_count (int):
         behind_count (int):
         local_head_commit (None | str):
@@ -27,7 +27,7 @@ class ProjectGitSyncOperationResponseDataPush:
     """
 
     attempted: bool
-    status: ProjectGitSyncOperationResponseDataPushStatus
+    status: ProjectGitSyncOperationResponseDataPushStatus | None
     ahead_count: int
     behind_count: int
     local_head_commit: None | str
@@ -37,7 +37,7 @@ class ProjectGitSyncOperationResponseDataPush:
     def to_dict(self) -> dict[str, Any]:
         attempted = self.attempted
 
-        status = self.status.value
+        status = self.status.value if self.status is not None else None
 
         ahead_count = self.ahead_count
 
@@ -69,7 +69,12 @@ class ProjectGitSyncOperationResponseDataPush:
         d = dict(src_dict)
         attempted = d.pop("attempted")
 
-        status = ProjectGitSyncOperationResponseDataPushStatus(d.pop("status"))
+        raw_status = d.pop("status")
+        status = (
+            ProjectGitSyncOperationResponseDataPushStatus(raw_status)
+            if raw_status is not None
+            else None
+        )
 
         ahead_count = d.pop("ahead_count")
 

@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -325,6 +326,19 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "auth_failed");
     REQUIRE(payload["data"]["error_code"] == "auth_failed");
+  }
+
+  SECTION("git push refuses plaintext blobs in an encrypted project") {
+    repo.update_privacy_mode(project.project_id, "encrypted_git", 2);
+    std::filesystem::create_directories(std::filesystem::path(project.root_path) / "cards");
+    std::ofstream(std::filesystem::path(project.root_path) / "cards" / "unsafe.md")
+        << "plaintext";
+    auto [status, payload] =
+        call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
+    REQUIRE(status == http::status::bad_request);
+    REQUIRE(payload["error"]["message"].get<std::string>().find("cards/unsafe.md") !=
+            std::string::npos);
+    REQUIRE(git.calls == std::vector<std::string>{"remote"});
   }
 
   SECTION("git push serializes empty local_head_commit as null") {

@@ -15,7 +15,21 @@ from .history import (
 from .import_job import ImportJob
 from .link import CardLink
 from .milestone import Milestone, MilestoneDate
-from .project import HierarchyRepair, Project, RepairedCard
+from .project import (
+    EncryptionCheck,
+    HierarchyRepair,
+    Project,
+    RecoveryResult,
+    RepairedCard,
+)
+from .project_git import (
+    ProjectGit,
+    PullPhase,
+    PushPhase,
+    PushResult,
+    RemoteCheck,
+    SyncResult,
+)
 from .resource import Asset, AssetPlacement, Resource, ResourceReference
 from .search import CardSearchResult
 from .storage import StorageLocation
@@ -36,16 +50,24 @@ __all__ = [
     "CardSearchResult",
     "CardVersion",
     "DiffLine",
+    "EncryptionCheck",
     "HierarchyRepair",
     "ImportJob",
     "Milestone",
     "MilestoneDate",
     "Project",
     "ProjectActivity",
+    "ProjectGit",
+    "PullPhase",
+    "PushPhase",
+    "PushResult",
+    "RecoveryResult",
+    "RemoteCheck",
     "RepairedCard",
     "Resource",
     "ResourceReference",
     "StorageLocation",
+    "SyncResult",
     "Tag",
     "TrashItem",
 ]
