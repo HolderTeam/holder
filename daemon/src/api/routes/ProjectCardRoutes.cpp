@@ -256,7 +256,7 @@ bool handle_project_card_routes(
            {"query", scope},
            {"card_id", page.next_cursor->card_id},
            {"updated_at", *page.next_cursor->updated_at},
-           {"sort_key", page.next_cursor->sort_key}}
+           {"sort_key", *page.next_cursor->sort_key}}
       );
     }
     auto items = nlohmann::json::array();
