@@ -20,6 +20,7 @@ from .exceptions import (
 )
 from .generated import AuthenticatedClient
 from .generated.models import ErrorResponse
+from .models.intelligence_device import HolderIntelligence
 from .models.project import Project, ProjectCollection
 
 
@@ -51,6 +52,7 @@ class Holder:
         self._closed = False
         self.projects = ProjectCollection(self)
         self.changes = Changes(self)
+        self.intelligence = HolderIntelligence(self)
 
     def _command(self, *args: str) -> str:
         try:

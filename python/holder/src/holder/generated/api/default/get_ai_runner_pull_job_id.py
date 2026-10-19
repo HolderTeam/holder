@@ -8,18 +8,27 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.runner_pull_status_response import RunnerPullStatusResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     job_id: str,
+    *,
+    runner_id: str | Unset = UNSET,
 ) -> dict[str, Any]:
+
+    params: dict[str, Any] = {}
+
+    params["runner_id"] = runner_id
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/ai/runner/pull/{job_id}".format(
             job_id=quote(str(job_id), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -69,11 +78,13 @@ def sync_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | RunnerPullStatusResponse]:
     """Fetch pull job status
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -85,6 +96,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         job_id=job_id,
+        runner_id=runner_id,
     )
 
     response = client.get_httpx_client().request(
@@ -98,11 +110,13 @@ def sync(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
 ) -> ErrorResponse | RunnerPullStatusResponse | None:
     """Fetch pull job status
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -115,6 +129,7 @@ def sync(
     return sync_detailed(
         job_id=job_id,
         client=client,
+        runner_id=runner_id,
     ).parsed
 
 
@@ -122,11 +137,13 @@ async def asyncio_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | RunnerPullStatusResponse]:
     """Fetch pull job status
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -138,6 +155,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         job_id=job_id,
+        runner_id=runner_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -149,11 +167,13 @@ async def asyncio(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
 ) -> ErrorResponse | RunnerPullStatusResponse | None:
     """Fetch pull job status
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -167,5 +187,6 @@ async def asyncio(
         await asyncio_detailed(
             job_id=job_id,
             client=client,
+            runner_id=runner_id,
         )
     ).parsed

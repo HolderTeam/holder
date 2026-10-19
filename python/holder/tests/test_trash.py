@@ -4,7 +4,7 @@ import httpx
 import pytest
 from test_library import card_payload, failure, holder_for, ok, project_payload
 
-from holder import Card, TrashItem
+from holder import Card, Message, TrashItem
 from holder.exceptions import APIError, ClosedError, ProtocolError
 
 
@@ -88,6 +88,33 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
             return ok(trashed_items())
         if request.url.path == "/cards/c-0000":
             return ok(card_payload(content=True))
+        if request.url.path == "/ai/messages/m-1":
+            return ok(
+                {
+                    "message_id": "m-1",
+                    "thread_id": "t-1",
+                    "role": "assistant",
+                    "source": "manual",
+                    "content": "Reply",
+                    "created_at": 50,
+                    "provider": None,
+                    "model": None,
+                    "deleted_at": None,
+                    "prompt_hash": None,
+                    "meta_json": None,
+                }
+            )
+        if request.url.path == "/ai/threads/t-1":
+            return ok(
+                {
+                    "thread_id": "t-1",
+                    "project_id": "p-0",
+                    "title": "Chat",
+                    "created_at": 40,
+                    "updated_at": 50,
+                    "card_id": None,
+                }
+            )
         writes.append(request)
         if request.url.path == "/cards/c-0000/restore":
             return ok({"card_id": "c-0000"})
@@ -98,7 +125,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
     with holder_for(respond) as holder:
         card_item, message_item = list(holder.projects.get("p-0").trash)
         assert isinstance(card_item.restore(), Card)
-        assert message_item.restore() is None
+        assert isinstance(message_item.restore(), Message)
         card_item.delete_permanently()
         message_item.delete_permanently()
     assert [(r.method, r.url.path) for r in writes] == [

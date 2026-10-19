@@ -7,6 +7,8 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
+from ..types import UNSET, Unset
+
 T = TypeVar("T", bound="PostAiRunnerPullBody")
 
 
@@ -15,13 +17,17 @@ class PostAiRunnerPullBody:
     """
     Attributes:
         model (str):
+        runner_id (str | Unset):
     """
 
     model: str
+    runner_id: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         model = self.model
+
+        runner_id = self.runner_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -30,6 +36,8 @@ class PostAiRunnerPullBody:
                 "model": model,
             }
         )
+        if runner_id is not UNSET:
+            field_dict["runner_id"] = runner_id
 
         return field_dict
 
@@ -38,8 +46,11 @@ class PostAiRunnerPullBody:
         d = dict(src_dict)
         model = d.pop("model")
 
+        runner_id = d.pop("runner_id", UNSET)
+
         post_ai_runner_pull_body = cls(
             model=model,
+            runner_id=runner_id,
         )
 
         post_ai_runner_pull_body.additional_properties = d

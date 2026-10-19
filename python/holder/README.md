@@ -105,6 +105,7 @@ Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-p
   resources, attachments, file imports, downloads, storage locations, tags,
   project Git sync, remote checks, recovery tokens, encryption checks,
   project removal, live change notifications, project activity, card history,
+  intelligence threads, messages, search, runs, providers, and local models,
   collection refreshes, and connecting to a
   specific daemon.
 - [Low-level client](docs/low-level-client.md): direct access to HTTP endpoints.

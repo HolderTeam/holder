@@ -26,6 +26,8 @@ class AiStatusPullJob:
         updated_at (int):
         progress (RunnerPullProgress):
         active (bool):
+        runner_id (str | Unset):
+        model_ref (str | Unset):
         error (None | str | Unset):
     """
 
@@ -35,6 +37,8 @@ class AiStatusPullJob:
     updated_at: int
     progress: RunnerPullProgress
     active: bool
+    runner_id: str | Unset = UNSET
+    model_ref: str | Unset = UNSET
     error: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -50,6 +54,10 @@ class AiStatusPullJob:
         progress = self.progress.to_dict()
 
         active = self.active
+
+        runner_id = self.runner_id
+
+        model_ref = self.model_ref
 
         error: None | str | Unset
         if isinstance(self.error, Unset):
@@ -69,6 +77,10 @@ class AiStatusPullJob:
                 "active": active,
             }
         )
+        if runner_id is not UNSET:
+            field_dict["runner_id"] = runner_id
+        if model_ref is not UNSET:
+            field_dict["model_ref"] = model_ref
         if error is not UNSET:
             field_dict["error"] = error
 
@@ -91,6 +103,10 @@ class AiStatusPullJob:
 
         active = d.pop("active")
 
+        runner_id = d.pop("runner_id", UNSET)
+
+        model_ref = d.pop("model_ref", UNSET)
+
         def _parse_error(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -107,6 +123,8 @@ class AiStatusPullJob:
             updated_at=updated_at,
             progress=progress,
             active=active,
+            runner_id=runner_id,
+            model_ref=model_ref,
             error=error,
         )
 
