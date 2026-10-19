@@ -92,6 +92,9 @@ You can also list cards with a tag using
 `project.cards.recent(limit=20)`. Roots and `card.children` follow sibling order.
 Use `.with_child_counts()` on a card collection for counts, or
 `card.breadcrumbs` for its current project-to-card path.
+Use `project.cards.resolve("Roadmap")` to open a live card by exact title or
+unambiguous ID prefix; `project.cards.lookup(...)` also reports ambiguous and
+Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-partial-id).
 
 ## More help
 

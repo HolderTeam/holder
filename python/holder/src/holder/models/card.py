@@ -9,13 +9,14 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ..collections import Collection
-from ..exceptions import NotFoundError, ProtocolError
+from ..exceptions import AmbiguousCardReferenceError, NotFoundError, ProtocolError
 from ..generated.api.default import (
     delete_cards_card_id,
     get_cards_card_id,
     get_projects_project_id_cards,
     get_projects_project_id_cards_card_id_breadcrumbs,
     patch_cards_card_id,
+    post_card_references_resolve,
     post_cards,
     post_cards_card_id_move,
     post_cards_card_id_restore,
@@ -24,6 +25,8 @@ from ..generated.models import (
     CardCreateRequest,
     CardMoveIntent,
     CardMoveRequest,
+    CardReferenceResolveRequest,
+    CardReferenceResolveRequestScope,
     CardUpdateRequest,
     DeleteCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
@@ -32,6 +35,7 @@ from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
     GetProjectsProjectIdCardsParentType0 as CardParent,
 )
 from ..generated.types import UNSET, Unset
+from .card_reference import CardReferenceResult
 from .history import (
     CardChange,
     CardComparison,
@@ -178,6 +182,48 @@ class CardCollection(Collection["Card"]):
         if data.project_id != self._project.id:
             raise NotFoundError(404, "not_found", "Card not found in this project")
         return Card._from(self._project, data)
+
+    def lookup(
+        self,
+        reference: str,
+        *,
+        scope: Literal["live", "trashed", "either"] = "live",
+    ) -> CardReferenceResult:
+        """Inspect an ID, ID prefix, or exact title within this project.
+
+        Like get(), this ignores filters on the collection. Ambiguous results
+        contain two examples, not an exhaustive list of matching cards.
+        """
+        if not isinstance(reference, str) or not reference:
+            raise ValueError("reference must be a nonempty string")
+        try:
+            selected_scope = CardReferenceResolveRequestScope(scope)
+        except ValueError:
+            raise ValueError('scope must be "live", "trashed", or "either"') from None
+        data = self._holder._call(
+            post_card_references_resolve,
+            body=CardReferenceResolveRequest(
+                project_id=self._project.id,
+                reference=reference,
+                scope=selected_scope,
+            ),
+        )
+        return CardReferenceResult._from(data)
+
+    def resolve(self, reference: str) -> Card | None:
+        """Open one live card by ID, ID prefix, or exact title.
+
+        Return None when there is no match. Raise AmbiguousCardReferenceError
+        with two candidate examples when the reference is ambiguous.
+        """
+        result = self.lookup(reference)
+        if result.status == "not_found":
+            return None
+        if result.status == "ambiguous":
+            raise AmbiguousCardReferenceError(reference, result.candidates)
+        if result.card is None:
+            raise ProtocolError("Resolved card reference omitted the card")
+        return self.get(result.card.id)
 
     def history(self, card_id: str) -> CardHistoryCollection:
         """History by ID, including a card no longer available as a live Card."""
