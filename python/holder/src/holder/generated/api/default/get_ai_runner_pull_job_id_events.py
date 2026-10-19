@@ -13,17 +13,25 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     job_id: str,
     *,
+    runner_id: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(last_event_id, Unset):
         headers["Last-Event-ID"] = last_event_id
 
+    params: dict[str, Any] = {}
+
+    params["runner_id"] = runner_id
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/ai/runner/pull/{job_id}/events".format(
             job_id=quote(str(job_id), safe=""),
         ),
+        "params": params,
     }
 
     _kwargs["headers"] = headers
@@ -88,6 +96,7 @@ def sync_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | str]:
     """Stream pull job progress (SSE)
@@ -98,6 +107,7 @@ def sync_detailed(
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
         last_event_id (str | Unset):
 
     Raises:
@@ -110,6 +120,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         job_id=job_id,
+        runner_id=runner_id,
         last_event_id=last_event_id,
     )
 
@@ -124,6 +135,7 @@ def sync(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
 ) -> ErrorResponse | str | None:
     """Stream pull job progress (SSE)
@@ -134,6 +146,7 @@ def sync(
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
         last_event_id (str | Unset):
 
     Raises:
@@ -147,6 +160,7 @@ def sync(
     return sync_detailed(
         job_id=job_id,
         client=client,
+        runner_id=runner_id,
         last_event_id=last_event_id,
     ).parsed
 
@@ -155,6 +169,7 @@ async def asyncio_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | str]:
     """Stream pull job progress (SSE)
@@ -165,6 +180,7 @@ async def asyncio_detailed(
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
         last_event_id (str | Unset):
 
     Raises:
@@ -177,6 +193,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         job_id=job_id,
+        runner_id=runner_id,
         last_event_id=last_event_id,
     )
 
@@ -189,6 +206,7 @@ async def asyncio(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
+    runner_id: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
 ) -> ErrorResponse | str | None:
     """Stream pull job progress (SSE)
@@ -199,6 +217,7 @@ async def asyncio(
 
     Args:
         job_id (str):
+        runner_id (str | Unset):
         last_event_id (str | Unset):
 
     Raises:
@@ -213,6 +232,7 @@ async def asyncio(
         await asyncio_detailed(
             job_id=job_id,
             client=client,
+            runner_id=runner_id,
             last_event_id=last_event_id,
         )
     ).parsed

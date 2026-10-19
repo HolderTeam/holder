@@ -261,8 +261,7 @@ for message in project.trash.messages():
 ```
 
 `project.trash.cards()` and `.messages()` ask the daemon to filter the
-listing. Restoring an AI message returns `None`, since the friendly library
-does not yet have a live AI message object. To remove one item, call
+listing. Restoring an AI message returns its live `Message`. To remove one item, call
 `item.delete_permanently()`. To remove all items in the project, call
 `project.trash.empty()`; use `project.trash.cards().empty()` or
 `project.trash.messages().empty()` to limit it to one type. These operations
@@ -461,6 +460,70 @@ previously loaded listings yourself. If the selected version is trashed, use
 card. This ID-based entry point also works when the current card is unavailable.
 History requires a usable project Git repository and, for encrypted projects,
 an available project key. Individual history responses have a 2 MiB limit.
+
+## Work with intelligence
+
+Use `project.intelligence` for project threads, messages, search, and runs.
+Creating a thread or adding a message saves it immediately. `thread.ask()`
+starts a run when you enter the stream context; the run saves its own messages.
+
+```python
+with Holder() as holder:
+    project = holder.projects.get("project-id")
+    thread = project.intelligence.threads.create(title="Planning")
+    with thread.ask("Suggest next steps") as stream:
+        print("Run:", stream.run_id)
+        for event in stream:
+            if event.kind == "chunk":
+                print(event.text, end="", flush=True)
+            elif event.kind == "resync_required":
+                print("Refresh the run and start a new event stream")
+
+    for result in project.intelligence.search("next steps"):
+        print(result.snippet, result.message.content)
+```
+
+`project.intelligence.run(prompt)` starts without a thread. `thread.runs` and
+`project.intelligence.runs` list saved runs. Call `run.events(after=cursor)` to
+replay from an event ID; `stream.cursor` holds the last yielded event's
+ID. A `resync_required` event means the cursor is too old: refresh the run and
+start a fresh event stream. If a connection ends before `done` or `failed`,
+reconnect with the cursor. Closing a stream does not cancel its run.
+
+`thread.messages.add(content)` saves a manual message. Messages support
+`update(content=...)`, `trash()`, `restore()`, outgoing `links`, and read-only
+`backlinks`. Use `thread.messages.including_trashed()` to see trashed messages.
+`project.intelligence.capture(prompt, response, thread=thread)` records an
+exchange from outside Holder with provenance; omit `thread` to create one.
+IDs from other projects raise `NotFoundError` in project-scoped lookups.
+
+Use `holder.intelligence` for settings and local runtime state shared by all
+projects on this device:
+
+```python
+with Holder() as holder:
+    provider = holder.intelligence.providers.get("provider-id")
+    provider.set_key("api-key")
+    provider.set_enabled(True)
+
+    models = holder.intelligence.models
+    print(models.installed())
+    models.configure(fast="model-name")
+    job = models.pull("model-name")
+    with job.events() as events:
+        for event in events:
+            print(event.kind, event.data)
+```
+
+Provider keys are sent to the daemon and are never stored on the Python
+object. `provider.clear_key()` removes one; `provider.reset_enabled()` removes
+its enabled override. `models.configure()` preserves omitted preferences and
+clears a preference passed as `None`. `holder.intelligence.runners` lists and
+manages local runners; `runners.create(name=..., base_url=...)` currently creates
+an Ollama runner. Pass `runner_id` to `models.pull()` to choose one. Pull events
+are replaceable progress snapshots; after a disconnect, call `job.refresh()`
+and open a new stream without an old event ID. `holder.intelligence.status()`
+reports active run and pull counts and runner availability.
 
 ## Find and repair hidden cards
 

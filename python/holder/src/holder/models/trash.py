@@ -22,6 +22,7 @@ from ..generated.types import Unset
 
 if TYPE_CHECKING:
     from .card import Card
+    from .intelligence import Message
     from .project import Project
 
 
@@ -73,11 +74,10 @@ class TrashItem:
             _project=project,
         )
 
-    def restore(self) -> Card | None:
-        """Restore this item; return the live Card for cards.
+    def restore(self) -> Card | Message:
+        """Restore this item and return its live object.
 
-        AI messages have no high-level live object, so restoring one returns
-        None. A cached Trash listing needs refresh() to reflect the change.
+        A cached Trash listing needs refresh() to reflect the change.
         """
         if self.type == "card":
             self._project._holder._call(post_cards_card_id_restore, self.id, write=True)
@@ -85,7 +85,7 @@ class TrashItem:
         self._project._holder._call(
             post_ai_messages_message_id_restore, self.id, write=True
         )
-        return None
+        return self._project.intelligence.message(self.id)
 
     def delete_permanently(self) -> None:
         """Remove this trashed item from current storage.

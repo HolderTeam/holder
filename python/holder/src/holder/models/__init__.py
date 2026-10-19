@@ -14,6 +14,23 @@ from .history import (
     ProjectActivity,
 )
 from .import_job import ImportJob
+from .intelligence import (
+    CapturedExchange,
+    Message,
+    MessageSearchResult,
+    ProjectIntelligence,
+    Run,
+    Thread,
+)
+from .intelligence_device import (
+    HolderIntelligence,
+    IntelligenceStatus,
+    LocalModel,
+    ModelPreferences,
+    ModelPullJob,
+    Provider,
+    Runner,
+)
 from .link import CardLink
 from .milestone import Milestone, MilestoneDate
 from .project import (
@@ -42,6 +59,7 @@ __all__ = [
     "AffectedObject",
     "Asset",
     "AssetPlacement",
+    "CapturedExchange",
     "Card",
     "CardBreadcrumb",
     "CardChange",
@@ -56,12 +74,21 @@ __all__ = [
     "DiffLine",
     "EncryptionCheck",
     "HierarchyRepair",
+    "HolderIntelligence",
     "ImportJob",
+    "IntelligenceStatus",
+    "LocalModel",
+    "Message",
+    "MessageSearchResult",
     "Milestone",
     "MilestoneDate",
+    "ModelPreferences",
+    "ModelPullJob",
     "Project",
     "ProjectActivity",
     "ProjectGit",
+    "ProjectIntelligence",
+    "Provider",
     "PullPhase",
     "PushPhase",
     "PushResult",
@@ -70,8 +97,11 @@ __all__ = [
     "RepairedCard",
     "Resource",
     "ResourceReference",
+    "Run",
+    "Runner",
     "StorageLocation",
     "SyncResult",
     "Tag",
+    "Thread",
     "TrashItem",
 ]

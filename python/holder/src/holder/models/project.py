@@ -37,6 +37,7 @@ from ..generated.models import (
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
 from .history import ProjectActivityCollection
+from .intelligence import ProjectIntelligence
 from .milestone import ProjectMilestones
 from .project_git import ProjectGit
 from .resource import ResourceCollection
@@ -293,6 +294,11 @@ class Project:
     def changes(self) -> Changes:
         """Checkpoints and live change notifications scoped to this project."""
         return Changes(self._holder, self.id)
+
+    @cached_property
+    def intelligence(self) -> ProjectIntelligence:
+        """Threads, messages, search, and runs in this project."""
+        return ProjectIntelligence(self)
 
     @classmethod
     def _from(cls, holder: Holder, data: Any) -> Self:

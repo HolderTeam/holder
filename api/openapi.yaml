@@ -306,6 +306,10 @@ components:
       properties:
         job_id:
           type: string
+        runner_id:
+          type: string
+        model_ref:
+          type: string
         model:
           type: string
         status:
@@ -330,6 +334,10 @@ components:
           required: [job_id, model, status]
           properties:
             job_id:
+              type: string
+            runner_id:
+              type: string
+            model_ref:
               type: string
             model:
               type: string
@@ -368,6 +376,177 @@ components:
         updated_at:
           type: integer
           format: int64
+    AiProviderSetting:
+      type: object
+      required: [provider, enabled, updated_at]
+      properties:
+        provider:
+          type: string
+        enabled:
+          type: boolean
+        updated_at:
+          type: integer
+          format: int64
+    AiProviderSettingsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [providers]
+          properties:
+            providers:
+              type: array
+              items:
+                $ref: "#/components/schemas/AiProviderSetting"
+    AiProviderSettingUpdateRequest:
+      type: object
+      required: [provider, enabled]
+      properties:
+        provider:
+          type: string
+        enabled:
+          type: boolean
+        updated_at:
+          type: integer
+          format: int64
+    AiProviderSettingResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/AiProviderSetting"
+    AiProviderSettingDeleteResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [provider]
+          properties:
+            provider:
+              type: string
+    AiRunnerRuntime:
+      type: object
+      required: [configured, available, spawn_attempted, last_checked, version, error, models, pulls]
+      properties:
+        configured:
+          type: boolean
+        available:
+          type: boolean
+        spawn_attempted:
+          type: boolean
+        last_checked:
+          type: integer
+          format: int64
+        version:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocalModel"
+        pulls:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunnerPullJob"
+    AiRunner:
+      type: object
+      required: [runner_id, name, kind, base_url, source, enabled, created_at, updated_at, runtime]
+      properties:
+        runner_id:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+        base_url:
+          type: string
+          nullable: true
+        source:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+        runtime:
+          $ref: "#/components/schemas/AiRunnerRuntime"
+    AiRunnerListResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [runners]
+          properties:
+            runners:
+              type: array
+              items:
+                $ref: "#/components/schemas/AiRunner"
+    AiRunnerResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/AiRunner"
+    AiRunnerCreateRequest:
+      type: object
+      required: [name, kind, base_url]
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [ollama]
+        base_url:
+          type: string
+        enabled:
+          type: boolean
+    AiRunnerUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        base_url:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+    AiRunnerDeleteResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [runner_id]
+          properties:
+            runner_id:
+              type: string
     AiProviderCredentialsListResponse:
       type: object
       required: [ok, data]
@@ -5570,6 +5749,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /ai/providers/settings:
+    get:
+      summary: List cloud provider enabled settings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderSettingsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Set whether a cloud provider is enabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiProviderSettingUpdateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderSettingResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /ai/providers/settings/{provider}:
+    delete:
+      summary: Remove a cloud provider enabled override
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderSettingDeleteResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /ai/providers/credentials:
     get:
       summary: List configured cloud provider credentials
@@ -5659,6 +5897,141 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /ai/runners:
+    get:
+      summary: List configured local model runners
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerListResponse"
+    post:
+      summary: Configure a local model runner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiRunnerCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /ai/runners/{runner_id}:
+    get:
+      summary: Get a local model runner
+      parameters:
+        - name: runner_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update a local model runner
+      parameters:
+        - name: runner_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiRunnerUpdateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Remove a configured local model runner
+      parameters:
+        - name: runner_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerDeleteResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /ai/runners/{runner_id}/retry:
+    post:
+      summary: Retry one local model runner
+      parameters:
+        - name: runner_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRunnerResponse"
+        "404":
+          description: Not found
           content:
             application/json:
               schema:
@@ -5907,6 +6280,8 @@ paths:
               properties:
                 model:
                   type: string
+                runner_id:
+                  type: string
       responses:
         "200":
           description: OK
@@ -5942,6 +6317,10 @@ paths:
     get:
       summary: Fetch pull job status
       parameters:
+        - in: query
+          name: runner_id
+          schema:
+            type: string
         - in: path
           name: job_id
           required: true
@@ -5977,6 +6356,10 @@ paths:
       summary: Stream pull job progress (SSE)
       description: Streams progress snapshots on status changes; completed or failed closes the stream. Pull event IDs are connection-local; reconnect without Last-Event-ID to fetch current progress after resync_required. Disconnecting does not cancel the pull.
       parameters:
+        - in: query
+          name: runner_id
+          schema:
+            type: string
         - in: header
           name: Last-Event-ID
           description: Opaque SSE event ID; unavailable history emits resync_required and closes.
