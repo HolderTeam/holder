@@ -23,6 +23,22 @@ Creation returns a fully loaded object. Filters on a collection do not supply
 values when you create an object through it; `card.children.create(...)` does
 supply the parent.
 
+Project listings can be ordered and can include live card totals:
+
+```python
+for project in holder.projects.filter(name="Research").alphabetical().with_card_counts():
+    print(project.name, project.card_count, project.root_card_count)
+
+for project in holder.projects.recent():
+    print(project.name, project.updated_at)
+```
+
+`order_by("name" | "created_at" | "updated_at", descending=True)` gives
+the other orders. The default project listing keeps the daemon's usual order;
+choosing an order sorts by that field. `with_card_counts()` populates counts
+on projects returned by that listing. A direct `holder.projects.get(id)` does
+not request counts, so its count attributes remain `None`.
+
 ## Browse recent cards and the card tree
 
 `project.cards.recent(limit=20)` lists live cards with the most recently
@@ -42,6 +58,9 @@ for root in project.cards.roots():
 for root in project.cards.roots().with_child_counts():
     print(root.title, root.child_count)
 
+for card in project.cards.filter(tag="research").with_content():
+    print(card.title, card.content)
+
 for step in card.breadcrumbs:
     print(step.kind, step.id, step.title)
 ```
@@ -52,6 +71,10 @@ iteration may change later pages. Use `refresh()` to read a collection again.
 without it, `child_count` is `None`. `card.breadcrumbs` reads the current live
 path from the project to that card on each access. A broken ancestor chain is
 reported as an error instead of a partial path.
+`with_content()` loads the body of each card in the listing page, avoiding a
+separate request when you access `card.content`. It can be combined with roots,
+children, recent cards, tags, and child counts. The daemon reads each content
+page under a project lock; if a body cannot be read, that page fails.
 
 ## Find a card by name or partial ID
 

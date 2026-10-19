@@ -90,8 +90,10 @@ You can also list cards with a tag using
 `project.cards.filter(tag="research")`, or list just top-level cards with
 `project.cards.roots()`. For the latest changes, use
 `project.cards.recent(limit=20)`. Roots and `card.children` follow sibling order.
-Use `.with_child_counts()` on a card collection for counts, or
-`card.breadcrumbs` for its current project-to-card path.
+Use `.with_child_counts()` on a card collection for counts and
+`.with_content()` to fetch card bodies in listing pages. `card.breadcrumbs`
+gives its current project-to-card path. Project listings support
+`.alphabetical()`, `.recent()`, and `.with_card_counts()`.
 Use `project.cards.resolve("Roadmap")` to open a live card by exact title or
 unambiguous ID prefix; `project.cards.lookup(...)` also reports ambiguous and
 Trash matches. See [reference lookup](docs/scripting.md#find-a-card-by-name-or-partial-id).
