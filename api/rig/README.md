@@ -38,6 +38,11 @@ optional `runner_id` query parameter. The live handler calls the typed
 operation. Its response covers 64-bit integers, a double, omittable fields,
 and an omittable nullable field.
 
+`daemon/src/api/CardLinks.h` declares `GET /cards/{card_id}/links` with an
+optional integer query parameter constrained to `0` or `1`. The live handler
+calls the typed operation and rejects other supplied values. The reflected
+link response covers optional properties and an optional nullable label.
+
 With an installed RIG command and PyYAML, run the comparison from the repo
 root:
 
@@ -48,14 +53,15 @@ make -C api/rig check
 To inspect the intermediate artifacts directly:
 
 ```sh
-rig inspect --header daemon/src/api/RigContract.h --namespace holder::api -- -Idaemon/src > /tmp/holder-rig.json
+rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --namespace holder::api::routes -- -Idaemon/src > /tmp/holder-rig.json
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, three operations, and their
-eight reachable schemas now match the control. The comparison treats an omitted
+The generated service metadata, bearer security, four operations, and their
+ten reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next slice should cover an enum or constrained query parameter.
+The next slice should cover a query default, a named schema used by a query,
+or another missing contract shape.

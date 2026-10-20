@@ -7,7 +7,7 @@ ROOT := $(abspath ../..)
 
 build/contract-ir.json: FORCE
 	mkdir -p build
-	$(RIG) inspect --header daemon/src/api/RigContract.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
+	$(RIG) inspect --header daemon/src/api/RigContract.h --namespace holder::api --namespace holder::api::routes -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
 
 build/contract-openapi.json: build/contract-ir.json
 	$(RIG) openapi --omit-operation-ids < $< > $@

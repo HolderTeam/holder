@@ -806,6 +806,44 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(del_payload["ok"] == true);
   }
 
+  SECTION("links include_deleted accepts only 0 or 1") {
+    const std::string source = "11111111-1111-4111-8111-111111111111";
+    const std::string target = "22222222-2222-4222-8222-222222222222";
+    auto [create_status, create_payload] = call(
+        http::verb::post, "/cards/" + source + "/links", {{"to_card_id", target}}
+    );
+    REQUIRE(create_status == http::status::created);
+    REQUIRE(create_payload["ok"] == true);
+    auto [trash_status, trash_payload] = call(
+        http::verb::delete_, "/cards/" + target, nlohmann::json::object()
+    );
+    REQUIRE(trash_status == http::status::ok);
+    REQUIRE(trash_payload["ok"] == true);
+
+    const std::string path = "/cards/" + source + "/links";
+    auto [filtered_status, filtered_payload] = call_with_param_get(
+        http::verb::get, path, nlohmann::json::object(),
+        map_param_getter({{"include_deleted", "0"}})
+    );
+    REQUIRE(filtered_status == http::status::ok);
+    REQUIRE(filtered_payload["data"].empty());
+
+    auto [included_status, included_payload] = call_with_param_get(
+        http::verb::get, path, nlohmann::json::object(),
+        map_param_getter({{"include_deleted", "1"}})
+    );
+    REQUIRE(included_status == http::status::ok);
+    REQUIRE(included_payload["data"].size() == 1);
+    REQUIRE(included_payload["data"][0]["to_card_id"] == target);
+
+    auto [invalid_status, invalid_payload] = call_with_param_get(
+        http::verb::get, path, nlohmann::json::object(),
+        map_param_getter({{"include_deleted", "2"}})
+    );
+    REQUIRE(invalid_status == http::status::bad_request);
+    REQUIRE(invalid_payload["error"]["code"] == "bad_request");
+  }
+
   SECTION("resource attachments validate methods and identifiers") {
     auto [method_status, method_payload] = call(
         http::verb::get,

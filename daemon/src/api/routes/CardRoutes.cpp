@@ -1,4 +1,5 @@
 #include "api/routes/CardRoutes.h"
+#include "api/CardLinks.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 
@@ -351,6 +352,33 @@ http::response<http::string_body> recent_cards_response(
 }
 
 } // namespace
+
+CardLinkListResponse list_card_links(
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    std::string project_id,
+    std::string card_id,
+    std::optional<int> include_deleted
+) {
+  holder::card::LinkRepo links(db);
+  holder::card::CardRepo card_repo(db);
+  holder::ai::AiMessageRepo msg_repo(db, fts);
+  CardLinkListResponse response{true, {}};
+  for (const auto& link : links.list_outgoing(project_id, card_id)) {
+    if (!should_include_link_target(card_repo, msg_repo, link, include_deleted.value_or(0) == 1)) {
+      continue;
+    }
+    response.data.push_back({link.from_card_id,
+                             link.to_card_id,
+                             link.target_project_id,
+                             std::nullopt,
+                             link.to_type,
+                             link.kind,
+                             std::optional<std::optional<std::string>>{std::in_place, link.label},
+                             link.created_at});
+  }
+  return response;
+}
 
 http::response<http::string_body> card_create_error_response(const std::exception& ex) {
   const std::string msg = ex.what();
@@ -1050,30 +1078,38 @@ bool handle_card_routes(
             const auto& card = card_opt.value();
             holder::card::LinkRepo repo(db);
             if (req.method() == http::verb::get) {
-              holder::card::CardRepo card_repo(db);
-              holder::ai::AiMessageRepo msg_repo(db, fts);
-              const bool include_deleted = !param_get("include_deleted").empty() &&
-                                           param_get("include_deleted") != "0";
-              const auto links = repo.list_outgoing(card.project_id, card.card_id);
+              const auto raw_include_deleted = param_get("include_deleted");
+              std::optional<int> include_deleted;
+              if (raw_include_deleted == "0") {
+                include_deleted = 0;
+              } else if (raw_include_deleted == "1") {
+                include_deleted = 1;
+              } else if (!raw_include_deleted.empty()) {
+                throw std::invalid_argument("include_deleted must be 0 or 1.");
+              }
+              const auto links = list_card_links(
+                  db, fts, card.project_id, card.card_id, include_deleted
+              );
               nlohmann::json data = nlohmann::json::array();
-              for (const auto& link : links) {
-                if (!should_include_link_target(card_repo, msg_repo, link, include_deleted)) {
-                  continue;
-                }
+              for (const auto& link : links.data) {
                 nlohmann::json item;
                 item["from_card_id"] = link.from_card_id;
                 item["to_card_id"] = link.to_card_id;
                 item["to_type"] = link.to_type;
                 item["kind"] = link.kind;
                 item["created_at"] = link.created_at;
-                item["label"] = link.label.has_value() ? nlohmann::json(link.label.value())
-                                                       : nlohmann::json(nullptr);
+                if (link.label.has_value()) {
+                  item["label"] = link.label->has_value() ? nlohmann::json(**link.label)
+                                                          : nlohmann::json(nullptr);
+                }
                 if (link.target_project_id.has_value())
                   item["target_project_id"] = *link.target_project_id;
+                if (link.source_project_id.has_value())
+                  item["source_project_id"] = *link.source_project_id;
                 data.push_back(std::move(item));
               }
               nlohmann::json payload;
-              payload["ok"] = true;
+              payload["ok"] = links.ok;
               payload["data"] = data;
               res = support::json_response(http::status::ok, payload);
             } else if (req.method() == http::verb::post) {
