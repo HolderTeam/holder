@@ -5,7 +5,7 @@
 
 namespace holder::api {
 
-struct ByeResponse {
+struct RIG_OPEN_RECORD ByeResponse {
   bool ok RIG_BOOL_VALUE(true);
 };
 

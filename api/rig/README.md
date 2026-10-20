@@ -27,23 +27,25 @@ HTTP route in `HttpServer.cpp` calls that operation, so the reflected declaratio
 describes live behavior. `RigAnnotations.h` makes its annotation disappear in
 ordinary C++20 builds.
 
-With an installed RIG command, inspect and generate this slice from the repo
+With an installed RIG command and PyYAML, run the comparison from the repo
 root:
 
 ```sh
-rig inspect --header daemon/src/api/Bye.h --namespace holder::api -- -Idaemon/src > /tmp/holder-bye-rig.json
-rig openapi --title 'Holder API' < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
+make -C api/rig check
 ```
 
-The generated path, method, summary, long description, 200 and 401 responses
-(including their descriptions and JSON schema references), response types,
-and required `ok: true` and `ok: false` fields now agree with the control.
-The generated fragment still adds an `operationId` and
-`additionalProperties: false` to the response schema, neither of which the
-control declares. These are concrete RIG gaps; the generated fragment must
-not replace the checked-in contract yet.
+To inspect the intermediate artifacts directly:
 
-The next slice should make operation IDs and record openness explicit, then
-describe service-level bearer security so this operation can match the control
-exactly. After that, use the same mechanism on a route with path and query
+```sh
+rig inspect --header daemon/src/api/Bye.h --namespace holder::api -- -Idaemon/src > /tmp/holder-bye-rig.json
+rig openapi --title 'Holder API' --omit-operation-ids < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
+```
+
+The generated `/bye` operation and its three reachable schemas now match the
+control structurally, including the absence of an operation ID and the open
+record schemas. The generated document remains a partial slice; it must not
+replace the checked-in contract yet.
+
+The next slice should describe service-level bearer security and the document
+metadata, then use the same mechanism on a route with path and query
 parameters.

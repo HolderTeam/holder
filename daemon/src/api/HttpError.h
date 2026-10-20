@@ -6,12 +6,12 @@
 
 namespace holder::api {
 
-struct Error {
+struct RIG_OPEN_RECORD Error {
   std::string code;
   std::string message;
 };
 
-struct ErrorResponse {
+struct RIG_OPEN_RECORD ErrorResponse {
   bool ok RIG_BOOL_VALUE(false);
   Error error;
 };
