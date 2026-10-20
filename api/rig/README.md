@@ -22,10 +22,11 @@ patches.
 
 ## First live slice: `POST /bye`
 
+`daemon/src/api/ApiService.h` declares document metadata and bearer security.
 `daemon/src/api/Bye.h` declares the typed operation and response. The existing
 HTTP route in `HttpServer.cpp` calls that operation, so the reflected declaration
-describes live behavior. `RigAnnotations.h` makes its annotation disappear in
-ordinary C++20 builds.
+describes live behavior. `RigAnnotations.h` makes these annotations disappear
+in ordinary C++20 builds.
 
 With an installed RIG command and PyYAML, run the comparison from the repo
 root:
@@ -38,14 +39,13 @@ To inspect the intermediate artifacts directly:
 
 ```sh
 rig inspect --header daemon/src/api/Bye.h --namespace holder::api -- -Idaemon/src > /tmp/holder-bye-rig.json
-rig openapi --title 'Holder API' --omit-operation-ids < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
+rig openapi --omit-operation-ids < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
 ```
 
-The generated `/bye` operation and its three reachable schemas now match the
-control structurally, including the absence of an operation ID and the open
-record schemas. The generated document remains a partial slice; it must not
-replace the checked-in contract yet.
+The generated document metadata and bearer security, `/bye` operation, and its
+three reachable schemas now match the control structurally. The generated
+document remains a partial slice; it must not replace the checked-in contract
+yet.
 
-The next slice should describe service-level bearer security and the document
-metadata, then use the same mechanism on a route with path and query
+The next slice should use the same mechanism on a route with path and query
 parameters.

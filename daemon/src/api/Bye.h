@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api/ApiService.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
 

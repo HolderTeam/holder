@@ -12,4 +12,7 @@
 #define RIG_BOOL_VALUE(value)
 #define RIG_ERROR_RESPONSE(status, body, description)
 #define RIG_OPEN_RECORD
+#define RIG_API(title, version)
+#define RIG_SERVER(url)
+#define RIG_BEARER_AUTH(name, format)
 #endif

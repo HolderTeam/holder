@@ -10,6 +10,11 @@ import yaml
 def main(control_path: str, generated_path: str) -> None:
     control = yaml.safe_load(Path(control_path).read_text())
     generated = json.loads(Path(generated_path).read_text())
+    for key in ("openapi", "info", "servers", "security"):
+        if generated[key] != control[key]:
+            raise SystemExit(f"RIG {key} differs from api/openapi.yaml")
+    if generated["components"]["securitySchemes"] != control["components"]["securitySchemes"]:
+        raise SystemExit("RIG security schemes differ from api/openapi.yaml")
     expected_operation = control["paths"]["/bye"]["post"]
     actual_operation = generated["paths"]["/bye"]["post"]
     if actual_operation != expected_operation:
@@ -19,7 +24,7 @@ def main(control_path: str, generated_path: str) -> None:
         actual = generated["components"]["schemas"][name]
         if actual != expected:
             raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG /bye operation and schemas match api/openapi.yaml")
+    print("RIG service metadata, /bye operation, and schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":
