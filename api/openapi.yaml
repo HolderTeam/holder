@@ -2049,8 +2049,12 @@ components:
         git_provider:
           type: [string, 'null']
         privacy_mode:
-          type: [string, 'null']
-          enum: [encrypted_git, plain]
+          anyOf:
+            # The title keeps the generated Python enum's class name.
+            - title: PrivacyMode
+              type: string
+              enum: [encrypted_git, plain]
+            - type: 'null'
         project_key_id:
           type: [string, 'null']
         updated_at:
@@ -2207,9 +2211,13 @@ components:
                 attempted:
                   type: boolean
                 status:
-                  type: [string, 'null']
-                  enum:
-                    [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error]
+                  anyOf:
+                    # The title keeps the generated Python enum's class name.
+                    - title: Status
+                      type: string
+                      enum:
+                        [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error]
+                    - type: 'null'
                 ahead_count:
                   type: integer
                 behind_count:
