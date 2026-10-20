@@ -50,8 +50,11 @@ def main():
     if head < base:
         sys.exit(f"API_VERSION went down from {base[0]}.{base[1]} to {head[0]}.{head[1]}")
 
-    result = subprocess.run([args.oasdiff, "breaking", args.base_spec, args.head_spec, "--format", "json"],
-                            capture_output=True, text=True)
+    result = subprocess.run(
+        [args.oasdiff, "breaking", args.base_spec, args.head_spec,
+         "--auto-upgrade", "--format", "json"],
+        capture_output=True, text=True, check=False,
+    )
     if result.returncode != 0:
         sys.exit(f"oasdiff failed:\n{result.stderr}")
     changes = json.loads(result.stdout or "[]")

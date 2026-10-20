@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Holder API
   version: 0.1.0
@@ -25,8 +25,7 @@ components:
           type: object
           description: Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.
           additionalProperties:
-            type: string
-            nullable: true
+            type: [string, 'null']
         history_urls:
           type: object
           description: Existing project history endpoints for durable recovery. Refresh live state after inspecting history.
@@ -51,14 +50,12 @@ components:
         entity_id:
           type: string
         project_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deleted:
           type: boolean
           description: Entity disappeared from the observed database snapshot. Soft deletion remains an ordinary invalidation.
         git_revision:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Observed Git HEAD for this project; live changes may not yet be committed to Git.
     EventResyncData:
       allOf:
@@ -70,8 +67,7 @@ components:
               type: string
               enum: [history_unavailable, observer_unavailable]
             last_revision:
-              type: string
-              nullable: true
+              type: [string, 'null']
     AiRunEventData:
       type: object
       required: [run_id]
@@ -178,8 +174,7 @@ components:
           type: string
           enum: [mini, user, developer, workstation, rig]
         reason:
-          type: string
-          nullable: true
+          type: [string, 'null']
     CasteRecommendedModel:
       type: object
       required: [tag, required_caste, installed]
@@ -187,14 +182,11 @@ components:
         tag:
           type: string
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         engine:
-          type: string
-          nullable: true
+          type: [string, 'null']
         category:
-          type: string
-          nullable: true
+          type: [string, 'null']
         required_caste:
           type: string
           enum: [mini, user, developer, workstation, rig]
@@ -214,12 +206,11 @@ components:
         version:
           type: string
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         caste:
-          allOf:
+          anyOf:
             - $ref: "#/components/schemas/CasteInfo"
-          nullable: true
+            - type: 'null'
         local_model_config:
           $ref: "#/components/schemas/AiLocalModelConfigData"
         models:
@@ -248,18 +239,14 @@ components:
       required: [fast_model, strong_model, deep_model, updated_at]
       properties:
         fast_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         strong_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deep_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         updated_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     AiLocalModelConfigResponse:
       type: object
       required: [ok, data]
@@ -273,18 +260,14 @@ components:
       type: object
       properties:
         fast_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         strong_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deep_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         updated_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     RunnerPullProgress:
       type: object
       required: [completed, total, percent, stage]
@@ -318,8 +301,7 @@ components:
           type: integer
           format: int64
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         progress:
           $ref: "#/components/schemas/RunnerPullProgress"
     RunnerPullStartResponse:
@@ -449,11 +431,9 @@ components:
           type: integer
           format: int64
         version:
-          type: string
-          nullable: true
+          type: [string, 'null']
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         models:
           type: array
           items:
@@ -473,8 +453,7 @@ components:
         kind:
           type: string
         base_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         source:
           type: string
         enabled:
@@ -530,8 +509,7 @@ components:
         name:
           type: string
         base_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         enabled:
           type: boolean
     AiRunnerDeleteResponse:
@@ -571,9 +549,8 @@ components:
         api_key:
           type: string
         updated_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     AiProviderCredentialUpsertResponse:
       type: object
       required: [ok, data]
@@ -609,30 +586,24 @@ components:
         configured:
           type: boolean
         api:
-          type: object
+          type: [object, 'null']
           additionalProperties: true
-          nullable: true
         auth:
-          type: object
+          type: [object, 'null']
           additionalProperties: true
-          nullable: true
         models:
           type: array
           items:
             type: object
             additionalProperties: true
         setup_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         docs_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         api_key_label:
-          type: string
-          nullable: true
+          type: [string, 'null']
         api_key_hint:
-          type: string
-          nullable: true
+          type: [string, 'null']
     AiProviderCatalogResponse:
       type: object
       required: [ok, data]
@@ -645,8 +616,7 @@ components:
           required: [providers]
           properties:
             default_provider:
-              type: string
-              nullable: true
+              type: [string, 'null']
             providers:
               type: array
               items:
@@ -664,11 +634,9 @@ components:
           type: integer
           format: int64
         runner_version:
-          type: string
-          nullable: true
+          type: [string, 'null']
         runner_error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         active_runs:
           type: integer
           format: int64
@@ -724,42 +692,32 @@ components:
         run_id:
           type: string
         project_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         thread_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         message_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         mode:
           type: string
         prompt:
           type: string
         context_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
         router_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         ranked_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
         policy_trace_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
         policy_trace:
-          type: object
-          nullable: true
+          type: [object, 'null']
           additionalProperties: true
         chosen_model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         status:
           type: string
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -852,9 +810,8 @@ components:
         title:
           type: string
         deleted_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     CardReferenceResolveData:
       type: object
       required: [status]
@@ -903,14 +860,12 @@ components:
           format: int64
           description: Optional; server uses created_at if omitted or 0.
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         sort_key:
           type: number
           format: double
         rel_path:
-          type: string
-          nullable: true
+          type: [string, 'null']
     CardCreateResponse:
       type: object
       required: [ok, data]
@@ -936,11 +891,9 @@ components:
           type: integer
           format: int64
         title:
-          type: string
-          nullable: true
+          type: [string, 'null']
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         sort_key:
           type: number
           format: double
@@ -967,12 +920,10 @@ components:
           type: integer
           format: int64
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deleted_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         content:
           type: string
     CardGetResponse:
@@ -1007,12 +958,10 @@ components:
           type: integer
           format: int64
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deleted_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         child_count:
           type: integer
           minimum: 0
@@ -1043,8 +992,7 @@ components:
           type: string
           description: A hidden branch's top card. Its descendants stay attached and move with it.
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Where it goes, or null for the project's top level.
     HierarchyRepair:
       type: object
@@ -1092,8 +1040,7 @@ components:
           items:
             $ref: "#/components/schemas/CardPageItem"
         next_cursor:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Continue with this cursor, or null when there are no more results.
     CardPageResponse:
       type: object
@@ -1211,17 +1158,14 @@ components:
         intent:
           $ref: "#/components/schemas/CardMoveIntent"
         target_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Required for intents into/before/after.
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level.
         if_revision:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
           description: Optional optimistic-concurrency revision guard.
     CardMoveResult:
       type: object
@@ -1230,8 +1174,7 @@ components:
         card_id:
           type: string
         parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         sort_key:
           type: number
           format: double
@@ -1239,8 +1182,7 @@ components:
           type: integer
           format: int64
         moved_into_title:
-          type: string
-          nullable: true
+          type: [string, 'null']
     CardMoveResponse:
       type: object
       required: [ok, data]
@@ -1267,11 +1209,9 @@ components:
         title:
           type: string
         project_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
     CardContextData:
       type: object
       required: [project, current_parent_card_id, breadcrumbs, cards]
@@ -1285,8 +1225,7 @@ components:
             name:
               type: string
         current_parent_card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         breadcrumbs:
           type: array
           items:
@@ -1324,8 +1263,7 @@ components:
         kind:
           type: string
         label:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -1345,8 +1283,7 @@ components:
           type: string
           description: Optional; defaults to "ref".
         label:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -1416,19 +1353,16 @@ components:
           format: int64
           description: Unix epoch seconds. For an all-day milestone, this encodes the originating local date at local midnight.
         end_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
           description: Inclusive milestone end in Unix epoch seconds. For an all-day milestone, this encodes the inclusive ending local date at local midnight.
         all_day:
           type: boolean
           description: When true, start_at and end_at carry local calendar-date semantics and clients should render dates rather than ordinary timed instants.
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -1447,20 +1381,17 @@ components:
           format: int64
           description: Unix epoch seconds. For all_day=true, encode the local calendar date at local midnight.
         end_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
           description: Inclusive milestone end. For all_day=true, encode the inclusive ending local date at local midnight.
         all_day:
           type: boolean
           default: false
           description: Marks start_at and end_at as local calendar dates rather than timed instants.
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
     MilestoneUpdateRequest:
       type: object
       minProperties: 1
@@ -1472,19 +1403,16 @@ components:
           format: int64
           description: Unix epoch seconds. When changing an all-day milestone, encode the local calendar date at local midnight.
         end_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
           description: Inclusive milestone end, or null to clear it. The resulting end must not precede start_at.
         all_day:
           type: boolean
           description: Whether start_at and end_at carry local calendar-date semantics rather than timed-instant semantics.
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
     MilestoneResponse:
       type: object
       required: [ok, data]
@@ -1535,11 +1463,9 @@ components:
           items:
             $ref: "#/components/schemas/MilestoneDateValue"
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -1557,11 +1483,9 @@ components:
           items:
             $ref: "#/components/schemas/MilestoneDateValue"
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
     MilestoneWithDatesUpdateRequest:
       type: object
       minProperties: 1
@@ -1573,11 +1497,9 @@ components:
           items:
             $ref: "#/components/schemas/MilestoneDateValue"
         kind:
-          type: string
-          nullable: true
+          type: [string, 'null']
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
     MilestoneWithDatesResponse:
       type: object
       required: [ok, data]
@@ -1713,26 +1635,21 @@ components:
         source:
           type: string
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         content:
           type: string
         created_at:
           type: integer
           format: int64
         deleted_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         prompt_hash:
-          type: string
-          nullable: true
+          type: [string, 'null']
         meta_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
     AiMessageCreateRequest:
       type: object
       required: [thread_id, role, source, content]
@@ -1747,11 +1664,9 @@ components:
         source:
           type: string
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         content:
           type: string
         created_at:
@@ -1759,11 +1674,9 @@ components:
           format: int64
           description: Optional; server uses current time if omitted or 0.
         prompt_hash:
-          type: string
-          nullable: true
+          type: [string, 'null']
         meta_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
     AiMessageCreateResponse:
       type: object
       required: [ok, data]
@@ -1784,32 +1697,25 @@ components:
         project_id:
           type: string
         thread_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         prompt:
           type: string
         response:
           type: string
         source:
-          type: string
-          nullable: true
+          type: [string, 'null']
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         context:
-          type: object
+          type: [object, 'null']
           additionalProperties: true
-          nullable: true
         created_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     AiMessageCaptureResponse:
       type: object
       required: [ok, data]
@@ -1831,29 +1737,22 @@ components:
       type: object
       properties:
         role:
-          type: string
-          nullable: true
+          type: [string, 'null']
         source:
-          type: string
-          nullable: true
+          type: [string, 'null']
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         model:
-          type: string
-          nullable: true
+          type: [string, 'null']
         content:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
         prompt_hash:
-          type: string
-          nullable: true
+          type: [string, 'null']
         meta_json:
-          type: string
-          nullable: true
+          type: [string, 'null']
     AiMessageUpdateResponse:
       type: object
       required: [ok, data]
@@ -1876,8 +1775,7 @@ components:
         project_id:
           type: string
         card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         title:
           type: string
         created_at:
@@ -1898,8 +1796,7 @@ components:
         title:
           type: string
         card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -1926,11 +1823,9 @@ components:
       required: [updated_at]
       properties:
         title:
-          type: string
-          nullable: true
+          type: [string, 'null']
         card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         updated_at:
           type: integer
           format: int64
@@ -1998,17 +1893,14 @@ components:
         root_path:
           type: string
         git_remote_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         git_provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         privacy_mode:
           type: string
           enum: [encrypted_git, plain]
         project_key_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         created_at:
           type: integer
           format: int64
@@ -2046,50 +1938,40 @@ components:
         ]
       properties:
         last_commit_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         last_push_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         last_pull_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         uncommitted_changes_count:
           type: integer
         unpushed_commits_count:
           type: integer
         last_push_status:
-          type: string
-          nullable: true
+          type: [string, 'null']
         last_pull_status:
-          type: string
-          nullable: true
+          type: [string, 'null']
         last_sync_error:
-          type: string
-          nullable: true
+          type: [string, 'null']
         last_sync_error_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         retry_count:
           type: integer
         next_retry_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         pull_retry_count:
           type: integer
         next_pull_retry_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         updated_at:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     ProjectCreateRequest:
       type: object
       required: [name]
@@ -2103,18 +1985,15 @@ components:
           type: string
           description: Optional; server chooses a default if omitted.
         git_remote_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         git_provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         privacy_mode:
           type: string
           enum: [encrypted_git, plain]
           description: Optional; defaults to encrypted_git.
         project_key_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Optional keyring identifier (metadata only).
         created_at:
           type: integer
@@ -2162,24 +2041,18 @@ components:
       required: [updated_at]
       properties:
         name:
-          type: string
-          nullable: true
+          type: [string, 'null']
         root_path:
-          type: string
-          nullable: true
+          type: [string, 'null']
         git_remote_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
         git_provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
         privacy_mode:
-          type: string
+          type: [string, 'null']
           enum: [encrypted_git, plain]
-          nullable: true
         project_key_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         updated_at:
           type: integer
           format: int64
@@ -2206,12 +2079,10 @@ components:
       type: object
       properties:
         remote_url:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Optional remote URL override for this read-only probe. Stored project configuration and Git configuration are unchanged. If omitted, uses the configured URL; null probes no remote.
         branch:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Optional branch hint, echoed in the result. If omitted, reports local_default. The probe lists remote refs without resolving or fetching a branch.
     ProjectGitTestRemoteResponse:
       type: object
@@ -2227,8 +2098,7 @@ components:
             project_id:
               type: string
             remote_url:
-              type: string
-              nullable: true
+              type: [string, 'null']
             branch:
               type: string
             status:
@@ -2238,21 +2108,17 @@ components:
             remote_has_head:
               type: boolean
             error_code:
-              type: string
-              nullable: true
+              type: [string, 'null']
             error_message:
-              type: string
-              nullable: true
+              type: [string, 'null']
     ProjectGitPushRequest:
       type: object
       properties:
         branch:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Optional branch to push. If omitted, server resolves local default branch from HEAD/init.defaultBranch.
         set_upstream:
-          type: boolean
-          nullable: true
+          type: [boolean, 'null']
           description: Optional; defaults to true.
     ProjectGitPushResponse:
       type: object
@@ -2268,8 +2134,7 @@ components:
             project_id:
               type: string
             remote_url:
-              type: string
-              nullable: true
+              type: [string, 'null']
             branch:
               type: string
             status:
@@ -2281,27 +2146,21 @@ components:
             behind_count:
               type: integer
             local_head_commit:
-              type: string
-              nullable: true
+              type: [string, 'null']
             error_code:
-              type: string
-              nullable: true
+              type: [string, 'null']
             error_message:
-              type: string
-              nullable: true
+              type: [string, 'null']
             next_action:
-              type: string
-              nullable: true
+              type: [string, 'null']
     ProjectGitSyncRequest:
       type: object
       properties:
         branch:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Optional branch to push for a full forced sync. Pull uses the checked-out branch.
         set_upstream:
-          type: boolean
-          nullable: true
+          type: [boolean, 'null']
           description: Optional push behavior; defaults to true.
     ProjectGitSyncOperationResponse:
       type: object
@@ -2317,20 +2176,17 @@ components:
             project_id:
               type: string
             remote_url:
-              type: string
-              nullable: true
+              type: [string, 'null']
             branch:
               type: string
             status:
               type: string
               enum: [succeeded, failed]
             error_code:
-              type: string
-              nullable: true
+              type: [string, 'null']
               description: Stable operation failure code. Git failures are returned in a successful HTTP envelope.
             error_message:
-              type: string
-              nullable: true
+              type: [string, 'null']
             pull:
               type: object
               required: [attempted, status, conflicts_resolved, error_message]
@@ -2343,8 +2199,7 @@ components:
                 conflicts_resolved:
                   type: integer
                 error_message:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
             push:
               type: object
               required: [attempted, status, ahead_count, behind_count, local_head_commit, error_message]
@@ -2352,8 +2207,7 @@ components:
                 attempted:
                   type: boolean
                 status:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   enum:
                     [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error]
                 ahead_count:
@@ -2361,11 +2215,9 @@ components:
                 behind_count:
                   type: integer
                 local_head_commit:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                 error_message:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
     ProjectGitSyncStatusResponse:
       type: object
       required: [ok, data]
@@ -2462,14 +2314,12 @@ components:
             remote_configured:
               type: boolean
             remote_error:
-              type: string
-              nullable: true
+              type: [string, 'null']
             pull_status:
               type: string
               enum: [not_attempted, succeeded, failed]
             pull_error:
-              type: string
-              nullable: true
+              type: [string, 'null']
     ProjectEncryptionCheck:
       type: object
       required: [ok, checked_files, unsafe_files, unsafe_paths, message]
@@ -2652,8 +2502,7 @@ components:
         offset:
           type: integer
         next_offset:
-          type: integer
-          nullable: true
+          type: [integer, 'null']
           description: Present for card lists; null when exhausted, otherwise continue here (the next page may be empty).
         ok:
           type: boolean
@@ -2716,8 +2565,7 @@ components:
         bound:
           type: boolean
         binding_preview:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Safe display text; credentials are never returned.
         created_at:
           type: integer
@@ -2754,8 +2602,7 @@ components:
           items:
             $ref: "#/components/schemas/StorageLocation"
         preferred_location_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
     StorageLocationResponse:
       type: object
       required: [ok, data]
@@ -2781,8 +2628,7 @@ components:
             bound:
               type: boolean
             binding_preview:
-              type: string
-              nullable: true
+              type: [string, 'null']
     LocationTestResponse:
       type: object
       required: [ok, data]
@@ -2830,18 +2676,15 @@ components:
           type: string
           enum: [queued, staging, storing, committing, completed, failed]
         resource_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         asset_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         duplicate_reused:
           type: boolean
         link_created:
           type: boolean
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
     AssetImportJobResponse:
       type: object
       required: [ok, data]
@@ -2858,22 +2701,17 @@ components:
         type:
           type: string
         card_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         message_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         thread_id:
-          type: string
-          nullable: true
+          type: [string, 'null']
         project_id:
           type: string
         title:
-          type: string
-          nullable: true
+          type: [string, 'null']
         role:
-          type: string
-          nullable: true
+          type: [string, 'null']
         deleted_at:
           type: integer
           format: int64
@@ -2881,8 +2719,7 @@ components:
           type: integer
           format: int64
         rel_path:
-          type: string
-          nullable: true
+          type: [string, 'null']
     TrashListResponse:
       type: object
       required: [ok, data]
@@ -2980,15 +2817,13 @@ components:
       required: [head_oid, activities, next_cursor, scan_limited]
       properties:
         head_oid:
-          type: string
-          nullable: true
+          type: [string, 'null']
         activities:
           type: array
           items:
             $ref: "#/components/schemas/ProjectHistoryActivity"
         next_cursor:
-          type: string
-          nullable: true
+          type: [string, 'null']
         scan_limited:
           type: boolean
     ProjectHistoryPageResponse:
@@ -3069,15 +2904,13 @@ components:
       required: [head_oid, entries, next_cursor, scan_limited]
       properties:
         head_oid:
-          type: string
-          nullable: true
+          type: [string, 'null']
         entries:
           type: array
           items:
             $ref: "#/components/schemas/CardHistoryEntry"
         next_cursor:
-          type: string
-          nullable: true
+          type: [string, 'null']
         scan_limited:
           type: boolean
           description: True when History examined its bounded number of revisions before reaching the end; next_cursor continues the scan.
@@ -3133,13 +2966,11 @@ components:
         text:
           type: string
         old_line:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         new_line:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
     CardHistoryComparisonData:
       type: object
       required: [from, to, summary, lines, truncated]
@@ -3190,9 +3021,8 @@ components:
               type: integer
               format: int64
             deleted_at:
-              type: integer
+              type: [integer, 'null']
               format: int64
-              nullable: true
 paths:
   /events/cursor:
     get:
@@ -6926,6 +6756,7 @@ paths:
           content:
             application/octet-stream:
               schema:
+                # Keep this hint for the pinned Python generator's File response.
                 type: string
                 format: binary
         "400":

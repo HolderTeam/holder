@@ -15,6 +15,17 @@ namespace {
 
 YAML::Node load_openapi() { return YAML::LoadFile(OPENAPI_YAML_PATH); }
 
+bool schema_has_type(const YAML::Node& schema, const std::string& expected) {
+  const auto type = schema["type"];
+  if (type.IsScalar()) return type.as<std::string>() == expected;
+  if (type.IsSequence()) {
+    for (const auto& item : type) {
+      if (item.as<std::string>() == expected) return true;
+    }
+  }
+  return false;
+}
+
 YAML::Node parameter_named(const YAML::Node& operation, const std::string& name) {
   for (const auto& parameter : operation["parameters"]) {
     if (parameter["name"].as<std::string>() == name) return parameter;
@@ -83,7 +94,7 @@ TEST_CASE("OpenAPI contracts project remote mutation results", "[openapi][sync][
     require_json_response_ref(operation, status, "ErrorResponse");
   }
   const auto schemas = document["components"]["schemas"];
-  CHECK(schemas["ProjectUpdateRequest"]["properties"]["git_remote_url"]["nullable"].as<bool>());
+  CHECK(schema_has_type(schemas["ProjectUpdateRequest"]["properties"]["git_remote_url"], "null"));
   const auto data = schemas["ProjectUpdateResponse"]["properties"]["data"];
   CHECK(required_properties(data) == std::vector<std::string>{"project_id"});
   CHECK(data["properties"]["git_remote_changed"]["type"].as<std::string>() == "boolean");
@@ -114,12 +125,12 @@ TEST_CASE(
       require_json_response_ref(operation, status, "ErrorResponse");
     const auto data = schemas[entry.second + "Response"]["properties"]["data"]["properties"];
     CHECK(data["project_id"]["type"].as<std::string>() == "string");
-    CHECK(data["remote_url"]["nullable"].as<bool>());
-    CHECK(data["error_code"]["nullable"].as<bool>());
-    CHECK(data["error_message"]["nullable"].as<bool>());
+    CHECK(schema_has_type(data["remote_url"], "null"));
+    CHECK(schema_has_type(data["error_code"], "null"));
+    CHECK(schema_has_type(data["error_message"], "null"));
   }
   const auto override_url = schemas["ProjectGitTestRemoteRequest"]["properties"]["remote_url"];
-  CHECK(override_url["nullable"].as<bool>());
+  CHECK(schema_has_type(override_url, "null"));
   const auto description = override_url["description"].as<std::string>();
   CHECK(description.find("read-only") != std::string::npos);
   CHECK(description.find("unchanged") != std::string::npos);
@@ -153,9 +164,9 @@ TEST_CASE(
   );
   CHECK(push["ahead_count"]["type"].as<std::string>() == "integer");
   CHECK(push["behind_count"]["type"].as<std::string>() == "integer");
-  CHECK(push["local_head_commit"]["type"].as<std::string>() == "string");
-  CHECK(push["local_head_commit"]["nullable"].as<bool>());
-  CHECK(push["next_action"]["nullable"].as<bool>());
+  CHECK(schema_has_type(push["local_head_commit"], "string"));
+  CHECK(schema_has_type(push["local_head_commit"], "null"));
+  CHECK(schema_has_type(push["next_action"], "null"));
 }
 
 TEST_CASE("OpenAPI contracts forced project sync operations", "[openapi][sync][forced]") {
@@ -247,7 +258,7 @@ TEST_CASE(
   for (const auto& status : {"400", "401", "404", "422"})
     require_json_response_ref(list, status, "ErrorResponse");
   const auto schemas = document["components"]["schemas"];
-  CHECK(schemas["ResourceListResponse"]["properties"]["next_offset"]["nullable"].as<bool>());
+  CHECK(schema_has_type(schemas["ResourceListResponse"]["properties"]["next_offset"], "null"));
   CHECK(
       required_properties(schemas["ResourceAttachmentResponse"]["properties"]["data"]) ==
       std::vector<std::string>{"card_id", "changed", "outcome", "resource_id"}
@@ -509,9 +520,9 @@ TEST_CASE(
   for (const auto& name : {"start_at", "end_at", "all_day", "kind", "description"}) {
     CHECK(milestone_update["properties"][name].IsDefined());
   }
-  CHECK(milestone_update["properties"]["end_at"]["nullable"].as<bool>());
-  CHECK(milestone_update["properties"]["kind"]["nullable"].as<bool>());
-  CHECK(milestone_update["properties"]["description"]["nullable"].as<bool>());
+  CHECK(schema_has_type(milestone_update["properties"]["end_at"], "null"));
+  CHECK(schema_has_type(milestone_update["properties"]["kind"], "null"));
+  CHECK(schema_has_type(milestone_update["properties"]["description"], "null"));
 
   const auto calendar = document["paths"]["/calendar"]["get"];
   REQUIRE(calendar.IsDefined());
@@ -580,7 +591,7 @@ TEST_CASE("OpenAPI contracts project Git sync status", "[openapi][holderctl-foun
       schemas["ProjectSync"]["properties"]["pull_retry_count"]["type"].as<std::string>() ==
       "integer"
   );
-  CHECK(schemas["ProjectSync"]["properties"]["next_pull_retry_at"]["nullable"].as<bool>());
+  CHECK(schema_has_type(schemas["ProjectSync"]["properties"]["next_pull_retry_at"], "null"));
 }
 
 TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][events]") {
