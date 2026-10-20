@@ -19,7 +19,7 @@ class ProjectGitSyncOperationResponseDataPush:
     """
     Attributes:
         attempted (bool):
-        status (ProjectGitSyncOperationResponseDataPushStatus | None):
+        status (None | ProjectGitSyncOperationResponseDataPushStatus):
         ahead_count (int):
         behind_count (int):
         local_head_commit (None | str):
@@ -27,7 +27,7 @@ class ProjectGitSyncOperationResponseDataPush:
     """
 
     attempted: bool
-    status: ProjectGitSyncOperationResponseDataPushStatus | None
+    status: None | ProjectGitSyncOperationResponseDataPushStatus
     ahead_count: int
     behind_count: int
     local_head_commit: None | str
@@ -37,7 +37,11 @@ class ProjectGitSyncOperationResponseDataPush:
     def to_dict(self) -> dict[str, Any]:
         attempted = self.attempted
 
-        status = self.status.value if self.status is not None else None
+        status: None | str
+        if isinstance(self.status, ProjectGitSyncOperationResponseDataPushStatus):
+            status = self.status.value
+        else:
+            status = self.status
 
         ahead_count = self.ahead_count
 
@@ -69,12 +73,22 @@ class ProjectGitSyncOperationResponseDataPush:
         d = dict(src_dict)
         attempted = d.pop("attempted")
 
-        raw_status = d.pop("status")
-        status = (
-            ProjectGitSyncOperationResponseDataPushStatus(raw_status)
-            if raw_status is not None
-            else None
-        )
+        def _parse_status(
+            data: object,
+        ) -> None | ProjectGitSyncOperationResponseDataPushStatus:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                status_status = ProjectGitSyncOperationResponseDataPushStatus(data)
+
+                return status_status
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | ProjectGitSyncOperationResponseDataPushStatus, data)
+
+        status = _parse_status(d.pop("status"))
 
         ahead_count = d.pop("ahead_count")
 

@@ -22,7 +22,7 @@ class ProjectUpdateRequest:
         root_path (None | str | Unset):
         git_remote_url (None | str | Unset):
         git_provider (None | str | Unset):
-        privacy_mode (ProjectUpdateRequestPrivacyMode | Unset):
+        privacy_mode (None | ProjectUpdateRequestPrivacyMode | Unset):
         project_key_id (None | str | Unset):
     """
 
@@ -31,7 +31,7 @@ class ProjectUpdateRequest:
     root_path: None | str | Unset = UNSET
     git_remote_url: None | str | Unset = UNSET
     git_provider: None | str | Unset = UNSET
-    privacy_mode: ProjectUpdateRequestPrivacyMode | Unset = UNSET
+    privacy_mode: None | ProjectUpdateRequestPrivacyMode | Unset = UNSET
     project_key_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -62,9 +62,13 @@ class ProjectUpdateRequest:
         else:
             git_provider = self.git_provider
 
-        privacy_mode: str | Unset = UNSET
-        if not isinstance(self.privacy_mode, Unset):
+        privacy_mode: None | str | Unset
+        if isinstance(self.privacy_mode, Unset):
+            privacy_mode = UNSET
+        elif isinstance(self.privacy_mode, ProjectUpdateRequestPrivacyMode):
             privacy_mode = self.privacy_mode.value
+        else:
+            privacy_mode = self.privacy_mode
 
         project_key_id: None | str | Unset
         if isinstance(self.project_key_id, Unset):
@@ -135,12 +139,24 @@ class ProjectUpdateRequest:
 
         git_provider = _parse_git_provider(d.pop("git_provider", UNSET))
 
-        _privacy_mode = d.pop("privacy_mode", UNSET)
-        privacy_mode: ProjectUpdateRequestPrivacyMode | Unset
-        if isinstance(_privacy_mode, Unset):
-            privacy_mode = UNSET
-        else:
-            privacy_mode = ProjectUpdateRequestPrivacyMode(_privacy_mode)
+        def _parse_privacy_mode(
+            data: object,
+        ) -> None | ProjectUpdateRequestPrivacyMode | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                privacy_mode_privacy_mode = ProjectUpdateRequestPrivacyMode(data)
+
+                return privacy_mode_privacy_mode
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | ProjectUpdateRequestPrivacyMode | Unset, data)
+
+        privacy_mode = _parse_privacy_mode(d.pop("privacy_mode", UNSET))
 
         def _parse_project_key_id(data: object) -> None | str | Unset:
             if data is None:

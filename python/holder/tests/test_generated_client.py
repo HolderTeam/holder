@@ -36,6 +36,8 @@ from holder.generated.models import (
     ErrorResponse,
     EventCheckpointResponse,
     HealthResponse,
+    ProjectGitSyncOperationResponseDataPush,
+    ProjectUpdateRequest,
     RunnerCapabilitiesData,
 )
 
@@ -369,6 +371,23 @@ def test_runner_capabilities_preserve_null_caste():
         caste=None,
     )
     assert RunnerCapabilitiesData.from_dict(model.to_dict()).caste is None
+
+
+def test_nullable_enums_preserve_null():
+    push = ProjectGitSyncOperationResponseDataPush(
+        attempted=False,
+        status=None,
+        ahead_count=0,
+        behind_count=0,
+        local_head_commit=None,
+        error_message=None,
+    )
+    assert (
+        ProjectGitSyncOperationResponseDataPush.from_dict(push.to_dict()).status is None
+    )
+    update = ProjectUpdateRequest(updated_at=0, privacy_mode=None)
+    assert update.to_dict()["privacy_mode"] is None
+    assert ProjectUpdateRequest.from_dict(update.to_dict()).privacy_mode is None
 
 
 def test_unexpected_status_can_raise():
