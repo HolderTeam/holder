@@ -35,13 +35,15 @@ rig inspect --header daemon/src/api/Bye.h --namespace holder::api -- -Idaemon/sr
 rig openapi --title 'Holder API' < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
 ```
 
-The generated path, method, 200 JSON response reference, response type, and
-required `ok` boolean agree with the control. The generated fragment currently
-misses the control's summary, long description, 401 response, and `ok: true`
-constraint. It also adds `additionalProperties: false` to the response schema,
-which the control does not declare. Those are concrete RIG gaps; the generated
-fragment must not replace the checked-in contract yet.
+The generated path, method, summary, long description, 200 response (including
+its description and JSON schema reference), response type, and required
+`ok: true` field now agree with the control. The generated fragment still
+misses the 401 response. It adds an `operationId` and
+`additionalProperties: false` to the response schema, neither of which the
+control declares. These are concrete RIG gaps; the generated fragment must
+not replace the checked-in contract yet.
 
-The next slice should extend RIG's reusable metadata enough to reproduce this
-operation exactly, then use the same mechanism on a route with path and query
-parameters. The control should remain the comparison target throughout.
+The next slice should settle how RIG represents service-level authentication
+and error responses, then make operation IDs and record openness explicit so
+this operation can match the control exactly. After that, use the same
+mechanism on a route with path and query parameters.

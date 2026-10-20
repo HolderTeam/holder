@@ -6,4 +6,8 @@
 #include <rig/route.hpp>
 #else
 #define RIG_ROUTE(method, path)
+#define RIG_SUMMARY(text)
+#define RIG_DESCRIPTION(text)
+#define RIG_RESPONSE_DESCRIPTION(text)
+#define RIG_BOOL_VALUE(value)
 #endif
