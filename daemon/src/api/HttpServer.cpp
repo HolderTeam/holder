@@ -1,5 +1,6 @@
 #include "api/HttpServer.h"
 
+#include "api/Bye.h"
 #include "api/Listener.h"
 #include "api/support/Health.h"
 #include "core/ActivityTracker.h"
@@ -19,6 +20,11 @@ namespace {
 namespace http = boost::beast::http;
 
 } // namespace
+
+ByeResponse say_goodbye() {
+  holder::core::activity().say_goodbye();
+  return {true};
+}
 
 HttpServer::HttpServer(
     std::string bind,
@@ -60,11 +66,11 @@ HttpServer::HttpServer(
 
   // A client that is leaving says so. Only a hint: see holder::core::ActivityTracker.
   router_.add(http::verb::post, "/bye", [](const Router::Request&, Router::Response& res) {
-    holder::core::activity().say_goodbye();
+    const auto acknowledgement = say_goodbye();
     http::response<http::string_body> response{http::status::ok, 11};
     response.set(http::field::content_type, "application/json");
     response.keep_alive(false);
-    response.body() = R"({"ok":true})";
+    response.body() = nlohmann::json{{"ok", acknowledgement.ok}}.dump();
     response.prepare_payload();
     res = std::move(response);
   });
