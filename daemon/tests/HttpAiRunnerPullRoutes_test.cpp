@@ -240,6 +240,24 @@ TEST_CASE("Ai runner pull routes can target a manual runner by runner_id", "[htt
   REQUIRE(payload["ok"] == true);
   REQUIRE(payload["data"]["runner_id"] == "manual-a");
   REQUIRE(payload["data"]["model_ref"] == "manual-a::fake-echo");
+
+  const std::string path = "/ai/runner/pull/" + payload["data"]["job_id"].get<std::string>();
+  http::request<http::string_body> get_req{http::verb::get, path + "?runner_id=manual-a", 11};
+  http::response<http::string_body> get_res;
+  const auto get_out = holder::api::routes::ai::runner::handle_ai_runner_pull_routes(
+      path,
+      get_req,
+      get_res,
+      &runner_registry,
+      [](const std::string& name) -> std::string {
+        return name == "runner_id" ? "manual-a" : "";
+      }
+  );
+  REQUIRE(get_out.handled);
+  REQUIRE(get_res.result() == http::status::ok);
+  const auto status = nlohmann::json::parse(get_res.body());
+  REQUIRE(status["data"]["runner_id"] == "manual-a");
+  REQUIRE(status["data"]["model_ref"] == "manual-a::fake-echo");
 }
 
 TEST_CASE("Ai runner pull routes prefer param_get runner_id over request body", "[http]") {

@@ -13,8 +13,11 @@
 #define RIG_ERROR_RESPONSE(status, body, description)
 #define RIG_OPEN_RECORD
 #define RIG_CONTEXT
+#define RIG_QUERY
 #define RIG_MINIMUM(value)
 #define RIG_FIELD_DESCRIPTION(text)
+#define RIG_OMIT_EMPTY
+#define RIG_NULLABLE
 #define RIG_API(title, version)
 #define RIG_SERVER(url)
 #define RIG_BEARER_AUTH(name, format)

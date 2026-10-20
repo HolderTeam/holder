@@ -1,4 +1,5 @@
 #include "api/routes/ai/runner/AiRunnerPullRoutes.h"
+#include "api/RunnerPull.h"
 
 #include "api/support/HttpResponses.h"
 #include "llm/LocalModelRunner.h"
@@ -10,23 +11,59 @@
 
 #include <string>
 
+namespace holder::api {
+
+RunnerPullStatusResponse get_pull_status(
+    holder::llm::RunnerRegistry* registry,
+    std::optional<std::string> requested_runner_id,
+    std::string job_id
+) {
+  const std::string runner_id = requested_runner_id.has_value() && !requested_runner_id->empty()
+                                    ? *requested_runner_id
+                                    : holder::llm::RunnerRegistry::kAutoLocalRunnerId;
+  auto* runner = registry ? registry->get_client(runner_id) : nullptr;
+  if (!runner) throw RunnerNotConfigured{};
+  if (job_id.empty()) throw PullJobNotFound{};
+
+  const auto job = runner->get_pull(job_id);
+  if (!job.has_value()) throw PullJobNotFound{};
+  std::optional<std::string> error;
+  if (!job->error.empty()) error = job->error;
+  return {true,
+          {job->job_id,
+           runner_id,
+           holder::llm::make_runner_model_ref(runner_id, job->model),
+           job->model,
+           job->status,
+           job->updated_at,
+           std::optional<std::optional<std::string>>{std::in_place, error},
+           {job->progress.completed,
+            job->progress.total,
+            job->progress.percent,
+            job->progress.stage}}};
+}
+
+} // namespace holder::api
+
 namespace holder::api::routes::ai::runner {
 namespace {
 
 namespace http = boost::beast::http;
 
 nlohmann::json pull_job_to_json(
-    const holder::llm::RunnerPullJob& job,
-    const std::string& runner_id
+    const holder::api::RunnerPullJob& job
 ) {
   nlohmann::json data;
   data["job_id"] = job.job_id;
-  data["runner_id"] = runner_id;
+  if (job.runner_id.has_value()) data["runner_id"] = *job.runner_id;
   data["model"] = job.model;
-  data["model_ref"] = holder::llm::make_runner_model_ref(runner_id, job.model);
+  if (job.model_ref.has_value()) data["model_ref"] = *job.model_ref;
   data["status"] = job.status;
   data["updated_at"] = job.updated_at;
-  data["error"] = job.error.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.error);
+  if (job.error.has_value()) {
+    data["error"] = job.error->has_value() ? nlohmann::json(**job.error)
+                                             : nlohmann::json(nullptr);
+  }
   data["progress"] = {
       {"completed", job.progress.completed},
       {"total", job.progress.total},
@@ -70,11 +107,11 @@ RunnerRouteDispatchResult handle_ai_runner_pull_routes(
     const std::function<std::string(const std::string&)>& param_get
 ) {
   RunnerRouteDispatchResult out{};
-  const std::string runner_id = requested_runner_id(req, param_get);
-  auto* runner = runner_registry ? runner_registry->get_client(runner_id) : nullptr;
 
   if (path == "/ai/runner/pull" && req.method() == http::verb::post) {
     out.handled = true;
+    const std::string runner_id = requested_runner_id(req, param_get);
+    auto* runner = runner_registry ? runner_registry->get_client(runner_id) : nullptr;
     if (!runner) {
       res = support::error_response(http::status::not_found, "not_found", "Runner not configured.");
       return out;
@@ -123,26 +160,23 @@ RunnerRouteDispatchResult handle_ai_runner_pull_routes(
 
   if (path.rfind("/ai/runner/pull/", 0) == 0 && req.method() == http::verb::get) {
     out.handled = true;
-    if (!runner) {
-      res = support::error_response(http::status::not_found, "not_found", "Runner not configured.");
-      return out;
-    }
     const std::string job_id = path.substr(std::string("/ai/runner/pull/").size());
-    if (job_id.empty()) {
-      res = support::error_response(http::status::not_found, "not_found", "Pull job not found.");
-      return out;
+    try {
+      const auto requested = param_get("runner_id");
+      const auto status = holder::api::get_pull_status(
+          runner_registry,
+          requested.empty() ? std::nullopt : std::optional<std::string>{requested},
+          job_id
+      );
+      res = support::json_response(
+          http::status::ok,
+          nlohmann::json{{"ok", status.ok}, {"data", pull_job_to_json(status.data)}}
+      );
+    } catch (const holder::api::RunnerNotConfigured& ex) {
+      res = support::error_response(http::status::not_found, "not_found", ex.what());
+    } catch (const holder::api::PullJobNotFound& ex) {
+      res = support::error_response(http::status::not_found, "not_found", ex.what());
     }
-
-    const auto job = runner->get_pull(job_id);
-    if (!job.has_value()) {
-      res = support::error_response(http::status::not_found, "not_found", "Pull job not found.");
-      return out;
-    }
-
-    nlohmann::json payload;
-    payload["ok"] = true;
-    payload["data"] = pull_job_to_json(job.value(), runner_id);
-    res = support::json_response(http::status::ok, payload);
     return out;
   }
 

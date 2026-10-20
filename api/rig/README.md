@@ -33,6 +33,11 @@ The live handler calls its typed function with a database context. RIG omits
 that server-supplied parameter from the HTTP contract. Its path parameter,
 error responses, field descriptions, and integer minimum are reflected.
 
+`daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
+optional `runner_id` query parameter. The live handler calls the typed
+operation. Its response covers 64-bit integers, a double, omittable fields,
+and an omittable nullable field.
+
 With an installed RIG command and PyYAML, run the comparison from the repo
 root:
 
@@ -47,9 +52,10 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api -- -Id
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, two operations, and their
-five reachable schemas now match the control structurally. The generated
+The generated service metadata, bearer security, three operations, and their
+eight reachable schemas now match the control. The comparison treats an omitted
+`required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next slice should add query parameters to the same mechanism.
+The next slice should cover an enum or constrained query parameter.
