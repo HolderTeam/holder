@@ -178,9 +178,9 @@ class RunnerCapabilitiesData:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                caste_type_1 = CasteInfo.from_dict(data)
+                caste_type_0 = CasteInfo.from_dict(data)
 
-                return caste_type_1
+                return caste_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(CasteInfo | None | Unset, data)

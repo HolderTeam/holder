@@ -30,11 +30,13 @@ from holder.generated.api.default import (
 )
 from holder.generated.errors import UnexpectedStatus
 from holder.generated.models import (
+    AiLocalModelConfigData,
     ByeResponse,
     CardUpdateRequest,
     ErrorResponse,
     EventCheckpointResponse,
     HealthResponse,
+    RunnerCapabilitiesData,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -305,7 +307,7 @@ def test_patch_preserves_omitted_and_explicit_null_fields():
 @pytest.mark.parametrize(
     "endpoint,args,content_type,payload",
     [
-        (get_openapi_yaml, (), "application/yaml", b"openapi: 3.0.3\n"),
+        (get_openapi_yaml, (), "application/yaml", b"openapi: 3.1.0\n"),
         (
             get_ai_runs_run_id_events,
             ("run-1",),
@@ -354,6 +356,19 @@ def test_binary_asset_preserves_bytes_and_headers():
     assert result.content == payload
     assert result.parsed.payload.read() == payload
     assert result.headers["Content-Disposition"] == 'attachment; filename="asset.bin"'
+
+
+def test_runner_capabilities_preserve_null_caste():
+    model = RunnerCapabilitiesData(
+        runner_available=False,
+        last_checked=0,
+        local_model_config=AiLocalModelConfigData(None, None, None, None),
+        models=[],
+        recommended_models=[],
+        recommended_install=[],
+        caste=None,
+    )
+    assert RunnerCapabilitiesData.from_dict(model.to_dict()).caste is None
 
 
 def test_unexpected_status_can_raise():
