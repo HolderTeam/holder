@@ -1,4 +1,5 @@
 #include "api/routes/ProjectRoutes.h"
+#include "api/ProjectTags.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 
@@ -27,6 +28,22 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+namespace holder::api {
+
+ProjectTagListResponse list_project_tags(holder::platform::Db& db, std::string project_id) {
+  holder::project::ProjectRepo project_repo(db);
+  if (!project_repo.get(project_id).has_value()) throw ProjectNotFound{};
+
+  holder::card::TagRepo tag_repo(db);
+  ProjectTagListResponse response{true, {}};
+  for (const auto& [tag, card_count] : tag_repo.list_project_tags(project_id)) {
+    response.data.push_back({tag, card_count});
+  }
+  return response;
+}
+
+} // namespace holder::api
 
 namespace holder::api::routes {
 namespace {
@@ -685,20 +702,17 @@ bool handle_project_routes(
     }
     if (subpath == "/tags" && req.method() == http::verb::get) {
       try {
-        holder::project::ProjectRepo project_repo(db);
-        if (!project_repo.get(project_id).has_value()) {
-          res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-          return true;
-        }
-        holder::card::TagRepo tag_repo(db);
+        const auto tags = holder::api::list_project_tags(db, project_id);
         nlohmann::json data = nlohmann::json::array();
-        for (const auto& [tag, card_count] : tag_repo.list_project_tags(project_id)) {
-          data.push_back({{"tag", tag}, {"card_count", card_count}});
+        for (const auto& item : tags.data) {
+          data.push_back({{"tag", item.tag}, {"card_count", item.card_count}});
         }
         nlohmann::json payload;
-        payload["ok"] = true;
+        payload["ok"] = tags.ok;
         payload["data"] = std::move(data);
         res = support::json_response(http::status::ok, payload);
+      } catch (const holder::api::ProjectNotFound& ex) {
+        res = support::error_response(http::status::not_found, "not_found", ex.what());
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::internal_server_error, "error", ex.what());
       }

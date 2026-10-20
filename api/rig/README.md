@@ -20,13 +20,18 @@ routes also have dynamic response bodies and streaming behavior. We should add
 these features to RIG as general capabilities, not as Holder-specific output
 patches.
 
-## First live slice: `POST /bye`
+## Live slices
 
 `daemon/src/api/ApiService.h` declares document metadata and bearer security.
 `daemon/src/api/Bye.h` declares the typed operation and response. The existing
 HTTP route in `HttpServer.cpp` calls that operation, so the reflected declaration
 describes live behavior. `RigAnnotations.h` makes these annotations disappear
 in ordinary C++20 builds.
+
+`daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
+The live handler calls its typed function with a database context. RIG omits
+that server-supplied parameter from the HTTP contract. Its path parameter,
+error responses, field descriptions, and integer minimum are reflected.
 
 With an installed RIG command and PyYAML, run the comparison from the repo
 root:
@@ -38,14 +43,13 @@ make -C api/rig check
 To inspect the intermediate artifacts directly:
 
 ```sh
-rig inspect --header daemon/src/api/Bye.h --namespace holder::api -- -Idaemon/src > /tmp/holder-bye-rig.json
-rig openapi --omit-operation-ids < /tmp/holder-bye-rig.json > /tmp/holder-bye-openapi.json
+rig inspect --header daemon/src/api/RigContract.h --namespace holder::api -- -Idaemon/src > /tmp/holder-rig.json
+rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated document metadata and bearer security, `/bye` operation, and its
-three reachable schemas now match the control structurally. The generated
+The generated service metadata, bearer security, two operations, and their
+five reachable schemas now match the control structurally. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next slice should use the same mechanism on a route with path and query
-parameters.
+The next slice should add query parameters to the same mechanism.
