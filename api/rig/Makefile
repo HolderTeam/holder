@@ -3,7 +3,7 @@ PYTHON ?= python3
 ROOT := $(abspath ../..)
 
 .DELETE_ON_ERROR:
-.PHONY: check FORCE
+.PHONY: check check-generated update-generated FORCE
 
 build/contract-ir.json: FORCE
 	mkdir -p build
@@ -14,3 +14,22 @@ build/contract-openapi.json: build/contract-ir.json
 
 check: build/contract-openapi.json
 	$(PYTHON) check_contract.py $(ROOT)/api/openapi.yaml build/contract-openapi.json
+
+build/bye-ir.json: FORCE
+	mkdir -p build
+	$(RIG) inspect --header daemon/src/api/Bye.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
+
+build/bye-json.hpp: build/bye-ir.json
+	$(RIG) json-codec --api-header api/Bye.h < $< > $@
+
+build/bye-routes.hpp: build/bye-ir.json build/bye-json.hpp
+	$(RIG) http-routes --codec-header api/generated/ByeJson.h < $< > $@
+
+check-generated: build/bye-routes.hpp
+	cmp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
+	cmp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h
+
+update-generated: build/bye-routes.hpp
+	mkdir -p $(ROOT)/daemon/src/api/generated
+	cp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
+	cp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h

@@ -23,10 +23,11 @@ patches.
 ## Live slices
 
 `daemon/src/api/ApiService.h` declares document metadata and bearer security.
-`daemon/src/api/Bye.h` declares the typed operation and response. The existing
-HTTP route in `HttpServer.cpp` calls that operation, so the reflected declaration
-describes live behavior. `RigAnnotations.h` makes these annotations disappear
-in ordinary C++20 builds.
+`daemon/src/api/Bye.h` declares the typed operation and response. RIG generates
+the checked-in C++20 JSON codec and route dispatcher in
+`daemon/src/api/generated/`; `Router.cpp` calls that dispatcher after its
+existing routes. The daemon's bearer-auth gate still runs before dispatch.
+`RigAnnotations.h` makes annotations disappear in ordinary C++20 builds.
 
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
 The live handler calls its typed function with a database context. RIG omits
@@ -48,7 +49,12 @@ root:
 
 ```sh
 make -C api/rig check
+make -C api/rig check-generated
 ```
+
+After changing `/bye` annotations, run `make -C api/rig update-generated` and
+commit the generated headers. These commands require RIG only while developing
+the contract; normal daemon builds compile the checked-in headers.
 
 To inspect the intermediate artifacts directly:
 
@@ -63,5 +69,5 @@ ten reachable schemas now match the control. The comparison treats an omitted
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next slice should cover a query default, a named schema used by a query,
-or another missing contract shape.
+The next full-stack slice can cover project tags, which will exercise path
+decoding, database context, and a richer response.

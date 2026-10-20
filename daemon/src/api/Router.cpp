@@ -1,4 +1,5 @@
 #include "api/Router.h"
+#include "api/generated/ByeRoutes.h"
 
 #include <utility>
 
@@ -20,8 +21,19 @@ bool Router::dispatch(const Request& req, Response& res) const {
   const std::string target_str(target.data(), target.size());
   Key key{req.method(), target_str};
   const auto it = routes_.find(key);
-  if (it == routes_.end()) return false;
-  it->second(req, res);
+  if (it != routes_.end()) {
+    it->second(req, res);
+    return true;
+  }
+  // Checked-in RIG output handles the operations migrated from handwritten routes.
+  const auto generated = rig_http::dispatch(std::string(req.method_string()), target_str, req.body());
+  if (!generated) return false;
+  Response response{static_cast<boost::beast::http::status>(generated->status), req.version()};
+  response.set(boost::beast::http::field::content_type, "application/json");
+  response.keep_alive(false);
+  response.body() = generated->body.dump();
+  response.prepare_payload();
+  res = std::move(response);
   return true;
 }
 

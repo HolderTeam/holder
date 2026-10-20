@@ -63,17 +63,6 @@ HttpServer::HttpServer(
     response.prepare_payload();
     res = std::move(response);
   });
-
-  // A client that is leaving says so. Only a hint: see holder::core::ActivityTracker.
-  router_.add(http::verb::post, "/bye", [](const Router::Request&, Router::Response& res) {
-    const auto acknowledgement = say_goodbye();
-    http::response<http::string_body> response{http::status::ok, 11};
-    response.set(http::field::content_type, "application/json");
-    response.keep_alive(false);
-    response.body() = nlohmann::json{{"ok", acknowledgement.ok}}.dump();
-    response.prepare_payload();
-    res = std::move(response);
-  });
 }
 
 HttpServer::~HttpServer() = default;
