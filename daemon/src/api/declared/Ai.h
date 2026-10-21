@@ -201,13 +201,6 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
 AiMessageCaptureResponse post_ai_messages_capture(AiMessageCaptureRequest request);
 
-RIG_ROUTE(GET, "/ai/threads")
-RIG_SUMMARY("List AI threads by project")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiThreadListResponse get_ai_threads(std::string project_id RIG_QUERY);
-
 RIG_ROUTE(POST, "/ai/threads")
 RIG_SUMMARY("Create an AI thread")
 RIG_RESPONSE_DESCRIPTION("Created")

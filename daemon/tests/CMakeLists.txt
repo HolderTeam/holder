@@ -152,6 +152,7 @@ add_executable(holder_daemon_tests
   ../src/llm/RunnerRegistry.cpp
   ../src/api/HttpServer.cpp
   ../src/api/GeneratedRoutes.cpp
+  ../src/api/AiThreadList.cpp
   ../src/api/Calendar.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectCreate.cpp

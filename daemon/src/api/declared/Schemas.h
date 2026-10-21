@@ -333,11 +333,6 @@ struct RIG_OPEN_RECORD AiThread {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD AiThreadListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<AiThread> data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiThreadCreateResponseData {
   std::string thread_id;
 };

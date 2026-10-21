@@ -15,18 +15,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-nlohmann::json ai_thread_to_json(const holder::model::AiThread& thread) {
-  nlohmann::json item;
-  item["thread_id"] = thread.thread_id;
-  item["project_id"] = thread.project_id;
-  item["title"] = thread.title;
-  item["created_at"] = thread.created_at;
-  item["updated_at"] = thread.updated_at;
-  item["card_id"] = thread.card_id.has_value() ? nlohmann::json(thread.card_id.value())
-                                               : nlohmann::json(nullptr);
-  return item;
-} // LCOV_EXCL_LINE
-
 } // namespace
 
 bool handle_ai_thread_collection_routes(
@@ -35,33 +23,8 @@ bool handle_ai_thread_collection_routes(
     http::response<http::string_body>& res,
     holder::platform::Db& db,
     const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    const std::function<std::string(const std::string&)>& /*param_get*/
 ) {
-  if (path == "/ai/threads" && req.method() == http::verb::get) {
-    const std::string project_id = param_get("project_id");
-    if (project_id.empty()) {
-      res =
-          support::error_response(http::status::bad_request, "bad_request", "Missing project_id.");
-      return true;
-    }
-
-    try {
-      holder::ai::AiThreadRepo repo(db);
-      const auto threads = repo.list(project_id);
-      nlohmann::json data = nlohmann::json::array();
-      for (const auto& thread : threads) {
-        data.push_back(ai_thread_to_json(thread));
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = data;
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   if (path == "/ai/threads" && req.method() == http::verb::post) {
     try {
       const auto body = nlohmann::json::parse(req.body());

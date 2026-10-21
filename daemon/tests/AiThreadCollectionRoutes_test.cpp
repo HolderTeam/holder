@@ -4,6 +4,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/GeneratedRoutes.h"
 #include "api/routes/ai/threads/AiThreadCollectionRoutes.h"
 #include "card/CardRepo.h"
 #include "http_test_helpers.h"
@@ -29,6 +30,14 @@ http::request<http::string_body> make_request(
     req.prepare_payload();
   }
   return req;
+}
+
+std::pair<http::status, nlohmann::json> list_threads(holder::platform::Db& db,
+                                                     const std::string& target) {
+  auto req = make_request(http::verb::get, target);
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  return {res.result(), nlohmann::json::parse(res.body())};
 }
 
 } // namespace
@@ -57,23 +66,36 @@ TEST_CASE("AiThreadCollectionRoutes guards and GET error handling", "[http]") {
     ));
   }
 
-  SECTION("GET catches repo exception as bad_request") {
-    db.exec("DROP TABLE ai_threads;");
+  SECTION("GET is generated and rejects a missing or empty project_id") {
     auto req = make_request(http::verb::get, "/ai/threads");
     http::response<http::string_body> res;
-    const auto param_project = [](const std::string& key) -> std::string {
-      if (key == "project_id") return "proj-1";
-      return {};
-    };
-    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_collection_routes(
+    REQUIRE_FALSE(holder::api::routes::ai::threads::handle_ai_thread_collection_routes(
         "/ai/threads",
         req,
         res,
         db,
         uuid_v4,
-        param_project
+        param_get
     ));
-    REQUIRE(res.result() == http::status::bad_request);
+    for (const std::string target : {"/ai/threads", "/ai/threads?project_id="}) {
+      CAPTURE(target);
+      const auto [status, payload] = list_threads(db, target);
+      REQUIRE(status == http::status::bad_request);
+      REQUIRE(payload["error"]["code"] == "bad_request");
+    }
+  }
+
+  SECTION("GET lists nothing for an unknown project") {
+    const auto [status, payload] = list_threads(db, "/ai/threads?project_id=missing");
+    REQUIRE(status == http::status::ok);
+    REQUIRE(payload == nlohmann::json{{"ok", true}, {"data", nlohmann::json::array()}});
+  }
+
+  SECTION("GET storage failure is an internal error") {
+    db.exec("DROP TABLE ai_threads;");
+    const auto [status, payload] = list_threads(db, "/ai/threads?project_id=proj-1");
+    REQUIRE(status == http::status::internal_server_error);
+    REQUIRE(payload["ok"] == false);
   }
 }
 
@@ -135,30 +157,34 @@ TEST_CASE("AiThreadCollectionRoutes POST branch coverage", "[http]") {
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["data"]["thread_id"] == "generated-id");
 
-    auto get_req = make_request(http::verb::get, "/ai/threads");
-    http::response<http::string_body> get_res;
-    const auto param_project = [](const std::string& key) -> std::string {
-      if (key == "project_id") return "proj-1";
-      return {};
-    };
-    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_collection_routes(
-        "/ai/threads",
-        get_req,
-        get_res,
-        db,
-        []() {
-          return "unused";
-        },
-        param_project
-    ));
-    REQUIRE(get_res.result() == http::status::ok);
-    const auto listed = nlohmann::json::parse(get_res.body());
+    const auto [get_status, listed] = list_threads(db, "/ai/threads?project_id=proj-1");
+    REQUIRE(get_status == http::status::ok);
     REQUIRE(listed["data"].is_array());
     REQUIRE(listed["data"].size() == 1);
     REQUIRE(listed["data"][0]["thread_id"] == "generated-id");
+    REQUIRE(listed["data"][0]["project_id"] == "proj-1");
+    REQUIRE(listed["data"][0]["title"] == "T");
     REQUIRE(listed["data"][0]["card_id"] == "card-1");
     REQUIRE(listed["data"][0]["created_at"].get<long long>() > 0);
     REQUIRE(listed["data"][0]["updated_at"] == listed["data"][0]["created_at"]);
+
+    auto unlinked = make_request(
+        http::verb::post,
+        "/ai/threads",
+        R"({"project_id":"proj-1","title":"U","thread_id":"thread-unlinked"})"
+    );
+    http::response<http::string_body> unlinked_res;
+    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_collection_routes(
+        "/ai/threads", unlinked, unlinked_res, db, [] { return "unused"; }, param_get
+    ));
+    REQUIRE(unlinked_res.result() == http::status::created);
+    const auto [both_status, both] = list_threads(db, "/ai/threads?project_id=proj-1");
+    REQUIRE(both_status == http::status::ok);
+    REQUIRE(both["data"].size() == 2);
+    for (const auto& thread : both["data"]) {
+      REQUIRE(thread.size() == 6);
+      if (thread["thread_id"] == "thread-unlinked") REQUIRE(thread["card_id"].is_null());
+    }
   }
 
   SECTION("POST maps conflict-prefixed exceptions to conflict response") {
