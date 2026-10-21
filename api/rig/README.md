@@ -1,130 +1,76 @@
-# RIG adoption in Holder
+# Generating the contract with RIG
 
-This branch develops RIG metadata in the daemon while `api/openapi.yaml` remains
-the checked-in control contract. Normal daemon builds use C++20 and do not need
-RIG, Python, or a reflection-capable compiler.
+[RIG](https://github.com/zeth/rig) reflects C++ declarations with C++26 static
+reflection and generates interfaces from them. Holder declares every HTTP
+endpoint in C++ in `daemon/src/api/`, and RIG generates three files from those
+declarations:
 
-## Control inventory
+- `api/openapi.yaml`, the canonical contract;
+- `daemon/src/api/generated/RuntimeRoutes.h`, the request dispatcher;
+- `daemon/src/api/generated/RuntimeJson.h`, the JSON encoding and decoding.
 
-The OpenAPI 3.1 control currently has 89 paths, 126 operations, and 189 named
-schemas. Its operations use 170 declared parameters (89 path, 78 query, and 3
-header) and 46 request bodies. Responses include JSON, event streams, plain
-text, YAML, and binary content. Fourteen operations have a success status other
-than 200. The global bearer security requirement has six operation overrides.
+All three are checked in. Ordinary daemon builds compile them as C++20 and need
+neither RIG nor a reflection-capable compiler; `RigAnnotations.h` makes the
+annotations disappear in those builds.
 
-This is wider than RIG's current typed-function model. In particular, Holder
-needs metadata for operation summaries and descriptions, security exceptions,
-response descriptions and content types, literal field values, optional record
-fields, nullable values, non-200 success statuses, and header parameters. Some
-routes also have dynamic response bodies and streaming behavior. We should add
-these features to RIG as general capabilities, not as Holder-specific output
-patches.
+## Changing an endpoint
 
-## Live slices
-
-`daemon/src/api/ApiService.h` declares document metadata and bearer security,
-including the 401 and 500 responses every operation documents. `Session.cpp`
-skips the token check for operations the generated dispatcher reports as
-`RIG_PUBLIC`.
-`daemon/src/api/Bye.h` declares the typed operation and response.
-`daemon/src/api/Alive.h` declares `GET /alive`, the first `RIG_PUBLIC`
-operation: a JSON liveness check that needs no token.
-`daemon/src/api/StaticFiles.h` declares the three public YAML downloads with
-`RIG_HOST_RESPONSE("application/yaml")`: `StaticRoutes.cpp` still writes their
-responses, and the generated dispatcher hands their requests back.
-The two `.json` downloads return free-form JSON objects (`nlohmann::json`) the
-same way. `CardLinks.h` declares `POST /cards/{card_id}/links` with
-`RIG_SUCCESS_STATUS(201)` as a host response until its handler moves behind
-the generated dispatcher.
-
-`daemon/src/api/declared/` declares a further 109 operations, one header per
-path group with their schemas in `Schemas.h`, as host responses: the existing
-route handlers still write them.
-They were drafted from `api/openapi.yaml` and match it exactly. When a handler
-moves behind the generated dispatcher, its declaration moves out to its own
-header and loses `RIG_HOST_RESPONSE`.
-`daemon/src/api/RigRuntime.h` selects the migrated operations for one
-checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
-`Session.cpp` calls the dispatcher after authentication and event handling. A
-no-match result falls through to the registered and legacy routes.
-`RigAnnotations.h` makes annotations disappear in ordinary C++20 builds.
-
-Each `RIG_ERROR_RESPONSE` names the exception types that produce it, and the
-generated dispatcher catches them and returns that status. `rig_error_body` in
-`GeneratedRoutes.cpp` builds the `ErrorResponse`; `PrivacyError` keeps its own
-code. `ApiService.h` declares `ErrorResponse` as the validation error body, so
-RIG's own request-decoding 400s use the same envelope and `rig_error_body`, and
-every operation with HTTP input documents them. Each operation's unmapped
-`std::exception` becomes a generated 500; `GeneratedRoutes.cpp` only guards
-against a failure outside the operations reaching the worker.
-
-`daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
-The shared dispatcher handles this route and its JSON response. Holder supplies
-the database context in `GeneratedRoutes.cpp`. The old handwritten route and JSON response were removed.
-RIG omits the server-supplied context from OpenAPI while reflecting the path
-parameter, error responses, field descriptions, and integer minimum.
-
-`daemon/src/api/Rebuild.h` declares `POST /rebuild` with a required JSON request
-record. The generated dispatcher decodes the body and encodes the response;
-the typed operation calls core's rebuilder. Missing projects map to 404
-and rebuild failures to 400. The old route wrapper was removed.
-
-`daemon/src/api/ProviderSettings.h` declares GET and PUT on
-`/ai/providers/settings` and DELETE on `/ai/providers/settings/{provider}`.
-The shared dispatcher lists settings, decodes PUT's optional timestamp, and
-decodes DELETE's provider path parameter. The typed mutations normalize the
-provider and persist the change. The list and delete responses use inline
-records for `data`, matching the control's nested object schemas.
-
-`daemon/src/api/ProviderCredentials.h` declares GET and PUT on
-`/ai/providers/credentials`. The typed operations list masked credential
-previews and store new keys through Holder's secret store context. RIG decodes
-the optional nullable timestamp and encodes the response. DELETE still uses
-the existing secret-store handler.
-
-`daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
-optional `runner_id` query parameter. The shared dispatcher decodes the query
-and path, calls the typed operation with Holder's runner registry, and encodes
-the response. Runner lookup errors map to the existing 404 response.
-The response covers 64-bit integers, a double, omittable fields, and an
-omittable nullable field.
-
-`daemon/src/api/CardLinks.h` declares `GET /cards/{card_id}/links` with an
-optional integer query parameter constrained to `0` or `1`. The live handler
-is now the shared dispatcher: it decodes and validates the query, calls the
-typed operation, and encodes the response. The operation resolves the source
-card's project from the database before listing links. POST and DELETE still
-use the existing card route. The reflected link response covers optional
-properties and an optional nullable label.
-
-Install the pinned RIG and PyYAML with
-`pip install -r api/rig/requirements.txt`. With GCC 16 (set `CXX` if it is not
-`g++`) and core's installed SDK (the daemon's build installs it under
-`core/out/install/local`; set `CORE_INCLUDE` to use another), run the
-comparison from the repo root:
+Edit its declaration, then regenerate from the repository root:
 
 ```sh
-make -C api/rig check
-make -C api/rig check-generated
+pip install -r api/rig/requirements.txt
+make -C api/rig update
 ```
 
-Daemon / CI runs both in a Fedora 45 container, whose GCC 16 release supports
-parameter annotations (Ubuntu 26.04's `g++-16` snapshot does not), against the
-SDK built in the same run. After changing a migrated operation, run `make -C api/rig update-generated` and
-commit the generated headers. These commands require RIG only while developing
-the contract; normal daemon builds compile the checked-in headers.
+This needs GCC 16 (set `CXX` if it is not `g++`) and core's installed SDK, which
+the daemon's build installs under `core/out/install/local` (set `CORE_INCLUDE`
+to use another). `make -C api/rig check` regenerates into `api/rig/build/` and
+fails if any of the three files differs. `Daemon / CI` runs it in a Fedora 45
+container, against the SDK built in the same run: Ubuntu 26.04's `g++-16` is a
+snapshot from before GCC 16 supported annotations on function parameters.
 
-To inspect the intermediate artifacts directly:
+`requirements.txt` pins RIG and PyYAML, because their versions decide the
+generated bytes. When RIG changes, move the pin and run `make -C api/rig update`
+in the same pull request.
+
+## How endpoints are declared
+
+`daemon/src/api/RigRuntime.h` includes every declaration. An endpoint is a
+function annotated with `RIG_ROUTE`, plus its summary, description, errors and
+constraints; its parameters and return type give the request and response.
+
+- **Generated endpoints**, such as `ProjectTags.h` and `ProviderSettings.h`,
+  are defined in the daemon. The generated dispatcher decodes and validates the
+  request, calls the function and encodes its result. `GeneratedRoutes.cpp`
+  supplies the database and other context, and `Session.cpp` calls the
+  dispatcher after authentication.
+- **Host responses**, marked `RIG_HOST_RESPONSE(media_type)`, are declarations
+  only: an existing route handler still writes the response. They include the
+  event streams and file downloads, which stay host-written, and the endpoints
+  in `daemon/src/api/declared/` (with their schemas in `declared/Schemas.h`),
+  which still use their original handlers. The generated dispatcher hands their
+  requests back, so a broader generated route never takes them.
+
+To move an endpoint behind the generated dispatcher, give its declaration a
+definition, remove `RIG_HOST_RESPONSE` and its old handler, and move it out of
+`declared/` into its own header.
+
+## Shared behaviour
+
+`daemon/src/api/ApiService.h` declares the API's metadata, bearer security, and
+the error responses every endpoint shares: 401 for a missing or invalid token,
+400 for a request the dispatcher cannot decode, and 500 for an unexpected
+failure, all with `ErrorResponse` bodies. `RIG_PUBLIC` marks the endpoints that
+need no token, and `Session.cpp` asks the dispatcher whether a request is one.
+
+Each `RIG_ERROR_RESPONSE` names the exceptions that produce it, and the
+dispatcher catches them and returns that status. `rig_error_body` in
+`GeneratedRoutes.cpp` builds the `ErrorResponse`; a `PrivacyError` keeps its
+own code. `GeneratedRoutes.cpp` itself only stops a failure outside an endpoint
+from reaching the worker.
+
+To inspect RIG's intermediate representation:
 
 ```sh
-rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --namespace holder::api::routes -- -Idaemon/src > /tmp/holder-rig.json
-rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
+make -C api/rig build/ir.json
 ```
-
-`check_contract.py` compares every generated operation and schema with the
-control: all 127 of its operations and 192 schemas now match exactly, and the
-document has nothing else. The comparison treats an omitted `required` on a
-query parameter as `false`, as OpenAPI does.
-
-The card reference resolver exercises string choices on record fields and
-outcome dependent response fields through the generated route and JSON codec.

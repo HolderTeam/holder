@@ -13,10 +13,12 @@ the full operation and keep database access with the worker that owns it.
 Investigate intermittent memory corruption, iterator invalidation and
 concurrency failures as defects.
 
-When changing an HTTP route, update and test the canonical
-[`api/openapi.yaml`](../../api/openapi.yaml) in the same pull request where
-applicable. Follow [Changing the contract](../../api/README.md#changing-the-contract)
-for version bumps and changes in meaning.
+When changing an HTTP route, change its declaration in `src/api/` and run
+`make -C api/rig update`, which regenerates the canonical
+[`api/openapi.yaml`](../../api/openapi.yaml) and the generated dispatcher, then
+test the route in the same pull request. Follow
+[Changing the contract](../../api/README.md#changing-the-contract) for version
+bumps and changes in meaning.
 
 For core changes needed by the daemon, update core and its tests in the same
 pull request. The daemon uses only core's installed C++ headers, CMake package,

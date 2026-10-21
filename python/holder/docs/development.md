@@ -39,8 +39,10 @@ if a different implementation is needed. Handwritten transport and higher-level
 APIs live beside it; the incremental change-feed transport is in
 `src/holder/events.py`.
 
-Fix contract errors in the canonical [`api/openapi.yaml`](../../../api/openapi.yaml)
-and test them with the daemon before regenerating the client. The generator
+Fix contract errors in the daemon's declarations, which generate the canonical
+[`api/openapi.yaml`](../../../api/openapi.yaml) (see
+[Changing the contract](../../../api/README.md#changing-the-contract)), and test
+them with the daemon before regenerating the client. The generator
 finds that contract from its own location, regardless of the caller's working
 directory.
 

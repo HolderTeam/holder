@@ -109,8 +109,8 @@ jobs:
         working-directory: daemon
         run: python3 -m unittest scripts/test_make.py -v
   rig-contract:
-    # The operations reflected from daemon/src/api must match api/openapi.yaml, and the checked-in
-    # generated dispatcher and JSON codec in daemon/src/api/generated must match their declarations.
+    # api/openapi.yaml and the daemon's generated dispatcher and JSON codec (daemon/src/api/generated)
+    # must be exactly what RIG generates from the declarations in daemon/src/api.
     # Reflection needs a GCC 16 release (parameter annotations arrived after Ubuntu 26.04's g++-16
     # snapshot), so this runs in Fedora; the daemon's own builds do not need it.
     needs: core-sdk
@@ -135,9 +135,7 @@ jobs:
         env:
           CORE_SDK: ${{ steps.sdk.outputs.sdk }}
         run: >-
-          make -C api/rig check check-generated
-          RIG="$RUNNER_TEMP/rig/bin/rig" PYTHON="$RUNNER_TEMP/rig/bin/python"
-          CORE_INCLUDE="$CORE_SDK/include"
+          make -C api/rig check RIG="$RUNNER_TEMP/rig/bin/rig" CORE_INCLUDE="$CORE_SDK/include"
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve
