@@ -153,6 +153,7 @@ add_executable(holder_daemon_tests
   ../src/api/HttpServer.cpp
   ../src/api/GeneratedRoutes.cpp
   ../src/api/Health.cpp
+  ../src/api/AiLocalModelConfig.cpp
   ../src/api/AiThreadList.cpp
   ../src/api/Calendar.cpp
   ../src/api/ProjectRead.cpp

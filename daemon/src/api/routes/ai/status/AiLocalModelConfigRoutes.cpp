@@ -50,19 +50,6 @@ bool handle_ai_local_model_config_routes(
     http::response<http::string_body>& res,
     holder::platform::Db& db
 ) {
-  if (path == "/ai/local-models/config" && req.method() == http::verb::get) {
-    try {
-      holder::ai::AiLocalModelConfigRepo repo(db);
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = config_payload(repo.get());
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   if (path == "/ai/local-models/config" && req.method() == http::verb::put) {
     try {
       const auto body = nlohmann::json::parse(req.body());

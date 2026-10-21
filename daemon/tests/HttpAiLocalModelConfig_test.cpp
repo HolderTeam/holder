@@ -41,6 +41,8 @@ TEST_CASE("HTTP ai local model config get/put", "[http]") {
   REQUIRE(initial["data"]["fast_model"].is_null());
   REQUIRE(initial["data"]["strong_model"].is_null());
   REQUIRE(initial["data"]["deep_model"].is_null());
+  REQUIRE(initial["data"]["updated_at"].is_null());
+  REQUIRE(initial["data"].size() == 4);
 
   const auto set_all = http_json_request(
       bound.bind,
@@ -88,6 +90,21 @@ TEST_CASE("HTTP ai local model config get/put", "[http]") {
   REQUIRE(empty_string_clears["data"]["strong_model"] == "auto-local::qwen-strong");
   REQUIRE(empty_string_clears["data"]["deep_model"].is_null());
 
+  const auto saved = http_json_request(
+      bound.bind,
+      bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/ai/local-models/config",
+      nlohmann::json{},
+      boost::beast::http::status::ok
+  );
+  REQUIRE(saved["data"]["fast_model"].is_null());
+  REQUIRE(saved["data"]["strong_model"] == "auto-local::qwen-strong");
+  REQUIRE(saved["data"]["deep_model"].is_null());
+  REQUIRE(saved["data"]["updated_at"] == empty_string_clears["data"]["updated_at"]);
+  REQUIRE(saved["data"]["updated_at"].is_number_integer());
+
   std::raise(SIGTERM);
   server_thread.join();
 }
@@ -130,9 +147,9 @@ TEST_CASE("HTTP ai local model config validates input and handles error branches
       boost::beast::http::verb::get,
       "/ai/local-models/config",
       nlohmann::json{},
-      boost::beast::http::status::bad_request
+      boost::beast::http::status::internal_server_error
   );
-  REQUIRE(get_fail["error"]["code"] == "bad_request");
+  REQUIRE(get_fail["ok"] == false);
 
   std::raise(SIGTERM);
   server_thread.join();
@@ -153,4 +170,13 @@ TEST_CASE("AiLocalModelConfigRoutes returns false for unrelated path", "[http]")
       db
   );
   REQUIRE(handled == false);
+
+  // GET is generated; this handler keeps only PUT.
+  http::request<http::string_body> get_req{http::verb::get, "/ai/local-models/config", 11};
+  REQUIRE_FALSE(holder::api::routes::ai::status::handle_ai_local_model_config_routes(
+      "/ai/local-models/config",
+      get_req,
+      res,
+      db
+  ));
 }

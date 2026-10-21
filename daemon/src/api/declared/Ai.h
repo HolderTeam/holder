@@ -90,12 +90,6 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
 RunnerCapabilitiesResponse post_ai_runner_retry();
 
-RIG_ROUTE(GET, "/ai/local-models/config")
-RIG_SUMMARY("Get local model configuration")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-AiLocalModelConfigResponse get_ai_local_models_config();
-
 RIG_ROUTE(PUT, "/ai/local-models/config")
 RIG_SUMMARY("Set or clear local model configuration")
 RIG_RESPONSE_DESCRIPTION("OK")

@@ -390,6 +390,7 @@ add_executable(holderd
   src/api/HttpServer.cpp
   src/api/GeneratedRoutes.cpp
   src/api/Health.cpp
+  src/api/AiLocalModelConfig.cpp
   src/api/AiThreadList.cpp
   src/api/Calendar.cpp
   src/api/ProjectRead.cpp
