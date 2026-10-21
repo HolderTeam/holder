@@ -23,8 +23,6 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -57,22 +55,6 @@ holder::git::GitOps& resolve_git(holder::git::GitOps* git) {
 
 bool is_valid_privacy_mode(const std::string& mode) {
   return mode == "encrypted_git" || mode == "plain";
-}
-
-bool is_home_project_name(const std::string& name) {
-  std::string lowered;
-  lowered.reserve(name.size());
-  for (const char c : name) {
-    lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-  }
-  return lowered == "home";
-}
-
-std::optional<bool> parse_count_param(const std::string& count_raw) {
-  if (count_raw.empty()) return false;
-  if (count_raw == "1" || count_raw == "true") return true;
-  if (count_raw == "0" || count_raw == "false") return false;
-  return std::nullopt;
 }
 
 nlohmann::json git_test_remote_payload(
@@ -292,8 +274,7 @@ bool handle_project_routes(
     http::response<http::string_body>& res,
     holder::platform::Db& db,
     holder::git::GitOps* git_ops,
-    const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    const std::function<std::string()>& uuid_v4
 ) {
   if (path == "/recovery-token/import" && req.method() == http::verb::post) {
     try {
@@ -415,184 +396,6 @@ bool handle_project_routes(
       res = privacy_error_response(ex); // LCOV_EXCL_LINE
     } catch (const std::exception& ex) {
       res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
-  if (path == "/projects" && req.method() == http::verb::get) {
-    try {
-      holder::project::ProjectRepo repo(db);
-      holder::project::ProjectSyncRepo sync_repo(db);
-      auto projects = repo.list();
-      const std::string name_filter = param_get("name");
-      const std::string updated_after_raw = param_get("updated_after");
-      const std::string updated_before_raw = param_get("updated_before");
-      const std::string limit_raw = param_get("limit");
-      const std::string offset_raw = param_get("offset");
-      const std::string order_raw = param_get("order");
-      const std::string count_raw = param_get("count");
-      std::optional<long long> updated_after;
-      std::optional<long long> updated_before;
-      if (!updated_after_raw.empty()) {
-        updated_after = std::stoll(updated_after_raw);
-      }
-      if (!updated_before_raw.empty()) {
-        updated_before = std::stoll(updated_before_raw);
-      }
-      int limit = 100;
-      int offset = 0;
-      if (!limit_raw.empty()) {
-        limit = std::stoi(limit_raw);
-      }
-      if (!offset_raw.empty()) {
-        offset = std::stoi(offset_raw);
-      }
-      if (limit < 0 || offset < 0) {
-        throw std::invalid_argument("limit/offset must be non-negative");
-      }
-      const auto include_count = parse_count_param(count_raw);
-      if (!include_count.has_value()) {
-        throw std::invalid_argument("invalid count");
-      }
-      if (limit > 1000) {
-        limit = 1000;
-      }
-      enum class OrderKey : std::uint8_t { UpdatedAt, CreatedAt, Name };
-      OrderKey order_key = OrderKey::UpdatedAt;
-      bool order_asc = false;
-      if (!order_raw.empty()) {
-        if (order_raw == "updated_at_desc") {
-          order_asc = false;
-          order_key = OrderKey::UpdatedAt;
-        } else if (order_raw == "updated_at_asc") {
-          order_asc = true;
-          order_key = OrderKey::UpdatedAt;
-        } else if (order_raw == "created_at_desc") {
-          order_asc = false;
-          order_key = OrderKey::CreatedAt;
-        } else if (order_raw == "created_at_asc") {
-          order_asc = true;
-          order_key = OrderKey::CreatedAt;
-        } else if (order_raw == "name_desc") {
-          order_asc = false;
-          order_key = OrderKey::Name;
-        } else if (order_raw == "name_asc") {
-          order_asc = true;
-          order_key = OrderKey::Name;
-        } else {
-          throw std::invalid_argument(
-              "order must be updated_at_desc, updated_at_asc, created_at_desc, created_at_asc, "
-              "name_desc, or name_asc"
-          );
-        }
-      }
-
-      if (!name_filter.empty() || updated_after.has_value() || updated_before.has_value()) {
-        std::vector<holder::model::Project> filtered;
-        filtered.reserve(projects.size());
-        for (const auto& project : projects) {
-          if (!name_filter.empty() && project.name.find(name_filter) == std::string::npos) {
-            continue;
-          }
-          if (updated_after.has_value() && project.updated_at < updated_after.value()) {
-            continue;
-          }
-          if (updated_before.has_value() && project.updated_at > updated_before.value()) {
-            continue;
-          }
-          filtered.push_back(project);
-        }
-        projects = std::move(filtered);
-      }
-
-      std::stable_sort(
-          projects.begin(),
-          projects.end(),
-          [order_asc, order_key](const holder::model::Project& a, const holder::model::Project& b) {
-            switch (order_key) {
-            case OrderKey::CreatedAt:
-              return order_asc ? (a.created_at < b.created_at) : (a.created_at > b.created_at);
-            case OrderKey::Name:
-              return order_asc ? (a.name < b.name) : (a.name > b.name);
-            case OrderKey::UpdatedAt:
-            default:
-              return order_asc ? (a.updated_at < b.updated_at) : (a.updated_at > b.updated_at);
-            }
-          }
-      );
-
-      if (order_raw.empty()) {
-        std::stable_sort(
-            projects.begin(),
-            projects.end(),
-            [](const holder::model::Project& a, const holder::model::Project& b) {
-              const bool a_home = is_home_project_name(a.name);
-              const bool b_home = is_home_project_name(b.name);
-              if (a_home != b_home) return a_home;
-              return false;
-            }
-        );
-      }
-
-      if (offset > 0 || limit < static_cast<int>(projects.size())) {
-        std::vector<holder::model::Project> paged;
-        const std::size_t start = static_cast<std::size_t>(offset);
-        if (start < projects.size()) {
-          const std::size_t end =
-              std::min(projects.size(), start + static_cast<std::size_t>(limit));
-          paged.assign(
-              projects.begin() + static_cast<std::ptrdiff_t>(start),
-              projects.begin() + static_cast<std::ptrdiff_t>(end)
-          );
-        }
-        projects = std::move(paged);
-      }
-
-      nlohmann::json data = nlohmann::json::array();
-      holder::card::CardRepo card_repo(db);
-      for (const auto& project : projects) {
-        nlohmann::json item = {
-            {"project_id", project.project_id},
-            {"name", project.name},
-            {"root_path", project.root_path},
-            {"git_remote_url",
-             project.git_remote_url.has_value() ? nlohmann::json(project.git_remote_url.value())
-                                                : nlohmann::json(nullptr)},
-            {"git_provider",
-             project.git_provider.has_value() ? nlohmann::json(project.git_provider.value())
-                                              : nlohmann::json(nullptr)},
-            {"privacy_mode", project.privacy_mode},
-            {"project_key_id",
-             project.project_key_id.has_value() ? nlohmann::json(project.project_key_id.value())
-                                                : nlohmann::json(nullptr)},
-            {"created_at", project.created_at},
-            {"updated_at", project.updated_at},
-            {"sync", project_sync_to_json(sync_repo.get(project.project_id))},
-        };
-        if (include_count.value()) {
-          item["card_count"] = card_repo.count_all_not_deleted(project.project_id);
-          item["root_card_count"] = card_repo.count_roots_not_deleted(project.project_id);
-        }
-        data.push_back(std::move(item));
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = data;
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::invalid_argument&) {
-      res = support::error_response(
-          http::status::bad_request,
-          "bad_request",
-          "Invalid filter value."
-      );
-    } catch (const std::out_of_range&) {
-      res = support::error_response(
-          http::status::bad_request,
-          "bad_request",
-          "Filter value out of range."
-      );
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::internal_server_error, "error", ex.what());
     }
     return true;
   }

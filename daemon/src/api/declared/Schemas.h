@@ -2,6 +2,9 @@
 
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
+#include "api/RunnerPull.h"
+#include "api/ProviderCredentials.h"
+#include "api/CardLinks.h"
 
 #include <nlohmann/json.hpp>
 
@@ -435,11 +438,6 @@ struct RIG_OPEN_RECORD Project {
   std::optional<int> card_count RIG_FIELD_DESCRIPTION("Present when count=true.") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
   std::optional<int> root_card_count RIG_FIELD_DESCRIPTION("Present when count=true.") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
   ProjectSync sync;
-};
-
-struct RIG_OPEN_RECORD ProjectListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<Project> data;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectCreateResponseData {

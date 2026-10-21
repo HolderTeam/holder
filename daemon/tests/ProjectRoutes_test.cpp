@@ -96,9 +96,6 @@ TEST_CASE("ProjectRoutes returns false when path does not match", "[project-rout
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
 
   const bool handled = holder::api::routes::handle_project_routes(
       "/not-projects",
@@ -106,8 +103,7 @@ TEST_CASE("ProjectRoutes returns false when path does not match", "[project-rout
       res,
       db,
       nullptr,
-      uuid_v4,
-      param_get
+      uuid_v4
   );
   REQUIRE_FALSE(handled);
 }
@@ -121,9 +117,6 @@ TEST_CASE("ProjectRoutes global recovery import validates required fields", "[pr
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
 
   const bool handled = holder::api::routes::handle_project_routes(
       "/recovery-token/import",
@@ -131,8 +124,7 @@ TEST_CASE("ProjectRoutes global recovery import validates required fields", "[pr
       res,
       db,
       nullptr,
-      uuid_v4,
-      param_get
+      uuid_v4
   );
   REQUIRE(handled);
   REQUIRE(res.result() == http::status::bad_request);
@@ -150,9 +142,6 @@ TEST_CASE("ProjectRoutes rejects empty project id segment", "[project-routes]") 
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
 
   const bool handled = holder::api::routes::handle_project_routes(
       "/projects/",
@@ -160,8 +149,7 @@ TEST_CASE("ProjectRoutes rejects empty project id segment", "[project-routes]") 
       res,
       db,
       nullptr,
-      uuid_v4,
-      param_get
+      uuid_v4
   );
   REQUIRE(handled);
   REQUIRE(res.result() == http::status::not_found);
@@ -187,9 +175,6 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto empty_param_get = [](const std::string&) {
-    return std::string();
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -203,8 +188,7 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -216,10 +200,13 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
     REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
-  SECTION("projects list internal error catch with closed db") {
+  SECTION("generated projects list returns an internal error with closed db") {
     db.close();
-    auto [status, payload] = call(http::verb::get, "/projects");
-    REQUIRE(status == http::status::internal_server_error);
+    auto req = make_request(http::verb::get, "/projects");
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::internal_server_error);
+    const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "error");
   }
 }
@@ -243,9 +230,6 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto empty_param_get = [](const std::string&) {
-    return std::string();
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -259,8 +243,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -308,8 +291,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
@@ -383,8 +365,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
@@ -461,8 +442,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
@@ -595,7 +575,17 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
 
   req = make_request(http::verb::get, "/projects");
-  REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(res.result() == http::status::ok);
+  const auto listed = nlohmann::json::parse(res.body());
+  REQUIRE(listed["data"].size() == 1);
+  REQUIRE(listed["data"][0]["git_remote_url"].is_null());
+  REQUIRE(listed["data"][0]["project_key_id"].is_null());
+  REQUIRE_FALSE(listed["data"][0].contains("card_count"));
+  REQUIRE(listed["data"][0]["sync"]["uncommitted_changes_count"] == 0);
+  REQUIRE(listed["data"][0]["sync"]["updated_at"].is_null());
+  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
+      "/projects", req, res, db, nullptr, [] { return std::string("id"); }));
 
   // Hand-served operations are declared for the contract; the host serves them.
   req = make_request(http::verb::get, "/openapi.yaml");
@@ -615,9 +605,6 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto empty_param_get = [](const std::string&) {
-    return std::string();
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -631,8 +618,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -728,9 +714,6 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto empty_param_get = [](const std::string&) {
-    return std::string();
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -744,8 +727,7 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
         res,
         db,
         &git,
-        uuid_v4,
-        empty_param_get
+        uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));

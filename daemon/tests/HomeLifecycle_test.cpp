@@ -107,10 +107,7 @@ struct HomeLifecycle {
         res,
         db,
         nullptr,
-        holder::app::generate_uuid_v4,
-        [](const std::string&) {
-          return std::string();
-        }
+        holder::app::generate_uuid_v4
     ));
     REQUIRE(res.result() == http::status::ok);
     REQUIRE(holder::project::ProjectRepo(db).list().empty());
@@ -355,10 +352,7 @@ TEST_CASE(
       response,
       fixture.db,
       nullptr,
-      holder::app::generate_uuid_v4,
-      [](const std::string&) {
-        return std::string();
-      }
+      holder::app::generate_uuid_v4
   ));
   REQUIRE(response.result() == http::status::internal_server_error);
   REQUIRE(holder::project::ProjectRepo(fixture.db).get(home.project_id).has_value());
@@ -388,10 +382,7 @@ TEST_CASE("Explicit recovery re-registers a removed encrypted Home", "[home-life
       response,
       fixture.db,
       nullptr,
-      holder::app::generate_uuid_v4,
-      [](const std::string&) {
-        return std::string();
-      }
+      holder::app::generate_uuid_v4
   ));
   INFO(response.body());
   REQUIRE(response.result() == http::status::created);

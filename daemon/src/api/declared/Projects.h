@@ -13,19 +13,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/projects")
-RIG_SUMMARY("List projects")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-ProjectListResponse get_projects(
-    std::optional<std::string> name RIG_QUERY RIG_PARAMETER_DESCRIPTION("Substring match on project name."),
-    std::optional<long long> updated_after RIG_QUERY RIG_PARAMETER_DESCRIPTION("Return projects with updated_at >= updated_after."),
-    std::optional<long long> updated_before RIG_QUERY RIG_PARAMETER_DESCRIPTION("Return projects with updated_at <= updated_before."),
-    std::optional<std::string> order RIG_QUERY RIG_STRING_VALUES("updated_at_desc", "updated_at_asc", "created_at_desc", "created_at_asc", "name_desc", "name_asc") RIG_PARAMETER_DESCRIPTION("Order by updated_at (default), created_at, or name."),
-    std::optional<int> limit RIG_QUERY RIG_RANGE(0, 1000) RIG_FORMAT("int32") RIG_PARAMETER_DESCRIPTION("Max results (default 100, capped at 1000)."),
-    std::optional<int> offset RIG_QUERY RIG_MINIMUM(0) RIG_FORMAT("int32") RIG_PARAMETER_DESCRIPTION("Offset into ordered results (default 0)."),
-    bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (card_count/root_card_count) per project."));
-
 RIG_ROUTE(POST, "/projects")
 RIG_SUMMARY("Create a project")
 RIG_RESPONSE_DESCRIPTION("Created")

@@ -5087,9 +5087,8 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int32",
               "minimum": 0,
-              "maximum": 1000
+              "format": "int32"
             },
             "description": "Max results (default 100, capped at 1000)."
           },
@@ -5126,8 +5125,28 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {

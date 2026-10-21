@@ -391,6 +391,15 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   REQUIRE(proj1_seen);
   REQUIRE(proj2_seen);
 
+  const auto numeric_count = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects?count=1", nlohmann::json::object(), boost::beast::http::status::ok);
+  REQUIRE(numeric_count["data"][0].contains("card_count"));
+  const auto numeric_no_count = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects?count=0", nlohmann::json::object(), boost::beast::http::status::ok);
+  REQUIRE_FALSE(numeric_no_count["data"][0].contains("card_count"));
+
   const auto filtered_by_name = http_json_request(
       bound.bind,
       bound.port,

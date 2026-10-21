@@ -8,6 +8,7 @@
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
+#include "api/ProjectList.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "privacy/SecretStore.h"
