@@ -28,7 +28,8 @@ def main(control_path: str, generated_path: str) -> None:
                          ("/ai/providers/settings", "put"),
                          ("/projects/{project_id}/tags", "get"),
                          ("/ai/runner/pull/{job_id}", "get"),
-                         ("/cards/{card_id}/links", "get")):
+                         ("/cards/{card_id}/links", "get"),
+                         ("/card-references/resolve", "post")):
         expected_operation = control["paths"][path][method]
         actual_operation = generated["paths"][path][method]
         if normalized_operation(actual_operation) != normalized_operation(expected_operation):
@@ -38,12 +39,14 @@ def main(control_path: str, generated_path: str) -> None:
                  "AiProviderSettingResponse",
                  "ErrorResponse", "Error", "ProjectTag",
                  "ProjectTagListResponse", "RunnerPullProgress", "RunnerPullJob",
-                 "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse"):
+                 "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse",
+                 "CardReferenceResolveRequest", "CardReferenceCandidate",
+                 "CardReferenceResolveData", "CardReferenceResolveResponse"):
         expected = control["components"]["schemas"][name]
         actual = generated["components"]["schemas"][name]
         if actual != expected:
             raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG service metadata, six operations, and schemas match api/openapi.yaml")
+    print("RIG service metadata, seven operations, and schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":

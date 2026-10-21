@@ -81,11 +81,11 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, six operations, and their
-sixteen reachable schemas now match the control. The comparison treats an omitted
+The generated service metadata, bearer security, seven operations, and their
+twenty reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next full-stack slice can cover a richer request body, such as a string
-choice or optional field.
+The card reference resolver exercises string choices on record fields and
+outcome dependent response fields through the generated route and JSON codec.

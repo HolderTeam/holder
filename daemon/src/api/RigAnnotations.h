@@ -15,6 +15,7 @@
 #define RIG_CONTEXT
 #define RIG_QUERY
 #define RIG_INT_VALUES(...)
+#define RIG_STRING_VALUES(...)
 #define RIG_PARAMETER_DESCRIPTION(text)
 #define RIG_MINIMUM(value)
 #define RIG_FIELD_DESCRIPTION(text)

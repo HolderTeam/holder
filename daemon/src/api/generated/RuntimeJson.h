@@ -93,6 +93,22 @@ template <> struct codec<holder::api::ByeResponse> {
     static json encode(const holder::api::ByeResponse& value);
     static holder::api::ByeResponse decode(const json& value);
 };
+template <> struct codec<holder::api::CardReferenceResolveRequest> {
+    static json encode(const holder::api::CardReferenceResolveRequest& value);
+    static holder::api::CardReferenceResolveRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardReferenceCandidate> {
+    static json encode(const holder::api::CardReferenceCandidate& value);
+    static holder::api::CardReferenceCandidate decode(const json& value);
+};
+template <> struct codec<holder::api::CardReferenceResolveData> {
+    static json encode(const holder::api::CardReferenceResolveData& value);
+    static holder::api::CardReferenceResolveData decode(const json& value);
+};
+template <> struct codec<holder::api::CardReferenceResolveResponse> {
+    static json encode(const holder::api::CardReferenceResolveResponse& value);
+    static holder::api::CardReferenceResolveResponse decode(const json& value);
+};
 template <> struct codec<holder::api::ProjectTag> {
     static json encode(const holder::api::ProjectTag& value);
     static holder::api::ProjectTag decode(const json& value);
@@ -195,6 +211,97 @@ inline holder::api::ByeResponse codec<holder::api::ByeResponse>::decode(const js
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::ByeResponse{
         codec<bool>::decode(value.at("ok")),
+    };
+}
+
+inline json codec<holder::api::CardReferenceResolveRequest>::encode(const holder::api::CardReferenceResolveRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["reference"] = codec<std::string>::encode(value.reference);
+    if (value.scope != "live" && value.scope != "trashed" && value.scope != "either") throw std::invalid_argument("invalid scope");
+    result["scope"] = codec<std::string>::encode(value.scope);
+    return result;
+}
+inline holder::api::CardReferenceResolveRequest codec<holder::api::CardReferenceResolveRequest>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("project_id")
+        || !value.contains("reference")
+        || !value.contains("scope")
+) throw std::invalid_argument("expected CardReferenceResolveRequest");
+    if (value.at("scope") != "live" && value.at("scope") != "trashed" && value.at("scope") != "either") throw std::invalid_argument("invalid scope");
+    return holder::api::CardReferenceResolveRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("reference")),
+        codec<std::string>::decode(value.at("scope")),
+    };
+}
+
+inline json codec<holder::api::CardReferenceCandidate>::encode(const holder::api::CardReferenceCandidate& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["deleted_at"] = codec<std::optional<long long>>::encode(value.deleted_at);
+    return result;
+}
+inline holder::api::CardReferenceCandidate codec<holder::api::CardReferenceCandidate>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("card_id")
+        || !value.contains("title")
+        || !value.contains("deleted_at")
+) throw std::invalid_argument("expected CardReferenceCandidate");
+    return holder::api::CardReferenceCandidate{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("title")),
+        codec<std::optional<long long>>::decode(value.at("deleted_at")),
+    };
+}
+
+inline json codec<holder::api::CardReferenceResolveData>::encode(const holder::api::CardReferenceResolveData& value) {
+    json result = json::object();
+    if (value.status != "resolved" && value.status != "ambiguous" && value.status != "not_found") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    if (value.match_kind && *value.match_kind != "full_id" && *value.match_kind != "id_prefix" && *value.match_kind != "exact_title") throw std::invalid_argument("invalid match_kind");
+    if (value.match_kind) {
+        result["match_kind"] = codec<std::optional<std::string>>::encode(value.match_kind);
+    }
+    if (value.card) {
+        result["card"] = codec<std::optional<holder::api::CardReferenceCandidate>>::encode(value.card);
+    }
+    if (value.candidates) {
+        result["candidates"] = codec<std::optional<std::vector<holder::api::CardReferenceCandidate>>>::encode(value.candidates);
+    }
+    return result;
+}
+inline holder::api::CardReferenceResolveData codec<holder::api::CardReferenceResolveData>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("status")
+) throw std::invalid_argument("expected CardReferenceResolveData");
+    if (value.at("status") != "resolved" && value.at("status") != "ambiguous" && value.at("status") != "not_found") throw std::invalid_argument("invalid status");
+    if (value.contains("match_kind") && !value.at("match_kind").is_null() && value.at("match_kind") != "full_id" && value.at("match_kind") != "id_prefix" && value.at("match_kind") != "exact_title") throw std::invalid_argument("invalid match_kind");
+    return holder::api::CardReferenceResolveData{
+        codec<std::string>::decode(value.at("status")),
+        value.contains("match_kind") ? codec<std::optional<std::string>>::decode(value.at("match_kind")) : std::nullopt,
+        value.contains("card") ? codec<std::optional<holder::api::CardReferenceCandidate>>::decode(value.at("card")) : std::nullopt,
+        value.contains("candidates") ? codec<std::optional<std::vector<holder::api::CardReferenceCandidate>>>::decode(value.at("candidates")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardReferenceResolveResponse>::encode(const holder::api::CardReferenceResolveResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardReferenceResolveData>::encode(value.data);
+    return result;
+}
+inline holder::api::CardReferenceResolveResponse codec<holder::api::CardReferenceResolveResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected CardReferenceResolveResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardReferenceResolveResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardReferenceResolveData>::decode(value.at("data")),
     };
 }
 

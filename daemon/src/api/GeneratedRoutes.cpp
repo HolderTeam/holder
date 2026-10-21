@@ -1,6 +1,7 @@
 #include "api/GeneratedRoutes.h"
 
 #include "api/CardLinks.h"
+#include "api/CardReferenceResolve.h"
 #include "api/ProjectTags.h"
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
@@ -69,6 +70,10 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
     res = error_response(http::status::bad_request, "bad_request", error.what());
   } catch (const ProviderSettingError& error) {
     res = error_response(http::status::bad_request, "bad_request", error.what());
+  } catch (const CardReferenceInvalidRequest& error) {
+    res = error_response(http::status::bad_request, "bad_request", error.what());
+  } catch (const CardReferenceProjectNotFound& error) {
+    res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const std::exception& error) {
     res = error_response(http::status::internal_server_error, "error", error.what());
   }

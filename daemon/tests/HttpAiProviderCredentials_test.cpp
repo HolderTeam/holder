@@ -366,11 +366,15 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
       };
 
   expect_bad_request(http::verb::get, "/ai/providers/settings");
-  expect_bad_request(
-      http::verb::put,
-      "/ai/providers/settings",
-      nlohmann::json{{"provider", "switchyard"}, {"enabled", true}}.dump()
-  );
+  {
+    auto req = make_req(
+        http::verb::put,
+        "/ai/providers/settings",
+        nlohmann::json{{"provider", "switchyard"}, {"enabled", true}}.dump()
+    );
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
+    REQUIRE(res.result() == http::status::bad_request);
+  }
   expect_bad_request(http::verb::delete_, "/ai/providers/settings/switchyard");
 
   expect_bad_request(http::verb::get, "/ai/providers/credentials");
