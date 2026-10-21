@@ -7,6 +7,9 @@ The HTTP contract between the Holder daemon and its clients.
   The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/holder/`](../python/holder/)
   is generated from a tested snapshot of it. The document uses OpenAPI 3.1. It is generated, so
   never edit it by hand: see [Changing the contract](#changing-the-contract).
+- [`openapi.json`](openapi.json) - the same document as JSON, generated with it. The daemon
+  compiles it in and serves it at `GET /openapi.json`, so a daemon always serves the contract it
+  was built from.
 - [`rig/`](rig/) - how the contract is generated from the daemon's C++ declarations with
   [RIG](https://github.com/zeth/rig).
 - [`API_VERSION`](API_VERSION) - the compatibility version clients check (`MAJOR.MINOR`). It is

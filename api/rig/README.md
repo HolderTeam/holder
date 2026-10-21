@@ -2,14 +2,16 @@
 
 [RIG](https://github.com/zeth/rig) reflects C++ declarations with C++26 static
 reflection and generates interfaces from them. Holder declares every HTTP
-endpoint in C++ in `daemon/src/api/`, and RIG generates three files from those
+endpoint in C++ in `daemon/src/api/`, and RIG generates four files from those
 declarations:
 
-- `api/openapi.yaml`, the canonical contract;
+- `api/openapi.yaml`, the canonical contract, and `api/openapi.json`, the same
+  document as JSON, which the daemon's build compiles in to serve at
+  `GET /openapi.json`;
 - `daemon/src/api/generated/RuntimeRoutes.h`, the request dispatcher;
 - `daemon/src/api/generated/RuntimeJson.h`, the JSON encoding and decoding.
 
-All three are checked in. Ordinary daemon builds compile them as C++20 and need
+All four are checked in. Ordinary daemon builds compile them as C++20 and need
 neither RIG nor a reflection-capable compiler; `RigAnnotations.h` makes the
 annotations disappear in those builds.
 
@@ -25,7 +27,7 @@ make -C api/rig update
 This needs GCC 16 (set `CXX` if it is not `g++`) and core's installed SDK, which
 the daemon's build installs under `core/out/install/local` (set `CORE_INCLUDE`
 to use another). `make -C api/rig check` regenerates into `api/rig/build/` and
-fails if any of the three files differs. `Daemon / CI` runs it in a Fedora 45
+fails if any of the four files differs. `Daemon / CI` runs it in a Fedora 45
 container, against the SDK built in the same run: Ubuntu 26.04's `g++-16` is a
 snapshot from before GCC 16 supported annotations on function parameters.
 

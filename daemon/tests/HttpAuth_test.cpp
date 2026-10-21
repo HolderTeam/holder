@@ -1,5 +1,8 @@
 #include "http_test_helpers.h"
 
+#include <fstream>
+#include <iterator>
+
 using holder::test::EnvGuard;
 using holder::test::http_request_raw;
 using holder::test::make_temp_dir;
@@ -61,6 +64,16 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   const auto alive_post =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::post, "/alive");
   REQUIRE(alive_post.status == boost::beast::http::status::unauthorized);
+
+  // The contract is compiled into the daemon, byte for byte.
+  const auto contract =
+      http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/openapi.json");
+  REQUIRE(contract.status == boost::beast::http::status::ok);
+  REQUIRE(contract.content_type == "application/json");
+  std::ifstream contract_file(OPENAPI_JSON_PATH, std::ios::binary);
+  const std::string contract_bytes{std::istreambuf_iterator<char>(contract_file), {}};
+  REQUIRE(contract.body == contract_bytes);
+  REQUIRE(nlohmann::json::parse(contract.body)["openapi"] == "3.1.0");
 
   const auto projects =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/projects");

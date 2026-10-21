@@ -2600,6 +2600,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /openapi.json:
+    get:
+      summary: Download the OpenAPI specification as JSON
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
   /openapi.yaml:
     get:
       summary: Download the OpenAPI specification

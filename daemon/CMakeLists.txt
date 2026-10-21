@@ -458,9 +458,27 @@ add_executable(holderd
   # src/markdown/parse_links.cpp
 )
 
+# The daemon serves api/openapi.json from bytes compiled into it, so it always serves the
+# contract it was built from and no file has to be shipped beside it.
+set(HOLDER_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.json
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h
+    -DNAME=openapi_json
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.json" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_target(holder_openapi_json DEPENDS "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h")
+add_dependencies(holderd holder_openapi_json)
+
 target_include_directories(holderd PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${HOLDER_COMMON_DIR}/src
+  ${HOLDER_GENERATED_INCLUDE_DIR}
 )
 
 target_compile_definitions(holderd PRIVATE

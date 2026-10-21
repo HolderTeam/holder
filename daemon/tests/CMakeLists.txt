@@ -225,6 +225,7 @@ target_include_directories(holder_daemon_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
   ${HOLDER_CLI_DIR}/src
   ${HOLDER_COMMON_DIR}/src
+  ${HOLDER_GENERATED_INCLUDE_DIR}
 )
 if(MSVC)
   target_compile_options(holder_daemon_tests PRIVATE "/FI${CMAKE_CURRENT_SOURCE_DIR}/WinEnvCompat.h")
@@ -242,12 +243,13 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   CARD_SERVER_API_VERSION="${HOLDER_DAEMON_API_VERSION}"
   CARD_SERVER_VERSION="${HOLDER_DAEMON_VERSION}"
   OPENAPI_YAML_PATH="${HOLDER_API_DIR}/openapi.yaml"
+  OPENAPI_JSON_PATH="${HOLDER_API_DIR}/openapi.json"
   SCHEMA_SQL_PATH="${HOLDER_CORE_SCHEMA}"
   DAEMON_AI_CATALOG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../config/ai_catalog.yaml"
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests lock_helper holderd holderctl)
+add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_json)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE

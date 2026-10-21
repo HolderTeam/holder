@@ -179,6 +179,7 @@ from .get_cards_context_order import GetCardsContextOrder
 from .get_cards_order import GetCardsOrder
 from .get_cards_view import GetCardsView
 from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
+from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order import GetProjectsOrder
 from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
@@ -514,6 +515,7 @@ __all__ = (
     "GetCardsOrder",
     "GetCardsView",
     "GetGitProvidersJsonResponse200",
+    "GetOpenapiJsonResponse200",
     "GetPingResponse200",
     "GetProjectsOrder",
     "GetProjectsProjectIdCardsOrder",

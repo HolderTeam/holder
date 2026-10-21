@@ -1,5 +1,6 @@
 #include "api/routes/StaticRoutes.h"
 
+#include "OpenApiJson.h"
 #include "api/support/PathDiscovery.h"
 
 #include <boost/beast/http.hpp>
@@ -97,7 +98,8 @@ bool handle_static_routes(
     const http::request<http::string_body>& req,
     http::response<http::string_body>& res
 ) {
-  if (!(path == "/openapi.yaml" || path == "/ai_catalog.yaml" || path == "/ai_catalog.json" ||
+  if (!(path == "/openapi.yaml" || path == "/openapi.json" || path == "/ai_catalog.yaml" ||
+        path == "/ai_catalog.json" ||
         path == "/git_providers.yaml" || path == "/git_providers.json" || path == "/docs" ||
         path.rfind("/docs/", 0) == 0)) {
     return false;
@@ -109,6 +111,12 @@ bool handle_static_routes(
         "Method not allowed.",
         "text/plain; charset=utf-8"
     );
+    return true;
+  }
+
+  if (path == "/openapi.json") {
+    res = text_response(http::status::ok, std::string(holder::generated::openapi_json()),
+                        "application/json");
     return true;
   }
 

@@ -20,6 +20,14 @@ RIG_HOST_RESPONSE("application/yaml")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 std::string download_openapi_yaml();
 
+// Served from the bytes of api/openapi.json compiled into the daemon, so it is always present.
+RIG_ROUTE(GET, "/openapi.json")
+RIG_PUBLIC
+RIG_SUMMARY("Download the OpenAPI specification as JSON")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+nlohmann::json download_openapi_json();
+
 RIG_ROUTE(GET, "/ai_catalog.yaml")
 RIG_PUBLIC
 RIG_SUMMARY("Download canonical AI catalog config (models + cloud)")
