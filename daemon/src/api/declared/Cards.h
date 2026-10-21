@@ -12,14 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/cards/{card_id}/milestones-with-dates")
-RIG_SUMMARY("List all milestones on a live card with their labelled dates")
-RIG_DESCRIPTION("Includes undated milestones and repeated roles. Dates remain in stored order. The existing /cards/{card_id}/milestones route remains a scheduled timestamp view.")
-RIG_RESPONSE_DESCRIPTION("All milestones on the card")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
-MilestoneWithDatesListResponse get_cards_card_id_milestones_with_dates(std::string card_id);
-
 RIG_ROUTE(POST, "/cards/{card_id}/milestones-with-dates")
 RIG_SUMMARY("Add a milestone with labelled dates to a live card")
 RIG_RESPONSE_DESCRIPTION("Created milestone")

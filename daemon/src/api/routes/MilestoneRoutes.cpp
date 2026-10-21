@@ -167,20 +167,15 @@ bool handle_milestone_routes(
     }
     holder::card::MilestoneRepo repo(db);
 
-    if (!milestone_id.has_value() && req.method() == http::verb::get) {
+    if (!milestone_id.has_value() && !with_dates && req.method() == http::verb::get) {
       nlohmann::json data = nlohmann::json::array();
       for (const auto& milestone : repo.list_for_card(card->project_id, card_id)) {
-        if (with_dates) {
-          data.push_back(milestone_with_dates_json(milestone));
-          continue;
-        }
         if (!has_timestamp_view(milestone)) continue;
         data.push_back(milestone_json(milestone));
       }
-      if (!with_dates)
-        std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
-          return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
-        });
+      std::sort(data.begin(), data.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+        return a.at("start_at").get<long long>() < b.at("start_at").get<long long>();
+      });
       res = support::json_response(http::status::ok, {{"ok", true}, {"data", data}});
       return true;
     } // LCOV_EXCL_LINE: GCC duplicate cleanup line after the covered response.

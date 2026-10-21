@@ -18,6 +18,18 @@ struct ProjectMilestonesNotFound : std::runtime_error {
   ProjectMilestonesNotFound() : std::runtime_error("Project not found.") {}
 };
 
+struct CardMilestonesNotFound : std::runtime_error {
+  CardMilestonesNotFound() : std::runtime_error("Card not found.") {}
+};
+
+RIG_ROUTE(GET, "/cards/{card_id}/milestones-with-dates")
+RIG_SUMMARY("List all milestones on a live card with their labelled dates")
+RIG_DESCRIPTION("Includes undated milestones and repeated roles. Dates remain in stored order. The existing /cards/{card_id}/milestones route remains a scheduled timestamp view.")
+RIG_RESPONSE_DESCRIPTION("All milestones on the card")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found", CardMilestonesNotFound)
+MilestoneWithDatesListResponse get_card_milestones_with_dates(holder::platform::Db& db RIG_CONTEXT,
+                                                              std::string card_id);
+
 RIG_ROUTE(GET, "/projects/{project_id}/milestones-with-dates")
 RIG_SUMMARY("Query project milestones by a labelled date role")
 RIG_DESCRIPTION("Returns each matching milestone once with its complete ordered dates array. Calendar days and instants are queried separately; both range bounds are inclusive. Milestones on trashed cards are excluded. Roles are free-form, and this endpoint does not infer outstanding or completion state.")

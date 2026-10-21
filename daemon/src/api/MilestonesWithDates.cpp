@@ -1,5 +1,6 @@
-#include "api/ProjectMilestones.h"
+#include "api/MilestonesWithDates.h"
 
+#include "card/CardRepo.h"
 #include "card/MilestoneRepo.h"
 #include "model/Milestone.h"
 #include "model/MilestoneDate.h"
@@ -41,6 +42,13 @@ MilestoneWithDates milestone_with_dates(const holder::model::Milestone& mileston
   return value;
 }
 
+MilestoneWithDatesListResponse list_response(const std::vector<holder::model::Milestone>& milestones) {
+  MilestoneWithDatesListResponse response{true, {}};
+  response.data.reserve(milestones.size());
+  for (const auto& milestone : milestones) response.data.push_back(milestone_with_dates(milestone));
+  return response;
+}
+
 std::vector<holder::model::Milestone> matching_milestones(holder::platform::Db& db,
                                                           const std::string& project_id,
                                                           const std::string& role,
@@ -80,11 +88,14 @@ MilestoneWithDatesListResponse get_project_milestones_with_dates(holder::platfor
     // Core rejects malformed calendar days and ranges this way.
     throw ProjectMilestonesInvalidQuery(error.what());
   }
+  return list_response(matches);
+}
 
-  MilestoneWithDatesListResponse response{true, {}};
-  response.data.reserve(matches.size());
-  for (const auto& milestone : matches) response.data.push_back(milestone_with_dates(milestone));
-  return response;
+MilestoneWithDatesListResponse get_card_milestones_with_dates(holder::platform::Db& db,
+                                                              std::string card_id) {
+  const auto card = holder::card::CardRepo(db).get(card_id);
+  if (!card || card->deleted_at) throw CardMilestonesNotFound{};
+  return list_response(holder::card::MilestoneRepo(db).list_for_card(card->project_id, card_id));
 }
 
 } // namespace holder::api
