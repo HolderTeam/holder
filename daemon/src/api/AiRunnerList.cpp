@@ -39,17 +39,16 @@ AiRunnerRuntime runtime(const std::string& runner_id, holder::llm::RunnerClient*
         model.modified_at,
     });
   }
-  // This listing has always sent a pull's error as a string, empty when there is none, and no
-  // model_ref; GET /ai/runner/pull/{job_id} sends both differently.
+  // The same shape as GET /ai/runner/pull/{job_id}.
   for (const auto& pull : client->list_pulls()) {
     value.pulls.push_back({
         pull.job_id,
         runner_id,
-        std::nullopt,
+        holder::llm::make_runner_model_ref(runner_id, pull.model),
         pull.model,
         pull.status,
         pull.updated_at,
-        std::optional<std::optional<std::string>>{std::in_place, pull.error},
+        std::optional<std::optional<std::string>>{std::in_place, unless_empty(pull.error)},
         {pull.progress.completed, pull.progress.total, pull.progress.percent, pull.progress.stage},
     });
   }

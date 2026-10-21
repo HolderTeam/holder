@@ -838,13 +838,34 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
         {"size", 42},
         {"modified_at", "now"},
     }}));
-    // The listing keeps its pull shape: error as a string and no model_ref.
+    // The same pull shape as GET /ai/runner/pull/{job_id}.
     const auto& pull = runtime["pulls"][0];
-    REQUIRE(pull["error"] == "");
-    REQUIRE_FALSE(pull.contains("model_ref"));
+    REQUIRE(pull["error"].is_null());
+    REQUIRE(pull["model_ref"] == holder::llm::make_runner_model_ref("auto-local", "qwen3:8b"));
     REQUIRE(pull["model"] == "qwen3:8b");
     REQUIRE(pull["status"] == "pulling");
     REQUIRE(pull["updated_at"] == 456);
+
+    // The single-runner response, still host-written, reports the same runtime.
+    auto one = make_request(http::verb::get, "/ai/runners/auto-local");
+    http::response<http::string_body> one_res;
+    const auto one_out = holder::api::routes::handle_ai_runner_routes(
+        "/ai/runners/auto-local",
+        one,
+        one_res,
+        socket,
+        db,
+        &runner_registry,
+        []() {
+          return std::string("ignored");
+        },
+        [](const std::string&) -> std::string {
+          return {};
+        }
+    );
+    REQUIRE(one_out.handled);
+    REQUIRE(one_res.result() == http::status::ok);
+    REQUIRE(nlohmann::json::parse(one_res.body())["data"]["runtime"] == runtime);
   }
 
   SECTION("GET /ai/runners is empty without a registry") {
