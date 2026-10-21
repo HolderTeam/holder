@@ -101,6 +101,18 @@ template <> struct codec<holder::api::ProjectTagListResponse> {
     static json encode(const holder::api::ProjectTagListResponse& value);
     static holder::api::ProjectTagListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::RebuildRequest> {
+    static json encode(const holder::api::RebuildRequest& value);
+    static holder::api::RebuildRequest decode(const json& value);
+};
+template <> struct codec<holder::api::RebuildData> {
+    static json encode(const holder::api::RebuildData& value);
+    static holder::api::RebuildData decode(const json& value);
+};
+template <> struct codec<holder::api::RebuildResponse> {
+    static json encode(const holder::api::RebuildResponse& value);
+    static holder::api::RebuildResponse decode(const json& value);
+};
 template <> struct codec<holder::api::RunnerPullProgress> {
     static json encode(const holder::api::RunnerPullProgress& value);
     static holder::api::RunnerPullProgress decode(const json& value);
@@ -207,6 +219,65 @@ inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResp
     return holder::api::ProjectTagListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::RebuildRequest>::encode(const holder::api::RebuildRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::api::RebuildRequest codec<holder::api::RebuildRequest>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("project_id")
+) throw std::invalid_argument("expected RebuildRequest");
+    return holder::api::RebuildRequest{
+        codec<std::string>::decode(value.at("project_id")),
+    };
+}
+
+inline json codec<holder::api::RebuildData>::encode(const holder::api::RebuildData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["cards"] = codec<int>::encode(value.cards);
+    result["ai_messages"] = codec<int>::encode(value.ai_messages);
+    result["ai_threads"] = codec<int>::encode(value.ai_threads);
+    result["links"] = codec<int>::encode(value.links);
+    return result;
+}
+inline holder::api::RebuildData codec<holder::api::RebuildData>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("project_id")
+        || !value.contains("cards")
+        || !value.contains("ai_messages")
+        || !value.contains("ai_threads")
+        || !value.contains("links")
+) throw std::invalid_argument("expected RebuildData");
+    return holder::api::RebuildData{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<int>::decode(value.at("cards")),
+        codec<int>::decode(value.at("ai_messages")),
+        codec<int>::decode(value.at("ai_threads")),
+        codec<int>::decode(value.at("links")),
+    };
+}
+
+inline json codec<holder::api::RebuildResponse>::encode(const holder::api::RebuildResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RebuildData>::encode(value.data);
+    return result;
+}
+inline holder::api::RebuildResponse codec<holder::api::RebuildResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected RebuildResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RebuildResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RebuildData>::decode(value.at("data")),
     };
 }
 

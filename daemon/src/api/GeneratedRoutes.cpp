@@ -2,6 +2,7 @@
 
 #include "api/CardLinks.h"
 #include "api/ProjectTags.h"
+#include "api/Rebuild.h"
 #include "api/RunnerPull.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
@@ -61,6 +62,10 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
     res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const routes::CardLinkSourceNotFound& error) {
     res = error_response(http::status::not_found, "not_found", error.what());
+  } catch (const RebuildProjectNotFound& error) {
+    res = error_response(http::status::not_found, "not_found", error.what());
+  } catch (const RebuildFailed& error) {
+    res = error_response(http::status::bad_request, "bad_request", error.what());
   } catch (const std::exception& error) {
     res = error_response(http::status::internal_server_error, "error", error.what());
   }

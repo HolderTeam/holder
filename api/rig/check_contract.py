@@ -24,21 +24,23 @@ def main(control_path: str, generated_path: str) -> None:
             raise SystemExit(f"RIG {key} differs from api/openapi.yaml")
     if generated["components"]["securitySchemes"] != control["components"]["securitySchemes"]:
         raise SystemExit("RIG security schemes differ from api/openapi.yaml")
-    for path, method in (("/bye", "post"), ("/projects/{project_id}/tags", "get"),
+    for path, method in (("/bye", "post"), ("/rebuild", "post"),
+                         ("/projects/{project_id}/tags", "get"),
                          ("/ai/runner/pull/{job_id}", "get"),
                          ("/cards/{card_id}/links", "get")):
         expected_operation = control["paths"][path][method]
         actual_operation = generated["paths"][path][method]
         if normalized_operation(actual_operation) != normalized_operation(expected_operation):
             raise SystemExit(f"RIG {method.upper()} {path} differs from api/openapi.yaml")
-    for name in ("ByeResponse", "ErrorResponse", "Error", "ProjectTag",
+    for name in ("ByeResponse", "RebuildRequest", "RebuildData", "RebuildResponse",
+                 "ErrorResponse", "Error", "ProjectTag",
                  "ProjectTagListResponse", "RunnerPullProgress", "RunnerPullJob",
                  "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse"):
         expected = control["components"]["schemas"][name]
         actual = generated["components"]["schemas"][name]
         if actual != expected:
             raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG service metadata, four operations, and schemas match api/openapi.yaml")
+    print("RIG service metadata, five operations, and schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":

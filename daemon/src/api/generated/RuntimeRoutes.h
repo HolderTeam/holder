@@ -123,8 +123,20 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, match, route_0)) {
         return response{200, rig_json::encode(holder::api::say_goodbye()), "say_goodbye"};
     }
-    static const std::regex route_2("^/ai/runner/pull/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, match, route_2)) {
+    static const std::regex route_2("^/rebuild$");
+    if (method == "POST" && std::regex_match(route_path, match, route_2)) {
+        std::optional<holder::api::RebuildRequest> argument_0;
+        try {
+            argument_0.emplace(decode_body<holder::api::RebuildRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error.what(), "rebuild_project_from_files");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error.what(), "rebuild_project_from_files");
+        }
+        return response{200, rig_json::encode(holder::api::rebuild_project_from_files(context.db, context.fts, std::move(*argument_0))), "rebuild_project_from_files"};
+    }
+    static const std::regex route_3("^/ai/runner/pull/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, match, route_3)) {
         std::optional<std::optional<std::string>> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -154,8 +166,8 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
     }
-    static const std::regex route_3("^/cards/([^/]+)/links$");
-    if (method == "GET" && std::regex_match(route_path, match, route_3)) {
+    static const std::regex route_4("^/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_4)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<int>> argument_1;
         try {

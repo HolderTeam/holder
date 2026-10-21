@@ -37,6 +37,11 @@ to HTTP responses. The old handwritten route and JSON response were removed.
 RIG omits the server-supplied context from OpenAPI while reflecting the path
 parameter, error responses, field descriptions, and integer minimum.
 
+`daemon/src/api/Rebuild.h` declares `POST /rebuild` with a required JSON request
+record. The generated dispatcher decodes the body and encodes the response;
+the typed operation calls core's rebuilder. Holder maps missing projects to 404
+and rebuild failures to 400. The old route wrapper was removed.
+
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
 optional `runner_id` query parameter. The shared dispatcher decodes the query
 and path, calls the typed operation with Holder's runner registry, and encodes
@@ -71,10 +76,11 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, four operations, and their
-ten reachable schemas now match the control. The comparison treats an omitted
+The generated service metadata, bearer security, five operations, and their
+thirteen reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next full-stack slice can cover an operation with a request body.
+The next full-stack slice can cover a richer request body, such as a string
+choice or optional field.
