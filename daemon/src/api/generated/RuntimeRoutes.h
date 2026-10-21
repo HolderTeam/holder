@@ -154,6 +154,26 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
     }
+    static const std::regex route_3("^/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_3)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::optional<int>> argument_1;
+        try {
+            const auto query_values = decode_query(query_string);
+            argument_0.emplace(decode_path_string(match[1].str()));
+            const auto query_1 = query_values.find("include_deleted");
+            if (query_1 == query_values.end())
+                argument_1.emplace(std::nullopt);
+            else
+                argument_1.emplace(decode_query_int(query_1->second));
+            enforce_int_values(*argument_1, {0, 1}, "include_deleted");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error.what(), "list_card_links");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error.what(), "list_card_links");
+        }
+        return response{200, rig_json::encode(holder::api::routes::list_card_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "list_card_links"};
+    }
     return std::nullopt;
 }
 } // namespace rig_http

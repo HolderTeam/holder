@@ -4,6 +4,7 @@
 #include "api/RigAnnotations.h"
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,10 @@ struct RIG_OPEN_RECORD CardLinkListResponse {
   std::vector<CardLink> data;
 };
 
+struct CardLinkSourceNotFound : std::runtime_error {
+  CardLinkSourceNotFound() : std::runtime_error("Card not found.") {}
+};
+
 RIG_ROUTE(GET, "/cards/{card_id}/links")
 RIG_SUMMARY("List outgoing links for a card")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -38,7 +43,6 @@ RIG_ERROR_RESPONSE(401, holder::api::ErrorResponse, "Unauthorized")
 RIG_ERROR_RESPONSE(404, holder::api::ErrorResponse, "Not found")
 CardLinkListResponse list_card_links(holder::platform::Db& db RIG_CONTEXT,
                                      holder::index::FtsIndexer* fts RIG_CONTEXT,
-                                     std::string project_id RIG_CONTEXT,
                                      std::string card_id,
                                      std::optional<int> include_deleted RIG_QUERY
                                          RIG_INT_VALUES(0, 1)

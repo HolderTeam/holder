@@ -129,6 +129,27 @@ TEST_CASE("HTTP card links create/list/delete", "[http]") {
   );
   REQUIRE(visible["data"].size() == 1);
 
+  const auto invalid_query = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/card-a/links?include_deleted=2", nlohmann::json::object(),
+      boost::beast::http::status::bad_request
+  );
+  REQUIRE(invalid_query["error"]["code"] == "bad_request");
+
+  const auto invalid_integer = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/card-a/links?include_deleted=yes", nlohmann::json::object(),
+      boost::beast::http::status::bad_request
+  );
+  REQUIRE(invalid_integer["error"]["code"] == "bad_request");
+
+  const auto missing_source = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/cards/missing/links", nlohmann::json::object(),
+      boost::beast::http::status::not_found
+  );
+  REQUIRE(missing_source["error"]["code"] == "not_found");
+
   nlohmann::json delete_body = {{"to_card_id", "card-b"}, {"kind", "ref"}};
   const auto deleted = http_json_request(
       bound.bind,

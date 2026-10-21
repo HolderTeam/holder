@@ -5,6 +5,7 @@
 #endif
 
 #include "ai/AiThreadRepo.h"
+#include "api/GeneratedRoutes.h"
 #include "api/routes/CardRoutes.h"
 #include "card/CardStore.h"
 #include "card/LinkRepo.h"
@@ -651,6 +652,12 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     return call_with_param_get(method, path, body, empty_param_get);
   };
+  auto call_generated_links = [&](const std::string& target) {
+    auto req = make_request(http::verb::get, target);
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
 
   auto create_card =
       [&](const std::string& card_id, const std::string& project_id, const std::string& title, int t
@@ -699,11 +706,8 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
   );
 
   SECTION("links card not found") {
-    auto [status, payload] = call(
-        http::verb::get,
-        "/cards/ffffffff-ffff-4fff-8fff-ffffffffffff/links",
-        nlohmann::json::object()
-    );
+    auto [status, payload] = call_generated_links(
+        "/cards/ffffffff-ffff-4fff-8fff-ffffffffffff/links");
     REQUIRE(status == http::status::not_found);
     REQUIRE(payload["error"]["code"] == "not_found");
   }
@@ -788,11 +792,8 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(create_status == http::status::created);
     REQUIRE(create_payload["data"]["to_type"] == "resource");
 
-    auto [list_status, list_payload] = call(
-        http::verb::get,
-        "/cards/11111111-1111-4111-8111-111111111111/links",
-        nlohmann::json::object()
-    );
+    auto [list_status, list_payload] = call_generated_links(
+        "/cards/11111111-1111-4111-8111-111111111111/links");
     REQUIRE(list_status == http::status::ok);
     REQUIRE(list_payload["data"].is_array());
     REQUIRE(list_payload["data"].size() >= 1);
@@ -821,25 +822,16 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(trash_payload["ok"] == true);
 
     const std::string path = "/cards/" + source + "/links";
-    auto [filtered_status, filtered_payload] = call_with_param_get(
-        http::verb::get, path, nlohmann::json::object(),
-        map_param_getter({{"include_deleted", "0"}})
-    );
+    auto [filtered_status, filtered_payload] = call_generated_links(path + "?include_deleted=0");
     REQUIRE(filtered_status == http::status::ok);
     REQUIRE(filtered_payload["data"].empty());
 
-    auto [included_status, included_payload] = call_with_param_get(
-        http::verb::get, path, nlohmann::json::object(),
-        map_param_getter({{"include_deleted", "1"}})
-    );
+    auto [included_status, included_payload] = call_generated_links(path + "?include_deleted=1");
     REQUIRE(included_status == http::status::ok);
     REQUIRE(included_payload["data"].size() == 1);
     REQUIRE(included_payload["data"][0]["to_card_id"] == target);
 
-    auto [invalid_status, invalid_payload] = call_with_param_get(
-        http::verb::get, path, nlohmann::json::object(),
-        map_param_getter({{"include_deleted", "2"}})
-    );
+    auto [invalid_status, invalid_payload] = call_generated_links(path + "?include_deleted=2");
     REQUIRE(invalid_status == http::status::bad_request);
     REQUIRE(invalid_payload["error"]["code"] == "bad_request");
   }

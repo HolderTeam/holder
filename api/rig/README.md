@@ -46,8 +46,11 @@ omittable nullable field.
 
 `daemon/src/api/CardLinks.h` declares `GET /cards/{card_id}/links` with an
 optional integer query parameter constrained to `0` or `1`. The live handler
-calls the typed operation and rejects other supplied values. The reflected
-link response covers optional properties and an optional nullable label.
+is now the shared dispatcher: it decodes and validates the query, calls the
+typed operation, and encodes the response. The operation resolves the source
+card's project from the database before listing links. POST and DELETE still
+use the existing card route. The reflected link response covers optional
+properties and an optional nullable label.
 
 With an installed RIG command and PyYAML, run the comparison from the repo
 root:
@@ -74,5 +77,4 @@ ten reachable schemas now match the control. The comparison treats an omitted
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next full-stack slice can cover an operation with a request body or a
-constrained query parameter.
+The next full-stack slice can cover an operation with a request body.

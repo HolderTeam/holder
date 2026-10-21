@@ -1,5 +1,6 @@
 #include "api/GeneratedRoutes.h"
 
+#include "api/CardLinks.h"
 #include "api/ProjectTags.h"
 #include "api/RunnerPull.h"
 #include "api/generated/RuntimeRoutes.h"
@@ -19,6 +20,7 @@ namespace http = boost::beast::http;
 struct Context {
   holder::platform::Db& db;
   holder::llm::RunnerRegistry* registry;
+  holder::index::FtsIndexer* fts;
 };
 
 Router::Response error_response(http::status status, std::string code, std::string message) {
@@ -30,9 +32,10 @@ Router::Response error_response(http::status status, std::string code, std::stri
 
 bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
                                holder::platform::Db& db,
-                               holder::llm::RunnerRegistry* registry) {
+                               holder::llm::RunnerRegistry* registry,
+                               holder::index::FtsIndexer* fts) {
   const auto target = req.target();
-  Context context{db, registry};
+  Context context{db, registry, fts};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
@@ -55,6 +58,8 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
   } catch (const RunnerNotConfigured& error) {
     res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const PullJobNotFound& error) {
+    res = error_response(http::status::not_found, "not_found", error.what());
+  } catch (const routes::CardLinkSourceNotFound& error) {
     res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const std::exception& error) {
     res = error_response(http::status::internal_server_error, "error", error.what());

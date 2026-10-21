@@ -113,6 +113,14 @@ template <> struct codec<holder::api::RunnerPullStatusResponse> {
     static json encode(const holder::api::RunnerPullStatusResponse& value);
     static holder::api::RunnerPullStatusResponse decode(const json& value);
 };
+template <> struct codec<holder::api::routes::CardLink> {
+    static json encode(const holder::api::routes::CardLink& value);
+    static holder::api::routes::CardLink decode(const json& value);
+};
+template <> struct codec<holder::api::routes::CardLinkListResponse> {
+    static json encode(const holder::api::routes::CardLinkListResponse& value);
+    static holder::api::routes::CardLinkListResponse decode(const json& value);
+};
 
 inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
     json result = json::object();
@@ -279,6 +287,63 @@ inline holder::api::RunnerPullStatusResponse codec<holder::api::RunnerPullStatus
     return holder::api::RunnerPullStatusResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::RunnerPullJob>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::routes::CardLink>::encode(const holder::api::routes::CardLink& value) {
+    json result = json::object();
+    result["from_card_id"] = codec<std::string>::encode(value.from_card_id);
+    result["to_card_id"] = codec<std::string>::encode(value.to_card_id);
+    if (value.target_project_id) {
+        result["target_project_id"] = codec<std::optional<std::string>>::encode(value.target_project_id);
+    }
+    if (value.source_project_id) {
+        result["source_project_id"] = codec<std::optional<std::string>>::encode(value.source_project_id);
+    }
+    result["to_type"] = codec<std::string>::encode(value.to_type);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    if (value.label) {
+        result["label"] = codec<std::optional<std::optional<std::string>>>::encode(value.label);
+    }
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    return result;
+}
+inline holder::api::routes::CardLink codec<holder::api::routes::CardLink>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("from_card_id")
+        || !value.contains("to_card_id")
+        || !value.contains("to_type")
+        || !value.contains("kind")
+        || !value.contains("created_at")
+) throw std::invalid_argument("expected CardLink");
+    return holder::api::routes::CardLink{
+        codec<std::string>::decode(value.at("from_card_id")),
+        codec<std::string>::decode(value.at("to_card_id")),
+        value.contains("target_project_id") ? codec<std::optional<std::string>>::decode(value.at("target_project_id")) : std::nullopt,
+        value.contains("source_project_id") ? codec<std::optional<std::string>>::decode(value.at("source_project_id")) : std::nullopt,
+        codec<std::string>::decode(value.at("to_type")),
+        codec<std::string>::decode(value.at("kind")),
+        value.contains("label") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("label"))} : std::nullopt,
+        codec<long long>::decode(value.at("created_at")),
+    };
+}
+
+inline json codec<holder::api::routes::CardLinkListResponse>::encode(const holder::api::routes::CardLinkListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::routes::CardLink>>::encode(value.data);
+    return result;
+}
+inline holder::api::routes::CardLinkListResponse codec<holder::api::routes::CardLinkListResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected CardLinkListResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::routes::CardLinkListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::routes::CardLink>>::decode(value.at("data")),
     };
 }
 
