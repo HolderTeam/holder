@@ -66,27 +66,7 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
         std::string(req.method_string()), std::string(target.data(), target.size()),
         req.body(), context);
     if (!generated) return false;
-    // RIG's own request-decoding failures use its invalid_request body; keep
-    // Holder's existing messages for them. Mapped exceptions arrive as ErrorResponse.
-    if (generated->status == 400 && generated->body.value("code", "") == "invalid_request") {
-      if (generated->operation == "list_project_tags") {
-        res = error_response(http::status::not_found, "not_found", "Project not found.");
-      } else if (generated->operation == "get_pull_status") {
-        res = error_response(http::status::not_found, "not_found", "Runner not configured.");
-      } else if (generated->operation == "delete_provider_setting") {
-        res = error_response(http::status::bad_request, "bad_request", "Invalid provider.");
-      } else if (generated->operation == "upsert_provider_credential" &&
-                 generated->body.value("message", "") ==
-                     "expected AiProviderCredentialUpsertRequest") {
-        res = error_response(http::status::bad_request, "bad_request",
-                             "Missing provider or api_key.");
-      } else {
-        res = error_response(http::status::bad_request, "bad_request",
-                             generated->body.value("message", "Invalid request."));
-      }
-    } else {
-      res = support::json_response(static_cast<http::status>(generated->status), generated->body);
-    }
+    res = support::json_response(static_cast<http::status>(generated->status), generated->body);
   } catch (const std::exception& error) {
     res = error_response(http::status::internal_server_error, "error", error.what());
   }

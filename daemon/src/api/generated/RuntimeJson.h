@@ -205,10 +205,9 @@ inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
     return result;
 }
 inline holder::api::Error codec<holder::api::Error>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("code")
-        || !value.contains("message")
-) throw std::invalid_argument("expected Error");
+    if (!value.is_object()) throw std::invalid_argument("expected Error");
+    if (!value.contains("code")) throw std::invalid_argument("missing code");
+    if (!value.contains("message")) throw std::invalid_argument("missing message");
     return holder::api::Error{
         codec<std::string>::decode(value.at("code")),
         codec<std::string>::decode(value.at("message")),
@@ -223,10 +222,9 @@ inline json codec<holder::api::ErrorResponse>::encode(const holder::api::ErrorRe
     return result;
 }
 inline holder::api::ErrorResponse codec<holder::api::ErrorResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("error")
-) throw std::invalid_argument("expected ErrorResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected ErrorResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("error")) throw std::invalid_argument("missing error");
     if (value.at("ok") != false) throw std::invalid_argument("invalid ok");
     return holder::api::ErrorResponse{
         codec<bool>::decode(value.at("ok")),
@@ -241,9 +239,8 @@ inline json codec<holder::api::ByeResponse>::encode(const holder::api::ByeRespon
     return result;
 }
 inline holder::api::ByeResponse codec<holder::api::ByeResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-) throw std::invalid_argument("expected ByeResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected ByeResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::ByeResponse{
         codec<bool>::decode(value.at("ok")),
@@ -259,11 +256,10 @@ inline json codec<holder::api::CardReferenceResolveRequest>::encode(const holder
     return result;
 }
 inline holder::api::CardReferenceResolveRequest codec<holder::api::CardReferenceResolveRequest>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("project_id")
-        || !value.contains("reference")
-        || !value.contains("scope")
-) throw std::invalid_argument("expected CardReferenceResolveRequest");
+    if (!value.is_object()) throw std::invalid_argument("expected CardReferenceResolveRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("reference")) throw std::invalid_argument("missing reference");
+    if (!value.contains("scope")) throw std::invalid_argument("missing scope");
     if (value.at("scope") != "live" && value.at("scope") != "trashed" && value.at("scope") != "either") throw std::invalid_argument("invalid scope");
     return holder::api::CardReferenceResolveRequest{
         codec<std::string>::decode(value.at("project_id")),
@@ -280,11 +276,10 @@ inline json codec<holder::api::CardReferenceCandidate>::encode(const holder::api
     return result;
 }
 inline holder::api::CardReferenceCandidate codec<holder::api::CardReferenceCandidate>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("card_id")
-        || !value.contains("title")
-        || !value.contains("deleted_at")
-) throw std::invalid_argument("expected CardReferenceCandidate");
+    if (!value.is_object()) throw std::invalid_argument("expected CardReferenceCandidate");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("deleted_at")) throw std::invalid_argument("missing deleted_at");
     return holder::api::CardReferenceCandidate{
         codec<std::string>::decode(value.at("card_id")),
         codec<std::string>::decode(value.at("title")),
@@ -309,9 +304,8 @@ inline json codec<holder::api::CardReferenceResolveData>::encode(const holder::a
     return result;
 }
 inline holder::api::CardReferenceResolveData codec<holder::api::CardReferenceResolveData>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("status")
-) throw std::invalid_argument("expected CardReferenceResolveData");
+    if (!value.is_object()) throw std::invalid_argument("expected CardReferenceResolveData");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
     if (value.at("status") != "resolved" && value.at("status") != "ambiguous" && value.at("status") != "not_found") throw std::invalid_argument("invalid status");
     if (value.contains("match_kind") && !value.at("match_kind").is_null() && value.at("match_kind") != "full_id" && value.at("match_kind") != "id_prefix" && value.at("match_kind") != "exact_title") throw std::invalid_argument("invalid match_kind");
     return holder::api::CardReferenceResolveData{
@@ -330,10 +324,9 @@ inline json codec<holder::api::CardReferenceResolveResponse>::encode(const holde
     return result;
 }
 inline holder::api::CardReferenceResolveResponse codec<holder::api::CardReferenceResolveResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected CardReferenceResolveResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected CardReferenceResolveResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::CardReferenceResolveResponse{
         codec<bool>::decode(value.at("ok")),
@@ -348,10 +341,9 @@ inline json codec<holder::api::ProjectTag>::encode(const holder::api::ProjectTag
     return result;
 }
 inline holder::api::ProjectTag codec<holder::api::ProjectTag>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("tag")
-        || !value.contains("card_count")
-) throw std::invalid_argument("expected ProjectTag");
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectTag");
+    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
+    if (!value.contains("card_count")) throw std::invalid_argument("missing card_count");
     return holder::api::ProjectTag{
         codec<std::string>::decode(value.at("tag")),
         codec<int>::decode(value.at("card_count")),
@@ -366,10 +358,9 @@ inline json codec<holder::api::ProjectTagListResponse>::encode(const holder::api
     return result;
 }
 inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected ProjectTagListResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectTagListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::ProjectTagListResponse{
         codec<bool>::decode(value.at("ok")),
@@ -387,13 +378,12 @@ inline json codec<holder::api::AiProviderCredential>::encode(const holder::api::
     return result;
 }
 inline holder::api::AiProviderCredential codec<holder::api::AiProviderCredential>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("provider")
-        || !value.contains("configured")
-        || !value.contains("api_key_preview")
-        || !value.contains("created_at")
-        || !value.contains("updated_at")
-) throw std::invalid_argument("expected AiProviderCredential");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCredential");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("configured")) throw std::invalid_argument("missing configured");
+    if (!value.contains("api_key_preview")) throw std::invalid_argument("missing api_key_preview");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
     return holder::api::AiProviderCredential{
         codec<std::string>::decode(value.at("provider")),
         codec<bool>::decode(value.at("configured")),
@@ -409,9 +399,8 @@ inline json codec<holder::api::AiProviderCredentialsListData>::encode(const hold
     return result;
 }
 inline holder::api::AiProviderCredentialsListData codec<holder::api::AiProviderCredentialsListData>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("providers")
-) throw std::invalid_argument("expected AiProviderCredentialsListData");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCredentialsListData");
+    if (!value.contains("providers")) throw std::invalid_argument("missing providers");
     return holder::api::AiProviderCredentialsListData{
         codec<std::vector<holder::api::AiProviderCredential>>::decode(value.at("providers")),
     };
@@ -425,10 +414,9 @@ inline json codec<holder::api::AiProviderCredentialsListResponse>::encode(const 
     return result;
 }
 inline holder::api::AiProviderCredentialsListResponse codec<holder::api::AiProviderCredentialsListResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected AiProviderCredentialsListResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCredentialsListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::AiProviderCredentialsListResponse{
         codec<bool>::decode(value.at("ok")),
@@ -446,10 +434,9 @@ inline json codec<holder::api::AiProviderCredentialUpsertRequest>::encode(const 
     return result;
 }
 inline holder::api::AiProviderCredentialUpsertRequest codec<holder::api::AiProviderCredentialUpsertRequest>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("provider")
-        || !value.contains("api_key")
-) throw std::invalid_argument("expected AiProviderCredentialUpsertRequest");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCredentialUpsertRequest");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("api_key")) throw std::invalid_argument("missing api_key");
     return holder::api::AiProviderCredentialUpsertRequest{
         codec<std::string>::decode(value.at("provider")),
         codec<std::string>::decode(value.at("api_key")),
@@ -465,10 +452,9 @@ inline json codec<holder::api::AiProviderCredentialUpsertResponse>::encode(const
     return result;
 }
 inline holder::api::AiProviderCredentialUpsertResponse codec<holder::api::AiProviderCredentialUpsertResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected AiProviderCredentialUpsertResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCredentialUpsertResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::AiProviderCredentialUpsertResponse{
         codec<bool>::decode(value.at("ok")),
@@ -484,11 +470,10 @@ inline json codec<holder::api::AiProviderSetting>::encode(const holder::api::AiP
     return result;
 }
 inline holder::api::AiProviderSetting codec<holder::api::AiProviderSetting>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("provider")
-        || !value.contains("enabled")
-        || !value.contains("updated_at")
-) throw std::invalid_argument("expected AiProviderSetting");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSetting");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("enabled")) throw std::invalid_argument("missing enabled");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
     return holder::api::AiProviderSetting{
         codec<std::string>::decode(value.at("provider")),
         codec<bool>::decode(value.at("enabled")),
@@ -506,10 +491,9 @@ inline json codec<holder::api::AiProviderSettingUpdateRequest>::encode(const hol
     return result;
 }
 inline holder::api::AiProviderSettingUpdateRequest codec<holder::api::AiProviderSettingUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("provider")
-        || !value.contains("enabled")
-) throw std::invalid_argument("expected AiProviderSettingUpdateRequest");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingUpdateRequest");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("enabled")) throw std::invalid_argument("missing enabled");
     return holder::api::AiProviderSettingUpdateRequest{
         codec<std::string>::decode(value.at("provider")),
         codec<bool>::decode(value.at("enabled")),
@@ -525,10 +509,9 @@ inline json codec<holder::api::AiProviderSettingResponse>::encode(const holder::
     return result;
 }
 inline holder::api::AiProviderSettingResponse codec<holder::api::AiProviderSettingResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected AiProviderSettingResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::AiProviderSettingResponse{
         codec<bool>::decode(value.at("ok")),
@@ -542,9 +525,8 @@ inline json codec<holder::api::AiProviderSettingsData>::encode(const holder::api
     return result;
 }
 inline holder::api::AiProviderSettingsData codec<holder::api::AiProviderSettingsData>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("providers")
-) throw std::invalid_argument("expected AiProviderSettingsData");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingsData");
+    if (!value.contains("providers")) throw std::invalid_argument("missing providers");
     return holder::api::AiProviderSettingsData{
         codec<std::vector<holder::api::AiProviderSetting>>::decode(value.at("providers")),
     };
@@ -558,10 +540,9 @@ inline json codec<holder::api::AiProviderSettingsResponse>::encode(const holder:
     return result;
 }
 inline holder::api::AiProviderSettingsResponse codec<holder::api::AiProviderSettingsResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected AiProviderSettingsResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingsResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::AiProviderSettingsResponse{
         codec<bool>::decode(value.at("ok")),
@@ -575,9 +556,8 @@ inline json codec<holder::api::AiProviderSettingDeleteData>::encode(const holder
     return result;
 }
 inline holder::api::AiProviderSettingDeleteData codec<holder::api::AiProviderSettingDeleteData>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("provider")
-) throw std::invalid_argument("expected AiProviderSettingDeleteData");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingDeleteData");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
     return holder::api::AiProviderSettingDeleteData{
         codec<std::string>::decode(value.at("provider")),
     };
@@ -591,10 +571,9 @@ inline json codec<holder::api::AiProviderSettingDeleteResponse>::encode(const ho
     return result;
 }
 inline holder::api::AiProviderSettingDeleteResponse codec<holder::api::AiProviderSettingDeleteResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected AiProviderSettingDeleteResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderSettingDeleteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::AiProviderSettingDeleteResponse{
         codec<bool>::decode(value.at("ok")),
@@ -608,9 +587,8 @@ inline json codec<holder::api::RebuildRequest>::encode(const holder::api::Rebuil
     return result;
 }
 inline holder::api::RebuildRequest codec<holder::api::RebuildRequest>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("project_id")
-) throw std::invalid_argument("expected RebuildRequest");
+    if (!value.is_object()) throw std::invalid_argument("expected RebuildRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
     return holder::api::RebuildRequest{
         codec<std::string>::decode(value.at("project_id")),
     };
@@ -626,13 +604,12 @@ inline json codec<holder::api::RebuildData>::encode(const holder::api::RebuildDa
     return result;
 }
 inline holder::api::RebuildData codec<holder::api::RebuildData>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("project_id")
-        || !value.contains("cards")
-        || !value.contains("ai_messages")
-        || !value.contains("ai_threads")
-        || !value.contains("links")
-) throw std::invalid_argument("expected RebuildData");
+    if (!value.is_object()) throw std::invalid_argument("expected RebuildData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("cards")) throw std::invalid_argument("missing cards");
+    if (!value.contains("ai_messages")) throw std::invalid_argument("missing ai_messages");
+    if (!value.contains("ai_threads")) throw std::invalid_argument("missing ai_threads");
+    if (!value.contains("links")) throw std::invalid_argument("missing links");
     return holder::api::RebuildData{
         codec<std::string>::decode(value.at("project_id")),
         codec<int>::decode(value.at("cards")),
@@ -650,10 +627,9 @@ inline json codec<holder::api::RebuildResponse>::encode(const holder::api::Rebui
     return result;
 }
 inline holder::api::RebuildResponse codec<holder::api::RebuildResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected RebuildResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected RebuildResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::RebuildResponse{
         codec<bool>::decode(value.at("ok")),
@@ -670,12 +646,11 @@ inline json codec<holder::api::RunnerPullProgress>::encode(const holder::api::Ru
     return result;
 }
 inline holder::api::RunnerPullProgress codec<holder::api::RunnerPullProgress>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("completed")
-        || !value.contains("total")
-        || !value.contains("percent")
-        || !value.contains("stage")
-) throw std::invalid_argument("expected RunnerPullProgress");
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullProgress");
+    if (!value.contains("completed")) throw std::invalid_argument("missing completed");
+    if (!value.contains("total")) throw std::invalid_argument("missing total");
+    if (!value.contains("percent")) throw std::invalid_argument("missing percent");
+    if (!value.contains("stage")) throw std::invalid_argument("missing stage");
     return holder::api::RunnerPullProgress{
         codec<long long>::decode(value.at("completed")),
         codec<long long>::decode(value.at("total")),
@@ -703,13 +678,12 @@ inline json codec<holder::api::RunnerPullJob>::encode(const holder::api::RunnerP
     return result;
 }
 inline holder::api::RunnerPullJob codec<holder::api::RunnerPullJob>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("job_id")
-        || !value.contains("model")
-        || !value.contains("status")
-        || !value.contains("updated_at")
-        || !value.contains("progress")
-) throw std::invalid_argument("expected RunnerPullJob");
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullJob");
+    if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
+    if (!value.contains("model")) throw std::invalid_argument("missing model");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    if (!value.contains("progress")) throw std::invalid_argument("missing progress");
     return holder::api::RunnerPullJob{
         codec<std::string>::decode(value.at("job_id")),
         value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
@@ -730,10 +704,9 @@ inline json codec<holder::api::RunnerPullStatusResponse>::encode(const holder::a
     return result;
 }
 inline holder::api::RunnerPullStatusResponse codec<holder::api::RunnerPullStatusResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected RunnerPullStatusResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullStatusResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::RunnerPullStatusResponse{
         codec<bool>::decode(value.at("ok")),
@@ -760,13 +733,12 @@ inline json codec<holder::api::routes::CardLink>::encode(const holder::api::rout
     return result;
 }
 inline holder::api::routes::CardLink codec<holder::api::routes::CardLink>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("from_card_id")
-        || !value.contains("to_card_id")
-        || !value.contains("to_type")
-        || !value.contains("kind")
-        || !value.contains("created_at")
-) throw std::invalid_argument("expected CardLink");
+    if (!value.is_object()) throw std::invalid_argument("expected CardLink");
+    if (!value.contains("from_card_id")) throw std::invalid_argument("missing from_card_id");
+    if (!value.contains("to_card_id")) throw std::invalid_argument("missing to_card_id");
+    if (!value.contains("to_type")) throw std::invalid_argument("missing to_type");
+    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
     return holder::api::routes::CardLink{
         codec<std::string>::decode(value.at("from_card_id")),
         codec<std::string>::decode(value.at("to_card_id")),
@@ -787,10 +759,9 @@ inline json codec<holder::api::routes::CardLinkListResponse>::encode(const holde
     return result;
 }
 inline holder::api::routes::CardLinkListResponse codec<holder::api::routes::CardLinkListResponse>::decode(const json& value) {
-    if (!value.is_object()
-        || !value.contains("ok")
-        || !value.contains("data")
-) throw std::invalid_argument("expected CardLinkListResponse");
+    if (!value.is_object()) throw std::invalid_argument("expected CardLinkListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::routes::CardLinkListResponse{
         codec<bool>::decode(value.at("ok")),

@@ -281,7 +281,7 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["message"] == "Invalid provider.");
+    REQUIRE(payload["error"]["message"] == "invalid percent escape in URL parameter");
   }
 
   SECTION("settings delete success") {
@@ -309,7 +309,8 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
                                                    secret_store.get()));
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["message"] == "Missing provider or api_key.");
+    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["message"] == "missing provider");
   }
 
   SECTION("credentials put invalid provider") {

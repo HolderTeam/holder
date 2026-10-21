@@ -2,6 +2,7 @@
 #pragma once
 #include "api/generated/RuntimeJson.h"
 #include <charconv>
+#include <exception>
 #include <initializer_list>
 #include <map>
 #include <optional>
@@ -17,8 +18,15 @@
 namespace rig_http {
 using json = nlohmann::json;
 struct response { int status; json body; std::string_view operation; };
-inline response invalid_request(const std::string& message, std::string_view operation) {
-    return {400, json{{"code", "invalid_request"}, {"message", message}}, operation};
+// The application supplies rig_error_body, found by argument-dependent
+// lookup, to build each declared error body from an exception.
+template <typename Body, typename Error>
+json encode_error(int status, const Error& error) {
+    const Body body = rig_error_body(std::type_identity<Body>{}, status, error);
+    return rig_json::encode(body);
+}
+inline response invalid_request(const std::exception& error, std::string_view operation) {
+    return {400, encode_error<holder::api::ErrorResponse>(400, error), operation};
 }
 inline void enforce_range(int value, int minimum, int maximum, const char* name) {
     if (value < minimum || value > maximum)
@@ -109,13 +117,6 @@ template <typename T> T decode_body(const std::string& body) {
         throw std::invalid_argument(error.what());
     }
 }
-// The application supplies rig_error_body, found by argument-dependent
-// lookup, to build each declared error body from a mapped exception.
-template <typename Body, typename Error>
-json encode_error(int status, const Error& error) {
-    const Body body = rig_error_body(std::type_identity<Body>{}, status, error);
-    return rig_json::encode(body);
-}
 template <typename Context>
 inline std::optional<response> dispatch(const std::string& method,
                                     const std::string& path,
@@ -136,9 +137,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_body<holder::api::RebuildRequest>(body));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "rebuild_project_from_files");
+            return invalid_request(error, "rebuild_project_from_files");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "rebuild_project_from_files");
+            return invalid_request(error, "rebuild_project_from_files");
         }
         try {
             return response{200, rig_json::encode(holder::api::rebuild_project_from_files(context.db, context.fts, std::move(*argument_0))), "rebuild_project_from_files"};
@@ -154,9 +155,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_body<holder::api::CardReferenceResolveRequest>(body));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "resolve_card_reference");
+            return invalid_request(error, "resolve_card_reference");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "resolve_card_reference");
+            return invalid_request(error, "resolve_card_reference");
         }
         try {
             return response{200, rig_json::encode(holder::api::resolve_card_reference(context.db, std::move(*argument_0))), "resolve_card_reference"};
@@ -178,9 +179,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_body<holder::api::AiProviderCredentialUpsertRequest>(body));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "upsert_provider_credential");
+            return invalid_request(error, "upsert_provider_credential");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "upsert_provider_credential");
+            return invalid_request(error, "upsert_provider_credential");
         }
         try {
             return response{200, rig_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
@@ -200,9 +201,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_body<holder::api::AiProviderSettingUpdateRequest>(body));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "set_provider_setting");
+            return invalid_request(error, "set_provider_setting");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "set_provider_setting");
+            return invalid_request(error, "set_provider_setting");
         }
         try {
             return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
@@ -216,9 +217,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "delete_provider_setting");
+            return invalid_request(error, "delete_provider_setting");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "delete_provider_setting");
+            return invalid_request(error, "delete_provider_setting");
         }
         try {
             return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
@@ -239,9 +240,9 @@ inline std::optional<response> dispatch(const std::string& method,
                 argument_0.emplace(std::string(query_0->second));
             argument_1.emplace(decode_path_string(match[1].str()));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "get_pull_status");
+            return invalid_request(error, "get_pull_status");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "get_pull_status");
+            return invalid_request(error, "get_pull_status");
         }
         try {
             return response{200, rig_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
@@ -257,9 +258,9 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "list_project_tags");
+            return invalid_request(error, "list_project_tags");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "list_project_tags");
+            return invalid_request(error, "list_project_tags");
         }
         try {
             return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
@@ -283,9 +284,9 @@ inline std::optional<response> dispatch(const std::string& method,
                 argument_1.emplace(decode_query_int(query_1->second));
             enforce_int_values(*argument_1, {0, 1}, "include_deleted");
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what(), "list_card_links");
+            return invalid_request(error, "list_card_links");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what(), "list_card_links");
+            return invalid_request(error, "list_card_links");
         }
         try {
             return response{200, rig_json::encode(holder::api::routes::list_card_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "list_card_links"};

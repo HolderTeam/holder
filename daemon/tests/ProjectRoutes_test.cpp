@@ -590,8 +590,8 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
 
   req = make_request(http::verb::get, "/projects/bad%XX/tags");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
-  REQUIRE(res.result() == http::status::not_found);
-  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+  REQUIRE(res.result() == http::status::bad_request);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
 
   req = make_request(http::verb::get, "/projects");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));

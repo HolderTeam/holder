@@ -214,8 +214,8 @@ TEST_CASE("Generated ai runner pull GET returns job payload", "[http]") {
 
   REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
                                     "?runner_id=%XX", db, &runner_registry, res));
-  REQUIRE(res.result() == http::status::not_found);
-  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+  REQUIRE(res.result() == http::status::bad_request);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
 }
 
 TEST_CASE("HTTP runner pull status uses the generated route", "[http]") {

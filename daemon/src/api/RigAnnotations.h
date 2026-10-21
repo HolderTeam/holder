@@ -25,4 +25,5 @@
 #define RIG_API(title, version)
 #define RIG_SERVER(url)
 #define RIG_BEARER_AUTH(name, format)
+#define RIG_VALIDATION_ERROR(body, description)
 #endif

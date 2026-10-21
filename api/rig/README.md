@@ -33,8 +33,10 @@ no-match result falls through to the registered and legacy routes.
 Each `RIG_ERROR_RESPONSE` names the exception types that produce it, and the
 generated dispatcher catches them and returns that status. `rig_error_body` in
 `GeneratedRoutes.cpp` builds the `ErrorResponse`; `PrivacyError` keeps its own
-code. `GeneratedRoutes.cpp` still turns any unmapped exception into a 500 and
-rewrites RIG's own `invalid_request` 400s into Holder's existing messages.
+code. `ApiService.h` declares `ErrorResponse` as the validation error body, so
+RIG's own request-decoding 400s use the same envelope and `rig_error_body`, and
+every operation with HTTP input documents them. `GeneratedRoutes.cpp` only
+turns an unmapped exception into a 500.
 
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
 The shared dispatcher handles this route and its JSON response. Holder supplies

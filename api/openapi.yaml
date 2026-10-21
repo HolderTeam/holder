@@ -3785,6 +3785,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectTagListResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:
@@ -5408,6 +5414,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CardLinkListResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:
@@ -6177,6 +6189,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunnerPullStatusResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:
