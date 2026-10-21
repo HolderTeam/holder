@@ -237,10 +237,9 @@ def test_authenticated_health_response():
                     "api_version": "0.1.0",
                     "server_version": "test",
                     "pid": 42,
-                    "crypt_filter": {
-                        "path": "/example/filter",
-                        "exists": True,
-                        "executable": True,
+                    "privacy": {
+                        "backend": "libsodium_xchacha20poly1305_ietf",
+                        "project_mode_supported": True,
                     },
                 },
             },
@@ -255,6 +254,8 @@ def test_authenticated_health_response():
     assert response.status_code == 200
     assert isinstance(response.parsed, HealthResponse)
     assert response.parsed.data.pid == 42
+    assert response.parsed.data.privacy.backend == "libsodium_xchacha20poly1305_ietf"
+    assert response.parsed.data.privacy.project_mode_supported is True
 
 
 def test_card_query_and_error_envelope():

@@ -152,6 +152,7 @@ add_executable(holder_daemon_tests
   ../src/llm/RunnerRegistry.cpp
   ../src/api/HttpServer.cpp
   ../src/api/GeneratedRoutes.cpp
+  ../src/api/Health.cpp
   ../src/api/AiThreadList.cpp
   ../src/api/Calendar.cpp
   ../src/api/ProjectRead.cpp
@@ -199,7 +200,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/SearchRoutes.cpp
   ../src/api/routes/TrashRoutes.cpp
   ../src/api/routes/StaticRoutes.cpp
-  ../src/api/support/Health.cpp
   ../src/api/support/PathDiscovery.cpp
   ../src/platform/InstalledDataPath.cpp
   ../src/api/support/CloudConfig.cpp

@@ -2,6 +2,7 @@
 
 #include "api/Router.h"
 
+#include <chrono>
 #include <functional>
 
 namespace holder::platform { class Db; }
@@ -22,6 +23,7 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
                                holder::index::FtsIndexer* fts = nullptr,
                                holder::privacy::SecretStore* secret_store = nullptr,
                                holder::git::GitOps* git_ops = nullptr,
-                               std::function<std::string()> uuid_v4 = {});
+                               std::function<std::string()> uuid_v4 = {},
+                               std::chrono::steady_clock::time_point started_at = {});
 
 } // namespace holder::api

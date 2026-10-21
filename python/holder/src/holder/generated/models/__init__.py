@@ -194,7 +194,7 @@ from .get_projects_project_id_milestones_with_dates_value_type import (
     GetProjectsProjectIdMilestonesWithDatesValueType,
 )
 from .health_data import HealthData
-from .health_data_crypt_filter import HealthDataCryptFilter
+from .health_data_privacy import HealthDataPrivacy
 from .health_response import HealthResponse
 from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
@@ -523,7 +523,7 @@ __all__ = (
     "GetProjectsProjectIdHistoryKind",
     "GetProjectsProjectIdMilestonesWithDatesValueType",
     "HealthData",
-    "HealthDataCryptFilter",
+    "HealthDataPrivacy",
     "HealthResponse",
     "HierarchyRepair",
     "HierarchyRepairMove",

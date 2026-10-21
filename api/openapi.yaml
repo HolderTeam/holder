@@ -2384,6 +2384,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /imports:
     post:
       summary: Start a local-file asset import
@@ -5527,18 +5532,18 @@ components:
       type: object
       properties:
         db_ok: {type: boolean}
-        uptime_ms: {type: integer, format: int64}
+        uptime_ms: {type: integer, format: int64, description: Milliseconds since the HTTP server started.}
         api_version: {type: string}
         server_version: {type: string}
         pid: {type: integer}
-        crypt_filter:
+        privacy:
           type: object
           properties:
-            path: {type: string}
-            exists: {type: boolean}
-            executable: {type: boolean}
-          required: [path, exists, executable]
-      required: [db_ok, uptime_ms, api_version, server_version, pid, crypt_filter]
+            backend: {type: string, description: Encryption used for encrypted projects.}
+            project_mode_supported: {type: boolean, description: Whether this daemon supports per-project
+                encryption.}
+          required: [backend, project_mode_supported]
+      required: [db_ok, uptime_ms, api_version, server_version, pid, privacy]
     HealthResponse:
       type: object
       properties:

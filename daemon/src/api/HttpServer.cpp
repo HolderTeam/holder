@@ -2,7 +2,6 @@
 
 #include "api/Bye.h"
 #include "api/Listener.h"
-#include "api/support/Health.h"
 #include "core/ActivityTracker.h"
 #include "platform/Paths.h"
 
@@ -51,18 +50,6 @@ HttpServer::HttpServer(
       fts_(fts),
       git_ops_(git_ops),
       concurrency_(concurrency) {
-  router_.add(http::verb::get, "/health", [this](const Router::Request&, Router::Response& res) {
-    nlohmann::json payload;
-    payload["ok"] = true;
-    payload["data"] = support::build_health_data(db_, started_at_);
-
-    http::response<http::string_body> response{http::status::ok, 11};
-    response.set(http::field::content_type, "application/json");
-    response.keep_alive(false);
-    response.body() = payload.dump();
-    response.prepare_payload();
-    res = std::move(response);
-  });
 }
 
 HttpServer::~HttpServer() = default;

@@ -1225,26 +1225,6 @@ struct RIG_OPEN_RECORD SearchMessagesResponse {
   std::vector<SearchMessageItem> data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD HealthDataCryptFilter {
-  std::string path;
-  bool exists;
-  bool executable;
-};
-
-struct RIG_OPEN_RECORD HealthData {
-  bool db_ok;
-  long long uptime_ms;
-  std::string api_version;
-  std::string server_version;
-  int pid;
-  HealthDataCryptFilter crypt_filter;
-};
-
-struct RIG_OPEN_RECORD HealthResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  HealthData data;
-};
-
 struct RIG_OPEN_RECORD ReindexData {
   std::string message;
 };

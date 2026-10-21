@@ -4539,6 +4539,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11398,7 +11408,8 @@
           },
           "uptime_ms": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Milliseconds since the HTTP server started."
           },
           "api_version": {
             "type": "string"
@@ -11409,23 +11420,21 @@
           "pid": {
             "type": "integer"
           },
-          "crypt_filter": {
+          "privacy": {
             "type": "object",
             "properties": {
-              "path": {
-                "type": "string"
+              "backend": {
+                "type": "string",
+                "description": "Encryption used for encrypted projects."
               },
-              "exists": {
-                "type": "boolean"
-              },
-              "executable": {
-                "type": "boolean"
+              "project_mode_supported": {
+                "type": "boolean",
+                "description": "Whether this daemon supports per-project encryption."
               }
             },
             "required": [
-              "path",
-              "exists",
-              "executable"
+              "backend",
+              "project_mode_supported"
             ]
           }
         },
@@ -11435,7 +11444,7 @@
           "api_version",
           "server_version",
           "pid",
-          "crypt_filter"
+          "privacy"
         ]
       },
       "HealthResponse": {

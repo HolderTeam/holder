@@ -389,6 +389,7 @@ add_executable(holderd
   src/llm/RunnerRegistry.cpp
   src/api/HttpServer.cpp
   src/api/GeneratedRoutes.cpp
+  src/api/Health.cpp
   src/api/AiThreadList.cpp
   src/api/Calendar.cpp
   src/api/ProjectRead.cpp
@@ -436,7 +437,6 @@ add_executable(holderd
   src/api/routes/SearchRoutes.cpp
   src/api/routes/TrashRoutes.cpp
   src/api/routes/StaticRoutes.cpp
-  src/api/support/Health.cpp
   src/api/support/PathDiscovery.cpp
   src/api/support/CloudConfig.cpp
   src/api/support/CloudClient.cpp

@@ -882,18 +882,6 @@ template <> struct codec<holder::api::SearchMessagesResponse> {
     static json encode(const holder::api::SearchMessagesResponse& value);
     static holder::api::SearchMessagesResponse decode(const json& value);
 };
-template <> struct codec<holder::api::HealthDataCryptFilter> {
-    static json encode(const holder::api::HealthDataCryptFilter& value);
-    static holder::api::HealthDataCryptFilter decode(const json& value);
-};
-template <> struct codec<holder::api::HealthData> {
-    static json encode(const holder::api::HealthData& value);
-    static holder::api::HealthData decode(const json& value);
-};
-template <> struct codec<holder::api::HealthResponse> {
-    static json encode(const holder::api::HealthResponse& value);
-    static holder::api::HealthResponse decode(const json& value);
-};
 template <> struct codec<holder::api::ReindexData> {
     static json encode(const holder::api::ReindexData& value);
     static holder::api::ReindexData decode(const json& value);
@@ -937,6 +925,18 @@ template <> struct codec<holder::api::CardReferenceResolveData> {
 template <> struct codec<holder::api::CardReferenceResolveResponse> {
     static json encode(const holder::api::CardReferenceResolveResponse& value);
     static holder::api::CardReferenceResolveResponse decode(const json& value);
+};
+template <> struct codec<holder::api::HealthDataPrivacy> {
+    static json encode(const holder::api::HealthDataPrivacy& value);
+    static holder::api::HealthDataPrivacy decode(const json& value);
+};
+template <> struct codec<holder::api::HealthData> {
+    static json encode(const holder::api::HealthData& value);
+    static holder::api::HealthData decode(const json& value);
+};
+template <> struct codec<holder::api::HealthResponse> {
+    static json encode(const holder::api::HealthResponse& value);
+    static holder::api::HealthResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectTag> {
     static json encode(const holder::api::ProjectTag& value);
@@ -5459,71 +5459,6 @@ inline holder::api::SearchMessagesResponse codec<holder::api::SearchMessagesResp
     };
 }
 
-inline json codec<holder::api::HealthDataCryptFilter>::encode(const holder::api::HealthDataCryptFilter& value) {
-    json result = json::object();
-    result["path"] = codec<std::string>::encode(value.path);
-    result["exists"] = codec<bool>::encode(value.exists);
-    result["executable"] = codec<bool>::encode(value.executable);
-    return result;
-}
-inline holder::api::HealthDataCryptFilter codec<holder::api::HealthDataCryptFilter>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HealthDataCryptFilter");
-    if (!value.contains("path")) throw std::invalid_argument("missing path");
-    if (!value.contains("exists")) throw std::invalid_argument("missing exists");
-    if (!value.contains("executable")) throw std::invalid_argument("missing executable");
-    return holder::api::HealthDataCryptFilter{
-        codec<std::string>::decode(value.at("path")),
-        codec<bool>::decode(value.at("exists")),
-        codec<bool>::decode(value.at("executable")),
-    };
-}
-
-inline json codec<holder::api::HealthData>::encode(const holder::api::HealthData& value) {
-    json result = json::object();
-    result["db_ok"] = codec<bool>::encode(value.db_ok);
-    result["uptime_ms"] = codec<long long>::encode(value.uptime_ms);
-    result["api_version"] = codec<std::string>::encode(value.api_version);
-    result["server_version"] = codec<std::string>::encode(value.server_version);
-    result["pid"] = codec<int>::encode(value.pid);
-    result["crypt_filter"] = codec<holder::api::HealthDataCryptFilter>::encode(value.crypt_filter);
-    return result;
-}
-inline holder::api::HealthData codec<holder::api::HealthData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HealthData");
-    if (!value.contains("db_ok")) throw std::invalid_argument("missing db_ok");
-    if (!value.contains("uptime_ms")) throw std::invalid_argument("missing uptime_ms");
-    if (!value.contains("api_version")) throw std::invalid_argument("missing api_version");
-    if (!value.contains("server_version")) throw std::invalid_argument("missing server_version");
-    if (!value.contains("pid")) throw std::invalid_argument("missing pid");
-    if (!value.contains("crypt_filter")) throw std::invalid_argument("missing crypt_filter");
-    return holder::api::HealthData{
-        codec<bool>::decode(value.at("db_ok")),
-        codec<long long>::decode(value.at("uptime_ms")),
-        codec<std::string>::decode(value.at("api_version")),
-        codec<std::string>::decode(value.at("server_version")),
-        codec<int>::decode(value.at("pid")),
-        codec<holder::api::HealthDataCryptFilter>::decode(value.at("crypt_filter")),
-    };
-}
-
-inline json codec<holder::api::HealthResponse>::encode(const holder::api::HealthResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::HealthData>::encode(value.data);
-    return result;
-}
-inline holder::api::HealthResponse codec<holder::api::HealthResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HealthResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::HealthResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::HealthData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::ReindexData>::encode(const holder::api::ReindexData& value) {
     json result = json::object();
     result["message"] = codec<std::string>::encode(value.message);
@@ -5740,6 +5675,68 @@ inline holder::api::CardReferenceResolveResponse codec<holder::api::CardReferenc
     return holder::api::CardReferenceResolveResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::CardReferenceResolveData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::HealthDataPrivacy>::encode(const holder::api::HealthDataPrivacy& value) {
+    json result = json::object();
+    result["backend"] = codec<std::string>::encode(value.backend);
+    result["project_mode_supported"] = codec<bool>::encode(value.project_mode_supported);
+    return result;
+}
+inline holder::api::HealthDataPrivacy codec<holder::api::HealthDataPrivacy>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HealthDataPrivacy");
+    if (!value.contains("backend")) throw std::invalid_argument("missing backend");
+    if (!value.contains("project_mode_supported")) throw std::invalid_argument("missing project_mode_supported");
+    return holder::api::HealthDataPrivacy{
+        codec<std::string>::decode(value.at("backend")),
+        codec<bool>::decode(value.at("project_mode_supported")),
+    };
+}
+
+inline json codec<holder::api::HealthData>::encode(const holder::api::HealthData& value) {
+    json result = json::object();
+    result["db_ok"] = codec<bool>::encode(value.db_ok);
+    result["uptime_ms"] = codec<long long>::encode(value.uptime_ms);
+    result["api_version"] = codec<std::string>::encode(value.api_version);
+    result["server_version"] = codec<std::string>::encode(value.server_version);
+    result["pid"] = codec<int>::encode(value.pid);
+    result["privacy"] = codec<holder::api::HealthDataPrivacy>::encode(value.privacy);
+    return result;
+}
+inline holder::api::HealthData codec<holder::api::HealthData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HealthData");
+    if (!value.contains("db_ok")) throw std::invalid_argument("missing db_ok");
+    if (!value.contains("uptime_ms")) throw std::invalid_argument("missing uptime_ms");
+    if (!value.contains("api_version")) throw std::invalid_argument("missing api_version");
+    if (!value.contains("server_version")) throw std::invalid_argument("missing server_version");
+    if (!value.contains("pid")) throw std::invalid_argument("missing pid");
+    if (!value.contains("privacy")) throw std::invalid_argument("missing privacy");
+    return holder::api::HealthData{
+        codec<bool>::decode(value.at("db_ok")),
+        codec<long long>::decode(value.at("uptime_ms")),
+        codec<std::string>::decode(value.at("api_version")),
+        codec<std::string>::decode(value.at("server_version")),
+        codec<int>::decode(value.at("pid")),
+        codec<holder::api::HealthDataPrivacy>::decode(value.at("privacy")),
+    };
+}
+
+inline json codec<holder::api::HealthResponse>::encode(const holder::api::HealthResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::HealthData>::encode(value.data);
+    return result;
+}
+inline holder::api::HealthResponse codec<holder::api::HealthResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HealthResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::HealthResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::HealthData>::decode(value.at("data")),
     };
 }
 

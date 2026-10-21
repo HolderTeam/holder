@@ -7,37 +7,32 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="HealthDataCryptFilter")
+T = TypeVar("T", bound="HealthDataPrivacy")
 
 
 @_attrs_define
-class HealthDataCryptFilter:
+class HealthDataPrivacy:
     """
     Attributes:
-        path (str):
-        exists (bool):
-        executable (bool):
+        backend (str): Encryption used for encrypted projects.
+        project_mode_supported (bool): Whether this daemon supports per-project encryption.
     """
 
-    path: str
-    exists: bool
-    executable: bool
+    backend: str
+    project_mode_supported: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        path = self.path
+        backend = self.backend
 
-        exists = self.exists
-
-        executable = self.executable
+        project_mode_supported = self.project_mode_supported
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "path": path,
-                "exists": exists,
-                "executable": executable,
+                "backend": backend,
+                "project_mode_supported": project_mode_supported,
             }
         )
 
@@ -46,20 +41,17 @@ class HealthDataCryptFilter:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        path = d.pop("path")
+        backend = d.pop("backend")
 
-        exists = d.pop("exists")
+        project_mode_supported = d.pop("project_mode_supported")
 
-        executable = d.pop("executable")
-
-        health_data_crypt_filter = cls(
-            path=path,
-            exists=exists,
-            executable=executable,
+        health_data_privacy = cls(
+            backend=backend,
+            project_mode_supported=project_mode_supported,
         )
 
-        health_data_crypt_filter.additional_properties = d
-        return health_data_crypt_filter
+        health_data_privacy.additional_properties = d
+        return health_data_privacy
 
     @property
     def additional_keys(self) -> list[str]:

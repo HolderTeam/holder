@@ -5,6 +5,7 @@
 #include "api/Calendar.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
+#include "api/Health.h"
 #include "api/MilestonesWithDates.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectDelete.h"
@@ -22,6 +23,7 @@
 
 #include <boost/beast/http.hpp>
 
+#include <chrono>
 #include <exception>
 #include <string>
 #include <utility>
@@ -38,6 +40,7 @@ struct Context {
   holder::privacy::SecretStore* secret_store;
   holder::git::GitOps* git_ops;
   std::function<std::string()> uuid_v4;
+  std::chrono::steady_clock::time_point started_at;
 };
 
 std::string error_code(int status) {
@@ -72,9 +75,10 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
                                holder::index::FtsIndexer* fts,
                                holder::privacy::SecretStore* secret_store,
                                holder::git::GitOps* git_ops,
-                               std::function<std::string()> uuid_v4) {
+                               std::function<std::string()> uuid_v4,
+                               std::chrono::steady_clock::time_point started_at) {
   const auto target = req.target();
-  Context context{db, registry, fts, secret_store, git_ops, std::move(uuid_v4)};
+  Context context{db, registry, fts, secret_store, git_ops, std::move(uuid_v4), started_at};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
