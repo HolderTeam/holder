@@ -153,24 +153,6 @@ bool handle_ai_runner_crud_routes(
     holder::llm::RunnerRegistry* runner_registry,
     const std::function<std::string()>& uuid_v4
 ) {
-  if (path == "/ai/runners" && req.method() == http::verb::get) {
-    try {
-      nlohmann::json runners = nlohmann::json::array();
-      if (runner_registry != nullptr) {
-        for (const auto& runner : runner_registry->list_runners()) {
-          runners.push_back(runner_to_json(runner, runner_registry));
-        }
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = {{"runners", runners}};
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   if (path == "/ai/runners" && req.method() == http::verb::post) {
     try {
       const auto body = nlohmann::json::parse(req.body());

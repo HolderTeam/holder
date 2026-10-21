@@ -1336,6 +1336,12 @@ inline holder::api::AiLocalModelConfigData codec<holder::api::AiLocalModelConfig
 inline json codec<holder::api::LocalModel>::encode(const holder::api::LocalModel& value) {
     json result = json::object();
     result["name"] = codec<std::string>::encode(value.name);
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
+    }
+    if (value.model_ref) {
+        result["model_ref"] = codec<std::optional<std::string>>::encode(value.model_ref);
+    }
     if (value.digest) {
         result["digest"] = codec<std::optional<std::string>>::encode(value.digest);
     }
@@ -1352,6 +1358,8 @@ inline holder::api::LocalModel codec<holder::api::LocalModel>::decode(const json
     if (!value.contains("name")) throw std::invalid_argument("missing name");
     return holder::api::LocalModel{
         codec<std::string>::decode(value.at("name")),
+        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
+        value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
         value.contains("digest") ? codec<std::optional<std::string>>::decode(value.at("digest")) : std::nullopt,
         value.contains("size") ? codec<std::optional<long long>>::decode(value.at("size")) : std::nullopt,
         value.contains("modified_at") ? codec<std::optional<std::string>>::decode(value.at("modified_at")) : std::nullopt,

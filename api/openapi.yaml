@@ -739,6 +739,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
     post:
       summary: Configure a local model runner
       requestBody:
@@ -5591,6 +5596,8 @@ components:
       type: object
       properties:
         name: {type: string}
+        runner_id: {type: string, description: The runner that has this model.}
+        model_ref: {type: string, description: The runner-qualified model reference to request it by.}
         digest: {type: string}
         size: {type: integer, format: int64}
         modified_at: {type: string}

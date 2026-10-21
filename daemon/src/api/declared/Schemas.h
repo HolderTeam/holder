@@ -31,6 +31,8 @@ struct RIG_OPEN_RECORD AiLocalModelConfigData {
 
 struct RIG_OPEN_RECORD LocalModel {
   std::string name;
+  std::optional<std::string> runner_id RIG_OMIT_EMPTY RIG_FIELD_DESCRIPTION("The runner that has this model.");
+  std::optional<std::string> model_ref RIG_OMIT_EMPTY RIG_FIELD_DESCRIPTION("The runner-qualified model reference to request it by.");
   std::optional<std::string> digest RIG_OMIT_EMPTY;
   std::optional<long long> size RIG_OMIT_EMPTY;
   std::optional<std::string> modified_at RIG_OMIT_EMPTY;

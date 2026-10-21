@@ -5,7 +5,9 @@
 #endif
 
 #include "ai/AiRunnerRepo.h"
+#include "api/GeneratedRoutes.h"
 #include "api/routes/ai/AiRunnerRoutes.h"
+#include "llm/RunnerModelRef.h"
 #include "http_test_helpers.h"
 
 #include <boost/asio/ip/tcp.hpp>
@@ -105,23 +107,7 @@ TEST_CASE("AiRunnerRoutes supports list create patch and delete", "[ai][runner]"
 
   SECTION("GET /ai/runners lists auto-local") {
     auto req = make_request(http::verb::get, "/ai/runners");
-
-    const auto out = holder::api::routes::handle_ai_runner_routes(
-        "/ai/runners",
-        req,
-        res,
-        socket,
-        db,
-        &runner_registry,
-        []() {
-          return std::string("ignored");
-        },
-        [](const std::string&) -> std::string {
-          return {};
-        }
-    );
-
-    REQUIRE(out.handled);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, &runner_registry));
     REQUIRE(res.result() == http::status::ok);
     const auto body = nlohmann::json::parse(res.body());
     REQUIRE(body["data"]["runners"].is_array());
@@ -827,23 +813,7 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
 
     holder::llm::RunnerRegistry runner_registry(&db, &auto_local);
     auto req = make_request(http::verb::get, "/ai/runners");
-
-    const auto out = holder::api::routes::handle_ai_runner_routes(
-        "/ai/runners",
-        req,
-        res,
-        socket,
-        db,
-        &runner_registry,
-        []() {
-          return std::string("ignored");
-        },
-        [](const std::string&) -> std::string {
-          return {};
-        }
-    );
-
-    REQUIRE(out.handled);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, &runner_registry));
     REQUIRE(res.result() == http::status::ok);
     const auto body = nlohmann::json::parse(res.body());
     REQUIRE(body["data"]["runners"][0]["runtime"]["pulls"].size() == 1);
@@ -852,6 +822,37 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
     REQUIRE(
         body["data"]["runners"][0]["runtime"]["pulls"][0]["progress"]["stage"] == "downloading"
     );
+
+    const auto& runtime = body["data"]["runners"][0]["runtime"];
+    REQUIRE(runtime["configured"] == true);
+    REQUIRE(runtime["available"] == true);
+    REQUIRE(runtime["spawn_attempted"] == true);
+    REQUIRE(runtime["last_checked"] == 123);
+    REQUIRE(runtime["version"] == "fake");
+    REQUIRE(runtime["error"].is_null());
+    REQUIRE(runtime["models"] == nlohmann::json::array({{
+        {"name", "qwen3:4b"},
+        {"runner_id", "auto-local"},
+        {"model_ref", holder::llm::make_runner_model_ref("auto-local", "qwen3:4b")},
+        {"digest", "sha256:abc"},
+        {"size", 42},
+        {"modified_at", "now"},
+    }}));
+    // The listing keeps its pull shape: error as a string and no model_ref.
+    const auto& pull = runtime["pulls"][0];
+    REQUIRE(pull["error"] == "");
+    REQUIRE_FALSE(pull.contains("model_ref"));
+    REQUIRE(pull["model"] == "qwen3:8b");
+    REQUIRE(pull["status"] == "pulling");
+    REQUIRE(pull["updated_at"] == 456);
+  }
+
+  SECTION("GET /ai/runners is empty without a registry") {
+    auto req = make_request(http::verb::get, "/ai/runners");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::ok);
+    REQUIRE(nlohmann::json::parse(res.body()) ==
+            nlohmann::json{{"ok", true}, {"data", {{"runners", nlohmann::json::array()}}}});
   }
 }
 
@@ -862,29 +863,13 @@ TEST_CASE("AiRunnerRoutes catches route exceptions and preserves fallthroughs", 
   boost::asio::ip::tcp::socket socket(ioc);
   http::response<http::string_body> res;
 
-  SECTION("GET /ai/runners catches runner status exceptions") {
+  SECTION("GET /ai/runners reports runner status exceptions as internal errors") {
     FakeRunnerClient auto_local;
     auto_local.throw_on_status = true;
     holder::llm::RunnerRegistry runner_registry(&db, &auto_local);
     auto req = make_request(http::verb::get, "/ai/runners");
-
-    const auto out = holder::api::routes::handle_ai_runner_routes(
-        "/ai/runners",
-        req,
-        res,
-        socket,
-        db,
-        &runner_registry,
-        []() {
-          return std::string("ignored");
-        },
-        [](const std::string&) -> std::string {
-          return {};
-        }
-    );
-
-    REQUIRE(out.handled);
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, &runner_registry));
+    REQUIRE(res.result() == http::status::internal_server_error);
     REQUIRE(nlohmann::json::parse(res.body())["error"]["message"] == "status boom");
   }
 

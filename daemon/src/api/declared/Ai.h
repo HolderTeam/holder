@@ -39,12 +39,6 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 AiProviderCredentialDeleteResponse delete_ai_providers_credentials_provider(std::string provider);
 
-RIG_ROUTE(GET, "/ai/runners")
-RIG_SUMMARY("List configured local model runners")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-AiRunnerListResponse get_ai_runners();
-
 RIG_ROUTE(POST, "/ai/runners")
 RIG_SUMMARY("Configure a local model runner")
 RIG_RESPONSE_DESCRIPTION("Created")

@@ -1433,6 +1433,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -11551,6 +11561,14 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "runner_id": {
+            "type": "string",
+            "description": "The runner that has this model."
+          },
+          "model_ref": {
+            "type": "string",
+            "description": "The runner-qualified model reference to request it by."
           },
           "digest": {
             "type": "string"
