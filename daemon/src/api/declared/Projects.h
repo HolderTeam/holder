@@ -19,7 +19,6 @@ RIG_RESPONSE_DESCRIPTION("The plan, and whether it was applied")
 RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid body, or a privacy error applying to an encrypted project")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
 RIG_ERROR_RESPONSE(501, ErrorResponse, "The daemon has no card store")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to write an encrypted project is unavailable")
 HierarchyRepairResponse post_projects_project_id_repair_hierarchy(

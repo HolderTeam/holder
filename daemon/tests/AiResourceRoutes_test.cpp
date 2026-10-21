@@ -478,7 +478,10 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
       http::status::ok
   );
   CHECK(holder::resource::ResourceRepo(f.db).get_bundle("resource")->resource.label == "Changed");
-  CHECK(f.call(http::verb::put, "/resources/resource").result() == http::status::not_found);
+  CHECK(
+      f.call(http::verb::put, "/resources/resource").result() ==
+      http::status::method_not_allowed
+  );
   REQUIRE(f.call(http::verb::delete_, "/resources/resource").result() == http::status::ok);
   CHECK_FALSE(holder::resource::ResourceRepo(f.db).get_bundle("resource").has_value());
   f.db.exec("DROP TABLE resources; DROP TABLE storage_locations");

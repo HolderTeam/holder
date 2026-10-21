@@ -19,7 +19,8 @@ TEST_CASE("Generated rebuild route decodes its required body", "[http][rebuild]"
     return holder::api::dispatch_generated_routes(req, res, db);
   };
 
-  REQUIRE_FALSE(dispatch(http::verb::get, "/rebuild", "{}"));
+  REQUIRE(dispatch(http::verb::get, "/rebuild", "{}"));
+  REQUIRE(res.result() == http::status::method_not_allowed);
   REQUIRE(dispatch(http::verb::post, "/rebuild", "{}"));
   REQUIRE(res.result() == http::status::bad_request);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");

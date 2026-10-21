@@ -64,6 +64,19 @@ bool dispatch_history_get(
   return holder::api::dispatch_generated_routes(req, res, db);
 }
 
+// The generated routes answer a history path's undeclared methods with 405.
+void require_method_not_allowed(http::verb method,
+                                const std::string& path,
+                                holder::platform::Db& db,
+                                const std::string& allow) {
+  http::request<http::string_body> req{method, path, 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  CHECK(res.result() == http::status::method_not_allowed);
+  CHECK(res[http::field::allow] == allow);
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "method_not_allowed");
+}
+
 std::string history_card_file(
     const std::string& card_id,
     const std::string& body,
@@ -474,11 +487,7 @@ TEST_CASE(
   CHECK(res.result() == http::status::not_found);
   CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_not_found");
 
-  req.method(http::verb::post);
-  query["oid"] = saved_oid;
-  res = {};
-  REQUIRE(holder::api::routes::handle_history_routes(path, req, res, db, param));
-  CHECK(res.result() == http::status::method_not_allowed);
+  require_method_not_allowed(http::verb::post, path, db, "GET");
 }
 
 TEST_CASE(
@@ -961,8 +970,8 @@ TEST_CASE(
       db,
       params
   ));
-  REQUIRE(holder::api::routes::handle_history_routes(path, request, response, db, params));
-  CHECK(response.result() == http::status::method_not_allowed);
+  CHECK_FALSE(holder::api::routes::handle_history_routes(path, request, response, db, params));
+  require_method_not_allowed(http::verb::get, path, db, "POST");
   request.method(http::verb::post);
   REQUIRE(holder::api::routes::handle_history_routes(path, request, response, db, params));
   CHECK(response.result() == http::status::not_implemented);

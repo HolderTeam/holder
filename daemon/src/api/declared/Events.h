@@ -20,7 +20,6 @@ RIG_RESPONSE_DESCRIPTION("Current checkpoint")
 RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
 EventCheckpointResponse get_events_cursor(std::optional<std::string> project_id RIG_QUERY);
 
@@ -35,7 +34,6 @@ RIG_SSE_EVENT("changed", ChangeEventData)
 RIG_SSE_EVENT("resync_required", EventResyncData)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
 std::string get_events(
     std::optional<std::string> project_id RIG_QUERY,

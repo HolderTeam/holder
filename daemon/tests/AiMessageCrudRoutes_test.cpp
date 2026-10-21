@@ -330,7 +330,9 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
   SECTION("item post route and item get catch") {
     auto post_req = make_request(http::verb::post, "/ai/messages/msg-1");
     http::response<http::string_body> post_res;
-    REQUIRE_FALSE(route_message(post_req, post_res, db, &fts));
+    REQUIRE(route_message(post_req, post_res, db, &fts));
+    REQUIRE(post_res.result() == http::status::method_not_allowed);
+    REQUIRE(post_res[http::field::allow] == "DELETE, GET, PATCH");
 
     db.exec("DROP TABLE ai_messages;");
     auto get_req = make_request(http::verb::get, "/ai/messages/msg-1");

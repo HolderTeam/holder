@@ -45,4 +45,5 @@
 #define RIG_HOST_RESPONSE(media_type)
 #define RIG_SUCCESS_STATUS(status)
 #define RIG_INTERNAL_ERROR(body, description)
+#define RIG_METHOD_NOT_ALLOWED(body, description)
 #endif

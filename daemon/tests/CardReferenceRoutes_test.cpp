@@ -67,7 +67,9 @@ TEST_CASE("CardReferenceRoutes only handles its POST endpoint", "[card-reference
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(other_path, res, db));
 
   auto wrong_method = make_request(http::verb::get, "/card-references/resolve");
-  REQUIRE_FALSE(holder::api::dispatch_generated_routes(wrong_method, res, db));
+  REQUIRE(holder::api::dispatch_generated_routes(wrong_method, res, db));
+  REQUIRE(res.result() == http::status::method_not_allowed);
+  REQUIRE(res[http::field::allow] == "POST");
 }
 
 TEST_CASE("CardReferenceRoutes validates its request", "[card-reference-routes]") {

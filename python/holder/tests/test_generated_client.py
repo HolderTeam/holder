@@ -138,7 +138,7 @@ def test_event_checkpoint_preserves_opaque_cursor_and_nullable_revisions():
         ),
     ],
 )
-@pytest.mark.parametrize("status", [200, 400, 405, 503])
+@pytest.mark.parametrize("status", [200, 400, 503])
 def test_replay_headers_queries_and_documented_stream_errors(
     endpoint,
     args,

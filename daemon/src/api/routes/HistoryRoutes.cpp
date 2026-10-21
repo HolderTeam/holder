@@ -127,10 +127,9 @@ bool handle_history_routes(
     const std::function<std::string(const std::string&)>& param_get,
     holder::card::CardStore* card_store
 ) {
+  // The generated routes serve every history read, and answer other methods with 405.
   const auto parsed = parse_history_path(path);
-  if (!parsed.has_value()) return false;
-  // The generated routes serve every history read.
-  if (!parsed->restore && req.method() == http::verb::get) return false;
+  if (!parsed.has_value() || !parsed->restore || req.method() != http::verb::post) return false;
 
   try {
     const auto project = holder::project::ProjectRepo(db).get(parsed->project_id);
@@ -140,14 +139,6 @@ bool handle_history_routes(
     }
 
     if (parsed->restore) {
-      if (req.method() != http::verb::post) {
-        res = support::error_response(
-            http::status::method_not_allowed,
-            "method_not_allowed",
-            "Method not allowed."
-        );
-        return true;
-      }
       if (card_store == nullptr) {
         res = support::error_response(
             http::status::not_implemented,
@@ -191,11 +182,6 @@ bool handle_history_routes(
       );
       return true;
     }
-    res = support::error_response(
-        http::status::method_not_allowed,
-        "method_not_allowed",
-        "Method not allowed."
-    );
   } catch (const std::invalid_argument& ex) {
     res = support::error_response(http::status::bad_request, "bad_request", ex.what());
   } catch (const holder::privacy::PrivacyError& ex) {

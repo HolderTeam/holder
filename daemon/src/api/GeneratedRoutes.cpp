@@ -66,6 +66,7 @@ std::string error_code(int status) {
   switch (status) {
   case 400: return "bad_request";
   case 404: return "not_found";
+  case 405: return "method_not_allowed";
   case 409: return "conflict";
   default: return "error";
   }
@@ -112,6 +113,7 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
         req.body(), context);
     if (!generated) return false;
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
+    if (!generated->allow.empty()) res.set(http::field::allow, generated->allow);
   } catch (const std::exception& error) {
     // Operations' own failures are already 500s from the generated dispatcher.
     // This only keeps a failure outside them from escaping to the worker.

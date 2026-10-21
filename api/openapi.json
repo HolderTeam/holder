@@ -1526,16 +1526,6 @@
               }
             }
           },
-          "405": {
-            "description": "Method not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "501": {
             "description": "Not implemented",
             "content": {
@@ -2133,16 +2123,6 @@
           },
           "404": {
             "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "Method not allowed",
             "content": {
               "application/json": {
                 "schema": {
@@ -4714,16 +4694,6 @@
               }
             }
           },
-          "405": {
-            "description": "Method not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "503": {
             "description": "Observer unavailable or stream limit reached",
             "content": {
@@ -4796,16 +4766,6 @@
           },
           "404": {
             "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "Method not allowed",
             "content": {
               "application/json": {
                 "schema": {
@@ -7783,16 +7743,6 @@
           },
           "404": {
             "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "Method not allowed",
             "content": {
               "application/json": {
                 "schema": {

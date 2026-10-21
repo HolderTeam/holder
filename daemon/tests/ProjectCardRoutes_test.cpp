@@ -28,8 +28,8 @@ std::string query_encode(const std::string& value) {
   return result;
 }
 
-// GETs go through the generated routes; other methods reach the host-written handler. An empty
-// value leaves the parameter out.
+// Routes a request as the daemon does: generated routes first, then the host-written handler.
+// An empty value leaves the parameter out.
 std::pair<http::status, nlohmann::json> route_project_cards(
     holder::platform::Db& db,
     holder::card::CardStore* card_store,
@@ -46,11 +46,9 @@ std::pair<http::status, nlohmann::json> route_project_cards(
   }
   http::request<http::string_body> req{method, target, 11};
   http::response<http::string_body> res;
-  if (method == http::verb::get) {
-    REQUIRE(holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, nullptr, {}, {}, card_store
-    ));
-  } else {
+  if (!holder::api::dispatch_generated_routes(
+          req, res, db, nullptr, nullptr, nullptr, nullptr, {}, {}, card_store
+      )) {
     REQUIRE(holder::api::routes::handle_project_card_routes(path, req, res, db, card_store));
   }
   return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -349,13 +347,16 @@ TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-page
     http::request<http::string_body> req{method, path, 11};
     req.body() = body;
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_project_card_routes(
-        path,
-        req,
-        res,
-        db,
-        card_store ? card_store : &store
-    ));
+    // The generated routes answer the path's other methods; the handler serves the POST.
+    if (!holder::api::dispatch_generated_routes(req, res, db)) {
+      REQUIRE(holder::api::routes::handle_project_card_routes(
+          path,
+          req,
+          res,
+          db,
+          card_store ? card_store : &store
+      ));
+    }
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
 

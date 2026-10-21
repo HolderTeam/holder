@@ -7,6 +7,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <regex>
 #include <stdexcept>
 #include <string>
@@ -18,7 +19,17 @@
 
 namespace rig_http {
 using json = nlohmann::json;
-struct response { int status; json body; std::string_view operation; };
+struct response {
+    int status;
+    json body;
+    std::string_view operation;
+    // The methods the path accepts, for a 405's Allow header; empty otherwise.
+    std::string allow = {};
+};
+// The error passed to rig_error_body for a 405.
+struct method_not_allowed : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
 // The application supplies rig_error_body, found by argument-dependent
 // lookup, to build each declared error body from an exception.
 template <typename Body, typename Error>
@@ -2145,6 +2156,196 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_123("^/trash/([^/]+)/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, route_123))
         return std::nullopt;  // delete_trash_type_id is served by the host
+    std::set<std::string_view> allowed;
+    static const std::regex path_0("^/alive$");
+    if (std::regex_match(route_path, path_0)) allowed.insert({"GET"});
+    static const std::regex path_1("^/bye$");
+    if (std::regex_match(route_path, path_1)) allowed.insert({"POST"});
+    static const std::regex path_2("^/health$");
+    if (std::regex_match(route_path, path_2)) allowed.insert({"GET"});
+    static const std::regex path_3("^/locations$");
+    if (std::regex_match(route_path, path_3)) allowed.insert({"GET", "POST"});
+    static const std::regex path_4("^/rebuild$");
+    if (std::regex_match(route_path, path_4)) allowed.insert({"POST"});
+    static const std::regex path_5("^/resources$");
+    if (std::regex_match(route_path, path_5)) allowed.insert({"GET", "POST"});
+    static const std::regex path_6("^/projects$");
+    if (std::regex_match(route_path, path_6)) allowed.insert({"GET", "POST"});
+    static const std::regex path_7("^/calendar$");
+    if (std::regex_match(route_path, path_7)) allowed.insert({"GET"});
+    static const std::regex path_8("^/cards$");
+    if (std::regex_match(route_path, path_8)) allowed.insert({"GET", "POST"});
+    static const std::regex path_9("^/openapi\\.yaml$");
+    if (std::regex_match(route_path, path_9)) allowed.insert({"GET"});
+    static const std::regex path_10("^/openapi\\.json$");
+    if (std::regex_match(route_path, path_10)) allowed.insert({"GET"});
+    static const std::regex path_11("^/ai_catalog\\.yaml$");
+    if (std::regex_match(route_path, path_11)) allowed.insert({"GET"});
+    static const std::regex path_12("^/git_providers\\.yaml$");
+    if (std::regex_match(route_path, path_12)) allowed.insert({"GET"});
+    static const std::regex path_13("^/ai_catalog\\.json$");
+    if (std::regex_match(route_path, path_13)) allowed.insert({"GET"});
+    static const std::regex path_14("^/git_providers\\.json$");
+    if (std::regex_match(route_path, path_14)) allowed.insert({"GET"});
+    static const std::regex path_15("^/trash$");
+    if (std::regex_match(route_path, path_15)) allowed.insert({"DELETE", "GET"});
+    static const std::regex path_16("^/events$");
+    if (std::regex_match(route_path, path_16)) allowed.insert({"GET"});
+    static const std::regex path_17("^/imports$");
+    if (std::regex_match(route_path, path_17)) allowed.insert({"POST"});
+    static const std::regex path_18("^/ping$");
+    if (std::regex_match(route_path, path_18)) allowed.insert({"GET"});
+    static const std::regex path_19("^/reindex$");
+    if (std::regex_match(route_path, path_19)) allowed.insert({"POST"});
+    static const std::regex path_20("^/ai/messages$");
+    if (std::regex_match(route_path, path_20)) allowed.insert({"GET", "POST"});
+    static const std::regex path_21("^/ai/runners$");
+    if (std::regex_match(route_path, path_21)) allowed.insert({"GET", "POST"});
+    static const std::regex path_22("^/ai/runs$");
+    if (std::regex_match(route_path, path_22)) allowed.insert({"GET", "POST"});
+    static const std::regex path_23("^/ai/capabilities$");
+    if (std::regex_match(route_path, path_23)) allowed.insert({"GET"});
+    static const std::regex path_24("^/ai/status$");
+    if (std::regex_match(route_path, path_24)) allowed.insert({"GET"});
+    static const std::regex path_25("^/ai/threads$");
+    if (std::regex_match(route_path, path_25)) allowed.insert({"GET", "POST"});
+    static const std::regex path_26("^/card\\-references/resolve$");
+    if (std::regex_match(route_path, path_26)) allowed.insert({"POST"});
+    static const std::regex path_27("^/cards/context$");
+    if (std::regex_match(route_path, path_27)) allowed.insert({"GET"});
+    static const std::regex path_28("^/events/cursor$");
+    if (std::regex_match(route_path, path_28)) allowed.insert({"GET"});
+    static const std::regex path_29("^/locations/preferred$");
+    if (std::regex_match(route_path, path_29)) allowed.insert({"PUT"});
+    static const std::regex path_30("^/recovery\\-token/import$");
+    if (std::regex_match(route_path, path_30)) allowed.insert({"POST"});
+    static const std::regex path_31("^/search/cards$");
+    if (std::regex_match(route_path, path_31)) allowed.insert({"GET"});
+    static const std::regex path_32("^/search/ai$");
+    if (std::regex_match(route_path, path_32)) allowed.insert({"GET"});
+    static const std::regex path_33("^/ai/providers/credentials$");
+    if (std::regex_match(route_path, path_33)) allowed.insert({"GET", "PUT"});
+    static const std::regex path_34("^/ai/local\\-models/config$");
+    if (std::regex_match(route_path, path_34)) allowed.insert({"GET", "PUT"});
+    static const std::regex path_35("^/ai/providers/catalog$");
+    if (std::regex_match(route_path, path_35)) allowed.insert({"GET"});
+    static const std::regex path_36("^/ai/providers/settings$");
+    if (std::regex_match(route_path, path_36)) allowed.insert({"GET", "PUT"});
+    static const std::regex path_37("^/ai/runner/pull$");
+    if (std::regex_match(route_path, path_37)) allowed.insert({"POST"});
+    static const std::regex path_38("^/ai/messages/capture$");
+    if (std::regex_match(route_path, path_38)) allowed.insert({"POST"});
+    static const std::regex path_39("^/ai/runner/pull/([^/]+)$");
+    if (std::regex_match(route_path, path_39)) allowed.insert({"GET"});
+    static const std::regex path_40("^/ai/providers/settings/([^/]+)$");
+    if (std::regex_match(route_path, path_40)) allowed.insert({"DELETE"});
+    static const std::regex path_41("^/ai/providers/credentials/([^/]+)$");
+    if (std::regex_match(route_path, path_41)) allowed.insert({"DELETE"});
+    static const std::regex path_42("^/ai/runner/pull/([^/]+)/events$");
+    if (std::regex_match(route_path, path_42)) allowed.insert({"GET"});
+    static const std::regex path_43("^/ai/messages/([^/]+)$");
+    if (std::regex_match(route_path, path_43)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_44("^/ai/runners/([^/]+)$");
+    if (std::regex_match(route_path, path_44)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_45("^/ai/runs/([^/]+)$");
+    if (std::regex_match(route_path, path_45)) allowed.insert({"GET"});
+    static const std::regex path_46("^/ai/threads/([^/]+)$");
+    if (std::regex_match(route_path, path_46)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_47("^/ai/messages/([^/]+)/links$");
+    if (std::regex_match(route_path, path_47)) allowed.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_48("^/ai/messages/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_48)) allowed.insert({"GET"});
+    static const std::regex path_49("^/ai/messages/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_49)) allowed.insert({"POST"});
+    static const std::regex path_50("^/ai/runners/([^/]+)/retry$");
+    if (std::regex_match(route_path, path_50)) allowed.insert({"POST"});
+    static const std::regex path_51("^/ai/runs/([^/]+)/events$");
+    if (std::regex_match(route_path, path_51)) allowed.insert({"GET"});
+    static const std::regex path_52("^/imports/([^/]+)$");
+    if (std::regex_match(route_path, path_52)) allowed.insert({"GET"});
+    static const std::regex path_53("^/locations/([^/]+)$");
+    if (std::regex_match(route_path, path_53)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_54("^/resources/([^/]+)$");
+    if (std::regex_match(route_path, path_54)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_55("^/projects/([^/]+)$");
+    if (std::regex_match(route_path, path_55)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_56("^/cards/([^/]+)$");
+    if (std::regex_match(route_path, path_56)) allowed.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_57("^/projects/([^/]+)/history$");
+    if (std::regex_match(route_path, path_57)) allowed.insert({"GET"});
+    static const std::regex path_58("^/projects/([^/]+)/tags$");
+    if (std::regex_match(route_path, path_58)) allowed.insert({"GET"});
+    static const std::regex path_59("^/projects/([^/]+)/encryption\\-check$");
+    if (std::regex_match(route_path, path_59)) allowed.insert({"GET"});
+    static const std::regex path_60("^/projects/([^/]+)/cards$");
+    if (std::regex_match(route_path, path_60)) allowed.insert({"GET"});
+    static const std::regex path_61("^/cards/([^/]+)/milestones$");
+    if (std::regex_match(route_path, path_61)) allowed.insert({"GET", "POST"});
+    static const std::regex path_62("^/cards/([^/]+)/milestones\\-with\\-dates$");
+    if (std::regex_match(route_path, path_62)) allowed.insert({"GET", "POST"});
+    static const std::regex path_63("^/projects/([^/]+)/milestones\\-with\\-dates$");
+    if (std::regex_match(route_path, path_63)) allowed.insert({"GET"});
+    static const std::regex path_64("^/cards/([^/]+)/move$");
+    if (std::regex_match(route_path, path_64)) allowed.insert({"POST"});
+    static const std::regex path_65("^/cards/([^/]+)/tags$");
+    if (std::regex_match(route_path, path_65)) allowed.insert({"DELETE", "POST"});
+    static const std::regex path_66("^/cards/([^/]+)/resources$");
+    if (std::regex_match(route_path, path_66)) allowed.insert({"DELETE", "POST"});
+    static const std::regex path_67("^/cards/([^/]+)/links$");
+    if (std::regex_match(route_path, path_67)) allowed.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_68("^/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_68)) allowed.insert({"POST"});
+    static const std::regex path_69("^/locations/([^/]+)/binding$");
+    if (std::regex_match(route_path, path_69)) allowed.insert({"DELETE", "PUT"});
+    static const std::regex path_70("^/locations/([^/]+)/test$");
+    if (std::regex_match(route_path, path_70)) allowed.insert({"POST"});
+    static const std::regex path_71("^/projects/([^/]+)/repair\\-hierarchy$");
+    if (std::regex_match(route_path, path_71)) allowed.insert({"POST"});
+    static const std::regex path_72("^/cards/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_72)) allowed.insert({"GET"});
+    static const std::regex path_73("^/projects/([^/]+)/git/sync\\-status$");
+    if (std::regex_match(route_path, path_73)) allowed.insert({"GET"});
+    static const std::regex path_74("^/projects/([^/]+)/git/test\\-remote$");
+    if (std::regex_match(route_path, path_74)) allowed.insert({"POST"});
+    static const std::regex path_75("^/projects/([^/]+)/git/push$");
+    if (std::regex_match(route_path, path_75)) allowed.insert({"POST"});
+    static const std::regex path_76("^/projects/([^/]+)/git/pull$");
+    if (std::regex_match(route_path, path_76)) allowed.insert({"POST"});
+    static const std::regex path_77("^/projects/([^/]+)/git/sync$");
+    if (std::regex_match(route_path, path_77)) allowed.insert({"POST"});
+    static const std::regex path_78("^/projects/([^/]+)/recovery\\-token/export$");
+    if (std::regex_match(route_path, path_78)) allowed.insert({"POST"});
+    static const std::regex path_79("^/projects/([^/]+)/recovery\\-token/import$");
+    if (std::regex_match(route_path, path_79)) allowed.insert({"POST"});
+    static const std::regex path_80("^/projects/([^/]+)/history/cards/([^/]+)$");
+    if (std::regex_match(route_path, path_80)) allowed.insert({"GET"});
+    static const std::regex path_81("^/projects/([^/]+)/history/cards/([^/]+)/compare$");
+    if (std::regex_match(route_path, path_81)) allowed.insert({"GET"});
+    static const std::regex path_82("^/projects/([^/]+)/history/cards/([^/]+)/snapshot$");
+    if (std::regex_match(route_path, path_82)) allowed.insert({"GET"});
+    static const std::regex path_83("^/projects/([^/]+)/history/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_83)) allowed.insert({"POST"});
+    static const std::regex path_84("^/cards/([^/]+)/milestones\\-with\\-dates/([^/]+)$");
+    if (std::regex_match(route_path, path_84)) allowed.insert({"DELETE", "PATCH"});
+    static const std::regex path_85("^/cards/([^/]+)/milestones/([^/]+)$");
+    if (std::regex_match(route_path, path_85)) allowed.insert({"DELETE", "PATCH"});
+    static const std::regex path_86("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
+    if (std::regex_match(route_path, path_86)) allowed.insert({"GET"});
+    static const std::regex path_87("^/resources/([^/]+)/assets/([^/]+)/content$");
+    if (std::regex_match(route_path, path_87)) allowed.insert({"GET"});
+    static const std::regex path_88("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
+    if (std::regex_match(route_path, path_88)) allowed.insert({"DELETE"});
+    static const std::regex path_89("^/trash/([^/]+)/([^/]+)$");
+    if (std::regex_match(route_path, path_89)) allowed.insert({"DELETE"});
+    if (!allowed.empty()) {
+        std::string allow;
+        for (const auto allowed_method : allowed) {
+            if (!allow.empty()) allow += ", ";
+            allow += allowed_method;
+        }
+        const method_not_allowed error("method not allowed");
+        return response{405, encode_error<holder::api::ErrorResponse>(405, error), "", std::move(allow)};
+    }
     return std::nullopt;
 }
 // Whether the operation dispatch would select for this request is RIG_PUBLIC,

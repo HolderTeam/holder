@@ -75,7 +75,10 @@ TEST_CASE("AI thread reads validate and report failures", "[http][ai][threads]")
   // Unrelated and empty-ID paths match no route, so the router answers 404.
   REQUIRE_FALSE(route(db, http::verb::get, "/ai/threadz").handled);
   REQUIRE_FALSE(route(db, http::verb::get, "/ai/threads/").handled);
-  REQUIRE_FALSE(route(db, http::verb::post, "/ai/threads/thread-1", R"({"title":"x"})").handled);
+  // A thread path with a method it does not have is a 405.
+  const auto wrong = route(db, http::verb::post, "/ai/threads/thread-1", R"({"title":"x"})");
+  REQUIRE(wrong.status == http::status::method_not_allowed);
+  REQUIRE(wrong.body["error"]["code"] == "method_not_allowed");
 
   db.exec("DROP TABLE ai_threads;");
   REQUIRE(route(db, http::verb::get, "/ai/threads?project_id=proj-1").status ==

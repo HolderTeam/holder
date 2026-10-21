@@ -610,8 +610,10 @@ TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][e
       "#/components/schemas/EventResyncData"
   );
   require_json_response_ref(paths["/events/cursor"]["get"], "200", "EventCheckpointResponse");
-  for (const auto* status : {"400", "401", "404", "405", "503"})
+  for (const auto* status : {"400", "401", "404", "503"})
     require_json_response_ref(events, status, "ErrorResponse");
+  // A request with an operation's own method never gets a 405, so no operation lists one.
+  CHECK_FALSE(events["responses"]["405"].IsDefined());
   for (const auto* path : {"/ai/runs/{run_id}/events", "/ai/runner/pull/{job_id}/events"})
     CHECK(parameter_named(paths[path]["get"], "Last-Event-ID").IsDefined());
   CHECK(

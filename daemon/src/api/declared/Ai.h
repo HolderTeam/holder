@@ -81,7 +81,6 @@ RIG_SSE_EVENT("done", AiRunEventData)
 RIG_SSE_EVENT("failed", AiRunEventData)
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
-RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
 std::string get_ai_runs_run_id_events(
     std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
@@ -104,7 +103,6 @@ RIG_HOST_RESPONSE("text/event-stream")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
-RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
 std::string get_ai_runner_pull_job_id_events(
     std::optional<std::string> runner_id RIG_QUERY,

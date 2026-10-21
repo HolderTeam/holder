@@ -784,11 +784,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '405':
-          description: Method not allowed
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '501':
           description: Not implemented
           content:
@@ -1098,11 +1093,6 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '405':
-          description: Method not allowed
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -2469,11 +2459,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '405':
-          description: Method not allowed
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
           description: Observer unavailable or stream limit reached
           content:
@@ -2512,11 +2497,6 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Project not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '405':
-          description: Method not allowed
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4059,11 +4039,6 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Project not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '405':
-          description: Method not allowed
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
