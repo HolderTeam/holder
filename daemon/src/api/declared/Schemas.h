@@ -154,28 +154,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD PostAiRunnerPullRequest {
   std::optional<std::string> runner_id RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCreateResponseData {
-  std::string message_id;
-};
-
-struct RIG_OPEN_RECORD AiMessageCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiMessageCreateResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiMessageCreateRequest {
-  std::optional<std::string> message_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted.") RIG_OMIT_EMPTY;
-  std::string thread_id;
-  std::string role;
-  std::string source;
-  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string content;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> prompt_hash RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> meta_json RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCaptureResponseData {
   std::string thread_id;
   std::string user_message_id;
@@ -240,26 +218,6 @@ struct RIG_OPEN_RECORD AiThreadUpdateRequest {
   std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
   long long updated_at;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageUpdateResponseData {
-  std::string message_id;
-};
-
-struct RIG_OPEN_RECORD AiMessageUpdateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiMessageUpdateResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiMessageUpdateRequest {
-  std::optional<std::optional<std::string>> role RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> source RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> content RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<long long> created_at RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> prompt_hash RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> meta_json RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD CardLinkDeleteRequest {

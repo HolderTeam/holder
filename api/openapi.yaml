@@ -130,7 +130,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiMessageCreateResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including a thread that does not exist
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -140,7 +140,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Conflict
+          description: A message with this ID already exists
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -232,7 +237,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiMessageUpdateResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including a message in the trash
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -243,6 +248,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -259,6 +269,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiMessageUpdateResponse'}
+        '400':
+          description: The message is already in the trash
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -266,6 +281,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -371,7 +391,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/CardLinkCreateResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including an invalid link target
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -382,6 +402,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -422,6 +447,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ai/messages/{message_id}/restore:
     post:
       summary: Restore an AI message from trash
@@ -436,6 +466,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiMessageUpdateResponse'}
+        '400':
+          description: The message is not in the trash
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -443,6 +478,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4643,19 +4683,26 @@ components:
       properties:
         role:
           type: [string, 'null']
+          description: Omit or send null to leave it unchanged.
         source:
           type: [string, 'null']
+          description: Omit or send null to leave it unchanged.
         provider:
           type: [string, 'null']
+          description: Omit to leave it unchanged; null clears it.
         model:
           type: [string, 'null']
+          description: Omit to leave it unchanged; null clears it.
         content:
           type: [string, 'null']
-        created_at: {type: integer, format: int64}
+          description: Omit or send null to leave it unchanged.
+        created_at: {type: integer, format: int64, description: Omit to leave it unchanged.}
         prompt_hash:
           type: [string, 'null']
+          description: Omit to leave it unchanged; null clears it.
         meta_json:
           type: [string, 'null']
+          description: Omit to leave it unchanged; null clears it.
     AiMessageUpdateResponse:
       type: object
       properties:

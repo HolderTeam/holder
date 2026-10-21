@@ -2,6 +2,7 @@
 
 #include "api/AiLocalModelConfig.h"
 #include "api/AiMessageRead.h"
+#include "api/AiMessageWrite.h"
 #include "api/AiProviderCatalog.h"
 #include "api/AiRunnerRead.h"
 #include "api/AssetImportRead.h"
@@ -62,6 +63,7 @@ std::string error_code(int status) {
   switch (status) {
   case 400: return "bad_request";
   case 404: return "not_found";
+  case 409: return "conflict";
   default: return "error";
   }
 }

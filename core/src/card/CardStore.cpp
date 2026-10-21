@@ -10,6 +10,7 @@
 #include "git/GitOps.h"
 #include "git/GitRepo.h"
 #include "identity/Uuid.h"
+#include "model/ConflictError.h"
 #include "platform/Fs.h"
 #include "platform/Tx.h"
 #include "privacy/ProjectPrivacy.h"
@@ -156,12 +157,12 @@ void CardStore::create(
   }
 
   if (card_repo_.get(card.card_id).has_value()) {
-    throw std::runtime_error("conflict: card_id already exists");
+    throw holder::model::ConflictError("card_id already exists");
   }
 
   const auto full_path = git_->repo_dir() / card.rel_path;
   if (fs_->exists(full_path)) {
-    throw std::runtime_error("conflict: card file already exists");
+    throw holder::model::ConflictError("card file already exists");
   }
 
   for (const auto& link : links) {
@@ -846,7 +847,7 @@ void CardStore::apply_card_changes(
       throw std::runtime_error("card content missing");
     if (source_path != target_path) {
       if (fs_->exists(git_->repo_dir() / target_path))
-        throw std::runtime_error("conflict: destination card file already exists");
+        throw holder::model::ConflictError("destination card file already exists");
       renames.push_back({source_path, target_path});
     }
     change.target.card.rel_path = live_path;

@@ -111,15 +111,6 @@ std::string get_ai_runner_pull_job_id_events(
     std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
     std::string job_id);
 
-RIG_ROUTE(POST, "/ai/messages")
-RIG_SUMMARY("Create an AI message")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
-AiMessageCreateResponse post_ai_messages(AiMessageCreateRequest request);
-
 RIG_ROUTE(POST, "/ai/messages/capture")
 RIG_SUMMARY("Capture prompt/response pair with provenance")
 RIG_RESPONSE_DESCRIPTION("Created")
@@ -155,51 +146,5 @@ RIG_RESPONSE_DESCRIPTION("OK")
 RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 AiThreadPatchResponse delete_ai_threads_thread_id(std::string thread_id);
-
-RIG_ROUTE(PATCH, "/ai/messages/{message_id}")
-RIG_SUMMARY("Update an AI message")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiMessageUpdateResponse patch_ai_messages_message_id(
-    std::string message_id,
-    AiMessageUpdateRequest request);
-
-RIG_ROUTE(DELETE, "/ai/messages/{message_id}")
-RIG_SUMMARY("Move an AI message to trash")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiMessageUpdateResponse delete_ai_messages_message_id(std::string message_id);
-
-RIG_ROUTE(POST, "/ai/messages/{message_id}/restore")
-RIG_SUMMARY("Restore an AI message from trash")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiMessageUpdateResponse post_ai_messages_message_id_restore(std::string message_id);
-
-RIG_ROUTE(POST, "/ai/messages/{message_id}/links")
-RIG_SUMMARY("Create or update a link from an AI message")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-holder::api::routes::CardLinkCreateResponse post_ai_messages_message_id_links(
-    std::string message_id,
-    holder::api::routes::CardLinkCreateRequest request);
-
-RIG_ROUTE(DELETE, "/ai/messages/{message_id}/links")
-RIG_SUMMARY("Delete links from an AI message")
-RIG_DESCRIPTION("Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiMessageCreateResponse delete_ai_messages_message_id_links(
-    std::string message_id,
-    std::optional<CardLinkDeleteRequest> request);
 
 } // namespace holder::api

@@ -16,14 +16,14 @@ T = TypeVar("T", bound="AiMessageUpdateRequest")
 class AiMessageUpdateRequest:
     """
     Attributes:
-        role (None | str | Unset):
-        source (None | str | Unset):
-        provider (None | str | Unset):
-        model (None | str | Unset):
-        content (None | str | Unset):
-        created_at (int | Unset):
-        prompt_hash (None | str | Unset):
-        meta_json (None | str | Unset):
+        role (None | str | Unset): Omit or send null to leave it unchanged.
+        source (None | str | Unset): Omit or send null to leave it unchanged.
+        provider (None | str | Unset): Omit to leave it unchanged; null clears it.
+        model (None | str | Unset): Omit to leave it unchanged; null clears it.
+        content (None | str | Unset): Omit or send null to leave it unchanged.
+        created_at (int | Unset): Omit to leave it unchanged.
+        prompt_hash (None | str | Unset): Omit to leave it unchanged; null clears it.
+        meta_json (None | str | Unset): Omit to leave it unchanged; null clears it.
     """
 
     role: None | str | Unset = UNSET

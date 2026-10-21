@@ -393,6 +393,7 @@ add_executable(holderd
   src/api/History.cpp
   src/api/LocationRead.cpp
   src/api/AiMessageRead.cpp
+  src/api/AiMessageWrite.cpp
   src/api/AiLocalModelConfig.cpp
   src/api/AiProviderCatalog.cpp
   src/api/AiRunnerRead.cpp
@@ -422,8 +423,6 @@ add_executable(holderd
   src/api/routes/ai/AiDispatch.cpp
   src/api/routes/ai/AiMessageRoutes.cpp
   src/api/routes/ai/messages/AiMessageCaptureRoutes.cpp
-  src/api/routes/ai/messages/AiMessageCrudRoutes.cpp
-  src/api/routes/ai/messages/AiMessageLinkRoutes.cpp
   src/api/routes/AiResourceRoutes.cpp
   src/api/routes/GoogleDriveOAuthRoutes.cpp
   src/api/routes/ai/runs/AiRunPostRoute.cpp

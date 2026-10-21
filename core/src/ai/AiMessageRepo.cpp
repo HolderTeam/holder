@@ -3,6 +3,7 @@
 #include "ai/AiMessageFrontMatter.h"
 #include "ai/AiMessagePaths.h"
 #include "git/GitOps.h"
+#include "model/ConflictError.h"
 #include "platform/Fs.h"
 
 #include <sqlite3.h>
@@ -116,7 +117,7 @@ void AiMessageRepo::append(const holder::model::AiMessage& message) {
   const std::string rel_path = holder::core::ai_message_rel_path(message.message_id);
   const auto full_path = git_->repo_dir() / rel_path;
   if (fs_->exists(full_path)) {
-    throw std::runtime_error("conflict: ai message file already exists");
+    throw holder::model::ConflictError("ai message file already exists");
   }
 
   const auto front_matter =

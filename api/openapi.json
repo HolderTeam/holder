@@ -252,7 +252,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad request, including a thread that does not exist",
             "content": {
               "application/json": {
                 "schema": {
@@ -272,7 +272,17 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "A message with this ID already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -452,7 +462,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad request, including a message in the trash",
             "content": {
               "application/json": {
                 "schema": {
@@ -473,6 +483,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -506,6 +526,16 @@
               }
             }
           },
+          "400": {
+            "description": "The message is already in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -518,6 +548,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -722,7 +762,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad request, including an invalid link target",
             "content": {
               "application/json": {
                 "schema": {
@@ -743,6 +783,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -816,6 +866,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -844,6 +904,16 @@
               }
             }
           },
+          "400": {
+            "description": "The message is not in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -856,6 +926,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9022,47 +9102,55 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit or send null to leave it unchanged."
           },
           "source": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit or send null to leave it unchanged."
           },
           "provider": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit to leave it unchanged; null clears it."
           },
           "model": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit to leave it unchanged; null clears it."
           },
           "content": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit or send null to leave it unchanged."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Omit to leave it unchanged."
           },
           "prompt_hash": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit to leave it unchanged; null clears it."
           },
           "meta_json": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Omit to leave it unchanged; null clears it."
           }
         }
       },
