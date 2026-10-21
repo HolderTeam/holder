@@ -54,54 +54,6 @@ bool handle_ai_provider_credential_routes(
     }
   }
 
-  if (path == "/ai/providers/settings" && req.method() == http::verb::put) {
-    try {
-      const auto body = nlohmann::json::parse(req.body());
-      if (!body.contains("provider") || !body.contains("enabled") ||
-          body.at("provider").is_null() || body.at("enabled").is_null()) {
-        res = support::error_response(
-            http::status::bad_request,
-            "bad_request",
-            "Missing provider or enabled."
-        );
-        return true;
-      }
-
-      const std::string provider = support::normalize_provider_name(
-          body.at("provider").get<std::string>()
-      );
-      if (provider.empty()) {
-        res = support::error_response(
-            http::status::bad_request,
-            "bad_request",
-            "provider must be alphanumeric and may include '-', '_' or '.'."
-        );
-        return true;
-      }
-      const bool enabled = body.at("enabled").get<bool>();
-      const long long ts = (body.contains("updated_at") && !body.at("updated_at").is_null())
-                               ? body.at("updated_at").get<long long>()
-                               : support::now_epoch_seconds();
-
-      holder::ai::AiProviderSettingRepo repo(db);
-      repo.upsert(provider, enabled, ts);
-      holder::core::persist_device_config(db);
-
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = {
-          {"provider", provider},
-          {"enabled", enabled},
-          {"updated_at", ts},
-      };
-      res = support::json_response(http::status::ok, payload);
-      return true;
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      return true;
-    }
-  }
-
   if (path.rfind("/ai/providers/settings/", 0) == 0 && req.method() == http::verb::delete_) {
     try {
       const std::string provider = support::normalize_provider_name(

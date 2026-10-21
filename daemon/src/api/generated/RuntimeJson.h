@@ -101,6 +101,18 @@ template <> struct codec<holder::api::ProjectTagListResponse> {
     static json encode(const holder::api::ProjectTagListResponse& value);
     static holder::api::ProjectTagListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderSetting> {
+    static json encode(const holder::api::AiProviderSetting& value);
+    static holder::api::AiProviderSetting decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderSettingUpdateRequest> {
+    static json encode(const holder::api::AiProviderSettingUpdateRequest& value);
+    static holder::api::AiProviderSettingUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderSettingResponse> {
+    static json encode(const holder::api::AiProviderSettingResponse& value);
+    static holder::api::AiProviderSettingResponse decode(const json& value);
+};
 template <> struct codec<holder::api::RebuildRequest> {
     static json encode(const holder::api::RebuildRequest& value);
     static holder::api::RebuildRequest decode(const json& value);
@@ -219,6 +231,66 @@ inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResp
     return holder::api::ProjectTagListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSetting>::encode(const holder::api::AiProviderSetting& value) {
+    json result = json::object();
+    result["provider"] = codec<std::string>::encode(value.provider);
+    result["enabled"] = codec<bool>::encode(value.enabled);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::AiProviderSetting codec<holder::api::AiProviderSetting>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("provider")
+        || !value.contains("enabled")
+        || !value.contains("updated_at")
+) throw std::invalid_argument("expected AiProviderSetting");
+    return holder::api::AiProviderSetting{
+        codec<std::string>::decode(value.at("provider")),
+        codec<bool>::decode(value.at("enabled")),
+        codec<long long>::decode(value.at("updated_at")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingUpdateRequest>::encode(const holder::api::AiProviderSettingUpdateRequest& value) {
+    json result = json::object();
+    result["provider"] = codec<std::string>::encode(value.provider);
+    result["enabled"] = codec<bool>::encode(value.enabled);
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::AiProviderSettingUpdateRequest codec<holder::api::AiProviderSettingUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("provider")
+        || !value.contains("enabled")
+) throw std::invalid_argument("expected AiProviderSettingUpdateRequest");
+    return holder::api::AiProviderSettingUpdateRequest{
+        codec<std::string>::decode(value.at("provider")),
+        codec<bool>::decode(value.at("enabled")),
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingResponse>::encode(const holder::api::AiProviderSettingResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderSetting>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderSettingResponse codec<holder::api::AiProviderSettingResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected AiProviderSettingResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderSettingResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderSetting>::decode(value.at("data")),
     };
 }
 

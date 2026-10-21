@@ -42,6 +42,11 @@ record. The generated dispatcher decodes the body and encodes the response;
 the typed operation calls core's rebuilder. Holder maps missing projects to 404
 and rebuild failures to 400. The old route wrapper was removed.
 
+`daemon/src/api/ProviderSettings.h` declares `PUT /ai/providers/settings` with
+an optional timestamp in its JSON request. The shared dispatcher decodes and
+encodes this operation; its typed function normalizes the provider and persists
+the setting. GET and DELETE on the settings path remain in the existing handler.
+
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
 optional `runner_id` query parameter. The shared dispatcher decodes the query
 and path, calls the typed operation with Holder's runner registry, and encodes
@@ -76,8 +81,8 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, five operations, and their
-thirteen reachable schemas now match the control. The comparison treats an omitted
+The generated service metadata, bearer security, six operations, and their
+sixteen reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.

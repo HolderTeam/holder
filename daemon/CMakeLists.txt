@@ -389,6 +389,7 @@ add_executable(holderd
   src/llm/RunnerRegistry.cpp
   src/api/HttpServer.cpp
   src/api/GeneratedRoutes.cpp
+  src/api/ProviderSettings.cpp
   src/api/Rebuild.cpp
   src/api/Listener.cpp
   src/api/routes/ai/AiProviderRoutes.cpp

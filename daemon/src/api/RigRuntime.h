@@ -4,5 +4,6 @@
 #include "api/Bye.h"
 #include "api/CardLinks.h"
 #include "api/ProjectTags.h"
+#include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
