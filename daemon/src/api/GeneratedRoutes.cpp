@@ -13,6 +13,7 @@
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"
+#include "api/History.h"
 #include "api/MilestonesWithDates.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectDelete.h"
@@ -68,6 +69,11 @@ ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
                              const holder::privacy::PrivacyError& error) {
   return {false, {holder::privacy::privacy_error_code_name(error.code()), error.what()}};
+}
+
+ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
+                             const CodedError& error) {
+  return {false, {error.code, error.what()}};
 }
 
 bool is_public_generated_route(const Router::Request& req) {

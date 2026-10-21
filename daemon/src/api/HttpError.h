@@ -3,8 +3,10 @@
 #include "api/RigAnnotations.h"
 
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace holder::privacy { class PrivacyError; }
 
@@ -20,11 +22,20 @@ struct RIG_OPEN_RECORD ErrorResponse {
   Error error;
 };
 
+// A failure that names its own error code instead of the status's generic one.
+struct CodedError : std::runtime_error {
+  CodedError(std::string error_code, const std::string& message)
+      : std::runtime_error(message), code(std::move(error_code)) {}
+  std::string code;
+};
+
 // Generated dispatch builds the body for each exception named by an
-// operation's RIG_ERROR_RESPONSE; the PrivacyError overload keeps its code.
+// operation's RIG_ERROR_RESPONSE; the PrivacyError and CodedError overloads keep their codes.
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
                              const std::exception& error);
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
                              const holder::privacy::PrivacyError& error);
+ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+                             const CodedError& error);
 
 } // namespace holder::api

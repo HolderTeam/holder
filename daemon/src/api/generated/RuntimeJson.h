@@ -2557,20 +2557,19 @@ inline json codec<holder::api::ProjectHistoryAffectedObject>::encode(const holde
     if (value.kind != "card" && value.kind != "resource" && value.kind != "location" && value.kind != "ai_data" && value.kind != "project_settings" && value.kind != "unknown") throw std::invalid_argument("invalid kind");
     result["kind"] = codec<std::string>::encode(value.kind);
     result["paths"] = codec<std::vector<std::string>>::encode(value.paths);
-    if (value.items) {
-        result["items"] = codec<std::optional<std::vector<holder::api::ProjectHistoryAffectedObjectItemsItem>>>::encode(value.items);
-    }
+    result["items"] = codec<std::vector<holder::api::ProjectHistoryAffectedObjectItemsItem>>::encode(value.items);
     return result;
 }
 inline holder::api::ProjectHistoryAffectedObject codec<holder::api::ProjectHistoryAffectedObject>::decode(const json& value) {
     if (!value.is_object()) throw std::invalid_argument("expected ProjectHistoryAffectedObject");
     if (!value.contains("kind")) throw std::invalid_argument("missing kind");
     if (!value.contains("paths")) throw std::invalid_argument("missing paths");
+    if (!value.contains("items")) throw std::invalid_argument("missing items");
     if (value.at("kind") != "card" && value.at("kind") != "resource" && value.at("kind") != "location" && value.at("kind") != "ai_data" && value.at("kind") != "project_settings" && value.at("kind") != "unknown") throw std::invalid_argument("invalid kind");
     return holder::api::ProjectHistoryAffectedObject{
         codec<std::string>::decode(value.at("kind")),
         codec<std::vector<std::string>>::decode(value.at("paths")),
-        value.contains("items") ? codec<std::optional<std::vector<holder::api::ProjectHistoryAffectedObjectItemsItem>>>::decode(value.at("items")) : std::nullopt,
+        codec<std::vector<holder::api::ProjectHistoryAffectedObjectItemsItem>>::decode(value.at("items")),
     };
 }
 

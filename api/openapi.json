@@ -6391,7 +6391,8 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "A full commit OID from next_cursor."
           },
           {
             "name": "kind",
@@ -6452,8 +6453,28 @@
               }
             }
           },
+          "409": {
+            "description": "The encrypted project key is unavailable on this device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "413": {
             "description": "The bounded History response would exceed 2 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6513,7 +6534,8 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "A full commit OID from next_cursor."
           }
         ],
         "responses": {
@@ -6569,6 +6591,16 @@
           },
           "413": {
             "description": "The bounded History response would exceed 2 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6697,6 +6729,16 @@
           },
           "413": {
             "description": "The bounded History response would exceed 2 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6895,6 +6937,16 @@
           },
           "413": {
             "description": "The bounded snapshot response would exceed 2 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -13079,7 +13131,8 @@
         },
         "required": [
           "kind",
-          "paths"
+          "paths",
+          "items"
         ]
       },
       "ProjectHistoryPageData": {

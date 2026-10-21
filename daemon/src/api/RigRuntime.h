@@ -15,6 +15,7 @@
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"
+#include "api/History.h"
 #include "api/ProjectTags.h"
 #include "api/ProviderCredentials.h"
 #include "api/ProviderSettings.h"

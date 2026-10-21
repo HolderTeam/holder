@@ -61,68 +61,6 @@ CardBreadcrumbsResponse get_projects_project_id_cards_card_id_breadcrumbs(
     std::string project_id,
     std::string card_id);
 
-RIG_ROUTE(GET, "/projects/{project_id}/history")
-RIG_SUMMARY("List project activity history")
-RIG_DESCRIPTION("Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed paths by recognised Holder object kind; unknown paths remain visible as unknown.")
-RIG_RESPONSE_DESCRIPTION("Project activity history")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid limit, cursor, or object-kind filter")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(413, ErrorResponse, "The bounded History response would exceed 2 MiB")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Project history is temporarily unavailable")
-ProjectHistoryPageResponse get_projects_project_id_history(
-    std::string project_id,
-    int limit RIG_QUERY RIG_RANGE(1, 200) RIG_DEFAULT(50),
-    std::optional<std::string> cursor RIG_QUERY,
-    std::optional<std::string> kind RIG_QUERY RIG_STRING_VALUES("card", "resource", "location", "ai_data", "project_settings", "unknown") RIG_PARAMETER_DESCRIPTION("Return only activities affecting this Holder object kind."));
-
-RIG_ROUTE(GET, "/projects/{project_id}/history/cards/{card_id}")
-RIG_SUMMARY("List saved history for a card")
-RIG_DESCRIPTION("Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves may be grouped into one entry.")
-RIG_RESPONSE_DESCRIPTION("Saved card history")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid card identifier, limit, or cursor")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "The encrypted project key is unavailable on this device")
-RIG_ERROR_RESPONSE(413, ErrorResponse, "The bounded History response would exceed 2 MiB")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Project history is temporarily unavailable")
-CardHistoryPageResponse get_projects_project_id_history_cards_card_id(
-    std::string project_id,
-    std::string card_id,
-    int limit RIG_QUERY RIG_RANGE(1, 200) RIG_DEFAULT(50),
-    std::optional<std::string> cursor RIG_QUERY);
-
-RIG_ROUTE(GET, "/projects/{project_id}/history/cards/{card_id}/compare")
-RIG_SUMMARY("Compare saved card versions or the change introduced by one revision")
-RIG_DESCRIPTION("In since mode, compares the explicitly selected from and to snapshots. In change mode, compares the first parent of to with to; a root commit is compared with a previously nonexistent card. Merge commits use only their first parent, not a combined multi-parent diff.")
-RIG_RESPONSE_DESCRIPTION("A line-oriented card comparison")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid or missing comparison parameters")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or revision not found")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "A revision reference is ambiguous or the encrypted project key is unavailable")
-RIG_ERROR_RESPONSE(413, ErrorResponse, "The bounded History response would exceed 2 MiB")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Project history is temporarily unavailable")
-CardHistoryComparisonResponse get_projects_project_id_history_cards_card_id_compare(
-    std::string project_id,
-    std::string card_id,
-    std::optional<RevisionReference> from RIG_QUERY RIG_PARAMETER_DESCRIPTION("Required and used in since mode; change mode derives its base from to."),
-    RevisionReference to RIG_QUERY RIG_PARAMETER_DESCRIPTION("The ending revision, or the revision whose introduced change is requested."),
-    std::string mode RIG_QUERY RIG_STRING_VALUES("since", "change") RIG_DEFAULT("since") RIG_PARAMETER_DESCRIPTION("Since compares two explicit snapshots; change compares to with its first parent."));
-
-RIG_ROUTE(GET, "/projects/{project_id}/history/cards/{card_id}/snapshot")
-RIG_SUMMARY("Read a card snapshot at a selected revision")
-RIG_RESPONSE_DESCRIPTION("The card snapshot, including an explicit absent state")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Missing revision reference or invalid card identifier")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or revision not found")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "A revision reference is ambiguous or the encrypted project key is unavailable")
-RIG_ERROR_RESPONSE(413, ErrorResponse, "The bounded snapshot response would exceed 2 MiB")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "The historical snapshot is temporarily unavailable")
-CardHistorySnapshotResponse get_projects_project_id_history_cards_card_id_snapshot(
-    std::string project_id,
-    std::string card_id,
-    RevisionReference oid RIG_QUERY);
-
 RIG_ROUTE(POST, "/projects/{project_id}/history/cards/{card_id}/restore")
 RIG_SUMMARY("Restore a card to a saved snapshot")
 RIG_DESCRIPTION("Restores the complete card snapshot at the selected commit and records the result as a new commit without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was trashed promotes its current live children, as trashing does. Restoring a live snapshot places the card under a reachable parent, as restoring from Trash does.")

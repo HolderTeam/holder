@@ -3338,6 +3338,7 @@ paths:
         in: query
         required: false
         schema: {type: string}
+        description: A full commit OID from next_cursor.
       - name: kind
         in: query
         required: false
@@ -3366,8 +3367,18 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: The encrypted project key is unavailable on this device
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
           description: The bounded History response would exceed 2 MiB
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3398,6 +3409,7 @@ paths:
         in: query
         required: false
         schema: {type: string}
+        description: A full commit OID from next_cursor.
       responses:
         '200':
           description: Saved card history
@@ -3426,6 +3438,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
           description: The bounded History response would exceed 2 MiB
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3495,6 +3512,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
           description: The bounded History response would exceed 2 MiB
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3599,6 +3621,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
           description: The bounded snapshot response would exceed 2 MiB
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6218,7 +6245,7 @@ components:
               detail: {type: string}
             required: [path]
           description: Historical display details for the affected paths, when available.
-      required: [kind, paths]
+      required: [kind, paths, items]
     ProjectHistoryPageData:
       type: object
       properties:

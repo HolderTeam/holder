@@ -382,7 +382,7 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectHistoryAffectedObjectItemsItem {
 struct RIG_OPEN_RECORD ProjectHistoryAffectedObject {
   std::string kind RIG_STRING_VALUES("card", "resource", "location", "ai_data", "project_settings", "unknown");
   std::vector<std::string> paths;
-  std::optional<std::vector<ProjectHistoryAffectedObjectItemsItem>> items RIG_FIELD_DESCRIPTION("Historical display details for the affected paths, when available.") RIG_OMIT_EMPTY;
+  std::vector<ProjectHistoryAffectedObjectItemsItem> items RIG_FIELD_DESCRIPTION("Historical display details for the affected paths, when available.");
 };
 
 struct RIG_OPEN_RECORD ProjectHistoryActivity {
