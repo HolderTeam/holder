@@ -45,14 +45,6 @@ MilestoneRemoveResponse delete_cards_card_id_milestones_with_dates_milestone_id(
     std::string card_id,
     std::string milestone_id RIG_FORMAT("uuid"));
 
-RIG_ROUTE(GET, "/cards/{card_id}/milestones")
-RIG_SUMMARY("List milestones attached to a card")
-RIG_DESCRIPTION("This compatibility timestamp view omits undated milestones and milestones with repeated start or end roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for the complete model.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
-MilestoneListResponse get_cards_card_id_milestones(std::string card_id);
-
 RIG_ROUTE(POST, "/cards/{card_id}/milestones")
 RIG_SUMMARY("Add a milestone to a card")
 RIG_DESCRIPTION("Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and have no independent title.")

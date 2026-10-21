@@ -10,6 +10,7 @@
 #include "api/AiThreadRead.h"
 #include "api/Alive.h"
 #include "api/Calendar.h"
+#include "api/CardMilestones.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"

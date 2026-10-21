@@ -1819,6 +1819,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/MilestoneListResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -1826,6 +1831,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Card not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5835,7 +5845,7 @@ components:
         created_at: {type: integer, format: int64}
         updated_at: {type: integer, format: int64}
         card_title: {type: string, description: Included in project calendar responses.}
-      required: [milestone_id, card_id, start_at, all_day, created_at, updated_at]
+      required: [milestone_id, card_id, start_at, end_at, all_day, kind, description, created_at, updated_at]
     MilestoneCreateRequest:
       type: object
       properties:

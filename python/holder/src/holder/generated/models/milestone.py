@@ -21,26 +21,26 @@ class Milestone:
         card_id (str):
         start_at (int): Unix epoch seconds. For an all-day milestone, this encodes the originating local date at local
             midnight.
+        end_at (int | None): Inclusive milestone end in Unix epoch seconds. For an all-day milestone, this encodes the
+            inclusive ending local date at local midnight.
         all_day (bool): When true, start_at and end_at carry local calendar-date semantics and clients should render
             dates rather than ordinary timed instants.
+        kind (None | str):
+        description (None | str):
         created_at (int):
         updated_at (int):
-        end_at (int | None | Unset): Inclusive milestone end in Unix epoch seconds. For an all-day milestone, this
-            encodes the inclusive ending local date at local midnight.
-        kind (None | str | Unset):
-        description (None | str | Unset):
         card_title (str | Unset): Included in project calendar responses.
     """
 
     milestone_id: UUID
     card_id: str
     start_at: int
+    end_at: int | None
     all_day: bool
+    kind: None | str
+    description: None | str
     created_at: int
     updated_at: int
-    end_at: int | None | Unset = UNSET
-    kind: None | str | Unset = UNSET
-    description: None | str | Unset = UNSET
     card_title: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -51,29 +51,20 @@ class Milestone:
 
         start_at = self.start_at
 
+        end_at: int | None
+        end_at = self.end_at
+
         all_day = self.all_day
+
+        kind: None | str
+        kind = self.kind
+
+        description: None | str
+        description = self.description
 
         created_at = self.created_at
 
         updated_at = self.updated_at
-
-        end_at: int | None | Unset
-        if isinstance(self.end_at, Unset):
-            end_at = UNSET
-        else:
-            end_at = self.end_at
-
-        kind: None | str | Unset
-        if isinstance(self.kind, Unset):
-            kind = UNSET
-        else:
-            kind = self.kind
-
-        description: None | str | Unset
-        if isinstance(self.description, Unset):
-            description = UNSET
-        else:
-            description = self.description
 
         card_title = self.card_title
 
@@ -84,17 +75,14 @@ class Milestone:
                 "milestone_id": milestone_id,
                 "card_id": card_id,
                 "start_at": start_at,
+                "end_at": end_at,
                 "all_day": all_day,
+                "kind": kind,
+                "description": description,
                 "created_at": created_at,
                 "updated_at": updated_at,
             }
         )
-        if end_at is not UNSET:
-            field_dict["end_at"] = end_at
-        if kind is not UNSET:
-            field_dict["kind"] = kind
-        if description is not UNSET:
-            field_dict["description"] = description
         if card_title is not UNSET:
             field_dict["card_title"] = card_title
 
@@ -109,38 +97,32 @@ class Milestone:
 
         start_at = d.pop("start_at")
 
+        def _parse_end_at(data: object) -> int | None:
+            if data is None:
+                return data
+            return cast(int | None, data)
+
+        end_at = _parse_end_at(d.pop("end_at"))
+
         all_day = d.pop("all_day")
+
+        def _parse_kind(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        kind = _parse_kind(d.pop("kind"))
+
+        def _parse_description(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        description = _parse_description(d.pop("description"))
 
         created_at = d.pop("created_at")
 
         updated_at = d.pop("updated_at")
-
-        def _parse_end_at(data: object) -> int | None | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
-
-        end_at = _parse_end_at(d.pop("end_at", UNSET))
-
-        def _parse_kind(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        kind = _parse_kind(d.pop("kind", UNSET))
-
-        def _parse_description(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        description = _parse_description(d.pop("description", UNSET))
 
         card_title = d.pop("card_title", UNSET)
 
@@ -148,12 +130,12 @@ class Milestone:
             milestone_id=milestone_id,
             card_id=card_id,
             start_at=start_at,
-            all_day=all_day,
-            created_at=created_at,
-            updated_at=updated_at,
             end_at=end_at,
+            all_day=all_day,
             kind=kind,
             description=description,
+            created_at=created_at,
+            updated_at=updated_at,
             card_title=card_title,
         )
 

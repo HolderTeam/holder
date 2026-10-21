@@ -401,6 +401,7 @@ add_executable(holderd
   src/api/AiStatus.cpp
   src/api/AiThreadRead.cpp
   src/api/Calendar.cpp
+  src/api/CardMilestones.cpp
   src/api/ProjectRead.cpp
   src/api/ProjectCreate.cpp
   src/api/ProjectDelete.cpp
