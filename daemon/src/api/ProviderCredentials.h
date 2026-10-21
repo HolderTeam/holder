@@ -49,14 +49,12 @@ struct ProviderCredentialError : std::runtime_error {
 RIG_ROUTE(GET, "/ai/providers/credentials")
 RIG_SUMMARY("List configured cloud provider credentials")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db& db RIG_CONTEXT);
 
 RIG_ROUTE(PUT, "/ai/providers/credentials")
 RIG_SUMMARY("Create or update a cloud provider API key")
 RIG_RESPONSE_DESCRIPTION("OK")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", ProviderCredentialError)
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Secret store unavailable",
                    holder::privacy::PrivacyError)
 AiProviderCredentialUpsertResponse upsert_provider_credential(

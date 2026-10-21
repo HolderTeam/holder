@@ -46,7 +46,6 @@ struct PullJobNotFound : std::runtime_error {
 RIG_ROUTE(GET, "/ai/runner/pull/{job_id}")
 RIG_SUMMARY("Fetch pull job status")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", RunnerNotConfigured, PullJobNotFound)
 RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
 RunnerPullStatusResponse get_pull_status(holder::llm::RunnerRegistry* registry RIG_CONTEXT,

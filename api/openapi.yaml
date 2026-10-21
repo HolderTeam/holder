@@ -5636,6 +5636,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /ai/providers/settings/{provider}:
     delete:
       summary: Remove a cloud provider enabled override
@@ -5654,6 +5660,12 @@ paths:
                 $ref: "#/components/schemas/AiProviderSettingDeleteResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:

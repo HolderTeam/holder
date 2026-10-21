@@ -40,7 +40,6 @@ RIG_ROUTE(POST, "/rebuild")
 RIG_SUMMARY("Rebuild database state from project files")
 RIG_RESPONSE_DESCRIPTION("OK")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", RebuildFailed)
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found", RebuildProjectNotFound)
 RebuildResponse rebuild_project_from_files(holder::platform::Db& db RIG_CONTEXT,
                                            holder::index::FtsIndexer* fts RIG_CONTEXT,

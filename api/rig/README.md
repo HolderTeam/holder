@@ -22,7 +22,8 @@ patches.
 
 ## Live slices
 
-`daemon/src/api/ApiService.h` declares document metadata and bearer security.
+`daemon/src/api/ApiService.h` declares document metadata and bearer security,
+including the 401 response every authenticated operation documents.
 `daemon/src/api/Bye.h` declares the typed operation and response.
 `daemon/src/api/RigRuntime.h` selects the migrated operations for one
 checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.

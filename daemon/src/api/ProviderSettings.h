@@ -54,7 +54,6 @@ struct ProviderSettingError : std::runtime_error {
 RIG_ROUTE(GET, "/ai/providers/settings")
 RIG_SUMMARY("List cloud provider enabled settings")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db RIG_CONTEXT);
 
 RIG_ROUTE(PUT, "/ai/providers/settings")

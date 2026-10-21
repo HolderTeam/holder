@@ -39,7 +39,6 @@ struct CardLinkSourceNotFound : std::runtime_error {
 RIG_ROUTE(GET, "/cards/{card_id}/links")
 RIG_SUMMARY("List outgoing links for a card")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(401, holder::api::ErrorResponse, "Unauthorized")
 RIG_ERROR_RESPONSE(404, holder::api::ErrorResponse, "Not found", CardLinkSourceNotFound)
 CardLinkListResponse list_card_links(holder::platform::Db& db RIG_CONTEXT,
                                      holder::index::FtsIndexer* fts RIG_CONTEXT,

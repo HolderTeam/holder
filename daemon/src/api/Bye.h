@@ -23,7 +23,6 @@ RIG_DESCRIPTION(
     "falls back to its idle period."
 )
 RIG_RESPONSE_DESCRIPTION("Acknowledged")
-RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
 ByeResponse say_goodbye();
 
 } // namespace holder::api
