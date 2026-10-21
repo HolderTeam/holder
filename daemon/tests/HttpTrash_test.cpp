@@ -125,6 +125,58 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
   REQUIRE(trash_msgs["data"].size() == 1);
   REQUIRE(trash_msgs["data"][0]["type"] == "ai_message");
 
+  // Each item type keeps exactly its own fields.
+  auto keys = [](const nlohmann::json& item) {
+    std::vector<std::string> names;
+    for (const auto& [name, value] : item.items()) names.push_back(name);
+    return names;
+  };
+  const auto& trashed_card = trash_cards["data"][0];
+  REQUIRE(keys(trashed_card) ==
+          std::vector<std::string>{
+              "card_id", "deleted_at", "project_id", "rel_path", "title", "type"});
+  REQUIRE(trashed_card["card_id"] == "card-1");
+  REQUIRE(trashed_card["project_id"] == "proj-1");
+  REQUIRE(trashed_card["title"] == "Card");
+  REQUIRE(trashed_card["deleted_at"].is_number_integer());
+  REQUIRE(trashed_card["rel_path"].is_string());
+  const auto& trashed_message = trash_msgs["data"][0];
+  REQUIRE(keys(trashed_message) ==
+          std::vector<std::string>{
+              "created_at", "deleted_at", "message_id", "project_id", "role", "thread_id", "type"});
+  REQUIRE(trashed_message["message_id"] == "msg-1");
+  REQUIRE(trashed_message["thread_id"] == "thread-1");
+  REQUIRE(trashed_message["project_id"] == "proj-1");
+  REQUIRE(trashed_message["role"] == "user");
+  REQUIRE(trashed_message["created_at"] == 11);
+
+  for (const auto& [query, count] :
+       std::vector<std::pair<std::string, std::size_t>>{
+           {"&type=all", 2}, {"&type=", 2}, {"&type=unknown", 0}}) {
+    CAPTURE(query);
+    const auto listed = http_json_request(
+        bound.bind,
+        bound.port,
+        token,
+        boost::beast::http::verb::get,
+        "/trash?project_id=proj-1" + query,
+        nlohmann::json::object(),
+        boost::beast::http::status::ok
+    );
+    REQUIRE(listed["data"].size() == count);
+  }
+  REQUIRE(
+      http_json_request(
+          bound.bind,
+          bound.port,
+          token,
+          boost::beast::http::verb::get,
+          "/trash?project_id=",
+          nlohmann::json::object(),
+          boost::beast::http::status::bad_request
+      )["error"]["code"] == "bad_request"
+  );
+
   const auto hard_deleted = http_json_request(
       bound.bind,
       bound.port,
@@ -500,9 +552,9 @@ TEST_CASE("HTTP trash top-level routes catch repository exceptions", "[http]") {
       boost::beast::http::verb::get,
       "/trash?project_id=proj-1&type=ai_message",
       nlohmann::json::object(),
-      boost::beast::http::status::bad_request
+      boost::beast::http::status::internal_server_error
   );
-  REQUIRE(list_fail["error"]["code"] == "bad_request");
+  REQUIRE(list_fail["ok"] == false);
 
   auto delete_fail = http_json_request(
       bound.bind,

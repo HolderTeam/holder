@@ -12,15 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/trash")
-RIG_SUMMARY("List trashed items by project")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-TrashListResponse get_trash(
-    std::string project_id RIG_QUERY,
-    std::optional<std::string> type RIG_QUERY RIG_PARAMETER_DESCRIPTION("card | ai_message | all"));
-
 RIG_ROUTE(DELETE, "/trash")
 RIG_SUMMARY("Empty trash by project")
 RIG_RESPONSE_DESCRIPTION("OK")

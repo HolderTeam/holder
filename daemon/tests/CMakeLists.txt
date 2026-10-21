@@ -161,6 +161,7 @@ add_executable(holder_daemon_tests
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
   ../src/api/Rebuild.cpp
+  ../src/api/TrashList.cpp
   ../src/api/Listener.cpp
   ../src/api/routes/ai/AiProviderRoutes.cpp
   ../src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp

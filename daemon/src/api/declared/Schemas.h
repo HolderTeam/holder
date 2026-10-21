@@ -1165,24 +1165,6 @@ struct RIG_OPEN_RECORD ResourceDeleteResponse {
   ResourceDeleteResponseData data;
 };
 
-struct RIG_OPEN_RECORD TrashItem {
-  std::string type;
-  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> message_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> thread_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::string> project_id RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> role RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<long long> deleted_at RIG_OMIT_EMPTY;
-  std::optional<long long> created_at RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD TrashListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<TrashItem> data;
-};
-
 struct RIG_OPEN_RECORD EventCheckpoint {
   std::string cursor RIG_FIELD_DESCRIPTION("Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID.");
   std::map<std::string, std::optional<std::string>> git_revisions RIG_FIELD_DESCRIPTION("Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.");

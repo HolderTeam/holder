@@ -92,57 +92,6 @@ bool handle_trash_routes(
     holder::index::FtsIndexer* fts,
     const std::function<std::string(const std::string&)>& param_get
 ) {
-  if (path == "/trash" && req.method() == http::verb::get) {
-    const std::string project_id = param_get("project_id");
-    const std::string type = param_get("type");
-    if (project_id.empty()) {
-      res =
-          support::error_response(http::status::bad_request, "bad_request", "Missing project_id.");
-    } else {
-      try {
-        nlohmann::json data = nlohmann::json::array();
-        if (type.empty() || type == "card" || type == "all") {
-          holder::card::CardRepo card_repo(db);
-          const auto cards = card_repo.list_all(project_id);
-          for (const auto& card : cards) {
-            if (!card.deleted_at.has_value()) continue;
-            nlohmann::json item;
-            item["type"] = "card";
-            item["card_id"] = card.card_id;
-            item["project_id"] = card.project_id;
-            item["title"] = card.title;
-            item["deleted_at"] = card.deleted_at.value();
-            item["rel_path"] = card.rel_path;
-            data.push_back(std::move(item));
-          }
-        }
-        if (type.empty() || type == "ai_message" || type == "all") {
-          holder::ai::AiMessageRepo msg_repo(db, fts);
-          const auto msgs = msg_repo.list_deleted_by_project(project_id);
-          for (const auto& msg : msgs) {
-            if (!msg.deleted_at.has_value()) continue;
-            nlohmann::json item;
-            item["type"] = "ai_message";
-            item["message_id"] = msg.message_id;
-            item["thread_id"] = msg.thread_id;
-            item["project_id"] = project_id;
-            item["role"] = msg.role;
-            item["deleted_at"] = msg.deleted_at.value();
-            item["created_at"] = msg.created_at;
-            data.push_back(std::move(item));
-          }
-        }
-        nlohmann::json payload;
-        payload["ok"] = true;
-        payload["data"] = data;
-        res = support::json_response(http::status::ok, payload);
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      }
-    }
-    return true;
-  }
-
   if (path == "/trash" && req.method() == http::verb::delete_) {
     const std::string project_id = param_get("project_id");
     const std::string type = param_get("type");

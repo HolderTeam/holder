@@ -18,6 +18,7 @@
 #include "api/Calendar.h"
 #include "api/MilestonesWithDates.h"
 #include "api/StaticFiles.h"
+#include "api/TrashList.h"
 #include "api/declared/Ai.h"
 #include "api/declared/Cards.h"
 #include "api/declared/Events.h"
