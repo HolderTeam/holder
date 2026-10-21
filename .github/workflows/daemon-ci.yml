@@ -108,6 +108,36 @@ jobs:
       - name: Test make.sh's core selection
         working-directory: daemon
         run: python3 -m unittest scripts/test_make.py -v
+  rig-contract:
+    # The operations reflected from daemon/src/api must match api/openapi.yaml, and the checked-in
+    # generated dispatcher and JSON codec in daemon/src/api/generated must match their declarations.
+    # Reflection needs GCC 16; the daemon's own builds do not.
+    needs: core-sdk
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install GCC 16 and Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++-16 python3-venv python-is-python3
+      - id: sdk
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+          build-type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+      - name: Install RIG
+        run: |
+          python3 -m venv "$RUNNER_TEMP/rig"
+          "$RUNNER_TEMP/rig/bin/pip" install -r api/rig/requirements.txt
+      - name: Check the RIG contract and generated code
+        env:
+          CORE_SDK: ${{ steps.sdk.outputs.sdk }}
+        run: >-
+          make -C api/rig check check-generated CXX=g++-16
+          RIG="$RUNNER_TEMP/rig/bin/rig" PYTHON="$RUNNER_TEMP/rig/bin/python"
+          CORE_INCLUDE="$CORE_SDK/include"
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve

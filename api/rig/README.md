@@ -83,16 +83,19 @@ card's project from the database before listing links. POST and DELETE still
 use the existing card route. The reflected link response covers optional
 properties and an optional nullable label.
 
-With an installed RIG command, PyYAML and core's installed SDK (the daemon's
-build installs it under `core/out/install/local`; set `CORE_INCLUDE` to use
-another), run the comparison from the repo root:
+Install the pinned RIG and PyYAML with
+`pip install -r api/rig/requirements.txt`. With GCC 16 (set `CXX` if it is not
+`g++`) and core's installed SDK (the daemon's build installs it under
+`core/out/install/local`; set `CORE_INCLUDE` to use another), run the
+comparison from the repo root:
 
 ```sh
 make -C api/rig check
 make -C api/rig check-generated
 ```
 
-After changing a migrated operation, run `make -C api/rig update-generated` and
+Daemon / CI runs both on Ubuntu 26.04 with `g++-16` against the SDK built in the
+same run. After changing a migrated operation, run `make -C api/rig update-generated` and
 commit the generated headers. These commands require RIG only while developing
 the contract; normal daemon builds compile the checked-in headers.
 

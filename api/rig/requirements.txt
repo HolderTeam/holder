@@ -1,0 +1,3 @@
+# The RIG version that generated daemon/src/api/generated/, and what CI checks it with.
+rig-interface-generator @ git+https://github.com/zeth/rig@8b2808f604577ddc840d83c40a85a62912539f00
+PyYAML==6.0.3
