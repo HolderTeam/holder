@@ -272,27 +272,6 @@ bool handle_ai_runner_crud_routes(
     return false;
   }
 
-  if (req.method() == http::verb::get) {
-    try {
-      if (runner_registry == nullptr) {
-        res = support::error_response(http::status::not_found, "not_found", "Runner not found.");
-        return true;
-      }
-      const auto runner = runner_registry->get_runner(runner_id);
-      if (!runner.has_value()) {
-        res = support::error_response(http::status::not_found, "not_found", "Runner not found.");
-        return true;
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = runner_to_json(runner.value(), runner_registry);
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   if (req.method() == http::verb::patch) {
     try {
       if (runner_id == holder::llm::RunnerRegistry::kAutoLocalRunnerId) {

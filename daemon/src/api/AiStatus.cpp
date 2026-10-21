@@ -2,7 +2,7 @@
 
 #include "ai/AiRunRepo.h"
 #include "api/AiLocalModelConfig.h"
-#include "api/AiRunnerList.h"
+#include "api/AiRunnerRead.h"
 #include "api/support/LocalModelRouting.h"
 #include "api/support/Time.h"
 #include "llm/RunnerClient.h"

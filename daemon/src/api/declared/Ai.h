@@ -27,13 +27,6 @@ RIG_SUCCESS_STATUS(201)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 AiRunnerResponse post_ai_runners(AiRunnerCreateRequest request);
 
-RIG_ROUTE(GET, "/ai/runners/{runner_id}")
-RIG_SUMMARY("Get a local model runner")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiRunnerResponse get_ai_runners_runner_id(std::string runner_id);
-
 RIG_ROUTE(PATCH, "/ai/runners/{runner_id}")
 RIG_SUMMARY("Update a local model runner")
 RIG_RESPONSE_DESCRIPTION("OK")

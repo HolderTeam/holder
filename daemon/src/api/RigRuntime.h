@@ -4,7 +4,7 @@
 // when the host writes their response (RIG_HOST_RESPONSE).
 #include "api/AiLocalModelConfig.h"
 #include "api/AiProviderCatalog.h"
-#include "api/AiRunnerList.h"
+#include "api/AiRunnerRead.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"
 #include "api/AiThreadList.h"

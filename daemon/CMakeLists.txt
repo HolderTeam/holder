@@ -392,7 +392,7 @@ add_executable(holderd
   src/api/Health.cpp
   src/api/AiLocalModelConfig.cpp
   src/api/AiProviderCatalog.cpp
-  src/api/AiRunnerList.cpp
+  src/api/AiRunnerRead.cpp
   src/api/AiRuns.cpp
   src/api/AiStatus.cpp
   src/api/AiThreadList.cpp
