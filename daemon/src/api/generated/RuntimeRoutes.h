@@ -16,9 +16,9 @@
 
 namespace rig_http {
 using json = nlohmann::json;
-struct response { int status; json body; };
-inline response invalid_request(const std::string& message) {
-    return {400, json{{"code", "invalid_request"}, {"message", message}}};
+struct response { int status; json body; std::string_view operation; };
+inline response invalid_request(const std::string& message, std::string_view operation) {
+    return {400, json{{"code", "invalid_request"}, {"message", message}}, operation};
 }
 inline void enforce_range(int value, int minimum, int maximum, const char* name) {
     if (value < minimum || value > maximum)
@@ -115,11 +115,32 @@ inline std::optional<response> dispatch(const std::string& method,
                                     const std::string& body, Context& context) {
     const auto query_start = path.find('?');
     const auto route_path = path.substr(0, query_start);
+    const auto query_string = query_start == std::string::npos ? std::string_view{} :
+        std::string_view(path).substr(query_start + 1);
     std::smatch match;
     (void)body;
     static const std::regex route_0("^/bye$");
     if (method == "POST" && std::regex_match(route_path, match, route_0)) {
-        return response{200, rig_json::encode(holder::api::say_goodbye())};
+        return response{200, rig_json::encode(holder::api::say_goodbye()), "say_goodbye"};
+    }
+    static const std::regex route_2("^/ai/runner/pull/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, match, route_2)) {
+        std::optional<std::optional<std::string>> argument_0;
+        std::optional<std::string> argument_1;
+        try {
+            const auto query_values = decode_query(query_string);
+            const auto query_0 = query_values.find("runner_id");
+            if (query_0 == query_values.end())
+                argument_0.emplace(std::nullopt);
+            else
+                argument_0.emplace(std::string(query_0->second));
+            argument_1.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error.what(), "get_pull_status");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error.what(), "get_pull_status");
+        }
+        return response{200, rig_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
     }
     static const std::regex route_1("^/projects/([^/]+)/tags$");
     if (method == "GET" && std::regex_match(route_path, match, route_1)) {
@@ -127,11 +148,11 @@ inline std::optional<response> dispatch(const std::string& method,
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
         } catch (const std::invalid_argument& error) {
-            return invalid_request(error.what());
+            return invalid_request(error.what(), "list_project_tags");
         } catch (const std::out_of_range& error) {
-            return invalid_request(error.what());
+            return invalid_request(error.what(), "list_project_tags");
         }
-        return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0)))};
+        return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
     }
     return std::nullopt;
 }

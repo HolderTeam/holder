@@ -101,6 +101,18 @@ template <> struct codec<holder::api::ProjectTagListResponse> {
     static json encode(const holder::api::ProjectTagListResponse& value);
     static holder::api::ProjectTagListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::RunnerPullProgress> {
+    static json encode(const holder::api::RunnerPullProgress& value);
+    static holder::api::RunnerPullProgress decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerPullJob> {
+    static json encode(const holder::api::RunnerPullJob& value);
+    static holder::api::RunnerPullJob decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerPullStatusResponse> {
+    static json encode(const holder::api::RunnerPullStatusResponse& value);
+    static holder::api::RunnerPullStatusResponse decode(const json& value);
+};
 
 inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
     json result = json::object();
@@ -187,6 +199,86 @@ inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResp
     return holder::api::ProjectTagListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::RunnerPullProgress>::encode(const holder::api::RunnerPullProgress& value) {
+    json result = json::object();
+    result["completed"] = codec<long long>::encode(value.completed);
+    result["total"] = codec<long long>::encode(value.total);
+    result["percent"] = codec<double>::encode(value.percent);
+    result["stage"] = codec<std::string>::encode(value.stage);
+    return result;
+}
+inline holder::api::RunnerPullProgress codec<holder::api::RunnerPullProgress>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("completed")
+        || !value.contains("total")
+        || !value.contains("percent")
+        || !value.contains("stage")
+) throw std::invalid_argument("expected RunnerPullProgress");
+    return holder::api::RunnerPullProgress{
+        codec<long long>::decode(value.at("completed")),
+        codec<long long>::decode(value.at("total")),
+        codec<double>::decode(value.at("percent")),
+        codec<std::string>::decode(value.at("stage")),
+    };
+}
+
+inline json codec<holder::api::RunnerPullJob>::encode(const holder::api::RunnerPullJob& value) {
+    json result = json::object();
+    result["job_id"] = codec<std::string>::encode(value.job_id);
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
+    }
+    if (value.model_ref) {
+        result["model_ref"] = codec<std::optional<std::string>>::encode(value.model_ref);
+    }
+    result["model"] = codec<std::string>::encode(value.model);
+    result["status"] = codec<std::string>::encode(value.status);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    if (value.error) {
+        result["error"] = codec<std::optional<std::optional<std::string>>>::encode(value.error);
+    }
+    result["progress"] = codec<holder::api::RunnerPullProgress>::encode(value.progress);
+    return result;
+}
+inline holder::api::RunnerPullJob codec<holder::api::RunnerPullJob>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("job_id")
+        || !value.contains("model")
+        || !value.contains("status")
+        || !value.contains("updated_at")
+        || !value.contains("progress")
+) throw std::invalid_argument("expected RunnerPullJob");
+    return holder::api::RunnerPullJob{
+        codec<std::string>::decode(value.at("job_id")),
+        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
+        value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
+        codec<std::string>::decode(value.at("model")),
+        codec<std::string>::decode(value.at("status")),
+        codec<long long>::decode(value.at("updated_at")),
+        value.contains("error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error"))} : std::nullopt,
+        codec<holder::api::RunnerPullProgress>::decode(value.at("progress")),
+    };
+}
+
+inline json codec<holder::api::RunnerPullStatusResponse>::encode(const holder::api::RunnerPullStatusResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RunnerPullJob>::encode(value.data);
+    return result;
+}
+inline holder::api::RunnerPullStatusResponse codec<holder::api::RunnerPullStatusResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected RunnerPullStatusResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RunnerPullStatusResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RunnerPullJob>::decode(value.at("data")),
     };
 }
 

@@ -38,9 +38,11 @@ RIG omits the server-supplied context from OpenAPI while reflecting the path
 parameter, error responses, field descriptions, and integer minimum.
 
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
-optional `runner_id` query parameter. The live handler calls the typed
-operation. Its response covers 64-bit integers, a double, omittable fields,
-and an omittable nullable field.
+optional `runner_id` query parameter. The shared dispatcher decodes the query
+and path, calls the typed operation with Holder's runner registry, and encodes
+the response. Holder maps runner lookup errors to its existing 404 response.
+The response covers 64-bit integers, a double, omittable fields, and an
+omittable nullable field.
 
 `daemon/src/api/CardLinks.h` declares `GET /cards/{card_id}/links` with an
 optional integer query parameter constrained to `0` or `1`. The live handler
@@ -72,5 +74,5 @@ ten reachable schemas now match the control. The comparison treats an omitted
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next full-stack slice can cover an operation with a request body or query
-parameter, exercising generated input decoding alongside output encoding.
+The next full-stack slice can cover an operation with a request body or a
+constrained query parameter.

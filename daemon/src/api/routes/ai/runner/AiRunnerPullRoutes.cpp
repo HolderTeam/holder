@@ -50,29 +50,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-nlohmann::json pull_job_to_json(
-    const holder::api::RunnerPullJob& job
-) {
-  nlohmann::json data;
-  data["job_id"] = job.job_id;
-  if (job.runner_id.has_value()) data["runner_id"] = *job.runner_id;
-  data["model"] = job.model;
-  if (job.model_ref.has_value()) data["model_ref"] = *job.model_ref;
-  data["status"] = job.status;
-  data["updated_at"] = job.updated_at;
-  if (job.error.has_value()) {
-    data["error"] = job.error->has_value() ? nlohmann::json(**job.error)
-                                             : nlohmann::json(nullptr);
-  }
-  data["progress"] = {
-      {"completed", job.progress.completed},
-      {"total", job.progress.total},
-      {"percent", job.progress.percent},
-      {"stage", job.progress.stage},
-  };
-  return data;
-}
-
 std::string requested_runner_id(
     const http::request<http::string_body>& req,
     const std::function<std::string(const std::string&)>& param_get
@@ -154,28 +131,6 @@ RunnerRouteDispatchResult handle_ai_runner_pull_routes(
       }
     } catch (const std::exception& ex) {
       res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return out;
-  }
-
-  if (path.rfind("/ai/runner/pull/", 0) == 0 && req.method() == http::verb::get) {
-    out.handled = true;
-    const std::string job_id = path.substr(std::string("/ai/runner/pull/").size());
-    try {
-      const auto requested = param_get("runner_id");
-      const auto status = holder::api::get_pull_status(
-          runner_registry,
-          requested.empty() ? std::nullopt : std::optional<std::string>{requested},
-          job_id
-      );
-      res = support::json_response(
-          http::status::ok,
-          nlohmann::json{{"ok", status.ok}, {"data", pull_job_to_json(status.data)}}
-      );
-    } catch (const holder::api::RunnerNotConfigured& ex) {
-      res = support::error_response(http::status::not_found, "not_found", ex.what());
-    } catch (const holder::api::PullJobNotFound& ex) {
-      res = support::error_response(http::status::not_found, "not_found", ex.what());
     }
     return out;
   }

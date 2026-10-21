@@ -1,4 +1,5 @@
 #include "ai/AiRunnerRepo.h"
+#include "api/GeneratedRoutes.h"
 #include "api/routes/ai/runner/AiRunnerPullRoutes.h"
 #include "http_test_helpers.h"
 #include "llm/LocalModelRunner.h"
@@ -34,6 +35,16 @@ holder::api::routes::RunnerRouteDispatchResult call_pull_route(
       runner_registry,
       param_get
   );
+}
+
+bool call_generated_pull_route(
+    const std::string& target,
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    http::response<http::string_body>& res
+) {
+  http::request<http::string_body> req{http::verb::get, target, 11};
+  return holder::api::dispatch_generated_routes(req, res, db, registry);
 }
 
 } // namespace
@@ -143,7 +154,9 @@ TEST_CASE("Ai runner pull routes POST returns job on success", "[http]") {
   REQUIRE(payload["data"]["job_id"].get<std::string>().rfind("pull-", 0) == 0);
 }
 
-TEST_CASE("Ai runner pull routes GET validates job lookup", "[http]") {
+TEST_CASE("Generated ai runner pull GET validates job lookup", "[http]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::llm::LocalModelRunner runner;
   runner.set_fake_mode(true);
   holder::llm::LocalRunnerClient local_runner_client(&runner);
@@ -151,23 +164,20 @@ TEST_CASE("Ai runner pull routes GET validates job lookup", "[http]") {
 
   SECTION("empty job id") {
     http::response<http::string_body> res;
-    auto out = call_pull_route("/ai/runner/pull/", http::verb::get, "", &runner_registry, res);
-    REQUIRE(out.handled);
-    REQUIRE(res.result() == http::status::not_found);
-    REQUIRE(res.body().find("Pull job not found.") != std::string::npos);
+    REQUIRE_FALSE(call_generated_pull_route("/ai/runner/pull/", db, &runner_registry, res));
   }
 
   SECTION("missing job id") {
     http::response<http::string_body> res;
-    auto out =
-        call_pull_route("/ai/runner/pull/missing-job", http::verb::get, "", &runner_registry, res);
-    REQUIRE(out.handled);
+    REQUIRE(call_generated_pull_route("/ai/runner/pull/missing-job", db, &runner_registry, res));
     REQUIRE(res.result() == http::status::not_found);
     REQUIRE(res.body().find("Pull job not found.") != std::string::npos);
   }
 }
 
-TEST_CASE("Ai runner pull routes GET returns job payload", "[http]") {
+TEST_CASE("Generated ai runner pull GET returns job payload", "[http]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::llm::LocalModelRunner runner;
   runner.set_fake_mode(true);
   const auto started = runner.start_pull("fake-echo");
@@ -176,14 +186,8 @@ TEST_CASE("Ai runner pull routes GET returns job payload", "[http]") {
   holder::llm::RunnerRegistry runner_registry(nullptr, &local_runner_client);
 
   http::response<http::string_body> res;
-  auto out = call_pull_route(
-      "/ai/runner/pull/" + started.job_id,
-      http::verb::get,
-      "",
-      &runner_registry,
-      res
-  );
-  REQUIRE(out.handled);
+  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id,
+                                    db, &runner_registry, res));
   REQUIRE(res.result() == http::status::ok);
 
   const auto payload = nlohmann::json::parse(res.body());
@@ -198,6 +202,66 @@ TEST_CASE("Ai runner pull routes GET returns job payload", "[http]") {
   REQUIRE(payload["data"]["progress"]["total"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["percent"].is_number());
   REQUIRE(payload["data"]["progress"]["stage"].is_string());
+
+  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
+                                    "?runner_id=auto%2Dlocal", db, &runner_registry, res));
+  REQUIRE(res.result() == http::status::ok);
+  REQUIRE(nlohmann::json::parse(res.body())["data"]["runner_id"] == "auto-local");
+
+  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
+                                    "?runner_id=missing", db, &runner_registry, res));
+  REQUIRE(res.result() == http::status::not_found);
+
+  REQUIRE(call_generated_pull_route("/ai/runner/pull/" + started.job_id +
+                                    "?runner_id=%XX", db, &runner_registry, res));
+  REQUIRE(res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+}
+
+TEST_CASE("HTTP runner pull status uses the generated route", "[http]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::llm::LocalModelRunner runner;
+  runner.set_fake_mode(true);
+  const auto started = runner.start_pull("fake-echo");
+  holder::llm::LocalRunnerClient local_client(&runner);
+  holder::llm::RunnerRegistry registry(nullptr, &local_client);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr,
+                                 nullptr, &registry);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& error) {
+    SKIP(std::string("Socket bind not available in test environment: ") + error.what());
+  }
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard running(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
+
+  const auto get = [&](const std::string& path, const std::string& bearer) {
+    return holder::test::http_request_raw(bound.bind, bound.port, bearer,
+                                          http::verb::get, path);
+  };
+  const auto status = get("/ai/runner/pull/" + started.job_id +
+                          "?runner_id=auto%2Dlocal", token);
+  REQUIRE(status.status == http::status::ok);
+  REQUIRE(status.content_type == "application/json");
+  const auto payload = nlohmann::json::parse(status.body);
+  REQUIRE(payload["data"]["job_id"] == started.job_id);
+  REQUIRE(payload["data"]["runner_id"] == "auto-local");
+  REQUIRE(payload["data"]["progress"].is_object());
+
+  const auto missing = get("/ai/runner/pull/missing-job", token);
+  REQUIRE(missing.status == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(missing.body)["error"]["code"] == "not_found");
+
+  const auto empty = get("/ai/runner/pull/", token);
+  REQUIRE(empty.status == http::status::not_found);
+
+  const auto denied = get("/ai/runner/pull/" + started.job_id, "wrong-token");
+  REQUIRE(denied.status == http::status::unauthorized);
 }
 
 TEST_CASE("Ai runner pull routes can target a manual runner by runner_id", "[http]") {
@@ -242,18 +306,8 @@ TEST_CASE("Ai runner pull routes can target a manual runner by runner_id", "[htt
   REQUIRE(payload["data"]["model_ref"] == "manual-a::fake-echo");
 
   const std::string path = "/ai/runner/pull/" + payload["data"]["job_id"].get<std::string>();
-  http::request<http::string_body> get_req{http::verb::get, path + "?runner_id=manual-a", 11};
   http::response<http::string_body> get_res;
-  const auto get_out = holder::api::routes::ai::runner::handle_ai_runner_pull_routes(
-      path,
-      get_req,
-      get_res,
-      &runner_registry,
-      [](const std::string& name) -> std::string {
-        return name == "runner_id" ? "manual-a" : "";
-      }
-  );
-  REQUIRE(get_out.handled);
+  REQUIRE(call_generated_pull_route(path + "?runner_id=manual-a", db, &runner_registry, get_res));
   REQUIRE(get_res.result() == http::status::ok);
   const auto status = nlohmann::json::parse(get_res.body());
   REQUIRE(status["data"]["runner_id"] == "manual-a");
