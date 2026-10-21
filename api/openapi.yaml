@@ -87,11 +87,13 @@ paths:
       - name: thread_id
         in: query
         required: true
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: include_deleted
         in: query
         required: false
-        schema: {type: integer}
+        schema:
+          type: integer
+          enum: [0, 1]
         description: Set to 1 to include deleted messages.
       responses:
         '200':
@@ -106,6 +108,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -174,6 +181,7 @@ paths:
   /ai/messages/{message_id}:
     get:
       summary: Fetch an AI message
+      description: A message in the trash is not found.
       parameters:
       - name: message_id
         in: path
@@ -185,6 +193,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiMessageGetResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -192,6 +205,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -272,6 +290,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardLinkListResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -279,6 +302,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -304,6 +332,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardLinkListResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -311,6 +344,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1128,6 +1166,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiThreadGetResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -1135,6 +1178,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4376,7 +4424,8 @@ components:
           type: [string, 'null']
         meta_json:
           type: [string, 'null']
-      required: [message_id, thread_id, role, source, content, created_at]
+      required: [message_id, thread_id, role, source, provider, model, content, created_at, deleted_at,
+        prompt_hash, meta_json]
     AiMessageCaptureRequest:
       type: object
       properties:

@@ -10,6 +10,7 @@
 #include "card/CardRepo.h"
 #include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
+#include "card/LinkVisibility.h"
 #include "card/TagExtractor.h"
 #include "card/TagRepo.h"
 #include "identity/Uuid.h"
@@ -34,45 +35,6 @@ namespace holder::api::routes {
 namespace {
 
 namespace http = boost::beast::http;
-
-bool should_include_link_target(
-    holder::card::CardRepo& card_repo,
-    holder::ai::AiMessageRepo& msg_repo,
-    const holder::model::CardLink& link,
-    bool include_deleted
-) {
-  if (include_deleted) return true;
-  if (link.to_type == "card") {
-    // The source owns external links even when their target cannot be loaded.
-    if (link.target_project_id.has_value() && *link.target_project_id != link.project_id)
-      return true;
-    const auto target = card_repo.get(link.to_card_id);
-    return target.has_value() && !target->deleted_at.has_value();
-  }
-  if (link.to_type == "ai_message") {
-    const auto target = msg_repo.get(link.to_card_id);
-    return target.has_value() && !target->deleted_at.has_value();
-  }
-  return true;
-}
-
-bool should_include_backlink_source(
-    holder::card::CardRepo& card_repo,
-    holder::ai::AiMessageRepo& msg_repo,
-    const holder::model::CardLink& link,
-    bool include_deleted
-) {
-  if (include_deleted) return true;
-  const auto as_card = card_repo.get(link.from_card_id);
-  if (as_card.has_value()) {
-    return !as_card->deleted_at.has_value();
-  }
-  const auto as_msg = msg_repo.get(link.from_card_id);
-  if (as_msg.has_value()) {
-    return !as_msg->deleted_at.has_value();
-  }
-  return false;
-}
 
 bool should_include_external_backlink_source(
     holder::card::CardRepo& card_repo,
@@ -366,7 +328,7 @@ CardLinkListResponse list_card_links(
   holder::ai::AiMessageRepo msg_repo(db, fts);
   CardLinkListResponse response{true, {}};
   for (const auto& link : links.list_outgoing(source->project_id, card_id)) {
-    if (!should_include_link_target(card_repo, msg_repo, link, include_deleted.value_or(0) == 1)) {
+    if (include_deleted.value_or(0) != 1 && !holder::card::link_target_visible(db, link)) {
       continue;
     }
     response.data.push_back({link.from_card_id,
@@ -432,7 +394,7 @@ CardBacklinkListResponse list_card_backlinks(
         external ? should_include_external_backlink_source(
                        card_repo, msg_repo, thread_repo, link, include_deleted
                    )
-                 : should_include_backlink_source(card_repo, msg_repo, link, include_deleted);
+                 : include_deleted || holder::card::backlink_source_visible(db, link);
     if (!include_source) continue;
     response.data.push_back({link.from_card_id,
                              link.to_card_id,

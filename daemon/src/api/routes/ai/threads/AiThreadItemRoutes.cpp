@@ -15,18 +15,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-nlohmann::json ai_thread_to_json(const holder::model::AiThread& thread) {
-  nlohmann::json data;
-  data["thread_id"] = thread.thread_id;
-  data["project_id"] = thread.project_id;
-  data["title"] = thread.title;
-  data["created_at"] = thread.created_at;
-  data["updated_at"] = thread.updated_at;
-  data["card_id"] = thread.card_id.has_value() ? nlohmann::json(thread.card_id.value())
-                                               : nlohmann::json(nullptr);
-  return data;
-} // LCOV_EXCL_LINE
-
 } // namespace
 
 bool handle_ai_thread_item_routes(
@@ -42,24 +30,6 @@ bool handle_ai_thread_item_routes(
   const std::string thread_id = path.substr(std::string("/ai/threads/").size());
   if (thread_id.empty()) {
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-    return true;
-  }
-
-  if (req.method() == http::verb::get) {
-    try {
-      holder::ai::AiThreadRepo repo(db);
-      const auto thread_opt = repo.get(thread_id);
-      if (!thread_opt.has_value()) {
-        res = support::error_response(http::status::not_found, "not_found", "AI thread not found.");
-      } else {
-        nlohmann::json payload;
-        payload["ok"] = true;
-        payload["data"] = ai_thread_to_json(thread_opt.value());
-        res = support::json_response(http::status::ok, payload);
-      }
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
     return true;
   }
 

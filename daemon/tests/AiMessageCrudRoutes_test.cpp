@@ -6,6 +6,7 @@
 
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
+#include "api/GeneratedRoutes.h"
 #include "api/routes/ai/messages/AiMessageCrudRoutes.h"
 #include "http_test_helpers.h"
 #include "model/AiThread.h"
@@ -95,71 +96,40 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
 
     holder::ai::AiMessageRepo(db, &fts).trash("msg-0002", 99);
 
-    auto list_req = make_request(http::verb::get, "/ai/messages");
+    auto list_req = make_request(http::verb::get, "/ai/messages?thread_id=thread-1");
     http::response<http::string_body> list_res;
-    const auto thread_only = [](const std::string& key) -> std::string {
-      if (key == "thread_id") return "thread-1";
-      return {};
-    };
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages",
-        list_req,
-        list_res,
-        db,
-        &fts,
-        [] {
-          return std::string("z");
-        },
-        thread_only
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(list_req, list_res, db, nullptr, &fts));
     REQUIRE(list_res.result() == http::status::ok);
     const auto listed = nlohmann::json::parse(list_res.body());
     REQUIRE(listed["data"].is_array());
     REQUIRE(listed["data"].size() == 1);
     REQUIRE(listed["data"][0]["message_id"] == "msg-0001");
+    REQUIRE(listed["data"][0]["provider"].is_null());
+    REQUIRE(listed["data"][0]["deleted_at"].is_null());
 
+    auto list_all_req =
+        make_request(http::verb::get, "/ai/messages?thread_id=thread-1&include_deleted=1");
     http::response<http::string_body> list_all_res;
-    const auto include_deleted = [](const std::string& key) -> std::string {
-      if (key == "thread_id") return "thread-1";
-      if (key == "include_deleted") return "1";
-      return {};
-    };
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages",
-        list_req,
-        list_all_res,
-        db,
-        &fts,
-        [] {
-          return std::string("z");
-        },
-        include_deleted
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(list_all_req, list_all_res, db, nullptr, &fts));
     REQUIRE(list_all_res.result() == http::status::ok);
     const auto listed_all = nlohmann::json::parse(list_all_res.body());
     REQUIRE(listed_all["data"].size() == 2);
   }
 
-  SECTION("list catch maps repo errors to bad_request") {
+  SECTION("list validates its query and reports storage failures as internal errors") {
+    for (const std::string target :
+         {"/ai/messages", "/ai/messages?thread_id=", "/ai/messages?thread_id=t&include_deleted=2"}) {
+      CAPTURE(target);
+      auto req = make_request(http::verb::get, target);
+      http::response<http::string_body> res;
+      REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
+      REQUIRE(res.result() == http::status::bad_request);
+    }
     db.exec("DROP TABLE ai_messages;");
-    auto req = make_request(http::verb::get, "/ai/messages");
+    auto req = make_request(http::verb::get, "/ai/messages?thread_id=thread-1");
     http::response<http::string_body> res;
-    const auto q = [](const std::string& key) -> std::string {
-      if (key == "thread_id") return "thread-1";
-      return {};
-    };
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages",
-        req,
-        res,
-        db,
-        &fts,
-        [] {
-          return std::string("u");
-        },
-        q
-    ));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 
   SECTION("post missing required fields") {
@@ -209,17 +179,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
 
     auto get_req = make_request(http::verb::get, "/ai/messages/" + id);
     http::response<http::string_body> get_res;
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages/" + id,
-        get_req,
-        get_res,
-        db,
-        &fts,
-        [] {
-          return std::string("u");
-        },
-        no_query
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, get_res, db, nullptr, &fts));
     REQUIRE(get_res.result() == http::status::ok);
     const auto got = nlohmann::json::parse(get_res.body());
     REQUIRE(got["data"]["provider"] == "prov");
@@ -227,6 +187,12 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
     REQUIRE(got["data"]["prompt_hash"] == "ph");
     REQUIRE(got["data"]["meta_json"] == "{}");
     REQUIRE(got["data"]["created_at"].get<long long>() > 0);
+
+    holder::ai::AiMessageRepo(db, &fts).trash(id, 99);
+    http::response<http::string_body> trashed_res;
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, trashed_res, db, nullptr, &fts));
+    REQUIRE(trashed_res.result() == http::status::not_found);
+    REQUIRE(nlohmann::json::parse(trashed_res.body())["error"]["message"] == "AI message not found.");
   }
 
   SECTION("post conflict and generic catches") {
@@ -454,17 +420,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
 
     auto get_req = make_request(http::verb::get, "/ai/messages/msg-1");
     http::response<http::string_body> get_res;
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages/msg-1",
-        get_req,
-        get_res,
-        db,
-        &fts,
-        [] {
-          return std::string("u");
-        },
-        no_query
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, get_res, db, nullptr, &fts));
     const auto got = nlohmann::json::parse(get_res.body());
     REQUIRE(got["data"]["role"] == "assistant");
     REQUIRE(got["data"]["source"] == "runner");
@@ -511,17 +467,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
 
     auto get_req = make_request(http::verb::get, "/ai/messages/msg-1");
     http::response<http::string_body> get_res;
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages/msg-1",
-        get_req,
-        get_res,
-        db,
-        &fts,
-        [] {
-          return std::string("u");
-        },
-        no_query
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, get_res, db, nullptr, &fts));
     REQUIRE(get_res.result() == http::status::ok);
     const auto got = nlohmann::json::parse(get_res.body());
     REQUIRE(got["data"]["model"] == "m2");
@@ -548,17 +494,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
     db.exec("DROP TABLE ai_messages;");
     auto get_req = make_request(http::verb::get, "/ai/messages/msg-1");
     http::response<http::string_body> get_res;
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
-        "/ai/messages/msg-1",
-        get_req,
-        get_res,
-        db,
-        &fts,
-        [] {
-          return std::string("u");
-        },
-        no_query
-    ));
-    REQUIRE(get_res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, get_res, db, nullptr, &fts));
+    REQUIRE(get_res.result() == http::status::internal_server_error);
   }
 }

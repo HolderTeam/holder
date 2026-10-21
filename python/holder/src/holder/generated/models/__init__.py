@@ -162,6 +162,7 @@ from .event_checkpoint_response import EventCheckpointResponse
 from .event_resync_data import EventResyncData
 from .event_resync_data_reason import EventResyncDataReason
 from .get_ai_catalog_json_response_200 import GetAiCatalogJsonResponse200
+from .get_ai_messages_include_deleted import GetAiMessagesIncludeDeleted
 from .get_ai_messages_message_id_backlinks_include_deleted import (
     GetAiMessagesMessageIdBacklinksIncludeDeleted,
 )
@@ -503,6 +504,7 @@ __all__ = (
     "EventResyncData",
     "EventResyncDataReason",
     "GetAiCatalogJsonResponse200",
+    "GetAiMessagesIncludeDeleted",
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
     "GetCardsCardIdBacklinksIncludeDeleted",

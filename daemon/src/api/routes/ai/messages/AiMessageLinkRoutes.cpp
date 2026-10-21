@@ -4,7 +4,6 @@
 #include "ai/AiThreadRepo.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
-#include "card/CardRepo.h"
 #include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
 
@@ -18,44 +17,6 @@ namespace holder::api::routes::ai::messages {
 namespace {
 
 namespace http = boost::beast::http;
-
-bool should_include_link_target(
-    holder::card::CardRepo& card_repo,
-    holder::ai::AiMessageRepo& msg_repo,
-    const holder::model::CardLink& link,
-    bool include_deleted
-) {
-  if (include_deleted) return true;
-  if (link.to_type == "card") {
-    if (link.target_project_id.has_value() && *link.target_project_id != link.project_id)
-      return true;
-    const auto target = card_repo.get(link.to_card_id);
-    return target.has_value() && !target->deleted_at.has_value();
-  }
-  if (link.to_type == "ai_message") {
-    const auto target = msg_repo.get(link.to_card_id);
-    return target.has_value() && !target->deleted_at.has_value();
-  }
-  return true;
-}
-
-bool should_include_backlink_source(
-    holder::card::CardRepo& card_repo,
-    holder::ai::AiMessageRepo& msg_repo,
-    const holder::model::CardLink& link,
-    bool include_deleted
-) {
-  if (include_deleted) return true;
-  const auto as_card = card_repo.get(link.from_card_id);
-  if (as_card.has_value()) {
-    return !as_card->deleted_at.has_value();
-  }
-  const auto as_msg = msg_repo.get(link.from_card_id);
-  if (as_msg.has_value()) {
-    return !as_msg->deleted_at.has_value();
-  }
-  return false;
-}
 
 bool validate_link_target(
     holder::platform::Db& db,
@@ -126,34 +87,7 @@ bool handle_ai_message_link_routes(
 
       const std::string project_id = thread_opt->project_id;
       holder::card::LinkRepo link_repo(db);
-      if (req.method() == http::verb::get) {
-        holder::card::CardRepo card_repo(db);
-        holder::ai::AiMessageRepo msg_repo(db, fts);
-        const bool include_deleted = !param_get("include_deleted").empty() &&
-                                     param_get("include_deleted") != "0";
-        const auto links = link_repo.list_outgoing(project_id, message_id);
-        nlohmann::json data = nlohmann::json::array();
-        for (const auto& link : links) {
-          if (!should_include_link_target(card_repo, msg_repo, link, include_deleted)) {
-            continue;
-          }
-          nlohmann::json item;
-          item["from_card_id"] = link.from_card_id;
-          item["to_card_id"] = link.to_card_id;
-          item["to_type"] = link.to_type;
-          item["kind"] = link.kind;
-          item["created_at"] = link.created_at;
-          item["label"] = link.label.has_value() ? nlohmann::json(link.label.value())
-                                                 : nlohmann::json(nullptr);
-          if (link.target_project_id.has_value())
-            item["target_project_id"] = *link.target_project_id;
-          data.push_back(std::move(item));
-        }
-        nlohmann::json payload;
-        payload["ok"] = true;
-        payload["data"] = data;
-        res = support::json_response(http::status::ok, payload);
-      } else if (req.method() == http::verb::post) {
+      if (req.method() == http::verb::post) {
         const auto body = nlohmann::json::parse(req.body());
         if (!body.contains("to_card_id")) {
           res = support::error_response(
@@ -291,60 +225,13 @@ bool handle_ai_message_link_routes(
     return true;
   }
 
+  // GET is generated; any other method on backlinks is not allowed.
   if (tail == "/backlinks") {
-    try {
-      holder::ai::AiMessageRepo message_repo(db, fts);
-      const auto msg_opt = message_repo.get(message_id);
-      if (!msg_opt.has_value()) {
-        res =
-            support::error_response(http::status::not_found, "not_found", "AI message not found.");
-      } else if (req.method() != http::verb::get) {
-        res = support::error_response(
-            http::status::method_not_allowed,
-            "method_not_allowed",
-            "Method not allowed."
-        );
-      } else {
-        holder::ai::AiThreadRepo thread_repo(db);
-        const auto thread_opt = thread_repo.get(msg_opt->thread_id);
-        if (!thread_opt.has_value()) {
-          res = support::error_response(
-              http::status::bad_request,
-              "bad_request",
-              "Thread not found."
-          );
-        } else {
-          const std::string project_id = thread_opt->project_id;
-          holder::card::LinkRepo link_repo(db);
-          holder::card::CardRepo card_repo(db);
-          holder::ai::AiMessageRepo msg_repo(db, fts);
-          const bool include_deleted = !param_get("include_deleted").empty() &&
-                                       param_get("include_deleted") != "0";
-          const auto links = link_repo.list_backlinks_typed(project_id, message_id, "ai_message");
-          nlohmann::json data = nlohmann::json::array();
-          for (const auto& link : links) {
-            if (!should_include_backlink_source(card_repo, msg_repo, link, include_deleted)) {
-              continue;
-            }
-            nlohmann::json item;
-            item["from_card_id"] = link.from_card_id;
-            item["to_card_id"] = link.to_card_id;
-            item["to_type"] = link.to_type;
-            item["kind"] = link.kind;
-            item["created_at"] = link.created_at;
-            item["label"] = link.label.has_value() ? nlohmann::json(link.label.value())
-                                                   : nlohmann::json(nullptr);
-            data.push_back(std::move(item));
-          }
-          nlohmann::json payload;
-          payload["ok"] = true;
-          payload["data"] = data;
-          res = support::json_response(http::status::ok, payload);
-        }
-      }
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
+    res = support::error_response(
+        http::status::method_not_allowed,
+        "method_not_allowed",
+        "Method not allowed."
+    );
     return true;
   }
 

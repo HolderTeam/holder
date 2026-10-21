@@ -154,25 +154,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD PostAiRunnerPullRequest {
   std::optional<std::string> runner_id RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD AiMessage {
-  std::string message_id;
-  std::string thread_id;
-  std::string role;
-  std::string source;
-  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string content;
-  long long created_at;
-  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> prompt_hash RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> meta_json RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD AiMessageListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<AiMessage> data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCreateResponseData {
   std::string message_id;
 };
@@ -246,11 +227,6 @@ struct RIG_OPEN_RECORD AiThreadCreateRequest {
   std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD AiThreadGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiThread data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiThreadPatchResponseData {
   std::string thread_id;
 };
@@ -264,11 +240,6 @@ struct RIG_OPEN_RECORD AiThreadUpdateRequest {
   std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
   long long updated_at;
-};
-
-struct RIG_OPEN_RECORD AiMessageGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiMessage data;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageUpdateResponseData {

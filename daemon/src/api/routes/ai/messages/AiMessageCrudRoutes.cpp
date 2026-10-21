@@ -14,27 +14,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-nlohmann::json ai_message_to_json(const holder::model::AiMessage& msg) {
-  nlohmann::json data;
-  data["message_id"] = msg.message_id;
-  data["thread_id"] = msg.thread_id;
-  data["role"] = msg.role;
-  data["source"] = msg.source;
-  data["provider"] = msg.provider.has_value() ? nlohmann::json(msg.provider.value())
-                                              : nlohmann::json(nullptr);
-  data["model"] = msg.model.has_value() ? nlohmann::json(msg.model.value())
-                                        : nlohmann::json(nullptr);
-  data["content"] = msg.content;
-  data["created_at"] = msg.created_at;
-  data["deleted_at"] = msg.deleted_at.has_value() ? nlohmann::json(msg.deleted_at.value())
-                                                  : nlohmann::json(nullptr);
-  data["prompt_hash"] = msg.prompt_hash.has_value() ? nlohmann::json(msg.prompt_hash.value())
-                                                    : nlohmann::json(nullptr);
-  data["meta_json"] = msg.meta_json.has_value() ? nlohmann::json(msg.meta_json.value())
-                                                : nlohmann::json(nullptr);
-  return data;
-} // LCOV_EXCL_LINE
-
 } // namespace
 
 bool handle_ai_message_crud_routes(
@@ -46,35 +25,6 @@ bool handle_ai_message_crud_routes(
     const std::function<std::string()>& uuid_v4,
     const std::function<std::string(const std::string&)>& param_get
 ) {
-  if (path == "/ai/messages" && req.method() == http::verb::get) {
-    const std::string thread_id = param_get("thread_id");
-    const std::string include_deleted_raw = param_get("include_deleted");
-    if (thread_id.empty()) {
-      res = support::error_response(http::status::bad_request, "bad_request", "Missing thread_id.");
-      return true;
-    }
-
-    try {
-      holder::ai::AiMessageRepo repo(db, fts);
-      const auto messages = repo.list_by_thread(thread_id);
-      nlohmann::json data = nlohmann::json::array();
-      for (const auto& msg : messages) {
-        if ((include_deleted_raw.empty() || include_deleted_raw == "0") &&
-            msg.deleted_at.has_value()) {
-          continue;
-        }
-        data.push_back(ai_message_to_json(msg));
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = data;
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   if (path == "/ai/messages" && req.method() == http::verb::post) {
     try {
       const auto body = nlohmann::json::parse(req.body());
@@ -266,21 +216,7 @@ bool handle_ai_message_crud_routes(
     return true;
   }
 
-  try {
-    holder::ai::AiMessageRepo repo(db, fts);
-    const auto msg_opt = repo.get(message_id);
-    if (!msg_opt.has_value() || msg_opt->deleted_at.has_value()) {
-      res = support::error_response(http::status::not_found, "not_found", "AI message not found.");
-    } else {
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = ai_message_to_json(msg_opt.value());
-      res = support::json_response(http::status::ok, payload);
-    }
-  } catch (const std::exception& ex) {
-    res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-  }
-  return true;
+  return false;
 }
 
 } // namespace holder::api::routes::ai::messages

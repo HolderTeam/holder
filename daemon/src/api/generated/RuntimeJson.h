@@ -254,14 +254,6 @@ template <> struct codec<holder::api::PostAiRunnerPullRequest> {
     static json encode(const holder::api::PostAiRunnerPullRequest& value);
     static holder::api::PostAiRunnerPullRequest decode(const json& value);
 };
-template <> struct codec<holder::api::AiMessage> {
-    static json encode(const holder::api::AiMessage& value);
-    static holder::api::AiMessage decode(const json& value);
-};
-template <> struct codec<holder::api::AiMessageListResponse> {
-    static json encode(const holder::api::AiMessageListResponse& value);
-    static holder::api::AiMessageListResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiMessageCreateResponseData> {
     static json encode(const holder::api::AiMessageCreateResponseData& value);
     static holder::api::AiMessageCreateResponseData decode(const json& value);
@@ -302,10 +294,6 @@ template <> struct codec<holder::api::AiThreadCreateRequest> {
     static json encode(const holder::api::AiThreadCreateRequest& value);
     static holder::api::AiThreadCreateRequest decode(const json& value);
 };
-template <> struct codec<holder::api::AiThreadGetResponse> {
-    static json encode(const holder::api::AiThreadGetResponse& value);
-    static holder::api::AiThreadGetResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiThreadPatchResponseData> {
     static json encode(const holder::api::AiThreadPatchResponseData& value);
     static holder::api::AiThreadPatchResponseData decode(const json& value);
@@ -317,10 +305,6 @@ template <> struct codec<holder::api::AiThreadPatchResponse> {
 template <> struct codec<holder::api::AiThreadUpdateRequest> {
     static json encode(const holder::api::AiThreadUpdateRequest& value);
     static holder::api::AiThreadUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::AiMessageGetResponse> {
-    static json encode(const holder::api::AiMessageGetResponse& value);
-    static holder::api::AiMessageGetResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AiMessageUpdateResponseData> {
     static json encode(const holder::api::AiMessageUpdateResponseData& value);
@@ -846,6 +830,18 @@ template <> struct codec<holder::api::RecoveryTokenImportAutoResponse> {
     static json encode(const holder::api::RecoveryTokenImportAutoResponse& value);
     static holder::api::RecoveryTokenImportAutoResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiMessage> {
+    static json encode(const holder::api::AiMessage& value);
+    static holder::api::AiMessage decode(const json& value);
+};
+template <> struct codec<holder::api::AiMessageListResponse> {
+    static json encode(const holder::api::AiMessageListResponse& value);
+    static holder::api::AiMessageListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiMessageGetResponse> {
+    static json encode(const holder::api::AiMessageGetResponse& value);
+    static holder::api::AiMessageGetResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiProviderCatalogModelLimits> {
     static json encode(const holder::api::AiProviderCatalogModelLimits& value);
     static holder::api::AiProviderCatalogModelLimits decode(const json& value);
@@ -913,6 +909,10 @@ template <> struct codec<holder::api::AiStatusResponse> {
 template <> struct codec<holder::api::AiThreadListResponse> {
     static json encode(const holder::api::AiThreadListResponse& value);
     static holder::api::AiThreadListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadGetResponse> {
+    static json encode(const holder::api::AiThreadGetResponse& value);
+    static holder::api::AiThreadGetResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AliveResponse> {
     static json encode(const holder::api::AliveResponse& value);
@@ -1783,72 +1783,6 @@ inline holder::api::PostAiRunnerPullRequest codec<holder::api::PostAiRunnerPullR
     };
 }
 
-inline json codec<holder::api::AiMessage>::encode(const holder::api::AiMessage& value) {
-    json result = json::object();
-    result["message_id"] = codec<std::string>::encode(value.message_id);
-    result["thread_id"] = codec<std::string>::encode(value.thread_id);
-    result["role"] = codec<std::string>::encode(value.role);
-    result["source"] = codec<std::string>::encode(value.source);
-    if (value.provider) {
-        result["provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.provider);
-    }
-    if (value.model) {
-        result["model"] = codec<std::optional<std::optional<std::string>>>::encode(value.model);
-    }
-    result["content"] = codec<std::string>::encode(value.content);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    if (value.deleted_at) {
-        result["deleted_at"] = codec<std::optional<std::optional<long long>>>::encode(value.deleted_at);
-    }
-    if (value.prompt_hash) {
-        result["prompt_hash"] = codec<std::optional<std::optional<std::string>>>::encode(value.prompt_hash);
-    }
-    if (value.meta_json) {
-        result["meta_json"] = codec<std::optional<std::optional<std::string>>>::encode(value.meta_json);
-    }
-    return result;
-}
-inline holder::api::AiMessage codec<holder::api::AiMessage>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiMessage");
-    if (!value.contains("message_id")) throw std::invalid_argument("missing message_id");
-    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
-    if (!value.contains("role")) throw std::invalid_argument("missing role");
-    if (!value.contains("source")) throw std::invalid_argument("missing source");
-    if (!value.contains("content")) throw std::invalid_argument("missing content");
-    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
-    return holder::api::AiMessage{
-        codec<std::string>::decode(value.at("message_id")),
-        codec<std::string>::decode(value.at("thread_id")),
-        codec<std::string>::decode(value.at("role")),
-        codec<std::string>::decode(value.at("source")),
-        value.contains("provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("provider"))} : std::nullopt,
-        value.contains("model") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("model"))} : std::nullopt,
-        codec<std::string>::decode(value.at("content")),
-        codec<long long>::decode(value.at("created_at")),
-        value.contains("deleted_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("deleted_at"))} : std::nullopt,
-        value.contains("prompt_hash") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("prompt_hash"))} : std::nullopt,
-        value.contains("meta_json") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("meta_json"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiMessageListResponse>::encode(const holder::api::AiMessageListResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::AiMessage>>::encode(value.data);
-    return result;
-}
-inline holder::api::AiMessageListResponse codec<holder::api::AiMessageListResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiMessageListResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiMessageListResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::AiMessage>>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::AiMessageCreateResponseData>::encode(const holder::api::AiMessageCreateResponseData& value) {
     json result = json::object();
     result["message_id"] = codec<std::string>::encode(value.message_id);
@@ -2102,24 +2036,6 @@ inline holder::api::AiThreadCreateRequest codec<holder::api::AiThreadCreateReque
     };
 }
 
-inline json codec<holder::api::AiThreadGetResponse>::encode(const holder::api::AiThreadGetResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiThread>::encode(value.data);
-    return result;
-}
-inline holder::api::AiThreadGetResponse codec<holder::api::AiThreadGetResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadGetResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiThreadGetResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiThread>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::AiThreadPatchResponseData>::encode(const holder::api::AiThreadPatchResponseData& value) {
     json result = json::object();
     result["thread_id"] = codec<std::string>::encode(value.thread_id);
@@ -2169,24 +2085,6 @@ inline holder::api::AiThreadUpdateRequest codec<holder::api::AiThreadUpdateReque
         value.contains("title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("title"))} : std::nullopt,
         value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
         codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::AiMessageGetResponse>::encode(const holder::api::AiMessageGetResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiMessage>::encode(value.data);
-    return result;
-}
-inline holder::api::AiMessageGetResponse codec<holder::api::AiMessageGetResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiMessageGetResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiMessageGetResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiMessage>::decode(value.at("data")),
     };
 }
 
@@ -5186,6 +5084,85 @@ inline holder::api::RecoveryTokenImportAutoResponse codec<holder::api::RecoveryT
     };
 }
 
+inline json codec<holder::api::AiMessage>::encode(const holder::api::AiMessage& value) {
+    json result = json::object();
+    result["message_id"] = codec<std::string>::encode(value.message_id);
+    result["thread_id"] = codec<std::string>::encode(value.thread_id);
+    result["role"] = codec<std::string>::encode(value.role);
+    result["source"] = codec<std::string>::encode(value.source);
+    result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
+    result["model"] = codec<std::optional<std::string>>::encode(value.model);
+    result["content"] = codec<std::string>::encode(value.content);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["deleted_at"] = codec<std::optional<long long>>::encode(value.deleted_at);
+    result["prompt_hash"] = codec<std::optional<std::string>>::encode(value.prompt_hash);
+    result["meta_json"] = codec<std::optional<std::string>>::encode(value.meta_json);
+    return result;
+}
+inline holder::api::AiMessage codec<holder::api::AiMessage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiMessage");
+    if (!value.contains("message_id")) throw std::invalid_argument("missing message_id");
+    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
+    if (!value.contains("role")) throw std::invalid_argument("missing role");
+    if (!value.contains("source")) throw std::invalid_argument("missing source");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("model")) throw std::invalid_argument("missing model");
+    if (!value.contains("content")) throw std::invalid_argument("missing content");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    if (!value.contains("deleted_at")) throw std::invalid_argument("missing deleted_at");
+    if (!value.contains("prompt_hash")) throw std::invalid_argument("missing prompt_hash");
+    if (!value.contains("meta_json")) throw std::invalid_argument("missing meta_json");
+    return holder::api::AiMessage{
+        codec<std::string>::decode(value.at("message_id")),
+        codec<std::string>::decode(value.at("thread_id")),
+        codec<std::string>::decode(value.at("role")),
+        codec<std::string>::decode(value.at("source")),
+        codec<std::optional<std::string>>::decode(value.at("provider")),
+        codec<std::optional<std::string>>::decode(value.at("model")),
+        codec<std::string>::decode(value.at("content")),
+        codec<long long>::decode(value.at("created_at")),
+        codec<std::optional<long long>>::decode(value.at("deleted_at")),
+        codec<std::optional<std::string>>::decode(value.at("prompt_hash")),
+        codec<std::optional<std::string>>::decode(value.at("meta_json")),
+    };
+}
+
+inline json codec<holder::api::AiMessageListResponse>::encode(const holder::api::AiMessageListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::AiMessage>>::encode(value.data);
+    return result;
+}
+inline holder::api::AiMessageListResponse codec<holder::api::AiMessageListResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiMessageListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiMessageListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::AiMessage>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiMessageGetResponse>::encode(const holder::api::AiMessageGetResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiMessage>::encode(value.data);
+    return result;
+}
+inline holder::api::AiMessageGetResponse codec<holder::api::AiMessageGetResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiMessageGetResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiMessageGetResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiMessage>::decode(value.at("data")),
+    };
+}
+
 inline json codec<holder::api::AiProviderCatalogModelLimits>::encode(const holder::api::AiProviderCatalogModelLimits& value) {
     json result = json::object();
     result["rpm"] = codec<long long>::encode(value.rpm);
@@ -5622,6 +5599,24 @@ inline holder::api::AiThreadListResponse codec<holder::api::AiThreadListResponse
     return holder::api::AiThreadListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::AiThread>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiThreadGetResponse>::encode(const holder::api::AiThreadGetResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiThread>::encode(value.data);
+    return result;
+}
+inline holder::api::AiThreadGetResponse codec<holder::api::AiThreadGetResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadGetResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiThreadGetResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiThread>::decode(value.at("data")),
     };
 }
 

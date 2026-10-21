@@ -4,6 +4,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/GeneratedRoutes.h"
 #include "api/routes/ai/threads/AiThreadItemRoutes.h"
 #include "http_test_helpers.h"
 
@@ -58,28 +59,19 @@ TEST_CASE("AiThreadItemRoutes covers guard and error branches", "[http]") {
   SECTION("get missing thread returns not_found") {
     auto req = make_request(http::verb::get, "/ai/threads/missing");
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_item_routes(
-        "/ai/threads/missing",
-        req,
-        res,
-        db
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::not_found);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["code"] == "not_found");
+    REQUIRE(payload["error"]["message"] == "AI thread not found.");
   }
 
-  SECTION("get catches repo errors as bad_request") {
+  SECTION("get reports storage failures as internal errors") {
     db.exec("DROP TABLE ai_threads;");
     auto req = make_request(http::verb::get, "/ai/threads/thread-1");
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_item_routes(
-        "/ai/threads/thread-1",
-        req,
-        res,
-        db
-    ));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 }
 
@@ -117,12 +109,7 @@ TEST_CASE("AiThreadItemRoutes patch/delete branches and errors", "[http]") {
 
     auto get_req = make_request(http::verb::get, "/ai/threads/thread-1");
     http::response<http::string_body> get_res;
-    REQUIRE(holder::api::routes::ai::threads::handle_ai_thread_item_routes(
-        "/ai/threads/thread-1",
-        get_req,
-        get_res,
-        db
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(get_req, get_res, db));
     REQUIRE(get_res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(get_res.body());
     REQUIRE(payload["data"]["updated_at"] == 99);
