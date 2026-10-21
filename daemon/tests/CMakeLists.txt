@@ -253,12 +253,13 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   CARD_SERVER_VERSION="${HOLDER_DAEMON_VERSION}"
   OPENAPI_YAML_PATH="${HOLDER_API_DIR}/openapi.yaml"
   OPENAPI_JSON_PATH="${HOLDER_API_DIR}/openapi.json"
+  OPENAPI_YAML_PATH="${HOLDER_API_DIR}/openapi.yaml"
   SCHEMA_SQL_PATH="${HOLDER_CORE_SCHEMA}"
   DAEMON_AI_CATALOG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../config/ai_catalog.yaml"
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_json)
+add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE

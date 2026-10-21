@@ -18,11 +18,7 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   const auto docs_root = dir / "assets" / "swagger-ui";
   fs::create_directories(docs_root);
   std::ofstream(docs_root / "index.html") << "<!doctype html><title>Docs</title>";
-  const auto openapi_path = dir / "openapi.yaml";
-  std::ofstream(openapi_path) << "openapi: 3.0.0\ninfo:\n  title: Test\n  version: 0.1\n";
-
   EnvGuard docs_env("HOLDER_DOCS_ROOT", docs_root.string());
-  EnvGuard openapi_env("HOLDER_OPENAPI_PATH", openapi_path.string());
 
   const std::string token = "testtoken";
   holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
@@ -74,6 +70,15 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   const std::string contract_bytes{std::istreambuf_iterator<char>(contract_file), {}};
   REQUIRE(contract.body == contract_bytes);
   REQUIRE(nlohmann::json::parse(contract.body)["openapi"] == "3.1.0");
+
+  // So is the YAML the docs page loads.
+  const auto contract_yaml =
+      http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/openapi.yaml");
+  REQUIRE(contract_yaml.status == boost::beast::http::status::ok);
+  REQUIRE(contract_yaml.content_type == "application/yaml");
+  std::ifstream contract_yaml_file(OPENAPI_YAML_PATH, std::ios::binary);
+  const std::string contract_yaml_bytes{std::istreambuf_iterator<char>(contract_yaml_file), {}};
+  REQUIRE(contract_yaml.body == contract_yaml_bytes);
 
   const auto projects =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/projects");

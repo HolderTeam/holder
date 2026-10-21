@@ -2655,11 +2655,6 @@ paths:
           content:
             application/yaml:
               schema: {type: string}
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ping:
     get:
       summary: Liveness check, unauthenticated

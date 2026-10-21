@@ -467,8 +467,8 @@ add_executable(holderd
   # src/markdown/parse_links.cpp
 )
 
-# The daemon serves api/openapi.json from bytes compiled into it, so it always serves the
-# contract it was built from and no file has to be shipped beside it.
+# The daemon serves api/openapi.json and api/openapi.yaml from bytes compiled into it, so it
+# always serves the contract it was built from and no file has to be shipped beside it.
 set(HOLDER_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_custom_command(
   OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
@@ -481,8 +481,22 @@ add_custom_command(
   DEPENDS "${HOLDER_API_DIR}/openapi.json" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
   VERBATIM
 )
-add_custom_target(holder_openapi_json DEPENDS "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h")
-add_dependencies(holderd holder_openapi_json)
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.yaml
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h
+    -DNAME=openapi_yaml
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_target(holder_openapi_documents DEPENDS
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+)
+add_dependencies(holderd holder_openapi_documents)
 
 target_include_directories(holderd PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src

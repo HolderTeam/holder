@@ -12,15 +12,15 @@ namespace holder::api {
 
 // routes::handle_static_routes serves these files; the declarations are their contract.
 
+// Both served from the bytes of api/openapi.yaml and api/openapi.json compiled into the daemon,
+// so they are always present and always the contract this daemon was built from.
 RIG_ROUTE(GET, "/openapi.yaml")
 RIG_PUBLIC
 RIG_SUMMARY("Download the OpenAPI specification")
 RIG_RESPONSE_DESCRIPTION("OK")
 RIG_HOST_RESPONSE("application/yaml")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 std::string download_openapi_yaml();
 
-// Served from the bytes of api/openapi.json compiled into the daemon, so it is always present.
 RIG_ROUTE(GET, "/openapi.json")
 RIG_PUBLIC
 RIG_SUMMARY("Download the OpenAPI specification as JSON")

@@ -1,6 +1,7 @@
 #include "api/routes/StaticRoutes.h"
 
 #include "OpenApiJson.h"
+#include "OpenApiYaml.h"
 #include "api/support/PathDiscovery.h"
 
 #include <boost/beast/http.hpp>
@@ -121,29 +122,8 @@ bool handle_static_routes(
   }
 
   if (path == "/openapi.yaml") {
-    const auto openapi_path = support::find_openapi_path();
-    if (!openapi_path.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "openapi.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    const auto content = support::read_file(openapi_path.value());
-    if (!content.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "openapi.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    res = text_response(
-        http::status::ok,
-        content.value(),
-        support::content_type_for_extension(openapi_path->extension().string())
-    );
+    res = text_response(http::status::ok, std::string(holder::generated::openapi_yaml()),
+                        "application/yaml");
     return true;
   }
 

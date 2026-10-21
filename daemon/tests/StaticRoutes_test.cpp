@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 
 namespace {
@@ -43,36 +44,28 @@ TEST_CASE("StaticRoutes rejects non-GET methods", "[static-routes]") {
   REQUIRE(res.result() == http::status::method_not_allowed);
 }
 
-TEST_CASE("StaticRoutes openapi not-found variants", "[static-routes]") {
+TEST_CASE("StaticRoutes serves the compiled-in contract, never a file on disk", "[static-routes]") {
   const auto dir = holder::test::make_temp_dir();
   CwdGuard cwd(dir);
+  // A stray contract in the working directory, or one named by the old override, is ignored.
+  {
+    std::ofstream out(dir / "openapi.yaml");
+    REQUIRE(out.is_open());
+    out << "openapi: 3.0.0\ninfo:\n  title: Stray\n  version: 0.1\n";
+  }
+  holder::test::EnvGuard openapi_env("HOLDER_OPENAPI_PATH", (dir / "openapi.yaml").string());
 
-  holder::test::EnvGuard openapi_env(
-      "HOLDER_OPENAPI_PATH",
-      (dir / "missing-openapi.yaml").string()
-  );
+  std::ifstream contract_file(OPENAPI_YAML_PATH, std::ios::binary);
+  const std::string contract_bytes{std::istreambuf_iterator<char>(contract_file), {}};
+  REQUIRE_FALSE(contract_bytes.empty());
+
   auto req = make_request(http::verb::get, "/openapi.yaml");
   http::response<http::string_body> res;
   REQUIRE(holder::api::routes::handle_static_routes("/openapi.yaml", req, res));
-  REQUIRE(res.result() == http::status::not_found);
-
-#ifndef _WIN32
-  const auto unreadable_openapi = dir / "openapi-unreadable.yaml";
-  {
-    std::ofstream out(unreadable_openapi);
-    REQUIRE(out.is_open());
-    out << "openapi: 3.0.0\n";
-  }
-  std::filesystem::permissions(
-      unreadable_openapi,
-      std::filesystem::perms::none,
-      std::filesystem::perm_options::replace
-  );
-  holder::test::EnvGuard openapi_env_dir("HOLDER_OPENAPI_PATH", unreadable_openapi.string());
-  http::response<http::string_body> res2;
-  REQUIRE(holder::api::routes::handle_static_routes("/openapi.yaml", req, res2));
-  REQUIRE(res2.result() == http::status::not_found);
-#endif
+  REQUIRE(res.result() == http::status::ok);
+  REQUIRE(std::string(res[http::field::content_type]) == "application/yaml");
+  REQUIRE(res.body() == contract_bytes);
+  REQUIRE(res.body().find("Stray") == std::string::npos);
 }
 
 TEST_CASE("StaticRoutes serves docs and openapi success cases", "[static-routes]") {
@@ -87,15 +80,7 @@ TEST_CASE("StaticRoutes serves docs and openapi success cases", "[static-routes]
     out << "<!doctype html><title>Docs</title>";
   }
 
-  const auto openapi_path = dir / "openapi.yaml";
-  {
-    std::ofstream out(openapi_path);
-    REQUIRE(out.is_open());
-    out << "openapi: 3.0.0\ninfo:\n  title: Test\n  version: 0.1\n";
-  }
-
   holder::test::EnvGuard docs_env("HOLDER_DOCS_ROOT", docs_root.string());
-  holder::test::EnvGuard openapi_env("HOLDER_OPENAPI_PATH", openapi_path.string());
 
   auto docs_req = make_request(http::verb::get, "/docs");
   http::response<http::string_body> docs_res;
