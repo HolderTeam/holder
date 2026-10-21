@@ -241,11 +241,26 @@ def test_provider_key_settings_and_partial_model_configuration():
                             "display_name": "Example",
                             "enabled": True,
                             "configured": False,
-                            "api": None,
-                            "auth": None,
-                            "models": [],
+                            "cost_tier": None,
+                            "setup_url": None,
+                            "docs_url": None,
+                            "api_key_label": None,
+                            "api_key_hint": None,
+                            "api": {"base_url": "https://example.test"},
+                            "auth": {"type": "bearer"},
+                            "models": [
+                                {
+                                    "id": "small",
+                                    "endpoint": "/v1/chat",
+                                    "role": None,
+                                    "cost_tier": "free",
+                                    "default_for_low_budget": True,
+                                    "limits": {"rpm": 10, "tpm": 0, "rpd": 0},
+                                }
+                            ],
                         }
-                    ]
+                    ],
+                    "default_provider": None,
                 }
             )
         if path == "/ai/providers/credentials" and request.method == "PUT":
@@ -295,6 +310,7 @@ def test_provider_key_settings_and_partial_model_configuration():
 
     with holder_for(respond) as holder:
         provider = holder.intelligence.providers.get("example")
+        assert provider.models[0]["limits"] == {"rpm": 10, "tpm": 0, "rpd": 0}
         provider.set_key("secret")
         provider.set_enabled(False)
         assert holder.intelligence.models.configure(fast="new").strong == "strong"

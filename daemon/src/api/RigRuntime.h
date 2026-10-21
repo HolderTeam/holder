@@ -3,6 +3,7 @@
 // Operations the checked-in RIG dispatcher serves, or hands back to the host
 // when the host writes their response (RIG_HOST_RESPONSE).
 #include "api/AiLocalModelConfig.h"
+#include "api/AiProviderCatalog.h"
 #include "api/AiRunnerList.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"

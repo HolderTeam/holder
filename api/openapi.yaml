@@ -418,12 +418,17 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiProviderCatalogResponse'}
         '400':
-          description: Bad request
+          description: The AI catalog could not be found
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4467,22 +4472,35 @@ components:
             message_id: {type: string}
           required: [message_id]
       required: [ok, data]
+    AiProviderCatalogModel:
+      type: object
+      properties:
+        id: {type: string}
+        endpoint: {type: string}
+        role:
+          type: [string, 'null']
+        cost_tier:
+          type: [string, 'null']
+        default_for_low_budget: {type: boolean}
+        limits:
+          type: object
+          properties:
+            rpm: {type: integer, format: int64, description: Requests per minute; 0 when unlimited or
+                unknown.}
+            tpm: {type: integer, format: int64, description: Tokens per minute; 0 when unlimited or unknown.}
+            rpd: {type: integer, format: int64, description: Requests per day; 0 when unlimited or unknown.}
+          required: [rpm, tpm, rpd]
+      required: [id, endpoint, role, cost_tier, default_for_low_budget, limits]
     AiProviderCatalogProvider:
       type: object
       properties:
         id: {type: string}
         display_name: {type: string}
-        enabled: {type: boolean}
-        configured: {type: boolean}
-        api:
-          type: [object, 'null']
-          additionalProperties: true
-        auth:
-          type: [object, 'null']
-          additionalProperties: true
-        models:
-          type: array
-          items: {type: object, additionalProperties: true}
+        enabled: {type: boolean, description: 'This device''s setting, or the catalog default without
+            one.'}
+        configured: {type: boolean, description: Whether this device has an API key for the provider.}
+        cost_tier:
+          type: [string, 'null']
         setup_url:
           type: [string, 'null']
         docs_url:
@@ -4491,7 +4509,23 @@ components:
           type: [string, 'null']
         api_key_hint:
           type: [string, 'null']
-      required: [id, display_name, enabled, configured, api, auth, models]
+        api:
+          type: object
+          properties:
+            base_url: {type: string}
+            kind: {type: string}
+        auth:
+          type: object
+          properties:
+            type: {type: string}
+            key_param: {type: string}
+            header_name: {type: string}
+            bearer_prefix: {type: string}
+        models:
+          type: array
+          items: {$ref: '#/components/schemas/AiProviderCatalogModel'}
+      required: [id, display_name, enabled, configured, cost_tier, setup_url, docs_url, api_key_label,
+        api_key_hint, api, auth, models]
     AiProviderCatalogResponse:
       type: object
       properties:
@@ -4506,7 +4540,7 @@ components:
             providers:
               type: array
               items: {$ref: '#/components/schemas/AiProviderCatalogProvider'}
-          required: [providers]
+          required: [default_provider, providers]
       required: [ok, data]
     AiProviderCredential:
       type: object

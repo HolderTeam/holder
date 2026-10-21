@@ -18,12 +18,11 @@ from .ai_message_list_response import AiMessageListResponse
 from .ai_message_update_request import AiMessageUpdateRequest
 from .ai_message_update_response import AiMessageUpdateResponse
 from .ai_message_update_response_data import AiMessageUpdateResponseData
+from .ai_provider_catalog_model import AiProviderCatalogModel
+from .ai_provider_catalog_model_limits import AiProviderCatalogModelLimits
 from .ai_provider_catalog_provider import AiProviderCatalogProvider
-from .ai_provider_catalog_provider_api_type_0 import AiProviderCatalogProviderApiType0
-from .ai_provider_catalog_provider_auth_type_0 import AiProviderCatalogProviderAuthType0
-from .ai_provider_catalog_provider_models_item import (
-    AiProviderCatalogProviderModelsItem,
-)
+from .ai_provider_catalog_provider_api import AiProviderCatalogProviderApi
+from .ai_provider_catalog_provider_auth import AiProviderCatalogProviderAuth
 from .ai_provider_catalog_response import AiProviderCatalogResponse
 from .ai_provider_catalog_response_data import AiProviderCatalogResponseData
 from .ai_provider_credential import AiProviderCredential
@@ -368,10 +367,11 @@ __all__ = (
     "AiMessageUpdateRequest",
     "AiMessageUpdateResponse",
     "AiMessageUpdateResponseData",
+    "AiProviderCatalogModel",
+    "AiProviderCatalogModelLimits",
     "AiProviderCatalogProvider",
-    "AiProviderCatalogProviderApiType0",
-    "AiProviderCatalogProviderAuthType0",
-    "AiProviderCatalogProviderModelsItem",
+    "AiProviderCatalogProviderApi",
+    "AiProviderCatalogProviderAuth",
     "AiProviderCatalogResponse",
     "AiProviderCatalogResponseData",
     "AiProviderCredential",

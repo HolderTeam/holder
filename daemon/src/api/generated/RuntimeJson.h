@@ -182,18 +182,6 @@ template <> struct codec<holder::api::LocalModel> {
     static json encode(const holder::api::LocalModel& value);
     static holder::api::LocalModel decode(const json& value);
 };
-template <> struct codec<holder::api::AiProviderCatalogProvider> {
-    static json encode(const holder::api::AiProviderCatalogProvider& value);
-    static holder::api::AiProviderCatalogProvider decode(const json& value);
-};
-template <> struct codec<holder::api::AiProviderCatalogResponseData> {
-    static json encode(const holder::api::AiProviderCatalogResponseData& value);
-    static holder::api::AiProviderCatalogResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::AiProviderCatalogResponse> {
-    static json encode(const holder::api::AiProviderCatalogResponse& value);
-    static holder::api::AiProviderCatalogResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiProviderCredentialDeleteResponseData> {
     static json encode(const holder::api::AiProviderCredentialDeleteResponseData& value);
     static holder::api::AiProviderCredentialDeleteResponseData decode(const json& value);
@@ -858,6 +846,34 @@ template <> struct codec<holder::api::RecoveryTokenImportAutoResponse> {
     static json encode(const holder::api::RecoveryTokenImportAutoResponse& value);
     static holder::api::RecoveryTokenImportAutoResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderCatalogModelLimits> {
+    static json encode(const holder::api::AiProviderCatalogModelLimits& value);
+    static holder::api::AiProviderCatalogModelLimits decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogModel> {
+    static json encode(const holder::api::AiProviderCatalogModel& value);
+    static holder::api::AiProviderCatalogModel decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogApi> {
+    static json encode(const holder::api::AiProviderCatalogApi& value);
+    static holder::api::AiProviderCatalogApi decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogAuth> {
+    static json encode(const holder::api::AiProviderCatalogAuth& value);
+    static holder::api::AiProviderCatalogAuth decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogProvider> {
+    static json encode(const holder::api::AiProviderCatalogProvider& value);
+    static holder::api::AiProviderCatalogProvider decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogResponseData> {
+    static json encode(const holder::api::AiProviderCatalogResponseData& value);
+    static holder::api::AiProviderCatalogResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCatalogResponse> {
+    static json encode(const holder::api::AiProviderCatalogResponse& value);
+    static holder::api::AiProviderCatalogResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiRunItem> {
     static json encode(const holder::api::AiRunItem& value);
     static holder::api::AiRunItem decode(const json& value);
@@ -1343,88 +1359,6 @@ inline holder::api::LocalModel codec<holder::api::LocalModel>::decode(const json
         value.contains("digest") ? codec<std::optional<std::string>>::decode(value.at("digest")) : std::nullopt,
         value.contains("size") ? codec<std::optional<long long>>::decode(value.at("size")) : std::nullopt,
         value.contains("modified_at") ? codec<std::optional<std::string>>::decode(value.at("modified_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiProviderCatalogProvider>::encode(const holder::api::AiProviderCatalogProvider& value) {
-    json result = json::object();
-    result["id"] = codec<std::string>::encode(value.id);
-    result["display_name"] = codec<std::string>::encode(value.display_name);
-    result["enabled"] = codec<bool>::encode(value.enabled);
-    result["configured"] = codec<bool>::encode(value.configured);
-    result["api"] = codec<std::optional<nlohmann::json>>::encode(value.api);
-    result["auth"] = codec<std::optional<nlohmann::json>>::encode(value.auth);
-    result["models"] = codec<std::vector<nlohmann::json>>::encode(value.models);
-    if (value.setup_url) {
-        result["setup_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.setup_url);
-    }
-    if (value.docs_url) {
-        result["docs_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.docs_url);
-    }
-    if (value.api_key_label) {
-        result["api_key_label"] = codec<std::optional<std::optional<std::string>>>::encode(value.api_key_label);
-    }
-    if (value.api_key_hint) {
-        result["api_key_hint"] = codec<std::optional<std::optional<std::string>>>::encode(value.api_key_hint);
-    }
-    return result;
-}
-inline holder::api::AiProviderCatalogProvider codec<holder::api::AiProviderCatalogProvider>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogProvider");
-    if (!value.contains("id")) throw std::invalid_argument("missing id");
-    if (!value.contains("display_name")) throw std::invalid_argument("missing display_name");
-    if (!value.contains("enabled")) throw std::invalid_argument("missing enabled");
-    if (!value.contains("configured")) throw std::invalid_argument("missing configured");
-    if (!value.contains("api")) throw std::invalid_argument("missing api");
-    if (!value.contains("auth")) throw std::invalid_argument("missing auth");
-    if (!value.contains("models")) throw std::invalid_argument("missing models");
-    return holder::api::AiProviderCatalogProvider{
-        codec<std::string>::decode(value.at("id")),
-        codec<std::string>::decode(value.at("display_name")),
-        codec<bool>::decode(value.at("enabled")),
-        codec<bool>::decode(value.at("configured")),
-        codec<std::optional<nlohmann::json>>::decode(value.at("api")),
-        codec<std::optional<nlohmann::json>>::decode(value.at("auth")),
-        codec<std::vector<nlohmann::json>>::decode(value.at("models")),
-        value.contains("setup_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("setup_url"))} : std::nullopt,
-        value.contains("docs_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("docs_url"))} : std::nullopt,
-        value.contains("api_key_label") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("api_key_label"))} : std::nullopt,
-        value.contains("api_key_hint") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("api_key_hint"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiProviderCatalogResponseData>::encode(const holder::api::AiProviderCatalogResponseData& value) {
-    json result = json::object();
-    if (value.default_provider) {
-        result["default_provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.default_provider);
-    }
-    result["providers"] = codec<std::vector<holder::api::AiProviderCatalogProvider>>::encode(value.providers);
-    return result;
-}
-inline holder::api::AiProviderCatalogResponseData codec<holder::api::AiProviderCatalogResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogResponseData");
-    if (!value.contains("providers")) throw std::invalid_argument("missing providers");
-    return holder::api::AiProviderCatalogResponseData{
-        value.contains("default_provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("default_provider"))} : std::nullopt,
-        codec<std::vector<holder::api::AiProviderCatalogProvider>>::decode(value.at("providers")),
-    };
-}
-
-inline json codec<holder::api::AiProviderCatalogResponse>::encode(const holder::api::AiProviderCatalogResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiProviderCatalogResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::AiProviderCatalogResponse codec<holder::api::AiProviderCatalogResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiProviderCatalogResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiProviderCatalogResponseData>::decode(value.at("data")),
     };
 }
 
@@ -5253,6 +5187,177 @@ inline holder::api::RecoveryTokenImportAutoResponse codec<holder::api::RecoveryT
     return holder::api::RecoveryTokenImportAutoResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::RecoveryTokenImportAutoResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogModelLimits>::encode(const holder::api::AiProviderCatalogModelLimits& value) {
+    json result = json::object();
+    result["rpm"] = codec<long long>::encode(value.rpm);
+    result["tpm"] = codec<long long>::encode(value.tpm);
+    result["rpd"] = codec<long long>::encode(value.rpd);
+    return result;
+}
+inline holder::api::AiProviderCatalogModelLimits codec<holder::api::AiProviderCatalogModelLimits>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogModelLimits");
+    if (!value.contains("rpm")) throw std::invalid_argument("missing rpm");
+    if (!value.contains("tpm")) throw std::invalid_argument("missing tpm");
+    if (!value.contains("rpd")) throw std::invalid_argument("missing rpd");
+    return holder::api::AiProviderCatalogModelLimits{
+        codec<long long>::decode(value.at("rpm")),
+        codec<long long>::decode(value.at("tpm")),
+        codec<long long>::decode(value.at("rpd")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogModel>::encode(const holder::api::AiProviderCatalogModel& value) {
+    json result = json::object();
+    result["id"] = codec<std::string>::encode(value.id);
+    result["endpoint"] = codec<std::string>::encode(value.endpoint);
+    result["role"] = codec<std::optional<std::string>>::encode(value.role);
+    result["cost_tier"] = codec<std::optional<std::string>>::encode(value.cost_tier);
+    result["default_for_low_budget"] = codec<bool>::encode(value.default_for_low_budget);
+    result["limits"] = codec<holder::api::AiProviderCatalogModelLimits>::encode(value.limits);
+    return result;
+}
+inline holder::api::AiProviderCatalogModel codec<holder::api::AiProviderCatalogModel>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogModel");
+    if (!value.contains("id")) throw std::invalid_argument("missing id");
+    if (!value.contains("endpoint")) throw std::invalid_argument("missing endpoint");
+    if (!value.contains("role")) throw std::invalid_argument("missing role");
+    if (!value.contains("cost_tier")) throw std::invalid_argument("missing cost_tier");
+    if (!value.contains("default_for_low_budget")) throw std::invalid_argument("missing default_for_low_budget");
+    if (!value.contains("limits")) throw std::invalid_argument("missing limits");
+    return holder::api::AiProviderCatalogModel{
+        codec<std::string>::decode(value.at("id")),
+        codec<std::string>::decode(value.at("endpoint")),
+        codec<std::optional<std::string>>::decode(value.at("role")),
+        codec<std::optional<std::string>>::decode(value.at("cost_tier")),
+        codec<bool>::decode(value.at("default_for_low_budget")),
+        codec<holder::api::AiProviderCatalogModelLimits>::decode(value.at("limits")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogApi>::encode(const holder::api::AiProviderCatalogApi& value) {
+    json result = json::object();
+    if (value.base_url) {
+        result["base_url"] = codec<std::optional<std::string>>::encode(value.base_url);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::string>>::encode(value.kind);
+    }
+    return result;
+}
+inline holder::api::AiProviderCatalogApi codec<holder::api::AiProviderCatalogApi>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogApi");
+    return holder::api::AiProviderCatalogApi{
+        value.contains("base_url") ? codec<std::optional<std::string>>::decode(value.at("base_url")) : std::nullopt,
+        value.contains("kind") ? codec<std::optional<std::string>>::decode(value.at("kind")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogAuth>::encode(const holder::api::AiProviderCatalogAuth& value) {
+    json result = json::object();
+    if (value.type) {
+        result["type"] = codec<std::optional<std::string>>::encode(value.type);
+    }
+    if (value.key_param) {
+        result["key_param"] = codec<std::optional<std::string>>::encode(value.key_param);
+    }
+    if (value.header_name) {
+        result["header_name"] = codec<std::optional<std::string>>::encode(value.header_name);
+    }
+    if (value.bearer_prefix) {
+        result["bearer_prefix"] = codec<std::optional<std::string>>::encode(value.bearer_prefix);
+    }
+    return result;
+}
+inline holder::api::AiProviderCatalogAuth codec<holder::api::AiProviderCatalogAuth>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogAuth");
+    return holder::api::AiProviderCatalogAuth{
+        value.contains("type") ? codec<std::optional<std::string>>::decode(value.at("type")) : std::nullopt,
+        value.contains("key_param") ? codec<std::optional<std::string>>::decode(value.at("key_param")) : std::nullopt,
+        value.contains("header_name") ? codec<std::optional<std::string>>::decode(value.at("header_name")) : std::nullopt,
+        value.contains("bearer_prefix") ? codec<std::optional<std::string>>::decode(value.at("bearer_prefix")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogProvider>::encode(const holder::api::AiProviderCatalogProvider& value) {
+    json result = json::object();
+    result["id"] = codec<std::string>::encode(value.id);
+    result["display_name"] = codec<std::string>::encode(value.display_name);
+    result["enabled"] = codec<bool>::encode(value.enabled);
+    result["configured"] = codec<bool>::encode(value.configured);
+    result["cost_tier"] = codec<std::optional<std::string>>::encode(value.cost_tier);
+    result["setup_url"] = codec<std::optional<std::string>>::encode(value.setup_url);
+    result["docs_url"] = codec<std::optional<std::string>>::encode(value.docs_url);
+    result["api_key_label"] = codec<std::optional<std::string>>::encode(value.api_key_label);
+    result["api_key_hint"] = codec<std::optional<std::string>>::encode(value.api_key_hint);
+    result["api"] = codec<holder::api::AiProviderCatalogApi>::encode(value.api);
+    result["auth"] = codec<holder::api::AiProviderCatalogAuth>::encode(value.auth);
+    result["models"] = codec<std::vector<holder::api::AiProviderCatalogModel>>::encode(value.models);
+    return result;
+}
+inline holder::api::AiProviderCatalogProvider codec<holder::api::AiProviderCatalogProvider>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogProvider");
+    if (!value.contains("id")) throw std::invalid_argument("missing id");
+    if (!value.contains("display_name")) throw std::invalid_argument("missing display_name");
+    if (!value.contains("enabled")) throw std::invalid_argument("missing enabled");
+    if (!value.contains("configured")) throw std::invalid_argument("missing configured");
+    if (!value.contains("cost_tier")) throw std::invalid_argument("missing cost_tier");
+    if (!value.contains("setup_url")) throw std::invalid_argument("missing setup_url");
+    if (!value.contains("docs_url")) throw std::invalid_argument("missing docs_url");
+    if (!value.contains("api_key_label")) throw std::invalid_argument("missing api_key_label");
+    if (!value.contains("api_key_hint")) throw std::invalid_argument("missing api_key_hint");
+    if (!value.contains("api")) throw std::invalid_argument("missing api");
+    if (!value.contains("auth")) throw std::invalid_argument("missing auth");
+    if (!value.contains("models")) throw std::invalid_argument("missing models");
+    return holder::api::AiProviderCatalogProvider{
+        codec<std::string>::decode(value.at("id")),
+        codec<std::string>::decode(value.at("display_name")),
+        codec<bool>::decode(value.at("enabled")),
+        codec<bool>::decode(value.at("configured")),
+        codec<std::optional<std::string>>::decode(value.at("cost_tier")),
+        codec<std::optional<std::string>>::decode(value.at("setup_url")),
+        codec<std::optional<std::string>>::decode(value.at("docs_url")),
+        codec<std::optional<std::string>>::decode(value.at("api_key_label")),
+        codec<std::optional<std::string>>::decode(value.at("api_key_hint")),
+        codec<holder::api::AiProviderCatalogApi>::decode(value.at("api")),
+        codec<holder::api::AiProviderCatalogAuth>::decode(value.at("auth")),
+        codec<std::vector<holder::api::AiProviderCatalogModel>>::decode(value.at("models")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogResponseData>::encode(const holder::api::AiProviderCatalogResponseData& value) {
+    json result = json::object();
+    result["default_provider"] = codec<std::optional<std::string>>::encode(value.default_provider);
+    result["providers"] = codec<std::vector<holder::api::AiProviderCatalogProvider>>::encode(value.providers);
+    return result;
+}
+inline holder::api::AiProviderCatalogResponseData codec<holder::api::AiProviderCatalogResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogResponseData");
+    if (!value.contains("default_provider")) throw std::invalid_argument("missing default_provider");
+    if (!value.contains("providers")) throw std::invalid_argument("missing providers");
+    return holder::api::AiProviderCatalogResponseData{
+        codec<std::optional<std::string>>::decode(value.at("default_provider")),
+        codec<std::vector<holder::api::AiProviderCatalogProvider>>::decode(value.at("providers")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCatalogResponse>::encode(const holder::api::AiProviderCatalogResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderCatalogResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderCatalogResponse codec<holder::api::AiProviderCatalogResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiProviderCatalogResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderCatalogResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderCatalogResponseData>::decode(value.at("data")),
     };
 }
 

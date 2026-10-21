@@ -1,6 +1,5 @@
 #include "api/routes/ai/AiProviderRoutes.h"
 
-#include "api/routes/ai/providers/AiProviderCatalogRoutes.h"
 #include "api/routes/ai/providers/AiProviderCredentialRoutes.h"
 
 namespace holder::api::routes {
@@ -12,9 +11,6 @@ bool handle_ai_provider_routes(
     holder::platform::Db& db,
     holder::privacy::SecretStore& secret_store
 ) {
-  if (ai::providers::handle_ai_provider_catalog_routes(path, req, res, db)) {
-    return true;
-  }
   if (ai::providers::handle_ai_provider_credential_routes(path, req, res, db, secret_store)) {
     return true;
   }

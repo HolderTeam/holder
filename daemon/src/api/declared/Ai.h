@@ -12,13 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/ai/providers/catalog")
-RIG_SUMMARY("Get provider-agnostic cloud catalog with configured flags")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiProviderCatalogResponse get_ai_providers_catalog();
-
 RIG_ROUTE(DELETE, "/ai/providers/credentials/{provider}")
 RIG_SUMMARY("Delete a configured cloud provider API key")
 RIG_RESPONSE_DESCRIPTION("OK")

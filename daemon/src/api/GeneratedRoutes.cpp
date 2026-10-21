@@ -1,6 +1,7 @@
 #include "api/GeneratedRoutes.h"
 
 #include "api/AiLocalModelConfig.h"
+#include "api/AiProviderCatalog.h"
 #include "api/AiRunnerList.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"

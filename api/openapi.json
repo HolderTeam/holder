@@ -806,7 +806,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "The AI catalog could not be found",
             "content": {
               "application/json": {
                 "schema": {
@@ -817,6 +817,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8686,6 +8696,65 @@
           "data"
         ]
       },
+      "AiProviderCatalogModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_for_low_budget": {
+            "type": "boolean"
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "rpm": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Requests per minute; 0 when unlimited or unknown."
+              },
+              "tpm": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Tokens per minute; 0 when unlimited or unknown."
+              },
+              "rpd": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Requests per day; 0 when unlimited or unknown."
+              }
+            },
+            "required": [
+              "rpm",
+              "tpm",
+              "rpd"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "role",
+          "cost_tier",
+          "default_for_low_budget",
+          "limits"
+        ]
+      },
       "AiProviderCatalogProvider": {
         "type": "object",
         "properties": {
@@ -8696,31 +8765,18 @@
             "type": "string"
           },
           "enabled": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "This device's setting, or the catalog default without one."
           },
           "configured": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether this device has an API key for the provider."
           },
-          "api": {
+          "cost_tier": {
             "type": [
-              "object",
+              "string",
               "null"
-            ],
-            "additionalProperties": true
-          },
-          "auth": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "additionalProperties": true
-          },
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": true
-            }
+            ]
           },
           "setup_url": {
             "type": [
@@ -8745,6 +8801,40 @@
               "string",
               "null"
             ]
+          },
+          "api": {
+            "type": "object",
+            "properties": {
+              "base_url": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            }
+          },
+          "auth": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "key_param": {
+                "type": "string"
+              },
+              "header_name": {
+                "type": "string"
+              },
+              "bearer_prefix": {
+                "type": "string"
+              }
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiProviderCatalogModel"
+            }
           }
         },
         "required": [
@@ -8752,6 +8842,11 @@
           "display_name",
           "enabled",
           "configured",
+          "cost_tier",
+          "setup_url",
+          "docs_url",
+          "api_key_label",
+          "api_key_hint",
           "api",
           "auth",
           "models"
@@ -8783,6 +8878,7 @@
               }
             },
             "required": [
+              "default_provider",
               "providers"
             ]
           }

@@ -33,30 +33,6 @@ struct RIG_OPEN_RECORD LocalModel {
   std::optional<std::string> modified_at RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD AiProviderCatalogProvider {
-  std::string id;
-  std::string display_name;
-  bool enabled;
-  bool configured;
-  std::optional<nlohmann::json> api RIG_NULLABLE;
-  std::optional<nlohmann::json> auth RIG_NULLABLE;
-  std::vector<nlohmann::json> models;
-  std::optional<std::optional<std::string>> setup_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> docs_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> api_key_label RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> api_key_hint RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderCatalogResponseData {
-  std::optional<std::optional<std::string>> default_provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::vector<AiProviderCatalogProvider> providers;
-};
-
-struct RIG_OPEN_RECORD AiProviderCatalogResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiProviderCatalogResponseData data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderCredentialDeleteResponseData {
   std::string provider;
 };

@@ -154,6 +154,7 @@ add_executable(holder_daemon_tests
   ../src/api/GeneratedRoutes.cpp
   ../src/api/Health.cpp
   ../src/api/AiLocalModelConfig.cpp
+  ../src/api/AiProviderCatalog.cpp
   ../src/api/AiRunnerList.cpp
   ../src/api/AiRuns.cpp
   ../src/api/AiStatus.cpp
@@ -170,7 +171,6 @@ add_executable(holder_daemon_tests
   ../src/api/TrashList.cpp
   ../src/api/Listener.cpp
   ../src/api/routes/ai/AiProviderRoutes.cpp
-  ../src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp
   ../src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
   ../src/api/routes/ai/AiNudgeRoutes.cpp
   ../src/api/routes/AuthenticatedRoutes.cpp
