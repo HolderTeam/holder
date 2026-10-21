@@ -42,6 +42,7 @@ nlohmann::json runtime_pull_to_json(
       {"model", job.model},
       {"model_ref", holder::llm::make_runner_model_ref(runner_id, job.model)},
       {"status", job.status},
+      {"active", holder::llm::pull_job_active(job)},
       {"updated_at", job.updated_at},
       {"error", job.error.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.error)},
       {"progress",

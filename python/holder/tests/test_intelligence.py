@@ -358,6 +358,7 @@ def test_runners_and_model_pull_use_runner_scope():
                     "runner_id": "manual-1",
                     "model": "tiny",
                     "status": "completed",
+                    "active": False,
                     "updated_at": 3,
                     "progress": {
                         "completed": 1,

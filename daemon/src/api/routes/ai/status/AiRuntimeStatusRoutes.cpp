@@ -69,8 +69,7 @@ nlohmann::json runtime_pull_to_json(
         {"total", job.progress.total},
         {"percent", job.progress.percent},
         {"stage", job.progress.stage}}},
-      {"active",
-       (job.status == "queued" || job.status == "downloading" || job.status == "verifying")},
+      {"active", holder::llm::pull_job_active(job)},
   };
 }
 

@@ -47,6 +47,7 @@ AiRunnerRuntime runtime(const std::string& runner_id, holder::llm::RunnerClient*
         holder::llm::make_runner_model_ref(runner_id, pull.model),
         pull.model,
         pull.status,
+        holder::llm::pull_job_active(pull),
         pull.updated_at,
         std::optional<std::optional<std::string>>{std::in_place, unless_empty(pull.error)},
         {pull.progress.completed, pull.progress.total, pull.progress.percent, pull.progress.stage},

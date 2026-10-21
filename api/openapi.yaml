@@ -4791,20 +4791,13 @@ components:
         active_pull_jobs: {type: integer, format: int64}
         pulls:
           type: array
-          items: {$ref: '#/components/schemas/AiStatusPullJob'}
+          items: {$ref: '#/components/schemas/RunnerPullJob'}
         cloud:
           type: array
           items: {$ref: '#/components/schemas/AiProviderCredential'}
         cloud_configured_providers: {type: integer, format: int64}
       required: [checked_at, runner_available, runner_last_checked, active_runs, active_pull_jobs, pulls,
         cloud, cloud_configured_providers]
-    AiStatusPullJob:
-      allOf:
-      - {$ref: '#/components/schemas/RunnerPullJob'}
-      - type: object
-        properties:
-          active: {type: boolean}
-        required: [active]
     AiStatusResponse:
       type: object
       properties:
@@ -6517,11 +6510,12 @@ components:
         model_ref: {type: string}
         model: {type: string}
         status: {type: string}
+        active: {type: boolean, description: 'Whether the pull is still queued, downloading or verifying.'}
         updated_at: {type: integer, format: int64}
         error:
           type: [string, 'null']
         progress: {$ref: '#/components/schemas/RunnerPullProgress'}
-      required: [job_id, model, status, updated_at, progress]
+      required: [job_id, model, status, active, updated_at, progress]
     RunnerPullProgress:
       type: object
       properties:

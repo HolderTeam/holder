@@ -37,4 +37,9 @@ struct RunnerPullJob {
   std::string error;
 };
 
+// Whether a pull is still in progress, rather than completed or failed.
+inline bool pull_job_active(const RunnerPullJob& job) {
+  return job.status == "queued" || job.status == "downloading" || job.status == "verifying";
+}
+
 } // namespace holder::llm

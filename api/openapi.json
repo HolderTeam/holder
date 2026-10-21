@@ -9507,7 +9507,7 @@
           "pulls": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AiStatusPullJob"
+              "$ref": "#/components/schemas/RunnerPullJob"
             }
           },
           "cloud": {
@@ -9530,24 +9530,6 @@
           "pulls",
           "cloud",
           "cloud_configured_providers"
-        ]
-      },
-      "AiStatusPullJob": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/RunnerPullJob"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "active": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "active"
-            ]
-          }
         ]
       },
       "AiStatusResponse": {
@@ -13836,6 +13818,10 @@
           "status": {
             "type": "string"
           },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the pull is still queued, downloading or verifying."
+          },
           "updated_at": {
             "type": "integer",
             "format": "int64"
@@ -13854,6 +13840,7 @@
           "job_id",
           "model",
           "status",
+          "active",
           "updated_at",
           "progress"
         ]

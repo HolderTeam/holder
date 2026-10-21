@@ -64,7 +64,6 @@ from .ai_runner_response import AiRunnerResponse
 from .ai_runner_runtime import AiRunnerRuntime
 from .ai_runner_update_request import AiRunnerUpdateRequest
 from .ai_status_data import AiStatusData
-from .ai_status_pull_job import AiStatusPullJob
 from .ai_status_response import AiStatusResponse
 from .ai_thread import AiThread
 from .ai_thread_create_request import AiThreadCreateRequest
@@ -407,7 +406,6 @@ __all__ = (
     "AiRunnerRuntime",
     "AiRunnerUpdateRequest",
     "AiStatusData",
-    "AiStatusPullJob",
     "AiStatusResponse",
     "AiThread",
     "AiThreadCreateRequest",

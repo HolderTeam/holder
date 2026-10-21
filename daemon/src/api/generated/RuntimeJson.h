@@ -198,10 +198,6 @@ template <> struct codec<holder::api::RunnerCapabilitiesResponse> {
     static json encode(const holder::api::RunnerCapabilitiesResponse& value);
     static holder::api::RunnerCapabilitiesResponse decode(const json& value);
 };
-template <> struct codec<holder::api::AiStatusPullJob> {
-    static json encode(const holder::api::AiStatusPullJob& value);
-    static holder::api::AiStatusPullJob decode(const json& value);
-};
 template <> struct codec<holder::api::AiStatusData> {
     static json encode(const holder::api::AiStatusData& value);
     static holder::api::AiStatusData decode(const json& value);
@@ -1154,6 +1150,7 @@ inline json codec<holder::api::RunnerPullJob>::encode(const holder::api::RunnerP
     }
     result["model"] = codec<std::string>::encode(value.model);
     result["status"] = codec<std::string>::encode(value.status);
+    result["active"] = codec<bool>::encode(value.active);
     result["updated_at"] = codec<long long>::encode(value.updated_at);
     if (value.error) {
         result["error"] = codec<std::optional<std::optional<std::string>>>::encode(value.error);
@@ -1166,6 +1163,7 @@ inline holder::api::RunnerPullJob codec<holder::api::RunnerPullJob>::decode(cons
     if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
     if (!value.contains("model")) throw std::invalid_argument("missing model");
     if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("active")) throw std::invalid_argument("missing active");
     if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
     if (!value.contains("progress")) throw std::invalid_argument("missing progress");
     return holder::api::RunnerPullJob{
@@ -1174,6 +1172,7 @@ inline holder::api::RunnerPullJob codec<holder::api::RunnerPullJob>::decode(cons
         value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
         codec<std::string>::decode(value.at("model")),
         codec<std::string>::decode(value.at("status")),
+        codec<bool>::decode(value.at("active")),
         codec<long long>::decode(value.at("updated_at")),
         value.contains("error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error"))} : std::nullopt,
         codec<holder::api::RunnerPullProgress>::decode(value.at("progress")),
@@ -1461,22 +1460,6 @@ inline holder::api::RunnerCapabilitiesResponse codec<holder::api::RunnerCapabili
     };
 }
 
-inline json codec<holder::api::AiStatusPullJob>::encode(const holder::api::AiStatusPullJob& value) {
-    json result = codec<holder::api::RunnerPullJob>::encode(value);
-    result["active"] = codec<bool>::encode(value.active);
-    return result;
-}
-inline holder::api::AiStatusPullJob codec<holder::api::AiStatusPullJob>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiStatusPullJob");
-    if (!value.contains("active")) throw std::invalid_argument("missing active");
-    json base = value;
-    base.erase("active");
-    return holder::api::AiStatusPullJob{
-        codec<holder::api::RunnerPullJob>::decode(base),
-        codec<bool>::decode(value.at("active")),
-    };
-}
-
 inline json codec<holder::api::AiStatusData>::encode(const holder::api::AiStatusData& value) {
     json result = json::object();
     result["checked_at"] = codec<long long>::encode(value.checked_at);
@@ -1490,7 +1473,7 @@ inline json codec<holder::api::AiStatusData>::encode(const holder::api::AiStatus
     }
     result["active_runs"] = codec<long long>::encode(value.active_runs);
     result["active_pull_jobs"] = codec<long long>::encode(value.active_pull_jobs);
-    result["pulls"] = codec<std::vector<holder::api::AiStatusPullJob>>::encode(value.pulls);
+    result["pulls"] = codec<std::vector<holder::api::RunnerPullJob>>::encode(value.pulls);
     result["cloud"] = codec<std::vector<holder::api::AiProviderCredential>>::encode(value.cloud);
     result["cloud_configured_providers"] = codec<long long>::encode(value.cloud_configured_providers);
     return result;
@@ -1513,7 +1496,7 @@ inline holder::api::AiStatusData codec<holder::api::AiStatusData>::decode(const 
         value.contains("runner_error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("runner_error"))} : std::nullopt,
         codec<long long>::decode(value.at("active_runs")),
         codec<long long>::decode(value.at("active_pull_jobs")),
-        codec<std::vector<holder::api::AiStatusPullJob>>::decode(value.at("pulls")),
+        codec<std::vector<holder::api::RunnerPullJob>>::decode(value.at("pulls")),
         codec<std::vector<holder::api::AiProviderCredential>>::decode(value.at("cloud")),
         codec<long long>::decode(value.at("cloud_configured_providers")),
     };

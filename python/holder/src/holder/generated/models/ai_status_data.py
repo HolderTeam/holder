@@ -11,7 +11,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.ai_provider_credential import AiProviderCredential
-    from ..models.ai_status_pull_job import AiStatusPullJob
+    from ..models.runner_pull_job import RunnerPullJob
 
 
 T = TypeVar("T", bound="AiStatusData")
@@ -26,7 +26,7 @@ class AiStatusData:
         runner_last_checked (int):
         active_runs (int):
         active_pull_jobs (int):
-        pulls (list[AiStatusPullJob]):
+        pulls (list[RunnerPullJob]):
         cloud (list[AiProviderCredential]):
         cloud_configured_providers (int):
         runner_version (None | str | Unset):
@@ -38,7 +38,7 @@ class AiStatusData:
     runner_last_checked: int
     active_runs: int
     active_pull_jobs: int
-    pulls: list[AiStatusPullJob]
+    pulls: list[RunnerPullJob]
     cloud: list[AiProviderCredential]
     cloud_configured_providers: int
     runner_version: None | str | Unset = UNSET
@@ -106,7 +106,7 @@ class AiStatusData:
         from ..models.ai_provider_credential import (
             AiProviderCredential,
         )
-        from ..models.ai_status_pull_job import AiStatusPullJob
+        from ..models.runner_pull_job import RunnerPullJob
 
         d = dict(src_dict)
         checked_at = d.pop("checked_at")
@@ -122,7 +122,7 @@ class AiStatusData:
         pulls = []
         _pulls = d.pop("pulls")
         for pulls_item_data in _pulls:
-            pulls_item = AiStatusPullJob.from_dict(pulls_item_data)
+            pulls_item = RunnerPullJob.from_dict(pulls_item_data)
 
             pulls.append(pulls_item)
 

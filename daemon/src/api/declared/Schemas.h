@@ -65,10 +65,6 @@ struct RIG_OPEN_RECORD RunnerCapabilitiesResponse {
   RunnerCapabilitiesData data;
 };
 
-struct RIG_OPEN_RECORD AiStatusPullJob : holder::api::RunnerPullJob {
-  bool active;
-};
-
 struct RIG_OPEN_RECORD AiStatusData {
   long long checked_at;
   bool runner_available;
@@ -77,7 +73,7 @@ struct RIG_OPEN_RECORD AiStatusData {
   std::optional<std::optional<std::string>> runner_error RIG_OMIT_EMPTY RIG_NULLABLE;
   long long active_runs;
   long long active_pull_jobs;
-  std::vector<AiStatusPullJob> pulls;
+  std::vector<holder::api::RunnerPullJob> pulls;
   std::vector<holder::api::AiProviderCredential> cloud;
   long long cloud_configured_providers;
 };

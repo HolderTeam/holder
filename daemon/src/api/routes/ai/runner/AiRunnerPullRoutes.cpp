@@ -35,6 +35,7 @@ RunnerPullStatusResponse get_pull_status(
            holder::llm::make_runner_model_ref(runner_id, job->model),
            job->model,
            job->status,
+           holder::llm::pull_job_active(*job),
            job->updated_at,
            std::optional<std::optional<std::string>>{std::in_place, error},
            {job->progress.completed,

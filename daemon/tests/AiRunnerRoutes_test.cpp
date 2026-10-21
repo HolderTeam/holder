@@ -844,6 +844,7 @@ TEST_CASE("AiRunnerRoutes covers retry guards and runtime pull serialization", "
     REQUIRE(pull["model_ref"] == holder::llm::make_runner_model_ref("auto-local", "qwen3:8b"));
     REQUIRE(pull["model"] == "qwen3:8b");
     REQUIRE(pull["status"] == "pulling");
+    REQUIRE(pull["active"] == false);
     REQUIRE(pull["updated_at"] == 456);
 
     // The single-runner response, still host-written, reports the same runtime.
@@ -1086,5 +1087,16 @@ TEST_CASE("AiRunnerRoutes catches route exceptions and preserves fallthroughs", 
     );
 
     REQUIRE_FALSE(out.handled);
+  }
+}
+
+TEST_CASE("Runner pull jobs are active until they complete or fail", "[ai][runner]") {
+  for (const std::string status : {"queued", "downloading", "verifying"}) {
+    CAPTURE(status);
+    REQUIRE(holder::llm::pull_job_active({.status = status}));
+  }
+  for (const std::string status : {"completed", "failed", "pulling"}) {
+    CAPTURE(status);
+    REQUIRE_FALSE(holder::llm::pull_job_active({.status = status}));
   }
 }

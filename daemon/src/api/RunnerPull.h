@@ -25,6 +25,7 @@ struct RIG_OPEN_RECORD RunnerPullJob {
   std::optional<std::string> model_ref RIG_OMIT_EMPTY;
   std::string model;
   std::string status;
+  bool active RIG_FIELD_DESCRIPTION("Whether the pull is still queued, downloading or verifying.");
   long long updated_at;
   std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
   RunnerPullProgress progress;

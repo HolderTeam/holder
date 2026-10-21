@@ -197,6 +197,8 @@ TEST_CASE("Generated ai runner pull GET returns job payload", "[http]") {
   REQUIRE(payload["data"]["model"] == "fake-echo");
   REQUIRE(payload["data"]["model_ref"] == "auto-local::fake-echo");
   REQUIRE(payload["data"]["status"].is_string());
+  REQUIRE(payload["data"]["active"] ==
+          holder::llm::pull_job_active({.status = payload["data"]["status"].get<std::string>()}));
   REQUIRE(payload["data"]["updated_at"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["completed"].is_number_integer());
   REQUIRE(payload["data"]["progress"]["total"].is_number_integer());

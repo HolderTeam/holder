@@ -23,6 +23,7 @@ class RunnerPullJob:
         job_id (str):
         model (str):
         status (str):
+        active (bool): Whether the pull is still queued, downloading or verifying.
         updated_at (int):
         progress (RunnerPullProgress):
         runner_id (str | Unset):
@@ -33,6 +34,7 @@ class RunnerPullJob:
     job_id: str
     model: str
     status: str
+    active: bool
     updated_at: int
     progress: RunnerPullProgress
     runner_id: str | Unset = UNSET
@@ -46,6 +48,8 @@ class RunnerPullJob:
         model = self.model
 
         status = self.status
+
+        active = self.active
 
         updated_at = self.updated_at
 
@@ -68,6 +72,7 @@ class RunnerPullJob:
                 "job_id": job_id,
                 "model": model,
                 "status": status,
+                "active": active,
                 "updated_at": updated_at,
                 "progress": progress,
             }
@@ -92,6 +97,8 @@ class RunnerPullJob:
 
         status = d.pop("status")
 
+        active = d.pop("active")
+
         updated_at = d.pop("updated_at")
 
         progress = RunnerPullProgress.from_dict(d.pop("progress"))
@@ -113,6 +120,7 @@ class RunnerPullJob:
             job_id=job_id,
             model=model,
             status=status,
+            active=active,
             updated_at=updated_at,
             progress=progress,
             runner_id=runner_id,
