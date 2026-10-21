@@ -1,4 +1,5 @@
 #include "http_test_helpers.h"
+#include "card/TagRepo.h"
 
 #include <fstream>
 #include <git2.h>
@@ -39,6 +40,48 @@ std::optional<std::string> get_remote_url(
 }
 
 } // namespace
+
+TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
+  const auto dir = make_temp_dir();
+  auto db = open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "repo").string());
+  db.exec(
+      "INSERT INTO cards(card_id, project_id, title, rel_path, sort_key, created_at, updated_at) "
+      "VALUES('card-1','proj-1','One','cards/one.md',1,1,1);"
+  );
+  holder::card::TagRepo(db).set_tags_for_card("proj-1", "card-1", {"sync"}, 1);
+
+  const std::string token = "testtoken";
+  holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
+  holder::api::HttpServer::BoundInfo bound;
+  try {
+    bound = server.start();
+  } catch (const std::exception& error) {
+    SKIP(std::string("Socket bind not available in test environment: ") + error.what());
+  }
+  holder::core::SignalHandler signals;
+  holder::test::HttpServerThreadGuard running(server, signals);
+  REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
+
+  const auto reply = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/proj-1/tags");
+  REQUIRE(reply.status == boost::beast::http::status::ok);
+  REQUIRE(reply.content_type == "application/json");
+  REQUIRE(nlohmann::json::parse(reply.body) == nlohmann::json{
+      {"ok", true}, {"data", nlohmann::json::array({{{"tag", "sync"}, {"card_count", 1}}})}});
+
+  const auto missing = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/missing/tags");
+  REQUIRE(missing.status == boost::beast::http::status::not_found);
+  REQUIRE(nlohmann::json::parse(missing.body)["error"]["code"] == "not_found");
+
+  const auto denied = holder::test::http_request_raw(
+      bound.bind, bound.port, "wrong-token", boost::beast::http::verb::get,
+      "/projects/proj-1/tags");
+  REQUIRE(denied.status == boost::beast::http::status::unauthorized);
+}
 
 TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   const auto dir = make_temp_dir();

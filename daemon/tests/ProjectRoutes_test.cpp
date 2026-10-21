@@ -5,6 +5,7 @@
 #endif
 
 #include "api/routes/ProjectRoutes.h"
+#include "api/Router.h"
 #include "card/TagRepo.h"
 #include "git/GitOps.h"
 #include "http_test_helpers.h"
@@ -552,7 +553,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   }
 }
 
-TEST_CASE("ProjectRoutes lists project tags with card counts", "[project-routes][tags]") {
+TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tags]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1", (dir / "repo").string());
@@ -567,21 +568,8 @@ TEST_CASE("ProjectRoutes lists project tags with card counts", "[project-routes]
 
   auto req = make_request(http::verb::get, "/projects/proj-1/tags");
   http::response<http::string_body> res;
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-  const bool handled = holder::api::routes::handle_project_routes(
-      "/projects/proj-1/tags",
-      req,
-      res,
-      db,
-      nullptr,
-      uuid_v4,
-      param_get
-  );
+  holder::api::Router router;
+  const bool handled = router.dispatch(req, res, &db);
 
   REQUIRE(handled);
   REQUIRE(res.result() == http::status::ok);
@@ -597,29 +585,18 @@ TEST_CASE("ProjectRoutes lists project tags with card counts", "[project-routes]
   REQUIRE(payload == expected);
 
   req = make_request(http::verb::get, "/projects/missing/tags");
-  REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/missing/tags",
-      req,
-      res,
-      db,
-      nullptr,
-      uuid_v4,
-      param_get
-  ));
+  REQUIRE(router.dispatch(req, res, &db));
   REQUIRE(res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+
+  req = make_request(http::verb::get, "/projects/bad%XX/tags");
+  REQUIRE_FALSE(router.dispatch(req, res, &db));
 
   db.close();
   req = make_request(http::verb::get, "/projects/proj-1/tags");
-  REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1/tags",
-      req,
-      res,
-      db,
-      nullptr,
-      uuid_v4,
-      param_get
-  ));
+  REQUIRE(router.dispatch(req, res, &db));
   REQUIRE(res.result() == http::status::internal_server_error);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "error");
 }
 
 TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[project-routes]") {

@@ -398,7 +398,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
       } else if (events_ &&
                  events_->dispatch(path_, query_string_, req_, res, socket_, db_, streamed)) {
         if (streamed) return std::nullopt;
-      } else if (!router_.dispatch(req_, res)) {
+      } else if (!router_.dispatch(req_, res, &db_)) {
         const auto route_result = routes::dispatch_authenticated_routes(
             path_,
             query_string_,

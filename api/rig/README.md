@@ -30,9 +30,11 @@ existing routes. The daemon's bearer-auth gate still runs before dispatch.
 `RigAnnotations.h` makes annotations disappear in ordinary C++20 builds.
 
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
-The live handler calls its typed function with a database context. RIG omits
-that server-supplied parameter from the HTTP contract. Its path parameter,
-error responses, field descriptions, and integer minimum are reflected.
+RIG generates its checked-in C++20 dispatcher and JSON codec. Holder supplies
+the database context in `ProjectTagDispatch.cpp`, which also maps domain errors
+to HTTP responses. The old handwritten route and JSON response were removed.
+RIG omits the server-supplied context from OpenAPI while reflecting the path
+parameter, error responses, field descriptions, and integer minimum.
 
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
 optional `runner_id` query parameter. The live handler calls the typed
@@ -69,5 +71,5 @@ ten reachable schemas now match the control. The comparison treats an omitted
 document remains a partial slice; it must not replace the checked-in contract
 yet.
 
-The next full-stack slice can cover project tags, which will exercise path
-decoding, database context, and a richer response.
+The next full-stack slice can cover an operation with a request body or query
+parameter, exercising generated input decoding alongside output encoding.

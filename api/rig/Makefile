@@ -25,11 +25,25 @@ build/bye-json.hpp: build/bye-ir.json
 build/bye-routes.hpp: build/bye-ir.json build/bye-json.hpp
 	$(RIG) http-routes --codec-header api/generated/ByeJson.h < $< > $@
 
-check-generated: build/bye-routes.hpp
+build/project-tags-ir.json: FORCE
+	mkdir -p build
+	$(RIG) inspect --header daemon/src/api/ProjectTags.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
+
+build/project-tags-json.hpp: build/project-tags-ir.json
+	$(RIG) json-codec --api-header api/ProjectTags.h < $< > $@
+
+build/project-tags-routes.hpp: build/project-tags-ir.json build/project-tags-json.hpp
+	$(RIG) http-routes --codec-header api/generated/ProjectTagsJson.h < $< > $@
+
+check-generated: build/bye-routes.hpp build/project-tags-routes.hpp
 	cmp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
 	cmp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h
+	cmp build/project-tags-json.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsJson.h
+	cmp build/project-tags-routes.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsRoutes.h
 
-update-generated: build/bye-routes.hpp
+update-generated: build/bye-routes.hpp build/project-tags-routes.hpp
 	mkdir -p $(ROOT)/daemon/src/api/generated
 	cp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
 	cp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h
+	cp build/project-tags-json.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsJson.h
+	cp build/project-tags-routes.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsRoutes.h

@@ -151,6 +151,7 @@ add_executable(holder_daemon_tests
   ../src/llm/RunnerModelRef.cpp
   ../src/llm/RunnerRegistry.cpp
   ../src/api/HttpServer.cpp
+  ../src/api/ProjectTagDispatch.cpp
   ../src/api/Listener.cpp
   ../src/api/routes/ai/AiProviderRoutes.cpp
   ../src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp

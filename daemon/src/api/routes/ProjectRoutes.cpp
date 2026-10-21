@@ -700,23 +700,7 @@ bool handle_project_routes(
       res = support::error_response(http::status::not_found, "not_found", "Route not found.");
       return true;
     }
-    if (subpath == "/tags" && req.method() == http::verb::get) {
-      try {
-        const auto tags = holder::api::list_project_tags(db, project_id);
-        nlohmann::json data = nlohmann::json::array();
-        for (const auto& item : tags.data) {
-          data.push_back({{"tag", item.tag}, {"card_count", item.card_count}});
-        }
-        nlohmann::json payload;
-        payload["ok"] = tags.ok;
-        payload["data"] = std::move(data);
-        res = support::json_response(http::status::ok, payload);
-      } catch (const holder::api::ProjectNotFound& ex) {
-        res = support::error_response(http::status::not_found, "not_found", ex.what());
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::internal_server_error, "error", ex.what());
-      }
-    } else if (subpath == "/git/test-remote" && req.method() == http::verb::post) {
+    if (subpath == "/git/test-remote" && req.method() == http::verb::post) {
       try {
         const auto body = req.body().empty() ? nlohmann::json::object()
                                              : nlohmann::json::parse(req.body());
