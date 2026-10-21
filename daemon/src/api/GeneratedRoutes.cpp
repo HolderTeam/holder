@@ -9,6 +9,7 @@
 #include "api/RunnerPull.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
+#include "privacy/SecretStore.h"
 
 #include <boost/beast/http.hpp>
 
@@ -25,6 +26,7 @@ struct Context {
   holder::platform::Db& db;
   holder::llm::RunnerRegistry* registry;
   holder::index::FtsIndexer* fts;
+  holder::privacy::SecretStore* secret_store;
 };
 
 Router::Response error_response(http::status status, std::string code, std::string message) {
@@ -37,9 +39,10 @@ Router::Response error_response(http::status status, std::string code, std::stri
 bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry,
-                               holder::index::FtsIndexer* fts) {
+                               holder::index::FtsIndexer* fts,
+                               holder::privacy::SecretStore* secret_store) {
   const auto target = req.target();
-  Context context{db, registry, fts};
+  Context context{db, registry, fts, secret_store};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
@@ -52,6 +55,11 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
         res = error_response(http::status::not_found, "not_found", "Runner not configured.");
       } else if (generated->operation == "delete_provider_setting") {
         res = error_response(http::status::bad_request, "bad_request", "Invalid provider.");
+      } else if (generated->operation == "upsert_provider_credential" &&
+                 generated->body.value("message", "") ==
+                     "expected AiProviderCredentialUpsertRequest") {
+        res = error_response(http::status::bad_request, "bad_request",
+                             "Missing provider or api_key.");
       } else {
         res = error_response(http::status::bad_request, "bad_request",
                              generated->body.value("message", "Invalid request."));
@@ -73,6 +81,9 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
     res = error_response(http::status::bad_request, "bad_request", error.what());
   } catch (const ProviderSettingError& error) {
     res = error_response(http::status::bad_request, "bad_request", error.what());
+  } catch (const holder::privacy::PrivacyError& error) {
+    res = error_response(http::status::service_unavailable,
+                         holder::privacy::privacy_error_code_name(error.code()), error.what());
   } catch (const ProviderCredentialError& error) {
     res = error_response(http::status::bad_request, "bad_request", error.what());
   } catch (const CardReferenceInvalidRequest& error) {

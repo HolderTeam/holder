@@ -129,6 +129,14 @@ template <> struct codec<holder::api::AiProviderCredentialsListResponse> {
     static json encode(const holder::api::AiProviderCredentialsListResponse& value);
     static holder::api::AiProviderCredentialsListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderCredentialUpsertRequest> {
+    static json encode(const holder::api::AiProviderCredentialUpsertRequest& value);
+    static holder::api::AiProviderCredentialUpsertRequest decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCredentialUpsertResponse> {
+    static json encode(const holder::api::AiProviderCredentialUpsertResponse& value);
+    static holder::api::AiProviderCredentialUpsertResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiProviderSetting> {
     static json encode(const holder::api::AiProviderSetting& value);
     static holder::api::AiProviderSetting decode(const json& value);
@@ -425,6 +433,46 @@ inline holder::api::AiProviderCredentialsListResponse codec<holder::api::AiProvi
     return holder::api::AiProviderCredentialsListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderCredentialsListData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCredentialUpsertRequest>::encode(const holder::api::AiProviderCredentialUpsertRequest& value) {
+    json result = json::object();
+    result["provider"] = codec<std::string>::encode(value.provider);
+    result["api_key"] = codec<std::string>::encode(value.api_key);
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<std::optional<long long>>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::AiProviderCredentialUpsertRequest codec<holder::api::AiProviderCredentialUpsertRequest>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("provider")
+        || !value.contains("api_key")
+) throw std::invalid_argument("expected AiProviderCredentialUpsertRequest");
+    return holder::api::AiProviderCredentialUpsertRequest{
+        codec<std::string>::decode(value.at("provider")),
+        codec<std::string>::decode(value.at("api_key")),
+        value.contains("updated_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("updated_at"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiProviderCredentialUpsertResponse>::encode(const holder::api::AiProviderCredentialUpsertResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderCredential>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderCredentialUpsertResponse codec<holder::api::AiProviderCredentialUpsertResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected AiProviderCredentialUpsertResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderCredentialUpsertResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderCredential>::decode(value.at("data")),
     };
 }
 
