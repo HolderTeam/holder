@@ -1,5 +1,6 @@
 #include "api/GeneratedRoutes.h"
 
+#include "api/Alive.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/ProjectTags.h"

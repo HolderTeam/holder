@@ -89,6 +89,10 @@ template <> struct codec<holder::api::ErrorResponse> {
     static json encode(const holder::api::ErrorResponse& value);
     static holder::api::ErrorResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AliveResponse> {
+    static json encode(const holder::api::AliveResponse& value);
+    static holder::api::AliveResponse decode(const json& value);
+};
 template <> struct codec<holder::api::ByeResponse> {
     static json encode(const holder::api::ByeResponse& value);
     static holder::api::ByeResponse decode(const json& value);
@@ -229,6 +233,21 @@ inline holder::api::ErrorResponse codec<holder::api::ErrorResponse>::decode(cons
     return holder::api::ErrorResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::Error>::decode(value.at("error")),
+    };
+}
+
+inline json codec<holder::api::AliveResponse>::encode(const holder::api::AliveResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    return result;
+}
+inline holder::api::AliveResponse codec<holder::api::AliveResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AliveResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AliveResponse{
+        codec<bool>::decode(value.at("ok")),
     };
 }
 

@@ -27,6 +27,8 @@ including the 401 and 500 responses every operation documents. `Session.cpp`
 skips the token check for operations the generated dispatcher reports as
 `RIG_PUBLIC`.
 `daemon/src/api/Bye.h` declares the typed operation and response.
+`daemon/src/api/Alive.h` declares `GET /alive`, the first `RIG_PUBLIC`
+operation: a JSON liveness check that needs no token.
 `daemon/src/api/RigRuntime.h` selects the migrated operations for one
 checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
 `Session.cpp` calls the dispatcher after authentication and event handling. A
@@ -101,7 +103,7 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, eleven operations, and their
+The generated service metadata, bearer security, twelve operations, and their
 twenty-six reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract

@@ -75,6 +75,7 @@ from .ai_thread_list_response import AiThreadListResponse
 from .ai_thread_patch_response import AiThreadPatchResponse
 from .ai_thread_patch_response_data import AiThreadPatchResponseData
 from .ai_thread_update_request import AiThreadUpdateRequest
+from .alive_response import AliveResponse
 from .asset_import_job import AssetImportJob
 from .asset_import_job_response import AssetImportJobResponse
 from .asset_import_job_status import AssetImportJobStatus
@@ -417,6 +418,7 @@ __all__ = (
     "AiThreadPatchResponse",
     "AiThreadPatchResponseData",
     "AiThreadUpdateRequest",
+    "AliveResponse",
     "AssetImportJob",
     "AssetImportJobResponse",
     "AssetImportJobStatus",

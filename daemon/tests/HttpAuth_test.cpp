@@ -51,6 +51,17 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::post, "/ping");
   REQUIRE(ping_post.status == boost::beast::http::status::method_not_allowed);
 
+  // A RIG_PUBLIC operation needs no token, but only for its declared method.
+  const auto alive =
+      http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/alive");
+  REQUIRE(alive.status == boost::beast::http::status::ok);
+  REQUIRE(alive.content_type == "application/json");
+  REQUIRE(nlohmann::json::parse(alive.body) == nlohmann::json{{"ok", true}});
+
+  const auto alive_post =
+      http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::post, "/alive");
+  REQUIRE(alive_post.status == boost::beast::http::status::unauthorized);
+
   const auto projects =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/projects");
   REQUIRE(projects.status == boost::beast::http::status::unauthorized);

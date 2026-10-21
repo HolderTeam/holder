@@ -146,6 +146,13 @@ components:
           enum: [true]
         data:
           $ref: "#/components/schemas/HealthData"
+    AliveResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
     ByeResponse:
       type: object
       required: [ok]
@@ -3149,6 +3156,23 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: Observer unavailable or stream limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /alive:
+    get:
+      summary: Liveness check returning JSON, unauthenticated
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AliveResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
