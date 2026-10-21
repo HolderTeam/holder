@@ -602,22 +602,6 @@ template <> struct codec<holder::api::ResourceResponse> {
     static json encode(const holder::api::ResourceResponse& value);
     static holder::api::ResourceResponse decode(const json& value);
 };
-template <> struct codec<holder::api::ResourceCreateRequest> {
-    static json encode(const holder::api::ResourceCreateRequest& value);
-    static holder::api::ResourceCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::ResourceUpdateRequest> {
-    static json encode(const holder::api::ResourceUpdateRequest& value);
-    static holder::api::ResourceUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::ResourceDeleteResponseData> {
-    static json encode(const holder::api::ResourceDeleteResponseData& value);
-    static holder::api::ResourceDeleteResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ResourceDeleteResponse> {
-    static json encode(const holder::api::ResourceDeleteResponse& value);
-    static holder::api::ResourceDeleteResponse decode(const json& value);
-};
 template <> struct codec<holder::api::EventCheckpoint> {
     static json encode(const holder::api::EventCheckpoint& value);
     static holder::api::EventCheckpoint decode(const json& value);
@@ -885,6 +869,22 @@ template <> struct codec<holder::api::RebuildResponse> {
 template <> struct codec<holder::api::ResourceListResponse> {
     static json encode(const holder::api::ResourceListResponse& value);
     static holder::api::ResourceListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceCreateRequest> {
+    static json encode(const holder::api::ResourceCreateRequest& value);
+    static holder::api::ResourceCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceUpdateRequest> {
+    static json encode(const holder::api::ResourceUpdateRequest& value);
+    static holder::api::ResourceUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceDeleteResponseData> {
+    static json encode(const holder::api::ResourceDeleteResponseData& value);
+    static holder::api::ResourceDeleteResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceDeleteResponse> {
+    static json encode(const holder::api::ResourceDeleteResponse& value);
+    static holder::api::ResourceDeleteResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectListResponse> {
     static json encode(const holder::api::ProjectListResponse& value);
@@ -3887,98 +3887,6 @@ inline holder::api::ResourceResponse codec<holder::api::ResourceResponse>::decod
     };
 }
 
-inline json codec<holder::api::ResourceCreateRequest>::encode(const holder::api::ResourceCreateRequest& value) {
-    json result = json::object();
-    if (value.resource_id) {
-        result["resource_id"] = codec<std::optional<std::string>>::encode(value.resource_id);
-    }
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["type"] = codec<std::string>::encode(value.type);
-    result["label"] = codec<std::string>::encode(value.label);
-    if (value.metadata) {
-        result["metadata"] = codec<std::optional<holder::api::ResourceMetadata>>::encode(value.metadata);
-    }
-    if (value.created_at) {
-        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
-    }
-    if (value.updated_at) {
-        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    }
-    return result;
-}
-inline holder::api::ResourceCreateRequest codec<holder::api::ResourceCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceCreateRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("type")) throw std::invalid_argument("missing type");
-    if (!value.contains("label")) throw std::invalid_argument("missing label");
-    return holder::api::ResourceCreateRequest{
-        value.contains("resource_id") ? codec<std::optional<std::string>>::decode(value.at("resource_id")) : std::nullopt,
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("type")),
-        codec<std::string>::decode(value.at("label")),
-        value.contains("metadata") ? codec<std::optional<holder::api::ResourceMetadata>>::decode(value.at("metadata")) : std::nullopt,
-        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
-        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ResourceUpdateRequest>::encode(const holder::api::ResourceUpdateRequest& value) {
-    json result = json::object();
-    if (value.type) {
-        result["type"] = codec<std::optional<std::string>>::encode(value.type);
-    }
-    if (value.label) {
-        result["label"] = codec<std::optional<std::string>>::encode(value.label);
-    }
-    if (value.metadata) {
-        result["metadata"] = codec<std::optional<holder::api::ResourceMetadata>>::encode(value.metadata);
-    }
-    if (value.updated_at) {
-        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    }
-    return result;
-}
-inline holder::api::ResourceUpdateRequest codec<holder::api::ResourceUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceUpdateRequest");
-    return holder::api::ResourceUpdateRequest{
-        value.contains("type") ? codec<std::optional<std::string>>::decode(value.at("type")) : std::nullopt,
-        value.contains("label") ? codec<std::optional<std::string>>::decode(value.at("label")) : std::nullopt,
-        value.contains("metadata") ? codec<std::optional<holder::api::ResourceMetadata>>::decode(value.at("metadata")) : std::nullopt,
-        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ResourceDeleteResponseData>::encode(const holder::api::ResourceDeleteResponseData& value) {
-    json result = json::object();
-    result["resource_id"] = codec<std::string>::encode(value.resource_id);
-    return result;
-}
-inline holder::api::ResourceDeleteResponseData codec<holder::api::ResourceDeleteResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceDeleteResponseData");
-    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
-    return holder::api::ResourceDeleteResponseData{
-        codec<std::string>::decode(value.at("resource_id")),
-    };
-}
-
-inline json codec<holder::api::ResourceDeleteResponse>::encode(const holder::api::ResourceDeleteResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ResourceDeleteResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ResourceDeleteResponse codec<holder::api::ResourceDeleteResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceDeleteResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ResourceDeleteResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ResourceDeleteResponseData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::EventCheckpoint>::encode(const holder::api::EventCheckpoint& value) {
     json result = json::object();
     result["cursor"] = codec<std::string>::encode(value.cursor);
@@ -5463,6 +5371,98 @@ inline holder::api::ResourceListResponse codec<holder::api::ResourceListResponse
         value.contains("next_offset") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("next_offset"))} : std::nullopt,
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::Resource>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ResourceCreateRequest>::encode(const holder::api::ResourceCreateRequest& value) {
+    json result = json::object();
+    if (value.resource_id) {
+        result["resource_id"] = codec<std::optional<std::string>>::encode(value.resource_id);
+    }
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["type"] = codec<std::string>::encode(value.type);
+    result["label"] = codec<std::string>::encode(value.label);
+    if (value.metadata) {
+        result["metadata"] = codec<std::optional<holder::api::ResourceMetadata>>::encode(value.metadata);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::ResourceCreateRequest codec<holder::api::ResourceCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceCreateRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("type")) throw std::invalid_argument("missing type");
+    if (!value.contains("label")) throw std::invalid_argument("missing label");
+    return holder::api::ResourceCreateRequest{
+        value.contains("resource_id") ? codec<std::optional<std::string>>::decode(value.at("resource_id")) : std::nullopt,
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("type")),
+        codec<std::string>::decode(value.at("label")),
+        value.contains("metadata") ? codec<std::optional<holder::api::ResourceMetadata>>::decode(value.at("metadata")) : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ResourceUpdateRequest>::encode(const holder::api::ResourceUpdateRequest& value) {
+    json result = json::object();
+    if (value.type) {
+        result["type"] = codec<std::optional<std::string>>::encode(value.type);
+    }
+    if (value.label) {
+        result["label"] = codec<std::optional<std::string>>::encode(value.label);
+    }
+    if (value.metadata) {
+        result["metadata"] = codec<std::optional<holder::api::ResourceMetadata>>::encode(value.metadata);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::ResourceUpdateRequest codec<holder::api::ResourceUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceUpdateRequest");
+    return holder::api::ResourceUpdateRequest{
+        value.contains("type") ? codec<std::optional<std::string>>::decode(value.at("type")) : std::nullopt,
+        value.contains("label") ? codec<std::optional<std::string>>::decode(value.at("label")) : std::nullopt,
+        value.contains("metadata") ? codec<std::optional<holder::api::ResourceMetadata>>::decode(value.at("metadata")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ResourceDeleteResponseData>::encode(const holder::api::ResourceDeleteResponseData& value) {
+    json result = json::object();
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    return result;
+}
+inline holder::api::ResourceDeleteResponseData codec<holder::api::ResourceDeleteResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceDeleteResponseData");
+    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
+    return holder::api::ResourceDeleteResponseData{
+        codec<std::string>::decode(value.at("resource_id")),
+    };
+}
+
+inline json codec<holder::api::ResourceDeleteResponse>::encode(const holder::api::ResourceDeleteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ResourceDeleteResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ResourceDeleteResponse codec<holder::api::ResourceDeleteResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceDeleteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ResourceDeleteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ResourceDeleteResponseData>::decode(value.at("data")),
     };
 }
 

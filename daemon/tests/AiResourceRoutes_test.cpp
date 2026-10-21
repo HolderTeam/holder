@@ -4,6 +4,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/GeneratedRoutes.h"
 #include "api/routes/AiResourceRoutes.h"
 #include "http_test_helpers.h"
 
@@ -33,42 +34,22 @@ http::request<http::string_body> make_request(
 
 } // namespace
 
-TEST_CASE(
-    "AiResourceRoutes POST maps non-conflict exceptions to bad_request",
-    "[resources][routes]"
-) {
+TEST_CASE("Resource create rejects a malformed body as a bad request", "[resources][routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
 
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  // Force a non-conflict exception inside POST handling: type mismatch on project_id.
+  // project_id has the wrong type, so the generated body decoding rejects it.
   auto req = make_request(
       http::verb::post,
       "/resources",
       nlohmann::json{
           {"project_id", nlohmann::json::array()},
-          {"kind", "url"},
-          {"uri", "https://example.com"},
+          {"type", "url"},
           {"label", "Example"}
       }
   );
   http::response<http::string_body> res;
-
-  const bool handled = holder::api::routes::handle_ai_resource_routes(
-      "/resources",
-      req,
-      res,
-      db,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE(handled);
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::bad_request);
 
   const auto payload = nlohmann::json::parse(res.body());
@@ -101,7 +82,6 @@ TEST_CASE("AiResourceRoutes returns false for unrelated paths", "[resources][rou
   REQUIRE_FALSE(handled);
 }
 
-#include "api/GeneratedRoutes.h"
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
 #include "resource/LocationBindingStore.h"
@@ -470,6 +450,21 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
             {"label", "Example"}}
       ).result() == http::status::created
   );
+  const auto duplicate = f.call(
+      http::verb::post,
+      "/resources",
+      {{"project_id", "project"}, {"resource_id", "resource"}, {"type", "url"}, {"label", "Again"}}
+  );
+  CHECK(duplicate.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(duplicate.body())["error"]["code"] == "conflict");
+  CHECK(
+      f.call(
+           http::verb::post,
+           "/resources",
+           {{"project_id", "missing"}, {"type", "url"}, {"label", "Orphan"}}
+      ).result() == http::status::bad_request
+  );
+  CHECK(f.call(http::verb::delete_, "/resources/missing").result() == http::status::not_found);
   CHECK(
       f.call(http::verb::patch, "/resources/missing", {{"label", "New"}}).result() ==
       http::status::not_found
@@ -487,7 +482,10 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
   REQUIRE(f.call(http::verb::delete_, "/resources/resource").result() == http::status::ok);
   CHECK_FALSE(holder::resource::ResourceRepo(f.db).get_bundle("resource").has_value());
   f.db.exec("DROP TABLE resources; DROP TABLE storage_locations");
-  CHECK(f.call(http::verb::delete_, "/resources/resource").result() == http::status::bad_request);
+  CHECK(
+      f.call(http::verb::delete_, "/resources/resource").result() ==
+      http::status::internal_server_error
+  );
   CHECK(f.call(http::verb::get, "/locations").result() == http::status::internal_server_error);
 }
 

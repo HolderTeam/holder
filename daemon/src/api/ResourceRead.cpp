@@ -131,15 +131,19 @@ ResourceListResponse get_resources(holder::platform::Db& db,
   return response;
 }
 
+Resource resource_with_references(holder::platform::Db& db,
+                                  const holder::model::ResourceBundle& bundle) {
+  auto references = resource_references(db, bundle.resource.project_id);
+  const auto found = references.find(bundle.resource.resource_id);
+  return resource_item(bundle,
+                       found != references.end() ? std::move(found->second)
+                                                 : std::vector<ResourceReferencedByCardsItem>{});
+}
+
 ResourceResponse get_resource(holder::platform::Db& db, std::string resource_id) {
   const auto bundle = holder::resource::ResourceRepo(db).get_bundle(resource_id);
   if (!bundle) throw ResourceNotFound{};
-  auto references = resource_references(db, bundle->resource.project_id);
-  const auto found = references.find(resource_id);
-  return {true,
-          resource_item(*bundle,
-                        found != references.end() ? std::move(found->second)
-                                                  : std::vector<ResourceReferencedByCardsItem>{})};
+  return {true, resource_with_references(db, *bundle)};
 }
 
 } // namespace holder::api

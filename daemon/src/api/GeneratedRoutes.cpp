@@ -31,6 +31,7 @@
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/ResourceRead.h"
+#include "api/ResourceWrite.h"
 #include "api/RunnerPull.h"
 #include "api/Search.h"
 #include "api/TrashList.h"

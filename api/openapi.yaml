@@ -4320,7 +4320,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ResourceResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including a project that does not exist
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4330,7 +4330,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Conflict
+          description: A resource with this ID already exists
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4401,6 +4406,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
     delete:
       summary: Delete a resource and remove its Card links
       parameters:
@@ -4414,8 +4424,23 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ResourceDeleteResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6855,8 +6880,9 @@ components:
         type: {type: string}
         label: {type: string}
         metadata: {$ref: '#/components/schemas/ResourceMetadata'}
-        created_at: {type: integer, format: int64}
-        updated_at: {type: integer, format: int64}
+        created_at: {type: integer, format: int64, description: Optional; server uses current time if
+            omitted.}
+        updated_at: {type: integer, format: int64, description: Optional; server uses created_at if omitted.}
       required: [project_id, type, label]
     ResourceDeleteResponse:
       type: object
@@ -6913,7 +6939,8 @@ components:
           - {$ref: '#/components/schemas/ResourceMetadata'}
           description: Partial metadata update. Empty arrays remove a property; omitted properties are
             preserved.
-        updated_at: {type: integer, format: int64}
+        updated_at: {type: integer, format: int64, description: Optional; server uses current time if
+            omitted.}
     RevisionReference: {type: string, pattern: '^[0-9A-Fa-f]{8,40}$', minLength: 8, maxLength: 40, description: Full
         Git commit object ID or a unique leading commit-ID prefix. Successful responses use the canonical
         full lowercase object ID.}

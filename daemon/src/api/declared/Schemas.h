@@ -772,32 +772,6 @@ struct RIG_OPEN_RECORD ResourceResponse {
   Resource data;
 };
 
-struct RIG_OPEN_RECORD ResourceCreateRequest {
-  std::optional<std::string> resource_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted.") RIG_OMIT_EMPTY;
-  std::string project_id;
-  std::string type;
-  std::string label;
-  std::optional<ResourceMetadata> metadata RIG_OMIT_EMPTY;
-  std::optional<long long> created_at RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD ResourceUpdateRequest {
-  std::optional<std::string> type RIG_OMIT_EMPTY;
-  std::optional<std::string> label RIG_OMIT_EMPTY;
-  std::optional<ResourceMetadata> metadata RIG_FIELD_DESCRIPTION("Partial metadata update. Empty arrays remove a property; omitted properties are preserved.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ResourceDeleteResponseData {
-  std::string resource_id;
-};
-
-struct RIG_OPEN_RECORD ResourceDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ResourceDeleteResponseData data;
-};
-
 struct RIG_OPEN_RECORD EventCheckpoint {
   std::string cursor RIG_FIELD_DESCRIPTION("Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID.");
   std::map<std::string, std::optional<std::string>> git_revisions RIG_FIELD_DESCRIPTION("Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.");

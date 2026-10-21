@@ -8292,7 +8292,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad request, including a project that does not exist",
             "content": {
               "application/json": {
                 "schema": {
@@ -8312,7 +8312,17 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "A resource with this ID already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -8452,6 +8462,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -8478,8 +8498,38 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -14512,11 +14562,13 @@
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Optional; server uses current time if omitted."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Optional; server uses created_at if omitted."
           }
         },
         "required": [
@@ -14637,7 +14689,8 @@
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Optional; server uses current time if omitted."
           }
         }
       },

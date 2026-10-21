@@ -1,7 +1,5 @@
 #include "core/ActivityTracker.h"
 #include "api/routes/AiResourceRoutes.h"
-#include "api/ResourceRead.h"
-#include "api/generated/RuntimeJson.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/support/AssetImportJobs.h"
 #include "api/support/HttpResponses.h"
@@ -15,7 +13,6 @@
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
 #include "resource/ResourceRepo.h"
-#include "resource/ResourceStore.h"
 
 #include <boost/asio/write.hpp>
 #include <boost/beast/http.hpp>
@@ -160,43 +157,6 @@ bool handle_ai_resource_routes(
   std::unique_ptr<holder::resource::LocationBindingStore> bindings;
   if (secret_store != nullptr) {
     bindings = std::make_unique<holder::resource::LocationBindingStore>(*secret_store);
-  }
-
-  if (path == "/resources" && req.method() == http::verb::post) {
-    try {
-      const auto body = nlohmann::json::parse(req.body());
-      if (!body.contains("project_id") || !body.contains("type") || !body.contains("label")) {
-        res = support::error_response(
-            http::status::bad_request,
-            "bad_request",
-            "Missing required fields."
-        );
-        return true;
-      }
-      holder::model::ResourceBundle bundle;
-      bundle.resource.resource_id = body.value("resource_id", std::string());
-      if (bundle.resource.resource_id.empty()) bundle.resource.resource_id = uuid_v4();
-      bundle.resource.project_id = body.at("project_id").get<std::string>();
-      bundle.resource.type = body.at("type").get<std::string>();
-      bundle.resource.label = body.at("label").get<std::string>();
-      if (body.contains("metadata")) {
-        bundle.resource.metadata = body.at("metadata").get<holder::model::ResourceMetadata>();
-      }
-      bundle.resource.created_at = body.value("created_at", support::now_epoch_seconds());
-      bundle.resource.updated_at = body.value("updated_at", bundle.resource.created_at);
-      if (git_ops != nullptr) {
-        holder::resource::ResourceStore(db, nullptr, git_ops).put(bundle);
-      } else {
-        holder::resource::ResourceRepo(db).add(bundle.resource);
-      }
-      res = support::json_response(
-          http::status::created,
-          {{"ok", true}, {"data", rig_json::encode(holder::api::resource_item(bundle))}}
-      );
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
   }
 
   if (path == "/imports" && req.method() == http::verb::post) {
@@ -392,61 +352,8 @@ bool handle_ai_resource_routes(
     return true;
   }
 
+  // The other resource routes are generated; anything else under /resources/ is not a route.
   if (path.rfind("/resources/", 0) == 0) {
-    const auto resource_id = path.substr(std::string("/resources/").size());
-    if (resource_id.empty() || resource_id.find('/') != std::string::npos) {
-      res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-      return true;
-    }
-    if (req.method() == http::verb::patch) {
-      try {
-        holder::resource::ResourceRepo repo(db);
-        auto bundle = repo.get_bundle(resource_id);
-        if (!bundle.has_value()) throw std::runtime_error("Resource not found.");
-        const auto body = nlohmann::json::parse(req.body());
-        if (body.contains("type")) bundle->resource.type = body.at("type").get<std::string>();
-        if (body.contains("label")) bundle->resource.label = body.at("label").get<std::string>();
-        if (body.contains("metadata")) {
-          const auto patch = body.at("metadata").get<holder::model::ResourceMetadata>();
-          for (const auto& [property, values] : patch) {
-            if (values.empty()) {
-              bundle->resource.metadata.erase(property);
-            } else {
-              bundle->resource.metadata[property] = values;
-            }
-          }
-        }
-        bundle->resource.updated_at = body.value("updated_at", support::now_epoch_seconds());
-        if (git_ops != nullptr) {
-          holder::resource::ResourceStore(db, nullptr, git_ops).put(*bundle);
-        } else {
-          repo.put_bundle(*bundle);
-        }
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", rig_json::encode(holder::api::resource_item(*bundle))}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
-    if (req.method() == http::verb::delete_) {
-      try {
-        if (git_ops != nullptr) {
-          holder::resource::ResourceStore(db, nullptr, git_ops).remove(resource_id);
-        } else {
-          holder::resource::ResourceRepo(db).remove(resource_id);
-        }
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", {{"resource_id", resource_id}}}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
     return true;
   }

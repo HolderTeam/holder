@@ -25,8 +25,8 @@ class ResourceCreateRequest:
         label (str):
         resource_id (str | Unset): Optional; server generates if omitted.
         metadata (ResourceMetadata | Unset): Permissive metadata map. Repeated and custom values are preserved in order.
-        created_at (int | Unset):
-        updated_at (int | Unset):
+        created_at (int | Unset): Optional; server uses current time if omitted.
+        updated_at (int | Unset): Optional; server uses created_at if omitted.
     """
 
     project_id: str

@@ -12,31 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(POST, "/resources")
-RIG_SUMMARY("Create a resource")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
-ResourceResponse post_resources(ResourceCreateRequest request);
-
-RIG_ROUTE(PATCH, "/resources/{resource_id}")
-RIG_SUMMARY("Update a resource")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ResourceResponse patch_resources_resource_id(
-    std::string resource_id,
-    ResourceUpdateRequest request);
-
-RIG_ROUTE(DELETE, "/resources/{resource_id}")
-RIG_SUMMARY("Delete a resource and remove its Card links")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-ResourceDeleteResponse delete_resources_resource_id(std::string resource_id);
-
 RIG_ROUTE(GET, "/resources/{resource_id}/assets/{asset_id}/content")
 RIG_SUMMARY("Stream verified asset content")
 RIG_DESCRIPTION("Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.")

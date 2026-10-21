@@ -18,6 +18,10 @@ namespace holder::api {
 Resource resource_item(const holder::model::ResourceBundle& bundle,
                        std::vector<ResourceReferencedByCardsItem> referenced_by_cards = {});
 
+// resource_item with the live cards that currently link to the resource.
+Resource resource_with_references(holder::platform::Db& db,
+                                  const holder::model::ResourceBundle& bundle);
+
 struct RIG_OPEN_RECORD ResourceListResponse {
   std::optional<std::string> card_id RIG_FIELD_DESCRIPTION("Canonical live card ID, present only for card attachment lists.") RIG_OMIT_EMPTY;
   std::optional<int> limit RIG_OMIT_EMPTY;
