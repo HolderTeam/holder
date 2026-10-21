@@ -1,4 +1,4 @@
-"""Compare reflected operations with Holder's checked-in API contract."""
+"""Compare every reflected operation and schema with Holder's checked-in API contract."""
 
 import json
 import sys
@@ -24,40 +24,23 @@ def main(control_path: str, generated_path: str) -> None:
             raise SystemExit(f"RIG {key} differs from api/openapi.yaml")
     if generated["components"]["securitySchemes"] != control["components"]["securitySchemes"]:
         raise SystemExit("RIG security schemes differ from api/openapi.yaml")
-    for path, method in (("/alive", "get"), ("/bye", "post"), ("/rebuild", "post"),
-                         ("/ai/providers/settings", "put"),
-                         ("/ai/providers/settings", "get"),
-                         ("/ai/providers/settings/{provider}", "delete"),
-                         ("/ai/providers/credentials", "get"),
-                         ("/ai/providers/credentials", "put"),
-                         ("/projects/{project_id}/tags", "get"),
-                         ("/ai/runner/pull/{job_id}", "get"),
-                         ("/cards/{card_id}/links", "get"),
-                         ("/card-references/resolve", "post"),
-                         ("/openapi.yaml", "get"), ("/ai_catalog.yaml", "get"),
-                         ("/git_providers.yaml", "get"), ("/ai_catalog.json", "get"),
-                         ("/git_providers.json", "get"), ("/cards/{card_id}/links", "post")):
-        expected_operation = control["paths"][path][method]
-        actual_operation = generated["paths"][path][method]
-        if normalized_operation(actual_operation) != normalized_operation(expected_operation):
-            raise SystemExit(f"RIG {method.upper()} {path} differs from api/openapi.yaml")
-    for name in ("AliveResponse", "ByeResponse", "RebuildRequest", "RebuildData", "RebuildResponse",
-                 "AiProviderSetting", "AiProviderSettingUpdateRequest",
-                 "AiProviderSettingResponse", "AiProviderSettingsResponse",
-                 "AiProviderSettingDeleteResponse", "AiProviderCredential",
-                 "AiProviderCredentialsListResponse", "AiProviderCredentialUpsertRequest",
-                 "AiProviderCredentialUpsertResponse",
-                 "ErrorResponse", "Error", "ProjectTag",
-                 "ProjectTagListResponse", "RunnerPullProgress", "RunnerPullJob",
-                 "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse",
-                 "CardLinkCreateRequest", "CardLinkCreateResponse",
-                 "CardReferenceResolveRequest", "CardReferenceCandidate",
-                 "CardReferenceResolveData", "CardReferenceResolveResponse"):
-        expected = control["components"]["schemas"][name]
-        actual = generated["components"]["schemas"][name]
-        if actual != expected:
-            raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG service metadata, eighteen operations, and schemas match api/openapi.yaml")
+    differences = []
+    count = 0
+    for path, methods in generated["paths"].items():
+        for method, operation in methods.items():
+            count += 1
+            expected = control["paths"].get(path, {}).get(method)
+            if expected is None:
+                differences.append(f"{method.upper()} {path} is not in api/openapi.yaml")
+            elif normalized_operation(operation) != normalized_operation(expected):
+                differences.append(f"{method.upper()} {path} differs")
+    for name, schema in generated["components"]["schemas"].items():
+        if control["components"]["schemas"].get(name) != schema:
+            differences.append(f"schema {name} differs")
+    if differences:
+        raise SystemExit("RIG differs from api/openapi.yaml:\n  " + "\n  ".join(differences))
+    print(f"RIG service metadata, {count} operations, and "
+          f"{len(generated['components']['schemas'])} schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":

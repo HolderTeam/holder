@@ -22,6 +22,7 @@
 #define RIG_FIELD_DESCRIPTION(text)
 #define RIG_OMIT_EMPTY
 #define RIG_NULLABLE
+#define RIG_WRITE_ONLY
 #define RIG_API(title, version)
 #define RIG_SERVER(url)
 #define RIG_BEARER_AUTH(name, format)

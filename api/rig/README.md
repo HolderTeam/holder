@@ -36,6 +36,12 @@ The two `.json` downloads return free-form JSON objects (`nlohmann::json`) the
 same way. `CardLinks.h` declares `POST /cards/{card_id}/links` with
 `RIG_SUCCESS_STATUS(201)` as a host response until its handler moves behind
 the generated dispatcher.
+
+`daemon/src/api/declared/` declares a further 59 operations, one header per
+path group, as host responses: the existing route handlers still write them.
+They were drafted from `api/openapi.yaml` and match it exactly. When a handler
+moves behind the generated dispatcher, its declaration moves out to its own
+header and loses `RIG_HOST_RESPONSE`.
 `daemon/src/api/RigRuntime.h` selects the migrated operations for one
 checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
 `Session.cpp` calls the dispatcher after authentication and event handling. A
@@ -114,11 +120,11 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, eighteen operations, and their
-twenty-six reachable schemas now match the control. The comparison treats an omitted
-`required` on a query parameter as `false`, as OpenAPI does. The generated
-document remains a partial slice; it must not replace the checked-in contract
-yet.
+`check_contract.py` compares every generated operation and schema with the
+control: 77 of its 126 operations and 106 schemas now match exactly. The
+comparison treats an omitted `required` on a query parameter as `false`, as
+OpenAPI does. The generated document is still partial; it must not replace the
+checked-in contract until every operation is declared.
 
 The card reference resolver exercises string choices on record fields and
 outcome dependent response fields through the generated route and JSON codec.

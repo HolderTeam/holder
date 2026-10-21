@@ -2755,6 +2755,7 @@ components:
           enum: [true]
         data:
           type: object
+          additionalProperties: true
     SearchCardsResponse:
       type: object
       required: [ok, data]
@@ -3888,6 +3889,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
           content:
@@ -3943,6 +3950,12 @@ paths:
                 $ref: "#/components/schemas/CardHistoryPageResponse"
         "400":
           description: Invalid card identifier, limit, or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -4019,6 +4032,12 @@ paths:
                 $ref: "#/components/schemas/CardHistoryComparisonResponse"
         "400":
           description: Invalid or missing comparison parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -4549,6 +4568,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
           content:
@@ -4602,6 +4627,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
           content:
@@ -4625,6 +4656,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MilestoneWithDatesListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Card not found
           content:
@@ -4654,6 +4691,12 @@ paths:
                 $ref: "#/components/schemas/MilestoneWithDatesResponse"
         "400":
           description: Invalid milestone dates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -4699,6 +4742,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Card or milestone not found
           content:
@@ -4727,6 +4776,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MilestoneRemoveResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Card not found
           content:
@@ -4750,6 +4805,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MilestoneListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Card not found
           content:
@@ -4780,6 +4841,12 @@ paths:
                 $ref: "#/components/schemas/MilestoneResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -4826,6 +4893,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Live card or milestone not found
           content:
@@ -4852,6 +4925,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MilestoneRemoveResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Card not found
           content:
@@ -5851,6 +5930,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiRunnerListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Configure a local model runner
       requestBody:
@@ -5872,6 +5957,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /ai/runners/{runner_id}:
     get:
       summary: Get a local model runner
@@ -5888,6 +5979,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiRunnerResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -5921,6 +6018,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -5948,6 +6051,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -5970,6 +6079,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiRunnerResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -6741,6 +6856,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -6909,6 +7030,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StorageLocationListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Create a storage location declaration
       requestBody:
@@ -6924,6 +7051,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StorageLocationResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /locations/{location_id}:
     get:
       summary: Get a storage location
@@ -6941,6 +7074,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StorageLocationResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     patch:
       summary: Update a storage location declaration
       parameters:
@@ -6965,6 +7104,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StorageLocationResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete an unused storage location declaration
       parameters:
@@ -6976,8 +7121,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationActionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A live placement still uses the location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /locations/{location_id}/binding:
     put:
       summary: Bind private device credentials or path
@@ -6996,6 +7151,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationActionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Remove this device's private binding
       parameters:
@@ -7007,6 +7168,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationActionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /locations/{location_id}/test:
     post:
       summary: Upload, verify, and remove a storage probe
@@ -7021,6 +7188,16 @@ paths:
                 $ref: "#/components/schemas/LocationTestResponse"
         "400":
           description: Missing binding or storage failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /locations/preferred:
     put:
       summary: Set this device's preferred project storage location
@@ -7043,6 +7220,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationActionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /imports:
     post:
       summary: Start a local-file asset import
@@ -7059,6 +7242,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssetImportJobResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /imports/{job_id}:
     get:
       summary: Poll an asset import job
@@ -7075,8 +7264,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssetImportJobResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /projects/{project_id}/trash/{type}/{id}:
     delete:
       summary: Permanently remove a trashed item from one project
@@ -7107,6 +7306,12 @@ paths:
                 $ref: "#/components/schemas/TrashDeleteResponse"
         "400":
           description: Invalid item type or identifier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -7157,6 +7362,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Empty trash by project
       parameters:
@@ -7180,6 +7391,12 @@ paths:
                 $ref: "#/components/schemas/TrashDeleteResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -7208,6 +7425,12 @@ paths:
                 $ref: "#/components/schemas/TrashDeleteResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
