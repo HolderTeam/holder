@@ -104,22 +104,6 @@ RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "No local runner or configured cloud provider available")
 std::string post_ai_runs(AiRunCreateRequest request);
 
-RIG_ROUTE(GET, "/ai/runs")
-RIG_SUMMARY("List AI runs by project or thread")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiRunListResponse get_ai_runs(
-    std::optional<std::string> project_id RIG_QUERY,
-    std::optional<std::string> thread_id RIG_QUERY);
-
-RIG_ROUTE(GET, "/ai/runs/{run_id}")
-RIG_SUMMARY("Fetch an AI run")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiRunGetResponse get_ai_runs_run_id(std::string run_id);
-
 RIG_ROUTE(GET, "/ai/runs/{run_id}/events")
 RIG_SUMMARY("Stream run events (SSE)")
 RIG_DESCRIPTION("Replays bounded retained run events with absolute event IDs; done or failed closes the stream. Missing in-memory history can recover persisted terminal status. An expired or foreign cursor emits resync_required; fetch the run before reconnecting.")

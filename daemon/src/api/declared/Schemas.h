@@ -214,35 +214,6 @@ struct RIG_OPEN_RECORD AiRunCreateRequest {
   std::optional<nlohmann::json> context RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD AiRunItem {
-  std::string run_id;
-  std::optional<std::optional<std::string>> project_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> thread_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> message_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string mode;
-  std::string prompt;
-  std::optional<std::optional<std::string>> context_json RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> router_model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> ranked_json RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> policy_trace_json RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<nlohmann::json>> policy_trace RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> chosen_model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string status;
-  std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long created_at;
-  long long updated_at;
-};
-
-struct RIG_OPEN_RECORD AiRunListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<AiRunItem> data;
-};
-
-struct RIG_OPEN_RECORD AiRunGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiRunItem data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD RunnerPullStartResponseData {
   std::string job_id;
   std::optional<std::string> runner_id RIG_OMIT_EMPTY;

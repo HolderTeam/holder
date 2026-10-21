@@ -879,6 +879,7 @@ paths:
   /ai/runs:
     get:
       summary: List AI runs by project or thread
+      description: Needs project_id or thread_id; with both, thread_id is used.
       parameters:
       - name: project_id
         in: query
@@ -901,6 +902,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -955,6 +961,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiRunGetResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -962,6 +973,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4647,6 +4663,9 @@ components:
           type: [string, 'null']
         router_model:
           type: [string, 'null']
+        router_runner_id:
+          type: [string, 'null']
+          description: The runner named by router_model's reference, or null.
         ranked_json:
           type: [string, 'null']
         policy_trace_json:
@@ -4656,6 +4675,9 @@ components:
           additionalProperties: true
         chosen_model:
           type: [string, 'null']
+        chosen_runner_id:
+          type: [string, 'null']
+          description: The runner named by chosen_model's reference, or null.
         status: {type: string}
         error:
           type: [string, 'null']
