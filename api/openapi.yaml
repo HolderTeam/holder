@@ -12,19 +12,29 @@ paths:
     get:
       summary: Get local model runner capabilities
       parameters:
-      - name: project_id
+      - name: runner_id
         in: query
         required: false
         schema: {type: string}
-        description: Optional project id for project-scoped router config in response.
+        description: The runner whose installed models decide recommended_install; defaults to auto-local.
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema: {$ref: '#/components/schemas/RunnerCapabilitiesResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -706,25 +716,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /ai/runner/retry:
-    post:
-      summary: Retry local model runner probe
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/RunnerCapabilitiesResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Not implemented
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ai/runners:
     get:
       summary: List configured local model runners
@@ -1043,6 +1034,11 @@ paths:
               schema: {$ref: '#/components/schemas/AiStatusResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4781,23 +4777,16 @@ components:
       type: object
       properties:
         checked_at: {type: integer, format: int64}
-        runner_available: {type: boolean}
-        runner_last_checked: {type: integer, format: int64}
-        runner_version:
-          type: [string, 'null']
-        runner_error:
-          type: [string, 'null']
-        active_runs: {type: integer, format: int64}
-        active_pull_jobs: {type: integer, format: int64}
-        pulls:
+        active_runs: {type: integer, format: int64, description: Runs still in progress across every project.}
+        active_pull_jobs: {type: integer, format: int64, description: Active pulls across every runner.}
+        runners:
           type: array
-          items: {$ref: '#/components/schemas/RunnerPullJob'}
+          items: {$ref: '#/components/schemas/AiRunner'}
         cloud:
           type: array
           items: {$ref: '#/components/schemas/AiProviderCredential'}
         cloud_configured_providers: {type: integer, format: int64}
-      required: [checked_at, runner_available, runner_last_checked, active_runs, active_pull_jobs, pulls,
-        cloud, cloud_configured_providers]
+      required: [checked_at, active_runs, active_pull_jobs, runners, cloud, cloud_configured_providers]
     AiStatusResponse:
       type: object
       properties:
@@ -5467,7 +5456,7 @@ components:
           enum: [mini, user, developer, workstation, rig]
         reason:
           type: [string, 'null']
-      required: [name]
+      required: [name, reason]
     CasteRecommendedModel:
       type: object
       properties:
@@ -5482,7 +5471,7 @@ components:
           type: string
           enum: [mini, user, developer, workstation, rig]
         installed: {type: boolean}
-      required: [tag, required_caste, installed]
+      required: [tag, provider, engine, category, required_caste, installed]
     ChangeEventData:
       type: object
       properties:
@@ -6473,27 +6462,24 @@ components:
     RunnerCapabilitiesData:
       type: object
       properties:
-        runner_available: {type: boolean}
-        spawn_attempted: {type: boolean}
-        last_checked: {type: integer, format: int64}
-        version: {type: string}
-        error:
-          type: [string, 'null']
+        local_model_config: {$ref: '#/components/schemas/AiLocalModelConfigData'}
         caste:
           anyOf:
           - {$ref: '#/components/schemas/CasteInfo'}
           - {type: 'null'}
-        local_model_config: {$ref: '#/components/schemas/AiLocalModelConfigData'}
-        models:
+          description: This machine's hardware caste, or null when it cannot be detected.
+        runners:
           type: array
-          items: {$ref: '#/components/schemas/LocalModel'}
+          items: {$ref: '#/components/schemas/AiRunner'}
         recommended_models:
           type: array
           items: {$ref: '#/components/schemas/CasteRecommendedModel'}
+          description: Catalog models this machine's caste can run, best first.
         recommended_install:
           type: array
           items: {$ref: '#/components/schemas/CasteRecommendedModel'}
-      required: [runner_available, last_checked, local_model_config, models, recommended_models, recommended_install]
+          description: The recommended models that the selected runner has not installed.
+      required: [local_model_config, runners, recommended_models, recommended_install]
     RunnerCapabilitiesResponse:
       type: object
       properties:

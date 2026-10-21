@@ -363,10 +363,8 @@ def test_binary_asset_preserves_bytes_and_headers():
 
 def test_runner_capabilities_preserve_null_caste():
     model = RunnerCapabilitiesData(
-        runner_available=False,
-        last_checked=0,
         local_model_config=AiLocalModelConfigData(None, None, None, None),
-        models=[],
+        runners=[],
         recommended_models=[],
         recommended_install=[],
         caste=None,

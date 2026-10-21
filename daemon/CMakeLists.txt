@@ -393,6 +393,7 @@ add_executable(holderd
   src/api/AiLocalModelConfig.cpp
   src/api/AiRunnerList.cpp
   src/api/AiRuns.cpp
+  src/api/AiStatus.cpp
   src/api/AiThreadList.cpp
   src/api/Calendar.cpp
   src/api/ProjectRead.cpp
@@ -424,8 +425,6 @@ add_executable(holderd
   src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
   src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
   src/api/routes/ai/AiStatusRoutes.cpp
-  src/api/routes/ai/status/AiCapabilitiesRoutes.cpp
-  src/api/routes/ai/status/AiRuntimeStatusRoutes.cpp
   src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   src/api/routes/ai/AiThreadRoutes.cpp
   src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp

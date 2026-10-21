@@ -12,12 +12,12 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    project_id: str | Unset = UNSET,
+    runner_id: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["project_id"] = project_id
+    params["runner_id"] = runner_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -38,10 +38,20 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
         return response_401
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -63,12 +73,12 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    runner_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | RunnerCapabilitiesResponse]:
     """Get local model runner capabilities
 
     Args:
-        project_id (str | Unset):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -79,7 +89,7 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
-        project_id=project_id,
+        runner_id=runner_id,
     )
 
     response = client.get_httpx_client().request(
@@ -92,12 +102,12 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    runner_id: str | Unset = UNSET,
 ) -> ErrorResponse | RunnerCapabilitiesResponse | None:
     """Get local model runner capabilities
 
     Args:
-        project_id (str | Unset):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -109,19 +119,19 @@ def sync(
 
     return sync_detailed(
         client=client,
-        project_id=project_id,
+        runner_id=runner_id,
     ).parsed
 
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    runner_id: str | Unset = UNSET,
 ) -> Response[ErrorResponse | RunnerCapabilitiesResponse]:
     """Get local model runner capabilities
 
     Args:
-        project_id (str | Unset):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,7 +142,7 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
-        project_id=project_id,
+        runner_id=runner_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -143,12 +153,12 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    runner_id: str | Unset = UNSET,
 ) -> ErrorResponse | RunnerCapabilitiesResponse | None:
     """Get local model runner capabilities
 
     Args:
-        project_id (str | Unset):
+        runner_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -161,6 +171,6 @@ async def asyncio(
     return (
         await asyncio_detailed(
             client=client,
-            project_id=project_id,
+            runner_id=runner_id,
         )
     ).parsed

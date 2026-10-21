@@ -23,13 +23,13 @@
         "summary": "Get local model runner capabilities",
         "parameters": [
           {
-            "name": "project_id",
+            "name": "runner_id",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Optional project id for project-scoped router config in response."
+            "description": "The runner whose installed models decide recommended_install; defaults to auto-local."
           }
         ],
         "responses": {
@@ -43,8 +43,28 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1373,43 +1393,6 @@
         }
       }
     },
-    "/ai/runner/retry": {
-      "post": {
-        "summary": "Retry local model runner probe",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RunnerCapabilitiesResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Not implemented",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/ai/runners": {
       "get": {
         "summary": "List configured local model runners",
@@ -2025,6 +2008,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9477,37 +9470,20 @@
             "type": "integer",
             "format": "int64"
           },
-          "runner_available": {
-            "type": "boolean"
-          },
-          "runner_last_checked": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "runner_version": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "runner_error": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "active_runs": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Runs still in progress across every project."
           },
           "active_pull_jobs": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Active pulls across every runner."
           },
-          "pulls": {
+          "runners": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RunnerPullJob"
+              "$ref": "#/components/schemas/AiRunner"
             }
           },
           "cloud": {
@@ -9523,11 +9499,9 @@
         },
         "required": [
           "checked_at",
-          "runner_available",
-          "runner_last_checked",
           "active_runs",
           "active_pull_jobs",
-          "pulls",
+          "runners",
           "cloud",
           "cloud_configured_providers"
         ]
@@ -11235,7 +11209,8 @@
           }
         },
         "required": [
-          "name"
+          "name",
+          "reason"
         ]
       },
       "CasteRecommendedModel": {
@@ -11278,6 +11253,9 @@
         },
         "required": [
           "tag",
+          "provider",
+          "engine",
+          "category",
           "required_caste",
           "installed"
         ]
@@ -13722,24 +13700,8 @@
       "RunnerCapabilitiesData": {
         "type": "object",
         "properties": {
-          "runner_available": {
-            "type": "boolean"
-          },
-          "spawn_attempted": {
-            "type": "boolean"
-          },
-          "last_checked": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "version": {
-            "type": "string"
-          },
-          "error": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "local_model_config": {
+            "$ref": "#/components/schemas/AiLocalModelConfigData"
           },
           "caste": {
             "anyOf": [
@@ -13749,35 +13711,33 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "This machine's hardware caste, or null when it cannot be detected."
           },
-          "local_model_config": {
-            "$ref": "#/components/schemas/AiLocalModelConfigData"
-          },
-          "models": {
+          "runners": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/LocalModel"
+              "$ref": "#/components/schemas/AiRunner"
             }
           },
           "recommended_models": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CasteRecommendedModel"
-            }
+            },
+            "description": "Catalog models this machine's caste can run, best first."
           },
           "recommended_install": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CasteRecommendedModel"
-            }
+            },
+            "description": "The recommended models that the selected runner has not installed."
           }
         },
         "required": [
-          "runner_available",
-          "last_checked",
           "local_model_config",
-          "models",
+          "runners",
           "recommended_models",
           "recommended_install"
         ]

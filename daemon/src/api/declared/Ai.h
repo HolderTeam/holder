@@ -12,19 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/ai/capabilities")
-RIG_SUMMARY("Get local model runner capabilities")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RunnerCapabilitiesResponse get_ai_capabilities(
-    std::optional<std::string> project_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional project id for project-scoped router config in response."));
-
-RIG_ROUTE(GET, "/ai/status")
-RIG_SUMMARY("Get live AI runtime status")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-AiStatusResponse get_ai_status();
-
 RIG_ROUTE(GET, "/ai/providers/catalog")
 RIG_SUMMARY("Get provider-agnostic cloud catalog with configured flags")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -76,13 +63,6 @@ RIG_RESPONSE_DESCRIPTION("OK")
 RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 AiRunnerResponse post_ai_runners_runner_id_retry(std::string runner_id);
-
-RIG_ROUTE(POST, "/ai/runner/retry")
-RIG_SUMMARY("Retry local model runner probe")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
-RunnerCapabilitiesResponse post_ai_runner_retry();
 
 RIG_ROUTE(PUT, "/ai/local-models/config")
 RIG_SUMMARY("Set or clear local model configuration")

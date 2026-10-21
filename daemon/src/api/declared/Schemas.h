@@ -17,11 +17,6 @@ namespace holder::api {
 
 // Schemas of the declared operations, shared across their path groups.
 
-struct RIG_OPEN_RECORD CasteInfo {
-  std::string name RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
-  std::optional<std::optional<std::string>> reason RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
 struct RIG_OPEN_RECORD AiLocalModelConfigData {
   std::optional<std::string> fast_model RIG_NULLABLE;
   std::optional<std::string> strong_model RIG_NULLABLE;
@@ -36,51 +31,6 @@ struct RIG_OPEN_RECORD LocalModel {
   std::optional<std::string> digest RIG_OMIT_EMPTY;
   std::optional<long long> size RIG_OMIT_EMPTY;
   std::optional<std::string> modified_at RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD CasteRecommendedModel {
-  std::string tag;
-  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> engine RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> category RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string required_caste RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
-  bool installed;
-};
-
-struct RIG_OPEN_RECORD RunnerCapabilitiesData {
-  bool runner_available;
-  std::optional<bool> spawn_attempted RIG_OMIT_EMPTY;
-  long long last_checked;
-  std::optional<std::string> version RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<CasteInfo>> caste RIG_OMIT_EMPTY RIG_NULLABLE;
-  AiLocalModelConfigData local_model_config;
-  std::vector<LocalModel> models;
-  std::vector<CasteRecommendedModel> recommended_models;
-  std::vector<CasteRecommendedModel> recommended_install;
-};
-
-struct RIG_OPEN_RECORD RunnerCapabilitiesResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  RunnerCapabilitiesData data;
-};
-
-struct RIG_OPEN_RECORD AiStatusData {
-  long long checked_at;
-  bool runner_available;
-  long long runner_last_checked;
-  std::optional<std::optional<std::string>> runner_version RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> runner_error RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long active_runs;
-  long long active_pull_jobs;
-  std::vector<holder::api::RunnerPullJob> pulls;
-  std::vector<holder::api::AiProviderCredential> cloud;
-  long long cloud_configured_providers;
-};
-
-struct RIG_OPEN_RECORD AiStatusResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiStatusData data;
 };
 
 struct RIG_OPEN_RECORD AiProviderCatalogProvider {

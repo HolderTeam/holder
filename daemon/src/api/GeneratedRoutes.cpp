@@ -3,6 +3,7 @@
 #include "api/AiLocalModelConfig.h"
 #include "api/AiRunnerList.h"
 #include "api/AiRuns.h"
+#include "api/AiStatus.h"
 #include "api/AiThreadList.h"
 #include "api/Alive.h"
 #include "api/Calendar.h"

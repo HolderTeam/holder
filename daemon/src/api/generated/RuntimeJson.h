@@ -174,10 +174,6 @@ template <> struct codec<holder::api::AiProviderCredentialUpsertResponse> {
     static json encode(const holder::api::AiProviderCredentialUpsertResponse& value);
     static holder::api::AiProviderCredentialUpsertResponse decode(const json& value);
 };
-template <> struct codec<holder::api::CasteInfo> {
-    static json encode(const holder::api::CasteInfo& value);
-    static holder::api::CasteInfo decode(const json& value);
-};
 template <> struct codec<holder::api::AiLocalModelConfigData> {
     static json encode(const holder::api::AiLocalModelConfigData& value);
     static holder::api::AiLocalModelConfigData decode(const json& value);
@@ -185,26 +181,6 @@ template <> struct codec<holder::api::AiLocalModelConfigData> {
 template <> struct codec<holder::api::LocalModel> {
     static json encode(const holder::api::LocalModel& value);
     static holder::api::LocalModel decode(const json& value);
-};
-template <> struct codec<holder::api::CasteRecommendedModel> {
-    static json encode(const holder::api::CasteRecommendedModel& value);
-    static holder::api::CasteRecommendedModel decode(const json& value);
-};
-template <> struct codec<holder::api::RunnerCapabilitiesData> {
-    static json encode(const holder::api::RunnerCapabilitiesData& value);
-    static holder::api::RunnerCapabilitiesData decode(const json& value);
-};
-template <> struct codec<holder::api::RunnerCapabilitiesResponse> {
-    static json encode(const holder::api::RunnerCapabilitiesResponse& value);
-    static holder::api::RunnerCapabilitiesResponse decode(const json& value);
-};
-template <> struct codec<holder::api::AiStatusData> {
-    static json encode(const holder::api::AiStatusData& value);
-    static holder::api::AiStatusData decode(const json& value);
-};
-template <> struct codec<holder::api::AiStatusResponse> {
-    static json encode(const holder::api::AiStatusResponse& value);
-    static holder::api::AiStatusResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AiProviderCatalogProvider> {
     static json encode(const holder::api::AiProviderCatalogProvider& value);
@@ -894,6 +870,30 @@ template <> struct codec<holder::api::AiRunGetResponse> {
     static json encode(const holder::api::AiRunGetResponse& value);
     static holder::api::AiRunGetResponse decode(const json& value);
 };
+template <> struct codec<holder::api::CasteInfo> {
+    static json encode(const holder::api::CasteInfo& value);
+    static holder::api::CasteInfo decode(const json& value);
+};
+template <> struct codec<holder::api::CasteRecommendedModel> {
+    static json encode(const holder::api::CasteRecommendedModel& value);
+    static holder::api::CasteRecommendedModel decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerCapabilitiesData> {
+    static json encode(const holder::api::RunnerCapabilitiesData& value);
+    static holder::api::RunnerCapabilitiesData decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerCapabilitiesResponse> {
+    static json encode(const holder::api::RunnerCapabilitiesResponse& value);
+    static holder::api::RunnerCapabilitiesResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiStatusData> {
+    static json encode(const holder::api::AiStatusData& value);
+    static holder::api::AiStatusData decode(const json& value);
+};
+template <> struct codec<holder::api::AiStatusResponse> {
+    static json encode(const holder::api::AiStatusResponse& value);
+    static holder::api::AiStatusResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiThreadListResponse> {
     static json encode(const holder::api::AiThreadListResponse& value);
     static holder::api::AiThreadListResponse decode(const json& value);
@@ -1291,25 +1291,6 @@ inline holder::api::AiProviderCredentialUpsertResponse codec<holder::api::AiProv
     };
 }
 
-inline json codec<holder::api::CasteInfo>::encode(const holder::api::CasteInfo& value) {
-    json result = json::object();
-    if (value.name != "mini" && value.name != "user" && value.name != "developer" && value.name != "workstation" && value.name != "rig") throw std::invalid_argument("invalid name");
-    result["name"] = codec<std::string>::encode(value.name);
-    if (value.reason) {
-        result["reason"] = codec<std::optional<std::optional<std::string>>>::encode(value.reason);
-    }
-    return result;
-}
-inline holder::api::CasteInfo codec<holder::api::CasteInfo>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CasteInfo");
-    if (!value.contains("name")) throw std::invalid_argument("missing name");
-    if (value.at("name") != "mini" && value.at("name") != "user" && value.at("name") != "developer" && value.at("name") != "workstation" && value.at("name") != "rig") throw std::invalid_argument("invalid name");
-    return holder::api::CasteInfo{
-        codec<std::string>::decode(value.at("name")),
-        value.contains("reason") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("reason"))} : std::nullopt,
-    };
-}
-
 inline json codec<holder::api::AiLocalModelConfigData>::encode(const holder::api::AiLocalModelConfigData& value) {
     json result = json::object();
     result["fast_model"] = codec<std::optional<std::string>>::encode(value.fast_model);
@@ -1362,161 +1343,6 @@ inline holder::api::LocalModel codec<holder::api::LocalModel>::decode(const json
         value.contains("digest") ? codec<std::optional<std::string>>::decode(value.at("digest")) : std::nullopt,
         value.contains("size") ? codec<std::optional<long long>>::decode(value.at("size")) : std::nullopt,
         value.contains("modified_at") ? codec<std::optional<std::string>>::decode(value.at("modified_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::CasteRecommendedModel>::encode(const holder::api::CasteRecommendedModel& value) {
-    json result = json::object();
-    result["tag"] = codec<std::string>::encode(value.tag);
-    if (value.provider) {
-        result["provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.provider);
-    }
-    if (value.engine) {
-        result["engine"] = codec<std::optional<std::optional<std::string>>>::encode(value.engine);
-    }
-    if (value.category) {
-        result["category"] = codec<std::optional<std::optional<std::string>>>::encode(value.category);
-    }
-    if (value.required_caste != "mini" && value.required_caste != "user" && value.required_caste != "developer" && value.required_caste != "workstation" && value.required_caste != "rig") throw std::invalid_argument("invalid required_caste");
-    result["required_caste"] = codec<std::string>::encode(value.required_caste);
-    result["installed"] = codec<bool>::encode(value.installed);
-    return result;
-}
-inline holder::api::CasteRecommendedModel codec<holder::api::CasteRecommendedModel>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CasteRecommendedModel");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (!value.contains("required_caste")) throw std::invalid_argument("missing required_caste");
-    if (!value.contains("installed")) throw std::invalid_argument("missing installed");
-    if (value.at("required_caste") != "mini" && value.at("required_caste") != "user" && value.at("required_caste") != "developer" && value.at("required_caste") != "workstation" && value.at("required_caste") != "rig") throw std::invalid_argument("invalid required_caste");
-    return holder::api::CasteRecommendedModel{
-        codec<std::string>::decode(value.at("tag")),
-        value.contains("provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("provider"))} : std::nullopt,
-        value.contains("engine") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("engine"))} : std::nullopt,
-        value.contains("category") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("category"))} : std::nullopt,
-        codec<std::string>::decode(value.at("required_caste")),
-        codec<bool>::decode(value.at("installed")),
-    };
-}
-
-inline json codec<holder::api::RunnerCapabilitiesData>::encode(const holder::api::RunnerCapabilitiesData& value) {
-    json result = json::object();
-    result["runner_available"] = codec<bool>::encode(value.runner_available);
-    if (value.spawn_attempted) {
-        result["spawn_attempted"] = codec<std::optional<bool>>::encode(value.spawn_attempted);
-    }
-    result["last_checked"] = codec<long long>::encode(value.last_checked);
-    if (value.version) {
-        result["version"] = codec<std::optional<std::string>>::encode(value.version);
-    }
-    if (value.error) {
-        result["error"] = codec<std::optional<std::optional<std::string>>>::encode(value.error);
-    }
-    if (value.caste) {
-        result["caste"] = codec<std::optional<std::optional<holder::api::CasteInfo>>>::encode(value.caste);
-    }
-    result["local_model_config"] = codec<holder::api::AiLocalModelConfigData>::encode(value.local_model_config);
-    result["models"] = codec<std::vector<holder::api::LocalModel>>::encode(value.models);
-    result["recommended_models"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_models);
-    result["recommended_install"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_install);
-    return result;
-}
-inline holder::api::RunnerCapabilitiesData codec<holder::api::RunnerCapabilitiesData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesData");
-    if (!value.contains("runner_available")) throw std::invalid_argument("missing runner_available");
-    if (!value.contains("last_checked")) throw std::invalid_argument("missing last_checked");
-    if (!value.contains("local_model_config")) throw std::invalid_argument("missing local_model_config");
-    if (!value.contains("models")) throw std::invalid_argument("missing models");
-    if (!value.contains("recommended_models")) throw std::invalid_argument("missing recommended_models");
-    if (!value.contains("recommended_install")) throw std::invalid_argument("missing recommended_install");
-    return holder::api::RunnerCapabilitiesData{
-        codec<bool>::decode(value.at("runner_available")),
-        value.contains("spawn_attempted") ? codec<std::optional<bool>>::decode(value.at("spawn_attempted")) : std::nullopt,
-        codec<long long>::decode(value.at("last_checked")),
-        value.contains("version") ? codec<std::optional<std::string>>::decode(value.at("version")) : std::nullopt,
-        value.contains("error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error"))} : std::nullopt,
-        value.contains("caste") ? std::optional<std::optional<holder::api::CasteInfo>>{std::in_place, codec<std::optional<holder::api::CasteInfo>>::decode(value.at("caste"))} : std::nullopt,
-        codec<holder::api::AiLocalModelConfigData>::decode(value.at("local_model_config")),
-        codec<std::vector<holder::api::LocalModel>>::decode(value.at("models")),
-        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_models")),
-        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_install")),
-    };
-}
-
-inline json codec<holder::api::RunnerCapabilitiesResponse>::encode(const holder::api::RunnerCapabilitiesResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::RunnerCapabilitiesData>::encode(value.data);
-    return result;
-}
-inline holder::api::RunnerCapabilitiesResponse codec<holder::api::RunnerCapabilitiesResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::RunnerCapabilitiesResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::RunnerCapabilitiesData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AiStatusData>::encode(const holder::api::AiStatusData& value) {
-    json result = json::object();
-    result["checked_at"] = codec<long long>::encode(value.checked_at);
-    result["runner_available"] = codec<bool>::encode(value.runner_available);
-    result["runner_last_checked"] = codec<long long>::encode(value.runner_last_checked);
-    if (value.runner_version) {
-        result["runner_version"] = codec<std::optional<std::optional<std::string>>>::encode(value.runner_version);
-    }
-    if (value.runner_error) {
-        result["runner_error"] = codec<std::optional<std::optional<std::string>>>::encode(value.runner_error);
-    }
-    result["active_runs"] = codec<long long>::encode(value.active_runs);
-    result["active_pull_jobs"] = codec<long long>::encode(value.active_pull_jobs);
-    result["pulls"] = codec<std::vector<holder::api::RunnerPullJob>>::encode(value.pulls);
-    result["cloud"] = codec<std::vector<holder::api::AiProviderCredential>>::encode(value.cloud);
-    result["cloud_configured_providers"] = codec<long long>::encode(value.cloud_configured_providers);
-    return result;
-}
-inline holder::api::AiStatusData codec<holder::api::AiStatusData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiStatusData");
-    if (!value.contains("checked_at")) throw std::invalid_argument("missing checked_at");
-    if (!value.contains("runner_available")) throw std::invalid_argument("missing runner_available");
-    if (!value.contains("runner_last_checked")) throw std::invalid_argument("missing runner_last_checked");
-    if (!value.contains("active_runs")) throw std::invalid_argument("missing active_runs");
-    if (!value.contains("active_pull_jobs")) throw std::invalid_argument("missing active_pull_jobs");
-    if (!value.contains("pulls")) throw std::invalid_argument("missing pulls");
-    if (!value.contains("cloud")) throw std::invalid_argument("missing cloud");
-    if (!value.contains("cloud_configured_providers")) throw std::invalid_argument("missing cloud_configured_providers");
-    return holder::api::AiStatusData{
-        codec<long long>::decode(value.at("checked_at")),
-        codec<bool>::decode(value.at("runner_available")),
-        codec<long long>::decode(value.at("runner_last_checked")),
-        value.contains("runner_version") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("runner_version"))} : std::nullopt,
-        value.contains("runner_error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("runner_error"))} : std::nullopt,
-        codec<long long>::decode(value.at("active_runs")),
-        codec<long long>::decode(value.at("active_pull_jobs")),
-        codec<std::vector<holder::api::RunnerPullJob>>::decode(value.at("pulls")),
-        codec<std::vector<holder::api::AiProviderCredential>>::decode(value.at("cloud")),
-        codec<long long>::decode(value.at("cloud_configured_providers")),
-    };
-}
-
-inline json codec<holder::api::AiStatusResponse>::encode(const holder::api::AiStatusResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiStatusData>::encode(value.data);
-    return result;
-}
-inline holder::api::AiStatusResponse codec<holder::api::AiStatusResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiStatusResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiStatusResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiStatusData>::decode(value.at("data")),
     };
 }
 
@@ -5539,6 +5365,144 @@ inline holder::api::AiRunGetResponse codec<holder::api::AiRunGetResponse>::decod
     return holder::api::AiRunGetResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiRunItem>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CasteInfo>::encode(const holder::api::CasteInfo& value) {
+    json result = json::object();
+    if (value.name != "mini" && value.name != "user" && value.name != "developer" && value.name != "workstation" && value.name != "rig") throw std::invalid_argument("invalid name");
+    result["name"] = codec<std::string>::encode(value.name);
+    result["reason"] = codec<std::optional<std::string>>::encode(value.reason);
+    return result;
+}
+inline holder::api::CasteInfo codec<holder::api::CasteInfo>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CasteInfo");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
+    if (value.at("name") != "mini" && value.at("name") != "user" && value.at("name") != "developer" && value.at("name") != "workstation" && value.at("name") != "rig") throw std::invalid_argument("invalid name");
+    return holder::api::CasteInfo{
+        codec<std::string>::decode(value.at("name")),
+        codec<std::optional<std::string>>::decode(value.at("reason")),
+    };
+}
+
+inline json codec<holder::api::CasteRecommendedModel>::encode(const holder::api::CasteRecommendedModel& value) {
+    json result = json::object();
+    result["tag"] = codec<std::string>::encode(value.tag);
+    result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
+    result["engine"] = codec<std::optional<std::string>>::encode(value.engine);
+    result["category"] = codec<std::optional<std::string>>::encode(value.category);
+    if (value.required_caste != "mini" && value.required_caste != "user" && value.required_caste != "developer" && value.required_caste != "workstation" && value.required_caste != "rig") throw std::invalid_argument("invalid required_caste");
+    result["required_caste"] = codec<std::string>::encode(value.required_caste);
+    result["installed"] = codec<bool>::encode(value.installed);
+    return result;
+}
+inline holder::api::CasteRecommendedModel codec<holder::api::CasteRecommendedModel>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CasteRecommendedModel");
+    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (!value.contains("engine")) throw std::invalid_argument("missing engine");
+    if (!value.contains("category")) throw std::invalid_argument("missing category");
+    if (!value.contains("required_caste")) throw std::invalid_argument("missing required_caste");
+    if (!value.contains("installed")) throw std::invalid_argument("missing installed");
+    if (value.at("required_caste") != "mini" && value.at("required_caste") != "user" && value.at("required_caste") != "developer" && value.at("required_caste") != "workstation" && value.at("required_caste") != "rig") throw std::invalid_argument("invalid required_caste");
+    return holder::api::CasteRecommendedModel{
+        codec<std::string>::decode(value.at("tag")),
+        codec<std::optional<std::string>>::decode(value.at("provider")),
+        codec<std::optional<std::string>>::decode(value.at("engine")),
+        codec<std::optional<std::string>>::decode(value.at("category")),
+        codec<std::string>::decode(value.at("required_caste")),
+        codec<bool>::decode(value.at("installed")),
+    };
+}
+
+inline json codec<holder::api::RunnerCapabilitiesData>::encode(const holder::api::RunnerCapabilitiesData& value) {
+    json result = json::object();
+    result["local_model_config"] = codec<holder::api::AiLocalModelConfigData>::encode(value.local_model_config);
+    if (value.caste) {
+        result["caste"] = codec<std::optional<std::optional<holder::api::CasteInfo>>>::encode(value.caste);
+    }
+    result["runners"] = codec<std::vector<holder::api::AiRunner>>::encode(value.runners);
+    result["recommended_models"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_models);
+    result["recommended_install"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_install);
+    return result;
+}
+inline holder::api::RunnerCapabilitiesData codec<holder::api::RunnerCapabilitiesData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesData");
+    if (!value.contains("local_model_config")) throw std::invalid_argument("missing local_model_config");
+    if (!value.contains("runners")) throw std::invalid_argument("missing runners");
+    if (!value.contains("recommended_models")) throw std::invalid_argument("missing recommended_models");
+    if (!value.contains("recommended_install")) throw std::invalid_argument("missing recommended_install");
+    return holder::api::RunnerCapabilitiesData{
+        codec<holder::api::AiLocalModelConfigData>::decode(value.at("local_model_config")),
+        value.contains("caste") ? std::optional<std::optional<holder::api::CasteInfo>>{std::in_place, codec<std::optional<holder::api::CasteInfo>>::decode(value.at("caste"))} : std::nullopt,
+        codec<std::vector<holder::api::AiRunner>>::decode(value.at("runners")),
+        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_models")),
+        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_install")),
+    };
+}
+
+inline json codec<holder::api::RunnerCapabilitiesResponse>::encode(const holder::api::RunnerCapabilitiesResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RunnerCapabilitiesData>::encode(value.data);
+    return result;
+}
+inline holder::api::RunnerCapabilitiesResponse codec<holder::api::RunnerCapabilitiesResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RunnerCapabilitiesResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RunnerCapabilitiesData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiStatusData>::encode(const holder::api::AiStatusData& value) {
+    json result = json::object();
+    result["checked_at"] = codec<long long>::encode(value.checked_at);
+    result["active_runs"] = codec<long long>::encode(value.active_runs);
+    result["active_pull_jobs"] = codec<long long>::encode(value.active_pull_jobs);
+    result["runners"] = codec<std::vector<holder::api::AiRunner>>::encode(value.runners);
+    result["cloud"] = codec<std::vector<holder::api::AiProviderCredential>>::encode(value.cloud);
+    result["cloud_configured_providers"] = codec<long long>::encode(value.cloud_configured_providers);
+    return result;
+}
+inline holder::api::AiStatusData codec<holder::api::AiStatusData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiStatusData");
+    if (!value.contains("checked_at")) throw std::invalid_argument("missing checked_at");
+    if (!value.contains("active_runs")) throw std::invalid_argument("missing active_runs");
+    if (!value.contains("active_pull_jobs")) throw std::invalid_argument("missing active_pull_jobs");
+    if (!value.contains("runners")) throw std::invalid_argument("missing runners");
+    if (!value.contains("cloud")) throw std::invalid_argument("missing cloud");
+    if (!value.contains("cloud_configured_providers")) throw std::invalid_argument("missing cloud_configured_providers");
+    return holder::api::AiStatusData{
+        codec<long long>::decode(value.at("checked_at")),
+        codec<long long>::decode(value.at("active_runs")),
+        codec<long long>::decode(value.at("active_pull_jobs")),
+        codec<std::vector<holder::api::AiRunner>>::decode(value.at("runners")),
+        codec<std::vector<holder::api::AiProviderCredential>>::decode(value.at("cloud")),
+        codec<long long>::decode(value.at("cloud_configured_providers")),
+    };
+}
+
+inline json codec<holder::api::AiStatusResponse>::encode(const holder::api::AiStatusResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiStatusData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiStatusResponse codec<holder::api::AiStatusResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiStatusResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiStatusResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiStatusData>::decode(value.at("data")),
     };
 }
 

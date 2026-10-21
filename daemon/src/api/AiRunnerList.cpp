@@ -58,11 +58,11 @@ AiRunnerRuntime runtime(const std::string& runner_id, holder::llm::RunnerClient*
 
 } // namespace
 
-AiRunnerListResponse get_ai_runners(holder::llm::RunnerRegistry* registry) {
-  AiRunnerListResponse response{true, {{}}};
-  if (registry == nullptr) return response;
+std::vector<AiRunner> runners_with_runtime(holder::llm::RunnerRegistry* registry) {
+  std::vector<AiRunner> runners;
+  if (registry == nullptr) return runners;
   for (const auto& runner : registry->list_runners()) {
-    response.data.runners.push_back({
+    runners.push_back({
         runner.runner_id,
         runner.name,
         runner.kind,
@@ -74,7 +74,11 @@ AiRunnerListResponse get_ai_runners(holder::llm::RunnerRegistry* registry) {
         runtime(runner.runner_id, registry->get_client(runner.runner_id)),
     });
   }
-  return response;
+  return runners;
+}
+
+AiRunnerListResponse get_ai_runners(holder::llm::RunnerRegistry* registry) {
+  return {true, {runners_with_runtime(registry)}};
 }
 
 } // namespace holder::api

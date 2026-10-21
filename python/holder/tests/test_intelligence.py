@@ -389,3 +389,104 @@ def test_runners_and_model_pull_use_runner_scope():
         assert job.refresh().status == "completed"
         with job.events() as stream:
             assert [event.kind for event in stream] == ["progress", "completed"]
+
+
+def runner_with_models(runner_id, *names):
+    row = runner_row()
+    row["runner_id"] = runner_id
+    row["runtime"]["models"] = [
+        {
+            "name": name,
+            "runner_id": runner_id,
+            "model_ref": f"{runner_id}::{name}",
+            "digest": "sha256:x",
+            "size": 7,
+            "modified_at": "now",
+        }
+        for name in names
+    ]
+    return row
+
+
+def recommendation(tag, installed):
+    return {
+        "tag": tag,
+        "provider": None,
+        "engine": None,
+        "category": "general",
+        "required_caste": "mini",
+        "installed": installed,
+    }
+
+
+def test_status_installed_and_recommendations_cover_every_runner():
+    capability_queries = []
+
+    def respond(request):
+        path = request.url.path
+        if path == "/ai/status":
+            # The daemon's real shape: device-wide counts plus every runner.
+            return ok(
+                {
+                    "checked_at": 9,
+                    "active_runs": 1,
+                    "active_pull_jobs": 0,
+                    "runners": [
+                        runner_with_models("auto-local", "tiny"),
+                        runner_with_models("manual-1"),
+                    ],
+                    "cloud": [],
+                    "cloud_configured_providers": 0,
+                }
+            )
+        if path == "/ai/runners":
+            return ok(
+                {
+                    "runners": [
+                        runner_with_models("auto-local", "tiny"),
+                        runner_with_models("manual-1", "big"),
+                    ]
+                }
+            )
+        if path == "/ai/capabilities":
+            capability_queries.append(dict(request.url.params))
+            return ok(
+                {
+                    "local_model_config": {
+                        "fast_model": None,
+                        "strong_model": None,
+                        "deep_model": None,
+                        "updated_at": None,
+                    },
+                    "caste": {"name": "user", "reason": None},
+                    "runners": [runner_with_models("auto-local", "tiny")],
+                    "recommended_models": [
+                        recommendation("tiny", True),
+                        recommendation("small", False),
+                    ],
+                    "recommended_install": [recommendation("small", False)],
+                }
+            )
+        raise AssertionError(path)
+
+    with holder_for(respond) as holder:
+        ai = holder.intelligence
+        status = ai.status()
+        assert (status.checked_at, status.active_runs, status.active_pull_jobs) == (9, 1, 0)
+        assert [runner.id for runner in status.runners] == ["auto-local", "manual-1"]
+        assert status.runners[0].available is True
+
+        installed = ai.models.installed()
+        assert [(model.runner_id, model.name) for model in installed] == [
+            ("auto-local", "tiny"),
+            ("manual-1", "big"),
+        ]
+        assert installed[1].model_ref == "manual-1::big"
+
+        assert [row["tag"] for row in ai.models.recommended()] == ["tiny", "small"]
+        assert [row["tag"] for row in ai.models.to_install(runner_id="manual-1")] == [
+            "small"
+        ]
+        assert capability_queries == [{}, {"runner_id": "manual-1"}]
+        with pytest.raises(ValueError):
+            ai.models.recommended(runner_id="")
