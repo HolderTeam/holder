@@ -854,22 +854,30 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(fields_payload["error"]["code"] == "bad_request");
   }
 
-  SECTION("backlinks card not found and method guard") {
-    auto [not_found_status, not_found_payload] = call(
-        http::verb::get,
-        "/cards/ffffffff-ffff-4fff-8fff-ffffffffffff/backlinks",
-        nlohmann::json::object()
-    );
+  SECTION("backlinks card not found and invalid queries") {
+    auto [not_found_status, not_found_payload] =
+        call_generated_links("/cards/ffffffff-ffff-4fff-8fff-ffffffffffff/backlinks");
     REQUIRE(not_found_status == http::status::not_found);
     REQUIRE(not_found_payload["error"]["code"] == "not_found");
+    REQUIRE(not_found_payload["error"]["message"] == "Card not found.");
 
+    for (const std::string query : {"?scope=everywhere", "?scope=", "?include_deleted=2"}) {
+      CAPTURE(query);
+      auto [status, payload] = call_generated_links(
+          "/cards/11111111-1111-4111-8111-111111111111/backlinks" + query
+      );
+      REQUIRE(status == http::status::bad_request);
+      REQUIRE(payload["error"]["code"] == "bad_request");
+    }
+
+    // Only GET is generated; the card handler no longer claims other methods here.
     auto [method_status, method_payload] = call(
         http::verb::post,
         "/cards/11111111-1111-4111-8111-111111111111/backlinks",
         nlohmann::json::object()
     );
-    REQUIRE(method_status == http::status::method_not_allowed);
-    REQUIRE(method_payload["error"]["code"] == "method_not_allowed");
+    REQUIRE(method_status == http::status::not_found);
+    REQUIRE(method_payload["error"]["code"] == "not_found");
   }
 
   SECTION("backlinks include_deleted toggles filtering") {
@@ -889,21 +897,16 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(del_status == http::status::ok);
     REQUIRE(del_payload["ok"] == true);
 
-    auto [filtered_status, filtered_payload] = call(
-        http::verb::get,
-        "/cards/11111111-1111-4111-8111-111111111111/backlinks",
-        nlohmann::json::object()
-    );
+    auto [filtered_status, filtered_payload] =
+        call_generated_links("/cards/11111111-1111-4111-8111-111111111111/backlinks");
     REQUIRE(filtered_status == http::status::ok);
     REQUIRE(filtered_payload["data"].is_array());
     REQUIRE(filtered_payload["data"].empty());
+    REQUIRE(filtered_payload["scope"] == "local");
+    REQUIRE(filtered_payload["coverage"] == "target_project");
 
-    const auto include_deleted_param_get = map_param_getter({{"include_deleted", "1"}});
-    auto [included_status, included_payload] = call_with_param_get(
-        http::verb::get,
-        "/cards/11111111-1111-4111-8111-111111111111/backlinks",
-        nlohmann::json::object(),
-        include_deleted_param_get
+    auto [included_status, included_payload] = call_generated_links(
+        "/cards/11111111-1111-4111-8111-111111111111/backlinks?include_deleted=1"
     );
     REQUIRE(included_status == http::status::ok);
     REQUIRE(included_payload["data"].is_array());
@@ -1263,11 +1266,11 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     };
     link_repo.upsert_links("proj-1", "ghost-source", {ghost});
 
-    auto [status, payload] = call(
-        http::verb::get,
-        "/cards/11111111-1111-4111-8111-111111111111/backlinks",
-        nlohmann::json::object()
-    );
+    auto req = make_request(http::verb::get, "/cards/11111111-1111-4111-8111-111111111111/backlinks");
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
+    const auto status = res.result();
+    const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"].is_array());
     REQUIRE(payload["data"].empty());
@@ -1674,18 +1677,8 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     auto backlinks_req =
         make_request(http::verb::get, "/cards/00000000-0000-4000-8000-000000000020/backlinks");
     http::response<http::string_body> backlinks_res;
-    const bool backlinks_handled = holder::api::routes::handle_card_routes(
-        "/cards/00000000-0000-4000-8000-000000000020/backlinks",
-        backlinks_req,
-        backlinks_res,
-        unopened,
-        &card_store,
-        &fts,
-        uuid_v4,
-        empty_param_get
-    );
-    REQUIRE(backlinks_handled);
-    REQUIRE(backlinks_res.result() == http::status::bad_request);
+    REQUIRE(holder::api::dispatch_generated_routes(backlinks_req, backlinks_res, unopened, nullptr, &fts));
+    REQUIRE(backlinks_res.result() == http::status::internal_server_error);
 
     // Force item get exception by breaking rel_path invariant.
     db.exec(

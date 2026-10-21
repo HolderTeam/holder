@@ -826,10 +826,6 @@ template <> struct codec<holder::api::DeleteCardsCardIdResourcesRequest> {
     static json encode(const holder::api::DeleteCardsCardIdResourcesRequest& value);
     static holder::api::DeleteCardsCardIdResourcesRequest decode(const json& value);
 };
-template <> struct codec<holder::api::CardBacklinkListResponse> {
-    static json encode(const holder::api::CardBacklinkListResponse& value);
-    static holder::api::CardBacklinkListResponse decode(const json& value);
-};
 template <> struct codec<holder::api::StorageLocation> {
     static json encode(const holder::api::StorageLocation& value);
     static holder::api::StorageLocation decode(const json& value);
@@ -1085,6 +1081,10 @@ template <> struct codec<holder::api::routes::CardLinkCreateResponse> {
 template <> struct codec<holder::api::routes::CardLinkCreateRequest> {
     static json encode(const holder::api::routes::CardLinkCreateRequest& value);
     static holder::api::routes::CardLinkCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::routes::CardBacklinkListResponse> {
+    static json encode(const holder::api::routes::CardBacklinkListResponse& value);
+    static holder::api::routes::CardBacklinkListResponse decode(const json& value);
 };
 
 inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
@@ -5050,34 +5050,6 @@ inline holder::api::DeleteCardsCardIdResourcesRequest codec<holder::api::DeleteC
     };
 }
 
-inline json codec<holder::api::CardBacklinkListResponse>::encode(const holder::api::CardBacklinkListResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::routes::CardLink>>::encode(value.data);
-    if (value.scope != "local" && value.scope != "external" && value.scope != "all_available") throw std::invalid_argument("invalid scope");
-    result["scope"] = codec<std::string>::encode(value.scope);
-    if (value.coverage != "target_project" && value.coverage != "available_projects") throw std::invalid_argument("invalid coverage");
-    result["coverage"] = codec<std::string>::encode(value.coverage);
-    return result;
-}
-inline holder::api::CardBacklinkListResponse codec<holder::api::CardBacklinkListResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardBacklinkListResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (!value.contains("scope")) throw std::invalid_argument("missing scope");
-    if (!value.contains("coverage")) throw std::invalid_argument("missing coverage");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    if (value.at("scope") != "local" && value.at("scope") != "external" && value.at("scope") != "all_available") throw std::invalid_argument("invalid scope");
-    if (value.at("coverage") != "target_project" && value.at("coverage") != "available_projects") throw std::invalid_argument("invalid coverage");
-    return holder::api::CardBacklinkListResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::routes::CardLink>>::decode(value.at("data")),
-        codec<std::string>::decode(value.at("scope")),
-        codec<std::string>::decode(value.at("coverage")),
-    };
-}
-
 inline json codec<holder::api::StorageLocation>::encode(const holder::api::StorageLocation& value) {
     json result = json::object();
     result["location_id"] = codec<std::string>::encode(value.location_id);
@@ -6534,6 +6506,34 @@ inline holder::api::routes::CardLinkCreateRequest codec<holder::api::routes::Car
         value.contains("kind") ? codec<std::optional<std::string>>::decode(value.at("kind")) : std::nullopt,
         value.contains("label") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("label"))} : std::nullopt,
         value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::routes::CardBacklinkListResponse>::encode(const holder::api::routes::CardBacklinkListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::routes::CardLink>>::encode(value.data);
+    if (value.scope != "local" && value.scope != "external" && value.scope != "all_available") throw std::invalid_argument("invalid scope");
+    result["scope"] = codec<std::string>::encode(value.scope);
+    if (value.coverage != "target_project" && value.coverage != "available_projects") throw std::invalid_argument("invalid coverage");
+    result["coverage"] = codec<std::string>::encode(value.coverage);
+    return result;
+}
+inline holder::api::routes::CardBacklinkListResponse codec<holder::api::routes::CardBacklinkListResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardBacklinkListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (!value.contains("scope")) throw std::invalid_argument("missing scope");
+    if (!value.contains("coverage")) throw std::invalid_argument("missing coverage");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    if (value.at("scope") != "local" && value.at("scope") != "external" && value.at("scope") != "all_available") throw std::invalid_argument("invalid scope");
+    if (value.at("coverage") != "target_project" && value.at("coverage") != "available_projects") throw std::invalid_argument("invalid coverage");
+    return holder::api::routes::CardBacklinkListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::routes::CardLink>>::decode(value.at("data")),
+        codec<std::string>::decode(value.at("scope")),
+        codec<std::string>::decode(value.at("coverage")),
     };
 }
 

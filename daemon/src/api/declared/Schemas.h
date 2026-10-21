@@ -1009,13 +1009,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD DeleteCardsCardIdResourcesRequest {
   std::string resource_id RIG_FIELD_DESCRIPTION("Complete exact project resource ID; no prefix or label lookup.") RIG_MIN_LENGTH(1);
 };
 
-struct RIG_OPEN_RECORD CardBacklinkListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<holder::api::routes::CardLink> data;
-  std::string scope RIG_STRING_VALUES("local", "external", "all_available");
-  std::string coverage RIG_FIELD_DESCRIPTION("External backlinks cover only source projects available to this daemon request, never all possible projects.") RIG_STRING_VALUES("target_project", "available_projects");
-};
-
 struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;
   std::string project_id;

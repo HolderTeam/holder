@@ -214,17 +214,6 @@ CardPatchResponse delete_cards_card_id_links(
     std::string card_id,
     std::optional<CardLinkDeleteRequest> request);
 
-RIG_ROUTE(GET, "/cards/{card_id}/backlinks")
-RIG_SUMMARY("List backlinks to a card from selected available projects")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid scope")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardBacklinkListResponse get_cards_card_id_backlinks(
-    std::string card_id,
-    std::optional<int> include_deleted RIG_QUERY RIG_INT_VALUES(0, 1) RIG_PARAMETER_DESCRIPTION("Include backlinks from deleted sources."),
-    std::string scope RIG_QUERY RIG_STRING_VALUES("local", "external", "all_available") RIG_DEFAULT("local") RIG_PARAMETER_DESCRIPTION("Local sources only (default), external available projects only, or both. External results are best effort and exclude unavailable projects."));
-
 RIG_ROUTE(POST, "/cards/{card_id}/restore")
 RIG_SUMMARY("Restore a card from trash")
 RIG_DESCRIPTION("Restores this card only. It returns to its saved parent when that parent is live and reachable, otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if restored afterwards.")

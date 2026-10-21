@@ -50,6 +50,13 @@ struct RIG_OPEN_RECORD CardLinkCreateResponse {
   CardLink data;
 };
 
+struct RIG_OPEN_RECORD CardBacklinkListResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  std::vector<CardLink> data;
+  std::string scope RIG_STRING_VALUES("local", "external", "all_available");
+  std::string coverage RIG_FIELD_DESCRIPTION("External backlinks cover only source projects available to this daemon request, never all possible projects.") RIG_STRING_VALUES("target_project", "available_projects");
+};
+
 struct CardLinkSourceNotFound : std::runtime_error {
   CardLinkSourceNotFound() : std::runtime_error("Card not found.") {}
 };
@@ -65,6 +72,17 @@ CardLinkListResponse list_card_links(holder::platform::Db& db RIG_CONTEXT,
                                          RIG_INT_VALUES(0, 1)
                                          RIG_PARAMETER_DESCRIPTION(
                                              "Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed."));
+
+RIG_ROUTE(GET, "/cards/{card_id}/backlinks")
+RIG_SUMMARY("List backlinks to a card from selected available projects")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_ERROR_RESPONSE(404, holder::api::ErrorResponse, "Not found", CardLinkSourceNotFound)
+CardBacklinkListResponse list_card_backlinks(
+    holder::platform::Db& db RIG_CONTEXT,
+    holder::index::FtsIndexer* fts RIG_CONTEXT,
+    std::string card_id,
+    std::optional<int> include_deleted RIG_QUERY RIG_INT_VALUES(0, 1) RIG_PARAMETER_DESCRIPTION("Include backlinks from deleted sources."),
+    std::string scope RIG_QUERY RIG_STRING_VALUES("local", "external", "all_available") RIG_DEFAULT("local") RIG_PARAMETER_DESCRIPTION("Local sources only (default), external available projects only, or both. External results are best effort and exclude unavailable projects."));
 
 // routes::handle_card_routes still writes this response.
 RIG_ROUTE(POST, "/cards/{card_id}/links")
