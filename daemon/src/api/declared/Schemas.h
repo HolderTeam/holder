@@ -465,15 +465,6 @@ struct RIG_OPEN_RECORD ProjectUpdateRequest {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectDeleteResponseData {
-  std::string project_id;
-};
-
-struct RIG_OPEN_RECORD ProjectDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectDeleteResponseData data;
-};
-
 struct RIG_OPEN_RECORD HierarchyRepairMove {
   std::string card_id RIG_FIELD_DESCRIPTION("A hidden branch's top card. Its descendants stay attached and move with it.");
   std::optional<std::string> parent_card_id RIG_FIELD_DESCRIPTION("Where it goes, or null for the project's top level.") RIG_NULLABLE;

@@ -23,15 +23,6 @@ ProjectUpdateResponse patch_projects_project_id(
     std::string project_id,
     ProjectUpdateRequest request);
 
-RIG_ROUTE(DELETE, "/projects/{project_id}")
-RIG_SUMMARY("Delete a project")
-RIG_DESCRIPTION("Removes the project from this device's database and records its removal so startup discovery and database reconstruction do not automatically import it again. Project files and encryption keys are retained for explicit recovery. Creating or importing the project explicitly registers it again.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(500, ErrorResponse, "Could not persist the project removal; the database deletion is rolled back.")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectDeleteResponse delete_projects_project_id(std::string project_id);
-
 RIG_ROUTE(POST, "/projects/{project_id}/repair-hierarchy")
 RIG_SUMMARY("Find, and optionally fix, cards hidden under missing or trashed parents")
 RIG_DESCRIPTION("A live card whose parent is missing or trashed cannot be reached by browsing from the project's top level. This can happen after an older client trashed a parent, a card file was removed by hand, or a sync brought either in. Without apply, this only reports, reading the database alone (so it works on a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable ancestor (or the top level), into the place its trashed ancestor held, with its descendants still attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are reported and left alone. The daemon also repairs at startup and core repairs after every pull.")

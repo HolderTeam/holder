@@ -519,6 +519,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::status::ok
   );
   REQUIRE(deleted["ok"] == true);
+  REQUIRE(deleted["data"]["project_id"] == "proj-1");
 
   const auto missing = http_json_request(
       bound.bind,

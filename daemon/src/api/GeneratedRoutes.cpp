@@ -4,6 +4,7 @@
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/ProjectCreate.h"
+#include "api/ProjectDelete.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectTags.h"
 #include "api/ProviderCredentials.h"

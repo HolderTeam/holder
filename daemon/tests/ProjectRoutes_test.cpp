@@ -10,6 +10,8 @@
 #include "git/GitOps.h"
 #include "http_test_helpers.h"
 #include "model/Project.h"
+#include "platform/Paths.h"
+#include "platform/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
 
@@ -86,6 +88,45 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
 };
 
 } // namespace
+
+TEST_CASE("Generated project deletion records a removal without deleting files", "[project-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  holder::test::EnvGuard data_env("XDG_DATA_HOME", (dir / "data").string());
+  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (dir / "config").string());
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const auto managed_root = dir / "projects";
+  const auto project_root = managed_root / "to-delete";
+  std::filesystem::create_directories(project_root / ".holder");
+  std::ofstream(project_root / ".holder" / "project.json")
+      << nlohmann::json{{"project_id", "proj-delete"}};
+
+  holder::model::Project project;
+  project.project_id = "proj-delete";
+  project.name = "To delete";
+  project.root_path = project_root.string();
+  project.privacy_mode = "plain";
+  project.created_at = 1;
+  project.updated_at = 1;
+  holder::project::ProjectRepo repo(db);
+  repo.create(project);
+  holder::project::ProjectSyncRepo sync_repo(db);
+  sync_repo.record_push_result(project.project_id, "pushed", true, std::nullopt, 2);
+  holder::core::ProjectRegistry registry(
+      holder::core::Paths::resolve("holder").project_registry_path());
+  registry.remember({project});
+  REQUIRE(registry.discover_roots(managed_root).size() == 1);
+
+  auto req = make_request(http::verb::delete_, "/projects/proj-delete");
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(res.result() == http::status::ok);
+  REQUIRE(nlohmann::json::parse(res.body()) ==
+          nlohmann::json{{"ok", true}, {"data", {{"project_id", "proj-delete"}}}});
+  REQUIRE_FALSE(repo.get(project.project_id).has_value());
+  REQUIRE_FALSE(sync_repo.get(project.project_id).has_value());
+  REQUIRE(std::filesystem::exists(project_root / ".holder" / "project.json"));
+  REQUIRE(registry.discover_roots(managed_root).empty());
+}
 
 TEST_CASE("ProjectRoutes returns false when path does not match", "[project-routes]") {
   const auto dir = holder::test::make_temp_dir();
@@ -237,14 +278,9 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        path,
-        req,
-        res,
-        db,
-        &git,
-        uuid_v4
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
+        holder::api::routes::handle_project_routes(path, req, res, db, &git, uuid_v4);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
@@ -604,6 +640,13 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
       "/projects/proj-1", req, res, db, nullptr, [] { return std::string("id"); }));
 
   req = make_request(http::verb::get, "/projects/missing");
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+
+  req = make_request(http::verb::delete_, "/projects/missing");
+  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
+      "/projects/missing", req, res, db, nullptr, [] { return std::string("id"); }));
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");

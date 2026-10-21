@@ -154,6 +154,7 @@ add_executable(holder_daemon_tests
   ../src/api/GeneratedRoutes.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectCreate.cpp
+  ../src/api/ProjectDelete.cpp
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
   ../src/api/Rebuild.cpp

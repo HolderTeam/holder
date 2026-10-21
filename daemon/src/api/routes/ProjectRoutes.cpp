@@ -10,7 +10,6 @@
 #include "index/FtsIndexer.h"
 #include "platform/Paths.h"
 #include "platform/ProjectRegistry.h"
-#include "platform/Tx.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectPaths.h"
@@ -914,36 +913,8 @@ bool handle_project_routes(
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }
-    } else if (subpath.empty() && req.method() == http::verb::delete_) {
-      try {
-        holder::platform::Tx transaction(db);
-        holder::project::ProjectRepo repo(db);
-        holder::project::ProjectSyncRepo sync_repo(db);
-        const auto project_opt = repo.get(project_id);
-        if (!project_opt.has_value()) {
-          res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-        } else {
-          repo.remove(project_id);
-          sync_repo.remove(project_id);
-          holder::core::ProjectRegistry registry(
-              holder::core::Paths::resolve("holder").project_registry_path()
-          );
-          registry.forget(*project_opt);
-          try {
-            transaction.commit();
-          } catch (...) {
-            registry.restore(*project_opt);
-            throw;
-          }
-          nlohmann::json payload;
-          payload["ok"] = true;
-          payload["data"] = {{"project_id", project_id}};
-          res = support::json_response(http::status::ok, payload);
-        }
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::internal_server_error, "error", ex.what());
-      }
-    } else if (subpath.empty() && req.method() == http::verb::get) {
+    } else if (subpath.empty() &&
+               (req.method() == http::verb::get || req.method() == http::verb::delete_)) {
       return false;
     } else {
       res = support::error_response(http::status::not_found, "not_found", "Route not found.");

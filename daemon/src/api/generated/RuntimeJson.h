@@ -490,14 +490,6 @@ template <> struct codec<holder::api::ProjectUpdateRequest> {
     static json encode(const holder::api::ProjectUpdateRequest& value);
     static holder::api::ProjectUpdateRequest decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectDeleteResponseData> {
-    static json encode(const holder::api::ProjectDeleteResponseData& value);
-    static holder::api::ProjectDeleteResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectDeleteResponse> {
-    static json encode(const holder::api::ProjectDeleteResponse& value);
-    static holder::api::ProjectDeleteResponse decode(const json& value);
-};
 template <> struct codec<holder::api::HierarchyRepairMove> {
     static json encode(const holder::api::HierarchyRepairMove& value);
     static holder::api::HierarchyRepairMove decode(const json& value);
@@ -1069,6 +1061,14 @@ template <> struct codec<holder::api::ProjectCreateRequest> {
 template <> struct codec<holder::api::ProjectCreateResponse> {
     static json encode(const holder::api::ProjectCreateResponse& value);
     static holder::api::ProjectCreateResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectDeleteResponseData> {
+    static json encode(const holder::api::ProjectDeleteResponseData& value);
+    static holder::api::ProjectDeleteResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectDeleteResponse> {
+    static json encode(const holder::api::ProjectDeleteResponse& value);
+    static holder::api::ProjectDeleteResponse decode(const json& value);
 };
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
@@ -3174,37 +3174,6 @@ inline holder::api::ProjectUpdateRequest codec<holder::api::ProjectUpdateRequest
         value.contains("privacy_mode") ? std::optional<std::optional<holder::api::ProjectUpdateRequestPrivacyMode>>{std::in_place, codec<std::optional<holder::api::ProjectUpdateRequestPrivacyMode>>::decode(value.at("privacy_mode"))} : std::nullopt,
         value.contains("project_key_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_key_id"))} : std::nullopt,
         codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::ProjectDeleteResponseData>::encode(const holder::api::ProjectDeleteResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    return result;
-}
-inline holder::api::ProjectDeleteResponseData codec<holder::api::ProjectDeleteResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectDeleteResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    return holder::api::ProjectDeleteResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-    };
-}
-
-inline json codec<holder::api::ProjectDeleteResponse>::encode(const holder::api::ProjectDeleteResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectDeleteResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectDeleteResponse codec<holder::api::ProjectDeleteResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectDeleteResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectDeleteResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectDeleteResponseData>::decode(value.at("data")),
     };
 }
 
@@ -6428,6 +6397,37 @@ inline holder::api::ProjectCreateResponse codec<holder::api::ProjectCreateRespon
     return holder::api::ProjectCreateResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::Project>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectDeleteResponseData>::encode(const holder::api::ProjectDeleteResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::api::ProjectDeleteResponseData codec<holder::api::ProjectDeleteResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectDeleteResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    return holder::api::ProjectDeleteResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+    };
+}
+
+inline json codec<holder::api::ProjectDeleteResponse>::encode(const holder::api::ProjectDeleteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectDeleteResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectDeleteResponse codec<holder::api::ProjectDeleteResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectDeleteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectDeleteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectDeleteResponseData>::decode(value.at("data")),
     };
 }
 

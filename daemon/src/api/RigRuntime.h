@@ -13,6 +13,7 @@
 #include "api/RunnerPull.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectCreate.h"
+#include "api/ProjectDelete.h"
 #include "api/StaticFiles.h"
 #include "api/declared/Ai.h"
 #include "api/declared/Calendar.h"
