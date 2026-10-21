@@ -14,7 +14,6 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace holder::api::routes {
@@ -106,15 +105,6 @@ void validate_labelled_fields(const nlohmann::json& body) {
   }
 }
 
-nlohmann::json card_activity_json(const holder::model::Card& card) {
-  return {
-      {"card_id", card.card_id},
-      {"title", card.title},
-      {"created_at", card.created_at},
-      {"updated_at", card.updated_at},
-  };
-}
-
 std::optional<long long> parse_required_epoch(
     const std::string& raw,
     const std::string& name,
@@ -186,71 +176,6 @@ bool handle_milestone_routes(
     const std::function<std::string()>& uuid_v4,
     const std::function<std::string(const std::string&)>& param_get
 ) {
-  if (path == "/calendar" && req.method() == http::verb::get) {
-    const auto project_id = param_get("project_id");
-    if (project_id.empty()) {
-      res =
-          support::error_response(http::status::bad_request, "bad_request", "Missing project_id.");
-      return true;
-    }
-    const auto from = parse_required_epoch(param_get("from"), "from", res);
-    if (!from.has_value()) return true;
-    const auto to = parse_required_epoch(param_get("to"), "to", res);
-    if (!to.has_value()) return true;
-    if (*from > *to) {
-      res = support::error_response(
-          http::status::bad_request,
-          "bad_request",
-          "from must not be after to."
-      );
-      return true;
-    }
-
-    try {
-      if (!holder::project::ProjectRepo(db).get(project_id).has_value()) {
-        res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-        return true;
-      }
-      const auto cards = holder::card::CardRepo(db).list_all(project_id);
-      std::unordered_map<std::string, std::string> active_titles;
-      nlohmann::json created_cards = nlohmann::json::array();
-      nlohmann::json updated_cards = nlohmann::json::array();
-      for (const auto& card : cards) {
-        if (card.deleted_at.has_value()) continue;
-        active_titles.emplace(card.card_id, card.title);
-        if (card.created_at >= *from && card.created_at <= *to) {
-          created_cards.push_back(card_activity_json(card));
-        }
-        if (card.updated_at != card.created_at && card.updated_at >= *from &&
-            card.updated_at <= *to) {
-          updated_cards.push_back(card_activity_json(card));
-        }
-      }
-
-      nlohmann::json milestones = nlohmann::json::array();
-      for (const auto& milestone :
-           holder::card::MilestoneRepo(db).list_in_range(project_id, *from, *to)) {
-        const auto title = active_titles.find(milestone.card_id);
-        if (title == active_titles.end()) continue;
-        milestones.push_back(milestone_json(milestone, std::optional<std::string>(title->second)));
-      }
-      res = support::json_response(
-          http::status::ok,
-          {{"ok", true},
-           {"data",
-            {{"project_id", project_id},
-             {"from", *from},
-             {"to", *to},
-             {"milestones", std::move(milestones)},
-             {"created_cards", std::move(created_cards)},
-             {"updated_cards", std::move(updated_cards)}}}}
-      );
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   static const std::string project_prefix = "/projects/";
   static const std::string project_suffix = "/milestones-with-dates";
   if (path.rfind(project_prefix, 0) == 0 &&

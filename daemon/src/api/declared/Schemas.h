@@ -1328,25 +1328,4 @@ struct RIG_OPEN_RECORD RecoveryTokenImportAutoResponse {
   RecoveryTokenImportAutoResponseData data;
 };
 
-struct RIG_OPEN_RECORD CalendarCardActivity {
-  std::string card_id;
-  std::string title;
-  long long created_at;
-  long long updated_at;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectCalendarResponseData {
-  std::string project_id;
-  long long from RIG_FIELD_DESCRIPTION("Inclusive lower bound in Unix epoch seconds.");
-  long long to RIG_FIELD_DESCRIPTION("Inclusive upper bound in Unix epoch seconds.");
-  std::vector<Milestone> milestones;
-  std::vector<CalendarCardActivity> created_cards;
-  std::vector<CalendarCardActivity> updated_cards;
-};
-
-struct RIG_OPEN_RECORD ProjectCalendarResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectCalendarResponseData data;
-};
-
 } // namespace holder::api

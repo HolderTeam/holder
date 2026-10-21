@@ -1,6 +1,8 @@
 #include "http_test_helpers.h"
 
+#include "api/GeneratedRoutes.h"
 #include "model/Card.h"
+#include "model/Milestone.h"
 
 using holder::test::create_project;
 using holder::test::http_json_request;
@@ -439,7 +441,7 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
   CHECK(
       call(http::verb::get, "/cards//milestones", &cards, "{}").second == http::status::bad_request
   );
-  CHECK(call(http::verb::get, "/calendar", &cards, "").second == http::status::bad_request);
+  CHECK_FALSE(call(http::verb::get, "/calendar", &cards, "").first);
   for (auto method : {http::verb::post, http::verb::patch, http::verb::delete_}) {
     const auto path = method == http::verb::post ? "/cards/card-one/milestones"
                                                  : "/cards/card-one/milestones/id";
@@ -472,30 +474,121 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
       call(http::verb::patch, "/cards/card-one/milestones/id", &cards, R"({"kind":"new"})")
           .second == http::status::not_found
   );
-  for (const std::map<std::string, std::string> params :
-       {std::map<std::string, std::string>{{"project_id", "proj-1"}, {"from", "10"}},
-        {{"project_id", "proj-1"}, {"from", "10"}, {"to", "bad"}},
-        {{"project_id", "proj-1"}, {"from", "10"}, {"to", "11trailing"}}})
-    CHECK(
-        call(http::verb::get, "/calendar", &cards, "", params).second == http::status::bad_request
-    );
-  CHECK(
-      call(
-          http::verb::get,
-          "/calendar",
-          &cards,
-          "",
-          {{"project_id", "missing"}, {"from", "0"}, {"to", "1"}}
-      ).second == http::status::not_found
-  );
-  db.exec("DROP TABLE milestones");
-  CHECK(
-      call(
-          http::verb::get,
-          "/calendar",
-          &cards,
-          "",
-          {{"project_id", "proj-1"}, {"from", "0"}, {"to", "1"}}
-      ).second == http::status::bad_request
-  );
+}
+
+TEST_CASE("Generated calendar route keeps its range, filters and errors", "[milestones][calendar]") {
+  namespace http = boost::beast::http;
+  const auto root = make_temp_dir();
+  auto db = open_db_with_schema(root / "holder.db");
+  create_project(db, "proj-1", (root / "project").string());
+  holder::card::CardStore cards(db, nullptr);
+  auto calendar = [&](const std::string& target) {
+    http::request<http::string_body> request{http::verb::get, target, 11};
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
+    return std::pair{response.result(), nlohmann::json::parse(response.body())};
+  };
+  int next_milestone = 0;
+  auto add_milestone = [&](const std::string& card_id,
+                           long long at,
+                           std::vector<holder::model::MilestoneDate> dates) {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "milestone-" + std::to_string(++next_milestone);
+    milestone.project_id = "proj-1";
+    milestone.card_id = card_id;
+    milestone.dates = std::move(dates);
+    milestone.created_at = at;
+    milestone.updated_at = at;
+    return cards.add_milestone(milestone, at).milestone_id;
+  };
+  auto start = [](long long at) {
+    return holder::model::milestone_date_from_legacy("start", at, false);
+  };
+
+  cards.create(card("card-a", "Live", 100, 100), "Live\n");
+  cards.create(card("card-b", "Edited", 50, 300), "Edited\n");
+  cards.create(card("card-c", "Trashed", 200, 200), "Trashed\n");
+  // Milestones keep each card's updated_at, so only card-b counts as updated.
+  const auto first = add_milestone("card-a", 100, {start(100)});
+  const auto last = add_milestone("card-a", 100, {start(300)});
+  add_milestone("card-a", 100, {start(99)});
+  add_milestone("card-a", 100, {start(301)});
+  add_milestone("card-a", 100, {});
+  add_milestone("card-a", 100, {start(150), start(160)});
+  add_milestone("card-c", 200, {start(200)});
+  cards.trash("card-c", 400);
+
+  SECTION("bounds are inclusive; trashed cards and milestones without one start are left out") {
+    const auto [status, body] = calendar("/calendar?project_id=proj-1&from=100&to=300");
+    REQUIRE(status == http::status::ok);
+    REQUIRE(body["ok"] == true);
+    const auto& data = body["data"];
+    CHECK(data["project_id"] == "proj-1");
+    CHECK(data["from"] == 100);
+    CHECK(data["to"] == 300);
+    REQUIRE(data["milestones"].size() == 2);
+    CHECK(data["milestones"][0] == nlohmann::json{
+        {"milestone_id", first},
+        {"card_id", "card-a"},
+        {"start_at", 100},
+        {"end_at", nullptr},
+        {"all_day", false},
+        {"kind", nullptr},
+        {"description", nullptr},
+        {"created_at", 100},
+        {"updated_at", 100},
+        {"card_title", "Live"},
+    });
+    CHECK(data["milestones"][1]["milestone_id"] == last);
+    REQUIRE(data["created_cards"].size() == 1);
+    CHECK(data["created_cards"][0] == nlohmann::json{
+        {"card_id", "card-a"}, {"title", "Live"}, {"created_at", 100}, {"updated_at", 100}});
+    REQUIRE(data["updated_cards"].size() == 1);
+    CHECK(data["updated_cards"][0]["card_id"] == "card-b");
+  }
+
+  SECTION("a single-second range matches only that second") {
+    const auto [status, body] = calendar("/calendar?project_id=proj-1&from=300&to=300");
+    REQUIRE(status == http::status::ok);
+    CHECK(body["data"]["milestones"].size() == 1);
+    CHECK(body["data"]["created_cards"].empty());
+    CHECK(body["data"]["updated_cards"].size() == 1);
+  }
+
+  SECTION("invalid queries are bad requests") {
+    for (const std::string query :
+         {"",
+          "?from=0&to=1",
+          "?project_id=&from=0&to=1",
+          "?project_id=proj-1&to=1",
+          "?project_id=proj-1&from=0",
+          "?project_id=proj-1&from=&to=1",
+          "?project_id=proj-1&from=0&to=bad",
+          "?project_id=proj-1&from=0&to=11trailing",
+          "?project_id=proj-1&from=0&to=99999999999999999999",
+          "?project_id=proj-1&from=20&to=10"}) {
+      CAPTURE(query);
+      const auto [status, body] = calendar("/calendar" + query);
+      CHECK(status == http::status::bad_request);
+      CHECK(body["ok"] == false);
+      CHECK(body["error"]["code"] == "bad_request");
+    }
+    CHECK(calendar("/calendar?project_id=proj-1&from=0").second["error"]["message"] ==
+          "missing query parameter: to");
+    CHECK(calendar("/calendar?project_id=proj-1&from=20&to=10").second["error"]["message"] ==
+          "from must not be after to.");
+  }
+
+  SECTION("an unknown project is not found") {
+    const auto [status, body] = calendar("/calendar?project_id=missing&from=0&to=1");
+    CHECK(status == http::status::not_found);
+    CHECK(body["error"]["code"] == "not_found");
+    CHECK(body["error"]["message"] == "Project not found.");
+  }
+
+  SECTION("a storage failure is an internal error") {
+    db.exec("DROP TABLE milestones");
+    CHECK(calendar("/calendar?project_id=proj-1&from=0&to=1").first ==
+          http::status::internal_server_error);
+  }
 }

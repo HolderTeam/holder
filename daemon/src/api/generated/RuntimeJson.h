@@ -1018,18 +1018,6 @@ template <> struct codec<holder::api::RecoveryTokenImportAutoResponse> {
     static json encode(const holder::api::RecoveryTokenImportAutoResponse& value);
     static holder::api::RecoveryTokenImportAutoResponse decode(const json& value);
 };
-template <> struct codec<holder::api::CalendarCardActivity> {
-    static json encode(const holder::api::CalendarCardActivity& value);
-    static holder::api::CalendarCardActivity decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectCalendarResponseData> {
-    static json encode(const holder::api::ProjectCalendarResponseData& value);
-    static holder::api::ProjectCalendarResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectCalendarResponse> {
-    static json encode(const holder::api::ProjectCalendarResponse& value);
-    static holder::api::ProjectCalendarResponse decode(const json& value);
-};
 template <> struct codec<holder::api::ProjectListResponse> {
     static json encode(const holder::api::ProjectListResponse& value);
     static holder::api::ProjectListResponse decode(const json& value);
@@ -1069,6 +1057,18 @@ template <> struct codec<holder::api::ProjectDeleteResponseData> {
 template <> struct codec<holder::api::ProjectDeleteResponse> {
     static json encode(const holder::api::ProjectDeleteResponse& value);
     static holder::api::ProjectDeleteResponse decode(const json& value);
+};
+template <> struct codec<holder::api::CalendarCardActivity> {
+    static json encode(const holder::api::CalendarCardActivity& value);
+    static holder::api::CalendarCardActivity decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectCalendarResponseData> {
+    static json encode(const holder::api::ProjectCalendarResponseData& value);
+    static holder::api::ProjectCalendarResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectCalendarResponse> {
+    static json encode(const holder::api::ProjectCalendarResponse& value);
+    static holder::api::ProjectCalendarResponse decode(const json& value);
 };
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
@@ -6145,74 +6145,6 @@ inline holder::api::RecoveryTokenImportAutoResponse codec<holder::api::RecoveryT
     };
 }
 
-inline json codec<holder::api::CalendarCardActivity>::encode(const holder::api::CalendarCardActivity& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    return result;
-}
-inline holder::api::CalendarCardActivity codec<holder::api::CalendarCardActivity>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CalendarCardActivity");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    return holder::api::CalendarCardActivity{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("title")),
-        codec<long long>::decode(value.at("created_at")),
-        codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::ProjectCalendarResponseData>::encode(const holder::api::ProjectCalendarResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["from"] = codec<long long>::encode(value.from);
-    result["to"] = codec<long long>::encode(value.to);
-    result["milestones"] = codec<std::vector<holder::api::Milestone>>::encode(value.milestones);
-    result["created_cards"] = codec<std::vector<holder::api::CalendarCardActivity>>::encode(value.created_cards);
-    result["updated_cards"] = codec<std::vector<holder::api::CalendarCardActivity>>::encode(value.updated_cards);
-    return result;
-}
-inline holder::api::ProjectCalendarResponseData codec<holder::api::ProjectCalendarResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectCalendarResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("from")) throw std::invalid_argument("missing from");
-    if (!value.contains("to")) throw std::invalid_argument("missing to");
-    if (!value.contains("milestones")) throw std::invalid_argument("missing milestones");
-    if (!value.contains("created_cards")) throw std::invalid_argument("missing created_cards");
-    if (!value.contains("updated_cards")) throw std::invalid_argument("missing updated_cards");
-    return holder::api::ProjectCalendarResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<long long>::decode(value.at("from")),
-        codec<long long>::decode(value.at("to")),
-        codec<std::vector<holder::api::Milestone>>::decode(value.at("milestones")),
-        codec<std::vector<holder::api::CalendarCardActivity>>::decode(value.at("created_cards")),
-        codec<std::vector<holder::api::CalendarCardActivity>>::decode(value.at("updated_cards")),
-    };
-}
-
-inline json codec<holder::api::ProjectCalendarResponse>::encode(const holder::api::ProjectCalendarResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectCalendarResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectCalendarResponse codec<holder::api::ProjectCalendarResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectCalendarResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectCalendarResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectCalendarResponseData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::ProjectListResponse>::encode(const holder::api::ProjectListResponse& value) {
     json result = json::object();
     if (value.ok != true) throw std::invalid_argument("invalid ok");
@@ -6428,6 +6360,74 @@ inline holder::api::ProjectDeleteResponse codec<holder::api::ProjectDeleteRespon
     return holder::api::ProjectDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ProjectDeleteResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CalendarCardActivity>::encode(const holder::api::CalendarCardActivity& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::CalendarCardActivity codec<holder::api::CalendarCardActivity>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CalendarCardActivity");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::CalendarCardActivity{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("title")),
+        codec<long long>::decode(value.at("created_at")),
+        codec<long long>::decode(value.at("updated_at")),
+    };
+}
+
+inline json codec<holder::api::ProjectCalendarResponseData>::encode(const holder::api::ProjectCalendarResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["from"] = codec<long long>::encode(value.from);
+    result["to"] = codec<long long>::encode(value.to);
+    result["milestones"] = codec<std::vector<holder::api::Milestone>>::encode(value.milestones);
+    result["created_cards"] = codec<std::vector<holder::api::CalendarCardActivity>>::encode(value.created_cards);
+    result["updated_cards"] = codec<std::vector<holder::api::CalendarCardActivity>>::encode(value.updated_cards);
+    return result;
+}
+inline holder::api::ProjectCalendarResponseData codec<holder::api::ProjectCalendarResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectCalendarResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("from")) throw std::invalid_argument("missing from");
+    if (!value.contains("to")) throw std::invalid_argument("missing to");
+    if (!value.contains("milestones")) throw std::invalid_argument("missing milestones");
+    if (!value.contains("created_cards")) throw std::invalid_argument("missing created_cards");
+    if (!value.contains("updated_cards")) throw std::invalid_argument("missing updated_cards");
+    return holder::api::ProjectCalendarResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<long long>::decode(value.at("from")),
+        codec<long long>::decode(value.at("to")),
+        codec<std::vector<holder::api::Milestone>>::decode(value.at("milestones")),
+        codec<std::vector<holder::api::CalendarCardActivity>>::decode(value.at("created_cards")),
+        codec<std::vector<holder::api::CalendarCardActivity>>::decode(value.at("updated_cards")),
+    };
+}
+
+inline json codec<holder::api::ProjectCalendarResponse>::encode(const holder::api::ProjectCalendarResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectCalendarResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectCalendarResponse codec<holder::api::ProjectCalendarResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectCalendarResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectCalendarResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectCalendarResponseData>::decode(value.at("data")),
     };
 }
 

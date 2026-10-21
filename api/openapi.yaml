@@ -1234,7 +1234,7 @@ paths:
       - name: project_id
         in: query
         required: true
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: from
         in: query
         required: true
@@ -1263,6 +1263,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Project not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
