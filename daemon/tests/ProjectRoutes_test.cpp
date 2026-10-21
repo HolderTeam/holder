@@ -466,11 +466,18 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     REQUIRE(res.result() == http::status::bad_request);
   }
 
-  SECTION("sync-status bad request catch with closed db") {
+  SECTION("sync-status storage failure is an internal error") {
     db.close();
     auto [status, payload] = call(http::verb::get, "/projects/proj-1/git/sync-status");
-    REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(status == http::status::internal_server_error);
+    REQUIRE(payload["ok"] == false);
+  }
+
+  SECTION("sync-status is served by the generated route") {
+    auto req = make_request(http::verb::get, "/projects/proj-1/git/sync-status");
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::ok);
   }
 
   SECTION("sync-status returns default sync object when no row exists") {
@@ -674,10 +681,10 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
-  req = make_request(http::verb::get, "/projects/proj-1/git/sync-status");
+  req = make_request(http::verb::get, "/projects/proj-1/encryption-check");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1/git/sync-status", req, res, db, nullptr));
+      "/projects/proj-1/encryption-check", req, res, db, nullptr));
   REQUIRE(res.result() == http::status::ok);
 
   // Hand-served operations are declared for the contract; the host serves them.

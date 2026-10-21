@@ -180,14 +180,6 @@ ProjectGitSyncOperationResponse post_projects_project_id_git_sync(
     std::string project_id,
     std::optional<ProjectGitSyncRequest> request);
 
-RIG_ROUTE(GET, "/projects/{project_id}/git/sync-status")
-RIG_SUMMARY("Get persisted project Git sync status")
-RIG_RESPONSE_DESCRIPTION("Current persisted sync state")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Sync status is unavailable")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-ProjectGitSyncStatusResponse get_projects_project_id_git_sync_status(std::string project_id);
-
 RIG_ROUTE(POST, "/projects/{project_id}/recovery-token/export")
 RIG_SUMMARY("Export project recovery token")
 RIG_RESPONSE_DESCRIPTION("OK")

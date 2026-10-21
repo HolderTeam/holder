@@ -189,51 +189,6 @@ nlohmann::json project_sync_operation_payload(
   return payload;
 }
 
-nlohmann::json project_sync_to_json(const std::optional<holder::model::ProjectSyncState>& sync_opt
-) {
-  const auto as_json_or_null = [](const auto& value) -> nlohmann::json {
-    return value.has_value() ? nlohmann::json(value.value()) : nlohmann::json(nullptr);
-  };
-
-  if (!sync_opt.has_value()) {
-    return {
-        {"last_commit_at", nullptr},
-        {"last_push_at", nullptr},
-        {"last_pull_at", nullptr},
-        {"uncommitted_changes_count", 0}, // LCOV_EXCL_LINE
-        {"unpushed_commits_count", 0}, // LCOV_EXCL_LINE
-        {"last_push_status", nullptr},
-        {"last_pull_status", nullptr},
-        {"last_sync_error", nullptr},
-        {"last_sync_error_at", nullptr},
-        {"retry_count", 0}, // LCOV_EXCL_LINE
-        {"next_retry_at", nullptr},
-        {"pull_retry_count", 0}, // LCOV_EXCL_LINE
-        {"next_pull_retry_at", nullptr},
-        {"updated_at", nullptr},
-    };
-  }
-
-  const auto& sync = sync_opt.value();
-  return {
-      {"last_commit_at", as_json_or_null(sync.last_commit_at)},
-      {"last_push_at", as_json_or_null(sync.last_push_at)},
-      {"last_pull_at", as_json_or_null(sync.last_pull_at)},
-      {"uncommitted_changes_count", sync.uncommitted_changes_count},
-      {"unpushed_commits_count", sync.unpushed_commits_count},
-      {"last_push_status", as_json_or_null(sync.last_push_status)},
-      {"last_pull_status", as_json_or_null(sync.last_pull_status)},
-      {"last_sync_error", as_json_or_null(sync.last_sync_error)},
-      {"last_sync_error_at", as_json_or_null(sync.last_sync_error_at)},
-      {"retry_count", sync.retry_count},
-      {"next_retry_at", as_json_or_null(sync.next_retry_at)},
-      {"pull_retry_count", sync.pull_retry_count},
-      {"next_pull_retry_at", as_json_or_null(sync.next_pull_retry_at)},
-      {"updated_at", sync.updated_at > 0 ? nlohmann::json(sync.updated_at) : nlohmann::json(nullptr)
-      },
-  };
-}
-
 // LCOV_EXCL_START
 http::response<http::string_body> privacy_error_response(const holder::privacy::PrivacyError& ex) {
   http::status status = http::status::bad_request;
@@ -605,25 +560,6 @@ bool handle_project_routes(
         res = support::json_response(http::status::ok, payload);
       } catch (const holder::privacy::PrivacyError& ex) {
         res = privacy_error_response(ex);
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      }
-    } else if (subpath == "/git/sync-status" && req.method() == http::verb::get) {
-      try {
-        holder::project::ProjectRepo repo(db);
-        holder::project::ProjectSyncRepo sync_repo(db);
-        const auto project_opt = repo.get(project_id);
-        if (!project_opt.has_value()) {
-          res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-          return true;
-        }
-        nlohmann::json payload;
-        payload["ok"] = true;
-        payload["data"] = {
-            {"project_id", project_id},
-            {"sync", project_sync_to_json(sync_repo.get(project_id))},
-        };
-        res = support::json_response(http::status::ok, payload);
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }

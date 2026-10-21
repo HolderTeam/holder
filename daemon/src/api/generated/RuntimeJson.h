@@ -646,14 +646,6 @@ template <> struct codec<holder::api::ProjectGitSyncRequest> {
     static json encode(const holder::api::ProjectGitSyncRequest& value);
     static holder::api::ProjectGitSyncRequest decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectGitSyncStatusResponseData> {
-    static json encode(const holder::api::ProjectGitSyncStatusResponseData& value);
-    static holder::api::ProjectGitSyncStatusResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncStatusResponse> {
-    static json encode(const holder::api::ProjectGitSyncStatusResponse& value);
-    static holder::api::ProjectGitSyncStatusResponse decode(const json& value);
-};
 template <> struct codec<holder::api::ProjectRecoveryTokenExportResponseData> {
     static json encode(const holder::api::ProjectRecoveryTokenExportResponseData& value);
     static holder::api::ProjectRecoveryTokenExportResponseData decode(const json& value);
@@ -1025,6 +1017,14 @@ template <> struct codec<holder::api::ProjectListResponse> {
 template <> struct codec<holder::api::ProjectGetResponse> {
     static json encode(const holder::api::ProjectGetResponse& value);
     static holder::api::ProjectGetResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncStatusResponseData> {
+    static json encode(const holder::api::ProjectGitSyncStatusResponseData& value);
+    static holder::api::ProjectGitSyncStatusResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncStatusResponse> {
+    static json encode(const holder::api::ProjectGitSyncStatusResponse& value);
+    static holder::api::ProjectGitSyncStatusResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectCreateRequest> {
     static json encode(const holder::api::ProjectCreateRequest& value);
@@ -4050,40 +4050,6 @@ inline holder::api::ProjectGitSyncRequest codec<holder::api::ProjectGitSyncReque
     };
 }
 
-inline json codec<holder::api::ProjectGitSyncStatusResponseData>::encode(const holder::api::ProjectGitSyncStatusResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["sync"] = codec<holder::api::ProjectSync>::encode(value.sync);
-    return result;
-}
-inline holder::api::ProjectGitSyncStatusResponseData codec<holder::api::ProjectGitSyncStatusResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncStatusResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("sync")) throw std::invalid_argument("missing sync");
-    return holder::api::ProjectGitSyncStatusResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<holder::api::ProjectSync>::decode(value.at("sync")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncStatusResponse>::encode(const holder::api::ProjectGitSyncStatusResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectGitSyncStatusResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectGitSyncStatusResponse codec<holder::api::ProjectGitSyncStatusResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncStatusResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectGitSyncStatusResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectGitSyncStatusResponseData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::ProjectRecoveryTokenExportResponseData>::encode(const holder::api::ProjectRecoveryTokenExportResponseData& value) {
     json result = json::object();
     result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -6178,6 +6144,40 @@ inline holder::api::ProjectGetResponse codec<holder::api::ProjectGetResponse>::d
     return holder::api::ProjectGetResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::Project>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncStatusResponseData>::encode(const holder::api::ProjectGitSyncStatusResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["sync"] = codec<holder::api::ProjectSync>::encode(value.sync);
+    return result;
+}
+inline holder::api::ProjectGitSyncStatusResponseData codec<holder::api::ProjectGitSyncStatusResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncStatusResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("sync")) throw std::invalid_argument("missing sync");
+    return holder::api::ProjectGitSyncStatusResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<holder::api::ProjectSync>::decode(value.at("sync")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncStatusResponse>::encode(const holder::api::ProjectGitSyncStatusResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectGitSyncStatusResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGitSyncStatusResponse codec<holder::api::ProjectGitSyncStatusResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncStatusResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGitSyncStatusResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectGitSyncStatusResponseData>::decode(value.at("data")),
     };
 }
 

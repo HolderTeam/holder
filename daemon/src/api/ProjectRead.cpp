@@ -140,4 +140,11 @@ ProjectGetResponse get_project(holder::platform::Db& db, std::string project_id)
   return {true, project_response(*project, sync_repo.get(project_id))};
 }
 
+ProjectGitSyncStatusResponse get_project_git_sync_status(holder::platform::Db& db,
+                                                         std::string project_id) {
+  if (!holder::project::ProjectRepo(db).get(project_id)) throw ProjectReadNotFound{};
+  auto sync = project_sync_response(holder::project::ProjectSyncRepo(db).get(project_id));
+  return {true, {std::move(project_id), std::move(sync)}};
+}
+
 } // namespace holder::api

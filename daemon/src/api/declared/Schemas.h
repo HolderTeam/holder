@@ -728,16 +728,6 @@ struct RIG_OPEN_RECORD ProjectGitSyncRequest {
   std::optional<std::optional<bool>> set_upstream RIG_FIELD_DESCRIPTION("Optional push behavior; defaults to true.") RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncStatusResponseData {
-  std::string project_id;
-  ProjectSync sync;
-};
-
-struct RIG_OPEN_RECORD ProjectGitSyncStatusResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectGitSyncStatusResponseData data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectRecoveryTokenExportResponseData {
   std::string project_id;
   std::string key_id;

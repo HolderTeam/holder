@@ -3149,7 +3149,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ProjectGitSyncStatusResponse'}
         '400':
-          description: Sync status is unavailable
+          description: Bad request
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3160,6 +3160,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Project not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}

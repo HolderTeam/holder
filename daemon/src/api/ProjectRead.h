@@ -23,6 +23,16 @@ struct RIG_OPEN_RECORD ProjectGetResponse {
   Project data;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncStatusResponseData {
+  std::string project_id;
+  ProjectSync sync;
+};
+
+struct RIG_OPEN_RECORD ProjectGitSyncStatusResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  ProjectGitSyncStatusResponseData data;
+};
+
 struct ProjectReadNotFound : std::runtime_error {
   ProjectReadNotFound() : std::runtime_error("Project not found.") {}
 };
@@ -46,5 +56,12 @@ RIG_RESPONSE_DESCRIPTION("OK")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", ProjectReadNotFound)
 ProjectGetResponse get_project(holder::platform::Db& db RIG_CONTEXT,
                                std::string project_id);
+
+RIG_ROUTE(GET, "/projects/{project_id}/git/sync-status")
+RIG_SUMMARY("Get persisted project Git sync status")
+RIG_RESPONSE_DESCRIPTION("Current persisted sync state")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found", ProjectReadNotFound)
+ProjectGitSyncStatusResponse get_project_git_sync_status(holder::platform::Db& db RIG_CONTEXT,
+                                                         std::string project_id);
 
 } // namespace holder::api
