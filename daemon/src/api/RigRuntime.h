@@ -16,6 +16,7 @@
 #include "api/ProjectUpdate.h"
 #include "api/ProjectDelete.h"
 #include "api/Calendar.h"
+#include "api/ProjectMilestones.h"
 #include "api/StaticFiles.h"
 #include "api/declared/Ai.h"
 #include "api/declared/Cards.h"

@@ -215,20 +215,6 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 ProjectEncryptionCheckResponse get_projects_project_id_encryption_check(std::string project_id);
 
-RIG_ROUTE(GET, "/projects/{project_id}/milestones-with-dates")
-RIG_SUMMARY("Query project milestones by a labelled date role")
-RIG_DESCRIPTION("Returns each matching milestone once with its complete ordered dates array. Calendar days and instants are queried separately; both range bounds are inclusive. Milestones on trashed cards are excluded. Roles are free-form, and this endpoint does not infer outstanding or completion state.")
-RIG_RESPONSE_DESCRIPTION("Matching milestones")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid role or range")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-MilestoneWithDatesListResponse get_projects_project_id_milestones_with_dates(
-    std::string project_id,
-    std::string role RIG_QUERY RIG_MIN_LENGTH(1),
-    std::string value_type RIG_QUERY RIG_STRING_VALUES("date", "datetime"),
-    std::string from RIG_QUERY RIG_PARAMETER_DESCRIPTION("YYYY-MM-DD when value_type=date; Unix epoch seconds when value_type=datetime."),
-    std::string to RIG_QUERY RIG_PARAMETER_DESCRIPTION("Inclusive upper bound in the same form as from."));
-
 RIG_ROUTE(DELETE, "/projects/{project_id}/trash/{type}/{id}")
 RIG_SUMMARY("Permanently remove a trashed item from one project")
 RIG_DESCRIPTION("The item must belong to the named project and still be in Trash. For cards, older Git revisions remain available; this operation does not erase repository history.")

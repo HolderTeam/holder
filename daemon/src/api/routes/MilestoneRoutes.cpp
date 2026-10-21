@@ -5,7 +5,6 @@
 
 #include "card/CardRepo.h"
 #include "card/MilestoneRepo.h"
-#include "project/ProjectRepo.h"
 
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
@@ -105,31 +104,6 @@ void validate_labelled_fields(const nlohmann::json& body) {
   }
 }
 
-std::optional<long long> parse_required_epoch(
-    const std::string& raw,
-    const std::string& name,
-    http::response<http::string_body>& res
-) {
-  if (raw.empty()) {
-    res =
-        support::error_response(http::status::bad_request, "bad_request", "Missing " + name + ".");
-    return std::nullopt;
-  }
-  try {
-    std::size_t consumed = 0;
-    const auto value = std::stoll(raw, &consumed);
-    if (consumed != raw.size()) throw std::invalid_argument("trailing characters");
-    return value;
-  } catch (const std::exception&) {
-    res = support::error_response(
-        http::status::bad_request,
-        "bad_request",
-        name + " must be an epoch-second integer."
-    );
-    return std::nullopt;
-  }
-}
-
 std::optional<std::string> nullable_string(const nlohmann::json& body, const std::string& name) {
   if (!body.contains(name) || body.at(name).is_null()) return std::nullopt;
   if (!body.at(name).is_string()) throw std::invalid_argument(name + " must be a string or null.");
@@ -174,60 +148,8 @@ bool handle_milestone_routes(
     holder::platform::Db& db,
     holder::card::CardStore* card_store,
     const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    const std::function<std::string(const std::string&)>& /*param_get*/
 ) {
-  static const std::string project_prefix = "/projects/";
-  static const std::string project_suffix = "/milestones-with-dates";
-  if (path.rfind(project_prefix, 0) == 0 &&
-      path.size() > project_prefix.size() + project_suffix.size() &&
-      path.ends_with(project_suffix) && req.method() == http::verb::get) {
-    const auto project_id = path.substr(
-        project_prefix.size(), path.size() - project_prefix.size() - project_suffix.size()
-    );
-    if (project_id.find('/') != std::string::npos) return false;
-    if (!holder::project::ProjectRepo(db).get(project_id).has_value()) {
-      res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-      return true;
-    }
-    const auto role = param_get("role");
-    const auto value_type = param_get("value_type");
-    if (role.empty() || (value_type != "date" && value_type != "datetime")) {
-      res = support::error_response(
-          http::status::bad_request, "bad_request",
-          "role and value_type (date or datetime) are required."
-      );
-      return true;
-    }
-    try {
-      std::vector<holder::model::Milestone> matches;
-      if (value_type == "date") {
-        const auto from = param_get("from");
-        const auto to = param_get("to");
-        if (from.size() != 10 || to.size() != 10)
-          throw std::invalid_argument("from and to must use YYYY-MM-DD for date queries.");
-        holder::model::milestone_calendar_day(from);
-        holder::model::milestone_calendar_day(to);
-        if (from > to) throw std::invalid_argument("from must not be after to.");
-        matches = holder::card::MilestoneRepo(db).list_days_in_range(project_id, role, from, to);
-      } else {
-        const auto from = parse_required_epoch(param_get("from"), "from", res);
-        if (!from.has_value()) return true;
-        const auto to = parse_required_epoch(param_get("to"), "to", res);
-        if (!to.has_value()) return true;
-        if (*from > *to) throw std::invalid_argument("from must not be after to.");
-        matches = holder::card::MilestoneRepo(db).list_instants_in_range(
-            project_id, role, *from, *to
-        );
-      }
-      nlohmann::json data = nlohmann::json::array();
-      for (const auto& milestone : matches) data.push_back(milestone_with_dates_json(milestone));
-      res = support::json_response(http::status::ok, {{"ok", true}, {"data", std::move(data)}});
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
-    return true;
-  }
-
   std::string card_id;
   std::optional<std::string> milestone_id;
   bool with_dates = false;

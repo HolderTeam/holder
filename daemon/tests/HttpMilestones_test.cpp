@@ -442,6 +442,9 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
       call(http::verb::get, "/cards//milestones", &cards, "{}").second == http::status::bad_request
   );
   CHECK_FALSE(call(http::verb::get, "/calendar", &cards, "").first);
+  CHECK_FALSE(
+      call(http::verb::get, "/projects/proj-1/milestones-with-dates", &cards, "").first
+  );
   for (auto method : {http::verb::post, http::verb::patch, http::verb::delete_}) {
     const auto path = method == http::verb::post ? "/cards/card-one/milestones"
                                                  : "/cards/card-one/milestones/id";
@@ -590,5 +593,114 @@ TEST_CASE("Generated calendar route keeps its range, filters and errors", "[mile
     db.exec("DROP TABLE milestones");
     CHECK(calendar("/calendar?project_id=proj-1&from=0&to=1").first ==
           http::status::internal_server_error);
+  }
+}
+
+TEST_CASE(
+    "Generated project milestone query keeps its ranges, filters and errors",
+    "[milestones][milestones-with-dates]"
+) {
+  namespace http = boost::beast::http;
+  const auto root = make_temp_dir();
+  auto db = open_db_with_schema(root / "holder.db");
+  create_project(db, "proj-1", (root / "project").string());
+  holder::card::CardStore cards(db, nullptr);
+  auto query = [&](const std::string& target) {
+    http::request<http::string_body> request{http::verb::get, target, 11};
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
+    return std::pair{response.result(), nlohmann::json::parse(response.body())};
+  };
+  auto add_milestone = [&](const std::string& milestone_id,
+                           const std::string& card_id,
+                           std::vector<holder::model::MilestoneDate> dates) {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = milestone_id;
+    milestone.project_id = "proj-1";
+    milestone.card_id = card_id;
+    milestone.dates = std::move(dates);
+    milestone.created_at = 10;
+    milestone.updated_at = 10;
+    cards.add_milestone(milestone, 10);
+  };
+
+  cards.create(card("card-a", "Live", 10, 10), "Live\n");
+  cards.create(card("card-b", "Trashed", 10, 10), "Trashed\n");
+  const std::vector<holder::model::MilestoneDate> dates{
+      {"deadline", std::string("2026-06-01"), std::nullopt},
+      {"occurred", std::nullopt, std::string("1970-01-01T00:01:40Z")},
+  };
+  add_milestone("milestone-1", "card-a", dates);
+  add_milestone("milestone-2", "card-a", {{"deadline", std::string("2026-06-04"), std::nullopt}});
+  add_milestone("milestone-3", "card-b", dates);
+  cards.trash("card-b", 20);
+  const std::string base = "/projects/proj-1/milestones-with-dates";
+
+  SECTION("day and instant bounds are inclusive and trashed cards are left out") {
+    const auto [day_status, days] =
+        query(base + "?role=deadline&value_type=date&from=2026-05-01&to=2026-06-01");
+    REQUIRE(day_status == http::status::ok);
+    REQUIRE(days["ok"] == true);
+    REQUIRE(days["data"].size() == 1);
+    CHECK(days["data"][0] == nlohmann::json{
+        {"milestone_id", "milestone-1"},
+        {"card_id", "card-a"},
+        {"dates",
+         {{{"role", "deadline"}, {"date", "2026-06-01"}},
+          {{"role", "occurred"}, {"datetime", "1970-01-01T00:01:40Z"}}}},
+        {"kind", nullptr},
+        {"description", nullptr},
+        {"created_at", 10},
+        {"updated_at", 10},
+    });
+
+    const auto [instant_status, instants] =
+        query(base + "?role=occurred&value_type=datetime&from=100&to=100");
+    REQUIRE(instant_status == http::status::ok);
+    REQUIRE(instants["data"].size() == 1);
+    CHECK(instants["data"][0]["milestone_id"] == "milestone-1");
+
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=101&to=200")
+              .second["data"]
+              .empty());
+  }
+
+  SECTION("invalid queries are bad requests") {
+    for (const std::string parameters :
+         {"?value_type=date&from=2026-06-01&to=2026-06-01",
+          "?role=&value_type=date&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&value_type=week&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&value_type=date&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-6-1&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-02-30&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-06-02&to=2026-06-01",
+          "?role=occurred&value_type=datetime&from=&to=1",
+          "?role=occurred&value_type=datetime&from=0&to=bad",
+          "?role=occurred&value_type=datetime&from=0&to=1trailing",
+          "?role=occurred&value_type=datetime&from=2&to=1"}) {
+      CAPTURE(parameters);
+      const auto [status, body] = query(base + parameters);
+      CHECK(status == http::status::bad_request);
+      CHECK(body["ok"] == false);
+      CHECK(body["error"]["code"] == "bad_request");
+    }
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=&to=1")
+              .second["error"]["message"] == "Missing from.");
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=0&to=bad")
+              .second["error"]["message"] == "to must be an epoch-second integer.");
+    CHECK(query(base + "?role=deadline&value_type=date&from=2026-6-1&to=2026-06-01")
+              .second["error"]["message"] == "from and to must use YYYY-MM-DD for date queries.");
+    CHECK(query(base + "?role=deadline&value_type=date&from=2026-06-02&to=2026-06-01")
+              .second["error"]["message"] == "from must not be after to.");
+  }
+
+  SECTION("an unknown project is not found") {
+    const auto [status, body] = query(
+        "/projects/missing/milestones-with-dates?role=deadline&value_type=date&from=2026-06-01&to=2026-06-01"
+    );
+    CHECK(status == http::status::not_found);
+    CHECK(body["error"]["code"] == "not_found");
+    CHECK(body["error"]["message"] == "Project not found.");
   }
 }

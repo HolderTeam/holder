@@ -3529,6 +3529,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/recovery-token/export:
     post:
       summary: Export project recovery token

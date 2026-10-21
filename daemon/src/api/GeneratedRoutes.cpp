@@ -6,6 +6,7 @@
 #include "api/CardReferenceResolve.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectDelete.h"
+#include "api/ProjectMilestones.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectUpdate.h"
 #include "api/ProjectTags.h"
