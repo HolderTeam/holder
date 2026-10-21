@@ -335,39 +335,6 @@ struct RIG_OPEN_RECORD CardListItem {
   std::optional<int> child_count RIG_FIELD_DESCRIPTION("Live children, present when requested (count=true, or include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD CardPageItem : CardListItem {
-  std::optional<std::string> content RIG_FIELD_DESCRIPTION("The card's body. Present only when include_content is true.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD CardPage {
-  std::vector<CardPageItem> items;
-  std::optional<std::string> next_cursor RIG_FIELD_DESCRIPTION("Continue with this cursor, or null when there are no more results.") RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD CardPageResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardPage data;
-};
-
-struct RIG_VALUE_TYPE RIG_INLINE_RECORD ParentRoots {
-  std::string value RIG_STRING_VALUES("roots");
-};
-
-struct RIG_VALUE_TYPE RIG_INLINE_RECORD ParentUuid {
-  std::string value RIG_PATTERN("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[47][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") RIG_FORMAT("uuid");
-};
-
-struct RIG_OPEN_RECORD CardBreadcrumb {
-  std::string kind RIG_STRING_VALUES("project", "card");
-  std::string id;
-  std::string title;
-};
-
-struct RIG_OPEN_RECORD CardBreadcrumbsResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<CardBreadcrumb> data RIG_FIELD_DESCRIPTION("Project first, then live ancestor cards from root to the requested card.");
-};
-
 struct RIG_OPEN_RECORD CardHistoryAuthor {
   std::string name;
   std::string email;

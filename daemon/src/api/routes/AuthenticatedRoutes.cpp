@@ -63,7 +63,7 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
         handle_milestone_routes(path, req, res, db, card_store, uuid_v4, decoded_param))
       return {};
     if (resource == "projects" &&
-        handle_project_card_routes(path, req, res, db, decoded_param, card_store))
+        handle_project_card_routes(path, req, res, db, card_store))
       return {};
     if (resource == "projects" && handle_history_routes(path, req, res, db, param, card_store))
       return {};

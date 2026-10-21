@@ -76,10 +76,6 @@ struct CardReadNotFound : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
-struct CardStoreUnavailable : CodedError {
-  CardStoreUnavailable() : CodedError("not_implemented", "Card store unavailable.") {}
-};
-
 RIG_ROUTE(GET, "/cards")
 RIG_SUMMARY("List cards")
 RIG_DESCRIPTION("With tag, returns the project's live cards carrying that tag and ignores the other filters.")

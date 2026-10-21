@@ -407,6 +407,7 @@ add_executable(holderd
   src/api/ProjectCreate.cpp
   src/api/ProjectDelete.cpp
   src/api/MilestonesWithDates.cpp
+  src/api/ProjectCards.cpp
   src/api/ProjectUpdate.cpp
   src/api/ProviderCredentials.cpp
   src/api/ProviderSettings.cpp

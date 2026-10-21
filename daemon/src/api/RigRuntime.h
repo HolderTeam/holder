@@ -25,6 +25,7 @@
 #include "api/RunnerPull.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectCreate.h"
+#include "api/ProjectCards.h"
 #include "api/ProjectUpdate.h"
 #include "api/ProjectDelete.h"
 #include "api/Calendar.h"

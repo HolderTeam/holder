@@ -170,6 +170,7 @@ add_executable(holder_daemon_tests
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp
   ../src/api/MilestonesWithDates.cpp
+  ../src/api/ProjectCards.cpp
   ../src/api/ProjectUpdate.cpp
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
