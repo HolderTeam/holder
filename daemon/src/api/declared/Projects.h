@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 
 namespace holder::api {
 
@@ -72,6 +73,27 @@ RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to write an encrypted
 HierarchyRepairResponse post_projects_project_id_repair_hierarchy(
     std::string project_id,
     std::optional<HierarchyRepairRequest> request);
+
+RIG_ROUTE(GET, "/projects/{project_id}/cards")
+RIG_SUMMARY("Page through a project's live cards")
+RIG_DESCRIPTION("Filters combine. Each page reads current data; iteration is not a snapshot.")
+RIG_RESPONSE_DESCRIPTION("A page of matching cards")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid parameter or cursor, including a cursor from a different query, or a privacy error reading content")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
+RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
+RIG_ERROR_RESPONSE(501, ErrorResponse, "Content pages unavailable because the daemon has no card store")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to read an encrypted project's content is unavailable")
+RIG_ERROR_RESPONSE(500, ErrorResponse, "Internal server error")
+CardPageResponse get_projects_project_id_cards(
+    std::string project_id,
+    std::optional<std::string> tag RIG_QUERY RIG_MIN_LENGTH(1) RIG_PARAMETER_DESCRIPTION("Exact tag match, case-insensitive, without the leading"),
+    std::optional<std::variant<ParentRoots, ParentUuid>> parent RIG_QUERY RIG_PARAMETER_DESCRIPTION("Omit for all hierarchy levels; roots selects root cards; a card ID selects its immediate children."),
+    std::string order RIG_QUERY RIG_STRING_VALUES("card_id_asc", "updated_desc", "sort_key_asc") RIG_DEFAULT("card_id_asc") RIG_PARAMETER_DESCRIPTION("updated_desc breaks ties by descending card ID. sort_key_asc follows sibling order and breaks ties by ascending card ID; use it with parent=roots or a parent card ID."),
+    int limit RIG_QUERY RIG_RANGE(1, 5000) RIG_DEFAULT(200),
+    std::optional<std::string> cursor RIG_QUERY RIG_MIN_LENGTH(1) RIG_MAX_LENGTH(8192) RIG_PARAMETER_DESCRIPTION("Continuation from next_cursor. Keep the project, filters and ordering unchanged."),
+    bool include_content RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include each card's body. The page is selected and every body read under one project lock, and the whole page fails if a body cannot be read (for example a locked encrypted project). limit is at most 1000 when true. The cursor is the same with or without content."),
+    bool include_child_count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include each returned live card's immediate live child count. The cursor is the same with or without counts."));
 
 RIG_ROUTE(GET, "/projects/{project_id}/cards/{card_id}/breadcrumbs")
 RIG_SUMMARY("Read a live card's project-to-card breadcrumb trail")

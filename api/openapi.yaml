@@ -72,7 +72,6 @@ components:
       type: object
       required: [run_id]
       description: Named run events share run_id. Fields vary by event and provider.
-      additionalProperties: true
       properties:
         run_id:
           type: string

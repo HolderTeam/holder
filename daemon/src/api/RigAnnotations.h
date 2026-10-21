@@ -29,6 +29,8 @@
 #define RIG_SUCCESS_RESPONSE(status, description)
 #define RIG_OPERATION_ID(text)
 #define RIG_RESPONSE_HEADER(name, description)
+#define RIG_HEADER(name)
+#define RIG_SSE_EVENT(name, body)
 #define RIG_DEFAULT(value)
 #define RIG_FIELD_DESCRIPTION(text)
 #define RIG_OMIT_EMPTY

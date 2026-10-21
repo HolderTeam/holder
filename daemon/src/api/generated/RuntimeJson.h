@@ -9,6 +9,8 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace rig_json {
@@ -81,6 +83,33 @@ template <typename T> struct codec<std::map<std::string, T>> {
         for (auto it = value.begin(); it != value.end(); ++it)
             result.emplace(it.key(), codec<T>::decode(it.value()));
         return result;
+    }
+};
+// OpenAPI oneOf: exactly one alternative must accept the value.
+template <typename... Ts> struct codec<std::variant<Ts...>> {
+    static json encode(const std::variant<Ts...>& value) {
+        return std::visit([](const auto& item) {
+            return codec<std::decay_t<decltype(item)>>::encode(item);
+        }, value);
+    }
+    static std::variant<Ts...> decode(const json& value) {
+        std::optional<std::variant<Ts...>> result;
+        int matches = 0;
+        (try_alternative<Ts>(value, result, matches), ...);
+        if (matches == 0) throw std::invalid_argument("no alternative matches");
+        if (matches > 1) throw std::invalid_argument("several alternatives match");
+        return std::move(*result);
+    }
+    template <typename T>
+    static void try_alternative(const json& value, std::optional<std::variant<Ts...>>& result,
+                                int& matches) {
+        try {
+            T decoded = codec<T>::decode(value);
+            if (!result) result.emplace(std::in_place_type<T>, std::move(decoded));
+            ++matches;
+        } catch (const std::invalid_argument&) {
+        } catch (const json::exception&) {
+        }
     }
 };
 template <typename T> struct codec<std::vector<T>> {
@@ -317,6 +346,14 @@ template <> struct codec<holder::api::AiLocalModelConfigUpdateRequest> {
     static json encode(const holder::api::AiLocalModelConfigUpdateRequest& value);
     static holder::api::AiLocalModelConfigUpdateRequest decode(const json& value);
 };
+template <> struct codec<holder::api::AiRunEventData> {
+    static json encode(const holder::api::AiRunEventData& value);
+    static holder::api::AiRunEventData decode(const json& value);
+};
+template <> struct codec<holder::api::AiRunCreateRequest> {
+    static json encode(const holder::api::AiRunCreateRequest& value);
+    static holder::api::AiRunCreateRequest decode(const json& value);
+};
 template <> struct codec<holder::api::AiRunItem> {
     static json encode(const holder::api::AiRunItem& value);
     static holder::api::AiRunItem decode(const json& value);
@@ -496,6 +533,30 @@ template <> struct codec<holder::api::HierarchyRepairResponse> {
 template <> struct codec<holder::api::HierarchyRepairRequest> {
     static json encode(const holder::api::HierarchyRepairRequest& value);
     static holder::api::HierarchyRepairRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardListItem> {
+    static json encode(const holder::api::CardListItem& value);
+    static holder::api::CardListItem decode(const json& value);
+};
+template <> struct codec<holder::api::CardPageItem> {
+    static json encode(const holder::api::CardPageItem& value);
+    static holder::api::CardPageItem decode(const json& value);
+};
+template <> struct codec<holder::api::CardPage> {
+    static json encode(const holder::api::CardPage& value);
+    static holder::api::CardPage decode(const json& value);
+};
+template <> struct codec<holder::api::CardPageResponse> {
+    static json encode(const holder::api::CardPageResponse& value);
+    static holder::api::CardPageResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ParentRoots> {
+    static json encode(const holder::api::ParentRoots& value);
+    static holder::api::ParentRoots decode(const json& value);
+};
+template <> struct codec<holder::api::ParentUuid> {
+    static json encode(const holder::api::ParentUuid& value);
+    static holder::api::ParentUuid decode(const json& value);
 };
 template <> struct codec<holder::api::CardBreadcrumb> {
     static json encode(const holder::api::CardBreadcrumb& value);
@@ -729,10 +790,6 @@ template <> struct codec<holder::api::MilestoneUpdateRequest> {
     static json encode(const holder::api::MilestoneUpdateRequest& value);
     static holder::api::MilestoneUpdateRequest decode(const json& value);
 };
-template <> struct codec<holder::api::CardListItem> {
-    static json encode(const holder::api::CardListItem& value);
-    static holder::api::CardListItem decode(const json& value);
-};
 template <> struct codec<holder::api::CardListResponse> {
     static json encode(const holder::api::CardListResponse& value);
     static holder::api::CardListResponse decode(const json& value);
@@ -940,6 +997,14 @@ template <> struct codec<holder::api::EventCheckpoint> {
 template <> struct codec<holder::api::EventCheckpointResponse> {
     static json encode(const holder::api::EventCheckpointResponse& value);
     static holder::api::EventCheckpointResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ChangeEventData> {
+    static json encode(const holder::api::ChangeEventData& value);
+    static holder::api::ChangeEventData decode(const json& value);
+};
+template <> struct codec<holder::api::EventResyncData> {
+    static json encode(const holder::api::EventResyncData& value);
+    static holder::api::EventResyncData decode(const json& value);
 };
 template <> struct codec<holder::api::AssetImportJob> {
     static json encode(const holder::api::AssetImportJob& value);
@@ -2149,6 +2214,92 @@ inline holder::api::AiLocalModelConfigUpdateRequest codec<holder::api::AiLocalMo
     };
 }
 
+inline json codec<holder::api::AiRunEventData>::encode(const holder::api::AiRunEventData& value) {
+    json result = json::object();
+    result["run_id"] = codec<std::string>::encode(value.run_id);
+    if (value.status) {
+        result["status"] = codec<std::optional<std::string>>::encode(value.status);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.delta) {
+        result["delta"] = codec<std::optional<std::string>>::encode(value.delta);
+    }
+    if (value.message) {
+        result["message"] = codec<std::optional<std::string>>::encode(value.message);
+    }
+    if (value.error) {
+        result["error"] = codec<std::optional<std::string>>::encode(value.error);
+    }
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
+    }
+    if (value.model_ref) {
+        result["model_ref"] = codec<std::optional<std::string>>::encode(value.model_ref);
+    }
+    if (value.model) {
+        result["model"] = codec<std::optional<std::string>>::encode(value.model);
+    }
+    if (value.provider) {
+        result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
+    }
+    return result;
+}
+inline holder::api::AiRunEventData codec<holder::api::AiRunEventData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunEventData");
+    if (!value.contains("run_id")) throw std::invalid_argument("missing run_id");
+    return holder::api::AiRunEventData{
+        codec<std::string>::decode(value.at("run_id")),
+        value.contains("status") ? codec<std::optional<std::string>>::decode(value.at("status")) : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("delta") ? codec<std::optional<std::string>>::decode(value.at("delta")) : std::nullopt,
+        value.contains("message") ? codec<std::optional<std::string>>::decode(value.at("message")) : std::nullopt,
+        value.contains("error") ? codec<std::optional<std::string>>::decode(value.at("error")) : std::nullopt,
+        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
+        value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
+        value.contains("model") ? codec<std::optional<std::string>>::decode(value.at("model")) : std::nullopt,
+        value.contains("provider") ? codec<std::optional<std::string>>::decode(value.at("provider")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiRunCreateRequest>::encode(const holder::api::AiRunCreateRequest& value) {
+    json result = json::object();
+    result["prompt"] = codec<std::string>::encode(value.prompt);
+    if (value.mode) {
+        result["mode"] = codec<std::optional<std::string>>::encode(value.mode);
+    }
+    if (value.model) {
+        result["model"] = codec<std::optional<std::string>>::encode(value.model);
+    }
+    if (value.provider) {
+        result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
+    }
+    if (value.project_id) {
+        result["project_id"] = codec<std::optional<std::string>>::encode(value.project_id);
+    }
+    if (value.thread_id) {
+        result["thread_id"] = codec<std::optional<std::string>>::encode(value.thread_id);
+    }
+    if (value.context) {
+        result["context"] = codec<std::optional<nlohmann::json>>::encode(value.context);
+    }
+    return result;
+}
+inline holder::api::AiRunCreateRequest codec<holder::api::AiRunCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunCreateRequest");
+    if (!value.contains("prompt")) throw std::invalid_argument("missing prompt");
+    return holder::api::AiRunCreateRequest{
+        codec<std::string>::decode(value.at("prompt")),
+        value.contains("mode") ? codec<std::optional<std::string>>::decode(value.at("mode")) : std::nullopt,
+        value.contains("model") ? codec<std::optional<std::string>>::decode(value.at("model")) : std::nullopt,
+        value.contains("provider") ? codec<std::optional<std::string>>::decode(value.at("provider")) : std::nullopt,
+        value.contains("project_id") ? codec<std::optional<std::string>>::decode(value.at("project_id")) : std::nullopt,
+        value.contains("thread_id") ? codec<std::optional<std::string>>::decode(value.at("thread_id")) : std::nullopt,
+        value.contains("context") ? codec<std::optional<nlohmann::json>>::decode(value.at("context")) : std::nullopt,
+    };
+}
+
 inline json codec<holder::api::AiRunItem>::encode(const holder::api::AiRunItem& value) {
     json result = json::object();
     result["run_id"] = codec<std::string>::encode(value.run_id);
@@ -3241,6 +3392,122 @@ inline holder::api::HierarchyRepairRequest codec<holder::api::HierarchyRepairReq
     return holder::api::HierarchyRepairRequest{
         value.contains("apply") ? codec<bool>::decode(value.at("apply")) : bool(false),
     };
+}
+
+inline json codec<holder::api::CardListItem>::encode(const holder::api::CardListItem& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["rel_path"] = codec<std::string>::encode(value.rel_path);
+    result["sort_key"] = codec<double>::encode(value.sort_key);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    if (value.parent_card_id) {
+        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
+    }
+    if (value.deleted_at) {
+        result["deleted_at"] = codec<std::optional<std::optional<long long>>>::encode(value.deleted_at);
+    }
+    if (value.child_count) {
+        result["child_count"] = codec<std::optional<int>>::encode(value.child_count);
+    }
+    return result;
+}
+inline holder::api::CardListItem codec<holder::api::CardListItem>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardListItem");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("rel_path")) throw std::invalid_argument("missing rel_path");
+    if (!value.contains("sort_key")) throw std::invalid_argument("missing sort_key");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::CardListItem{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("title")),
+        codec<std::string>::decode(value.at("rel_path")),
+        codec<double>::decode(value.at("sort_key")),
+        codec<long long>::decode(value.at("created_at")),
+        codec<long long>::decode(value.at("updated_at")),
+        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
+        value.contains("deleted_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("deleted_at"))} : std::nullopt,
+        value.contains("child_count") ? codec<std::optional<int>>::decode(value.at("child_count")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardPageItem>::encode(const holder::api::CardPageItem& value) {
+    json result = codec<holder::api::CardListItem>::encode(value);
+    if (value.content) {
+        result["content"] = codec<std::optional<std::string>>::encode(value.content);
+    }
+    return result;
+}
+inline holder::api::CardPageItem codec<holder::api::CardPageItem>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardPageItem");
+    json base = value;
+    base.erase("content");
+    return holder::api::CardPageItem{
+        codec<holder::api::CardListItem>::decode(base),
+        value.contains("content") ? codec<std::optional<std::string>>::decode(value.at("content")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardPage>::encode(const holder::api::CardPage& value) {
+    json result = json::object();
+    result["items"] = codec<std::vector<holder::api::CardPageItem>>::encode(value.items);
+    result["next_cursor"] = codec<std::optional<std::string>>::encode(value.next_cursor);
+    return result;
+}
+inline holder::api::CardPage codec<holder::api::CardPage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardPage");
+    if (!value.contains("items")) throw std::invalid_argument("missing items");
+    if (!value.contains("next_cursor")) throw std::invalid_argument("missing next_cursor");
+    return holder::api::CardPage{
+        codec<std::vector<holder::api::CardPageItem>>::decode(value.at("items")),
+        codec<std::optional<std::string>>::decode(value.at("next_cursor")),
+    };
+}
+
+inline json codec<holder::api::CardPageResponse>::encode(const holder::api::CardPageResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardPage>::encode(value.data);
+    return result;
+}
+inline holder::api::CardPageResponse codec<holder::api::CardPageResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardPageResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardPageResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardPage>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ParentRoots>::encode(const holder::api::ParentRoots& value) {
+    return codec<std::string>::encode(value.value);
+}
+inline holder::api::ParentRoots codec<holder::api::ParentRoots>::decode(const json& value) {
+    if (value.is_string()) {
+        if (value != "roots") throw std::invalid_argument("invalid value");
+    }
+    return holder::api::ParentRoots{codec<std::string>::decode(value)};
+}
+
+inline json codec<holder::api::ParentUuid>::encode(const holder::api::ParentUuid& value) {
+    return codec<std::string>::encode(value.value);
+}
+inline holder::api::ParentUuid codec<holder::api::ParentUuid>::decode(const json& value) {
+    if (value.is_string()) {
+        static const std::regex pattern("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[47][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
+        if (!std::regex_search(value.get_ref<const std::string&>(), pattern))
+            throw std::invalid_argument("invalid format: value");
+    }
+    return holder::api::ParentUuid{codec<std::string>::decode(value)};
 }
 
 inline json codec<holder::api::CardBreadcrumb>::encode(const holder::api::CardBreadcrumb& value) {
@@ -4551,49 +4818,6 @@ inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateReq
     };
 }
 
-inline json codec<holder::api::CardListItem>::encode(const holder::api::CardListItem& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["rel_path"] = codec<std::string>::encode(value.rel_path);
-    result["sort_key"] = codec<double>::encode(value.sort_key);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    if (value.parent_card_id) {
-        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
-    }
-    if (value.deleted_at) {
-        result["deleted_at"] = codec<std::optional<std::optional<long long>>>::encode(value.deleted_at);
-    }
-    if (value.child_count) {
-        result["child_count"] = codec<std::optional<int>>::encode(value.child_count);
-    }
-    return result;
-}
-inline holder::api::CardListItem codec<holder::api::CardListItem>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardListItem");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (!value.contains("rel_path")) throw std::invalid_argument("missing rel_path");
-    if (!value.contains("sort_key")) throw std::invalid_argument("missing sort_key");
-    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    return holder::api::CardListItem{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("title")),
-        codec<std::string>::decode(value.at("rel_path")),
-        codec<double>::decode(value.at("sort_key")),
-        codec<long long>::decode(value.at("created_at")),
-        codec<long long>::decode(value.at("updated_at")),
-        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
-        value.contains("deleted_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("deleted_at"))} : std::nullopt,
-        value.contains("child_count") ? codec<std::optional<int>>::decode(value.at("child_count")) : std::nullopt,
-    };
-}
-
 inline json codec<holder::api::CardListResponse>::encode(const holder::api::CardListResponse& value) {
     json result = json::object();
     if (value.ok != true) throw std::invalid_argument("invalid ok");
@@ -5792,6 +6016,55 @@ inline holder::api::EventCheckpointResponse codec<holder::api::EventCheckpointRe
     return holder::api::EventCheckpointResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::EventCheckpoint>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ChangeEventData>::encode(const holder::api::ChangeEventData& value) {
+    json result = json::object();
+    if (value.entity != "project" && value.entity != "card" && value.entity != "resource" && value.entity != "location" && value.entity != "thread" && value.entity != "message" && value.entity != "run") throw std::invalid_argument("invalid entity");
+    result["entity"] = codec<std::string>::encode(value.entity);
+    result["entity_id"] = codec<std::string>::encode(value.entity_id);
+    result["project_id"] = codec<std::optional<std::string>>::encode(value.project_id);
+    result["deleted"] = codec<bool>::encode(value.deleted);
+    result["git_revision"] = codec<std::optional<std::string>>::encode(value.git_revision);
+    return result;
+}
+inline holder::api::ChangeEventData codec<holder::api::ChangeEventData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ChangeEventData");
+    if (!value.contains("entity")) throw std::invalid_argument("missing entity");
+    if (!value.contains("entity_id")) throw std::invalid_argument("missing entity_id");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("deleted")) throw std::invalid_argument("missing deleted");
+    if (!value.contains("git_revision")) throw std::invalid_argument("missing git_revision");
+    if (value.at("entity") != "project" && value.at("entity") != "card" && value.at("entity") != "resource" && value.at("entity") != "location" && value.at("entity") != "thread" && value.at("entity") != "message" && value.at("entity") != "run") throw std::invalid_argument("invalid entity");
+    return holder::api::ChangeEventData{
+        codec<std::string>::decode(value.at("entity")),
+        codec<std::string>::decode(value.at("entity_id")),
+        codec<std::optional<std::string>>::decode(value.at("project_id")),
+        codec<bool>::decode(value.at("deleted")),
+        codec<std::optional<std::string>>::decode(value.at("git_revision")),
+    };
+}
+
+inline json codec<holder::api::EventResyncData>::encode(const holder::api::EventResyncData& value) {
+    json result = codec<holder::api::EventCheckpoint>::encode(value);
+    if (value.reason != "history_unavailable" && value.reason != "observer_unavailable") throw std::invalid_argument("invalid reason");
+    result["reason"] = codec<std::string>::encode(value.reason);
+    result["last_revision"] = codec<std::optional<std::string>>::encode(value.last_revision);
+    return result;
+}
+inline holder::api::EventResyncData codec<holder::api::EventResyncData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected EventResyncData");
+    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
+    if (!value.contains("last_revision")) throw std::invalid_argument("missing last_revision");
+    if (value.at("reason") != "history_unavailable" && value.at("reason") != "observer_unavailable") throw std::invalid_argument("invalid reason");
+    json base = value;
+    base.erase("reason");
+    base.erase("last_revision");
+    return holder::api::EventResyncData{
+        codec<holder::api::EventCheckpoint>::decode(base),
+        codec<std::string>::decode(value.at("reason")),
+        codec<std::optional<std::string>>::decode(value.at("last_revision")),
     };
 }
 

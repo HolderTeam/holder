@@ -186,6 +186,29 @@ struct RIG_OPEN_RECORD AiLocalModelConfigUpdateRequest {
   std::optional<std::optional<long long>> updated_at RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
+struct RIG_OPEN_RECORD RIG_DESCRIPTION("Named run events share run_id. Fields vary by event and provider.") AiRunEventData {
+  std::string run_id;
+  std::optional<std::string> status RIG_OMIT_EMPTY;
+  std::optional<long long> created_at RIG_OMIT_EMPTY;
+  std::optional<std::string> delta RIG_OMIT_EMPTY;
+  std::optional<std::string> message RIG_OMIT_EMPTY;
+  std::optional<std::string> error RIG_OMIT_EMPTY;
+  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
+  std::optional<std::string> model_ref RIG_OMIT_EMPTY;
+  std::optional<std::string> model RIG_OMIT_EMPTY;
+  std::optional<std::string> provider RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD AiRunCreateRequest {
+  std::string prompt;
+  std::optional<std::string> mode RIG_FIELD_DESCRIPTION("auto or model") RIG_OMIT_EMPTY;
+  std::optional<std::string> model RIG_FIELD_DESCRIPTION("Optional explicit model id; interpreted for local or cloud selected provider.") RIG_OMIT_EMPTY;
+  std::optional<std::string> provider RIG_FIELD_DESCRIPTION("Optional cloud provider id when local runner is unavailable.") RIG_OMIT_EMPTY;
+  std::optional<std::string> project_id RIG_OMIT_EMPTY;
+  std::optional<std::string> thread_id RIG_OMIT_EMPTY;
+  std::optional<nlohmann::json> context RIG_OMIT_EMPTY;
+};
+
 struct RIG_OPEN_RECORD AiRunItem {
   std::string run_id;
   std::optional<std::optional<std::string>> project_id RIG_OMIT_EMPTY RIG_NULLABLE;
@@ -498,6 +521,41 @@ struct RIG_OPEN_RECORD HierarchyRepairResponse {
 
 struct RIG_OPEN_RECORD HierarchyRepairRequest {
   bool apply RIG_FIELD_DESCRIPTION("Apply the repair. Without it, only report.") RIG_DEFAULT(false);
+};
+
+struct RIG_OPEN_RECORD CardListItem {
+  std::string card_id;
+  std::string project_id;
+  std::string title;
+  std::string rel_path;
+  double sort_key;
+  long long created_at;
+  long long updated_at;
+  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<int> child_count RIG_FIELD_DESCRIPTION("Present when requested by the listing route (include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD CardPageItem : CardListItem {
+  std::optional<std::string> content RIG_FIELD_DESCRIPTION("The card's body. Present only when include_content is true.") RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD CardPage {
+  std::vector<CardPageItem> items;
+  std::optional<std::string> next_cursor RIG_FIELD_DESCRIPTION("Continue with this cursor, or null when there are no more results.") RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardPageResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardPage data;
+};
+
+struct RIG_VALUE_TYPE RIG_INLINE_RECORD ParentRoots {
+  std::string value RIG_STRING_VALUES("roots");
+};
+
+struct RIG_VALUE_TYPE RIG_INLINE_RECORD ParentUuid {
+  std::string value RIG_PATTERN("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[47][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") RIG_FORMAT("uuid");
 };
 
 struct RIG_OPEN_RECORD CardBreadcrumb {
@@ -883,19 +941,6 @@ struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unch
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD CardListItem {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  double sort_key;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<int> child_count RIG_FIELD_DESCRIPTION("Present when requested by the listing route (include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD CardListResponse {
   bool ok RIG_BOOL_VALUE(true);
   std::vector<CardListItem> data;
@@ -1238,6 +1283,19 @@ struct RIG_OPEN_RECORD EventCheckpoint {
 struct RIG_OPEN_RECORD EventCheckpointResponse {
   bool ok RIG_BOOL_VALUE(true);
   EventCheckpoint data;
+};
+
+struct RIG_OPEN_RECORD ChangeEventData {
+  std::string entity RIG_STRING_VALUES("project", "card", "resource", "location", "thread", "message", "run");
+  std::string entity_id;
+  std::optional<std::string> project_id RIG_NULLABLE;
+  bool deleted RIG_FIELD_DESCRIPTION("Entity disappeared from the observed database snapshot. Soft deletion remains an ordinary invalidation.");
+  std::optional<std::string> git_revision RIG_FIELD_DESCRIPTION("Observed Git HEAD for this project; live changes may not yet be committed to Git.") RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD EventResyncData : EventCheckpoint {
+  std::string reason RIG_STRING_VALUES("history_unavailable", "observer_unavailable");
+  std::optional<std::string> last_revision RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD AssetImportJob {

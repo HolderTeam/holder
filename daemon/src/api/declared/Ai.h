@@ -103,6 +103,19 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 AiLocalModelConfigResponse put_ai_local_models_config(AiLocalModelConfigUpdateRequest request);
 
+RIG_ROUTE(POST, "/ai/runs")
+RIG_SUMMARY("Create and execute an AI run with routing and streaming")
+RIG_DESCRIPTION("Creates one run and streams run_started (with run_id), provider-dependent progress/router/fallback/chunk events, then done or failed. Every frame has an opaque replay ID. Reconnect via GET /ai/runs/{run_id}/events rather than repeating this POST. Disconnecting does not cancel execution; terminal events follow persisted status.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("text/event-stream")
+RIG_SSE_EVENT("run_started", AiRunEventData)
+RIG_SSE_EVENT("chunk", AiRunEventData)
+RIG_SSE_EVENT("done", AiRunEventData)
+RIG_SSE_EVENT("failed", AiRunEventData)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "No local runner or configured cloud provider available")
+std::string post_ai_runs(AiRunCreateRequest request);
+
 RIG_ROUTE(GET, "/ai/runs")
 RIG_SUMMARY("List AI runs by project or thread")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -119,6 +132,23 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 AiRunGetResponse get_ai_runs_run_id(std::string run_id);
 
+RIG_ROUTE(GET, "/ai/runs/{run_id}/events")
+RIG_SUMMARY("Stream run events (SSE)")
+RIG_DESCRIPTION("Replays bounded retained run events with absolute event IDs; done or failed closes the stream. Missing in-memory history can recover persisted terminal status. An expired or foreign cursor emits resync_required; fetch the run before reconnecting.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("text/event-stream")
+RIG_SSE_EVENT("run_started", AiRunEventData)
+RIG_SSE_EVENT("chunk", AiRunEventData)
+RIG_SSE_EVENT("done", AiRunEventData)
+RIG_SSE_EVENT("failed", AiRunEventData)
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
+RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
+std::string get_ai_runs_run_id_events(
+    std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
+    std::string run_id);
+
 RIG_ROUTE(POST, "/ai/runner/pull")
 RIG_SUMMARY("Start pulling a local model")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -127,6 +157,21 @@ RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Runner unavailable")
 RunnerPullStartResponse post_ai_runner_pull(PostAiRunnerPullRequest request);
+
+RIG_ROUTE(GET, "/ai/runner/pull/{job_id}/events")
+RIG_SUMMARY("Stream pull job progress (SSE)")
+RIG_DESCRIPTION("Streams progress snapshots on status changes; completed or failed closes the stream. Pull event IDs are connection-local; reconnect without Last-Event-ID to fetch current progress after resync_required. Disconnecting does not cancel the pull.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("text/event-stream")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
+RIG_ERROR_RESPONSE(405, ErrorResponse, "Method not allowed")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
+std::string get_ai_runner_pull_job_id_events(
+    std::optional<std::string> runner_id RIG_QUERY,
+    std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
+    std::string job_id);
 
 RIG_ROUTE(GET, "/ai/messages")
 RIG_SUMMARY("List AI messages by thread")

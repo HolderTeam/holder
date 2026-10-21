@@ -1,6 +1,6 @@
 {
   "source": "api/openapi.yaml",
-  "sha256": "98ac688747b6a0f0bd847ef8cd954889fb11a0fd040d3dfda4495699dd305c4c",
+  "sha256": "a6daa4f49b64801f96b64dd3c42e7767af99c799b00097a9c0616a9a842123e5",
   "generator": {
     "openapi-python-client": "0.29.1",
     "ruff": "0.16.10"
