@@ -1,4 +1,4 @@
-#include "api/ProjectList.h"
+#include "api/ProjectRead.h"
 
 #include "card/CardRepo.h"
 #include "model/Project.h"
@@ -44,6 +44,26 @@ ProjectSync project_sync_response(const std::optional<holder::model::ProjectSync
       sync.pull_retry_count,
       sync.next_pull_retry_at,
       sync.updated_at > 0 ? std::optional<long long>{sync.updated_at} : std::nullopt,
+  };
+}
+
+Project project_response(const holder::model::Project& project,
+                         const std::optional<holder::model::ProjectSyncState>& sync,
+                         std::optional<int> card_count = std::nullopt,
+                         std::optional<int> root_card_count = std::nullopt) {
+  return {
+      project.project_id,
+      project.name,
+      project.root_path,
+      std::optional<std::optional<std::string>>{std::in_place, project.git_remote_url},
+      std::optional<std::optional<std::string>>{std::in_place, project.git_provider},
+      project.privacy_mode,
+      std::optional<std::optional<std::string>>{std::in_place, project.project_key_id},
+      project.created_at,
+      project.updated_at,
+      card_count,
+      root_card_count,
+      project_sync_response(sync),
   };
 }
 
@@ -103,22 +123,21 @@ ProjectListResponse get_projects(holder::platform::Db& db,
   response.data.reserve(end - start);
   for (auto index = start; index < end; ++index) {
     const auto& project = projects[index];
-    response.data.push_back(Project{
-        project.project_id,
-        project.name,
-        project.root_path,
-        std::optional<std::optional<std::string>>{std::in_place, project.git_remote_url},
-        std::optional<std::optional<std::string>>{std::in_place, project.git_provider},
-        project.privacy_mode,
-        std::optional<std::optional<std::string>>{std::in_place, project.project_key_id},
-        project.created_at,
-        project.updated_at,
+    response.data.push_back(project_response(
+        project,
+        sync_repo.get(project.project_id),
         count ? std::optional<int>{card_repo.count_all_not_deleted(project.project_id)} : std::nullopt,
-        count ? std::optional<int>{card_repo.count_roots_not_deleted(project.project_id)} : std::nullopt,
-        project_sync_response(sync_repo.get(project.project_id)),
-    });
+        count ? std::optional<int>{card_repo.count_roots_not_deleted(project.project_id)} : std::nullopt));
   }
   return response;
+}
+
+ProjectGetResponse get_project(holder::platform::Db& db, std::string project_id) {
+  holder::project::ProjectRepo repo(db);
+  const auto project = repo.get(project_id);
+  if (!project) throw ProjectReadNotFound{};
+  holder::project::ProjectSyncRepo sync_repo(db);
+  return {true, project_response(*project, sync_repo.get(project_id))};
 }
 
 } // namespace holder::api

@@ -486,10 +486,6 @@ template <> struct codec<holder::api::ProjectCreateRequest> {
     static json encode(const holder::api::ProjectCreateRequest& value);
     static holder::api::ProjectCreateRequest decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectGetResponse> {
-    static json encode(const holder::api::ProjectGetResponse& value);
-    static holder::api::ProjectGetResponse decode(const json& value);
-};
 template <> struct codec<holder::api::ProjectUpdateResponseData> {
     static json encode(const holder::api::ProjectUpdateResponseData& value);
     static holder::api::ProjectUpdateResponseData decode(const json& value);
@@ -1073,6 +1069,10 @@ template <> struct codec<holder::api::ProjectCalendarResponse> {
 template <> struct codec<holder::api::ProjectListResponse> {
     static json encode(const holder::api::ProjectListResponse& value);
     static holder::api::ProjectListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGetResponse> {
+    static json encode(const holder::api::ProjectGetResponse& value);
+    static holder::api::ProjectGetResponse decode(const json& value);
 };
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
@@ -3170,24 +3170,6 @@ inline holder::api::ProjectCreateRequest codec<holder::api::ProjectCreateRequest
         value.contains("project_key_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_key_id"))} : std::nullopt,
         value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
         value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ProjectGetResponse>::encode(const holder::api::ProjectGetResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::Project>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectGetResponse codec<holder::api::ProjectGetResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGetResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectGetResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::Project>::decode(value.at("data")),
     };
 }
 
@@ -6445,6 +6427,24 @@ inline holder::api::ProjectListResponse codec<holder::api::ProjectListResponse>:
     return holder::api::ProjectListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::Project>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGetResponse>::encode(const holder::api::ProjectGetResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::Project>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGetResponse codec<holder::api::ProjectGetResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGetResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGetResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::Project>::decode(value.at("data")),
     };
 }
 

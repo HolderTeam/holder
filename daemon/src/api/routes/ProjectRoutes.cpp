@@ -850,41 +850,6 @@ bool handle_project_routes(
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }
-    } else if (subpath.empty() && req.method() == http::verb::get) {
-      try {
-        holder::project::ProjectRepo repo(db);
-        holder::project::ProjectSyncRepo sync_repo(db);
-        const auto project_opt = repo.get(project_id);
-        if (!project_opt.has_value()) {
-          res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-        } else {
-          const auto& project = project_opt.value();
-          nlohmann::json data;
-          data["project_id"] = project.project_id;
-          data["name"] = project.name;
-          data["root_path"] = project.root_path;
-          data["git_remote_url"] = project.git_remote_url.has_value()
-                                       ? nlohmann::json(project.git_remote_url.value())
-                                       : nlohmann::json(nullptr);
-          data["git_provider"] = project.git_provider.has_value()
-                                     ? nlohmann::json(project.git_provider.value())
-                                     : nlohmann::json(nullptr);
-          data["privacy_mode"] = project.privacy_mode;
-          data["project_key_id"] = project.project_key_id.has_value()
-                                       ? nlohmann::json(project.project_key_id.value())
-                                       : nlohmann::json(nullptr);
-          data["created_at"] = project.created_at;
-          data["updated_at"] = project.updated_at;
-          data["sync"] = project_sync_to_json(sync_repo.get(project.project_id));
-
-          nlohmann::json payload;
-          payload["ok"] = true;
-          payload["data"] = data;
-          res = support::json_response(http::status::ok, payload);
-        }
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::internal_server_error, "error", ex.what());
-      }
     } else if (subpath.empty() && req.method() == http::verb::patch) {
       try {
         const auto body = nlohmann::json::parse(req.body());
@@ -1071,6 +1036,8 @@ bool handle_project_routes(
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::internal_server_error, "error", ex.what());
       }
+    } else if (subpath.empty() && req.method() == http::verb::get) {
+      return false;
     } else {
       res = support::error_response(http::status::not_found, "not_found", "Route not found.");
     }

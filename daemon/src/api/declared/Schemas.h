@@ -461,11 +461,6 @@ struct RIG_OPEN_RECORD ProjectCreateRequest {
   std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD ProjectGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  Project data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectUpdateResponseData {
   std::string project_id;
   std::optional<bool> git_remote_changed RIG_FIELD_DESCRIPTION("Present when git_remote_url is supplied. Reports whether the stored remote URL changed, including disconnecting it. Reapplying the same value returns false. The URL is persisted only after Git accepts the remote operation.") RIG_OMIT_EMPTY;

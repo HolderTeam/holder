@@ -21,13 +21,6 @@ RIG_SUCCESS_STATUS(201)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 ProjectCreateResponse post_projects(ProjectCreateRequest request);
 
-RIG_ROUTE(GET, "/projects/{project_id}")
-RIG_SUMMARY("Get a project")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectGetResponse get_projects_project_id(std::string project_id);
-
 RIG_ROUTE(PATCH, "/projects/{project_id}")
 RIG_SUMMARY("Update a project")
 RIG_RESPONSE_DESCRIPTION("OK")
