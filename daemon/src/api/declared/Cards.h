@@ -3,6 +3,7 @@
 #include "api/ApiService.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
+#include "api/declared/Schemas.h"
 
 #include <optional>
 #include <string>
@@ -11,61 +12,78 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardCreateResponseData {
-  std::string card_id;
-  std::string rel_path;
-};
+RIG_ROUTE(GET, "/cards/{card_id}/milestones-with-dates")
+RIG_SUMMARY("List all milestones on a live card with their labelled dates")
+RIG_DESCRIPTION("Includes undated milestones and repeated roles. Dates remain in stored order. The existing /cards/{card_id}/milestones route remains a scheduled timestamp view.")
+RIG_RESPONSE_DESCRIPTION("All milestones on the card")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneWithDatesListResponse get_cards_card_id_milestones_with_dates(std::string card_id);
 
-struct RIG_OPEN_RECORD CardCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardCreateResponseData data;
-};
+RIG_ROUTE(POST, "/cards/{card_id}/milestones-with-dates")
+RIG_SUMMARY("Add a milestone with labelled dates to a live card")
+RIG_RESPONSE_DESCRIPTION("Created milestone")
+RIG_HOST_RESPONSE("application/json")
+RIG_SUCCESS_STATUS(201)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid milestone dates")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneWithDatesResponse post_cards_card_id_milestones_with_dates(
+    std::string card_id,
+    MilestoneWithDatesCreateRequest request);
 
-struct RIG_OPEN_RECORD CardCreateRequest {
-  std::string project_id;
-  std::string title;
-  std::string content;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<double> sort_key RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
-};
+RIG_ROUTE(DELETE, "/cards/{card_id}/milestones-with-dates/{milestone_id}")
+RIG_SUMMARY("Remove a milestone from a live card")
+RIG_DESCRIPTION("Equivalent to deleting the same milestone through the scheduled timestamp route.")
+RIG_RESPONSE_DESCRIPTION("Removal result")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneRemoveResponse delete_cards_card_id_milestones_with_dates_milestone_id(
+    std::string card_id,
+    std::string milestone_id RIG_FORMAT("uuid"));
 
-struct RIG_OPEN_RECORD CardData {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  double sort_key;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string content;
-};
+RIG_ROUTE(GET, "/cards/{card_id}/milestones")
+RIG_SUMMARY("List milestones attached to a card")
+RIG_DESCRIPTION("This compatibility timestamp view omits undated milestones and milestones with repeated start or end roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for the complete model.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneListResponse get_cards_card_id_milestones(std::string card_id);
 
-struct RIG_OPEN_RECORD CardGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardData data;
-};
+RIG_ROUTE(POST, "/cards/{card_id}/milestones")
+RIG_SUMMARY("Add a milestone to a card")
+RIG_DESCRIPTION("Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and have no independent title.")
+RIG_RESPONSE_DESCRIPTION("Created")
+RIG_HOST_RESPONSE("application/json")
+RIG_SUCCESS_STATUS(201)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneResponse post_cards_card_id_milestones(
+    std::string card_id,
+    MilestoneCreateRequest request);
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardPatchResponseData {
-  std::string card_id;
-};
+RIG_ROUTE(DELETE, "/cards/{card_id}/milestones/{milestone_id}")
+RIG_SUMMARY("Remove a milestone from a card")
+RIG_RESPONSE_DESCRIPTION("Removal result")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
+MilestoneRemoveResponse delete_cards_card_id_milestones_milestone_id(
+    std::string card_id,
+    std::string milestone_id);
 
-struct RIG_OPEN_RECORD CardPatchResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardPatchResponseData data;
-};
-
-struct RIG_OPEN_RECORD CardUpdateRequest {
-  std::optional<std::string> content RIG_OMIT_EMPTY;
-  long long updated_at;
-  std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<double> sort_key RIG_OMIT_EMPTY;
-};
+RIG_ROUTE(GET, "/cards")
+RIG_SUMMARY("List cards")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+CardListResponse get_cards(
+    std::string project_id RIG_QUERY,
+    std::optional<std::string> tag RIG_QUERY RIG_PARAMETER_DESCRIPTION("Exact normalized tag to match, without the leading"),
+    std::string view RIG_QUERY RIG_STRING_VALUES("tree", "recent") RIG_DEFAULT("tree") RIG_PARAMETER_DESCRIPTION("Card list mode. tree returns one hierarchy level (roots or a parent's children); recent returns recently updated cards."),
+    std::optional<std::string> parent_card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional when view=tree. Omit for roots; set to return that parent card's children."),
+    std::optional<std::string> order RIG_QUERY RIG_STRING_VALUES("tree_default", "updated_desc", "title_asc") RIG_PARAMETER_DESCRIPTION("Card ordering strategy. Defaults are view-aware: tree uses tree_default\n(sort_key asc, updated_at desc, title asc), recent uses updated_desc.\n"),
+    bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (child_count) in returned card items."),
+    int limit RIG_QUERY RIG_RANGE(1, 5000) RIG_DEFAULT(200) RIG_PARAMETER_DESCRIPTION("Maximum number of cards when view=recent."),
+    std::optional<int> include_deleted RIG_QUERY RIG_PARAMETER_DESCRIPTION("Set to 1 to include deleted cards."));
 
 RIG_ROUTE(POST, "/cards")
 RIG_SUMMARY("Create a card")
@@ -90,6 +108,83 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 CardPatchResponse patch_cards_card_id(std::string card_id, CardUpdateRequest request);
+
+RIG_ROUTE(DELETE, "/cards/{card_id}")
+RIG_SUMMARY("Move card to trash")
+RIG_DESCRIPTION("The card and every changed card are written in one commit. With children=promote (the default), the card's immediate live children take its place among its siblings (or the project's top level) in their existing order, keeping their own descendants; children already in Trash stay there. With children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent there, including live cards beneath descendants that were already trashed, which keep their own trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid children value, or the card cannot be trashed (for example it is already in Trash)")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+CardPatchResponse delete_cards_card_id(
+    std::string card_id,
+    std::string children RIG_QUERY RIG_STRING_VALUES("promote", "trash_subtree") RIG_DEFAULT("promote") RIG_PARAMETER_DESCRIPTION("What happens to the card's live children. Any other value is rejected before anything changes."));
+
+RIG_ROUTE(POST, "/cards/{card_id}/tags")
+RIG_SUMMARY("Add a tag to a live card")
+RIG_RESPONSE_DESCRIPTION("Added or already present")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Missing fields or invalid tag")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card not found")
+RIG_ERROR_RESPONSE(422, ErrorResponse, "Card belongs to a different project")
+CardTagMutationResponse post_cards_card_id_tags(
+    std::string card_id,
+    CardTagMutationRequest request);
+
+RIG_ROUTE(DELETE, "/cards/{card_id}/tags")
+RIG_SUMMARY("Remove a tag from a live card's editable trailing tag line")
+RIG_RESPONSE_DESCRIPTION("Removed, not present, or present only outside the editable tag line")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Missing fields or invalid tag")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card not found")
+RIG_ERROR_RESPONSE(422, ErrorResponse, "Card belongs to a different project")
+CardTagMutationResponse delete_cards_card_id_tags(
+    std::string card_id,
+    CardTagMutationRequest request);
+
+RIG_ROUTE(POST, "/cards/{card_id}/resources")
+RIG_SUMMARY("Attach a project resource to a live card (idempotent)")
+RIG_RESPONSE_DESCRIPTION("Attachment outcome; repeated requests do not change state")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card or resource not found")
+RIG_ERROR_RESPONSE(422, ErrorResponse, "Card or resource belongs to a different project")
+ResourceAttachmentResponse post_cards_card_id_resources(
+    std::string card_id,
+    PostCardsCardIdResourcesRequest request);
+
+RIG_ROUTE(DELETE, "/cards/{card_id}/resources")
+RIG_SUMMARY("Detach one attachment without deleting the project resource (idempotent)")
+RIG_RESPONSE_DESCRIPTION("Attachment outcome; repeated requests do not change state")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card or resource not found")
+RIG_ERROR_RESPONSE(422, ErrorResponse, "Card or resource belongs to a different project")
+ResourceAttachmentResponse delete_cards_card_id_resources(
+    std::string card_id,
+    DeleteCardsCardIdResourcesRequest request);
+
+RIG_ROUTE(DELETE, "/cards/{card_id}/links")
+RIG_SUMMARY("Delete links from a card")
+RIG_DESCRIPTION("Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+CardPatchResponse delete_cards_card_id_links(
+    std::string card_id,
+    std::optional<CardLinkDeleteRequest> request);
+
+RIG_ROUTE(GET, "/cards/{card_id}/backlinks")
+RIG_SUMMARY("List backlinks to a card from selected available projects")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid scope")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+CardBacklinkListResponse get_cards_card_id_backlinks(
+    std::string card_id,
+    std::optional<int> include_deleted RIG_QUERY RIG_INT_VALUES(0, 1) RIG_PARAMETER_DESCRIPTION("Include backlinks from deleted sources."),
+    std::string scope RIG_QUERY RIG_STRING_VALUES("local", "external", "all_available") RIG_DEFAULT("local") RIG_PARAMETER_DESCRIPTION("Local sources only (default), external available projects only, or both. External results are best effort and exclude unavailable projects."));
 
 RIG_ROUTE(POST, "/cards/{card_id}/restore")
 RIG_SUMMARY("Restore a card from trash")

@@ -3,81 +3,13 @@
 #include "api/ApiService.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
+#include "api/declared/Schemas.h"
 
-#include <map>
-#include <optional>
 #include <string>
-#include <vector>
 
 namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
-
-struct RIG_OPEN_RECORD StorageLocation {
-  std::string location_id;
-  std::string project_id;
-  std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible");
-  std::map<std::string, std::string> configuration RIG_FIELD_DESCRIPTION("Portable non-secret provider configuration.");
-  bool bound;
-  std::optional<std::optional<std::string>> binding_preview RIG_FIELD_DESCRIPTION("Safe display text; credentials are never returned.") RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long created_at;
-  long long updated_at;
-};
-
-struct RIG_OPEN_RECORD StorageLocationListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<StorageLocation> data;
-  std::optional<std::string> preferred_location_id RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD StorageLocationResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  StorageLocation data;
-};
-
-struct RIG_OPEN_RECORD StorageLocationRequest {
-  std::optional<std::string> location_id RIG_OMIT_EMPTY;
-  std::string project_id;
-  std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible");
-  std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PatchLocationsLocationIdRequest {
-  std::optional<std::string> name RIG_OMIT_EMPTY;
-  std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationActionResponseData {
-  std::string location_id;
-  std::optional<bool> bound RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> binding_preview RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD LocationActionResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  LocationActionResponseData data;
-};
-
-struct RIG_OPEN_RECORD LocationBindingRequest {
-  std::map<std::string, std::string> values RIG_WRITE_ONLY;
-  std::optional<std::string> preview RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationTestResponseData {
-  bool available;
-};
-
-struct RIG_OPEN_RECORD LocationTestResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  LocationTestResponseData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PutLocationsPreferredRequest {
-  std::string project_id;
-  std::string location_id;
-};
 
 RIG_ROUTE(GET, "/locations")
 RIG_SUMMARY("List project storage locations")

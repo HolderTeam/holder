@@ -3,39 +3,14 @@
 #include "api/ApiService.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
-
-#include <nlohmann/json.hpp>
+#include "api/declared/Schemas.h"
 
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
-
-struct RIG_OPEN_RECORD TrashItem {
-  std::string type;
-  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> message_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> thread_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::string> project_id RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> role RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<long long> deleted_at RIG_OMIT_EMPTY;
-  std::optional<long long> created_at RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD TrashListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<TrashItem> data;
-};
-
-struct RIG_OPEN_RECORD TrashDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  nlohmann::json data;
-};
 
 RIG_ROUTE(GET, "/trash")
 RIG_SUMMARY("List trashed items by project")

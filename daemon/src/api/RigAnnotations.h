@@ -15,10 +15,15 @@
 #define RIG_INLINE_RECORD
 #define RIG_CONTEXT
 #define RIG_QUERY
+#define RIG_RANGE(minimum, maximum)
 #define RIG_INT_VALUES(...)
 #define RIG_STRING_VALUES(...)
 #define RIG_PARAMETER_DESCRIPTION(text)
 #define RIG_MINIMUM(value)
+#define RIG_MIN_LENGTH(value)
+#define RIG_MAX_LENGTH(value)
+#define RIG_FORMAT(text)
+#define RIG_DEFAULT(value)
 #define RIG_FIELD_DESCRIPTION(text)
 #define RIG_OMIT_EMPTY
 #define RIG_NULLABLE

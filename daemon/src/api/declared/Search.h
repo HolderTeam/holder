@@ -3,40 +3,14 @@
 #include "api/ApiService.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
+#include "api/declared/Schemas.h"
 
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
-
-struct RIG_OPEN_RECORD SearchCardItem {
-  std::string card_id;
-  std::string title;
-  long long updated_at;
-  long long created_at;
-  std::string snippet;
-  double rank;
-};
-
-struct RIG_OPEN_RECORD SearchCardsResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<SearchCardItem> data;
-};
-
-struct RIG_OPEN_RECORD SearchMessageItem {
-  std::string message_id;
-  long long created_at;
-  std::string snippet;
-  double rank;
-};
-
-struct RIG_OPEN_RECORD SearchMessagesResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<SearchMessageItem> data;
-};
 
 RIG_ROUTE(GET, "/search/cards")
 RIG_SUMMARY("Search cards")
