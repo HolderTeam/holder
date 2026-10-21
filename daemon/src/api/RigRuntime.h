@@ -1,6 +1,7 @@
 #pragma once
 
-// Operations already served by the checked-in RIG dispatcher.
+// Operations the checked-in RIG dispatcher serves, or hands back to the host
+// when the host writes their response (RIG_HOST_RESPONSE).
 #include "api/Alive.h"
 #include "api/Bye.h"
 #include "api/CardLinks.h"
@@ -10,3 +11,4 @@
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
+#include "api/StaticFiles.h"

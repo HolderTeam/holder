@@ -28,5 +28,6 @@
 #define RIG_VALIDATION_ERROR(body, description)
 #define RIG_UNAUTHORIZED(body, description)
 #define RIG_PUBLIC
+#define RIG_HOST_RESPONSE(media_type)
 #define RIG_INTERNAL_ERROR(body, description)
 #endif

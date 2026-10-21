@@ -597,6 +597,11 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   req = make_request(http::verb::get, "/projects");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
 
+  // Hand-served operations are declared for the contract; the host serves them.
+  req = make_request(http::verb::get, "/openapi.yaml");
+  REQUIRE(holder::api::is_public_generated_route(req));
+  REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
+
   db.close();
   req = make_request(http::verb::get, "/projects/proj-1/tags");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));

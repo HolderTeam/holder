@@ -163,6 +163,15 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "rebuild_project_from_files"};
         }
     }
+    static const std::regex route_11("^/openapi\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_11))
+        return std::nullopt;  // download_openapi_yaml is served by the host
+    static const std::regex route_12("^/ai_catalog\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_12))
+        return std::nullopt;  // download_ai_catalog_yaml is served by the host
+    static const std::regex route_13("^/git_providers\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_13))
+        return std::nullopt;  // download_git_providers_yaml is served by the host
     static const std::regex route_2("^/card\\-references/resolve$");
     if (method == "POST" && std::regex_match(route_path, match, route_2)) {
         std::optional<holder::api::CardReferenceResolveRequest> argument_0;
@@ -300,8 +309,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_project_tags"};
         }
     }
-    static const std::regex route_11("^/cards/([^/]+)/links$");
-    if (method == "GET" && std::regex_match(route_path, match, route_11)) {
+    static const std::regex route_14("^/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_14)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<int>> argument_1;
         try {
@@ -334,6 +343,16 @@ inline bool is_public(const std::string& method, const std::string& path) {
     const auto route_path = path.substr(0, path.find('?'));
     static const std::regex route_0("^/alive$");
     if (method == "GET" && std::regex_match(route_path, route_0)) return true;
+    static const std::regex route_1("^/bye$");
+    if (method == "POST" && std::regex_match(route_path, route_1)) return false;
+    static const std::regex route_9("^/rebuild$");
+    if (method == "POST" && std::regex_match(route_path, route_9)) return false;
+    static const std::regex route_11("^/openapi\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_11)) return true;
+    static const std::regex route_12("^/ai_catalog\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_12)) return true;
+    static const std::regex route_13("^/git_providers\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_13)) return true;
     return false;
 }
 } // namespace rig_http
