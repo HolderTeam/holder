@@ -440,31 +440,6 @@ struct RIG_OPEN_RECORD Project {
   ProjectSync sync;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectUpdateResponseData {
-  std::string project_id;
-  std::optional<bool> git_remote_changed RIG_FIELD_DESCRIPTION("Present when git_remote_url is supplied. Reports whether the stored remote URL changed, including disconnecting it. Reapplying the same value returns false. The URL is persisted only after Git accepts the remote operation.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD ProjectUpdateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectUpdateResponseData data;
-};
-
-enum class ProjectUpdateRequestPrivacyMode {
-  encrypted_git,
-  plain,
-};
-
-struct RIG_OPEN_RECORD ProjectUpdateRequest {
-  std::optional<std::optional<std::string>> name RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> root_path RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> git_remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> git_provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<ProjectUpdateRequestPrivacyMode>> privacy_mode RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> project_key_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long updated_at;
-};
-
 struct RIG_OPEN_RECORD HierarchyRepairMove {
   std::string card_id RIG_FIELD_DESCRIPTION("A hidden branch's top card. Its descendants stay attached and move with it.");
   std::optional<std::string> parent_card_id RIG_FIELD_DESCRIPTION("Where it goes, or null for the project's top level.") RIG_NULLABLE;

@@ -52,10 +52,6 @@ holder::git::GitOps& resolve_git(holder::git::GitOps* git) {
   return git ? *git : real_git;
 }
 
-bool is_valid_privacy_mode(const std::string& mode) {
-  return mode == "encrypted_git" || mode == "plain";
-}
-
 nlohmann::json git_test_remote_payload(
     const std::string& project_id,
     const std::optional<std::string>& remote_url,
@@ -272,8 +268,7 @@ bool handle_project_routes(
     const http::request<http::string_body>& req,
     http::response<http::string_body>& res,
     holder::platform::Db& db,
-    holder::git::GitOps* git_ops,
-    const std::function<std::string()>& uuid_v4
+    holder::git::GitOps* git_ops
 ) {
   if (path == "/recovery-token/import" && req.method() == http::verb::post) {
     try {
@@ -756,165 +751,9 @@ bool handle_project_routes(
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }
-    } else if (subpath.empty() && req.method() == http::verb::patch) {
-      try {
-        const auto body = nlohmann::json::parse(req.body());
-        if (!body.contains("updated_at")) {
-          res = support::error_response(
-              http::status::bad_request,
-              "bad_request",
-              "Missing required fields."
-          );
-        } else {
-          const long long updated_at = body.at("updated_at").get<long long>();
-          const bool has_name = body.contains("name") && !body.at("name").is_null();
-          const bool has_root = body.contains("root_path") && !body.at("root_path").is_null();
-          const bool has_git_remote = body.contains("git_remote_url");
-          const bool has_git_provider = body.contains("git_provider");
-          const bool has_privacy_mode = body.contains("privacy_mode") &&
-                                        !body.at("privacy_mode").is_null();
-          const bool has_project_key_id = body.contains("project_key_id");
-          if (!has_name && !has_root && !has_git_remote && !has_git_provider && !has_privacy_mode &&
-              !has_project_key_id) {
-            res = support::error_response(
-                http::status::bad_request,
-                "bad_request",
-                "No fields to update."
-            );
-          } else {
-            holder::project::ProjectRepo repo(db);
-            const auto project_opt = repo.get(project_id);
-            if (!project_opt.has_value()) {
-              res = support::error_response(
-                  http::status::not_found,
-                  "not_found",
-                  "Project not found."
-              );
-            } else {
-              const std::string repo_root = has_root ? body.at("root_path").get<std::string>()
-                                                     : project_opt->root_path;
-              auto& git = resolve_git(git_ops);
-              auto operation = git.lock_operation(repo_root);
-              // Observe remote configuration under the same repository lock as
-              // the mutation, so concurrent requests report the actual change.
-              const auto locked_project = repo.get(project_id);
-              // LCOV_EXCL_START: defensive same-lock disappearance guard.
-              if (!locked_project.has_value()) {
-                res = support::error_response(
-                    http::status::not_found,
-                    "not_found",
-                    "Project not found."
-                );
-                return true;
-              }
-              // LCOV_EXCL_STOP
-              std::optional<bool> git_remote_changed;
-              if (has_name) {
-                repo.update_name(project_id, body.at("name").get<std::string>(), updated_at);
-              }
-              if (has_root) {
-                repo.update_root_path(
-                    project_id,
-                    body.at("root_path").get<std::string>(),
-                    updated_at
-                );
-              }
-              if (has_git_provider) {
-                if (body.at("git_provider").is_null()) {
-                  repo.update_git_provider(project_id, std::nullopt, updated_at);
-                } else {
-                  repo.update_git_provider(
-                      project_id,
-                      std::optional<std::string>(body.at("git_provider").get<std::string>()),
-                      updated_at
-                  );
-                }
-              }
-              if (has_privacy_mode) {
-                const auto mode = body.at("privacy_mode").get<std::string>();
-                if (!is_valid_privacy_mode(mode)) {
-                  res = support::error_response(
-                      http::status::bad_request,
-                      "bad_request",
-                      "privacy_mode must be encrypted_git or plain."
-                  );
-                  return true;
-                }
-                repo.update_privacy_mode(project_id, mode, updated_at);
-              }
-              if (has_project_key_id) {
-                if (body.at("project_key_id").is_null()) {
-                  repo.update_project_key_id(project_id, std::nullopt, updated_at);
-                } else {
-                  repo.update_project_key_id(
-                      project_id,
-                      std::optional<std::string>(body.at("project_key_id").get<std::string>()),
-                      updated_at
-                  );
-                }
-              }
-              if (has_git_remote) {
-                const auto remote = body.at("git_remote_url").is_null()
-                                        ? std::optional<std::string>{}
-                                        : std::optional<std::string>{
-                                              body.at("git_remote_url").get<std::string>()
-                                          };
-                git.open_or_init(repo_root);
-                if (!remote.has_value()) {
-                  git.remove_remote("origin");
-                } else {
-                  git.set_remote("origin", *remote);
-                }
-                git_remote_changed = locked_project->git_remote_url != remote;
-                // Persist the remote only after Git accepts it.
-                repo.update_git_remote(project_id, remote, updated_at);
-              }
-              const std::string effective_privacy_mode =
-                  has_privacy_mode ? body.at("privacy_mode").get<std::string>()
-                                   : project_opt->privacy_mode;
-              const std::optional<std::string> effective_project_key_id =
-                  has_project_key_id ? (body.at("project_key_id").is_null()
-                                            ? std::optional<std::string>{}
-                                            : std::optional<std::string>(
-                                                  body.at("project_key_id").get<std::string>()
-                                              ))
-                                     : project_opt->project_key_id;
-              if (effective_privacy_mode == "encrypted_git") {
-                holder::privacy::ensure_encrypted_project_ready(
-                    git,
-                    repo,
-                    project_id,
-                    repo_root,
-                    effective_project_key_id,
-                    updated_at,
-                    uuid_v4
-                );
-              }
-              const auto updated_project = repo.get(project_id).value();
-              holder::project::write_project_manifest(git, updated_project);
-              git.commit("Update project metadata");
-              holder::core::ProjectRegistry( // LCOV_EXCL_LINE: temporary-constructor cleanup
-                                             // duplicate.
-                  holder::core::Paths::resolve("holder").project_registry_path()
-              )
-                  .remember(repo.list());
-              nlohmann::json payload;
-              payload["ok"] = true;
-              payload["data"] = {{"project_id", project_id}};
-              if (git_remote_changed.has_value()) {
-                payload["data"]["git_remote_changed"] = *git_remote_changed;
-              }
-              res = support::json_response(http::status::ok, payload);
-            }
-          }
-        }
-      } catch (const holder::privacy::PrivacyError& ex) {
-        res = privacy_error_response(ex); // LCOV_EXCL_LINE
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      }
     } else if (subpath.empty() &&
-               (req.method() == http::verb::get || req.method() == http::verb::delete_)) {
+               (req.method() == http::verb::get || req.method() == http::verb::delete_ ||
+                req.method() == http::verb::patch)) {
       return false;
     } else {
       res = support::error_response(http::status::not_found, "not_found", "Route not found.");

@@ -392,6 +392,7 @@ add_executable(holderd
   src/api/ProjectRead.cpp
   src/api/ProjectCreate.cpp
   src/api/ProjectDelete.cpp
+  src/api/ProjectUpdate.cpp
   src/api/ProviderCredentials.cpp
   src/api/ProviderSettings.cpp
   src/api/Rebuild.cpp

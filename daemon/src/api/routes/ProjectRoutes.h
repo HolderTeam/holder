@@ -5,7 +5,6 @@
 
 #include <boost/beast/http.hpp>
 
-#include <functional>
 #include <string>
 
 namespace holder::api::routes {
@@ -15,8 +14,7 @@ bool handle_project_routes(
     const boost::beast::http::request<boost::beast::http::string_body>& req,
     boost::beast::http::response<boost::beast::http::string_body>& res,
     holder::platform::Db& db,
-    holder::git::GitOps* git_ops,
-    const std::function<std::string()>& uuid_v4
+    holder::git::GitOps* git_ops
 );
 
 } // namespace holder::api::routes

@@ -368,8 +368,7 @@ TEST_CASE("Explicit recovery re-registers a removed encrypted Home", "[home-life
       request,
       response,
       fixture.db,
-      nullptr,
-      holder::app::generate_uuid_v4
+      nullptr
   ));
   INFO(response.body());
   REQUIRE(response.result() == http::status::created);
