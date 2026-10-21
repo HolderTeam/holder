@@ -270,30 +270,6 @@ template <> struct codec<holder::api::AiThread> {
     static json encode(const holder::api::AiThread& value);
     static holder::api::AiThread decode(const json& value);
 };
-template <> struct codec<holder::api::AiThreadCreateResponseData> {
-    static json encode(const holder::api::AiThreadCreateResponseData& value);
-    static holder::api::AiThreadCreateResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::AiThreadCreateResponse> {
-    static json encode(const holder::api::AiThreadCreateResponse& value);
-    static holder::api::AiThreadCreateResponse decode(const json& value);
-};
-template <> struct codec<holder::api::AiThreadCreateRequest> {
-    static json encode(const holder::api::AiThreadCreateRequest& value);
-    static holder::api::AiThreadCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::AiThreadPatchResponseData> {
-    static json encode(const holder::api::AiThreadPatchResponseData& value);
-    static holder::api::AiThreadPatchResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::AiThreadPatchResponse> {
-    static json encode(const holder::api::AiThreadPatchResponse& value);
-    static holder::api::AiThreadPatchResponse decode(const json& value);
-};
-template <> struct codec<holder::api::AiThreadUpdateRequest> {
-    static json encode(const holder::api::AiThreadUpdateRequest& value);
-    static holder::api::AiThreadUpdateRequest decode(const json& value);
-};
 template <> struct codec<holder::api::CardLinkDeleteRequest> {
     static json encode(const holder::api::CardLinkDeleteRequest& value);
     static holder::api::CardLinkDeleteRequest decode(const json& value);
@@ -825,6 +801,30 @@ template <> struct codec<holder::api::AiThreadListResponse> {
 template <> struct codec<holder::api::AiThreadGetResponse> {
     static json encode(const holder::api::AiThreadGetResponse& value);
     static holder::api::AiThreadGetResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadCreateResponseData> {
+    static json encode(const holder::api::AiThreadCreateResponseData& value);
+    static holder::api::AiThreadCreateResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadCreateResponse> {
+    static json encode(const holder::api::AiThreadCreateResponse& value);
+    static holder::api::AiThreadCreateResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadCreateRequest> {
+    static json encode(const holder::api::AiThreadCreateRequest& value);
+    static holder::api::AiThreadCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadPatchResponseData> {
+    static json encode(const holder::api::AiThreadPatchResponseData& value);
+    static holder::api::AiThreadPatchResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadPatchResponse> {
+    static json encode(const holder::api::AiThreadPatchResponse& value);
+    static holder::api::AiThreadPatchResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiThreadUpdateRequest> {
+    static json encode(const holder::api::AiThreadUpdateRequest& value);
+    static holder::api::AiThreadUpdateRequest decode(const json& value);
 };
 template <> struct codec<holder::api::AliveResponse> {
     static json encode(const holder::api::AliveResponse& value);
@@ -1896,121 +1896,6 @@ inline holder::api::AiThread codec<holder::api::AiThread>::decode(const json& va
         value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
         codec<std::string>::decode(value.at("title")),
         codec<long long>::decode(value.at("created_at")),
-        codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::AiThreadCreateResponseData>::encode(const holder::api::AiThreadCreateResponseData& value) {
-    json result = json::object();
-    result["thread_id"] = codec<std::string>::encode(value.thread_id);
-    return result;
-}
-inline holder::api::AiThreadCreateResponseData codec<holder::api::AiThreadCreateResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateResponseData");
-    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
-    return holder::api::AiThreadCreateResponseData{
-        codec<std::string>::decode(value.at("thread_id")),
-    };
-}
-
-inline json codec<holder::api::AiThreadCreateResponse>::encode(const holder::api::AiThreadCreateResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiThreadCreateResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::AiThreadCreateResponse codec<holder::api::AiThreadCreateResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiThreadCreateResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiThreadCreateResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AiThreadCreateRequest>::encode(const holder::api::AiThreadCreateRequest& value) {
-    json result = json::object();
-    if (value.thread_id) {
-        result["thread_id"] = codec<std::optional<std::string>>::encode(value.thread_id);
-    }
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    if (value.card_id) {
-        result["card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.card_id);
-    }
-    if (value.created_at) {
-        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
-    }
-    if (value.updated_at) {
-        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    }
-    return result;
-}
-inline holder::api::AiThreadCreateRequest codec<holder::api::AiThreadCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    return holder::api::AiThreadCreateRequest{
-        value.contains("thread_id") ? codec<std::optional<std::string>>::decode(value.at("thread_id")) : std::nullopt,
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("title")),
-        value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
-        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
-        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiThreadPatchResponseData>::encode(const holder::api::AiThreadPatchResponseData& value) {
-    json result = json::object();
-    result["thread_id"] = codec<std::string>::encode(value.thread_id);
-    return result;
-}
-inline holder::api::AiThreadPatchResponseData codec<holder::api::AiThreadPatchResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadPatchResponseData");
-    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
-    return holder::api::AiThreadPatchResponseData{
-        codec<std::string>::decode(value.at("thread_id")),
-    };
-}
-
-inline json codec<holder::api::AiThreadPatchResponse>::encode(const holder::api::AiThreadPatchResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiThreadPatchResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::AiThreadPatchResponse codec<holder::api::AiThreadPatchResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadPatchResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiThreadPatchResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiThreadPatchResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AiThreadUpdateRequest>::encode(const holder::api::AiThreadUpdateRequest& value) {
-    json result = json::object();
-    if (value.title) {
-        result["title"] = codec<std::optional<std::optional<std::string>>>::encode(value.title);
-    }
-    if (value.card_id) {
-        result["card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.card_id);
-    }
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    return result;
-}
-inline holder::api::AiThreadUpdateRequest codec<holder::api::AiThreadUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiThreadUpdateRequest");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    return holder::api::AiThreadUpdateRequest{
-        value.contains("title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("title"))} : std::nullopt,
-        value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
         codec<long long>::decode(value.at("updated_at")),
     };
 }
@@ -5170,6 +5055,121 @@ inline holder::api::AiThreadGetResponse codec<holder::api::AiThreadGetResponse>:
     return holder::api::AiThreadGetResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiThread>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiThreadCreateResponseData>::encode(const holder::api::AiThreadCreateResponseData& value) {
+    json result = json::object();
+    result["thread_id"] = codec<std::string>::encode(value.thread_id);
+    return result;
+}
+inline holder::api::AiThreadCreateResponseData codec<holder::api::AiThreadCreateResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateResponseData");
+    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
+    return holder::api::AiThreadCreateResponseData{
+        codec<std::string>::decode(value.at("thread_id")),
+    };
+}
+
+inline json codec<holder::api::AiThreadCreateResponse>::encode(const holder::api::AiThreadCreateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiThreadCreateResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiThreadCreateResponse codec<holder::api::AiThreadCreateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiThreadCreateResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiThreadCreateResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiThreadCreateRequest>::encode(const holder::api::AiThreadCreateRequest& value) {
+    json result = json::object();
+    if (value.thread_id) {
+        result["thread_id"] = codec<std::optional<std::string>>::encode(value.thread_id);
+    }
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    if (value.card_id) {
+        result["card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.card_id);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::AiThreadCreateRequest codec<holder::api::AiThreadCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadCreateRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    return holder::api::AiThreadCreateRequest{
+        value.contains("thread_id") ? codec<std::optional<std::string>>::decode(value.at("thread_id")) : std::nullopt,
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("title")),
+        value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiThreadPatchResponseData>::encode(const holder::api::AiThreadPatchResponseData& value) {
+    json result = json::object();
+    result["thread_id"] = codec<std::string>::encode(value.thread_id);
+    return result;
+}
+inline holder::api::AiThreadPatchResponseData codec<holder::api::AiThreadPatchResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadPatchResponseData");
+    if (!value.contains("thread_id")) throw std::invalid_argument("missing thread_id");
+    return holder::api::AiThreadPatchResponseData{
+        codec<std::string>::decode(value.at("thread_id")),
+    };
+}
+
+inline json codec<holder::api::AiThreadPatchResponse>::encode(const holder::api::AiThreadPatchResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiThreadPatchResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiThreadPatchResponse codec<holder::api::AiThreadPatchResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadPatchResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiThreadPatchResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiThreadPatchResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiThreadUpdateRequest>::encode(const holder::api::AiThreadUpdateRequest& value) {
+    json result = json::object();
+    if (value.title) {
+        result["title"] = codec<std::optional<std::optional<std::string>>>::encode(value.title);
+    }
+    if (value.card_id) {
+        result["card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.card_id);
+    }
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::AiThreadUpdateRequest codec<holder::api::AiThreadUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiThreadUpdateRequest");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::AiThreadUpdateRequest{
+        value.contains("title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("title"))} : std::nullopt,
+        value.contains("card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("card_id"))} : std::nullopt,
+        codec<long long>::decode(value.at("updated_at")),
     };
 }
 

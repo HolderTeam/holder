@@ -41,8 +41,6 @@ add_executable(holder_daemon_tests
   AiMessageCrudRoutes_test.cpp
   HttpAiThreads_test.cpp
   AiThreadRoutes_test.cpp
-  AiThreadCollectionRoutes_test.cpp
-  AiThreadItemRoutes_test.cpp
   HttpAiLocalModelConfig_test.cpp
   HttpAiProviderCatalog_test.cpp
   HttpAiProviderCredentials_test.cpp
@@ -164,6 +162,7 @@ add_executable(holder_daemon_tests
   ../src/api/AiRuns.cpp
   ../src/api/AiStatus.cpp
   ../src/api/AiThreadRead.cpp
+  ../src/api/AiThreadWrite.cpp
   ../src/api/Calendar.cpp
   ../src/api/CardMilestones.cpp
   ../src/api/CardRead.cpp
@@ -196,9 +195,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
   ../src/api/routes/ai/AiStatusRoutes.cpp
   ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
-  ../src/api/routes/ai/AiThreadRoutes.cpp
-  ../src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp
-  ../src/api/routes/ai/threads/AiThreadItemRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
   ../src/api/routes/CardRoutes.cpp
   ../src/api/routes/ProjectCardRoutes.cpp

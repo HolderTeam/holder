@@ -11,6 +11,7 @@
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"
 #include "api/AiThreadRead.h"
+#include "api/AiThreadWrite.h"
 #include "api/Alive.h"
 #include "api/Bye.h"
 #include "api/CardLinks.h"

@@ -121,30 +121,4 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
 AiMessageCaptureResponse post_ai_messages_capture(AiMessageCaptureRequest request);
 
-RIG_ROUTE(POST, "/ai/threads")
-RIG_SUMMARY("Create an AI thread")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
-AiThreadCreateResponse post_ai_threads(AiThreadCreateRequest request);
-
-RIG_ROUTE(PATCH, "/ai/threads/{thread_id}")
-RIG_SUMMARY("Update AI thread metadata")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiThreadPatchResponse patch_ai_threads_thread_id(
-    std::string thread_id,
-    AiThreadUpdateRequest request);
-
-RIG_ROUTE(DELETE, "/ai/threads/{thread_id}")
-RIG_SUMMARY("Delete an AI thread")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiThreadPatchResponse delete_ai_threads_thread_id(std::string thread_id);
-
 } // namespace holder::api

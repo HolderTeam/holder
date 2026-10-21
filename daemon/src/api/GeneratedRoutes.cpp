@@ -9,6 +9,7 @@
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"
 #include "api/AiThreadRead.h"
+#include "api/AiThreadWrite.h"
 #include "api/Alive.h"
 #include "api/Calendar.h"
 #include "api/CardMilestones.h"

@@ -187,39 +187,6 @@ struct RIG_OPEN_RECORD AiThread {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiThreadCreateResponseData {
-  std::string thread_id;
-};
-
-struct RIG_OPEN_RECORD AiThreadCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiThreadCreateResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiThreadCreateRequest {
-  std::optional<std::string> thread_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted.") RIG_OMIT_EMPTY;
-  std::string project_id;
-  std::string title;
-  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiThreadPatchResponseData {
-  std::string thread_id;
-};
-
-struct RIG_OPEN_RECORD AiThreadPatchResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiThreadPatchResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiThreadUpdateRequest {
-  std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long updated_at;
-};
-
 struct RIG_OPEN_RECORD CardLinkDeleteRequest {
   std::optional<std::string> to_card_id RIG_OMIT_EMPTY;
   std::optional<std::string> target_project_id RIG_FIELD_DESCRIPTION("Selects the target project. Requires to_card_id, to_type and kind; use it to distinguish equal card IDs in different projects.") RIG_OMIT_EMPTY;

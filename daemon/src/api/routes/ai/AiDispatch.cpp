@@ -6,7 +6,6 @@
 #include "api/routes/ai/AiRunRoutes.h"
 #include "api/routes/ai/AiRunnerRoutes.h"
 #include "api/routes/ai/AiStatusRoutes.h"
-#include "api/routes/ai/AiThreadRoutes.h"
 
 #include <boost/beast/http.hpp>
 
@@ -107,12 +106,6 @@ DispatchResult dispatch_ai_routes(
         );
         route_result.handled) {
       return {.handled = true, .streamed = route_result.streamed};
-    }
-    return {.handled = false, .streamed = false};
-  }
-  if (ai_resource == "threads") {
-    if (handle_ai_thread_routes(path, req, res, db, uuid_v4, param)) {
-      return {.handled = true, .streamed = false};
     }
     return {.handled = false, .streamed = false};
   }

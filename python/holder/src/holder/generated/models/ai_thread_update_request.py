@@ -17,8 +17,8 @@ class AiThreadUpdateRequest:
     """
     Attributes:
         updated_at (int):
-        title (None | str | Unset):
-        card_id (None | str | Unset):
+        title (None | str | Unset): Omit or send null to leave it unchanged.
+        card_id (None | str | Unset): Omit to leave it unchanged; null detaches the thread from its card.
     """
 
     updated_at: int

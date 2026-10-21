@@ -1178,7 +1178,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiThreadCreateResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including a project or card that does not exist
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1188,7 +1188,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Conflict
+          description: A thread with this ID already exists
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1245,7 +1250,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiThreadPatchResponse'}
         '400':
-          description: Bad request
+          description: Bad request, including a card that does not exist
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1256,6 +1261,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1272,6 +1282,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiThreadPatchResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -1279,6 +1294,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5143,8 +5163,10 @@ components:
       properties:
         title:
           type: [string, 'null']
+          description: Omit or send null to leave it unchanged.
         card_id:
           type: [string, 'null']
+          description: Omit to leave it unchanged; null detaches the thread from its card.
         updated_at: {type: integer, format: int64}
       required: [updated_at]
     AliveResponse:

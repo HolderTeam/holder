@@ -401,6 +401,7 @@ add_executable(holderd
   src/api/AiRuns.cpp
   src/api/AiStatus.cpp
   src/api/AiThreadRead.cpp
+  src/api/AiThreadWrite.cpp
   src/api/Calendar.cpp
   src/api/CardMilestones.cpp
   src/api/CardRead.cpp
@@ -433,9 +434,6 @@ add_executable(holderd
   src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
   src/api/routes/ai/AiStatusRoutes.cpp
   src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
-  src/api/routes/ai/AiThreadRoutes.cpp
-  src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp
-  src/api/routes/ai/threads/AiThreadItemRoutes.cpp
   src/api/CardReferenceResolve.cpp
   src/api/routes/CardRoutes.cpp
   src/api/routes/ProjectCardRoutes.cpp
