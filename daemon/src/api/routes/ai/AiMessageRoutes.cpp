@@ -12,16 +12,15 @@ bool handle_ai_message_routes(
     boost::beast::http::response<boost::beast::http::string_body>& res,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    const std::function<std::string()>& uuid_v4
 ) {
   if (ai::messages::handle_ai_message_capture_routes(path, req, res, db, fts, uuid_v4)) {
     return true;
   }
-  if (ai::messages::handle_ai_message_link_routes(path, req, res, db, fts, param_get)) {
+  if (ai::messages::handle_ai_message_link_routes(path, req, res, db, fts)) {
     return true;
   }
-  if (ai::messages::handle_ai_message_crud_routes(path, req, res, db, fts, uuid_v4, param_get)) {
+  if (ai::messages::handle_ai_message_crud_routes(path, req, res, db, fts, uuid_v4)) {
     return true;
   }
   return false;

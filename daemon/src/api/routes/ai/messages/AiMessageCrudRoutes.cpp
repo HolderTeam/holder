@@ -22,8 +22,7 @@ bool handle_ai_message_crud_routes(
     http::response<http::string_body>& res,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    const std::function<std::string()>& uuid_v4
 ) {
   if (path == "/ai/messages" && req.method() == http::verb::post) {
     try {

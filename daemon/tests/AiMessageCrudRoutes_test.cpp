@@ -53,9 +53,6 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
   holder::index::FtsIndexer fts(db);
 
   SECTION("list filters deleted unless include_deleted=1") {
-    const auto no_query = [](const std::string&) -> std::string {
-      return {};
-    };
     auto post1 = make_request(
         http::verb::post,
         "/ai/messages",
@@ -70,8 +67,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         [] {
           return std::string("x");
-        },
-        no_query
+        }
     ));
     REQUIRE(post1_res.result() == http::status::created);
 
@@ -89,8 +85,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         [] {
           return std::string("y");
-        },
-        no_query
+        }
     ));
     REQUIRE(post2_res.result() == http::status::created);
 
@@ -135,9 +130,6 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
   SECTION("post missing required fields") {
     auto req = make_request(http::verb::post, "/ai/messages", R"({"thread_id":"thread-1"})");
     http::response<http::string_body> res;
-    const auto no_query = [](const std::string&) -> std::string {
-      return {};
-    };
     REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
         "/ai/messages",
         req,
@@ -146,8 +138,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -159,9 +150,6 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         R"({"thread_id":"thread-1","role":"assistant","source":"runner","content":"hello","provider":"prov","model":"mod","prompt_hash":"ph","meta_json":"{}","created_at":0})"
     );
     http::response<http::string_body> res;
-    const auto no_query = [](const std::string&) -> std::string {
-      return {};
-    };
     REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
         "/ai/messages",
         req,
@@ -170,8 +158,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         [] {
           return std::string("generated-m");
-        },
-        no_query
+        }
     ));
     REQUIRE(res.result() == http::status::created);
     const auto body = nlohmann::json::parse(res.body());
@@ -196,9 +183,6 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
   }
 
   SECTION("post conflict and generic catches") {
-    const auto no_query = [](const std::string&) -> std::string {
-      return {};
-    };
     auto req_conflict = make_request(
         http::verb::post,
         "/ai/messages",
@@ -213,8 +197,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         []() -> std::string {
           throw std::runtime_error("conflict: synthetic");
-        },
-        no_query
+        }
     ));
     REQUIRE(conflict_res.result() == http::status::conflict);
 
@@ -227,8 +210,7 @@ TEST_CASE("AiMessageCrudRoutes collection branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(bad_res.result() == http::status::bad_request);
   }
@@ -239,9 +221,6 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   seed_project_and_thread(db, dir / "project_repo");
   holder::index::FtsIndexer fts(db);
-  const auto no_query = [](const std::string&) -> std::string {
-    return {};
-  };
 
   auto create_req = make_request(
       http::verb::post,
@@ -257,8 +236,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
       &fts,
       [] {
         return std::string("u");
-      },
-      no_query
+      }
   ));
   REQUIRE(create_res.result() == http::status::created);
 
@@ -272,8 +250,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
 
     REQUIRE_FALSE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
@@ -284,8 +261,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
 
     REQUIRE(holder::api::routes::ai::messages::handle_ai_message_crud_routes(
@@ -296,8 +272,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(res.result() == http::status::not_found);
 
@@ -309,8 +284,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
   }
 
@@ -325,8 +299,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(wrong_method_res.result() == http::status::method_not_allowed);
 
@@ -340,8 +313,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(missing_restore_res.result() == http::status::bad_request);
   }
@@ -358,8 +330,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -376,8 +347,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(missing_res.result() == http::status::not_found);
 
@@ -393,8 +363,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(deleted_res.result() == http::status::bad_request);
 
@@ -413,8 +382,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(patch_res.result() == http::status::ok);
 
@@ -439,8 +407,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(bad_res.result() == http::status::bad_request);
   }
@@ -460,8 +427,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(patch_res.result() == http::status::ok);
 
@@ -486,8 +452,7 @@ TEST_CASE("AiMessageCrudRoutes item and restore branches", "[http]") {
         &fts,
         [] {
           return std::string("u");
-        },
-        no_query
+        }
     ));
     REQUIRE(post_res.result() == http::status::not_found);
 

@@ -48,8 +48,7 @@ bool handle_ai_message_link_routes(
     const http::request<http::string_body>& req,
     http::response<http::string_body>& res,
     holder::platform::Db& db,
-    holder::index::FtsIndexer* fts,
-    const std::function<std::string(const std::string&)>& param_get
+    holder::index::FtsIndexer* fts
 ) {
   if (path.rfind("/ai/messages/", 0) != 0) {
     return false;

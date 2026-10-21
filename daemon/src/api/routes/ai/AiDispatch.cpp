@@ -117,7 +117,7 @@ DispatchResult dispatch_ai_routes(
     return {.handled = false, .streamed = false};
   }
   if (ai_resource == "messages") {
-    if (handle_ai_message_routes(path, req, res, db, fts, uuid_v4, param)) {
+    if (handle_ai_message_routes(path, req, res, db, fts, uuid_v4)) {
       return {.handled = true, .streamed = false};
     }
     return {.handled = false, .streamed = false};

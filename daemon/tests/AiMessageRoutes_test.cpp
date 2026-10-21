@@ -33,9 +33,6 @@ TEST_CASE("AiMessageRoutes returns false when no message sub-route matches", "[a
   const auto uuid_v4 = []() {
     return std::string("generated-id");
   };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
 
   const bool handled = holder::api::routes::handle_ai_message_routes(
       "/ai/messages/msg-1/other",
@@ -43,8 +40,7 @@ TEST_CASE("AiMessageRoutes returns false when no message sub-route matches", "[a
       res,
       db,
       &fts,
-      uuid_v4,
-      param_get
+      uuid_v4
   );
   REQUIRE_FALSE(handled);
 }
