@@ -23,7 +23,9 @@ patches.
 ## Live slices
 
 `daemon/src/api/ApiService.h` declares document metadata and bearer security,
-including the 401 response every authenticated operation documents.
+including the 401 and 500 responses every operation documents. `Session.cpp`
+skips the token check for operations the generated dispatcher reports as
+`RIG_PUBLIC`.
 `daemon/src/api/Bye.h` declares the typed operation and response.
 `daemon/src/api/RigRuntime.h` selects the migrated operations for one
 checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
@@ -36,8 +38,9 @@ generated dispatcher catches them and returns that status. `rig_error_body` in
 `GeneratedRoutes.cpp` builds the `ErrorResponse`; `PrivacyError` keeps its own
 code. `ApiService.h` declares `ErrorResponse` as the validation error body, so
 RIG's own request-decoding 400s use the same envelope and `rig_error_body`, and
-every operation with HTTP input documents them. `GeneratedRoutes.cpp` only
-turns an unmapped exception into a 500.
+every operation with HTTP input documents them. Each operation's unmapped
+`std::exception` becomes a generated 500; `GeneratedRoutes.cpp` only guards
+against a failure outside the operations reaching the worker.
 
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
 The shared dispatcher handles this route and its JSON response. Holder supplies

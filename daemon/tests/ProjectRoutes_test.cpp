@@ -584,6 +584,7 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(payload == expected);
 
   req = make_request(http::verb::get, "/projects/missing/tags");
+  REQUIRE_FALSE(holder::api::is_public_generated_route(req));
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");

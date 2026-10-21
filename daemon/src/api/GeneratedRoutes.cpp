@@ -29,11 +29,6 @@ struct Context {
   holder::privacy::SecretStore* secret_store;
 };
 
-Router::Response error_response(http::status status, std::string code, std::string message) {
-  return support::json_response(status, rig_json::encode(ErrorResponse{
-      false, {std::move(code), std::move(message)}}));
-}
-
 std::string error_code(int status) {
   switch (status) {
   case 400: return "bad_request";
@@ -54,6 +49,12 @@ ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
   return {false, {holder::privacy::privacy_error_code_name(error.code()), error.what()}};
 }
 
+bool is_public_generated_route(const Router::Request& req) {
+  const auto target = req.target();
+  return rig_http::is_public(std::string(req.method_string()),
+                             std::string(target.data(), target.size()));
+}
+
 bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry,
@@ -68,7 +69,10 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
     if (!generated) return false;
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
   } catch (const std::exception& error) {
-    res = error_response(http::status::internal_server_error, "error", error.what());
+    // Operations' own failures are already 500s from the generated dispatcher.
+    // This only keeps a failure outside them from escaping to the worker.
+    res = support::json_response(http::status::internal_server_error, rig_json::encode(
+        rig_error_body(std::type_identity<ErrorResponse>{}, 500, error)));
   }
   return true;
 }

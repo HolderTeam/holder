@@ -3206,6 +3206,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /openapi.yaml:
     get:
       summary: Download the OpenAPI specification
@@ -3323,6 +3329,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -5432,6 +5444,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Create or update a link from a card
       parameters:
@@ -5615,6 +5633,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     put:
       summary: Set whether a cloud provider is enabled
       requestBody:
@@ -5638,6 +5662,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -5670,6 +5700,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /ai/providers/credentials:
     get:
       summary: List configured cloud provider credentials
@@ -5682,6 +5718,12 @@ paths:
                 $ref: "#/components/schemas/AiProviderCredentialsListResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -5709,6 +5751,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -6215,6 +6263,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:

@@ -390,7 +390,8 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
             secret_store_,
             git_ops_
         )) {
-      if (!support::is_authorized_bearer(req_, auth_token_)) {
+      if (!is_public_generated_route(req_) &&
+          !support::is_authorized_bearer(req_, auth_token_)) {
         res = support::error_response(
             http::status::unauthorized,
             "unauthorized",
