@@ -4,6 +4,8 @@
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
 
+#include <nlohmann/json.hpp>
+
 #include <string>
 
 namespace holder::api {
@@ -33,5 +35,21 @@ RIG_RESPONSE_DESCRIPTION("OK")
 RIG_HOST_RESPONSE("application/yaml")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 std::string download_git_providers_yaml();
+
+RIG_ROUTE(GET, "/ai_catalog.json")
+RIG_PUBLIC
+RIG_SUMMARY("Download canonical AI catalog config as JSON")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+nlohmann::json download_ai_catalog_json();
+
+RIG_ROUTE(GET, "/git_providers.json")
+RIG_PUBLIC
+RIG_SUMMARY("Download git provider UI/runtime config as JSON")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+nlohmann::json download_git_providers_json();
 
 } // namespace holder::api

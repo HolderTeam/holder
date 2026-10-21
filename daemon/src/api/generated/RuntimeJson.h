@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -57,6 +58,28 @@ template <> struct codec<std::string> {
     static std::string decode(const json& value) {
         if (!value.is_string()) throw std::invalid_argument("expected string");
         return value.get<std::string>();
+    }
+};
+// A free-form JSON object: any members, but an object.
+template <> struct codec<json> {
+    static json encode(const json& value) {
+        if (!value.is_object()) throw std::invalid_argument("expected object");
+        return value;
+    }
+    static json decode(const json& value) { return encode(value); }
+};
+template <typename T> struct codec<std::map<std::string, T>> {
+    static json encode(const std::map<std::string, T>& value) {
+        json result = json::object();
+        for (const auto& [key, item] : value) result[key] = codec<T>::encode(item);
+        return result;
+    }
+    static std::map<std::string, T> decode(const json& value) {
+        if (!value.is_object()) throw std::invalid_argument("expected object");
+        std::map<std::string, T> result;
+        for (auto it = value.begin(); it != value.end(); ++it)
+            result.emplace(it.key(), codec<T>::decode(it.value()));
+        return result;
     }
 };
 template <typename T> struct codec<std::vector<T>> {
@@ -200,6 +223,14 @@ template <> struct codec<holder::api::routes::CardLink> {
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
     static holder::api::routes::CardLinkListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::routes::CardLinkCreateRequest> {
+    static json encode(const holder::api::routes::CardLinkCreateRequest& value);
+    static holder::api::routes::CardLinkCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::routes::CardLinkCreateResponse> {
+    static json encode(const holder::api::routes::CardLinkCreateResponse& value);
+    static holder::api::routes::CardLinkCreateResponse decode(const json& value);
 };
 
 inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
@@ -785,6 +816,57 @@ inline holder::api::routes::CardLinkListResponse codec<holder::api::routes::Card
     return holder::api::routes::CardLinkListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::routes::CardLink>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::routes::CardLinkCreateRequest>::encode(const holder::api::routes::CardLinkCreateRequest& value) {
+    json result = json::object();
+    result["to_card_id"] = codec<std::string>::encode(value.to_card_id);
+    if (value.target_project_id) {
+        result["target_project_id"] = codec<std::optional<std::string>>::encode(value.target_project_id);
+    }
+    if (value.to_type) {
+        result["to_type"] = codec<std::optional<std::string>>::encode(value.to_type);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::string>>::encode(value.kind);
+    }
+    if (value.label) {
+        result["label"] = codec<std::optional<std::optional<std::string>>>::encode(value.label);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    return result;
+}
+inline holder::api::routes::CardLinkCreateRequest codec<holder::api::routes::CardLinkCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardLinkCreateRequest");
+    if (!value.contains("to_card_id")) throw std::invalid_argument("missing to_card_id");
+    return holder::api::routes::CardLinkCreateRequest{
+        codec<std::string>::decode(value.at("to_card_id")),
+        value.contains("target_project_id") ? codec<std::optional<std::string>>::decode(value.at("target_project_id")) : std::nullopt,
+        value.contains("to_type") ? codec<std::optional<std::string>>::decode(value.at("to_type")) : std::nullopt,
+        value.contains("kind") ? codec<std::optional<std::string>>::decode(value.at("kind")) : std::nullopt,
+        value.contains("label") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("label"))} : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::routes::CardLinkCreateResponse>::encode(const holder::api::routes::CardLinkCreateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::routes::CardLink>::encode(value.data);
+    return result;
+}
+inline holder::api::routes::CardLinkCreateResponse codec<holder::api::routes::CardLinkCreateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardLinkCreateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::routes::CardLinkCreateResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::routes::CardLink>::decode(value.at("data")),
     };
 }
 

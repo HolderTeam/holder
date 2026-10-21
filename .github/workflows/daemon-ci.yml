@@ -118,7 +118,7 @@ jobs:
     container: fedora:45
     steps:
       - name: Install GCC 16 and Python
-        run: dnf install -y gcc-c++ make diffutils git python3 python-unversioned-command
+        run: dnf install -y gcc-c++ make diffutils git json-devel python3 python-unversioned-command
       - uses: actions/checkout@v7
         with:
           persist-credentials: false

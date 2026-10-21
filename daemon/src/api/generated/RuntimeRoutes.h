@@ -172,6 +172,12 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_13("^/git_providers\\.yaml$");
     if (method == "GET" && std::regex_match(route_path, route_13))
         return std::nullopt;  // download_git_providers_yaml is served by the host
+    static const std::regex route_14("^/ai_catalog\\.json$");
+    if (method == "GET" && std::regex_match(route_path, route_14))
+        return std::nullopt;  // download_ai_catalog_json is served by the host
+    static const std::regex route_15("^/git_providers\\.json$");
+    if (method == "GET" && std::regex_match(route_path, route_15))
+        return std::nullopt;  // download_git_providers_json is served by the host
     static const std::regex route_2("^/card\\-references/resolve$");
     if (method == "POST" && std::regex_match(route_path, match, route_2)) {
         std::optional<holder::api::CardReferenceResolveRequest> argument_0;
@@ -309,8 +315,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_project_tags"};
         }
     }
-    static const std::regex route_14("^/cards/([^/]+)/links$");
-    if (method == "GET" && std::regex_match(route_path, match, route_14)) {
+    static const std::regex route_16("^/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_16)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<int>> argument_1;
         try {
@@ -335,6 +341,9 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_card_links"};
         }
     }
+    static const std::regex route_17("^/cards/([^/]+)/links$");
+    if (method == "POST" && std::regex_match(route_path, route_17))
+        return std::nullopt;  // create_card_link is served by the host
     return std::nullopt;
 }
 // Whether the operation dispatch would select for this request is RIG_PUBLIC,
@@ -353,6 +362,10 @@ inline bool is_public(const std::string& method, const std::string& path) {
     if (method == "GET" && std::regex_match(route_path, route_12)) return true;
     static const std::regex route_13("^/git_providers\\.yaml$");
     if (method == "GET" && std::regex_match(route_path, route_13)) return true;
+    static const std::regex route_14("^/ai_catalog\\.json$");
+    if (method == "GET" && std::regex_match(route_path, route_14)) return true;
+    static const std::regex route_15("^/git_providers\\.json$");
+    if (method == "GET" && std::regex_match(route_path, route_15)) return true;
     return false;
 }
 } // namespace rig_http

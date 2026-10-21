@@ -32,6 +32,10 @@ operation: a JSON liveness check that needs no token.
 `daemon/src/api/StaticFiles.h` declares the three public YAML downloads with
 `RIG_HOST_RESPONSE("application/yaml")`: `StaticRoutes.cpp` still writes their
 responses, and the generated dispatcher hands their requests back.
+The two `.json` downloads return free-form JSON objects (`nlohmann::json`) the
+same way. `CardLinks.h` declares `POST /cards/{card_id}/links` with
+`RIG_SUCCESS_STATUS(201)` as a host response until its handler moves behind
+the generated dispatcher.
 `daemon/src/api/RigRuntime.h` selects the migrated operations for one
 checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
 `Session.cpp` calls the dispatcher after authentication and event handling. A
@@ -110,7 +114,7 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, fifteen operations, and their
+The generated service metadata, bearer security, eighteen operations, and their
 twenty-six reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract

@@ -32,6 +32,24 @@ struct RIG_OPEN_RECORD CardLinkListResponse {
   std::vector<CardLink> data;
 };
 
+struct RIG_OPEN_RECORD CardLinkCreateRequest {
+  std::string to_card_id;
+  std::optional<std::string> target_project_id RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("Optional for card targets. A named external target project need not be loaded locally.");
+  std::optional<std::string> to_type RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("Optional; defaults to \"card\".");
+  std::optional<std::string> kind RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("Optional; defaults to \"ref\".");
+  std::optional<std::optional<std::string>> label RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<long long> created_at RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.");
+};
+
+struct RIG_OPEN_RECORD CardLinkCreateResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardLink data;
+};
+
 struct CardLinkSourceNotFound : std::runtime_error {
   CardLinkSourceNotFound() : std::runtime_error("Card not found.") {}
 };
@@ -47,5 +65,15 @@ CardLinkListResponse list_card_links(holder::platform::Db& db RIG_CONTEXT,
                                          RIG_INT_VALUES(0, 1)
                                          RIG_PARAMETER_DESCRIPTION(
                                              "Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed."));
+
+// routes::handle_card_routes still writes this response.
+RIG_ROUTE(POST, "/cards/{card_id}/links")
+RIG_SUMMARY("Create or update a link from a card")
+RIG_RESPONSE_DESCRIPTION("Created")
+RIG_HOST_RESPONSE("application/json")
+RIG_SUCCESS_STATUS(201)
+RIG_ERROR_RESPONSE(400, holder::api::ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, holder::api::ErrorResponse, "Not found")
+CardLinkCreateResponse create_card_link(std::string card_id, CardLinkCreateRequest request);
 
 } // namespace holder::api::routes

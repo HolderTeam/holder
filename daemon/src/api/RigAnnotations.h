@@ -29,5 +29,6 @@
 #define RIG_UNAUTHORIZED(body, description)
 #define RIG_PUBLIC
 #define RIG_HOST_RESPONSE(media_type)
+#define RIG_SUCCESS_STATUS(status)
 #define RIG_INTERNAL_ERROR(body, description)
 #endif
