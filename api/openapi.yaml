@@ -2041,6 +2041,13 @@ components:
           enum: [true]
         data:
           $ref: "#/components/schemas/Project"
+    ProjectUpdateRequestPrivacyMode:
+      type: string
+      enum: [encrypted_git, plain]
+    ProjectGitSyncOperationResponseDataPushStatus:
+      type: string
+      enum:
+        [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error]
     ProjectUpdateRequest:
       type: object
       required: [updated_at]
@@ -2055,10 +2062,7 @@ components:
           type: [string, 'null']
         privacy_mode:
           anyOf:
-            # The title keeps the generated Python enum's class name.
-            - title: PrivacyMode
-              type: string
-              enum: [encrypted_git, plain]
+            - $ref: "#/components/schemas/ProjectUpdateRequestPrivacyMode"
             - type: 'null'
         project_key_id:
           type: [string, 'null']
@@ -2217,11 +2221,7 @@ components:
                   type: boolean
                 status:
                   anyOf:
-                    # The title keeps the generated Python enum's class name.
-                    - title: Status
-                      type: string
-                      enum:
-                        [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error]
+                    - $ref: "#/components/schemas/ProjectGitSyncOperationResponseDataPushStatus"
                     - type: 'null'
                 ahead_count:
                   type: integer
@@ -6949,7 +6949,7 @@ paths:
             type: string
       responses:
         "401":
-          description: Unauthorized bearer token
+          description: Unauthorized
           content:
             application/json:
               schema:

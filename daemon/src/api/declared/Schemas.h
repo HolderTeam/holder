@@ -14,6 +14,52 @@ namespace holder::api {
 
 // Schemas of the declared operations, shared across their path groups.
 
+struct RIG_OPEN_RECORD CasteInfo {
+  std::string name RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
+  std::optional<std::optional<std::string>> reason RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD AiLocalModelConfigData {
+  std::optional<std::string> fast_model RIG_NULLABLE;
+  std::optional<std::string> strong_model RIG_NULLABLE;
+  std::optional<std::string> deep_model RIG_NULLABLE;
+  std::optional<long long> updated_at RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD LocalModel {
+  std::string name;
+  std::optional<std::string> digest RIG_OMIT_EMPTY;
+  std::optional<long long> size RIG_OMIT_EMPTY;
+  std::optional<std::string> modified_at RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD CasteRecommendedModel {
+  std::string tag;
+  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> engine RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> category RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::string required_caste RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
+  bool installed;
+};
+
+struct RIG_OPEN_RECORD RunnerCapabilitiesData {
+  bool runner_available;
+  std::optional<bool> spawn_attempted RIG_OMIT_EMPTY;
+  long long last_checked;
+  std::optional<std::string> version RIG_OMIT_EMPTY;
+  std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<CasteInfo>> caste RIG_OMIT_EMPTY RIG_NULLABLE;
+  AiLocalModelConfigData local_model_config;
+  std::vector<LocalModel> models;
+  std::vector<CasteRecommendedModel> recommended_models;
+  std::vector<CasteRecommendedModel> recommended_install;
+};
+
+struct RIG_OPEN_RECORD RunnerCapabilitiesResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  RunnerCapabilitiesData data;
+};
+
 struct RIG_OPEN_RECORD AiStatusPullJob : holder::api::RunnerPullJob {
   bool active;
 };
@@ -67,13 +113,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderCredentialDeleteResponseData 
 struct RIG_OPEN_RECORD AiProviderCredentialDeleteResponse {
   bool ok RIG_BOOL_VALUE(true);
   AiProviderCredentialDeleteResponseData data;
-};
-
-struct RIG_OPEN_RECORD LocalModel {
-  std::string name;
-  std::optional<std::string> digest RIG_OMIT_EMPTY;
-  std::optional<long long> size RIG_OMIT_EMPTY;
-  std::optional<std::string> modified_at RIG_OMIT_EMPTY;
 };
 
 struct RIG_OPEN_RECORD AiRunnerRuntime {
@@ -133,13 +172,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiRunnerDeleteResponseData {
 struct RIG_OPEN_RECORD AiRunnerDeleteResponse {
   bool ok RIG_BOOL_VALUE(true);
   AiRunnerDeleteResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiLocalModelConfigData {
-  std::optional<std::string> fast_model RIG_NULLABLE;
-  std::optional<std::string> strong_model RIG_NULLABLE;
-  std::optional<std::string> deep_model RIG_NULLABLE;
-  std::optional<long long> updated_at RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD AiLocalModelConfigResponse {
@@ -413,6 +445,31 @@ struct RIG_OPEN_RECORD ProjectGetResponse {
   Project data;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectUpdateResponseData {
+  std::string project_id;
+  std::optional<bool> git_remote_changed RIG_FIELD_DESCRIPTION("Present when git_remote_url is supplied. Reports whether the stored remote URL changed, including disconnecting it. Reapplying the same value returns false. The URL is persisted only after Git accepts the remote operation.") RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD ProjectUpdateResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  ProjectUpdateResponseData data;
+};
+
+enum class ProjectUpdateRequestPrivacyMode {
+  encrypted_git,
+  plain,
+};
+
+struct RIG_OPEN_RECORD ProjectUpdateRequest {
+  std::optional<std::optional<std::string>> name RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> root_path RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> git_remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> git_provider RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<ProjectUpdateRequestPrivacyMode>> privacy_mode RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> project_key_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  long long updated_at;
+};
+
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectDeleteResponseData {
   std::string project_id;
 };
@@ -627,6 +684,54 @@ struct RIG_OPEN_RECORD ProjectGitPushRequest {
   std::optional<std::optional<bool>> set_upstream RIG_FIELD_DESCRIPTION("Optional; defaults to true.") RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncOperationResponseDataPull {
+  bool attempted;
+  std::string status RIG_STRING_VALUES("not_attempted", "succeeded", "remote_unset", "failed");
+  int conflicts_resolved;
+  std::optional<std::string> error_message RIG_NULLABLE;
+};
+
+enum class ProjectGitSyncOperationResponseDataPushStatus {
+  pushed,
+  up_to_date,
+  auth_failed,
+  not_found,
+  network_error,
+  non_fast_forward,
+  remote_unset,
+  unknown_error,
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncOperationResponseDataPush {
+  bool attempted;
+  std::optional<ProjectGitSyncOperationResponseDataPushStatus> status;
+  int ahead_count;
+  int behind_count;
+  std::optional<std::string> local_head_commit RIG_NULLABLE;
+  std::optional<std::string> error_message RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncOperationResponseData {
+  std::string project_id;
+  std::optional<std::optional<std::string>> remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::string branch;
+  std::string status RIG_STRING_VALUES("succeeded", "failed");
+  std::optional<std::string> error_code RIG_FIELD_DESCRIPTION("Stable operation failure code. Git failures are returned in a successful HTTP envelope.") RIG_NULLABLE;
+  std::optional<std::string> error_message RIG_NULLABLE;
+  ProjectGitSyncOperationResponseDataPull pull;
+  ProjectGitSyncOperationResponseDataPush push;
+};
+
+struct RIG_OPEN_RECORD ProjectGitSyncOperationResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  ProjectGitSyncOperationResponseData data;
+};
+
+struct RIG_OPEN_RECORD ProjectGitSyncRequest {
+  std::optional<std::optional<std::string>> branch RIG_FIELD_DESCRIPTION("Optional branch to push for a full forced sync. Pull uses the checked-out branch.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<bool>> set_upstream RIG_FIELD_DESCRIPTION("Optional push behavior; defaults to true.") RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitSyncStatusResponseData {
   std::string project_id;
   ProjectSync sync;
@@ -722,6 +827,12 @@ struct MilestoneWithDatesCreateRequest {
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
+struct RIG_DESCRIPTION("Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.") RIG_MIN_PROPERTIES(1) MilestoneWithDatesUpdateRequest {
+  std::optional<std::vector<MilestoneDateValue>> dates RIG_OMIT_EMPTY;
+  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
 struct RIG_OPEN_RECORD MilestoneRemoveResult {
   std::string card_id;
   std::string milestone_id RIG_FIELD_DESCRIPTION("Canonical milestone identifier supplied in the request.") RIG_FORMAT("uuid");
@@ -760,6 +871,14 @@ struct RIG_OPEN_RECORD MilestoneCreateRequest {
   long long start_at RIG_FIELD_DESCRIPTION("Unix epoch seconds. For all_day=true, encode the local calendar date at local midnight.");
   std::optional<std::optional<long long>> end_at RIG_FIELD_DESCRIPTION("Inclusive milestone end. For all_day=true, encode the inclusive ending local date at local midnight.") RIG_OMIT_EMPTY RIG_NULLABLE;
   bool all_day RIG_FIELD_DESCRIPTION("Marks start_at and end_at as local calendar dates rather than timed instants.") RIG_DEFAULT(false);
+  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unchanged; null clears a nullable property.") RIG_MIN_PROPERTIES(1) MilestoneUpdateRequest {
+  std::optional<long long> start_at RIG_FIELD_DESCRIPTION("Unix epoch seconds. When changing an all-day milestone, encode the local calendar date at local midnight.") RIG_OMIT_EMPTY;
+  std::optional<std::optional<long long>> end_at RIG_FIELD_DESCRIPTION("Inclusive milestone end, or null to clear it. The resulting end must not precede start_at.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<bool> all_day RIG_FIELD_DESCRIPTION("Whether start_at and end_at carry local calendar-date semantics rather than timed-instant semantics.") RIG_OMIT_EMPTY;
   std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
@@ -1110,6 +1229,17 @@ struct RIG_OPEN_RECORD TrashListResponse {
   std::vector<TrashItem> data;
 };
 
+struct RIG_OPEN_RECORD EventCheckpoint {
+  std::string cursor RIG_FIELD_DESCRIPTION("Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID.");
+  std::map<std::string, std::optional<std::string>> git_revisions RIG_FIELD_DESCRIPTION("Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.");
+  std::map<std::string, std::string> history_urls RIG_FIELD_DESCRIPTION("Existing project history endpoints for durable recovery. Refresh live state after inspecting history.");
+};
+
+struct RIG_OPEN_RECORD EventCheckpointResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  EventCheckpoint data;
+};
+
 struct RIG_OPEN_RECORD AssetImportJob {
   std::string job_id;
   std::string status RIG_STRING_VALUES("queued", "staging", "storing", "committing", "completed", "failed");
@@ -1185,6 +1315,21 @@ struct RIG_OPEN_RECORD ReindexData {
 struct RIG_OPEN_RECORD ReindexResponse {
   bool ok RIG_BOOL_VALUE(true);
   ReindexData data;
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD RecoveryTokenImportAutoResponseData {
+  std::string project_id;
+  bool project_created;
+  bool remote_hint_present;
+  bool remote_configured;
+  std::optional<std::optional<std::string>> remote_error RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::string pull_status RIG_STRING_VALUES("not_attempted", "succeeded", "failed");
+  std::optional<std::optional<std::string>> pull_error RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD RecoveryTokenImportAutoResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  RecoveryTokenImportAutoResponseData data;
 };
 
 struct RIG_OPEN_RECORD CalendarCardActivity {

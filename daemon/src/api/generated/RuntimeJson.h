@@ -217,6 +217,30 @@ template <> struct codec<holder::api::RunnerPullStatusResponse> {
     static json encode(const holder::api::RunnerPullStatusResponse& value);
     static holder::api::RunnerPullStatusResponse decode(const json& value);
 };
+template <> struct codec<holder::api::CasteInfo> {
+    static json encode(const holder::api::CasteInfo& value);
+    static holder::api::CasteInfo decode(const json& value);
+};
+template <> struct codec<holder::api::AiLocalModelConfigData> {
+    static json encode(const holder::api::AiLocalModelConfigData& value);
+    static holder::api::AiLocalModelConfigData decode(const json& value);
+};
+template <> struct codec<holder::api::LocalModel> {
+    static json encode(const holder::api::LocalModel& value);
+    static holder::api::LocalModel decode(const json& value);
+};
+template <> struct codec<holder::api::CasteRecommendedModel> {
+    static json encode(const holder::api::CasteRecommendedModel& value);
+    static holder::api::CasteRecommendedModel decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerCapabilitiesData> {
+    static json encode(const holder::api::RunnerCapabilitiesData& value);
+    static holder::api::RunnerCapabilitiesData decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerCapabilitiesResponse> {
+    static json encode(const holder::api::RunnerCapabilitiesResponse& value);
+    static holder::api::RunnerCapabilitiesResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiStatusPullJob> {
     static json encode(const holder::api::AiStatusPullJob& value);
     static holder::api::AiStatusPullJob decode(const json& value);
@@ -248,10 +272,6 @@ template <> struct codec<holder::api::AiProviderCredentialDeleteResponseData> {
 template <> struct codec<holder::api::AiProviderCredentialDeleteResponse> {
     static json encode(const holder::api::AiProviderCredentialDeleteResponse& value);
     static holder::api::AiProviderCredentialDeleteResponse decode(const json& value);
-};
-template <> struct codec<holder::api::LocalModel> {
-    static json encode(const holder::api::LocalModel& value);
-    static holder::api::LocalModel decode(const json& value);
 };
 template <> struct codec<holder::api::AiRunnerRuntime> {
     static json encode(const holder::api::AiRunnerRuntime& value);
@@ -288,10 +308,6 @@ template <> struct codec<holder::api::AiRunnerDeleteResponseData> {
 template <> struct codec<holder::api::AiRunnerDeleteResponse> {
     static json encode(const holder::api::AiRunnerDeleteResponse& value);
     static holder::api::AiRunnerDeleteResponse decode(const json& value);
-};
-template <> struct codec<holder::api::AiLocalModelConfigData> {
-    static json encode(const holder::api::AiLocalModelConfigData& value);
-    static holder::api::AiLocalModelConfigData decode(const json& value);
 };
 template <> struct codec<holder::api::AiLocalModelConfigResponse> {
     static json encode(const holder::api::AiLocalModelConfigResponse& value);
@@ -441,6 +457,22 @@ template <> struct codec<holder::api::ProjectGetResponse> {
     static json encode(const holder::api::ProjectGetResponse& value);
     static holder::api::ProjectGetResponse decode(const json& value);
 };
+template <> struct codec<holder::api::ProjectUpdateResponseData> {
+    static json encode(const holder::api::ProjectUpdateResponseData& value);
+    static holder::api::ProjectUpdateResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectUpdateResponse> {
+    static json encode(const holder::api::ProjectUpdateResponse& value);
+    static holder::api::ProjectUpdateResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectUpdateRequestPrivacyMode> {
+    static json encode(const holder::api::ProjectUpdateRequestPrivacyMode& value);
+    static holder::api::ProjectUpdateRequestPrivacyMode decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectUpdateRequest> {
+    static json encode(const holder::api::ProjectUpdateRequest& value);
+    static holder::api::ProjectUpdateRequest decode(const json& value);
+};
 template <> struct codec<holder::api::ProjectDeleteResponseData> {
     static json encode(const holder::api::ProjectDeleteResponseData& value);
     static holder::api::ProjectDeleteResponseData decode(const json& value);
@@ -573,6 +605,30 @@ template <> struct codec<holder::api::ProjectGitPushRequest> {
     static json encode(const holder::api::ProjectGitPushRequest& value);
     static holder::api::ProjectGitPushRequest decode(const json& value);
 };
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPull> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPull decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPushStatus decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPush> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPush decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseData> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseData& value);
+    static holder::api::ProjectGitSyncOperationResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponse> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponse& value);
+    static holder::api::ProjectGitSyncOperationResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncRequest> {
+    static json encode(const holder::api::ProjectGitSyncRequest& value);
+    static holder::api::ProjectGitSyncRequest decode(const json& value);
+};
 template <> struct codec<holder::api::ProjectGitSyncStatusResponseData> {
     static json encode(const holder::api::ProjectGitSyncStatusResponseData& value);
     static holder::api::ProjectGitSyncStatusResponseData decode(const json& value);
@@ -641,6 +697,10 @@ template <> struct codec<holder::api::MilestoneWithDatesCreateRequest> {
     static json encode(const holder::api::MilestoneWithDatesCreateRequest& value);
     static holder::api::MilestoneWithDatesCreateRequest decode(const json& value);
 };
+template <> struct codec<holder::api::MilestoneWithDatesUpdateRequest> {
+    static json encode(const holder::api::MilestoneWithDatesUpdateRequest& value);
+    static holder::api::MilestoneWithDatesUpdateRequest decode(const json& value);
+};
 template <> struct codec<holder::api::MilestoneRemoveResult> {
     static json encode(const holder::api::MilestoneRemoveResult& value);
     static holder::api::MilestoneRemoveResult decode(const json& value);
@@ -664,6 +724,10 @@ template <> struct codec<holder::api::MilestoneResponse> {
 template <> struct codec<holder::api::MilestoneCreateRequest> {
     static json encode(const holder::api::MilestoneCreateRequest& value);
     static holder::api::MilestoneCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneUpdateRequest> {
+    static json encode(const holder::api::MilestoneUpdateRequest& value);
+    static holder::api::MilestoneUpdateRequest decode(const json& value);
 };
 template <> struct codec<holder::api::CardListItem> {
     static json encode(const holder::api::CardListItem& value);
@@ -869,6 +933,14 @@ template <> struct codec<holder::api::TrashListResponse> {
     static json encode(const holder::api::TrashListResponse& value);
     static holder::api::TrashListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::EventCheckpoint> {
+    static json encode(const holder::api::EventCheckpoint& value);
+    static holder::api::EventCheckpoint decode(const json& value);
+};
+template <> struct codec<holder::api::EventCheckpointResponse> {
+    static json encode(const holder::api::EventCheckpointResponse& value);
+    static holder::api::EventCheckpointResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AssetImportJob> {
     static json encode(const holder::api::AssetImportJob& value);
     static holder::api::AssetImportJob decode(const json& value);
@@ -916,6 +988,14 @@ template <> struct codec<holder::api::ReindexData> {
 template <> struct codec<holder::api::ReindexResponse> {
     static json encode(const holder::api::ReindexResponse& value);
     static holder::api::ReindexResponse decode(const json& value);
+};
+template <> struct codec<holder::api::RecoveryTokenImportAutoResponseData> {
+    static json encode(const holder::api::RecoveryTokenImportAutoResponseData& value);
+    static holder::api::RecoveryTokenImportAutoResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::RecoveryTokenImportAutoResponse> {
+    static json encode(const holder::api::RecoveryTokenImportAutoResponse& value);
+    static holder::api::RecoveryTokenImportAutoResponse decode(const json& value);
 };
 template <> struct codec<holder::api::CalendarCardActivity> {
     static json encode(const holder::api::CalendarCardActivity& value);
@@ -1477,6 +1557,167 @@ inline holder::api::RunnerPullStatusResponse codec<holder::api::RunnerPullStatus
     };
 }
 
+inline json codec<holder::api::CasteInfo>::encode(const holder::api::CasteInfo& value) {
+    json result = json::object();
+    if (value.name != "mini" && value.name != "user" && value.name != "developer" && value.name != "workstation" && value.name != "rig") throw std::invalid_argument("invalid name");
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.reason) {
+        result["reason"] = codec<std::optional<std::optional<std::string>>>::encode(value.reason);
+    }
+    return result;
+}
+inline holder::api::CasteInfo codec<holder::api::CasteInfo>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CasteInfo");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    if (value.at("name") != "mini" && value.at("name") != "user" && value.at("name") != "developer" && value.at("name") != "workstation" && value.at("name") != "rig") throw std::invalid_argument("invalid name");
+    return holder::api::CasteInfo{
+        codec<std::string>::decode(value.at("name")),
+        value.contains("reason") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("reason"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiLocalModelConfigData>::encode(const holder::api::AiLocalModelConfigData& value) {
+    json result = json::object();
+    result["fast_model"] = codec<std::optional<std::string>>::encode(value.fast_model);
+    result["strong_model"] = codec<std::optional<std::string>>::encode(value.strong_model);
+    result["deep_model"] = codec<std::optional<std::string>>::encode(value.deep_model);
+    result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::AiLocalModelConfigData codec<holder::api::AiLocalModelConfigData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiLocalModelConfigData");
+    if (!value.contains("fast_model")) throw std::invalid_argument("missing fast_model");
+    if (!value.contains("strong_model")) throw std::invalid_argument("missing strong_model");
+    if (!value.contains("deep_model")) throw std::invalid_argument("missing deep_model");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::AiLocalModelConfigData{
+        codec<std::optional<std::string>>::decode(value.at("fast_model")),
+        codec<std::optional<std::string>>::decode(value.at("strong_model")),
+        codec<std::optional<std::string>>::decode(value.at("deep_model")),
+        codec<std::optional<long long>>::decode(value.at("updated_at")),
+    };
+}
+
+inline json codec<holder::api::LocalModel>::encode(const holder::api::LocalModel& value) {
+    json result = json::object();
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.digest) {
+        result["digest"] = codec<std::optional<std::string>>::encode(value.digest);
+    }
+    if (value.size) {
+        result["size"] = codec<std::optional<long long>>::encode(value.size);
+    }
+    if (value.modified_at) {
+        result["modified_at"] = codec<std::optional<std::string>>::encode(value.modified_at);
+    }
+    return result;
+}
+inline holder::api::LocalModel codec<holder::api::LocalModel>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocalModel");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    return holder::api::LocalModel{
+        codec<std::string>::decode(value.at("name")),
+        value.contains("digest") ? codec<std::optional<std::string>>::decode(value.at("digest")) : std::nullopt,
+        value.contains("size") ? codec<std::optional<long long>>::decode(value.at("size")) : std::nullopt,
+        value.contains("modified_at") ? codec<std::optional<std::string>>::decode(value.at("modified_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CasteRecommendedModel>::encode(const holder::api::CasteRecommendedModel& value) {
+    json result = json::object();
+    result["tag"] = codec<std::string>::encode(value.tag);
+    if (value.provider) {
+        result["provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.provider);
+    }
+    if (value.engine) {
+        result["engine"] = codec<std::optional<std::optional<std::string>>>::encode(value.engine);
+    }
+    if (value.category) {
+        result["category"] = codec<std::optional<std::optional<std::string>>>::encode(value.category);
+    }
+    if (value.required_caste != "mini" && value.required_caste != "user" && value.required_caste != "developer" && value.required_caste != "workstation" && value.required_caste != "rig") throw std::invalid_argument("invalid required_caste");
+    result["required_caste"] = codec<std::string>::encode(value.required_caste);
+    result["installed"] = codec<bool>::encode(value.installed);
+    return result;
+}
+inline holder::api::CasteRecommendedModel codec<holder::api::CasteRecommendedModel>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CasteRecommendedModel");
+    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
+    if (!value.contains("required_caste")) throw std::invalid_argument("missing required_caste");
+    if (!value.contains("installed")) throw std::invalid_argument("missing installed");
+    if (value.at("required_caste") != "mini" && value.at("required_caste") != "user" && value.at("required_caste") != "developer" && value.at("required_caste") != "workstation" && value.at("required_caste") != "rig") throw std::invalid_argument("invalid required_caste");
+    return holder::api::CasteRecommendedModel{
+        codec<std::string>::decode(value.at("tag")),
+        value.contains("provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("provider"))} : std::nullopt,
+        value.contains("engine") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("engine"))} : std::nullopt,
+        value.contains("category") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("category"))} : std::nullopt,
+        codec<std::string>::decode(value.at("required_caste")),
+        codec<bool>::decode(value.at("installed")),
+    };
+}
+
+inline json codec<holder::api::RunnerCapabilitiesData>::encode(const holder::api::RunnerCapabilitiesData& value) {
+    json result = json::object();
+    result["runner_available"] = codec<bool>::encode(value.runner_available);
+    if (value.spawn_attempted) {
+        result["spawn_attempted"] = codec<std::optional<bool>>::encode(value.spawn_attempted);
+    }
+    result["last_checked"] = codec<long long>::encode(value.last_checked);
+    if (value.version) {
+        result["version"] = codec<std::optional<std::string>>::encode(value.version);
+    }
+    if (value.error) {
+        result["error"] = codec<std::optional<std::optional<std::string>>>::encode(value.error);
+    }
+    if (value.caste) {
+        result["caste"] = codec<std::optional<std::optional<holder::api::CasteInfo>>>::encode(value.caste);
+    }
+    result["local_model_config"] = codec<holder::api::AiLocalModelConfigData>::encode(value.local_model_config);
+    result["models"] = codec<std::vector<holder::api::LocalModel>>::encode(value.models);
+    result["recommended_models"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_models);
+    result["recommended_install"] = codec<std::vector<holder::api::CasteRecommendedModel>>::encode(value.recommended_install);
+    return result;
+}
+inline holder::api::RunnerCapabilitiesData codec<holder::api::RunnerCapabilitiesData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesData");
+    if (!value.contains("runner_available")) throw std::invalid_argument("missing runner_available");
+    if (!value.contains("last_checked")) throw std::invalid_argument("missing last_checked");
+    if (!value.contains("local_model_config")) throw std::invalid_argument("missing local_model_config");
+    if (!value.contains("models")) throw std::invalid_argument("missing models");
+    if (!value.contains("recommended_models")) throw std::invalid_argument("missing recommended_models");
+    if (!value.contains("recommended_install")) throw std::invalid_argument("missing recommended_install");
+    return holder::api::RunnerCapabilitiesData{
+        codec<bool>::decode(value.at("runner_available")),
+        value.contains("spawn_attempted") ? codec<std::optional<bool>>::decode(value.at("spawn_attempted")) : std::nullopt,
+        codec<long long>::decode(value.at("last_checked")),
+        value.contains("version") ? codec<std::optional<std::string>>::decode(value.at("version")) : std::nullopt,
+        value.contains("error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error"))} : std::nullopt,
+        value.contains("caste") ? std::optional<std::optional<holder::api::CasteInfo>>{std::in_place, codec<std::optional<holder::api::CasteInfo>>::decode(value.at("caste"))} : std::nullopt,
+        codec<holder::api::AiLocalModelConfigData>::decode(value.at("local_model_config")),
+        codec<std::vector<holder::api::LocalModel>>::decode(value.at("models")),
+        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_models")),
+        codec<std::vector<holder::api::CasteRecommendedModel>>::decode(value.at("recommended_install")),
+    };
+}
+
+inline json codec<holder::api::RunnerCapabilitiesResponse>::encode(const holder::api::RunnerCapabilitiesResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RunnerCapabilitiesData>::encode(value.data);
+    return result;
+}
+inline holder::api::RunnerCapabilitiesResponse codec<holder::api::RunnerCapabilitiesResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerCapabilitiesResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RunnerCapabilitiesResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RunnerCapabilitiesData>::decode(value.at("data")),
+    };
+}
+
 inline json codec<holder::api::AiStatusPullJob>::encode(const holder::api::AiStatusPullJob& value) {
     json result = codec<holder::api::RunnerPullJob>::encode(value);
     result["active"] = codec<bool>::encode(value.active);
@@ -1663,31 +1904,6 @@ inline holder::api::AiProviderCredentialDeleteResponse codec<holder::api::AiProv
     return holder::api::AiProviderCredentialDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderCredentialDeleteResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::LocalModel>::encode(const holder::api::LocalModel& value) {
-    json result = json::object();
-    result["name"] = codec<std::string>::encode(value.name);
-    if (value.digest) {
-        result["digest"] = codec<std::optional<std::string>>::encode(value.digest);
-    }
-    if (value.size) {
-        result["size"] = codec<std::optional<long long>>::encode(value.size);
-    }
-    if (value.modified_at) {
-        result["modified_at"] = codec<std::optional<std::string>>::encode(value.modified_at);
-    }
-    return result;
-}
-inline holder::api::LocalModel codec<holder::api::LocalModel>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocalModel");
-    if (!value.contains("name")) throw std::invalid_argument("missing name");
-    return holder::api::LocalModel{
-        codec<std::string>::decode(value.at("name")),
-        value.contains("digest") ? codec<std::optional<std::string>>::decode(value.at("digest")) : std::nullopt,
-        value.contains("size") ? codec<std::optional<long long>>::decode(value.at("size")) : std::nullopt,
-        value.contains("modified_at") ? codec<std::optional<std::string>>::decode(value.at("modified_at")) : std::nullopt,
     };
 }
 
@@ -1886,28 +2102,6 @@ inline holder::api::AiRunnerDeleteResponse codec<holder::api::AiRunnerDeleteResp
     return holder::api::AiRunnerDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiRunnerDeleteResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AiLocalModelConfigData>::encode(const holder::api::AiLocalModelConfigData& value) {
-    json result = json::object();
-    result["fast_model"] = codec<std::optional<std::string>>::encode(value.fast_model);
-    result["strong_model"] = codec<std::optional<std::string>>::encode(value.strong_model);
-    result["deep_model"] = codec<std::optional<std::string>>::encode(value.deep_model);
-    result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    return result;
-}
-inline holder::api::AiLocalModelConfigData codec<holder::api::AiLocalModelConfigData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiLocalModelConfigData");
-    if (!value.contains("fast_model")) throw std::invalid_argument("missing fast_model");
-    if (!value.contains("strong_model")) throw std::invalid_argument("missing strong_model");
-    if (!value.contains("deep_model")) throw std::invalid_argument("missing deep_model");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    return holder::api::AiLocalModelConfigData{
-        codec<std::optional<std::string>>::decode(value.at("fast_model")),
-        codec<std::optional<std::string>>::decode(value.at("strong_model")),
-        codec<std::optional<std::string>>::decode(value.at("deep_model")),
-        codec<std::optional<long long>>::decode(value.at("updated_at")),
     };
 }
 
@@ -2864,6 +3058,92 @@ inline holder::api::ProjectGetResponse codec<holder::api::ProjectGetResponse>::d
     };
 }
 
+inline json codec<holder::api::ProjectUpdateResponseData>::encode(const holder::api::ProjectUpdateResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.git_remote_changed) {
+        result["git_remote_changed"] = codec<std::optional<bool>>::encode(value.git_remote_changed);
+    }
+    return result;
+}
+inline holder::api::ProjectUpdateResponseData codec<holder::api::ProjectUpdateResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectUpdateResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    return holder::api::ProjectUpdateResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("git_remote_changed") ? codec<std::optional<bool>>::decode(value.at("git_remote_changed")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectUpdateResponse>::encode(const holder::api::ProjectUpdateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectUpdateResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectUpdateResponse codec<holder::api::ProjectUpdateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectUpdateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectUpdateResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectUpdateResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectUpdateRequestPrivacyMode>::encode(const holder::api::ProjectUpdateRequestPrivacyMode& value) {
+    switch (value) {
+    case holder::api::ProjectUpdateRequestPrivacyMode::encrypted_git: return "encrypted_git";
+    case holder::api::ProjectUpdateRequestPrivacyMode::plain: return "plain";
+    }
+    throw std::invalid_argument("invalid ProjectUpdateRequestPrivacyMode");
+}
+inline holder::api::ProjectUpdateRequestPrivacyMode codec<holder::api::ProjectUpdateRequestPrivacyMode>::decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("expected ProjectUpdateRequestPrivacyMode");
+    if (value == "encrypted_git") return holder::api::ProjectUpdateRequestPrivacyMode::encrypted_git;
+    if (value == "plain") return holder::api::ProjectUpdateRequestPrivacyMode::plain;
+    throw std::invalid_argument("unknown ProjectUpdateRequestPrivacyMode");
+}
+
+inline json codec<holder::api::ProjectUpdateRequest>::encode(const holder::api::ProjectUpdateRequest& value) {
+    json result = json::object();
+    if (value.name) {
+        result["name"] = codec<std::optional<std::optional<std::string>>>::encode(value.name);
+    }
+    if (value.root_path) {
+        result["root_path"] = codec<std::optional<std::optional<std::string>>>::encode(value.root_path);
+    }
+    if (value.git_remote_url) {
+        result["git_remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_remote_url);
+    }
+    if (value.git_provider) {
+        result["git_provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_provider);
+    }
+    if (value.privacy_mode) {
+        result["privacy_mode"] = codec<std::optional<std::optional<holder::api::ProjectUpdateRequestPrivacyMode>>>::encode(value.privacy_mode);
+    }
+    if (value.project_key_id) {
+        result["project_key_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.project_key_id);
+    }
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::ProjectUpdateRequest codec<holder::api::ProjectUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectUpdateRequest");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::ProjectUpdateRequest{
+        value.contains("name") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("name"))} : std::nullopt,
+        value.contains("root_path") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("root_path"))} : std::nullopt,
+        value.contains("git_remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_remote_url"))} : std::nullopt,
+        value.contains("git_provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_provider"))} : std::nullopt,
+        value.contains("privacy_mode") ? std::optional<std::optional<holder::api::ProjectUpdateRequestPrivacyMode>>{std::in_place, codec<std::optional<holder::api::ProjectUpdateRequestPrivacyMode>>::decode(value.at("privacy_mode"))} : std::nullopt,
+        value.contains("project_key_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_key_id"))} : std::nullopt,
+        codec<long long>::decode(value.at("updated_at")),
+    };
+}
+
 inline json codec<holder::api::ProjectDeleteResponseData>::encode(const holder::api::ProjectDeleteResponseData& value) {
     json result = json::object();
     result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -3587,6 +3867,157 @@ inline holder::api::ProjectGitPushRequest codec<holder::api::ProjectGitPushReque
     };
 }
 
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    if (value.status != "not_attempted" && value.status != "succeeded" && value.status != "remote_unset" && value.status != "failed") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["conflicts_resolved"] = codec<int>::encode(value.conflicts_resolved);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPull codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPull");
+    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("conflicts_resolved")) throw std::invalid_argument("missing conflicts_resolved");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    if (value.at("status") != "not_attempted" && value.at("status") != "succeeded" && value.at("status") != "remote_unset" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitSyncOperationResponseDataPull{
+        codec<bool>::decode(value.at("attempted")),
+        codec<std::string>::decode(value.at("status")),
+        codec<int>::decode(value.at("conflicts_resolved")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value) {
+    switch (value) {
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed: return "pushed";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date: return "up_to_date";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed: return "auth_failed";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found: return "not_found";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error: return "network_error";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward: return "non_fast_forward";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset: return "remote_unset";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error: return "unknown_error";
+    }
+    throw std::invalid_argument("invalid ProjectGitSyncOperationResponseDataPushStatus");
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPushStatus codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPushStatus");
+    if (value == "pushed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed;
+    if (value == "up_to_date") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date;
+    if (value == "auth_failed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed;
+    if (value == "not_found") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found;
+    if (value == "network_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error;
+    if (value == "non_fast_forward") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward;
+    if (value == "remote_unset") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset;
+    if (value == "unknown_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error;
+    throw std::invalid_argument("unknown ProjectGitSyncOperationResponseDataPushStatus");
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    result["status"] = codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::encode(value.status);
+    result["ahead_count"] = codec<int>::encode(value.ahead_count);
+    result["behind_count"] = codec<int>::encode(value.behind_count);
+    result["local_head_commit"] = codec<std::optional<std::string>>::encode(value.local_head_commit);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPush codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPush");
+    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("ahead_count")) throw std::invalid_argument("missing ahead_count");
+    if (!value.contains("behind_count")) throw std::invalid_argument("missing behind_count");
+    if (!value.contains("local_head_commit")) throw std::invalid_argument("missing local_head_commit");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    return holder::api::ProjectGitSyncOperationResponseDataPush{
+        codec<bool>::decode(value.at("attempted")),
+        codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::decode(value.at("status")),
+        codec<int>::decode(value.at("ahead_count")),
+        codec<int>::decode(value.at("behind_count")),
+        codec<std::optional<std::string>>::decode(value.at("local_head_commit")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseData>::encode(const holder::api::ProjectGitSyncOperationResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.remote_url) {
+        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
+    }
+    result["branch"] = codec<std::string>::encode(value.branch);
+    if (value.status != "succeeded" && value.status != "failed") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["error_code"] = codec<std::optional<std::string>>::encode(value.error_code);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    result["pull"] = codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(value.pull);
+    result["push"] = codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(value.push);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseData codec<holder::api::ProjectGitSyncOperationResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("error_code")) throw std::invalid_argument("missing error_code");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    if (!value.contains("pull")) throw std::invalid_argument("missing pull");
+    if (!value.contains("push")) throw std::invalid_argument("missing push");
+    if (value.at("status") != "succeeded" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitSyncOperationResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
+        codec<std::string>::decode(value.at("branch")),
+        codec<std::string>::decode(value.at("status")),
+        codec<std::optional<std::string>>::decode(value.at("error_code")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+        codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(value.at("pull")),
+        codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(value.at("push")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponse>::encode(const holder::api::ProjectGitSyncOperationResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectGitSyncOperationResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponse codec<holder::api::ProjectGitSyncOperationResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGitSyncOperationResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectGitSyncOperationResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncRequest>::encode(const holder::api::ProjectGitSyncRequest& value) {
+    json result = json::object();
+    if (value.branch) {
+        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
+    }
+    if (value.set_upstream) {
+        result["set_upstream"] = codec<std::optional<std::optional<bool>>>::encode(value.set_upstream);
+    }
+    return result;
+}
+inline holder::api::ProjectGitSyncRequest codec<holder::api::ProjectGitSyncRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncRequest");
+    return holder::api::ProjectGitSyncRequest{
+        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
+        value.contains("set_upstream") ? std::optional<std::optional<bool>>{std::in_place, codec<std::optional<bool>>::decode(value.at("set_upstream"))} : std::nullopt,
+    };
+}
+
 inline json codec<holder::api::ProjectGitSyncStatusResponseData>::encode(const holder::api::ProjectGitSyncStatusResponseData& value) {
     json result = json::object();
     result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -3918,6 +4349,31 @@ inline holder::api::MilestoneWithDatesCreateRequest codec<holder::api::Milestone
     };
 }
 
+inline json codec<holder::api::MilestoneWithDatesUpdateRequest>::encode(const holder::api::MilestoneWithDatesUpdateRequest& value) {
+    json result = json::object();
+    if (value.dates) {
+        result["dates"] = codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::encode(value.dates);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneWithDatesUpdateRequest codec<holder::api::MilestoneWithDatesUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesUpdateRequest");
+    if (value.size() < 1) throw std::invalid_argument("too few MilestoneWithDatesUpdateRequest fields");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneWithDatesUpdateRequest field");
+    return holder::api::MilestoneWithDatesUpdateRequest{
+        value.contains("dates") ? codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::decode(value.at("dates")) : std::nullopt,
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
 inline json codec<holder::api::MilestoneRemoveResult>::encode(const holder::api::MilestoneRemoveResult& value) {
     json result = json::object();
     result["card_id"] = codec<std::string>::encode(value.card_id);
@@ -4057,6 +4513,39 @@ inline holder::api::MilestoneCreateRequest codec<holder::api::MilestoneCreateReq
         codec<long long>::decode(value.at("start_at")),
         value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
         value.contains("all_day") ? codec<bool>::decode(value.at("all_day")) : bool(false),
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::MilestoneUpdateRequest>::encode(const holder::api::MilestoneUpdateRequest& value) {
+    json result = json::object();
+    if (value.start_at) {
+        result["start_at"] = codec<std::optional<long long>>::encode(value.start_at);
+    }
+    if (value.end_at) {
+        result["end_at"] = codec<std::optional<std::optional<long long>>>::encode(value.end_at);
+    }
+    if (value.all_day) {
+        result["all_day"] = codec<std::optional<bool>>::encode(value.all_day);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneUpdateRequest");
+    if (value.size() < 1) throw std::invalid_argument("too few MilestoneUpdateRequest fields");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "start_at" && it.key() != "end_at" && it.key() != "all_day" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneUpdateRequest field");
+    return holder::api::MilestoneUpdateRequest{
+        value.contains("start_at") ? codec<std::optional<long long>>::decode(value.at("start_at")) : std::nullopt,
+        value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
+        value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
         value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
         value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
     };
@@ -5269,6 +5758,43 @@ inline holder::api::TrashListResponse codec<holder::api::TrashListResponse>::dec
     };
 }
 
+inline json codec<holder::api::EventCheckpoint>::encode(const holder::api::EventCheckpoint& value) {
+    json result = json::object();
+    result["cursor"] = codec<std::string>::encode(value.cursor);
+    result["git_revisions"] = codec<std::map<std::string, std::optional<std::string>>>::encode(value.git_revisions);
+    result["history_urls"] = codec<std::map<std::string, std::string>>::encode(value.history_urls);
+    return result;
+}
+inline holder::api::EventCheckpoint codec<holder::api::EventCheckpoint>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected EventCheckpoint");
+    if (!value.contains("cursor")) throw std::invalid_argument("missing cursor");
+    if (!value.contains("git_revisions")) throw std::invalid_argument("missing git_revisions");
+    if (!value.contains("history_urls")) throw std::invalid_argument("missing history_urls");
+    return holder::api::EventCheckpoint{
+        codec<std::string>::decode(value.at("cursor")),
+        codec<std::map<std::string, std::optional<std::string>>>::decode(value.at("git_revisions")),
+        codec<std::map<std::string, std::string>>::decode(value.at("history_urls")),
+    };
+}
+
+inline json codec<holder::api::EventCheckpointResponse>::encode(const holder::api::EventCheckpointResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::EventCheckpoint>::encode(value.data);
+    return result;
+}
+inline holder::api::EventCheckpointResponse codec<holder::api::EventCheckpointResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected EventCheckpointResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::EventCheckpointResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::EventCheckpoint>::decode(value.at("data")),
+    };
+}
+
 inline json codec<holder::api::AssetImportJob>::encode(const holder::api::AssetImportJob& value) {
     json result = json::object();
     result["job_id"] = codec<std::string>::encode(value.job_id);
@@ -5525,6 +6051,59 @@ inline holder::api::ReindexResponse codec<holder::api::ReindexResponse>::decode(
     return holder::api::ReindexResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ReindexData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::RecoveryTokenImportAutoResponseData>::encode(const holder::api::RecoveryTokenImportAutoResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["project_created"] = codec<bool>::encode(value.project_created);
+    result["remote_hint_present"] = codec<bool>::encode(value.remote_hint_present);
+    result["remote_configured"] = codec<bool>::encode(value.remote_configured);
+    if (value.remote_error) {
+        result["remote_error"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_error);
+    }
+    if (value.pull_status != "not_attempted" && value.pull_status != "succeeded" && value.pull_status != "failed") throw std::invalid_argument("invalid pull_status");
+    result["pull_status"] = codec<std::string>::encode(value.pull_status);
+    if (value.pull_error) {
+        result["pull_error"] = codec<std::optional<std::optional<std::string>>>::encode(value.pull_error);
+    }
+    return result;
+}
+inline holder::api::RecoveryTokenImportAutoResponseData codec<holder::api::RecoveryTokenImportAutoResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RecoveryTokenImportAutoResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("project_created")) throw std::invalid_argument("missing project_created");
+    if (!value.contains("remote_hint_present")) throw std::invalid_argument("missing remote_hint_present");
+    if (!value.contains("remote_configured")) throw std::invalid_argument("missing remote_configured");
+    if (!value.contains("pull_status")) throw std::invalid_argument("missing pull_status");
+    if (value.at("pull_status") != "not_attempted" && value.at("pull_status") != "succeeded" && value.at("pull_status") != "failed") throw std::invalid_argument("invalid pull_status");
+    return holder::api::RecoveryTokenImportAutoResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<bool>::decode(value.at("project_created")),
+        codec<bool>::decode(value.at("remote_hint_present")),
+        codec<bool>::decode(value.at("remote_configured")),
+        value.contains("remote_error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_error"))} : std::nullopt,
+        codec<std::string>::decode(value.at("pull_status")),
+        value.contains("pull_error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("pull_error"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::RecoveryTokenImportAutoResponse>::encode(const holder::api::RecoveryTokenImportAutoResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RecoveryTokenImportAutoResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::RecoveryTokenImportAutoResponse codec<holder::api::RecoveryTokenImportAutoResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RecoveryTokenImportAutoResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RecoveryTokenImportAutoResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RecoveryTokenImportAutoResponseData>::decode(value.at("data")),
     };
 }
 

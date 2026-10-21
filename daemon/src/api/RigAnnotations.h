@@ -25,6 +25,10 @@
 #define RIG_FORMAT(text)
 #define RIG_PATTERN(text)
 #define RIG_VALUE_TYPE
+#define RIG_MIN_PROPERTIES(value)
+#define RIG_SUCCESS_RESPONSE(status, description)
+#define RIG_OPERATION_ID(text)
+#define RIG_RESPONSE_HEADER(name, description)
 #define RIG_DEFAULT(value)
 #define RIG_FIELD_DESCRIPTION(text)
 #define RIG_OMIT_EMPTY

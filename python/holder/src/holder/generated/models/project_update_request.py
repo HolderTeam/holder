@@ -149,9 +149,9 @@ class ProjectUpdateRequest:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                privacy_mode_privacy_mode = ProjectUpdateRequestPrivacyMode(data)
+                privacy_mode_type_0 = ProjectUpdateRequestPrivacyMode(data)
 
-                return privacy_mode_privacy_mode
+                return privacy_mode_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | ProjectUpdateRequestPrivacyMode | Unset, data)

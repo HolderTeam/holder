@@ -40,6 +40,16 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 ProjectGetResponse get_projects_project_id(std::string project_id);
 
+RIG_ROUTE(PATCH, "/projects/{project_id}")
+RIG_SUMMARY("Update a project")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
+ProjectUpdateResponse patch_projects_project_id(
+    std::string project_id,
+    ProjectUpdateRequest request);
+
 RIG_ROUTE(DELETE, "/projects/{project_id}")
 RIG_SUMMARY("Delete a project")
 RIG_DESCRIPTION("Removes the project from this device's database and records its removal so startup discovery and database reconstruction do not automatically import it again. Project files and encryption keys are retained for explicit recovery. Creating or importing the project explicitly registers it again.")
@@ -172,6 +182,28 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 ProjectGitPushResponse post_projects_project_id_git_push(
     std::string project_id,
     std::optional<ProjectGitPushRequest> request);
+
+RIG_ROUTE(POST, "/projects/{project_id}/git/pull")
+RIG_SUMMARY("Pull and reconcile a project immediately")
+RIG_DESCRIPTION("Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution, then reconciles the SQLite index before returning. Concurrent Git operations for the same project are serialized.")
+RIG_RESPONSE_DESCRIPTION("Pull completed with structured status.")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
+ProjectGitSyncOperationResponse post_projects_project_id_git_pull(
+    std::string project_id,
+    std::optional<ProjectGitSyncRequest> request);
+
+RIG_ROUTE(POST, "/projects/{project_id}/git/sync")
+RIG_SUMMARY("Pull, reconcile, and push a project immediately")
+RIG_DESCRIPTION("Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for the same project are serialized.")
+RIG_RESPONSE_DESCRIPTION("Forced sync completed with structured phase statuses.")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
+ProjectGitSyncOperationResponse post_projects_project_id_git_sync(
+    std::string project_id,
+    std::optional<ProjectGitSyncRequest> request);
 
 RIG_ROUTE(GET, "/projects/{project_id}/git/sync-status")
 RIG_SUMMARY("Get persisted project Git sync status")
