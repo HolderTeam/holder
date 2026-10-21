@@ -474,18 +474,6 @@ template <> struct codec<holder::api::Project> {
     static json encode(const holder::api::Project& value);
     static holder::api::Project decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectCreateResponseData> {
-    static json encode(const holder::api::ProjectCreateResponseData& value);
-    static holder::api::ProjectCreateResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectCreateResponse> {
-    static json encode(const holder::api::ProjectCreateResponse& value);
-    static holder::api::ProjectCreateResponse decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectCreateRequest> {
-    static json encode(const holder::api::ProjectCreateRequest& value);
-    static holder::api::ProjectCreateRequest decode(const json& value);
-};
 template <> struct codec<holder::api::ProjectUpdateResponseData> {
     static json encode(const holder::api::ProjectUpdateResponseData& value);
     static holder::api::ProjectUpdateResponseData decode(const json& value);
@@ -1073,6 +1061,14 @@ template <> struct codec<holder::api::ProjectListResponse> {
 template <> struct codec<holder::api::ProjectGetResponse> {
     static json encode(const holder::api::ProjectGetResponse& value);
     static holder::api::ProjectGetResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectCreateRequest> {
+    static json encode(const holder::api::ProjectCreateRequest& value);
+    static holder::api::ProjectCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectCreateResponse> {
+    static json encode(const holder::api::ProjectCreateResponse& value);
+    static holder::api::ProjectCreateResponse decode(const json& value);
 };
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
@@ -3092,84 +3088,6 @@ inline holder::api::Project codec<holder::api::Project>::decode(const json& valu
         value.contains("card_count") ? codec<std::optional<int>>::decode(value.at("card_count")) : std::nullopt,
         value.contains("root_card_count") ? codec<std::optional<int>>::decode(value.at("root_card_count")) : std::nullopt,
         codec<holder::api::ProjectSync>::decode(value.at("sync")),
-    };
-}
-
-inline json codec<holder::api::ProjectCreateResponseData>::encode(const holder::api::ProjectCreateResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    return result;
-}
-inline holder::api::ProjectCreateResponseData codec<holder::api::ProjectCreateResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectCreateResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    return holder::api::ProjectCreateResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-    };
-}
-
-inline json codec<holder::api::ProjectCreateResponse>::encode(const holder::api::ProjectCreateResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectCreateResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectCreateResponse codec<holder::api::ProjectCreateResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectCreateResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectCreateResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectCreateResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::ProjectCreateRequest>::encode(const holder::api::ProjectCreateRequest& value) {
-    json result = json::object();
-    if (value.project_id) {
-        result["project_id"] = codec<std::optional<std::string>>::encode(value.project_id);
-    }
-    result["name"] = codec<std::string>::encode(value.name);
-    if (value.root_path) {
-        result["root_path"] = codec<std::optional<std::string>>::encode(value.root_path);
-    }
-    if (value.git_remote_url) {
-        result["git_remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_remote_url);
-    }
-    if (value.git_provider) {
-        result["git_provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_provider);
-    }
-    if (value.privacy_mode && *value.privacy_mode != "encrypted_git" && *value.privacy_mode != "plain") throw std::invalid_argument("invalid privacy_mode");
-    if (value.privacy_mode) {
-        result["privacy_mode"] = codec<std::optional<std::string>>::encode(value.privacy_mode);
-    }
-    if (value.project_key_id) {
-        result["project_key_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.project_key_id);
-    }
-    if (value.created_at) {
-        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
-    }
-    if (value.updated_at) {
-        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    }
-    return result;
-}
-inline holder::api::ProjectCreateRequest codec<holder::api::ProjectCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectCreateRequest");
-    if (!value.contains("name")) throw std::invalid_argument("missing name");
-    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null() && value.at("privacy_mode") != "encrypted_git" && value.at("privacy_mode") != "plain") throw std::invalid_argument("invalid privacy_mode");
-    return holder::api::ProjectCreateRequest{
-        value.contains("project_id") ? codec<std::optional<std::string>>::decode(value.at("project_id")) : std::nullopt,
-        codec<std::string>::decode(value.at("name")),
-        value.contains("root_path") ? codec<std::optional<std::string>>::decode(value.at("root_path")) : std::nullopt,
-        value.contains("git_remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_remote_url"))} : std::nullopt,
-        value.contains("git_provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_provider"))} : std::nullopt,
-        value.contains("privacy_mode") ? codec<std::optional<std::string>>::decode(value.at("privacy_mode")) : std::nullopt,
-        value.contains("project_key_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_key_id"))} : std::nullopt,
-        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
-        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
     };
 }
 
@@ -6443,6 +6361,71 @@ inline holder::api::ProjectGetResponse codec<holder::api::ProjectGetResponse>::d
     if (!value.contains("data")) throw std::invalid_argument("missing data");
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::ProjectGetResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::Project>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectCreateRequest>::encode(const holder::api::ProjectCreateRequest& value) {
+    json result = json::object();
+    if (value.project_id) {
+        result["project_id"] = codec<std::optional<std::string>>::encode(value.project_id);
+    }
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.root_path) {
+        result["root_path"] = codec<std::optional<std::string>>::encode(value.root_path);
+    }
+    if (value.git_remote_url) {
+        result["git_remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_remote_url);
+    }
+    if (value.git_provider) {
+        result["git_provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.git_provider);
+    }
+    if (value.privacy_mode && *value.privacy_mode != "encrypted_git" && *value.privacy_mode != "plain") throw std::invalid_argument("invalid privacy_mode");
+    if (value.privacy_mode) {
+        result["privacy_mode"] = codec<std::optional<std::string>>::encode(value.privacy_mode);
+    }
+    if (value.project_key_id) {
+        result["project_key_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.project_key_id);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::ProjectCreateRequest codec<holder::api::ProjectCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectCreateRequest");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null() && value.at("privacy_mode") != "encrypted_git" && value.at("privacy_mode") != "plain") throw std::invalid_argument("invalid privacy_mode");
+    return holder::api::ProjectCreateRequest{
+        value.contains("project_id") ? codec<std::optional<std::string>>::decode(value.at("project_id")) : std::nullopt,
+        codec<std::string>::decode(value.at("name")),
+        value.contains("root_path") ? codec<std::optional<std::string>>::decode(value.at("root_path")) : std::nullopt,
+        value.contains("git_remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_remote_url"))} : std::nullopt,
+        value.contains("git_provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("git_provider"))} : std::nullopt,
+        value.contains("privacy_mode") ? codec<std::optional<std::string>>::decode(value.at("privacy_mode")) : std::nullopt,
+        value.contains("project_key_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_key_id"))} : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectCreateResponse>::encode(const holder::api::ProjectCreateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::Project>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectCreateResponse codec<holder::api::ProjectCreateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectCreateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectCreateResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::Project>::decode(value.at("data")),
     };

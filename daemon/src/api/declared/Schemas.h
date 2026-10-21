@@ -440,27 +440,6 @@ struct RIG_OPEN_RECORD Project {
   ProjectSync sync;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectCreateResponseData {
-  std::string project_id;
-};
-
-struct RIG_OPEN_RECORD ProjectCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectCreateResponseData data;
-};
-
-struct RIG_OPEN_RECORD ProjectCreateRequest {
-  std::optional<std::string> project_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted.") RIG_OMIT_EMPTY;
-  std::string name;
-  std::optional<std::string> root_path RIG_FIELD_DESCRIPTION("Optional; server chooses a default if omitted.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> git_remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> git_provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::string> privacy_mode RIG_FIELD_DESCRIPTION("Optional; defaults to encrypted_git.") RIG_STRING_VALUES("encrypted_git", "plain") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> project_key_id RIG_FIELD_DESCRIPTION("Optional keyring identifier (metadata only).") RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectUpdateResponseData {
   std::string project_id;
   std::optional<bool> git_remote_changed RIG_FIELD_DESCRIPTION("Present when git_remote_url is supplied. Reports whether the stored remote URL changed, including disconnecting it. Reapplying the same value returns false. The URL is persisted only after Git accepts the remote operation.") RIG_OMIT_EMPTY;

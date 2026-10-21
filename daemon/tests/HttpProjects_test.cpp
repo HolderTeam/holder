@@ -177,6 +177,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
+  REQUIRE(created_auto["data"] == fetched_auto["data"]);
   REQUIRE(fetched_auto["data"]["created_at"].get<long long>() > 0);
   REQUIRE(fetched_auto["data"]["updated_at"].get<long long>() > 0);
   REQUIRE(fetched_auto["data"]["root_path"].is_string());
@@ -207,6 +208,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::status::ok
   );
   REQUIRE(fetched["ok"] == true);
+  REQUIRE(created["data"] == fetched["data"]);
   REQUIRE(fetched["data"]["name"] == "Project One");
   REQUIRE(fetched["data"]["privacy_mode"] == "encrypted_git");
   REQUIRE(fetched["data"]["project_key_id"].is_string());

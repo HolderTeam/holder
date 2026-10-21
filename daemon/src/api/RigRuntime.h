@@ -12,6 +12,7 @@
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
 #include "api/ProjectRead.h"
+#include "api/ProjectCreate.h"
 #include "api/StaticFiles.h"
 #include "api/declared/Ai.h"
 #include "api/declared/Calendar.h"

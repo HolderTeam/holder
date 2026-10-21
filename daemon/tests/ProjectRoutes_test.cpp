@@ -590,6 +590,10 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE_FALSE(holder::api::routes::handle_project_routes(
       "/projects", req, res, db, nullptr, [] { return std::string("id"); }));
 
+  req = make_request(http::verb::post, "/projects", {{"name", "Created"}});
+  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
+      "/projects", req, res, db, nullptr, [] { return std::string("id"); }));
+
   req = make_request(http::verb::get, "/projects/proj-1");
   REQUIRE_FALSE(holder::api::is_public_generated_route(req));
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -636,14 +640,9 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        path,
-        req,
-        res,
-        db,
-        &git,
-        uuid_v4
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
+        holder::api::routes::handle_project_routes(path, req, res, db, &git, uuid_v4);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
@@ -745,14 +744,9 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        path,
-        req,
-        res,
-        db,
-        &git,
-        uuid_v4
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
+        holder::api::routes::handle_project_routes(path, req, res, db, &git, uuid_v4);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };

@@ -13,14 +13,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(POST, "/projects")
-RIG_SUMMARY("Create a project")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-ProjectCreateResponse post_projects(ProjectCreateRequest request);
-
 RIG_ROUTE(PATCH, "/projects/{project_id}")
 RIG_SUMMARY("Update a project")
 RIG_RESPONSE_DESCRIPTION("OK")

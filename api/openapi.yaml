@@ -2722,6 +2722,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Project encryption setup failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: Keyring unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}:
     get:
       summary: Get a project
@@ -5789,11 +5799,7 @@ components:
         ok:
           type: boolean
           enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-          required: [project_id]
+        data: {$ref: '#/components/schemas/Project'}
       required: [ok, data]
     ProjectDeleteResponse:
       type: object

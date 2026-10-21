@@ -5199,6 +5199,26 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Project encryption setup failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Keyring unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -12057,15 +12077,7 @@
             ]
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "project_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "project_id"
-            ]
+            "$ref": "#/components/schemas/Project"
           }
         },
         "required": [

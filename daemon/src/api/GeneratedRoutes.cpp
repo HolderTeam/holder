@@ -3,12 +3,13 @@
 #include "api/Alive.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
+#include "api/ProjectCreate.h"
+#include "api/ProjectRead.h"
 #include "api/ProjectTags.h"
 #include "api/ProviderCredentials.h"
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
-#include "api/ProjectRead.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "privacy/SecretStore.h"
@@ -29,6 +30,8 @@ struct Context {
   holder::llm::RunnerRegistry* registry;
   holder::index::FtsIndexer* fts;
   holder::privacy::SecretStore* secret_store;
+  holder::git::GitOps* git_ops;
+  std::function<std::string()> uuid_v4;
 };
 
 std::string error_code(int status) {
@@ -61,9 +64,11 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry,
                                holder::index::FtsIndexer* fts,
-                               holder::privacy::SecretStore* secret_store) {
+                               holder::privacy::SecretStore* secret_store,
+                               holder::git::GitOps* git_ops,
+                               std::function<std::string()> uuid_v4) {
   const auto target = req.target();
-  Context context{db, registry, fts, secret_store};
+  Context context{db, registry, fts, secret_store, git_ops, std::move(uuid_v4)};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
