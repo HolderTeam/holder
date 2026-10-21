@@ -444,7 +444,7 @@ add_executable(holderd
   src/api/routes/MilestoneRoutes.cpp
   src/api/routes/ProjectRoutes.cpp
   src/api/routes/ReindexRoutes.cpp
-  src/api/routes/SearchRoutes.cpp
+  src/api/Search.cpp
   src/api/routes/TrashRoutes.cpp
   src/api/routes/StaticRoutes.cpp
   src/api/support/PathDiscovery.cpp

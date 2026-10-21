@@ -725,11 +725,95 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, route_114))
         return std::nullopt;  // post_recovery_token_import is served by the host
     static const std::regex route_120("^/search/cards$");
-    if (method == "GET" && std::regex_match(route_path, route_120))
-        return std::nullopt;  // get_search_cards is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_120)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        std::optional<int> argument_2;
+        std::optional<int> argument_3;
+        try {
+            const auto query_values = decode_query(query_string);
+            const auto query_0 = query_values.find("project_id");
+            if (query_0 == query_values.end())
+                throw std::invalid_argument("missing query parameter: project_id");
+            argument_0.emplace(std::string(query_0->second));
+            const auto query_1 = query_values.find("q");
+            if (query_1 == query_values.end())
+                throw std::invalid_argument("missing query parameter: q");
+            argument_1.emplace(std::string(query_1->second));
+            const auto query_2 = query_values.find("limit");
+            if (query_2 == query_values.end())
+                argument_2.emplace(20);
+            else
+                argument_2.emplace(decode_query_int(query_2->second));
+            const auto query_3 = query_values.find("offset");
+            if (query_3 == query_values.end())
+                argument_3.emplace(0);
+            else
+                argument_3.emplace(decode_query_int(query_3->second));
+            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "project_id");
+            enforce_length(*argument_1, 1, std::numeric_limits<std::size_t>::max(), "q");
+            enforce_range(*argument_2, 1, std::numeric_limits<int>::max(), "limit");
+            enforce_range(*argument_3, 0, std::numeric_limits<int>::max(), "offset");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "get_search_cards");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "get_search_cards");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::get_search_cards(context.fts, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2), std::move(*argument_3))), "get_search_cards"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_search_cards"};
+        } catch (const holder::api::SearchUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "get_search_cards"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_search_cards"};
+        }
+    }
     static const std::regex route_121("^/search/ai$");
-    if (method == "GET" && std::regex_match(route_path, route_121))
-        return std::nullopt;  // get_search_ai is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_121)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        std::optional<int> argument_2;
+        std::optional<int> argument_3;
+        try {
+            const auto query_values = decode_query(query_string);
+            const auto query_0 = query_values.find("project_id");
+            if (query_0 == query_values.end())
+                throw std::invalid_argument("missing query parameter: project_id");
+            argument_0.emplace(std::string(query_0->second));
+            const auto query_1 = query_values.find("q");
+            if (query_1 == query_values.end())
+                throw std::invalid_argument("missing query parameter: q");
+            argument_1.emplace(std::string(query_1->second));
+            const auto query_2 = query_values.find("limit");
+            if (query_2 == query_values.end())
+                argument_2.emplace(20);
+            else
+                argument_2.emplace(decode_query_int(query_2->second));
+            const auto query_3 = query_values.find("offset");
+            if (query_3 == query_values.end())
+                argument_3.emplace(0);
+            else
+                argument_3.emplace(decode_query_int(query_3->second));
+            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "project_id");
+            enforce_length(*argument_1, 1, std::numeric_limits<std::size_t>::max(), "q");
+            enforce_range(*argument_2, 1, std::numeric_limits<int>::max(), "limit");
+            enforce_range(*argument_3, 0, std::numeric_limits<int>::max(), "offset");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "get_search_ai");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "get_search_ai");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::get_search_ai(context.fts, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2), std::move(*argument_3))), "get_search_ai"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_search_ai"};
+        } catch (const holder::api::SearchUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "get_search_ai"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_search_ai"};
+        }
+    }
     static const std::regex route_1("^/ai/providers/credentials$");
     if (method == "GET" && std::regex_match(route_path, match, route_1)) {
         try {

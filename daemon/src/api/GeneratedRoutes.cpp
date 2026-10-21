@@ -29,6 +29,7 @@
 #include "api/Rebuild.h"
 #include "api/ResourceRead.h"
 #include "api/RunnerPull.h"
+#include "api/Search.h"
 #include "api/TrashList.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"

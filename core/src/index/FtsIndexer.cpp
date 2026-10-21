@@ -176,6 +176,9 @@ std::vector<FtsIndexer::SearchRow> FtsIndexer::search_cards(
     }
     if (rc == SQLITE_DONE) break;
     sqlite3_finalize(stmt);
+    // The statement prepared, so a plain SQLITE_ERROR while matching is FTS5 rejecting the query.
+    if (rc == SQLITE_ERROR)
+      throw FtsQueryError(std::string("invalid search query: ") + sqlite3_errmsg(db_.handle()));
     throw_sqlite(db_.handle(), "search cards_fts failed");
   }
 
@@ -233,6 +236,9 @@ std::vector<FtsIndexer::SearchRow> FtsIndexer::search_messages(
     }
     if (rc == SQLITE_DONE) break;
     sqlite3_finalize(stmt);
+    // The statement prepared, so a plain SQLITE_ERROR while matching is FTS5 rejecting the query.
+    if (rc == SQLITE_ERROR)
+      throw FtsQueryError(std::string("invalid search query: ") + sqlite3_errmsg(db_.handle()));
     throw_sqlite(db_.handle(), "search ai_fts failed");
   }
 

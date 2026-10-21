@@ -14,8 +14,8 @@ def _get_kwargs(
     *,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -57,6 +57,16 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -79,16 +89,19 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> Response[ErrorResponse | SearchMessagesResponse]:
     """Search AI messages
+
+     q is an SQLite FTS5 query, matched against message content in one project. Results are ordered by
+    relevance, best first.
 
     Args:
         project_id (str):
         q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -117,16 +130,19 @@ def sync(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> ErrorResponse | SearchMessagesResponse | None:
     """Search AI messages
+
+     q is an SQLite FTS5 query, matched against message content in one project. Results are ordered by
+    relevance, best first.
 
     Args:
         project_id (str):
         q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -150,16 +166,19 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> Response[ErrorResponse | SearchMessagesResponse]:
     """Search AI messages
+
+     q is an SQLite FTS5 query, matched against message content in one project. Results are ordered by
+    relevance, best first.
 
     Args:
         project_id (str):
         q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -186,16 +205,19 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     project_id: str,
     q: str,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
+    limit: int | Unset = 20,
+    offset: int | Unset = 0,
 ) -> ErrorResponse | SearchMessagesResponse | None:
     """Search AI messages
+
+     q is an SQLite FTS5 query, matched against message content in one project. Results are ordered by
+    relevance, best first.
 
     Args:
         project_id (str):
         q (str):
-        limit (int | Unset):
-        offset (int | Unset):
+        limit (int | Unset):  Default: 20.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -962,32 +962,6 @@ struct RIG_OPEN_RECORD AssetImportRequest {
   std::string source_path RIG_FIELD_DESCRIPTION("Local readable regular file; never persisted into project metadata.");
 };
 
-struct RIG_OPEN_RECORD SearchCardItem {
-  std::string card_id;
-  std::string title;
-  long long updated_at;
-  long long created_at;
-  std::string snippet;
-  double rank;
-};
-
-struct RIG_OPEN_RECORD SearchCardsResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<SearchCardItem> data;
-};
-
-struct RIG_OPEN_RECORD SearchMessageItem {
-  std::string message_id;
-  long long created_at;
-  std::string snippet;
-  double rank;
-};
-
-struct RIG_OPEN_RECORD SearchMessagesResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<SearchMessageItem> data;
-};
-
 struct RIG_OPEN_RECORD ReindexData {
   std::string message;
 };

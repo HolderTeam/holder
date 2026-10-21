@@ -7,7 +7,6 @@
 #include "api/routes/ProjectCardRoutes.h"
 #include "api/routes/ProjectRoutes.h"
 #include "api/routes/ReindexRoutes.h"
-#include "api/routes/SearchRoutes.h"
 #include "api/routes/TrashRoutes.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
@@ -71,7 +70,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
   } else if (resource == "reindex") {
     if (handle_reindex_routes(path, req, res, db)) return {};
   } else if (resource == "search") {
-    if (handle_search_routes(path, req, res, fts, decoded_param)) return {};
   } else if (resource == "ai") {
     const auto route_result = ai::dispatch_ai_routes(
         path,
