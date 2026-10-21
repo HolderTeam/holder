@@ -32,30 +32,6 @@ bool handle_ai_provider_credential_routes(
     holder::privacy::SecretStore& secret_store
 ) {
   static constexpr const char* kSecretService = "holder.ai_provider_credentials";
-  if (path.rfind("/ai/providers/settings/", 0) == 0 && req.method() == http::verb::delete_) {
-    try {
-      const std::string provider = support::normalize_provider_name(
-          path.substr(std::string("/ai/providers/settings/").size())
-      );
-      if (provider.empty()) {
-        res =
-            support::error_response(http::status::bad_request, "bad_request", "Invalid provider.");
-        return true;
-      }
-      holder::ai::AiProviderSettingRepo repo(db);
-      repo.remove(provider);
-      holder::core::persist_device_config(db);
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = {{"provider", provider}};
-      res = support::json_response(http::status::ok, payload);
-      return true;
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      return true;
-    }
-  }
-
   if (path == "/ai/providers/credentials" && req.method() == http::verb::get) {
     try {
       holder::ai::AiProviderCredentialRepo repo(db);

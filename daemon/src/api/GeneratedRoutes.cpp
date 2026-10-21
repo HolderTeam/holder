@@ -49,6 +49,8 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
         res = error_response(http::status::not_found, "not_found", "Project not found.");
       } else if (generated->operation == "get_pull_status") {
         res = error_response(http::status::not_found, "not_found", "Runner not configured.");
+      } else if (generated->operation == "delete_provider_setting") {
+        res = error_response(http::status::bad_request, "bad_request", "Invalid provider.");
       } else {
         res = error_response(http::status::bad_request, "bad_request",
                              generated->body.value("message", "Invalid request."));

@@ -123,8 +123,8 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, match, route_0)) {
         return response{200, rig_json::encode(holder::api::say_goodbye()), "say_goodbye"};
     }
-    static const std::regex route_5("^/rebuild$");
-    if (method == "POST" && std::regex_match(route_path, match, route_5)) {
+    static const std::regex route_6("^/rebuild$");
+    if (method == "POST" && std::regex_match(route_path, match, route_6)) {
         std::optional<holder::api::RebuildRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::RebuildRequest>(body));
@@ -163,8 +163,20 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
     }
-    static const std::regex route_6("^/ai/runner/pull/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, match, route_6)) {
+    static const std::regex route_5("^/ai/providers/settings/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_5)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error.what(), "delete_provider_setting");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error.what(), "delete_provider_setting");
+        }
+        return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
+    }
+    static const std::regex route_7("^/ai/runner/pull/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, match, route_7)) {
         std::optional<std::optional<std::string>> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -194,8 +206,8 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
     }
-    static const std::regex route_7("^/cards/([^/]+)/links$");
-    if (method == "GET" && std::regex_match(route_path, match, route_7)) {
+    static const std::regex route_8("^/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_8)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<int>> argument_1;
         try {

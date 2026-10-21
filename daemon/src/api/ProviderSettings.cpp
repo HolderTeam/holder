@@ -38,4 +38,17 @@ AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,
   }
 }
 
+AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db,
+                                                         std::string provider) {
+  try {
+    provider = support::normalize_provider_name(provider);
+    if (provider.empty()) throw ProviderSettingError("Invalid provider.");
+    holder::ai::AiProviderSettingRepo(db).remove(provider);
+    holder::core::persist_device_config(db);
+    return {true, {std::move(provider)}};
+  } catch (const std::exception& error) {
+    throw ProviderSettingError(error.what());
+  }
+}
+
 } // namespace holder::api

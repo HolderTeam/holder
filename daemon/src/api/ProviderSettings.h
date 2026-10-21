@@ -38,6 +38,15 @@ struct RIG_OPEN_RECORD AiProviderSettingsResponse {
   AiProviderSettingsData data;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderSettingDeleteData {
+  std::string provider;
+};
+
+struct RIG_OPEN_RECORD AiProviderSettingDeleteResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  AiProviderSettingDeleteData data;
+};
+
 struct ProviderSettingError : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
@@ -54,5 +63,12 @@ RIG_RESPONSE_DESCRIPTION("OK")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 AiProviderSettingResponse set_provider_setting(holder::platform::Db& db RIG_CONTEXT,
                                                AiProviderSettingUpdateRequest request);
+
+RIG_ROUTE(DELETE, "/ai/providers/settings/{provider}")
+RIG_SUMMARY("Remove a cloud provider enabled override")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db RIG_CONTEXT,
+                                                         std::string provider);
 
 } // namespace holder::api

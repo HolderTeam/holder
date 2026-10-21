@@ -189,6 +189,19 @@ TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   REQUIRE(settings_after_remove["data"]["providers"][0]["provider"] == "chocolatefactory");
   REQUIRE(settings_after_remove["data"]["providers"][0]["enabled"] == false);
 
+  const auto setting_removed = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::delete_,
+      "/ai/providers/settings/ChocolateFactory", nlohmann::json{},
+      boost::beast::http::status::ok
+  );
+  REQUIRE(setting_removed == nlohmann::json{
+      {"ok", true}, {"data", {{"provider", "chocolatefactory"}}}});
+  const auto settings_empty = http_json_request(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/ai/providers/settings", nlohmann::json{}, boost::beast::http::status::ok
+  );
+  REQUIRE(settings_empty["data"]["providers"].empty());
+
   std::raise(SIGTERM);
   server_thread.join();
 }
@@ -235,13 +248,7 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
 
   SECTION("settings delete invalid provider") {
     auto req = make_req(http::verb::delete_, "/ai/providers/settings/%");
-    REQUIRE(holder::api::routes::ai::providers::handle_ai_provider_credential_routes(
-        "/ai/providers/settings/%",
-        req,
-        res,
-        db,
-        *secret_store
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "Invalid provider.");
@@ -257,16 +264,12 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
     REQUIRE(res.result() == http::status::ok);
 
     auto del = make_req(http::verb::delete_, "/ai/providers/settings/switchyard");
-    REQUIRE(holder::api::routes::ai::providers::handle_ai_provider_credential_routes(
-        "/ai/providers/settings/switchyard",
-        del,
-        res,
-        db,
-        *secret_store
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(del, res, db));
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["data"]["provider"] == "switchyard");
+    REQUIRE_FALSE(holder::api::routes::ai::providers::handle_ai_provider_credential_routes(
+        "/ai/providers/settings/switchyard", del, res, db, *secret_store));
   }
 
   SECTION("credentials put missing provider/api_key") {
@@ -389,7 +392,11 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
     REQUIRE(res.result() == http::status::bad_request);
   }
-  expect_bad_request(http::verb::delete_, "/ai/providers/settings/switchyard");
+  {
+    auto req = make_req(http::verb::delete_, "/ai/providers/settings/switchyard");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
+    REQUIRE(res.result() == http::status::bad_request);
+  }
 
   expect_bad_request(http::verb::get, "/ai/providers/credentials");
   expect_bad_request(

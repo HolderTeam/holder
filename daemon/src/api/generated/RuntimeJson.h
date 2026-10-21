@@ -137,6 +137,14 @@ template <> struct codec<holder::api::AiProviderSettingsResponse> {
     static json encode(const holder::api::AiProviderSettingsResponse& value);
     static holder::api::AiProviderSettingsResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderSettingDeleteData> {
+    static json encode(const holder::api::AiProviderSettingDeleteData& value);
+    static holder::api::AiProviderSettingDeleteData decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderSettingDeleteResponse> {
+    static json encode(const holder::api::AiProviderSettingDeleteResponse& value);
+    static holder::api::AiProviderSettingDeleteResponse decode(const json& value);
+};
 template <> struct codec<holder::api::RebuildRequest> {
     static json encode(const holder::api::RebuildRequest& value);
     static holder::api::RebuildRequest decode(const json& value);
@@ -439,6 +447,39 @@ inline holder::api::AiProviderSettingsResponse codec<holder::api::AiProviderSett
     return holder::api::AiProviderSettingsResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderSettingsData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingDeleteData>::encode(const holder::api::AiProviderSettingDeleteData& value) {
+    json result = json::object();
+    result["provider"] = codec<std::string>::encode(value.provider);
+    return result;
+}
+inline holder::api::AiProviderSettingDeleteData codec<holder::api::AiProviderSettingDeleteData>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("provider")
+) throw std::invalid_argument("expected AiProviderSettingDeleteData");
+    return holder::api::AiProviderSettingDeleteData{
+        codec<std::string>::decode(value.at("provider")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingDeleteResponse>::encode(const holder::api::AiProviderSettingDeleteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderSettingDeleteData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderSettingDeleteResponse codec<holder::api::AiProviderSettingDeleteResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected AiProviderSettingDeleteResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderSettingDeleteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderSettingDeleteData>::decode(value.at("data")),
     };
 }
 
