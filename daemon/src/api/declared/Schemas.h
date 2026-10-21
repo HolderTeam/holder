@@ -330,9 +330,9 @@ struct RIG_OPEN_RECORD CardListItem {
   double sort_key;
   long long created_at;
   long long updated_at;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<int> child_count RIG_FIELD_DESCRIPTION("Present when requested by the listing route (include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
+  std::optional<std::string> parent_card_id RIG_NULLABLE;
+  std::optional<long long> deleted_at RIG_NULLABLE;
+  std::optional<int> child_count RIG_FIELD_DESCRIPTION("Live children, present when requested (count=true, or include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
 };
 
 struct RIG_OPEN_RECORD CardPageItem : CardListItem {
@@ -706,11 +706,6 @@ struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unch
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD CardListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<CardListItem> data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardCreateResponseData {
   std::string card_id;
   std::string rel_path;
@@ -730,51 +725,6 @@ struct RIG_OPEN_RECORD CardCreateRequest {
   std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<double> sort_key RIG_OMIT_EMPTY;
   std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardContextDataProject {
-  std::string project_id;
-  std::string name;
-};
-
-struct RIG_OPEN_RECORD CardContextBreadcrumb {
-  std::string type RIG_STRING_VALUES("project", "card");
-  std::string title;
-  std::optional<std::optional<std::string>> project_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD CardContextCard : CardListItem {
-};
-
-struct RIG_OPEN_RECORD CardContextData {
-  CardContextDataProject project;
-  std::optional<std::string> current_parent_card_id RIG_NULLABLE;
-  std::vector<CardContextBreadcrumb> breadcrumbs;
-  std::vector<CardContextCard> cards;
-};
-
-struct RIG_OPEN_RECORD CardContextResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardContextData data;
-};
-
-struct RIG_OPEN_RECORD CardData {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  double sort_key;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> deleted_at RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string content;
-};
-
-struct RIG_OPEN_RECORD CardGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardData data;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardPatchResponseData {

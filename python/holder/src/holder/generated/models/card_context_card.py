@@ -23,10 +23,10 @@ class CardContextCard:
         sort_key (float):
         created_at (int):
         updated_at (int):
-        parent_card_id (None | str | Unset):
-        deleted_at (int | None | Unset):
-        child_count (int | Unset): Present when requested by the listing route (include_child_count=true on project card
-            pages).
+        parent_card_id (None | str):
+        deleted_at (int | None):
+        child_count (int | Unset): Live children, present when requested (count=true, or include_child_count=true on
+            project card pages).
     """
 
     card_id: str
@@ -36,8 +36,8 @@ class CardContextCard:
     sort_key: float
     created_at: int
     updated_at: int
-    parent_card_id: None | str | Unset = UNSET
-    deleted_at: int | None | Unset = UNSET
+    parent_card_id: None | str
+    deleted_at: int | None
     child_count: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -56,17 +56,11 @@ class CardContextCard:
 
         updated_at = self.updated_at
 
-        parent_card_id: None | str | Unset
-        if isinstance(self.parent_card_id, Unset):
-            parent_card_id = UNSET
-        else:
-            parent_card_id = self.parent_card_id
+        parent_card_id: None | str
+        parent_card_id = self.parent_card_id
 
-        deleted_at: int | None | Unset
-        if isinstance(self.deleted_at, Unset):
-            deleted_at = UNSET
-        else:
-            deleted_at = self.deleted_at
+        deleted_at: int | None
+        deleted_at = self.deleted_at
 
         child_count = self.child_count
 
@@ -81,12 +75,10 @@ class CardContextCard:
                 "sort_key": sort_key,
                 "created_at": created_at,
                 "updated_at": updated_at,
+                "parent_card_id": parent_card_id,
+                "deleted_at": deleted_at,
             }
         )
-        if parent_card_id is not UNSET:
-            field_dict["parent_card_id"] = parent_card_id
-        if deleted_at is not UNSET:
-            field_dict["deleted_at"] = deleted_at
         if child_count is not UNSET:
             field_dict["child_count"] = child_count
 
@@ -109,23 +101,19 @@ class CardContextCard:
 
         updated_at = d.pop("updated_at")
 
-        def _parse_parent_card_id(data: object) -> None | str | Unset:
+        def _parse_parent_card_id(data: object) -> None | str:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+            return cast(None | str, data)
 
-        parent_card_id = _parse_parent_card_id(d.pop("parent_card_id", UNSET))
+        parent_card_id = _parse_parent_card_id(d.pop("parent_card_id"))
 
-        def _parse_deleted_at(data: object) -> int | None | Unset:
+        def _parse_deleted_at(data: object) -> int | None:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
+            return cast(int | None, data)
 
-        deleted_at = _parse_deleted_at(d.pop("deleted_at", UNSET))
+        deleted_at = _parse_deleted_at(d.pop("deleted_at"))
 
         child_count = d.pop("child_count", UNSET)
 

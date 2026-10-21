@@ -78,21 +78,6 @@ MilestoneRemoveResponse delete_cards_card_id_milestones_milestone_id(
     std::string card_id,
     std::string milestone_id);
 
-RIG_ROUTE(GET, "/cards")
-RIG_SUMMARY("List cards")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-CardListResponse get_cards(
-    std::string project_id RIG_QUERY,
-    std::optional<std::string> tag RIG_QUERY RIG_PARAMETER_DESCRIPTION("Exact normalized tag to match, without the leading"),
-    std::string view RIG_QUERY RIG_STRING_VALUES("tree", "recent") RIG_DEFAULT("tree") RIG_PARAMETER_DESCRIPTION("Card list mode. tree returns one hierarchy level (roots or a parent's children); recent returns recently updated cards."),
-    std::optional<std::string> parent_card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional when view=tree. Omit for roots; set to return that parent card's children."),
-    std::optional<std::string> order RIG_QUERY RIG_STRING_VALUES("tree_default", "updated_desc", "title_asc") RIG_PARAMETER_DESCRIPTION("Card ordering strategy. Defaults are view-aware: tree uses tree_default\n(sort_key asc, updated_at desc, title asc), recent uses updated_desc.\n"),
-    bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (child_count) in returned card items."),
-    int limit RIG_QUERY RIG_RANGE(1, 5000) RIG_DEFAULT(200) RIG_PARAMETER_DESCRIPTION("Maximum number of cards when view=recent."),
-    std::optional<int> include_deleted RIG_QUERY RIG_PARAMETER_DESCRIPTION("Set to 1 to include deleted cards."));
-
 RIG_ROUTE(POST, "/cards")
 RIG_SUMMARY("Create a card")
 RIG_RESPONSE_DESCRIPTION("Created")
@@ -101,25 +86,6 @@ RIG_SUCCESS_STATUS(201)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
 CardCreateResponse post_cards(CardCreateRequest request);
-
-RIG_ROUTE(GET, "/cards/context")
-RIG_SUMMARY("Read card context and breadcrumb path for a project level")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or parent card not found")
-CardContextResponse get_cards_context(
-    std::string project_id RIG_QUERY,
-    std::optional<std::string> parent_card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional parent card id. Omit for project root level."),
-    std::string order RIG_QUERY RIG_STRING_VALUES("tree_default", "updated_desc", "title_asc") RIG_DEFAULT("tree_default") RIG_PARAMETER_DESCRIPTION("Ordering for the returned level cards."),
-    bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (child_count) in context cards."));
-
-RIG_ROUTE(GET, "/cards/{card_id}")
-RIG_SUMMARY("Fetch a card")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardGetResponse get_cards_card_id(std::string card_id);
 
 RIG_ROUTE(PATCH, "/cards/{card_id}")
 RIG_SUMMARY("Update card content and/or title")

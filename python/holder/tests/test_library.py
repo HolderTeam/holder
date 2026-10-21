@@ -59,7 +59,10 @@ def card_payload(index=0, project_id="p-0", content=False):
         "deleted_at": None,
     }
     if content:
+        # A fetched card, as GET /cards/{card_id} sends it.
         result["content"] = "current body"
+        result["tags"] = []
+        result["tag_occurrences"] = []
     return result
 
 

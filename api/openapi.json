@@ -2707,13 +2707,15 @@
     "/cards": {
       "get": {
         "summary": "List cards",
+        "description": "With tag, returns the project's live cards carrying that tag and ignores the other filters.",
         "parameters": [
           {
             "name": "project_id",
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           {
@@ -2789,9 +2791,13 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
             },
-            "description": "Set to 1 to include deleted cards."
+            "description": "Set to 1 to include deleted cards when view=tree."
           }
         ],
         "responses": {
@@ -2817,6 +2823,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -2892,7 +2908,8 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           {
@@ -2970,6 +2987,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2977,6 +3004,7 @@
     "/cards/{card_id}": {
       "get": {
         "summary": "Fetch a card",
+        "description": "A card in the trash is not found.",
         "parameters": [
           {
             "name": "card_id",
@@ -2998,6 +3026,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3010,6 +3048,26 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
             "content": {
               "application/json": {
                 "schema": {
@@ -10377,16 +10435,12 @@
             "type": "string"
           },
           "project_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "description": "Present on the project breadcrumb."
           },
           "card_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "description": "Present on card breadcrumbs."
           }
         },
         "required": [
@@ -10584,6 +10638,20 @@
           },
           "content": {
             "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The card's normalized tags."
+          },
+          "tag_occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardTagOccurrence"
+            },
+            "description": "Each tag written in content, in order."
           }
         },
         "required": [
@@ -10594,7 +10662,11 @@
           "sort_key",
           "created_at",
           "updated_at",
-          "content"
+          "parent_card_id",
+          "deleted_at",
+          "content",
+          "tags",
+          "tag_occurrences"
         ]
       },
       "CardGetResponse": {
@@ -11156,7 +11228,7 @@
           },
           "child_count": {
             "type": "integer",
-            "description": "Present when requested by the listing route (include_child_count=true on project card pages).",
+            "description": "Live children, present when requested (count=true, or include_child_count=true on project card pages).",
             "minimum": 0
           }
         },
@@ -11167,7 +11239,9 @@
           "rel_path",
           "sort_key",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "parent_card_id",
+          "deleted_at"
         ]
       },
       "CardListResponse": {
@@ -11549,6 +11623,29 @@
           "tag",
           "outcome",
           "changed"
+        ]
+      },
+      "CardTagOccurrence": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "byte_start": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Inclusive byte offset of the leading # in content."
+          },
+          "byte_end": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Exclusive byte offset after the tag name."
+          }
+        },
+        "required": [
+          "tag",
+          "byte_start",
+          "byte_end"
         ]
       },
       "CardUpdateRequest": {

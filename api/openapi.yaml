@@ -1398,11 +1398,13 @@ paths:
   /cards:
     get:
       summary: List cards
+      description: With tag, returns the project's live cards carrying that tag and ignores the other
+        filters.
       parameters:
       - name: project_id
         in: query
         required: true
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: tag
         in: query
         required: false
@@ -1446,8 +1448,10 @@ paths:
       - name: include_deleted
         in: query
         required: false
-        schema: {type: integer}
-        description: Set to 1 to include deleted cards.
+        schema:
+          type: integer
+          enum: [0, 1]
+        description: Set to 1 to include deleted cards when view=tree.
       responses:
         '200':
           description: OK
@@ -1461,6 +1465,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1499,7 +1508,7 @@ paths:
       - name: project_id
         in: query
         required: true
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: parent_card_id
         in: query
         required: false
@@ -1539,9 +1548,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /cards/{card_id}:
     get:
       summary: Fetch a card
+      description: A card in the trash is not found.
       parameters:
       - name: card_id
         in: path
@@ -1553,6 +1568,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardGetResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -1560,6 +1580,16 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '501':
+          description: The daemon has no card store
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5162,10 +5192,8 @@ components:
           type: string
           enum: [project, card]
         title: {type: string}
-        project_id:
-          type: [string, 'null']
-        card_id:
-          type: [string, 'null']
+        project_id: {type: string, description: Present on the project breadcrumb.}
+        card_id: {type: string, description: Present on card breadcrumbs.}
       required: [type, title]
     CardContextCard:
       allOf:
@@ -5243,7 +5271,16 @@ components:
           type: [integer, 'null']
           format: int64
         content: {type: string}
-      required: [card_id, project_id, title, rel_path, sort_key, created_at, updated_at, content]
+        tags:
+          type: array
+          items: {type: string}
+          description: The card's normalized tags.
+        tag_occurrences:
+          type: array
+          items: {$ref: '#/components/schemas/CardTagOccurrence'}
+          description: Each tag written in content, in order.
+      required: [card_id, project_id, title, rel_path, sort_key, created_at, updated_at, parent_card_id,
+        deleted_at, content, tags, tag_occurrences]
     CardGetResponse:
       type: object
       properties:
@@ -5460,9 +5497,10 @@ components:
         deleted_at:
           type: [integer, 'null']
           format: int64
-        child_count: {type: integer, description: Present when requested by the listing route (include_child_count=true
-            on project card pages)., minimum: 0}
-      required: [card_id, project_id, title, rel_path, sort_key, created_at, updated_at]
+        child_count: {type: integer, description: 'Live children, present when requested (count=true,
+            or include_child_count=true on project card pages).', minimum: 0}
+      required: [card_id, project_id, title, rel_path, sort_key, created_at, updated_at, parent_card_id,
+        deleted_at]
     CardListResponse:
       type: object
       properties:
@@ -5618,6 +5656,14 @@ components:
           enum: [added, already_present, removed, not_present, present_outside_editable_tag_line]
         changed: {type: boolean, description: True only when card content was changed.}
       required: [card_id, tag, outcome, changed]
+    CardTagOccurrence:
+      type: object
+      properties:
+        tag: {type: string}
+        byte_start: {type: integer, format: int64, description: 'Inclusive byte offset of the leading
+            # in content.'}
+        byte_end: {type: integer, format: int64, description: Exclusive byte offset after the tag name.}
+      required: [tag, byte_start, byte_end]
     CardUpdateRequest:
       type: object
       properties:

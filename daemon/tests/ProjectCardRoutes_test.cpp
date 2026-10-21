@@ -1,3 +1,4 @@
+#include "api/GeneratedRoutes.h"
 #include "api/routes/CardRoutes.h"
 #include "api/routes/ProjectCardRoutes.h"
 #include "api/support/HttpQuery.h"
@@ -89,29 +90,25 @@ TEST_CASE(
 
   // The display endpoint retains its original hierarchy, recent mode and tag precedence.
   auto display = [&](Params params) {
-    http::request<http::string_body> req{http::verb::get, "/cards", 11};
-    http::response<http::string_body> res;
     params["project_id"] = "p";
-    REQUIRE(
-        holder::api::routes::handle_card_routes(
-            "/cards",
-            req,
-            res,
-            db,
-            &store,
-            &fts,
-            [] {
-              return "unused";
-            },
-            getter(params)
-        )
-    );
+    std::string target = "/cards";
+    char separator = '?';
+    for (const auto& [key, value] : params) {
+      target += separator + key + "=" + value;
+      separator = '&';
+    }
+    http::request<http::string_body> req{http::verb::get, target, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, &fts, nullptr, nullptr, {}, {}, &store
+    ));
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
   CHECK(display({}).second["data"].size() == 1);
   CHECK(display({{"parent_card_id", first}}).second["data"].size() == 2);
   CHECK(display({{"tag", "work"}, {"parent_card_id", first}}).second["data"].size() == 3);
-  CHECK(display({{"view", "recent"}, {"limit", "2junk"}}).second["data"].size() == 2);
+  CHECK(display({{"view", "recent"}, {"limit", "2"}}).second["data"].size() == 2);
+  CHECK(display({{"view", "recent"}, {"limit", "2junk"}}).first == http::status::bad_request);
   CHECK(display({{"view", "all"}}).first == http::status::bad_request);
   CHECK(display({{"after_card_id", third}}).second["data"].size() == 1);
 

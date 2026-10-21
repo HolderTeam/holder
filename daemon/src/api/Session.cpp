@@ -402,7 +402,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
         if (streamed) return std::nullopt;
       } else if (!dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
                                             git_ops_, [] { return generate_uuid_v4(); },
-                                            started_at_) &&
+                                            started_at_, card_store_) &&
                  !router_.dispatch(req_, res)) {
         const auto route_result = routes::dispatch_authenticated_routes(
             path_,

@@ -20,8 +20,10 @@
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <unordered_map>
 
@@ -49,6 +51,56 @@ std::function<std::string(const std::string&)> map_param_getter(
   };
 }
 
+
+// Routes a request as the daemon does: card reads through the generated routes, with the query the
+// parameter function supplies (an empty value is left out), and everything else to the
+// host-written card routes.
+template <typename Param>
+bool route_card(
+    const std::string& path,
+    const http::request<http::string_body>& req,
+    http::response<http::string_body>& res,
+    holder::platform::Db& db,
+    holder::card::CardStore* card_store,
+    holder::index::FtsIndexer* fts,
+    const std::function<std::string()>& uuid_v4,
+    const Param& param_get
+) {
+  if (req.method() == http::verb::get) {
+    std::string target = path;
+    char separator = '?';
+    for (const char* key :
+         {"project_id", "tag", "view", "parent_card_id", "order", "count", "limit",
+          "include_deleted"}) {
+      const std::string value = param_get(key);
+      if (value.empty()) continue;
+      target += separator;
+      target += key;
+      target += '=';
+      for (const unsigned char ch : value) {
+        if (std::isalnum(ch) != 0 || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+          target += static_cast<char>(ch);
+        } else {
+          static constexpr char hex[] = "0123456789ABCDEF";
+          target += '%';
+          target += hex[ch >> 4U];
+          target += hex[ch & 0x0FU];
+        }
+      }
+      separator = '&';
+    }
+    http::request<http::string_body> generated{http::verb::get, target, 11};
+    if (holder::api::dispatch_generated_routes(
+            generated, res, db, nullptr, fts, nullptr, nullptr, {}, {}, card_store
+        )) {
+      return true;
+    }
+  }
+  return holder::api::routes::handle_card_routes(
+      path, req, res, db, card_store, fts, uuid_v4, param_get
+  );
+}
+
 } // namespace
 
 TEST_CASE("CardRoutes returns false for non-card paths", "[card-routes]") {
@@ -64,7 +116,7 @@ TEST_CASE("CardRoutes returns false for non-card paths", "[card-routes]") {
     return std::string();
   };
 
-  const bool handled = holder::api::routes::handle_card_routes(
+  const bool handled = route_card(
       "/not-cards",
       req,
       res,
@@ -90,7 +142,7 @@ TEST_CASE("CardRoutes context errors for missing and unknown project", "[card-ro
     http::response<http::string_body> res;
     const auto param_get = map_param_getter({});
 
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/context",
         req,
         res,
@@ -109,7 +161,7 @@ TEST_CASE("CardRoutes context errors for missing and unknown project", "[card-ro
     http::response<http::string_body> res;
     const auto param_get = map_param_getter({{"project_id", "missing-proj"}});
 
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/context",
         req,
         res,
@@ -141,7 +193,7 @@ TEST_CASE("CardRoutes recent view validates limit param", "[card-routes]") {
       {"limit", "0"},
   });
 
-  const bool handled = holder::api::routes::handle_card_routes(
+  const bool handled = route_card(
       "/cards",
       req,
       res,
@@ -176,7 +228,7 @@ TEST_CASE("CardRoutes post returns not_implemented without card_store", "[card-r
     return std::string();
   };
 
-  const bool handled = holder::api::routes::handle_card_routes(
+  const bool handled = route_card(
       "/cards",
       req,
       res,
@@ -219,7 +271,7 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   auto post = [&](const nlohmann::json& body) {
     auto req = make_request(http::verb::post, "/cards", body.dump());
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_card_routes(
+    REQUIRE(route_card(
         "/cards",
         req,
         res,
@@ -340,7 +392,7 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -392,7 +444,7 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
         R"({"project_id":"proj-1","intent":"to_end"})"
     );
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards//move",
         req,
         res,
@@ -413,7 +465,7 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
         R"({"project_id":"proj-1","intent":"to_end"})"
     );
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/11111111-1111-4111-8111-111111111111/move",
         req,
         res,
@@ -430,7 +482,7 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
   SECTION("move route method not allowed") {
     auto req = make_request(http::verb::get, "/cards/11111111-1111-4111-8111-111111111111/move");
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/11111111-1111-4111-8111-111111111111/move",
         req,
         res,
@@ -636,7 +688,7 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
                                  const std::function<std::string(const std::string&)>& param_get) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -933,7 +985,7 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1046,7 +1098,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1066,7 +1118,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
     const auto param_get = map_param_getter(params);
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1291,7 +1343,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
         R"({"to_card_id":"22222222-2222-4222-8222-222222222222","to_type":"card"})"
     );
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/11111111-1111-4111-8111-111111111111/links",
         req,
         res,
@@ -1307,7 +1359,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     auto bad_req =
         make_request(http::verb::post, "/cards/11111111-1111-4111-8111-111111111111/links", "{");
     http::response<http::string_body> bad_res;
-    const bool bad_handled = holder::api::routes::handle_card_routes(
+    const bool bad_handled = route_card(
         "/cards/11111111-1111-4111-8111-111111111111/links",
         bad_req,
         bad_res,
@@ -1342,7 +1394,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
   SECTION("item routes cover no-store, empty id, deleted and missing delete") {
     auto req = make_request(http::verb::get, "/cards/11111111-1111-4111-8111-111111111111");
     http::response<http::string_body> no_store_res;
-    const bool no_store_handled = holder::api::routes::handle_card_routes(
+    const bool no_store_handled = route_card(
         "/cards/11111111-1111-4111-8111-111111111111",
         req,
         no_store_res,
@@ -1403,7 +1455,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
   auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1423,7 +1475,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
     const auto param_get = map_param_getter(params);
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1480,7 +1532,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     auto req = make_request(http::verb::get, "/cards/context");
     http::response<http::string_body> res;
     const auto param_get = map_param_getter({{"project_id", "proj-1"}});
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/context",
         req,
         res,
@@ -1491,7 +1543,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
         param_get
     );
     REQUIRE(handled);
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 
   SECTION("context skips deleted level cards and broken breadcrumb chain") {
@@ -1553,7 +1605,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     auto req = make_request(http::verb::get, "/cards");
     http::response<http::string_body> res;
     const auto param_get = map_param_getter({{"project_id", "proj-1"}, {"view", "tree"}});
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards",
         req,
         res,
@@ -1686,7 +1738,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     );
     auto get_req = make_request(http::verb::get, "/cards/00000000-0000-4000-8000-000000000020");
     http::response<http::string_body> get_res;
-    const bool get_handled = holder::api::routes::handle_card_routes(
+    const bool get_handled = route_card(
         "/cards/00000000-0000-4000-8000-000000000020",
         get_req,
         get_res,
@@ -1702,7 +1754,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     // Method not handled by any item branch -> final not_found branch.
     auto put_req = make_request(http::verb::put, "/cards/00000000-0000-4000-8000-000000000020");
     http::response<http::string_body> put_res;
-    const bool put_handled = holder::api::routes::handle_card_routes(
+    const bool put_handled = route_card(
         "/cards/00000000-0000-4000-8000-000000000020",
         put_req,
         put_res,
@@ -1736,7 +1788,7 @@ TEST_CASE(
                   const std::unordered_map<std::string, std::string>& params = {}) {
     auto req = make_request(method, path, body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         path,
         req,
         res,
@@ -1831,7 +1883,7 @@ TEST_CASE("CardRoutes preserves CardStore tag mutation outcomes", "[card-routes]
   auto call = [&](const std::string& id, http::verb method, const nlohmann::json& body) {
     auto req = make_request(method, "/cards/" + id + "/tags", body.dump());
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_card_routes(
+    const bool handled = route_card(
         "/cards/" + id + "/tags",
         req,
         res,
@@ -1944,7 +1996,7 @@ TEST_CASE("CardRoutes DELETE trashes children by the requested policy", "[card-r
     const std::string path = "/cards/" + card_id;
     auto req = make_request(http::verb::delete_, path, "");
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_card_routes(
+    REQUIRE(route_card(
         path,
         req,
         res,

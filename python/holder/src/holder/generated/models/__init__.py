@@ -141,6 +141,7 @@ from .card_tag_mutation_request import CardTagMutationRequest
 from .card_tag_mutation_response import CardTagMutationResponse
 from .card_tag_mutation_result import CardTagMutationResult
 from .card_tag_mutation_result_outcome import CardTagMutationResultOutcome
+from .card_tag_occurrence import CardTagOccurrence
 from .card_update_request import CardUpdateRequest
 from .caste_info import CasteInfo
 from .caste_info_name import CasteInfoName
@@ -175,6 +176,7 @@ from .get_cards_card_id_backlinks_include_deleted import (
 from .get_cards_card_id_backlinks_scope import GetCardsCardIdBacklinksScope
 from .get_cards_card_id_links_include_deleted import GetCardsCardIdLinksIncludeDeleted
 from .get_cards_context_order import GetCardsContextOrder
+from .get_cards_include_deleted import GetCardsIncludeDeleted
 from .get_cards_order import GetCardsOrder
 from .get_cards_view import GetCardsView
 from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
@@ -485,6 +487,7 @@ __all__ = (
     "CardTagMutationResponse",
     "CardTagMutationResult",
     "CardTagMutationResultOutcome",
+    "CardTagOccurrence",
     "CardUpdateRequest",
     "CasteInfo",
     "CasteInfoName",
@@ -511,6 +514,7 @@ __all__ = (
     "GetCardsCardIdBacklinksScope",
     "GetCardsCardIdLinksIncludeDeleted",
     "GetCardsContextOrder",
+    "GetCardsIncludeDeleted",
     "GetCardsOrder",
     "GetCardsView",
     "GetGitProvidersJsonResponse200",

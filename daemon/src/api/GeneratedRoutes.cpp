@@ -11,6 +11,7 @@
 #include "api/Alive.h"
 #include "api/Calendar.h"
 #include "api/CardMilestones.h"
+#include "api/CardRead.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"
@@ -52,6 +53,7 @@ struct Context {
   holder::git::GitOps* git_ops;
   std::function<std::string()> uuid_v4;
   std::chrono::steady_clock::time_point started_at;
+  holder::card::CardStore* card_store;
 };
 
 std::string error_code(int status) {
@@ -92,9 +94,11 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
                                holder::privacy::SecretStore* secret_store,
                                holder::git::GitOps* git_ops,
                                std::function<std::string()> uuid_v4,
-                               std::chrono::steady_clock::time_point started_at) {
+                               std::chrono::steady_clock::time_point started_at,
+                               holder::card::CardStore* card_store) {
   const auto target = req.target();
-  Context context{db, registry, fts, secret_store, git_ops, std::move(uuid_v4), started_at};
+  Context context{
+      db, registry, fts, secret_store, git_ops, std::move(uuid_v4), started_at, card_store};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),

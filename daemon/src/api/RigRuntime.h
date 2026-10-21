@@ -29,6 +29,7 @@
 #include "api/ProjectDelete.h"
 #include "api/Calendar.h"
 #include "api/CardMilestones.h"
+#include "api/CardRead.h"
 #include "api/MilestonesWithDates.h"
 #include "api/StaticFiles.h"
 #include "api/TrashList.h"

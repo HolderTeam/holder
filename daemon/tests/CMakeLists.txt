@@ -165,6 +165,7 @@ add_executable(holder_daemon_tests
   ../src/api/AiThreadRead.cpp
   ../src/api/Calendar.cpp
   ../src/api/CardMilestones.cpp
+  ../src/api/CardRead.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp
