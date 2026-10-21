@@ -681,11 +681,10 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
-  req = make_request(http::verb::get, "/projects/proj-1/encryption-check");
+  req = make_request(http::verb::post, "/projects/proj-1/git/test-remote");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1/encryption-check", req, res, db, nullptr));
-  REQUIRE(res.result() == http::status::ok);
+      "/projects/proj-1/git/test-remote", req, res, db, nullptr));
 
   // Hand-served operations are declared for the contract; the host serves them.
   req = make_request(http::verb::get, "/openapi.yaml");
@@ -758,7 +757,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
     REQUIRE(import_payload["data"]["pull_status"] == "succeeded");
   }
 
-  SECTION("encryption-check plain and encrypted branches plus generic catch") {
+  SECTION("encryption-check plain and encrypted branches plus storage failure") {
     holder::project::ProjectRepo repo(db);
 
     holder::model::Project plain;
@@ -798,8 +797,8 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
     db.close();
     auto [err_status, err_payload] =
         call(http::verb::get, "/projects/proj-encrypted/encryption-check");
-    REQUIRE(err_status == http::status::bad_request);
-    REQUIRE(err_payload["error"]["code"] == "bad_request");
+    REQUIRE(err_status == http::status::internal_server_error);
+    REQUIRE(err_payload["ok"] == false);
   }
 }
 

@@ -757,25 +757,6 @@ struct RIG_OPEN_RECORD ProjectRecoveryTokenImportRequest {
   std::string recovery_token RIG_FIELD_DESCRIPTION("Serialized `.hrk` recovery token JSON payload.");
 };
 
-struct RIG_OPEN_RECORD ProjectEncryptionCheck {
-  bool ok;
-  int checked_files;
-  int unsafe_files;
-  std::vector<std::string> unsafe_paths;
-  std::string message;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectEncryptionCheckResponseData {
-  std::string project_id;
-  std::string privacy_mode RIG_STRING_VALUES("encrypted_git", "plain");
-  ProjectEncryptionCheck check;
-};
-
-struct RIG_OPEN_RECORD ProjectEncryptionCheckResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectEncryptionCheckResponseData data;
-};
-
 struct RIG_DESCRIPTION("Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved.") MilestoneDateValue {
   std::string role RIG_MIN_LENGTH(1);
   std::optional<std::string> date RIG_FIELD_DESCRIPTION("Calendar day with no timezone; YYYY-MM-DD.") RIG_FORMAT("date") RIG_OMIT_EMPTY;

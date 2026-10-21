@@ -200,13 +200,6 @@ ProjectRecoveryTokenImportResponse post_projects_project_id_recovery_token_impor
     std::string project_id,
     ProjectRecoveryTokenImportRequest request);
 
-RIG_ROUTE(GET, "/projects/{project_id}/encryption-check")
-RIG_SUMMARY("Check encrypted project card blobs before push/sync")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectEncryptionCheckResponse get_projects_project_id_encryption_check(std::string project_id);
-
 RIG_ROUTE(DELETE, "/projects/{project_id}/trash/{type}/{id}")
 RIG_SUMMARY("Permanently remove a trashed item from one project")
 RIG_DESCRIPTION("The item must belong to the named project and still be in Trash. For cards, older Git revisions remain available; this operation does not erase repository history.")

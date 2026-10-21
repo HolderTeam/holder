@@ -670,18 +670,6 @@ template <> struct codec<holder::api::ProjectRecoveryTokenImportRequest> {
     static json encode(const holder::api::ProjectRecoveryTokenImportRequest& value);
     static holder::api::ProjectRecoveryTokenImportRequest decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectEncryptionCheck> {
-    static json encode(const holder::api::ProjectEncryptionCheck& value);
-    static holder::api::ProjectEncryptionCheck decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectEncryptionCheckResponseData> {
-    static json encode(const holder::api::ProjectEncryptionCheckResponseData& value);
-    static holder::api::ProjectEncryptionCheckResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectEncryptionCheckResponse> {
-    static json encode(const holder::api::ProjectEncryptionCheckResponse& value);
-    static holder::api::ProjectEncryptionCheckResponse decode(const json& value);
-};
 template <> struct codec<holder::api::MilestoneDateValue> {
     static json encode(const holder::api::MilestoneDateValue& value);
     static holder::api::MilestoneDateValue decode(const json& value);
@@ -1025,6 +1013,18 @@ template <> struct codec<holder::api::ProjectGitSyncStatusResponseData> {
 template <> struct codec<holder::api::ProjectGitSyncStatusResponse> {
     static json encode(const holder::api::ProjectGitSyncStatusResponse& value);
     static holder::api::ProjectGitSyncStatusResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectEncryptionCheck> {
+    static json encode(const holder::api::ProjectEncryptionCheck& value);
+    static holder::api::ProjectEncryptionCheck decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectEncryptionCheckResponseData> {
+    static json encode(const holder::api::ProjectEncryptionCheckResponseData& value);
+    static holder::api::ProjectEncryptionCheckResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectEncryptionCheckResponse> {
+    static json encode(const holder::api::ProjectEncryptionCheckResponse& value);
+    static holder::api::ProjectEncryptionCheckResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectCreateRequest> {
     static json encode(const holder::api::ProjectCreateRequest& value);
@@ -4147,70 +4147,6 @@ inline holder::api::ProjectRecoveryTokenImportRequest codec<holder::api::Project
     };
 }
 
-inline json codec<holder::api::ProjectEncryptionCheck>::encode(const holder::api::ProjectEncryptionCheck& value) {
-    json result = json::object();
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["checked_files"] = codec<int>::encode(value.checked_files);
-    result["unsafe_files"] = codec<int>::encode(value.unsafe_files);
-    result["unsafe_paths"] = codec<std::vector<std::string>>::encode(value.unsafe_paths);
-    result["message"] = codec<std::string>::encode(value.message);
-    return result;
-}
-inline holder::api::ProjectEncryptionCheck codec<holder::api::ProjectEncryptionCheck>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheck");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("checked_files")) throw std::invalid_argument("missing checked_files");
-    if (!value.contains("unsafe_files")) throw std::invalid_argument("missing unsafe_files");
-    if (!value.contains("unsafe_paths")) throw std::invalid_argument("missing unsafe_paths");
-    if (!value.contains("message")) throw std::invalid_argument("missing message");
-    return holder::api::ProjectEncryptionCheck{
-        codec<bool>::decode(value.at("ok")),
-        codec<int>::decode(value.at("checked_files")),
-        codec<int>::decode(value.at("unsafe_files")),
-        codec<std::vector<std::string>>::decode(value.at("unsafe_paths")),
-        codec<std::string>::decode(value.at("message")),
-    };
-}
-
-inline json codec<holder::api::ProjectEncryptionCheckResponseData>::encode(const holder::api::ProjectEncryptionCheckResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    if (value.privacy_mode != "encrypted_git" && value.privacy_mode != "plain") throw std::invalid_argument("invalid privacy_mode");
-    result["privacy_mode"] = codec<std::string>::encode(value.privacy_mode);
-    result["check"] = codec<holder::api::ProjectEncryptionCheck>::encode(value.check);
-    return result;
-}
-inline holder::api::ProjectEncryptionCheckResponseData codec<holder::api::ProjectEncryptionCheckResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheckResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("privacy_mode")) throw std::invalid_argument("missing privacy_mode");
-    if (!value.contains("check")) throw std::invalid_argument("missing check");
-    if (value.at("privacy_mode") != "encrypted_git" && value.at("privacy_mode") != "plain") throw std::invalid_argument("invalid privacy_mode");
-    return holder::api::ProjectEncryptionCheckResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("privacy_mode")),
-        codec<holder::api::ProjectEncryptionCheck>::decode(value.at("check")),
-    };
-}
-
-inline json codec<holder::api::ProjectEncryptionCheckResponse>::encode(const holder::api::ProjectEncryptionCheckResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectEncryptionCheckResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectEncryptionCheckResponse codec<holder::api::ProjectEncryptionCheckResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheckResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectEncryptionCheckResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectEncryptionCheckResponseData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::MilestoneDateValue>::encode(const holder::api::MilestoneDateValue& value) {
     json result = json::object();
     result["role"] = codec<std::string>::encode(value.role);
@@ -6178,6 +6114,70 @@ inline holder::api::ProjectGitSyncStatusResponse codec<holder::api::ProjectGitSy
     return holder::api::ProjectGitSyncStatusResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ProjectGitSyncStatusResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectEncryptionCheck>::encode(const holder::api::ProjectEncryptionCheck& value) {
+    json result = json::object();
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["checked_files"] = codec<int>::encode(value.checked_files);
+    result["unsafe_files"] = codec<int>::encode(value.unsafe_files);
+    result["unsafe_paths"] = codec<std::vector<std::string>>::encode(value.unsafe_paths);
+    result["message"] = codec<std::string>::encode(value.message);
+    return result;
+}
+inline holder::api::ProjectEncryptionCheck codec<holder::api::ProjectEncryptionCheck>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheck");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("checked_files")) throw std::invalid_argument("missing checked_files");
+    if (!value.contains("unsafe_files")) throw std::invalid_argument("missing unsafe_files");
+    if (!value.contains("unsafe_paths")) throw std::invalid_argument("missing unsafe_paths");
+    if (!value.contains("message")) throw std::invalid_argument("missing message");
+    return holder::api::ProjectEncryptionCheck{
+        codec<bool>::decode(value.at("ok")),
+        codec<int>::decode(value.at("checked_files")),
+        codec<int>::decode(value.at("unsafe_files")),
+        codec<std::vector<std::string>>::decode(value.at("unsafe_paths")),
+        codec<std::string>::decode(value.at("message")),
+    };
+}
+
+inline json codec<holder::api::ProjectEncryptionCheckResponseData>::encode(const holder::api::ProjectEncryptionCheckResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.privacy_mode != "encrypted_git" && value.privacy_mode != "plain") throw std::invalid_argument("invalid privacy_mode");
+    result["privacy_mode"] = codec<std::string>::encode(value.privacy_mode);
+    result["check"] = codec<holder::api::ProjectEncryptionCheck>::encode(value.check);
+    return result;
+}
+inline holder::api::ProjectEncryptionCheckResponseData codec<holder::api::ProjectEncryptionCheckResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheckResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("privacy_mode")) throw std::invalid_argument("missing privacy_mode");
+    if (!value.contains("check")) throw std::invalid_argument("missing check");
+    if (value.at("privacy_mode") != "encrypted_git" && value.at("privacy_mode") != "plain") throw std::invalid_argument("invalid privacy_mode");
+    return holder::api::ProjectEncryptionCheckResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("privacy_mode")),
+        codec<holder::api::ProjectEncryptionCheck>::decode(value.at("check")),
+    };
+}
+
+inline json codec<holder::api::ProjectEncryptionCheckResponse>::encode(const holder::api::ProjectEncryptionCheckResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectEncryptionCheckResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectEncryptionCheckResponse codec<holder::api::ProjectEncryptionCheckResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectEncryptionCheckResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectEncryptionCheckResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectEncryptionCheckResponseData>::decode(value.at("data")),
     };
 }
 

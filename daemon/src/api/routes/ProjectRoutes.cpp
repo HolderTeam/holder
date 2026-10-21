@@ -563,48 +563,6 @@ bool handle_project_routes(
       } catch (const std::exception& ex) {
         res = support::error_response(http::status::bad_request, "bad_request", ex.what());
       }
-    } else if (subpath == "/encryption-check" && req.method() == http::verb::get) {
-      try {
-        holder::project::ProjectRepo repo(db);
-        holder::project::ProjectSyncRepo sync_repo(db);
-        const auto project_opt = repo.get(project_id);
-        if (!project_opt.has_value()) {
-          res = support::error_response(http::status::not_found, "not_found", "Project not found.");
-          return true;
-        }
-        const auto& project = project_opt.value();
-
-        nlohmann::json payload;
-        payload["ok"] = true;
-        payload["data"]["project_id"] = project_id;
-        payload["data"]["privacy_mode"] = project.privacy_mode;
-
-        if (project.privacy_mode != "encrypted_git") {
-          payload["data"]["check"] = {
-              {"ok", true},
-              {"checked_files", 0}, // LCOV_EXCL_LINE
-              {"unsafe_files", 0}, // LCOV_EXCL_LINE
-              {"unsafe_paths", nlohmann::json::array()},
-              {"message", "Project is plain mode; privacy check not required."},
-          };
-          res = support::json_response(http::status::ok, payload);
-          return true;
-        }
-
-        const auto check = holder::privacy::run_encryption_safety_check(project.root_path);
-        payload["data"]["check"] = {
-            {"ok", check.ok},
-            {"checked_files", check.checked_files},
-            {"unsafe_files", check.unsafe_paths.size()}, // LCOV_EXCL_LINE
-            {"unsafe_paths", check.unsafe_paths},
-            {"message", check.message},
-        };
-        res = support::json_response(http::status::ok, payload);
-      } catch (const holder::privacy::PrivacyError& ex) {
-        res = privacy_error_response(ex); // LCOV_EXCL_LINE
-      } catch (const std::exception& ex) {
-        res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      }
     } else if (subpath == "/recovery-token/export" && req.method() == http::verb::post) {
       try {
         const auto body = nlohmann::json::parse(req.body());
