@@ -14,6 +14,28 @@ namespace holder::api {
 
 // Schemas of the declared operations, shared across their path groups.
 
+struct RIG_OPEN_RECORD AiStatusPullJob : holder::api::RunnerPullJob {
+  bool active;
+};
+
+struct RIG_OPEN_RECORD AiStatusData {
+  long long checked_at;
+  bool runner_available;
+  long long runner_last_checked;
+  std::optional<std::optional<std::string>> runner_version RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> runner_error RIG_OMIT_EMPTY RIG_NULLABLE;
+  long long active_runs;
+  long long active_pull_jobs;
+  std::vector<AiStatusPullJob> pulls;
+  std::vector<holder::api::AiProviderCredential> cloud;
+  long long cloud_configured_providers;
+};
+
+struct RIG_OPEN_RECORD AiStatusResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  AiStatusData data;
+};
+
 struct RIG_OPEN_RECORD AiProviderCatalogProvider {
   std::string id;
   std::string display_name;
@@ -507,6 +529,61 @@ struct RIG_OPEN_RECORD CardHistoryPageResponse {
   CardHistoryPageData data;
 };
 
+struct RIG_OPEN_RECORD CardHistoryVersion {
+  bool exists;
+  std::string oid;
+  std::string title;
+  std::string body;
+};
+
+struct RIG_OPEN_RECORD CardHistoryDiffLine {
+  std::string origin RIG_STRING_VALUES(" ", "+", "-");
+  std::string text;
+  std::optional<long long> old_line RIG_NULLABLE;
+  std::optional<long long> new_line RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardHistoryComparisonData {
+  CardHistoryVersion from;
+  CardHistoryVersion to;
+  std::string summary;
+  std::vector<CardHistoryDiffLine> lines;
+  bool truncated;
+};
+
+struct RIG_OPEN_RECORD CardHistoryComparisonResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardHistoryComparisonData data;
+};
+
+struct RIG_VALUE_TYPE RIG_DESCRIPTION("Full Git commit object ID or a unique leading commit-ID prefix. Successful responses use the canonical full lowercase object ID.") RevisionReference {
+  std::string value RIG_PATTERN("^[0-9A-Fa-f]{8,40}$") RIG_MIN_LENGTH(8) RIG_MAX_LENGTH(40);
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistorySnapshotResponseData {
+  std::string card_id;
+  CardHistoryVersion snapshot;
+};
+
+struct RIG_OPEN_RECORD CardHistorySnapshotResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardHistorySnapshotResponseData data;
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistoryRestoreResponseData {
+  std::string card_id;
+  std::string restored_from_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID of the selected historical snapshot.");
+  std::string result_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID created by the restoration.");
+  std::string title;
+  long long updated_at;
+  std::optional<long long> deleted_at RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardHistoryRestoreResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardHistoryRestoreResponseData data;
+};
+
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectGitTestRemoteResponseData {
   std::string project_id;
   std::optional<std::optional<std::string>> remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
@@ -726,6 +803,33 @@ struct RIG_OPEN_RECORD CardCreateRequest {
   std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardContextDataProject {
+  std::string project_id;
+  std::string name;
+};
+
+struct RIG_OPEN_RECORD CardContextBreadcrumb {
+  std::string type RIG_STRING_VALUES("project", "card");
+  std::string title;
+  std::optional<std::optional<std::string>> project_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> card_id RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardContextCard : CardListItem {
+};
+
+struct RIG_OPEN_RECORD CardContextData {
+  CardContextDataProject project;
+  std::optional<std::string> current_parent_card_id RIG_NULLABLE;
+  std::vector<CardContextBreadcrumb> breadcrumbs;
+  std::vector<CardContextCard> cards;
+};
+
+struct RIG_OPEN_RECORD CardContextResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardContextData data;
+};
+
 struct RIG_OPEN_RECORD CardData {
   std::string card_id;
   std::string project_id;
@@ -759,6 +863,38 @@ struct RIG_OPEN_RECORD CardUpdateRequest {
   std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<double> sort_key RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD CardMoveResult {
+  std::string card_id;
+  std::optional<std::string> parent_card_id RIG_NULLABLE;
+  double sort_key;
+  long long revision;
+  std::optional<std::optional<std::string>> moved_into_title RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardMoveResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardMoveResult data;
+};
+
+enum class CardMoveIntent {
+  into,
+  before,
+  after,
+  left,
+  right,
+  to_start,
+  to_end,
+  up_level,
+};
+
+struct RIG_OPEN_RECORD CardMoveRequest {
+  std::string project_id;
+  CardMoveIntent intent;
+  std::optional<std::optional<std::string>> target_card_id RIG_FIELD_DESCRIPTION("Required for intents into/before/after.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> parent_card_id RIG_FIELD_DESCRIPTION("Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<long long>> if_revision RIG_FIELD_DESCRIPTION("Optional optimistic-concurrency revision guard.") RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD CardTagMutationResult {
@@ -871,6 +1007,80 @@ struct RIG_OPEN_RECORD LocationTestResponse {
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD PutLocationsPreferredRequest {
   std::string project_id;
   std::string location_id;
+};
+
+struct RIG_VALUE_TYPE RIG_DESCRIPTION("Permissive metadata map. Repeated and custom values are preserved in order.") ResourceMetadata {
+  std::map<std::string, std::vector<std::string>> value;
+};
+
+struct RIG_OPEN_RECORD AssetPlacement {
+  std::string placement_id;
+  std::string location_id;
+  std::string encoding RIG_STRING_VALUES("plain", "holder_asset_v1");
+  long long stored_byte_size;
+  long long created_at;
+};
+
+struct RIG_OPEN_RECORD ResourceAsset {
+  std::string asset_id;
+  std::string resource_id;
+  std::string original_filename;
+  std::string media_type;
+  long long byte_size;
+  std::string plaintext_sha256;
+  std::vector<AssetPlacement> placements;
+  long long created_at;
+  long long updated_at;
+};
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD ResourceReferencedByCardsItem {
+  std::string card_id;
+  std::string title;
+  long long updated_at;
+  std::vector<std::string> link_kinds;
+};
+
+struct RIG_OPEN_RECORD Resource {
+  std::string resource_id;
+  std::string project_id;
+  std::string type RIG_FIELD_DESCRIPTION("Friendly, extensible type rather than a closed enum.");
+  std::string label;
+  ResourceMetadata metadata;
+  std::vector<ResourceAsset> assets;
+  long long created_at;
+  long long updated_at;
+  std::optional<std::vector<ResourceReferencedByCardsItem>> referenced_by_cards RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD ResourceListResponse {
+  std::optional<std::string> card_id RIG_FIELD_DESCRIPTION("Canonical live card ID, present only for card attachment lists.") RIG_OMIT_EMPTY;
+  std::optional<int> limit RIG_OMIT_EMPTY;
+  std::optional<int> offset RIG_OMIT_EMPTY;
+  std::optional<std::optional<int>> next_offset RIG_FIELD_DESCRIPTION("Present for card lists; null when exhausted, otherwise continue here (the next page may be empty).") RIG_OMIT_EMPTY RIG_NULLABLE;
+  bool ok RIG_BOOL_VALUE(true);
+  std::vector<Resource> data;
+};
+
+struct RIG_OPEN_RECORD ResourceResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  Resource data;
+};
+
+struct RIG_OPEN_RECORD ResourceCreateRequest {
+  std::optional<std::string> resource_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted.") RIG_OMIT_EMPTY;
+  std::string project_id;
+  std::string type;
+  std::string label;
+  std::optional<ResourceMetadata> metadata RIG_OMIT_EMPTY;
+  std::optional<long long> created_at RIG_OMIT_EMPTY;
+  std::optional<long long> updated_at RIG_OMIT_EMPTY;
+};
+
+struct RIG_OPEN_RECORD ResourceUpdateRequest {
+  std::optional<std::string> type RIG_OMIT_EMPTY;
+  std::optional<std::string> label RIG_OMIT_EMPTY;
+  std::optional<ResourceMetadata> metadata RIG_FIELD_DESCRIPTION("Partial metadata update. Empty arrays remove a property; omitted properties are preserved.") RIG_OMIT_EMPTY;
+  std::optional<long long> updated_at RIG_OMIT_EMPTY;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD ResourceDeleteResponseData {

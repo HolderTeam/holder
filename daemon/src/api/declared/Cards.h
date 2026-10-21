@@ -94,6 +94,18 @@ RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
 CardCreateResponse post_cards(CardCreateRequest request);
 
+RIG_ROUTE(GET, "/cards/context")
+RIG_SUMMARY("Read card context and breadcrumb path for a project level")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or parent card not found")
+CardContextResponse get_cards_context(
+    std::string project_id RIG_QUERY,
+    std::optional<std::string> parent_card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional parent card id. Omit for project root level."),
+    std::string order RIG_QUERY RIG_STRING_VALUES("tree_default", "updated_desc", "title_asc") RIG_DEFAULT("tree_default") RIG_PARAMETER_DESCRIPTION("Ordering for the returned level cards."),
+    bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (child_count) in context cards."));
+
 RIG_ROUTE(GET, "/cards/{card_id}")
 RIG_SUMMARY("Fetch a card")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -119,6 +131,17 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
 CardPatchResponse delete_cards_card_id(
     std::string card_id,
     std::string children RIG_QUERY RIG_STRING_VALUES("promote", "trash_subtree") RIG_DEFAULT("promote") RIG_PARAMETER_DESCRIPTION("What happens to the card's live children. Any other value is rejected before anything changes."));
+
+RIG_ROUTE(POST, "/cards/{card_id}/move")
+RIG_SUMMARY("Move/reparent/reorder a card using card move intent")
+RIG_DESCRIPTION("Placement is resolved and written under the project lock. When the card's new neighbours leave no room between their sort keys (tied keys, or a gap used up by repeated moves), nearby siblings are re-spaced in the same commit, keeping their order. The response describes only the moved card, so a client holding other cards' sort_key values should refresh the listing.")
+RIG_RESPONSE_DESCRIPTION("Move applied")
+RIG_HOST_RESPONSE("application/json")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request (missing/invalid intent fields)")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Card or target not found")
+RIG_ERROR_RESPONSE(409, ErrorResponse, "Stale revision (if_revision mismatch)")
+RIG_ERROR_RESPONSE(422, ErrorResponse, "Invalid move (cycle/cross-project/invalid target)")
+CardMoveResponse post_cards_card_id_move(std::string card_id, CardMoveRequest request);
 
 RIG_ROUTE(POST, "/cards/{card_id}/tags")
 RIG_SUMMARY("Add a tag to a live card")

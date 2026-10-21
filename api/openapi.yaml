@@ -1203,9 +1203,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/CardListItem"
         - type: object
-          properties:
-            child_count:
-              type: integer
+          properties: {}
     CardContextBreadcrumb:
       type: object
       required: [type, title]
@@ -2491,7 +2489,8 @@ components:
         label:
           type: string
         metadata:
-          $ref: "#/components/schemas/ResourceMetadata"
+          allOf:
+            - $ref: "#/components/schemas/ResourceMetadata"
           description: Partial metadata update. Empty arrays remove a property; omitted properties are preserved.
         updated_at:
           type: integer

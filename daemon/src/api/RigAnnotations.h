@@ -23,6 +23,8 @@
 #define RIG_MIN_LENGTH(value)
 #define RIG_MAX_LENGTH(value)
 #define RIG_FORMAT(text)
+#define RIG_PATTERN(text)
+#define RIG_VALUE_TYPE
 #define RIG_DEFAULT(value)
 #define RIG_FIELD_DESCRIPTION(text)
 #define RIG_OMIT_EMPTY

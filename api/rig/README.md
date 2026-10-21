@@ -37,7 +37,7 @@ same way. `CardLinks.h` declares `POST /cards/{card_id}/links` with
 `RIG_SUCCESS_STATUS(201)` as a host response until its handler moves behind
 the generated dispatcher.
 
-`daemon/src/api/declared/` declares a further 83 operations, one header per
+`daemon/src/api/declared/` declares a further 93 operations, one header per
 path group with their schemas in `Schemas.h`, as host responses: the existing
 route handlers still write them.
 They were drafted from `api/openapi.yaml` and match it exactly. When a handler
@@ -122,7 +122,7 @@ rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.js
 ```
 
 `check_contract.py` compares every generated operation and schema with the
-control: 101 of its 126 operations and 144 schemas now match exactly. The
+control: 111 of its 126 operations and 170 schemas now match exactly. The
 comparison treats an omitted `required` on a query parameter as `false`, as
 OpenAPI does. The generated document is still partial; it must not replace the
 checked-in contract until every operation is declared.
