@@ -15,7 +15,6 @@
 #include "identity/Uuid.h"
 #include "privacy/PrivacyError.h"
 #include "project/ProjectRepo.h"
-#include "resource/ResourceRepo.h"
 
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
@@ -561,95 +560,6 @@ bool handle_card_routes(
           } catch (const std::exception& ex) {
             res = support::error_response(http::status::bad_request, "bad_request", ex.what());
           }
-        }
-      } else if (tail == "/resources") {
-        if (req.method() != http::verb::post && req.method() != http::verb::delete_) {
-          res = support::error_response(
-              http::status::method_not_allowed,
-              "method_not_allowed",
-              "Use POST to attach or DELETE to detach."
-          );
-          return true;
-        }
-        try {
-          const auto body = nlohmann::json::parse(req.body());
-          const auto project_id = body.at("project_id").get<std::string>();
-          const auto resource_id = body.at("resource_id").get<std::string>();
-          if (project_id.empty() || resource_id.empty()) {
-            throw std::invalid_argument("project_id and resource_id are required.");
-          }
-          const auto card = card_store->get(card_id);
-          if (!card.has_value() || card->deleted_at.has_value()) {
-            res = support::error_response(
-                http::status::not_found,
-                "not_found",
-                "Live card not found."
-            );
-            return true;
-          }
-          const auto resource = holder::resource::ResourceRepo(db).get(resource_id);
-          const bool attaching = req.method() == http::verb::post;
-          if (!resource.has_value() && attaching) {
-            res = support::error_response(
-                http::status::not_found,
-                "not_found",
-                "Resource not found."
-            );
-            return true;
-          }
-          if (card->project_id != project_id ||
-              (resource.has_value() && resource->project_id != project_id)) {
-            res = support::error_response(
-                http::status::unprocessable_entity,
-                "cross_project_resource_forbidden",
-                "Card and resource must belong to the selected project."
-            );
-            return true;
-          }
-          holder::card::LinkRepo links(db);
-          const auto outgoing = links.list_outgoing(project_id, card_id);
-          const bool present = std::any_of(outgoing.begin(), outgoing.end(), [&](const auto& link) {
-            return link.to_card_id == resource_id && link.to_type == "resource" &&
-                   link.kind == "attachment";
-          });
-          const bool changed = attaching != present;
-          if (changed) {
-            if (attaching) {
-              holder::model::CardLink link;
-              link.project_id = project_id;
-              link.from_card_id = card_id;
-              link.to_card_id = resource_id;
-              link.to_type = "resource";
-              link.kind = "attachment";
-              link.created_at = support::now_epoch_seconds();
-              holder::card::add_card_link(db, fts, link);
-            } else {
-              holder::card::remove_card_link(
-                  db,
-                  fts,
-                  card_id,
-                  resource_id,
-                  "resource",
-                  "attachment"
-              );
-            }
-          }
-          res = support::json_response(
-              http::status::ok,
-              {{"ok", true},
-               {"data",
-                {{"card_id", card_id},
-                 {"resource_id", resource_id},
-                 {"changed", changed},
-                 {"outcome",
-                  attaching ? (changed ? "attached" : "already_attached")
-                            : (changed ? "detached" : "not_attached")}}}}
-          );
-        } catch (const holder::privacy::PrivacyError& ex
-        ) { // LCOV_EXCL_LINE: injected crypto failure guard.
-          res = privacy_error_response(ex); // LCOV_EXCL_LINE
-        } catch (const std::exception& ex) {
-          res = support::error_response(http::status::bad_request, "bad_request", ex.what());
         }
       } else if (tail == "/links") {
         try {

@@ -554,22 +554,6 @@ template <> struct codec<holder::api::CardTagMutationRequest> {
     static json encode(const holder::api::CardTagMutationRequest& value);
     static holder::api::CardTagMutationRequest decode(const json& value);
 };
-template <> struct codec<holder::api::ResourceAttachmentResponseData> {
-    static json encode(const holder::api::ResourceAttachmentResponseData& value);
-    static holder::api::ResourceAttachmentResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ResourceAttachmentResponse> {
-    static json encode(const holder::api::ResourceAttachmentResponse& value);
-    static holder::api::ResourceAttachmentResponse decode(const json& value);
-};
-template <> struct codec<holder::api::PostCardsCardIdResourcesRequest> {
-    static json encode(const holder::api::PostCardsCardIdResourcesRequest& value);
-    static holder::api::PostCardsCardIdResourcesRequest decode(const json& value);
-};
-template <> struct codec<holder::api::DeleteCardsCardIdResourcesRequest> {
-    static json encode(const holder::api::DeleteCardsCardIdResourcesRequest& value);
-    static holder::api::DeleteCardsCardIdResourcesRequest decode(const json& value);
-};
 template <> struct codec<holder::api::StorageLocation> {
     static json encode(const holder::api::StorageLocation& value);
     static holder::api::StorageLocation decode(const json& value);
@@ -1025,6 +1009,22 @@ template <> struct codec<holder::api::CardData> {
 template <> struct codec<holder::api::CardGetResponse> {
     static json encode(const holder::api::CardGetResponse& value);
     static holder::api::CardGetResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceAttachmentResponseData> {
+    static json encode(const holder::api::ResourceAttachmentResponseData& value);
+    static holder::api::ResourceAttachmentResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceAttachmentResponse> {
+    static json encode(const holder::api::ResourceAttachmentResponse& value);
+    static holder::api::ResourceAttachmentResponse decode(const json& value);
+};
+template <> struct codec<holder::api::PostCardsCardIdResourcesRequest> {
+    static json encode(const holder::api::PostCardsCardIdResourcesRequest& value);
+    static holder::api::PostCardsCardIdResourcesRequest decode(const json& value);
+};
+template <> struct codec<holder::api::DeleteCardsCardIdResourcesRequest> {
+    static json encode(const holder::api::DeleteCardsCardIdResourcesRequest& value);
+    static holder::api::DeleteCardsCardIdResourcesRequest decode(const json& value);
 };
 template <> struct codec<holder::api::TrashItem> {
     static json encode(const holder::api::TrashItem& value);
@@ -3588,100 +3588,6 @@ inline holder::api::CardTagMutationRequest codec<holder::api::CardTagMutationReq
     };
 }
 
-inline json codec<holder::api::ResourceAttachmentResponseData>::encode(const holder::api::ResourceAttachmentResponseData& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["resource_id"] = codec<std::string>::encode(value.resource_id);
-    result["changed"] = codec<bool>::encode(value.changed);
-    if (value.outcome != "attached" && value.outcome != "already_attached" && value.outcome != "detached" && value.outcome != "not_attached") throw std::invalid_argument("invalid outcome");
-    result["outcome"] = codec<std::string>::encode(value.outcome);
-    return result;
-}
-inline holder::api::ResourceAttachmentResponseData codec<holder::api::ResourceAttachmentResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceAttachmentResponseData");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
-    if (!value.contains("changed")) throw std::invalid_argument("missing changed");
-    if (!value.contains("outcome")) throw std::invalid_argument("missing outcome");
-    if (value.at("outcome") != "attached" && value.at("outcome") != "already_attached" && value.at("outcome") != "detached" && value.at("outcome") != "not_attached") throw std::invalid_argument("invalid outcome");
-    return holder::api::ResourceAttachmentResponseData{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("resource_id")),
-        codec<bool>::decode(value.at("changed")),
-        codec<std::string>::decode(value.at("outcome")),
-    };
-}
-
-inline json codec<holder::api::ResourceAttachmentResponse>::encode(const holder::api::ResourceAttachmentResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ResourceAttachmentResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ResourceAttachmentResponse codec<holder::api::ResourceAttachmentResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceAttachmentResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ResourceAttachmentResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ResourceAttachmentResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::PostCardsCardIdResourcesRequest>::encode(const holder::api::PostCardsCardIdResourcesRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["resource_id"] = codec<std::string>::encode(value.resource_id);
-    return result;
-}
-inline holder::api::PostCardsCardIdResourcesRequest codec<holder::api::PostCardsCardIdResourcesRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected PostCardsCardIdResourcesRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
-    if (value.contains("project_id") && value.at("project_id").is_string()) {
-        const auto length = value.at("project_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: project_id");
-    }
-    if (value.contains("resource_id") && value.at("resource_id").is_string()) {
-        const auto length = value.at("resource_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: resource_id");
-    }
-    return holder::api::PostCardsCardIdResourcesRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("resource_id")),
-    };
-}
-
-inline json codec<holder::api::DeleteCardsCardIdResourcesRequest>::encode(const holder::api::DeleteCardsCardIdResourcesRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["resource_id"] = codec<std::string>::encode(value.resource_id);
-    return result;
-}
-inline holder::api::DeleteCardsCardIdResourcesRequest codec<holder::api::DeleteCardsCardIdResourcesRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected DeleteCardsCardIdResourcesRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
-    if (value.contains("project_id") && value.at("project_id").is_string()) {
-        const auto length = value.at("project_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: project_id");
-    }
-    if (value.contains("resource_id") && value.at("resource_id").is_string()) {
-        const auto length = value.at("resource_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: resource_id");
-    }
-    return holder::api::DeleteCardsCardIdResourcesRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("resource_id")),
-    };
-}
-
 inline json codec<holder::api::StorageLocation>::encode(const holder::api::StorageLocation& value) {
     json result = json::object();
     result["location_id"] = codec<std::string>::encode(value.location_id);
@@ -6172,6 +6078,100 @@ inline holder::api::CardGetResponse codec<holder::api::CardGetResponse>::decode(
     return holder::api::CardGetResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::CardData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ResourceAttachmentResponseData>::encode(const holder::api::ResourceAttachmentResponseData& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    result["changed"] = codec<bool>::encode(value.changed);
+    if (value.outcome != "attached" && value.outcome != "already_attached" && value.outcome != "detached" && value.outcome != "not_attached") throw std::invalid_argument("invalid outcome");
+    result["outcome"] = codec<std::string>::encode(value.outcome);
+    return result;
+}
+inline holder::api::ResourceAttachmentResponseData codec<holder::api::ResourceAttachmentResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceAttachmentResponseData");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
+    if (!value.contains("changed")) throw std::invalid_argument("missing changed");
+    if (!value.contains("outcome")) throw std::invalid_argument("missing outcome");
+    if (value.at("outcome") != "attached" && value.at("outcome") != "already_attached" && value.at("outcome") != "detached" && value.at("outcome") != "not_attached") throw std::invalid_argument("invalid outcome");
+    return holder::api::ResourceAttachmentResponseData{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("resource_id")),
+        codec<bool>::decode(value.at("changed")),
+        codec<std::string>::decode(value.at("outcome")),
+    };
+}
+
+inline json codec<holder::api::ResourceAttachmentResponse>::encode(const holder::api::ResourceAttachmentResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ResourceAttachmentResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ResourceAttachmentResponse codec<holder::api::ResourceAttachmentResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceAttachmentResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ResourceAttachmentResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ResourceAttachmentResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::PostCardsCardIdResourcesRequest>::encode(const holder::api::PostCardsCardIdResourcesRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    return result;
+}
+inline holder::api::PostCardsCardIdResourcesRequest codec<holder::api::PostCardsCardIdResourcesRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected PostCardsCardIdResourcesRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
+    if (value.contains("project_id") && value.at("project_id").is_string()) {
+        const auto length = value.at("project_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: project_id");
+    }
+    if (value.contains("resource_id") && value.at("resource_id").is_string()) {
+        const auto length = value.at("resource_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: resource_id");
+    }
+    return holder::api::PostCardsCardIdResourcesRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("resource_id")),
+    };
+}
+
+inline json codec<holder::api::DeleteCardsCardIdResourcesRequest>::encode(const holder::api::DeleteCardsCardIdResourcesRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    return result;
+}
+inline holder::api::DeleteCardsCardIdResourcesRequest codec<holder::api::DeleteCardsCardIdResourcesRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected DeleteCardsCardIdResourcesRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
+    if (value.contains("project_id") && value.at("project_id").is_string()) {
+        const auto length = value.at("project_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: project_id");
+    }
+    if (value.contains("resource_id") && value.at("resource_id").is_string()) {
+        const auto length = value.at("resource_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: resource_id");
+    }
+    return holder::api::DeleteCardsCardIdResourcesRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("resource_id")),
     };
 }
 

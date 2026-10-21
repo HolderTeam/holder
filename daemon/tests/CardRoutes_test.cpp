@@ -52,9 +52,8 @@ std::function<std::string(const std::string&)> map_param_getter(
 }
 
 
-// Routes a request as the daemon does: card reads through the generated routes, with the query the
-// parameter function supplies (an empty value is left out), and everything else to the
-// host-written card routes.
+// Routes a request as the daemon does: generated routes first, then the host-written card routes.
+// A read takes its query from the parameter function (an empty value is left out).
 template <typename Param>
 bool route_card(
     const std::string& path,
@@ -95,6 +94,10 @@ bool route_card(
         )) {
       return true;
     }
+  } else if (holder::api::dispatch_generated_routes(
+                 req, res, db, nullptr, fts, nullptr, nullptr, uuid_v4, {}, card_store
+             )) {
+    return true;
   }
   return holder::api::routes::handle_card_routes(
       path, req, res, db, card_store, fts, uuid_v4, param_get
@@ -922,14 +925,14 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
       REQUIRE(payload["error"]["code"] == "bad_request");
     }
 
-    // Only GET is generated; the card handler no longer claims other methods here.
+    // Backlinks have only GET, so the generated routes answer other methods with 405.
     auto [method_status, method_payload] = call(
         http::verb::post,
         "/cards/11111111-1111-4111-8111-111111111111/backlinks",
         nlohmann::json::object()
     );
-    REQUIRE(method_status == http::status::not_found);
-    REQUIRE(method_payload["error"]["code"] == "not_found");
+    REQUIRE(method_status == http::status::method_not_allowed);
+    REQUIRE(method_payload["error"]["code"] == "method_not_allowed");
   }
 
   SECTION("backlinks include_deleted toggles filtering") {
@@ -1059,14 +1062,14 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
     REQUIRE(payload["error"]["code"] == "bad_request");
   }
 
-  SECTION("post to item route returns not found") {
+  SECTION("post to item route is not allowed") {
     auto [status, payload] = call(
         http::verb::post,
         "/cards/11111111-1111-4111-8111-111111111111",
         nlohmann::json::object()
     );
-    REQUIRE(status == http::status::not_found);
-    REQUIRE(payload["error"]["code"] == "not_found");
+    REQUIRE(status == http::status::method_not_allowed);
+    REQUIRE(payload["error"]["code"] == "method_not_allowed");
   }
 
   SECTION("unknown tail route returns not found") {
@@ -1765,7 +1768,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
         empty_param_get
     );
     REQUIRE(put_handled);
-    REQUIRE(put_res.result() == http::status::not_found);
+    REQUIRE(put_res.result() == http::status::method_not_allowed);
   }
 }
 

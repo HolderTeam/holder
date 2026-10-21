@@ -139,28 +139,6 @@ CardTagMutationResponse delete_cards_card_id_tags(
     std::string card_id,
     CardTagMutationRequest request);
 
-RIG_ROUTE(POST, "/cards/{card_id}/resources")
-RIG_SUMMARY("Attach a project resource to a live card (idempotent)")
-RIG_RESPONSE_DESCRIPTION("Attachment outcome; repeated requests do not change state")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card or resource not found")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Card or resource belongs to a different project")
-ResourceAttachmentResponse post_cards_card_id_resources(
-    std::string card_id,
-    PostCardsCardIdResourcesRequest request);
-
-RIG_ROUTE(DELETE, "/cards/{card_id}/resources")
-RIG_SUMMARY("Detach one attachment without deleting the project resource (idempotent)")
-RIG_RESPONSE_DESCRIPTION("Attachment outcome; repeated requests do not change state")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card or resource not found")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Card or resource belongs to a different project")
-ResourceAttachmentResponse delete_cards_card_id_resources(
-    std::string card_id,
-    DeleteCardsCardIdResourcesRequest request);
-
 RIG_ROUTE(DELETE, "/cards/{card_id}/links")
 RIG_SUMMARY("Delete links from a card")
 RIG_DESCRIPTION("Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.")

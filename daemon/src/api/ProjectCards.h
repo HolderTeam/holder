@@ -3,7 +3,7 @@
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
 #include "api/declared/Schemas.h"
-#include "privacy/PrivacyError.h"
+#include "api/support/PrivacyErrors.h"
 
 #include <optional>
 #include <stdexcept>
@@ -58,21 +58,15 @@ struct CardHierarchyInvalid : CodedError {
       : CodedError("hierarchy_invalid", message) {}
 };
 
-struct ProjectCardsKeyringUnavailable : holder::privacy::PrivacyError {
-  using PrivacyError::PrivacyError;
-};
-struct ProjectCardsPrivacyError : holder::privacy::PrivacyError {
-  using PrivacyError::PrivacyError;
-};
 
 RIG_ROUTE(GET, "/projects/{project_id}/cards")
 RIG_SUMMARY("Page through a project's live cards")
 RIG_DESCRIPTION("Filters combine. Each page reads current data; iteration is not a snapshot.")
 RIG_RESPONSE_DESCRIPTION("A page of matching cards")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid parameter or cursor, including a cursor from a different query, or a privacy error reading content", ProjectCardsPrivacyError, std::invalid_argument)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid parameter or cursor, including a cursor from a different query, or a privacy error reading content", support::PrivacyRejected, std::invalid_argument)
 RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found", ProjectCardsNotFound)
 RIG_ERROR_RESPONSE(501, ErrorResponse, "Content pages unavailable because the daemon has no card store", CardStoreUnavailable)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to read an encrypted project's content is unavailable", ProjectCardsKeyringUnavailable)
+RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to read an encrypted project's content is unavailable", support::KeyringUnavailable)
 CardPageResponse get_projects_project_id_cards(
     holder::platform::Db& db RIG_CONTEXT,
     holder::card::CardStore* card_store RIG_CONTEXT,

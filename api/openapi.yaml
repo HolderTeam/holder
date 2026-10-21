@@ -2232,7 +2232,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ResourceAttachmentResponse'}
         '400':
-          description: Malformed request
+          description: Malformed request, or a privacy error writing an encrypted card
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -2251,8 +2251,24 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '501':
+          description: The daemon has no card store
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: The keyring needed to write an encrypted card is unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
     delete:
       summary: Detach one attachment without deleting the project resource (idempotent)
+      description: A resource that no longer exists can still be detached.
       parameters:
       - name: card_id
         in: path
@@ -2276,7 +2292,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ResourceAttachmentResponse'}
         '400':
-          description: Malformed request
+          description: Malformed request, or a privacy error writing an encrypted card
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -2286,12 +2302,27 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Live card or resource not found
+          description: Live card not found
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '422':
           description: Card or resource belongs to a different project
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '501':
+          description: The daemon has no card store
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: The keyring needed to write an encrypted card is unavailable
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}

@@ -121,9 +121,7 @@ CardPageResponse get_projects_project_id_cards(holder::platform::Db& db,
     try {
       page = card_store->list_collection_page(project_id, query, limit, true);
     } catch (const holder::privacy::PrivacyError& error) {
-      if (error.code() == holder::privacy::PrivacyErrorCode::KeyringUnavailable)
-        throw ProjectCardsKeyringUnavailable(error.code(), error.what());
-      throw ProjectCardsPrivacyError(error.code(), error.what());
+      support::throw_privacy_failure(error);
     }
   } else {
     auto rows = cards.list_collection_page(project_id, query, limit + 1);

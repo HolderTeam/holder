@@ -685,27 +685,6 @@ struct RIG_OPEN_RECORD CardTagMutationRequest {
   std::string tag RIG_FIELD_DESCRIPTION("Tag without the leading") RIG_MIN_LENGTH(1);
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ResourceAttachmentResponseData {
-  std::string card_id;
-  std::string resource_id;
-  bool changed;
-  std::string outcome RIG_STRING_VALUES("attached", "already_attached", "detached", "not_attached");
-};
-
-struct RIG_OPEN_RECORD ResourceAttachmentResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ResourceAttachmentResponseData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PostCardsCardIdResourcesRequest {
-  std::string project_id RIG_MIN_LENGTH(1);
-  std::string resource_id RIG_FIELD_DESCRIPTION("Complete exact project resource ID; no prefix or label lookup.") RIG_MIN_LENGTH(1);
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD DeleteCardsCardIdResourcesRequest {
-  std::string project_id RIG_MIN_LENGTH(1);
-  std::string resource_id RIG_FIELD_DESCRIPTION("Complete exact project resource ID; no prefix or label lookup.") RIG_MIN_LENGTH(1);
-};
 
 struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;

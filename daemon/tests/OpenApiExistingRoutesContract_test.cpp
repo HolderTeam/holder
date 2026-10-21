@@ -273,7 +273,7 @@ TEST_CASE(
         std::vector<std::string>{"project_id", "resource_id"}
     );
     require_json_response_ref(op, "200", "ResourceAttachmentResponse");
-    for (const auto& status : {"400", "401", "404", "422"})
+    for (const auto& status : {"400", "401", "404", "422", "500", "501", "503"})
       require_json_response_ref(op, status, "ErrorResponse");
   }
 }

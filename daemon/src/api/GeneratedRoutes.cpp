@@ -14,6 +14,7 @@
 #include "api/Calendar.h"
 #include "api/CardMilestones.h"
 #include "api/CardRead.h"
+#include "api/CardResources.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"
