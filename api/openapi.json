@@ -4667,6 +4667,7 @@
     "/imports/{job_id}": {
       "get": {
         "summary": "Poll an asset import job",
+        "description": "Jobs are held in memory, so a job queued before the daemon restarted is not found.",
         "parameters": [
           {
             "name": "job_id",
@@ -4688,6 +4689,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4700,6 +4711,16 @@
           },
           "404": {
             "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -9884,7 +9905,11 @@
         "required": [
           "job_id",
           "status",
-          "duplicate_reused"
+          "resource_id",
+          "asset_id",
+          "duplicate_reused",
+          "link_created",
+          "error"
         ]
       },
       "AssetImportJobResponse": {

@@ -4948,35 +4948,31 @@ inline json codec<holder::api::AssetImportJob>::encode(const holder::api::AssetI
     result["job_id"] = codec<std::string>::encode(value.job_id);
     if (value.status != "queued" && value.status != "staging" && value.status != "storing" && value.status != "committing" && value.status != "completed" && value.status != "failed") throw std::invalid_argument("invalid status");
     result["status"] = codec<std::string>::encode(value.status);
-    if (value.resource_id) {
-        result["resource_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.resource_id);
-    }
-    if (value.asset_id) {
-        result["asset_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.asset_id);
-    }
+    result["resource_id"] = codec<std::optional<std::string>>::encode(value.resource_id);
+    result["asset_id"] = codec<std::optional<std::string>>::encode(value.asset_id);
     result["duplicate_reused"] = codec<bool>::encode(value.duplicate_reused);
-    if (value.link_created) {
-        result["link_created"] = codec<std::optional<bool>>::encode(value.link_created);
-    }
-    if (value.error) {
-        result["error"] = codec<std::optional<std::optional<std::string>>>::encode(value.error);
-    }
+    result["link_created"] = codec<bool>::encode(value.link_created);
+    result["error"] = codec<std::optional<std::string>>::encode(value.error);
     return result;
 }
 inline holder::api::AssetImportJob codec<holder::api::AssetImportJob>::decode(const json& value) {
     if (!value.is_object()) throw std::invalid_argument("expected AssetImportJob");
     if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
     if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
+    if (!value.contains("asset_id")) throw std::invalid_argument("missing asset_id");
     if (!value.contains("duplicate_reused")) throw std::invalid_argument("missing duplicate_reused");
+    if (!value.contains("link_created")) throw std::invalid_argument("missing link_created");
+    if (!value.contains("error")) throw std::invalid_argument("missing error");
     if (value.at("status") != "queued" && value.at("status") != "staging" && value.at("status") != "storing" && value.at("status") != "committing" && value.at("status") != "completed" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
     return holder::api::AssetImportJob{
         codec<std::string>::decode(value.at("job_id")),
         codec<std::string>::decode(value.at("status")),
-        value.contains("resource_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("resource_id"))} : std::nullopt,
-        value.contains("asset_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("asset_id"))} : std::nullopt,
+        codec<std::optional<std::string>>::decode(value.at("resource_id")),
+        codec<std::optional<std::string>>::decode(value.at("asset_id")),
         codec<bool>::decode(value.at("duplicate_reused")),
-        value.contains("link_created") ? codec<std::optional<bool>>::decode(value.at("link_created")) : std::nullopt,
-        value.contains("error") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error"))} : std::nullopt,
+        codec<bool>::decode(value.at("link_created")),
+        codec<std::optional<std::string>>::decode(value.at("error")),
     };
 }
 

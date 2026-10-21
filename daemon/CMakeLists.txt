@@ -393,6 +393,7 @@ add_executable(holderd
   src/api/AiLocalModelConfig.cpp
   src/api/AiProviderCatalog.cpp
   src/api/AiRunnerRead.cpp
+  src/api/AssetImportRead.cpp
   src/api/AiRuns.cpp
   src/api/AiStatus.cpp
   src/api/AiThreadList.cpp
@@ -445,6 +446,7 @@ add_executable(holderd
   src/api/support/CloudQuota.cpp
   src/api/support/ThreadCompaction.cpp
   src/api/support/LocalModelRouting.cpp
+  src/api/support/AssetImportJobs.cpp
   src/api/support/RunEventStore.cpp
   src/api/support/EventJournal.cpp
   src/api/support/SseStream.cpp

@@ -3,6 +3,7 @@
 #include "api/AiLocalModelConfig.h"
 #include "api/AiProviderCatalog.h"
 #include "api/AiRunnerRead.h"
+#include "api/AssetImportRead.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"
 #include "api/AiThreadList.h"

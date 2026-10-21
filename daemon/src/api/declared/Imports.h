@@ -18,11 +18,4 @@ RIG_HOST_RESPONSE("application/json")
 RIG_SUCCESS_STATUS(202)
 AssetImportJobResponse post_imports(AssetImportRequest request);
 
-RIG_ROUTE(GET, "/imports/{job_id}")
-RIG_SUMMARY("Poll an asset import job")
-RIG_RESPONSE_DESCRIPTION("Current job state")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Job not found")
-AssetImportJobResponse get_imports_job_id(std::string job_id);
-
 } // namespace holder::api

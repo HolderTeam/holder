@@ -2448,6 +2448,7 @@ paths:
   /imports/{job_id}:
     get:
       summary: Poll an asset import job
+      description: Jobs are held in memory, so a job queued before the daemon restarted is not found.
       parameters:
       - name: job_id
         in: path
@@ -2459,6 +2460,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AssetImportJobResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
@@ -2466,6 +2472,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Job not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4936,7 +4947,7 @@ components:
         link_created: {type: boolean}
         error:
           type: [string, 'null']
-      required: [job_id, status, duplicate_reused]
+      required: [job_id, status, resource_id, asset_id, duplicate_reused, link_created, error]
     AssetImportJobResponse:
       type: object
       properties:

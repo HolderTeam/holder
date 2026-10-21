@@ -1,6 +1,7 @@
 #include "core/ActivityTracker.h"
 #include "api/routes/AiResourceRoutes.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
+#include "api/support/AssetImportJobs.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 #include "platform/Paths.h"
@@ -43,18 +44,9 @@ namespace {
 
 namespace http = boost::beast::http;
 
-struct ImportJob {
-  std::string job_id;
-  std::string status = "queued";
-  std::string resource_id;
-  std::string asset_id;
-  bool duplicate_reused = false;
-  bool link_created = false;
-  std::string error;
-};
+using support::ImportJob;
+using support::update_import_job;
 
-std::mutex import_jobs_mutex;
-std::unordered_map<std::string, ImportJob> import_jobs;
 std::mutex import_threads_mutex;
 std::vector<std::thread> import_threads;
 
@@ -109,18 +101,6 @@ void stream_file_response(
     }
   }
   if (!input.eof()) throw std::runtime_error("failed while reading recovered asset");
-}
-
-void update_import_job(
-    const std::string& job_id,
-    const std::string& status,
-    const std::string& error = {}
-) {
-  std::lock_guard<std::mutex> lock(import_jobs_mutex);
-  auto found = import_jobs.find(job_id);
-  if (found == import_jobs.end()) return;
-  found->second.status = status;
-  found->second.error = error;
 }
 
 nlohmann::json import_job_json(const ImportJob& job) {
@@ -644,18 +624,15 @@ bool handle_ai_resource_routes(
       const auto db_path = db.path();
       const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-staging";
       const auto job_id = uuid_v4();
-      {
-        std::lock_guard<std::mutex> lock(import_jobs_mutex);
-        import_jobs[job_id] = ImportJob{
-            .job_id = job_id,
-            .status = "queued",
-            .resource_id = {},
-            .asset_id = {},
-            .duplicate_reused = false,
-            .link_created = false,
-            .error = {},
-        };
-      }
+      support::put_import_job(ImportJob{
+          .job_id = job_id,
+          .status = "queued",
+          .resource_id = {},
+          .asset_id = {},
+          .duplicate_reused = false,
+          .link_created = false,
+          .error = {},
+      });
       // The import outlives the request that queued it; it is work until it finishes.
       std::thread import_thread(
           [job_id,
@@ -692,15 +669,13 @@ bool handle_ai_resource_routes(
                   }
               );
               const auto result = importer.import_file(request, *provider);
-              std::lock_guard<std::mutex> lock(import_jobs_mutex);
-              auto found = import_jobs.find(job_id);
-              if (found != import_jobs.end()) {
-                found->second.status = "completed";
-                found->second.resource_id = result.resource_id;
-                found->second.asset_id = result.asset_id;
-                found->second.duplicate_reused = result.duplicate_reused;
-                found->second.link_created = result.link_created;
-              }
+              support::complete_import_job(
+                  job_id,
+                  result.resource_id,
+                  result.asset_id,
+                  result.duplicate_reused,
+                  result.link_created
+              );
             } catch (const std::exception& ex) {
               update_import_job(job_id, "failed", ex.what());
             } catch (...) { // LCOV_EXCL_LINE: defensive boundary for non-standard provider throws.
@@ -728,21 +703,6 @@ bool handle_ai_resource_routes(
       );
     } catch (const std::exception& ex) {
       res = resource_error_response(ex);
-    }
-    return true;
-  }
-
-  if (path.rfind("/imports/", 0) == 0 && req.method() == http::verb::get) {
-    const auto job_id = path.substr(std::string("/imports/").size());
-    std::lock_guard<std::mutex> lock(import_jobs_mutex);
-    const auto found = import_jobs.find(job_id);
-    if (job_id.empty() || found == import_jobs.end()) {
-      res = support::error_response(http::status::not_found, "not_found", "Import job not found.");
-    } else {
-      res = support::json_response(
-          http::status::ok,
-          {{"ok", true}, {"data", import_job_json(found->second)}}
-      );
     }
     return true;
   }

@@ -1075,11 +1075,11 @@ struct RIG_OPEN_RECORD EventResyncData : EventCheckpoint {
 struct RIG_OPEN_RECORD AssetImportJob {
   std::string job_id;
   std::string status RIG_STRING_VALUES("queued", "staging", "storing", "committing", "completed", "failed");
-  std::optional<std::optional<std::string>> resource_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> asset_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::string> resource_id RIG_NULLABLE;
+  std::optional<std::string> asset_id RIG_NULLABLE;
   bool duplicate_reused;
-  std::optional<bool> link_created RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
+  bool link_created;
+  std::optional<std::string> error RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD AssetImportJobResponse {

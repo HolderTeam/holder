@@ -101,6 +101,7 @@ TEST_CASE("AiResourceRoutes returns false for unrelated paths", "[resources][rou
   REQUIRE_FALSE(handled);
 }
 
+#include "api/GeneratedRoutes.h"
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
 #include "resource/LocationBindingStore.h"
@@ -146,6 +147,12 @@ struct LocationRouteFixture {
         with_secrets ? secrets.get() : nullptr,
         git
     ));
+    return response;
+  }
+  http::response<http::string_body> poll_import(const std::string& job_id) {
+    auto request = make_request(http::verb::get, "/imports/" + job_id, nlohmann::json::object());
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
     return response;
   }
   void put(
@@ -251,7 +258,6 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
       ).result() == http::status::not_found
   );
   CHECK(f.call(http::verb::post, "/imports").result() == http::status::bad_request);
-  CHECK(f.call(http::verb::get, "/imports/missing").result() == http::status::not_found);
   for (const std::string path :
        {"/locations/", "/locations/id/unknown", "/resources/", "/resources/id/unknown"})
     CHECK(f.call(http::verb::get, path).result() == http::status::not_found);
@@ -510,9 +516,18 @@ TEST_CASE(
   REQUIRE(started.result() == http::status::accepted);
   const auto job_id = nlohmann::json::parse(started.body())["data"]["job_id"].get<std::string>();
   holder::api::routes::wait_for_asset_import_jobs();
-  const auto job = nlohmann::json::parse(f.call(http::verb::get, "/imports/" + job_id).body());
+  const auto job = nlohmann::json::parse(f.poll_import(job_id).body());
   CHECK(job["data"]["status"] == "failed");
   CHECK_FALSE(job["data"]["error"].get<std::string>().empty());
+  CHECK(job["data"]["resource_id"].is_null());
+  CHECK(job["data"]["link_created"] == false);
+}
+
+TEST_CASE("Polling an unknown asset import job is not found", "[resources][routes]") {
+  LocationRouteFixture f;
+  const auto missing = f.poll_import("missing");
+  REQUIRE(missing.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(missing.body())["error"]["message"] == "Import job not found.");
 }
 
 TEST_CASE("Resource asset retrieval validates placement ownership", "[resources][routes]") {
