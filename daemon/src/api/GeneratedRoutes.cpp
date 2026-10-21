@@ -19,6 +19,7 @@
 #include "api/Health.h"
 #include "api/History.h"
 #include "api/LocationRead.h"
+#include "api/LocationWrite.h"
 #include "api/MilestonesWithDates.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectDelete.h"

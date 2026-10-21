@@ -43,6 +43,41 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 422:
+        response_422 = ErrorResponse.from_dict(response.json())
+
+        return response_422
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 502:
+        response_502 = ErrorResponse.from_dict(response.json())
+
+        return response_502
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
+    if response.status_code == 507:
+        response_507 = ErrorResponse.from_dict(response.json())
+
+        return response_507
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:

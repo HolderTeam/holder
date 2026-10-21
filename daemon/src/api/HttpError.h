@@ -34,6 +34,11 @@ struct CardStoreUnavailable : CodedError {
   CardStoreUnavailable() : CodedError("not_implemented", "Card store unavailable.") {}
 };
 
+// The daemon has no secret store, so device-private values cannot be read or written.
+struct SecretStoreUnavailable : CodedError {
+  SecretStoreUnavailable() : CodedError("secret_store_unavailable", "Secret store unavailable.") {}
+};
+
 // Generated dispatch builds the body for each exception named by an
 // operation's RIG_ERROR_RESPONSE; the PrivacyError and CodedError overloads keep their codes.
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,

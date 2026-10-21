@@ -40,7 +40,7 @@
 #include "api/declared/Cards.h"
 #include "api/declared/Events.h"
 #include "api/declared/Imports.h"
-#include "api/declared/Locations.h"
+#include "api/LocationWrite.h"
 #include "api/declared/Ping.h"
 #include "api/declared/Projects.h"
 #include "api/declared/RecoveryToken.h"

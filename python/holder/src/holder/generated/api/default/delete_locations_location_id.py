@@ -33,15 +33,30 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
         return response_401
 
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
     if response.status_code == 409:
         response_409 = ErrorResponse.from_dict(response.json())
 
         return response_409
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -66,6 +81,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationActionResponse]:
     """Delete an unused storage location declaration
+
+     Also removes this device's binding, and the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -96,6 +113,8 @@ def sync(
 ) -> ErrorResponse | LocationActionResponse | None:
     """Delete an unused storage location declaration
 
+     Also removes this device's binding, and the preferred location if it was this one.
+
     Args:
         location_id (str):
 
@@ -119,6 +138,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationActionResponse]:
     """Delete an unused storage location declaration
+
+     Also removes this device's binding, and the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -146,6 +167,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | LocationActionResponse | None:
     """Delete an unused storage location declaration
+
+     Also removes this device's binding, and the preferred location if it was this one.
 
     Args:
         location_id (str):

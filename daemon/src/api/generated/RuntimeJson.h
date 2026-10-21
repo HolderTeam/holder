@@ -578,38 +578,6 @@ template <> struct codec<holder::api::StorageLocationResponse> {
     static json encode(const holder::api::StorageLocationResponse& value);
     static holder::api::StorageLocationResponse decode(const json& value);
 };
-template <> struct codec<holder::api::StorageLocationRequest> {
-    static json encode(const holder::api::StorageLocationRequest& value);
-    static holder::api::StorageLocationRequest decode(const json& value);
-};
-template <> struct codec<holder::api::PatchLocationsLocationIdRequest> {
-    static json encode(const holder::api::PatchLocationsLocationIdRequest& value);
-    static holder::api::PatchLocationsLocationIdRequest decode(const json& value);
-};
-template <> struct codec<holder::api::LocationActionResponseData> {
-    static json encode(const holder::api::LocationActionResponseData& value);
-    static holder::api::LocationActionResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::LocationActionResponse> {
-    static json encode(const holder::api::LocationActionResponse& value);
-    static holder::api::LocationActionResponse decode(const json& value);
-};
-template <> struct codec<holder::api::LocationBindingRequest> {
-    static json encode(const holder::api::LocationBindingRequest& value);
-    static holder::api::LocationBindingRequest decode(const json& value);
-};
-template <> struct codec<holder::api::LocationTestResponseData> {
-    static json encode(const holder::api::LocationTestResponseData& value);
-    static holder::api::LocationTestResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::LocationTestResponse> {
-    static json encode(const holder::api::LocationTestResponse& value);
-    static holder::api::LocationTestResponse decode(const json& value);
-};
-template <> struct codec<holder::api::PutLocationsPreferredRequest> {
-    static json encode(const holder::api::PutLocationsPreferredRequest& value);
-    static holder::api::PutLocationsPreferredRequest decode(const json& value);
-};
 template <> struct codec<holder::api::ResourceMetadata> {
     static json encode(const holder::api::ResourceMetadata& value);
     static holder::api::ResourceMetadata decode(const json& value);
@@ -1065,6 +1033,38 @@ template <> struct codec<holder::api::TrashItem> {
 template <> struct codec<holder::api::TrashListResponse> {
     static json encode(const holder::api::TrashListResponse& value);
     static holder::api::TrashListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::StorageLocationRequest> {
+    static json encode(const holder::api::StorageLocationRequest& value);
+    static holder::api::StorageLocationRequest decode(const json& value);
+};
+template <> struct codec<holder::api::PatchLocationsLocationIdRequest> {
+    static json encode(const holder::api::PatchLocationsLocationIdRequest& value);
+    static holder::api::PatchLocationsLocationIdRequest decode(const json& value);
+};
+template <> struct codec<holder::api::LocationActionResponseData> {
+    static json encode(const holder::api::LocationActionResponseData& value);
+    static holder::api::LocationActionResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::LocationActionResponse> {
+    static json encode(const holder::api::LocationActionResponse& value);
+    static holder::api::LocationActionResponse decode(const json& value);
+};
+template <> struct codec<holder::api::LocationBindingRequest> {
+    static json encode(const holder::api::LocationBindingRequest& value);
+    static holder::api::LocationBindingRequest decode(const json& value);
+};
+template <> struct codec<holder::api::LocationTestResponseData> {
+    static json encode(const holder::api::LocationTestResponseData& value);
+    static holder::api::LocationTestResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::LocationTestResponse> {
+    static json encode(const holder::api::LocationTestResponse& value);
+    static holder::api::LocationTestResponse decode(const json& value);
+};
+template <> struct codec<holder::api::PutLocationsPreferredRequest> {
+    static json encode(const holder::api::PutLocationsPreferredRequest& value);
+    static holder::api::PutLocationsPreferredRequest decode(const json& value);
 };
 template <> struct codec<holder::api::SearchCardItem> {
     static json encode(const holder::api::SearchCardItem& value);
@@ -3739,156 +3739,6 @@ inline holder::api::StorageLocationResponse codec<holder::api::StorageLocationRe
     };
 }
 
-inline json codec<holder::api::StorageLocationRequest>::encode(const holder::api::StorageLocationRequest& value) {
-    json result = json::object();
-    if (value.location_id) {
-        result["location_id"] = codec<std::optional<std::string>>::encode(value.location_id);
-    }
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["name"] = codec<std::string>::encode(value.name);
-    if (value.provider != "local_directory" && value.provider != "s3_compatible" && value.provider != "google-drive") throw std::invalid_argument("invalid provider");
-    result["provider"] = codec<std::string>::encode(value.provider);
-    if (value.configuration) {
-        result["configuration"] = codec<std::optional<std::map<std::string, std::string>>>::encode(value.configuration);
-    }
-    return result;
-}
-inline holder::api::StorageLocationRequest codec<holder::api::StorageLocationRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected StorageLocationRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("name")) throw std::invalid_argument("missing name");
-    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
-    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible" && value.at("provider") != "google-drive") throw std::invalid_argument("invalid provider");
-    return holder::api::StorageLocationRequest{
-        value.contains("location_id") ? codec<std::optional<std::string>>::decode(value.at("location_id")) : std::nullopt,
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("name")),
-        codec<std::string>::decode(value.at("provider")),
-        value.contains("configuration") ? codec<std::optional<std::map<std::string, std::string>>>::decode(value.at("configuration")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::PatchLocationsLocationIdRequest>::encode(const holder::api::PatchLocationsLocationIdRequest& value) {
-    json result = json::object();
-    if (value.name) {
-        result["name"] = codec<std::optional<std::string>>::encode(value.name);
-    }
-    if (value.configuration) {
-        result["configuration"] = codec<std::optional<std::map<std::string, std::string>>>::encode(value.configuration);
-    }
-    return result;
-}
-inline holder::api::PatchLocationsLocationIdRequest codec<holder::api::PatchLocationsLocationIdRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected PatchLocationsLocationIdRequest");
-    return holder::api::PatchLocationsLocationIdRequest{
-        value.contains("name") ? codec<std::optional<std::string>>::decode(value.at("name")) : std::nullopt,
-        value.contains("configuration") ? codec<std::optional<std::map<std::string, std::string>>>::decode(value.at("configuration")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::LocationActionResponseData>::encode(const holder::api::LocationActionResponseData& value) {
-    json result = json::object();
-    result["location_id"] = codec<std::string>::encode(value.location_id);
-    if (value.bound) {
-        result["bound"] = codec<std::optional<bool>>::encode(value.bound);
-    }
-    if (value.binding_preview) {
-        result["binding_preview"] = codec<std::optional<std::optional<std::string>>>::encode(value.binding_preview);
-    }
-    return result;
-}
-inline holder::api::LocationActionResponseData codec<holder::api::LocationActionResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocationActionResponseData");
-    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
-    return holder::api::LocationActionResponseData{
-        codec<std::string>::decode(value.at("location_id")),
-        value.contains("bound") ? codec<std::optional<bool>>::decode(value.at("bound")) : std::nullopt,
-        value.contains("binding_preview") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("binding_preview"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::LocationActionResponse>::encode(const holder::api::LocationActionResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::LocationActionResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::LocationActionResponse codec<holder::api::LocationActionResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocationActionResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::LocationActionResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::LocationActionResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::LocationBindingRequest>::encode(const holder::api::LocationBindingRequest& value) {
-    json result = json::object();
-    result["values"] = codec<std::map<std::string, std::string>>::encode(value.values);
-    if (value.preview) {
-        result["preview"] = codec<std::optional<std::string>>::encode(value.preview);
-    }
-    return result;
-}
-inline holder::api::LocationBindingRequest codec<holder::api::LocationBindingRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocationBindingRequest");
-    if (!value.contains("values")) throw std::invalid_argument("missing values");
-    return holder::api::LocationBindingRequest{
-        codec<std::map<std::string, std::string>>::decode(value.at("values")),
-        value.contains("preview") ? codec<std::optional<std::string>>::decode(value.at("preview")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::LocationTestResponseData>::encode(const holder::api::LocationTestResponseData& value) {
-    json result = json::object();
-    result["available"] = codec<bool>::encode(value.available);
-    return result;
-}
-inline holder::api::LocationTestResponseData codec<holder::api::LocationTestResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocationTestResponseData");
-    if (!value.contains("available")) throw std::invalid_argument("missing available");
-    return holder::api::LocationTestResponseData{
-        codec<bool>::decode(value.at("available")),
-    };
-}
-
-inline json codec<holder::api::LocationTestResponse>::encode(const holder::api::LocationTestResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::LocationTestResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::LocationTestResponse codec<holder::api::LocationTestResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected LocationTestResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::LocationTestResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::LocationTestResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::PutLocationsPreferredRequest>::encode(const holder::api::PutLocationsPreferredRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["location_id"] = codec<std::string>::encode(value.location_id);
-    return result;
-}
-inline holder::api::PutLocationsPreferredRequest codec<holder::api::PutLocationsPreferredRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected PutLocationsPreferredRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
-    return holder::api::PutLocationsPreferredRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("location_id")),
-    };
-}
-
 inline json codec<holder::api::ResourceMetadata>::encode(const holder::api::ResourceMetadata& value) {
     return codec<std::map<std::string, std::vector<std::string>>>::encode(value.value);
 }
@@ -6389,6 +6239,168 @@ inline holder::api::TrashListResponse codec<holder::api::TrashListResponse>::dec
     return holder::api::TrashListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::TrashItem>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::StorageLocationRequest>::encode(const holder::api::StorageLocationRequest& value) {
+    json result = json::object();
+    if (value.location_id) {
+        result["location_id"] = codec<std::optional<std::string>>::encode(value.location_id);
+    }
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.provider != "local_directory" && value.provider != "s3_compatible" && value.provider != "google-drive") throw std::invalid_argument("invalid provider");
+    result["provider"] = codec<std::string>::encode(value.provider);
+    if (value.configuration) {
+        result["configuration"] = codec<std::optional<std::map<std::string, std::string>>>::encode(value.configuration);
+    }
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::StorageLocationRequest codec<holder::api::StorageLocationRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected StorageLocationRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    if (!value.contains("provider")) throw std::invalid_argument("missing provider");
+    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible" && value.at("provider") != "google-drive") throw std::invalid_argument("invalid provider");
+    return holder::api::StorageLocationRequest{
+        value.contains("location_id") ? codec<std::optional<std::string>>::decode(value.at("location_id")) : std::nullopt,
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("name")),
+        codec<std::string>::decode(value.at("provider")),
+        value.contains("configuration") ? codec<std::optional<std::map<std::string, std::string>>>::decode(value.at("configuration")) : std::nullopt,
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::PatchLocationsLocationIdRequest>::encode(const holder::api::PatchLocationsLocationIdRequest& value) {
+    json result = json::object();
+    if (value.name) {
+        result["name"] = codec<std::optional<std::string>>::encode(value.name);
+    }
+    if (value.configuration) {
+        result["configuration"] = codec<std::optional<std::map<std::string, std::string>>>::encode(value.configuration);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    return result;
+}
+inline holder::api::PatchLocationsLocationIdRequest codec<holder::api::PatchLocationsLocationIdRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected PatchLocationsLocationIdRequest");
+    return holder::api::PatchLocationsLocationIdRequest{
+        value.contains("name") ? codec<std::optional<std::string>>::decode(value.at("name")) : std::nullopt,
+        value.contains("configuration") ? codec<std::optional<std::map<std::string, std::string>>>::decode(value.at("configuration")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::LocationActionResponseData>::encode(const holder::api::LocationActionResponseData& value) {
+    json result = json::object();
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    if (value.bound) {
+        result["bound"] = codec<std::optional<bool>>::encode(value.bound);
+    }
+    if (value.binding_preview) {
+        result["binding_preview"] = codec<std::optional<std::optional<std::string>>>::encode(value.binding_preview);
+    }
+    return result;
+}
+inline holder::api::LocationActionResponseData codec<holder::api::LocationActionResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocationActionResponseData");
+    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
+    return holder::api::LocationActionResponseData{
+        codec<std::string>::decode(value.at("location_id")),
+        value.contains("bound") ? codec<std::optional<bool>>::decode(value.at("bound")) : std::nullopt,
+        value.contains("binding_preview") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("binding_preview"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::LocationActionResponse>::encode(const holder::api::LocationActionResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::LocationActionResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::LocationActionResponse codec<holder::api::LocationActionResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocationActionResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::LocationActionResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::LocationActionResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::LocationBindingRequest>::encode(const holder::api::LocationBindingRequest& value) {
+    json result = json::object();
+    result["values"] = codec<std::map<std::string, std::string>>::encode(value.values);
+    if (value.preview) {
+        result["preview"] = codec<std::optional<std::string>>::encode(value.preview);
+    }
+    return result;
+}
+inline holder::api::LocationBindingRequest codec<holder::api::LocationBindingRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocationBindingRequest");
+    if (!value.contains("values")) throw std::invalid_argument("missing values");
+    return holder::api::LocationBindingRequest{
+        codec<std::map<std::string, std::string>>::decode(value.at("values")),
+        value.contains("preview") ? codec<std::optional<std::string>>::decode(value.at("preview")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::LocationTestResponseData>::encode(const holder::api::LocationTestResponseData& value) {
+    json result = json::object();
+    result["available"] = codec<bool>::encode(value.available);
+    return result;
+}
+inline holder::api::LocationTestResponseData codec<holder::api::LocationTestResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocationTestResponseData");
+    if (!value.contains("available")) throw std::invalid_argument("missing available");
+    return holder::api::LocationTestResponseData{
+        codec<bool>::decode(value.at("available")),
+    };
+}
+
+inline json codec<holder::api::LocationTestResponse>::encode(const holder::api::LocationTestResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::LocationTestResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::LocationTestResponse codec<holder::api::LocationTestResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected LocationTestResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::LocationTestResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::LocationTestResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::PutLocationsPreferredRequest>::encode(const holder::api::PutLocationsPreferredRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    return result;
+}
+inline holder::api::PutLocationsPreferredRequest codec<holder::api::PutLocationsPreferredRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected PutLocationsPreferredRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
+    return holder::api::PutLocationsPreferredRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("location_id")),
     };
 }
 

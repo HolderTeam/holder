@@ -1,24 +1,21 @@
 #include "core/ActivityTracker.h"
 #include "api/routes/AiResourceRoutes.h"
-#include "api/LocationRead.h"
 #include "api/ResourceRead.h"
 #include "api/generated/RuntimeJson.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/support/AssetImportJobs.h"
 #include "api/support/HttpResponses.h"
+#include "api/support/StorageErrors.h"
+#include "api/support/StorageProviders.h"
 #include "api/support/Time.h"
 #include "platform/Paths.h"
 
 #include "resource/AssetEnvelope.h"
 #include "resource/AssetImportService.h"
-#include "resource/LocalDirectoryProvider.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
-#include "resource/LocationStore.h"
 #include "resource/ResourceRepo.h"
 #include "resource/ResourceStore.h"
-#include "storage/S3CompatibleProvider.h"
-#include "storage/google/GoogleDriveProvider.h"
 
 #include <boost/asio/write.hpp>
 #include <boost/beast/http.hpp>
@@ -116,140 +113,13 @@ nlohmann::json import_job_json(const ImportJob& job) {
   };
 }
 
-std::unique_ptr<holder::resource::StorageProvider> storage_provider(
-    const holder::model::Location& location,
-    const holder::resource::LocationBinding& binding
-) {
-  if (location.provider != binding.provider) {
-    throw std::runtime_error("storage declaration and private binding provider mismatch");
-  }
-  if (location.provider == "local_directory") {
-    const auto root = binding.values.find("root_path");
-    if (root == binding.values.end() || root->second.empty()) {
-      throw std::runtime_error("local directory binding requires root_path");
-    }
-    return std::make_unique<holder::resource::LocalDirectoryProvider>(root->second);
-  }
-  if (location.provider == "s3_compatible") {
-    auto required_config = [&](const std::string& name) -> std::string {
-      const auto value = location.configuration.find(name);
-      if (value == location.configuration.end() || value->second.empty()) {
-        throw std::runtime_error("S3 location is missing " + name);
-      }
-      return value->second;
-    };
-    auto required_secret = [&](const std::string& name) -> std::string {
-      const auto value = binding.values.find(name);
-      if (value == binding.values.end() || value->second.empty()) {
-        throw std::runtime_error("S3 binding is missing " + name);
-      }
-      return value->second;
-    };
-    holder::storage::S3CompatibleConfig config;
-    config.endpoint = binding.values.contains("endpoint") ? binding.values.at("endpoint")
-                                                          : required_config("endpoint");
-    config.region = required_config("region");
-    config.bucket = required_config("bucket");
-    if (location.configuration.contains("addressing_style")) {
-      config.addressing_style = location.configuration.at("addressing_style");
-    }
-    config.allow_insecure_localhost = location.configuration.contains("allow_insecure_localhost") &&
-                                      location.configuration.at("allow_insecure_localhost") ==
-                                          "true";
-    holder::storage::S3Credentials credentials;
-    credentials.access_key_id = required_secret("access_key_id");
-    credentials.secret_access_key = required_secret("secret_access_key");
-    if (binding.values.contains("session_token") && !binding.values.at("session_token").empty()) {
-      credentials.session_token = binding.values.at("session_token");
-    }
-    return std::make_unique<holder::storage::S3CompatibleProvider>(config, credentials);
-  }
-  if (location.provider == "google-drive") {
-    const auto folder_id = location.configuration.find("folder_id");
-    if (folder_id == location.configuration.end() || folder_id->second.empty()) {
-      throw std::runtime_error("Google Drive location is missing folder_id");
-    }
-    const auto refresh_token = binding.values.find("refresh_token");
-    if (refresh_token == binding.values.end() || refresh_token->second.empty()) {
-      throw std::runtime_error("Google Drive binding is missing refresh_token");
-    }
-    holder::storage::google::GoogleDriveConfig config;
-    config.folder_id = folder_id->second;
-    holder::storage::google::GoogleDriveCredentials credentials;
-    credentials.refresh_token = refresh_token->second;
-    return std::make_unique<holder::storage::google::GoogleDriveProvider>(
-        config,
-        credentials,
-        holder::storage::google::google_oauth_client_from_env()
-    );
-  }
-  throw std::runtime_error("unsupported storage provider");
-}
-
-std::string location_object_key(
-    const holder::model::Location& location,
-    const std::string& relative_key
-) {
-  auto prefix = location.configuration.contains("prefix") ? location.configuration.at("prefix")
-                                                          : std::string();
-  while (!prefix.empty() && prefix.front() == '/')
-    prefix.erase(prefix.begin());
-  while (!prefix.empty() && prefix.back() == '/')
-    prefix.pop_back();
-  return prefix.empty() ? relative_key : prefix + "/" + relative_key;
-}
-
 } // namespace
 
 http::response<http::string_body> resource_error_response(const std::exception& ex) {
   const std::string message = ex.what();
   if (const auto* storage = dynamic_cast<const holder::resource::StorageError*>(&ex)) {
-    switch (storage->code()) {
-    case holder::resource::StorageErrorCode::Unavailable:
-      return support::error_response(
-          http::status::service_unavailable,
-          "storage_unavailable",
-          message
-      );
-    case holder::resource::StorageErrorCode::Authentication:
-      return support::error_response(
-          http::status::bad_gateway,
-          "storage_authentication_failed",
-          message
-      );
-    case holder::resource::StorageErrorCode::Permission:
-      return support::error_response(
-          http::status::bad_gateway,
-          "storage_permission_denied",
-          message
-      );
-    case holder::resource::StorageErrorCode::Capacity:
-      return support::error_response(
-          static_cast<http::status>(507),
-          "storage_capacity_exceeded",
-          message
-      );
-    case holder::resource::StorageErrorCode::Integrity:
-      return support::error_response(
-          http::status::unprocessable_entity,
-          "storage_integrity_failed",
-          message
-      );
-    case holder::resource::StorageErrorCode::Conflict:
-      return support::error_response(http::status::conflict, "storage_conflict", message);
-    case holder::resource::StorageErrorCode::InvalidConfiguration:
-      return support::error_response(
-          http::status::bad_request,
-          "storage_configuration_invalid",
-          message
-      );
-    case holder::resource::StorageErrorCode::Transient:
-      return support::error_response(
-          http::status::service_unavailable,
-          "storage_transient_failure",
-          message
-      );
-    }
+    const auto [status, code] = support::storage_failure_status(*storage);
+    return support::error_response(static_cast<http::status>(status), code, message);
   }
   if (message.find("storage location configuration required") != std::string::npos) {
     return support::error_response(http::status::conflict, "storage_binding_required", message);
@@ -329,63 +199,6 @@ bool handle_ai_resource_routes(
     return true;
   }
 
-  if (path == "/locations" && req.method() == http::verb::post) {
-    try {
-      const auto body = nlohmann::json::parse(req.body());
-      if (!body.contains("project_id") || !body.contains("name") || !body.contains("provider")) {
-        throw std::invalid_argument("Missing required fields.");
-      }
-      holder::model::Location location;
-      location.location_id = body.value("location_id", std::string());
-      if (location.location_id.empty()) location.location_id = uuid_v4();
-      location.project_id = body.at("project_id").get<std::string>();
-      location.name = body.at("name").get<std::string>();
-      location.provider = body.at("provider").get<std::string>();
-      if (location.provider != "local_directory" && location.provider != "s3_compatible" &&
-          location.provider != "google-drive") {
-        throw std::invalid_argument("unsupported storage provider");
-      }
-      if (body.contains("configuration")) {
-        location.configuration = body.at("configuration").get<std::map<std::string, std::string>>();
-      }
-      location.created_at = body.value("created_at", support::now_epoch_seconds());
-      location.updated_at = body.value("updated_at", location.created_at);
-      if (git_ops != nullptr) {
-        holder::resource::LocationStore(db, nullptr, git_ops).put(location);
-      } else {
-        holder::resource::LocationRepo(db).put(location);
-      }
-      res = support::json_response(
-          http::status::created,
-          {{"ok", true}, {"data", rig_json::encode(holder::api::location_item(location, bindings.get()))}}
-      );
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
-  }
-
-  if (path == "/locations/preferred" && req.method() == http::verb::put) {
-    try {
-      if (!bindings) throw std::runtime_error("secret store unavailable");
-      const auto body = nlohmann::json::parse(req.body());
-      const auto project_id = body.at("project_id").get<std::string>();
-      const auto location_id = body.at("location_id").get<std::string>();
-      const auto location = holder::resource::LocationRepo(db).get(location_id);
-      if (!location.has_value() || location->project_id != project_id) {
-        throw std::runtime_error("location not found in project");
-      }
-      bindings->set_preferred(project_id, location_id, support::now_epoch_seconds());
-      res = support::json_response(
-          http::status::ok,
-          {{"ok", true}, {"data", {{"location_id", location_id}}}}
-      );
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
-  }
-
   if (path == "/imports" && req.method() == http::verb::post) {
     try {
       if (!bindings || git_ops == nullptr) {
@@ -437,7 +250,7 @@ bool handle_ai_resource_routes(
             try {
               holder::platform::Db job_db;
               job_db.open(db_path);
-              auto provider = storage_provider(location_copy, binding_copy);
+              auto provider = support::storage_provider(location_copy, binding_copy);
               holder::resource::AssetImportService importer(
                   job_db,
                   cache,
@@ -531,7 +344,7 @@ bool handle_ai_resource_routes(
       }
       const auto binding = bindings->get(location->project_id, location->location_id);
       if (!binding.has_value()) throw std::runtime_error("storage location configuration required");
-      auto provider = storage_provider(*location, *binding);
+      auto provider = support::storage_provider(*location, *binding);
       const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-cache";
       std::filesystem::create_directories(cache);
       cleanup_asset_cache(cache);
@@ -573,151 +386,6 @@ bool handle_ai_resource_routes(
 
     if (action == "oauth/google-drive/authorize" && req.method() == http::verb::post) {
       return handle_google_drive_oauth_authorize_route(location_id, req, res, db);
-    }
-
-    if (action == "binding" && req.method() == http::verb::put) {
-      try {
-        if (!bindings) throw std::runtime_error("secret store unavailable");
-        const auto location = holder::resource::LocationRepo(db).get(location_id);
-        if (!location.has_value()) throw std::runtime_error("location not found");
-        const auto body = nlohmann::json::parse(req.body());
-        holder::resource::LocationBinding binding;
-        binding.provider = location->provider;
-        binding.values = body.at("values").get<std::map<std::string, std::string>>();
-        const auto preview = body.value("preview", std::string("Configured"));
-        bindings->bind(
-            location->project_id,
-            location_id,
-            binding,
-            preview,
-            support::now_epoch_seconds()
-        );
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true},
-             {"data", {{"location_id", location_id}, {"bound", true}, {"binding_preview", preview}}}
-            }
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
-
-    if (action == "binding" && req.method() == http::verb::delete_) {
-      try {
-        if (!bindings) throw std::runtime_error("secret store unavailable");
-        const auto location = holder::resource::LocationRepo(db).get(location_id);
-        if (!location.has_value()) throw std::runtime_error("location not found");
-        bindings->unbind(location->project_id, location_id);
-        if (bindings->preferred(location->project_id) == location_id) {
-          bindings->clear_preferred(location->project_id);
-        }
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", {{"location_id", location_id}}}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
-
-    if (action == "test" && req.method() == http::verb::post) {
-      try {
-        if (!bindings) throw std::runtime_error("secret store unavailable");
-        const auto location = holder::resource::LocationRepo(db).get(location_id);
-        if (!location.has_value()) throw std::runtime_error("location not found");
-        const auto binding = bindings->get(location->project_id, location_id);
-        if (!binding.has_value())
-          throw std::runtime_error("storage location configuration required");
-        auto provider = storage_provider(*location, *binding);
-        const auto probe_dir = holder::core::Paths::resolve("holder").cache_dir / "asset-probes";
-        std::filesystem::create_directories(probe_dir);
-        const auto probe_file = probe_dir / (uuid_v4() + ".probe");
-        std::ofstream(probe_file, std::ios::binary) << "Holder storage probe\n";
-        const auto digest = holder::resource::digest_file(probe_file);
-        const auto object_key = location_object_key(*location, ".holder-probes/" + uuid_v4());
-        bool remote_cleanup_needed = false;
-        try {
-          // A PUT can reach the provider even if the client subsequently sees an error. Mark the
-          // object as possibly present before starting the request so every failure path attempts
-          // best-effort cleanup.
-          remote_cleanup_needed = true;
-          provider->put(object_key, probe_file, digest.byte_size, digest.sha256);
-          if (!provider->exists(object_key)) throw std::runtime_error("storage probe not found");
-          provider->remove(object_key);
-          remote_cleanup_needed = false;
-        } catch (...) {
-          if (remote_cleanup_needed) {
-            try {
-              provider->remove(object_key);
-            } catch (...) {
-            }
-          }
-          std::error_code ignored;
-          std::filesystem::remove(probe_file, ignored);
-          throw;
-        }
-        std::error_code ignored;
-        std::filesystem::remove(probe_file, ignored);
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", {{"available", true}}}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
-
-    if (action.empty() && req.method() == http::verb::patch) {
-      try {
-        auto location = holder::resource::LocationRepo(db).get(location_id);
-        if (!location.has_value()) throw std::runtime_error("location not found");
-        const auto body = nlohmann::json::parse(req.body());
-        if (body.contains("name")) location->name = body.at("name").get<std::string>();
-        if (body.contains("configuration")) {
-          location->configuration =
-              body.at("configuration").get<std::map<std::string, std::string>>();
-        }
-        location->updated_at = body.value("updated_at", support::now_epoch_seconds());
-        if (git_ops != nullptr) {
-          holder::resource::LocationStore(db, nullptr, git_ops).put(*location);
-        } else {
-          holder::resource::LocationRepo(db).put(*location);
-        }
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", rig_json::encode(holder::api::location_item(*location, bindings.get()))}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
-    }
-
-    if (action.empty() && req.method() == http::verb::delete_) {
-      try {
-        const auto location = holder::resource::LocationRepo(db).get(location_id);
-        if (!location.has_value()) throw std::runtime_error("location not found");
-        if (git_ops != nullptr) {
-          holder::resource::LocationStore(db, nullptr, git_ops).remove(location_id);
-        } else {
-          holder::resource::LocationRepo(db).remove(location_id);
-        }
-        if (bindings && bindings->preferred(location->project_id) == location_id) {
-          bindings->clear_preferred(location->project_id);
-        }
-        if (bindings) bindings->unbind(location->project_id, location_id);
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", {{"location_id", location_id}}}}
-        );
-      } catch (const std::exception& ex) {
-        res = resource_error_response(ex);
-      }
-      return true;
     }
 
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");

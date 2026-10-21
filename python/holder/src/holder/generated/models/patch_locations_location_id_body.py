@@ -23,11 +23,13 @@ class PatchLocationsLocationIdBody:
     """
     Attributes:
         name (str | Unset):
-        configuration (PatchLocationsLocationIdBodyConfiguration | Unset):
+        configuration (PatchLocationsLocationIdBodyConfiguration | Unset): Replaces the whole configuration.
+        updated_at (int | Unset): Optional; server uses current time if omitted.
     """
 
     name: str | Unset = UNSET
     configuration: PatchLocationsLocationIdBodyConfiguration | Unset = UNSET
+    updated_at: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,6 +39,8 @@ class PatchLocationsLocationIdBody:
         if not isinstance(self.configuration, Unset):
             configuration = self.configuration.to_dict()
 
+        updated_at = self.updated_at
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -44,6 +48,8 @@ class PatchLocationsLocationIdBody:
             field_dict["name"] = name
         if configuration is not UNSET:
             field_dict["configuration"] = configuration
+        if updated_at is not UNSET:
+            field_dict["updated_at"] = updated_at
 
         return field_dict
 
@@ -65,9 +71,12 @@ class PatchLocationsLocationIdBody:
                 _configuration
             )
 
+        updated_at = d.pop("updated_at", UNSET)
+
         patch_locations_location_id_body = cls(
             name=name,
             configuration=configuration,
+            updated_at=updated_at,
         )
 
         patch_locations_location_id_body.additional_properties = d

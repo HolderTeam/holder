@@ -512,8 +512,23 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, route_96))
         return std::nullopt;  // post_imports is served by the host
     static const std::regex route_97("^/locations$");
-    if (method == "POST" && std::regex_match(route_path, route_97))
-        return std::nullopt;  // post_locations is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_97)) {
+        std::optional<holder::api::StorageLocationRequest> argument_0;
+        try {
+            argument_0.emplace(decode_body<holder::api::StorageLocationRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_locations");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_locations");
+        }
+        try {
+            return response{201, rig_json::encode(holder::api::post_locations(context.db, context.secret_store, context.git_ops, context.uuid_v4, std::move(*argument_0))), "post_locations"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_locations"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_locations"};
+        }
+    }
     static const std::regex route_104("^/ping$");
     if (method == "GET" && std::regex_match(route_path, route_104))
         return std::nullopt;  // get_ping is served by the host
@@ -753,8 +768,25 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "GET" && std::regex_match(route_path, route_94))
         return std::nullopt;  // get_events_cursor is served by the host
     static const std::regex route_103("^/locations/preferred$");
-    if (method == "PUT" && std::regex_match(route_path, route_103))
-        return std::nullopt;  // put_locations_preferred is served by the host
+    if (method == "PUT" && std::regex_match(route_path, match, route_103)) {
+        std::optional<holder::api::PutLocationsPreferredRequest> argument_0;
+        try {
+            argument_0.emplace(decode_body<holder::api::PutLocationsPreferredRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "put_locations_preferred");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "put_locations_preferred");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::put_locations_preferred(context.db, context.secret_store, std::move(*argument_0))), "put_locations_preferred"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "put_locations_preferred"};
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "put_locations_preferred"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_preferred"};
+        }
+    }
     static const std::regex route_114("^/recovery\\-token/import$");
     if (method == "POST" && std::regex_match(route_path, route_114))
         return std::nullopt;  // post_recovery_token_import is served by the host
@@ -1405,11 +1437,47 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "DELETE" && std::regex_match(route_path, route_86))
         return std::nullopt;  // delete_cards_card_id is served by the host
     static const std::regex route_98("^/locations/([^/]+)$");
-    if (method == "PATCH" && std::regex_match(route_path, route_98))
-        return std::nullopt;  // patch_locations_location_id is served by the host
+    if (method == "PATCH" && std::regex_match(route_path, match, route_98)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::PatchLocationsLocationIdRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::PatchLocationsLocationIdRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "patch_locations_location_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "patch_locations_location_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::patch_locations_location_id(context.db, context.secret_store, context.git_ops, std::move(*argument_0), std::move(*argument_1))), "patch_locations_location_id"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_locations_location_id"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_locations_location_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_locations_location_id"};
+        }
+    }
     static const std::regex route_99("^/locations/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_99))
-        return std::nullopt;  // delete_locations_location_id is served by the host
+    if (method == "DELETE" && std::regex_match(route_path, match, route_99)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_locations_location_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_locations_location_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_locations_location_id(context.db, context.secret_store, context.git_ops, std::move(*argument_0))), "delete_locations_location_id"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_locations_location_id"};
+        } catch (const holder::model::ConflictError& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "delete_locations_location_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_locations_location_id"};
+        }
+    }
     static const std::regex route_117("^/resources/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, route_117))
         return std::nullopt;  // patch_resources_resource_id is served by the host
@@ -1679,14 +1747,83 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, route_93))
         return std::nullopt;  // post_cards_card_id_restore is served by the host
     static const std::regex route_100("^/locations/([^/]+)/binding$");
-    if (method == "PUT" && std::regex_match(route_path, route_100))
-        return std::nullopt;  // put_locations_location_id_binding is served by the host
+    if (method == "PUT" && std::regex_match(route_path, match, route_100)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::LocationBindingRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::LocationBindingRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "put_locations_location_id_binding");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "put_locations_location_id_binding");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::put_locations_location_id_binding(context.db, context.secret_store, std::move(*argument_0), std::move(*argument_1))), "put_locations_location_id_binding"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "put_locations_location_id_binding"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "put_locations_location_id_binding"};
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "put_locations_location_id_binding"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_location_id_binding"};
+        }
+    }
     static const std::regex route_101("^/locations/([^/]+)/binding$");
-    if (method == "DELETE" && std::regex_match(route_path, route_101))
-        return std::nullopt;  // delete_locations_location_id_binding is served by the host
+    if (method == "DELETE" && std::regex_match(route_path, match, route_101)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_locations_location_id_binding");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_locations_location_id_binding");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_locations_location_id_binding(context.db, context.secret_store, std::move(*argument_0))), "delete_locations_location_id_binding"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_locations_location_id_binding"};
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "delete_locations_location_id_binding"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_locations_location_id_binding"};
+        }
+    }
     static const std::regex route_102("^/locations/([^/]+)/test$");
-    if (method == "POST" && std::regex_match(route_path, route_102))
-        return std::nullopt;  // post_locations_location_id_test is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_102)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_locations_location_id_test");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_locations_location_id_test");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::post_locations_location_id_test(context.db, context.secret_store, context.uuid_v4, std::move(*argument_0))), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageBadRequest& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_locations_location_id_test"};
+        } catch (const holder::api::LocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageBindingRequired& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageConflict& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageIntegrityFailed& error) {
+            return response{422, encode_error<holder::api::ErrorResponse>(422, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageGatewayFailure& error) {
+            return response{502, encode_error<holder::api::ErrorResponse>(502, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_locations_location_id_test"};
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_locations_location_id_test"};
+        } catch (const holder::api::support::StorageCapacityExceeded& error) {
+            return response{507, encode_error<holder::api::ErrorResponse>(507, error), "post_locations_location_id_test"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_locations_location_id_test"};
+        }
+    }
     static const std::regex route_105("^/projects/([^/]+)/repair\\-hierarchy$");
     if (method == "POST" && std::regex_match(route_path, route_105))
         return std::nullopt;  // post_projects_project_id_repair_hierarchy is served by the host

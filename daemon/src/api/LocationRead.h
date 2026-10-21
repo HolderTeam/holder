@@ -26,7 +26,8 @@ struct RIG_OPEN_RECORD StorageLocationListResponse {
 };
 
 struct LocationNotFound : std::runtime_error {
-  LocationNotFound() : std::runtime_error("location not found") {}
+  explicit LocationNotFound(const std::string& message = "location not found")
+      : std::runtime_error(message) {}
 };
 
 RIG_ROUTE(GET, "/locations")

@@ -724,49 +724,6 @@ struct RIG_OPEN_RECORD StorageLocationResponse {
   StorageLocation data;
 };
 
-struct RIG_OPEN_RECORD StorageLocationRequest {
-  std::optional<std::string> location_id RIG_OMIT_EMPTY;
-  std::string project_id;
-  std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible", "google-drive");
-  std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PatchLocationsLocationIdRequest {
-  std::optional<std::string> name RIG_OMIT_EMPTY;
-  std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationActionResponseData {
-  std::string location_id;
-  std::optional<bool> bound RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> binding_preview RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD LocationActionResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  LocationActionResponseData data;
-};
-
-struct RIG_OPEN_RECORD LocationBindingRequest {
-  std::map<std::string, std::string> values RIG_WRITE_ONLY;
-  std::optional<std::string> preview RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationTestResponseData {
-  bool available;
-};
-
-struct RIG_OPEN_RECORD LocationTestResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  LocationTestResponseData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PutLocationsPreferredRequest {
-  std::string project_id;
-  std::string location_id;
-};
-
 struct RIG_VALUE_TYPE RIG_DESCRIPTION("Permissive metadata map. Repeated and custom values are preserved in order.") ResourceMetadata {
   std::map<std::string, std::vector<std::string>> value;
 };

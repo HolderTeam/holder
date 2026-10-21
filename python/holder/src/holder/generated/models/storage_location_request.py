@@ -26,8 +26,10 @@ class StorageLocationRequest:
         project_id (str):
         name (str):
         provider (StorageLocationRequestProvider):
-        location_id (str | Unset):
+        location_id (str | Unset): Optional; server generates if omitted or empty.
         configuration (StorageLocationRequestConfiguration | Unset):
+        created_at (int | Unset): Optional; server uses current time if omitted.
+        updated_at (int | Unset): Optional; server uses created_at if omitted.
     """
 
     project_id: str
@@ -35,6 +37,8 @@ class StorageLocationRequest:
     provider: StorageLocationRequestProvider
     location_id: str | Unset = UNSET
     configuration: StorageLocationRequestConfiguration | Unset = UNSET
+    created_at: int | Unset = UNSET
+    updated_at: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -50,6 +54,10 @@ class StorageLocationRequest:
         if not isinstance(self.configuration, Unset):
             configuration = self.configuration.to_dict()
 
+        created_at = self.created_at
+
+        updated_at = self.updated_at
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -63,6 +71,10 @@ class StorageLocationRequest:
             field_dict["location_id"] = location_id
         if configuration is not UNSET:
             field_dict["configuration"] = configuration
+        if created_at is not UNSET:
+            field_dict["created_at"] = created_at
+        if updated_at is not UNSET:
+            field_dict["updated_at"] = updated_at
 
         return field_dict
 
@@ -90,12 +102,18 @@ class StorageLocationRequest:
                 _configuration
             )
 
+        created_at = d.pop("created_at", UNSET)
+
+        updated_at = d.pop("updated_at", UNSET)
+
         storage_location_request = cls(
             project_id=project_id,
             name=name,
             provider=provider,
             location_id=location_id,
             configuration=configuration,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
         storage_location_request.additional_properties = d

@@ -153,6 +153,7 @@ add_executable(holder_daemon_tests
   ../src/api/Health.cpp
   ../src/api/History.cpp
   ../src/api/LocationRead.cpp
+  ../src/api/LocationWrite.cpp
   ../src/api/AiMessageRead.cpp
   ../src/api/AiMessageWrite.cpp
   ../src/api/AiLocalModelConfig.cpp
@@ -213,6 +214,8 @@ add_executable(holder_daemon_tests
   ../src/api/support/ThreadCompaction.cpp
   ../src/api/support/LocalModelRouting.cpp
   ../src/api/support/AssetImportJobs.cpp
+  ../src/api/support/StorageErrors.cpp
+  ../src/api/support/StorageProviders.cpp
   ../src/api/support/RunEventStore.cpp
   ../src/api/support/EventJournal.cpp
   ../src/api/support/SseStream.cpp

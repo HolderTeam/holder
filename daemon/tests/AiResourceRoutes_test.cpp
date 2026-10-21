@@ -130,22 +130,24 @@ struct LocationRouteFixture {
       holder::git::GitOps* git = nullptr
   ) {
     http::response<http::string_body> response;
+    // Generated routes come first, as in the daemon; reads take the parameters as their query.
+    std::string target = path;
     if (method == http::verb::get) {
-      // Reads go through the generated routes, with the same query the parameters supply.
       std::map<std::string, std::string> query = params;
       if (!project.empty()) query.emplace("project_id", project);
-      std::string target = path;
       char separator = '?';
       for (const auto& [key, value] : query) {
         target += separator + key + "=" + value;
         separator = '&';
       }
-      auto request = make_request(method, target, body);
-      if (holder::api::dispatch_generated_routes(
-              request, response, db, nullptr, nullptr, with_secrets ? secrets.get() : nullptr, git
-          )) {
-        return response;
-      }
+    }
+    auto generated_request = make_request(method, target, body);
+    if (holder::api::dispatch_generated_routes(
+            generated_request, response, db, nullptr, nullptr,
+            with_secrets ? secrets.get() : nullptr, git,
+            [&] { return "id-" + std::to_string(++sequence); }
+        )) {
+      return response;
     }
     auto request = make_request(method, path, body);
     REQUIRE(holder::api::routes::handle_ai_resource_routes(
@@ -240,20 +242,33 @@ TEST_CASE("Location routes manage bindings preferences and declarations", "[reso
 
 TEST_CASE("Location routes validate missing services fields and records", "[resources][routes]") {
   LocationRouteFixture f;
+  // Bodies are decoded before the location is looked up, so writes send valid ones.
+  const std::map<http::verb, nlohmann::json> bodies{
+      {http::verb::patch, {{"name", "Renamed"}}},
+      {http::verb::put, {{"values", {{"root_path", "/tmp"}}}}},
+  };
+  const auto body_for = [&](http::verb method) {
+    const auto found = bodies.find(method);
+    return found == bodies.end() ? nlohmann::json::object() : found->second;
+  };
   for (auto method : {http::verb::get, http::verb::patch, http::verb::delete_}) {
-    CHECK(f.call(method, "/locations/missing").result() == http::status::not_found);
+    CHECK(f.call(method, "/locations/missing", body_for(method)).result() == http::status::not_found);
   }
+  CHECK(f.call(http::verb::patch, "/locations/missing").result() == http::status::bad_request);
   for (auto method : {http::verb::put, http::verb::delete_}) {
-    CHECK(f.call(method, "/locations/missing/binding").result() == http::status::not_found);
     CHECK(
-        f.call(method, "/locations/missing/binding", {}, "project", false).result() ==
-        http::status::bad_request
+        f.call(method, "/locations/missing/binding", body_for(method)).result() ==
+        http::status::not_found
+    );
+    CHECK(
+        f.call(method, "/locations/missing/binding", body_for(method), "project", false).result() ==
+        http::status::service_unavailable
     );
   }
   CHECK(f.call(http::verb::post, "/locations/missing/test").result() == http::status::not_found);
   CHECK(
       f.call(http::verb::post, "/locations/missing/test", {}, "project", false).result() ==
-      http::status::bad_request
+      http::status::service_unavailable
   );
   CHECK(f.call(http::verb::get, "/locations", {}, "").result() == http::status::bad_request);
   CHECK(
@@ -594,6 +609,13 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
 
   bool streamed = false;
   CHECK(retrieve({{"placement_id", "other"}}, streamed).result() == http::status::not_found);
+  // A location that a placement still uses cannot be deleted, with or without Git.
+  for (holder::git::GitOps* ops : {static_cast<holder::git::GitOps*>(nullptr),
+                                   static_cast<holder::git::GitOps*>(&git)}) {
+    const auto in_use = f.call(http::verb::delete_, "/locations/location", {}, "project", true, {}, ops);
+    CHECK(in_use.result() == http::status::conflict);
+    CHECK(nlohmann::json::parse(in_use.body())["error"]["code"] == "conflict");
+  }
   f.db.exec("PRAGMA foreign_keys=OFF; DELETE FROM storage_locations; PRAGMA foreign_keys=ON;");
   CHECK(retrieve({}, streamed).result() == http::status::not_found);
   streamed = true;
