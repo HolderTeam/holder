@@ -205,11 +205,7 @@ class Resource:
                     reference.updated_at,
                     tuple(reference.link_kinds),
                 )
-                for reference in (
-                    []
-                    if isinstance(row.referenced_by_cards, Unset)
-                    else row.referenced_by_cards
-                )
+                for reference in row.referenced_by_cards
             ),
             created_at=row.created_at,
             updated_at=row.updated_at,

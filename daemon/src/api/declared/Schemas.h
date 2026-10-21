@@ -874,18 +874,12 @@ struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;
   std::string project_id;
   std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible");
+  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible", "google-drive");
   std::map<std::string, std::string> configuration RIG_FIELD_DESCRIPTION("Portable non-secret provider configuration.");
   bool bound;
-  std::optional<std::optional<std::string>> binding_preview RIG_FIELD_DESCRIPTION("Safe display text; credentials are never returned.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::string> binding_preview RIG_FIELD_DESCRIPTION("Safe display text; credentials are never returned.") RIG_NULLABLE;
   long long created_at;
   long long updated_at;
-};
-
-struct RIG_OPEN_RECORD StorageLocationListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<StorageLocation> data;
-  std::optional<std::string> preferred_location_id RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD StorageLocationResponse {
@@ -897,7 +891,7 @@ struct RIG_OPEN_RECORD StorageLocationRequest {
   std::optional<std::string> location_id RIG_OMIT_EMPTY;
   std::string project_id;
   std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible");
+  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible", "google-drive");
   std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
 };
 
@@ -976,16 +970,7 @@ struct RIG_OPEN_RECORD Resource {
   std::vector<ResourceAsset> assets;
   long long created_at;
   long long updated_at;
-  std::optional<std::vector<ResourceReferencedByCardsItem>> referenced_by_cards RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD ResourceListResponse {
-  std::optional<std::string> card_id RIG_FIELD_DESCRIPTION("Canonical live card ID, present only for card attachment lists.") RIG_OMIT_EMPTY;
-  std::optional<int> limit RIG_OMIT_EMPTY;
-  std::optional<int> offset RIG_OMIT_EMPTY;
-  std::optional<std::optional<int>> next_offset RIG_FIELD_DESCRIPTION("Present for card lists; null when exhausted, otherwise continue here (the next page may be empty).") RIG_OMIT_EMPTY RIG_NULLABLE;
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<Resource> data;
+  std::vector<ResourceReferencedByCardsItem> referenced_by_cards RIG_FIELD_DESCRIPTION("Live cards linking to the resource, by title then card ID. Empty in create and update responses.");
 };
 
 struct RIG_OPEN_RECORD ResourceResponse {

@@ -1,13 +1,14 @@
 #include "core/ActivityTracker.h"
 #include "api/routes/AiResourceRoutes.h"
+#include "api/LocationRead.h"
+#include "api/ResourceRead.h"
+#include "api/generated/RuntimeJson.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/support/AssetImportJobs.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 #include "platform/Paths.h"
 
-#include "card/CardRepo.h"
-#include "card/LinkRepo.h"
 #include "resource/AssetEnvelope.h"
 #include "resource/AssetImportService.h"
 #include "resource/LocalDirectoryProvider.h"
@@ -25,7 +26,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -36,7 +36,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace holder::api::routes {
@@ -114,120 +113,6 @@ nlohmann::json import_job_json(const ImportJob& job) {
       {"duplicate_reused", job.duplicate_reused},
       {"link_created", job.link_created},
       {"error", job.error.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.error)},
-  };
-}
-
-nlohmann::json resource_json(
-    const holder::model::ResourceBundle& bundle,
-    nlohmann::json referenced_by_cards = nlohmann::json::array()
-) {
-  nlohmann::json assets = nlohmann::json::array();
-  for (const auto& asset : bundle.assets) {
-    nlohmann::json placements = nlohmann::json::array();
-    for (const auto& placement : asset.placements) {
-      placements.push_back({
-          {"placement_id", placement.placement_id},
-          {"location_id", placement.location_id},
-          {"encoding", placement.encoding},
-          {"stored_byte_size", placement.stored_byte_size},
-          {"created_at", placement.created_at},
-      });
-    }
-    assets.push_back({
-        {"asset_id", asset.asset_id},
-        {"resource_id", asset.resource_id},
-        {"original_filename", asset.original_filename},
-        {"media_type", asset.media_type},
-        {"byte_size", asset.byte_size},
-        {"plaintext_sha256", asset.plaintext_sha256},
-        {"created_at", asset.created_at},
-        {"updated_at", asset.updated_at},
-        {"placements", std::move(placements)},
-    });
-  } // LCOV_EXCL_LINE: GCC emits an unreachable exception-cleanup edge after the completed loop.
-  return {
-      {"resource_id", bundle.resource.resource_id},
-      {"project_id", bundle.resource.project_id},
-      {"type", bundle.resource.type},
-      {"label", bundle.resource.label},
-      {"metadata", bundle.resource.metadata},
-      {"created_at", bundle.resource.created_at},
-      {"updated_at", bundle.resource.updated_at},
-      {"assets", std::move(assets)},
-      {"referenced_by_cards", std::move(referenced_by_cards)},
-  };
-}
-
-nlohmann::json resource_references_json(holder::platform::Db& db, const std::string& project_id) {
-  struct Reference {
-    std::string card_id;
-    std::string title;
-    long long updated_at = 0;
-    std::vector<std::string> link_kinds;
-  };
-
-  std::unordered_map<std::string, holder::model::Card> cards_by_id;
-  for (const auto& card : holder::card::CardRepo(db).list_all(project_id)) {
-    if (!card.deleted_at.has_value()) cards_by_id.emplace(card.card_id, card);
-  }
-
-  std::unordered_map<std::string, std::map<std::string, Reference>> references_by_resource;
-  for (const auto& link : holder::card::LinkRepo(db).list_incoming_typed(project_id, "resource")) {
-    const auto card = cards_by_id.find(link.from_card_id);
-    if (card == cards_by_id.end()) continue;
-    auto& reference = references_by_resource[link.to_card_id][link.from_card_id];
-    reference.card_id = card->second.card_id;
-    reference.title = card->second.title;
-    reference.updated_at = card->second.updated_at;
-    if (std::find(reference.link_kinds.begin(), reference.link_kinds.end(), link.kind) ==
-        reference.link_kinds.end()) {
-      reference.link_kinds.push_back(link.kind);
-    }
-  }
-
-  nlohmann::json result = nlohmann::json::object();
-  for (auto& [resource_id, by_card] : references_by_resource) {
-    std::vector<Reference> references;
-    references.reserve(by_card.size());
-    for (auto& [card_id, reference] : by_card) {
-      (void)card_id;
-      std::sort(reference.link_kinds.begin(), reference.link_kinds.end());
-      references.push_back(std::move(reference));
-    }
-    std::sort(references.begin(), references.end(), [](const auto& left, const auto& right) {
-      if (left.title != right.title) return left.title < right.title;
-      return left.card_id < right.card_id;
-    });
-    auto payload = nlohmann::json::array();
-    for (const auto& reference : references) {
-      payload.push_back({
-          {"card_id", reference.card_id},
-          {"title", reference.title},
-          {"updated_at", reference.updated_at},
-          {"link_kinds", reference.link_kinds},
-      });
-    }
-    result[resource_id] = std::move(payload);
-  }
-  return result;
-}
-
-nlohmann::json location_json(
-    const holder::model::Location& location,
-    holder::resource::LocationBindingStore* bindings
-) {
-  const auto preview = bindings ? bindings->preview(location.project_id, location.location_id)
-                                : std::nullopt;
-  return {
-      {"location_id", location.location_id},
-      {"project_id", location.project_id},
-      {"name", location.name},
-      {"provider", location.provider},
-      {"configuration", location.configuration},
-      {"bound", preview.has_value()}, // LCOV_EXCL_LINE: initializer-list cleanup duplicate.
-      {"binding_preview", preview.has_value() ? nlohmann::json(*preview) : nlohmann::json(nullptr)},
-      {"created_at", location.created_at},
-      {"updated_at", location.updated_at},
   };
 }
 
@@ -407,74 +292,6 @@ bool handle_ai_resource_routes(
     bindings = std::make_unique<holder::resource::LocationBindingStore>(*secret_store);
   }
 
-  if (path == "/resources" && req.method() == http::verb::get) {
-    const std::string project_id = param_get("project_id");
-    if (project_id.empty()) {
-      res =
-          support::error_response(http::status::bad_request, "bad_request", "Missing project_id.");
-      return true;
-    }
-    try {
-      holder::resource::ResourceRepo repo(db);
-      const auto card_id = param_get("card_id");
-      int limit = 100;
-      int offset = 0;
-      auto parse_page = [&](const std::string& name, int& value) {
-        const auto raw = param_get(name);
-        if (raw.empty()) return;
-        const auto parsed = std::from_chars(raw.data(), raw.data() + raw.size(), value);
-        if (parsed.ec != std::errc{} || parsed.ptr != raw.data() + raw.size()) {
-          throw std::invalid_argument("Invalid " + name + ".");
-        }
-      };
-      if (!card_id.empty()) {
-        const auto card = holder::card::CardRepo(db).get(card_id);
-        if (!card.has_value() || card->deleted_at.has_value()) {
-          res =
-              support::error_response(http::status::not_found, "not_found", "Live card not found.");
-          return true;
-        }
-        if (card->project_id != project_id) {
-          res = support::error_response(
-              http::status::unprocessable_entity,
-              "cross_project_resource_forbidden",
-              "Card is in a different project."
-          );
-          return true;
-        }
-        parse_page("limit", limit);
-        parse_page("offset", offset);
-      } else if (!param_get("limit").empty() || !param_get("offset").empty()) {
-        throw std::invalid_argument("limit and offset require card_id.");
-      }
-      const auto resources = card_id.empty()
-                                 ? repo.list(project_id)
-                                 : repo.list_for_card(project_id, card_id, limit, offset);
-      const auto references = resource_references_json(db, project_id);
-      nlohmann::json data = nlohmann::json::array();
-      for (const auto& resource : resources) {
-        const auto found = references.find(resource.resource_id);
-        data.push_back(resource_json(
-            *repo.get_bundle(resource.resource_id),
-            found != references.end() ? *found : nlohmann::json::array()
-        ));
-      }
-      nlohmann::json payload = {{"ok", true}, {"data", std::move(data)}};
-      if (!card_id.empty()) {
-        payload["card_id"] = card_id;
-        payload["limit"] = limit;
-        payload["offset"] = offset;
-        payload["next_offset"] = resources.size() == static_cast<std::size_t>(limit)
-                                     ? nlohmann::json(static_cast<long long>(offset) + limit)
-                                     : nlohmann::json(nullptr);
-      }
-      res = support::json_response(http::status::ok, payload);
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
-  }
-
   if (path == "/resources" && req.method() == http::verb::post) {
     try {
       const auto body = nlohmann::json::parse(req.body());
@@ -504,34 +321,7 @@ bool handle_ai_resource_routes(
       }
       res = support::json_response(
           http::status::created,
-          {{"ok", true}, {"data", resource_json(bundle)}}
-      );
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
-  }
-
-  if (path == "/locations" && req.method() == http::verb::get) {
-    const auto project_id = param_get("project_id");
-    if (project_id.empty()) {
-      res =
-          support::error_response(http::status::bad_request, "bad_request", "Missing project_id.");
-      return true;
-    }
-    try {
-      nlohmann::json data = nlohmann::json::array();
-      for (const auto& location : holder::resource::LocationRepo(db).list(project_id)) {
-        data.push_back(location_json(location, bindings.get()));
-      }
-      nlohmann::json preferred = nullptr;
-      if (bindings) {
-        const auto value = bindings->preferred(project_id);
-        if (value.has_value()) preferred = *value;
-      }
-      res = support::json_response(
-          http::status::ok,
-          {{"ok", true}, {"data", std::move(data)}, {"preferred_location_id", preferred}}
+          {{"ok", true}, {"data", rig_json::encode(holder::api::resource_item(bundle))}}
       );
     } catch (const std::exception& ex) {
       res = resource_error_response(ex);
@@ -567,7 +357,7 @@ bool handle_ai_resource_routes(
       }
       res = support::json_response(
           http::status::created,
-          {{"ok", true}, {"data", location_json(location, bindings.get())}}
+          {{"ok", true}, {"data", rig_json::encode(holder::api::location_item(location, bindings.get()))}}
       );
     } catch (const std::exception& ex) {
       res = resource_error_response(ex);
@@ -881,19 +671,6 @@ bool handle_ai_resource_routes(
       return true;
     }
 
-    if (action.empty() && req.method() == http::verb::get) {
-      const auto location = holder::resource::LocationRepo(db).get(location_id);
-      if (!location.has_value()) {
-        res = support::error_response(http::status::not_found, "not_found", "location not found");
-      } else {
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", location_json(*location, bindings.get())}}
-        );
-      }
-      return true;
-    }
-
     if (action.empty() && req.method() == http::verb::patch) {
       try {
         auto location = holder::resource::LocationRepo(db).get(location_id);
@@ -912,7 +689,7 @@ bool handle_ai_resource_routes(
         }
         res = support::json_response(
             http::status::ok,
-            {{"ok", true}, {"data", location_json(*location, bindings.get())}}
+            {{"ok", true}, {"data", rig_json::encode(holder::api::location_item(*location, bindings.get()))}}
         );
       } catch (const std::exception& ex) {
         res = resource_error_response(ex);
@@ -953,18 +730,6 @@ bool handle_ai_resource_routes(
       res = support::error_response(http::status::not_found, "not_found", "Route not found.");
       return true;
     }
-    if (req.method() == http::verb::get) {
-      const auto bundle = holder::resource::ResourceRepo(db).get_bundle(resource_id);
-      if (!bundle.has_value()) {
-        res = support::error_response(http::status::not_found, "not_found", "Resource not found.");
-      } else {
-        res = support::json_response(
-            http::status::ok,
-            {{"ok", true}, {"data", resource_json(*bundle)}}
-        );
-      }
-      return true;
-    }
     if (req.method() == http::verb::patch) {
       try {
         holder::resource::ResourceRepo repo(db);
@@ -991,7 +756,7 @@ bool handle_ai_resource_routes(
         }
         res = support::json_response(
             http::status::ok,
-            {{"ok", true}, {"data", resource_json(*bundle)}}
+            {{"ok", true}, {"data", rig_json::encode(holder::api::resource_item(*bundle))}}
         );
       } catch (const std::exception& ex) {
         res = resource_error_response(ex);

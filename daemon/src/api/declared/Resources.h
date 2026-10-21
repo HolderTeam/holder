@@ -12,20 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/resources")
-RIG_SUMMARY("List project resources or attachments to a live card")
-RIG_DESCRIPTION("With card_id, returns an authoritative live-card attachment join in updated_at descending, resource_id ascending order. Without card_id, preserves the unpaginated project resource list. Detach preserves project resources; delete removes them globally.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card not found")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Card is in a different project")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-ResourceListResponse get_resources(
-    std::optional<std::string> card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Complete resolved live card ID; must belong to project_id."),
-    int limit RIG_QUERY RIG_RANGE(1, 1000) RIG_DEFAULT(100) RIG_PARAMETER_DESCRIPTION("Requires card_id."),
-    int offset RIG_QUERY RIG_MINIMUM(0) RIG_DEFAULT(0) RIG_PARAMETER_DESCRIPTION("Requires card_id."),
-    std::string project_id RIG_QUERY);
-
 RIG_ROUTE(POST, "/resources")
 RIG_SUMMARY("Create a resource")
 RIG_RESPONSE_DESCRIPTION("Created")
@@ -34,13 +20,6 @@ RIG_SUCCESS_STATUS(201)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
 ResourceResponse post_resources(ResourceCreateRequest request);
-
-RIG_ROUTE(GET, "/resources/{resource_id}")
-RIG_SUMMARY("Get a resource with its assets and placements")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ResourceResponse get_resources_resource_id(std::string resource_id);
 
 RIG_ROUTE(PATCH, "/resources/{resource_id}")
 RIG_SUMMARY("Update a resource")

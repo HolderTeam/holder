@@ -4837,7 +4837,8 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -4852,8 +4853,28 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -4973,8 +4994,38 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -7649,6 +7700,15 @@
         "description": "With card_id, returns an authoritative live-card attachment join in updated_at descending, resource_id ascending order. Without card_id, preserves the unpaginated project resource list. Detach preserves project resources; delete removes them globally.",
         "parameters": [
           {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
             "name": "card_id",
             "in": "query",
             "required": false,
@@ -7663,11 +7723,10 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "default": 100,
               "minimum": 1,
               "maximum": 1000
             },
-            "description": "Requires card_id."
+            "description": "Requires card_id; defaults to 100."
           },
           {
             "name": "offset",
@@ -7675,18 +7734,9 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0
+              "minimum": 0
             },
-            "description": "Requires card_id."
-          },
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "description": "Requires card_id; defaults to 0."
           }
         ],
         "responses": {
@@ -7732,6 +7782,16 @@
           },
           "422": {
             "description": "Card is in a different project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -7822,6 +7882,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -7834,6 +7904,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -13729,7 +13809,8 @@
                 "updated_at",
                 "link_kinds"
               ]
-            }
+            },
+            "description": "Live cards linking to the resource, by title then card ID. Empty in create and update responses."
           }
         },
         "required": [
@@ -13740,7 +13821,8 @@
           "metadata",
           "assets",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "referenced_by_cards"
         ]
       },
       "ResourceAsset": {
@@ -13914,6 +13996,7 @@
               "integer",
               "null"
             ],
+            "format": "int64",
             "description": "Present for card lists; null when exhausted, otherwise continue here (the next page may be empty)."
           },
           "ok": {
@@ -14301,7 +14384,8 @@
             "type": "string",
             "enum": [
               "local_directory",
-              "s3_compatible"
+              "s3_compatible",
+              "google-drive"
             ]
           },
           "configuration": {
@@ -14337,6 +14421,7 @@
           "provider",
           "configuration",
           "bound",
+          "binding_preview",
           "created_at",
           "updated_at"
         ]
@@ -14385,7 +14470,8 @@
             "type": "string",
             "enum": [
               "local_directory",
-              "s3_compatible"
+              "s3_compatible",
+              "google-drive"
             ]
           },
           "configuration": {

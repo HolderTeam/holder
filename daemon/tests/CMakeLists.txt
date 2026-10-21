@@ -154,6 +154,7 @@ add_executable(holder_daemon_tests
   ../src/api/GeneratedRoutes.cpp
   ../src/api/Health.cpp
   ../src/api/History.cpp
+  ../src/api/LocationRead.cpp
   ../src/api/AiMessageRead.cpp
   ../src/api/AiLocalModelConfig.cpp
   ../src/api/AiProviderCatalog.cpp
@@ -170,6 +171,7 @@ add_executable(holder_daemon_tests
   ../src/api/ProjectUpdate.cpp
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
+  ../src/api/ResourceRead.cpp
   ../src/api/Rebuild.cpp
   ../src/api/TrashList.cpp
   ../src/api/Listener.cpp

@@ -39,6 +39,8 @@ from holder.generated.models import (
     ProjectGitSyncOperationResponseDataPush,
     ProjectUpdateRequest,
     RunnerCapabilitiesData,
+    StorageLocationProvider,
+    StorageLocationRequestProvider,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -421,3 +423,10 @@ def test_async_public_ping():
             assert result.value == "pong"
 
     asyncio.run(run())
+
+
+def test_storage_locations_accept_every_daemon_provider():
+    # The daemon supports Google Drive locations; the enums once left them out.
+    for provider in ("local_directory", "s3_compatible", "google-drive"):
+        assert StorageLocationProvider(provider) == provider
+        assert StorageLocationRequestProvider(provider) == provider

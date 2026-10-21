@@ -252,7 +252,9 @@ TEST_CASE(
   CHECK(parameter_named(list, "project_id")["required"].as<bool>());
   CHECK_FALSE(parameter_named(list, "card_id")["required"].as<bool>());
   CHECK(parameter_named(list, "limit")["schema"]["maximum"].as<int>() == 1000);
-  CHECK(parameter_named(list, "limit")["schema"]["default"].as<int>() == 100);
+  // limit and offset require card_id, so their defaults are described rather than declared.
+  CHECK(parameter_named(list, "limit")["description"].as<std::string>().find("100") !=
+        std::string::npos);
   CHECK(parameter_named(list, "offset")["schema"]["minimum"].as<int>() == 0);
   require_json_response_ref(list, "200", "ResourceListResponse");
   for (const auto& status : {"400", "401", "404", "422"})

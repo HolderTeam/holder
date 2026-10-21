@@ -686,10 +686,6 @@ template <> struct codec<holder::api::StorageLocation> {
     static json encode(const holder::api::StorageLocation& value);
     static holder::api::StorageLocation decode(const json& value);
 };
-template <> struct codec<holder::api::StorageLocationListResponse> {
-    static json encode(const holder::api::StorageLocationListResponse& value);
-    static holder::api::StorageLocationListResponse decode(const json& value);
-};
 template <> struct codec<holder::api::StorageLocationResponse> {
     static json encode(const holder::api::StorageLocationResponse& value);
     static holder::api::StorageLocationResponse decode(const json& value);
@@ -745,10 +741,6 @@ template <> struct codec<holder::api::ResourceReferencedByCardsItem> {
 template <> struct codec<holder::api::Resource> {
     static json encode(const holder::api::Resource& value);
     static holder::api::Resource decode(const json& value);
-};
-template <> struct codec<holder::api::ResourceListResponse> {
-    static json encode(const holder::api::ResourceListResponse& value);
-    static holder::api::ResourceListResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ResourceResponse> {
     static json encode(const holder::api::ResourceResponse& value);
@@ -950,6 +942,10 @@ template <> struct codec<holder::api::HealthResponse> {
     static json encode(const holder::api::HealthResponse& value);
     static holder::api::HealthResponse decode(const json& value);
 };
+template <> struct codec<holder::api::StorageLocationListResponse> {
+    static json encode(const holder::api::StorageLocationListResponse& value);
+    static holder::api::StorageLocationListResponse decode(const json& value);
+};
 template <> struct codec<holder::api::ProjectTag> {
     static json encode(const holder::api::ProjectTag& value);
     static holder::api::ProjectTag decode(const json& value);
@@ -997,6 +993,10 @@ template <> struct codec<holder::api::RebuildData> {
 template <> struct codec<holder::api::RebuildResponse> {
     static json encode(const holder::api::RebuildResponse& value);
     static holder::api::RebuildResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ResourceListResponse> {
+    static json encode(const holder::api::ResourceListResponse& value);
+    static holder::api::ResourceListResponse decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectListResponse> {
     static json encode(const holder::api::ProjectListResponse& value);
@@ -4255,13 +4255,11 @@ inline json codec<holder::api::StorageLocation>::encode(const holder::api::Stora
     result["location_id"] = codec<std::string>::encode(value.location_id);
     result["project_id"] = codec<std::string>::encode(value.project_id);
     result["name"] = codec<std::string>::encode(value.name);
-    if (value.provider != "local_directory" && value.provider != "s3_compatible") throw std::invalid_argument("invalid provider");
+    if (value.provider != "local_directory" && value.provider != "s3_compatible" && value.provider != "google-drive") throw std::invalid_argument("invalid provider");
     result["provider"] = codec<std::string>::encode(value.provider);
     result["configuration"] = codec<std::map<std::string, std::string>>::encode(value.configuration);
     result["bound"] = codec<bool>::encode(value.bound);
-    if (value.binding_preview) {
-        result["binding_preview"] = codec<std::optional<std::optional<std::string>>>::encode(value.binding_preview);
-    }
+    result["binding_preview"] = codec<std::optional<std::string>>::encode(value.binding_preview);
     result["created_at"] = codec<long long>::encode(value.created_at);
     result["updated_at"] = codec<long long>::encode(value.updated_at);
     return result;
@@ -4274,9 +4272,10 @@ inline holder::api::StorageLocation codec<holder::api::StorageLocation>::decode(
     if (!value.contains("provider")) throw std::invalid_argument("missing provider");
     if (!value.contains("configuration")) throw std::invalid_argument("missing configuration");
     if (!value.contains("bound")) throw std::invalid_argument("missing bound");
+    if (!value.contains("binding_preview")) throw std::invalid_argument("missing binding_preview");
     if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
     if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible") throw std::invalid_argument("invalid provider");
+    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible" && value.at("provider") != "google-drive") throw std::invalid_argument("invalid provider");
     return holder::api::StorageLocation{
         codec<std::string>::decode(value.at("location_id")),
         codec<std::string>::decode(value.at("project_id")),
@@ -4284,30 +4283,9 @@ inline holder::api::StorageLocation codec<holder::api::StorageLocation>::decode(
         codec<std::string>::decode(value.at("provider")),
         codec<std::map<std::string, std::string>>::decode(value.at("configuration")),
         codec<bool>::decode(value.at("bound")),
-        value.contains("binding_preview") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("binding_preview"))} : std::nullopt,
+        codec<std::optional<std::string>>::decode(value.at("binding_preview")),
         codec<long long>::decode(value.at("created_at")),
         codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::StorageLocationListResponse>::encode(const holder::api::StorageLocationListResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::StorageLocation>>::encode(value.data);
-    result["preferred_location_id"] = codec<std::optional<std::string>>::encode(value.preferred_location_id);
-    return result;
-}
-inline holder::api::StorageLocationListResponse codec<holder::api::StorageLocationListResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected StorageLocationListResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (!value.contains("preferred_location_id")) throw std::invalid_argument("missing preferred_location_id");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::StorageLocationListResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::StorageLocation>>::decode(value.at("data")),
-        codec<std::optional<std::string>>::decode(value.at("preferred_location_id")),
     };
 }
 
@@ -4336,7 +4314,7 @@ inline json codec<holder::api::StorageLocationRequest>::encode(const holder::api
     }
     result["project_id"] = codec<std::string>::encode(value.project_id);
     result["name"] = codec<std::string>::encode(value.name);
-    if (value.provider != "local_directory" && value.provider != "s3_compatible") throw std::invalid_argument("invalid provider");
+    if (value.provider != "local_directory" && value.provider != "s3_compatible" && value.provider != "google-drive") throw std::invalid_argument("invalid provider");
     result["provider"] = codec<std::string>::encode(value.provider);
     if (value.configuration) {
         result["configuration"] = codec<std::optional<std::map<std::string, std::string>>>::encode(value.configuration);
@@ -4348,7 +4326,7 @@ inline holder::api::StorageLocationRequest codec<holder::api::StorageLocationReq
     if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
     if (!value.contains("name")) throw std::invalid_argument("missing name");
     if (!value.contains("provider")) throw std::invalid_argument("missing provider");
-    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible") throw std::invalid_argument("invalid provider");
+    if (value.at("provider") != "local_directory" && value.at("provider") != "s3_compatible" && value.at("provider") != "google-drive") throw std::invalid_argument("invalid provider");
     return holder::api::StorageLocationRequest{
         value.contains("location_id") ? codec<std::optional<std::string>>::decode(value.at("location_id")) : std::nullopt,
         codec<std::string>::decode(value.at("project_id")),
@@ -4582,9 +4560,7 @@ inline json codec<holder::api::Resource>::encode(const holder::api::Resource& va
     result["assets"] = codec<std::vector<holder::api::ResourceAsset>>::encode(value.assets);
     result["created_at"] = codec<long long>::encode(value.created_at);
     result["updated_at"] = codec<long long>::encode(value.updated_at);
-    if (value.referenced_by_cards) {
-        result["referenced_by_cards"] = codec<std::optional<std::vector<holder::api::ResourceReferencedByCardsItem>>>::encode(value.referenced_by_cards);
-    }
+    result["referenced_by_cards"] = codec<std::vector<holder::api::ResourceReferencedByCardsItem>>::encode(value.referenced_by_cards);
     return result;
 }
 inline holder::api::Resource codec<holder::api::Resource>::decode(const json& value) {
@@ -4597,6 +4573,7 @@ inline holder::api::Resource codec<holder::api::Resource>::decode(const json& va
     if (!value.contains("assets")) throw std::invalid_argument("missing assets");
     if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
     if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    if (!value.contains("referenced_by_cards")) throw std::invalid_argument("missing referenced_by_cards");
     return holder::api::Resource{
         codec<std::string>::decode(value.at("resource_id")),
         codec<std::string>::decode(value.at("project_id")),
@@ -4606,41 +4583,7 @@ inline holder::api::Resource codec<holder::api::Resource>::decode(const json& va
         codec<std::vector<holder::api::ResourceAsset>>::decode(value.at("assets")),
         codec<long long>::decode(value.at("created_at")),
         codec<long long>::decode(value.at("updated_at")),
-        value.contains("referenced_by_cards") ? codec<std::optional<std::vector<holder::api::ResourceReferencedByCardsItem>>>::decode(value.at("referenced_by_cards")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ResourceListResponse>::encode(const holder::api::ResourceListResponse& value) {
-    json result = json::object();
-    if (value.card_id) {
-        result["card_id"] = codec<std::optional<std::string>>::encode(value.card_id);
-    }
-    if (value.limit) {
-        result["limit"] = codec<std::optional<int>>::encode(value.limit);
-    }
-    if (value.offset) {
-        result["offset"] = codec<std::optional<int>>::encode(value.offset);
-    }
-    if (value.next_offset) {
-        result["next_offset"] = codec<std::optional<std::optional<int>>>::encode(value.next_offset);
-    }
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::Resource>>::encode(value.data);
-    return result;
-}
-inline holder::api::ResourceListResponse codec<holder::api::ResourceListResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ResourceListResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ResourceListResponse{
-        value.contains("card_id") ? codec<std::optional<std::string>>::decode(value.at("card_id")) : std::nullopt,
-        value.contains("limit") ? codec<std::optional<int>>::decode(value.at("limit")) : std::nullopt,
-        value.contains("offset") ? codec<std::optional<int>>::decode(value.at("offset")) : std::nullopt,
-        value.contains("next_offset") ? std::optional<std::optional<int>>{std::in_place, codec<std::optional<int>>::decode(value.at("next_offset"))} : std::nullopt,
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::Resource>>::decode(value.at("data")),
+        codec<std::vector<holder::api::ResourceReferencedByCardsItem>>::decode(value.at("referenced_by_cards")),
     };
 }
 
@@ -5798,6 +5741,27 @@ inline holder::api::HealthResponse codec<holder::api::HealthResponse>::decode(co
     };
 }
 
+inline json codec<holder::api::StorageLocationListResponse>::encode(const holder::api::StorageLocationListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::StorageLocation>>::encode(value.data);
+    result["preferred_location_id"] = codec<std::optional<std::string>>::encode(value.preferred_location_id);
+    return result;
+}
+inline holder::api::StorageLocationListResponse codec<holder::api::StorageLocationListResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected StorageLocationListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (!value.contains("preferred_location_id")) throw std::invalid_argument("missing preferred_location_id");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::StorageLocationListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::StorageLocation>>::decode(value.at("data")),
+        codec<std::optional<std::string>>::decode(value.at("preferred_location_id")),
+    };
+}
+
 inline json codec<holder::api::ProjectTag>::encode(const holder::api::ProjectTag& value) {
     json result = json::object();
     result["tag"] = codec<std::string>::encode(value.tag);
@@ -6004,6 +5968,40 @@ inline holder::api::RebuildResponse codec<holder::api::RebuildResponse>::decode(
     return holder::api::RebuildResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::RebuildData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ResourceListResponse>::encode(const holder::api::ResourceListResponse& value) {
+    json result = json::object();
+    if (value.card_id) {
+        result["card_id"] = codec<std::optional<std::string>>::encode(value.card_id);
+    }
+    if (value.limit) {
+        result["limit"] = codec<std::optional<int>>::encode(value.limit);
+    }
+    if (value.offset) {
+        result["offset"] = codec<std::optional<int>>::encode(value.offset);
+    }
+    if (value.next_offset) {
+        result["next_offset"] = codec<std::optional<std::optional<long long>>>::encode(value.next_offset);
+    }
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::Resource>>::encode(value.data);
+    return result;
+}
+inline holder::api::ResourceListResponse codec<holder::api::ResourceListResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ResourceListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ResourceListResponse{
+        value.contains("card_id") ? codec<std::optional<std::string>>::decode(value.at("card_id")) : std::nullopt,
+        value.contains("limit") ? codec<std::optional<int>>::decode(value.at("limit")) : std::nullopt,
+        value.contains("offset") ? codec<std::optional<int>>::decode(value.at("offset")) : std::nullopt,
+        value.contains("next_offset") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("next_offset"))} : std::nullopt,
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::Resource>>::decode(value.at("data")),
     };
 }
 

@@ -11,24 +11,12 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(GET, "/locations")
-RIG_SUMMARY("List project storage locations")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-StorageLocationListResponse get_locations(std::string project_id RIG_QUERY);
-
 RIG_ROUTE(POST, "/locations")
 RIG_SUMMARY("Create a storage location declaration")
 RIG_RESPONSE_DESCRIPTION("Created")
 RIG_HOST_RESPONSE("application/json")
 RIG_SUCCESS_STATUS(201)
 StorageLocationResponse post_locations(StorageLocationRequest request);
-
-RIG_ROUTE(GET, "/locations/{location_id}")
-RIG_SUMMARY("Get a storage location")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-StorageLocationResponse get_locations_location_id(std::string location_id);
 
 RIG_ROUTE(PATCH, "/locations/{location_id}")
 RIG_SUMMARY("Update a storage location declaration")

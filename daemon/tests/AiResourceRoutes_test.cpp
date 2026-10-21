@@ -129,8 +129,25 @@ struct LocationRouteFixture {
       const std::map<std::string, std::string>& params = {},
       holder::git::GitOps* git = nullptr
   ) {
-    auto request = make_request(method, path, body);
     http::response<http::string_body> response;
+    if (method == http::verb::get) {
+      // Reads go through the generated routes, with the same query the parameters supply.
+      std::map<std::string, std::string> query = params;
+      if (!project.empty()) query.emplace("project_id", project);
+      std::string target = path;
+      char separator = '?';
+      for (const auto& [key, value] : query) {
+        target += separator + key + "=" + value;
+        separator = '&';
+      }
+      auto request = make_request(method, target, body);
+      if (holder::api::dispatch_generated_routes(
+              request, response, db, nullptr, nullptr, with_secrets ? secrets.get() : nullptr, git
+          )) {
+        return response;
+      }
+    }
+    auto request = make_request(method, path, body);
     REQUIRE(holder::api::routes::handle_ai_resource_routes(
         path,
         request,
@@ -456,7 +473,7 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
   CHECK_FALSE(holder::resource::ResourceRepo(f.db).get_bundle("resource").has_value());
   f.db.exec("DROP TABLE resources; DROP TABLE storage_locations");
   CHECK(f.call(http::verb::delete_, "/resources/resource").result() == http::status::bad_request);
-  CHECK(f.call(http::verb::get, "/locations").result() == http::status::bad_request);
+  CHECK(f.call(http::verb::get, "/locations").result() == http::status::internal_server_error);
 }
 
 TEST_CASE(
