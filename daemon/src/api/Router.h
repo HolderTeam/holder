@@ -6,8 +6,6 @@
 #include <string>
 #include <unordered_map>
 
-namespace holder::platform { class Db; }
-
 namespace holder::api {
 
 class Router {
@@ -17,7 +15,7 @@ class Router {
   using Handler = std::function<void(const Request&, Response&)>;
 
   void add(boost::beast::http::verb method, std::string target, Handler handler);
-  bool dispatch(const Request& req, Response& res, holder::platform::Db* db = nullptr) const;
+  bool dispatch(const Request& req, Response& res) const;
 
  private:
   struct Key {

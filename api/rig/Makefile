@@ -15,35 +15,21 @@ build/contract-openapi.json: build/contract-ir.json
 check: build/contract-openapi.json
 	$(PYTHON) check_contract.py $(ROOT)/api/openapi.yaml build/contract-openapi.json
 
-build/bye-ir.json: FORCE
+build/runtime-ir.json: FORCE
 	mkdir -p build
-	$(RIG) inspect --header daemon/src/api/Bye.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
+	$(RIG) inspect --header daemon/src/api/RigRuntime.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
 
-build/bye-json.hpp: build/bye-ir.json
-	$(RIG) json-codec --api-header api/Bye.h < $< > $@
+build/runtime-json.hpp: build/runtime-ir.json
+	$(RIG) json-codec --api-header api/RigRuntime.h < $< > $@
 
-build/bye-routes.hpp: build/bye-ir.json build/bye-json.hpp
-	$(RIG) http-routes --codec-header api/generated/ByeJson.h < $< > $@
+build/runtime-routes.hpp: build/runtime-ir.json build/runtime-json.hpp
+	$(RIG) http-routes --codec-header api/generated/RuntimeJson.h < $< > $@
 
-build/project-tags-ir.json: FORCE
-	mkdir -p build
-	$(RIG) inspect --header daemon/src/api/ProjectTags.h --namespace holder::api -- -I$(ROOT) -I$(ROOT)/daemon/src > $@
+check-generated: build/runtime-routes.hpp
+	cmp build/runtime-json.hpp $(ROOT)/daemon/src/api/generated/RuntimeJson.h
+	cmp build/runtime-routes.hpp $(ROOT)/daemon/src/api/generated/RuntimeRoutes.h
 
-build/project-tags-json.hpp: build/project-tags-ir.json
-	$(RIG) json-codec --api-header api/ProjectTags.h < $< > $@
-
-build/project-tags-routes.hpp: build/project-tags-ir.json build/project-tags-json.hpp
-	$(RIG) http-routes --codec-header api/generated/ProjectTagsJson.h < $< > $@
-
-check-generated: build/bye-routes.hpp build/project-tags-routes.hpp
-	cmp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
-	cmp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h
-	cmp build/project-tags-json.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsJson.h
-	cmp build/project-tags-routes.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsRoutes.h
-
-update-generated: build/bye-routes.hpp build/project-tags-routes.hpp
+update-generated: build/runtime-routes.hpp
 	mkdir -p $(ROOT)/daemon/src/api/generated
-	cp build/bye-json.hpp $(ROOT)/daemon/src/api/generated/ByeJson.h
-	cp build/bye-routes.hpp $(ROOT)/daemon/src/api/generated/ByeRoutes.h
-	cp build/project-tags-json.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsJson.h
-	cp build/project-tags-routes.hpp $(ROOT)/daemon/src/api/generated/ProjectTagsRoutes.h
+	cp build/runtime-json.hpp $(ROOT)/daemon/src/api/generated/RuntimeJson.h
+	cp build/runtime-routes.hpp $(ROOT)/daemon/src/api/generated/RuntimeRoutes.h

@@ -1,6 +1,6 @@
 // Generated from RIG IR; do not edit.
 #pragma once
-#include "api/Bye.h"
+#include "api/RigRuntime.h"
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <limits>
@@ -93,6 +93,14 @@ template <> struct codec<holder::api::ByeResponse> {
     static json encode(const holder::api::ByeResponse& value);
     static holder::api::ByeResponse decode(const json& value);
 };
+template <> struct codec<holder::api::ProjectTag> {
+    static json encode(const holder::api::ProjectTag& value);
+    static holder::api::ProjectTag decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectTagListResponse> {
+    static json encode(const holder::api::ProjectTagListResponse& value);
+    static holder::api::ProjectTagListResponse decode(const json& value);
+};
 
 inline json codec<holder::api::Error>::encode(const holder::api::Error& value) {
     json result = json::object();
@@ -143,6 +151,42 @@ inline holder::api::ByeResponse codec<holder::api::ByeResponse>::decode(const js
     if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
     return holder::api::ByeResponse{
         codec<bool>::decode(value.at("ok")),
+    };
+}
+
+inline json codec<holder::api::ProjectTag>::encode(const holder::api::ProjectTag& value) {
+    json result = json::object();
+    result["tag"] = codec<std::string>::encode(value.tag);
+    result["card_count"] = codec<int>::encode(value.card_count);
+    return result;
+}
+inline holder::api::ProjectTag codec<holder::api::ProjectTag>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("tag")
+        || !value.contains("card_count")
+) throw std::invalid_argument("expected ProjectTag");
+    return holder::api::ProjectTag{
+        codec<std::string>::decode(value.at("tag")),
+        codec<int>::decode(value.at("card_count")),
+    };
+}
+
+inline json codec<holder::api::ProjectTagListResponse>::encode(const holder::api::ProjectTagListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<std::vector<holder::api::ProjectTag>>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected ProjectTagListResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectTagListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
     };
 }
 

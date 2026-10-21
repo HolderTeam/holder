@@ -23,15 +23,16 @@ patches.
 ## Live slices
 
 `daemon/src/api/ApiService.h` declares document metadata and bearer security.
-`daemon/src/api/Bye.h` declares the typed operation and response. RIG generates
-the checked-in C++20 JSON codec and route dispatcher in
-`daemon/src/api/generated/`; `Router.cpp` calls that dispatcher after its
-existing routes. The daemon's bearer-auth gate still runs before dispatch.
+`daemon/src/api/Bye.h` declares the typed operation and response.
+`daemon/src/api/RigRuntime.h` selects the migrated operations for one
+checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
+`Session.cpp` calls the dispatcher after authentication and event handling. A
+no-match result falls through to the registered and legacy routes.
 `RigAnnotations.h` makes annotations disappear in ordinary C++20 builds.
 
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
-RIG generates its checked-in C++20 dispatcher and JSON codec. Holder supplies
-the database context in `ProjectTagDispatch.cpp`, which also maps domain errors
+The shared dispatcher handles this route and its JSON response. Holder supplies
+the database context in `GeneratedRoutes.cpp`, which also maps domain errors
 to HTTP responses. The old handwritten route and JSON response were removed.
 RIG omits the server-supplied context from OpenAPI while reflecting the path
 parameter, error responses, field descriptions, and integer minimum.
@@ -54,7 +55,7 @@ make -C api/rig check
 make -C api/rig check-generated
 ```
 
-After changing `/bye` annotations, run `make -C api/rig update-generated` and
+After changing a migrated operation, run `make -C api/rig update-generated` and
 commit the generated headers. These commands require RIG only while developing
 the contract; normal daemon builds compile the checked-in headers.
 

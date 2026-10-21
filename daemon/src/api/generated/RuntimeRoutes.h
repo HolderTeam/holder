@@ -1,6 +1,6 @@
 // Generated from RIG IR; do not edit.
 #pragma once
-#include "api/generated/ByeJson.h"
+#include "api/generated/RuntimeJson.h"
 #include <charconv>
 #include <initializer_list>
 #include <map>
@@ -109,9 +109,10 @@ template <typename T> T decode_body(const std::string& body) {
         throw std::invalid_argument(error.what());
     }
 }
+template <typename Context>
 inline std::optional<response> dispatch(const std::string& method,
                                     const std::string& path,
-                                    const std::string& body) {
+                                    const std::string& body, Context& context) {
     const auto query_start = path.find('?');
     const auto route_path = path.substr(0, query_start);
     std::smatch match;
@@ -119,6 +120,18 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_0("^/bye$");
     if (method == "POST" && std::regex_match(route_path, match, route_0)) {
         return response{200, rig_json::encode(holder::api::say_goodbye())};
+    }
+    static const std::regex route_1("^/projects/([^/]+)/tags$");
+    if (method == "GET" && std::regex_match(route_path, match, route_1)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error.what());
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error.what());
+        }
+        return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0)))};
     }
     return std::nullopt;
 }

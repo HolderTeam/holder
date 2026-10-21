@@ -63,6 +63,11 @@ TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
   holder::test::HttpServerThreadGuard running(server, signals);
   REQUIRE(holder::test::wait_for_http_health_ready(bound.bind, bound.port, token));
 
+  const auto bye = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::post, "/bye");
+  REQUIRE(bye.status == boost::beast::http::status::ok);
+  REQUIRE(nlohmann::json::parse(bye.body) == nlohmann::json{{"ok", true}});
+
   const auto reply = holder::test::http_request_raw(
       bound.bind, bound.port, token, boost::beast::http::verb::get,
       "/projects/proj-1/tags");
@@ -76,6 +81,17 @@ TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
       "/projects/missing/tags");
   REQUIRE(missing.status == boost::beast::http::status::not_found);
   REQUIRE(nlohmann::json::parse(missing.body)["error"]["code"] == "not_found");
+
+  const auto malformed = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get,
+      "/projects/bad%XX/tags");
+  REQUIRE(malformed.status == boost::beast::http::status::not_found);
+  REQUIRE(nlohmann::json::parse(malformed.body)["error"]["code"] == "not_found");
+
+  const auto legacy = holder::test::http_request_raw(
+      bound.bind, bound.port, token, boost::beast::http::verb::get, "/projects");
+  REQUIRE(legacy.status == boost::beast::http::status::ok);
+  REQUIRE(nlohmann::json::parse(legacy.body)["ok"] == true);
 
   const auto denied = holder::test::http_request_raw(
       bound.bind, bound.port, "wrong-token", boost::beast::http::verb::get,

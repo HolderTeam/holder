@@ -1,7 +1,7 @@
-#include "api/ProjectTagDispatch.h"
+#include "api/GeneratedRoutes.h"
 
 #include "api/ProjectTags.h"
-#include "api/generated/ProjectTagsRoutes.h"
+#include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
 
 #include <boost/beast/http.hpp>
@@ -26,17 +26,21 @@ Router::Response error_response(http::status status, std::string code, std::stri
 
 } // namespace
 
-bool dispatch_project_tags(const Router::Request& req, Router::Response& res,
-                           holder::platform::Db& db) {
+bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
+                               holder::platform::Db& db) {
   const auto target = req.target();
   Context context{db};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
         req.body(), context);
-    // Keep malformed project IDs on Holder's existing not-found path.
-    if (!generated || generated->status == 400) return false;
-    res = support::json_response(static_cast<http::status>(generated->status), generated->body);
+    if (!generated) return false;
+    if (generated->status == 400) {
+      // The only decoded input in this slice is the project ID. Preserve its old 404.
+      res = error_response(http::status::not_found, "not_found", "Project not found.");
+    } else {
+      res = support::json_response(static_cast<http::status>(generated->status), generated->body);
+    }
   } catch (const ProjectNotFound& error) {
     res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const std::exception& error) {

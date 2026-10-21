@@ -1,4 +1,5 @@
 #include "api/Session.h"
+#include "api/GeneratedRoutes.h"
 #include "api/routes/AuthenticatedRoutes.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/routes/StaticRoutes.h"
@@ -398,7 +399,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
       } else if (events_ &&
                  events_->dispatch(path_, query_string_, req_, res, socket_, db_, streamed)) {
         if (streamed) return std::nullopt;
-      } else if (!router_.dispatch(req_, res, &db_)) {
+      } else if (!dispatch_generated_routes(req_, res, db_) && !router_.dispatch(req_, res)) {
         const auto route_result = routes::dispatch_authenticated_routes(
             path_,
             query_string_,

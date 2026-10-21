@@ -5,7 +5,7 @@
 #endif
 
 #include "api/routes/ProjectRoutes.h"
-#include "api/Router.h"
+#include "api/GeneratedRoutes.h"
 #include "card/TagRepo.h"
 #include "git/GitOps.h"
 #include "http_test_helpers.h"
@@ -568,8 +568,7 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
 
   auto req = make_request(http::verb::get, "/projects/proj-1/tags");
   http::response<http::string_body> res;
-  holder::api::Router router;
-  const bool handled = router.dispatch(req, res, &db);
+  const bool handled = holder::api::dispatch_generated_routes(req, res, db);
 
   REQUIRE(handled);
   REQUIRE(res.result() == http::status::ok);
@@ -585,16 +584,21 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(payload == expected);
 
   req = make_request(http::verb::get, "/projects/missing/tags");
-  REQUIRE(router.dispatch(req, res, &db));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   req = make_request(http::verb::get, "/projects/bad%XX/tags");
-  REQUIRE_FALSE(router.dispatch(req, res, &db));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
+
+  req = make_request(http::verb::get, "/projects");
+  REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
 
   db.close();
   req = make_request(http::verb::get, "/projects/proj-1/tags");
-  REQUIRE(router.dispatch(req, res, &db));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::internal_server_error);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "error");
 }
