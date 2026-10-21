@@ -117,6 +117,18 @@ template <> struct codec<holder::api::ProjectTagListResponse> {
     static json encode(const holder::api::ProjectTagListResponse& value);
     static holder::api::ProjectTagListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderCredential> {
+    static json encode(const holder::api::AiProviderCredential& value);
+    static holder::api::AiProviderCredential decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCredentialsListData> {
+    static json encode(const holder::api::AiProviderCredentialsListData& value);
+    static holder::api::AiProviderCredentialsListData decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderCredentialsListResponse> {
+    static json encode(const holder::api::AiProviderCredentialsListResponse& value);
+    static holder::api::AiProviderCredentialsListResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiProviderSetting> {
     static json encode(const holder::api::AiProviderSetting& value);
     static holder::api::AiProviderSetting decode(const json& value);
@@ -354,6 +366,65 @@ inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResp
     return holder::api::ProjectTagListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCredential>::encode(const holder::api::AiProviderCredential& value) {
+    json result = json::object();
+    result["provider"] = codec<std::string>::encode(value.provider);
+    result["configured"] = codec<bool>::encode(value.configured);
+    result["api_key_preview"] = codec<std::string>::encode(value.api_key_preview);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::api::AiProviderCredential codec<holder::api::AiProviderCredential>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("provider")
+        || !value.contains("configured")
+        || !value.contains("api_key_preview")
+        || !value.contains("created_at")
+        || !value.contains("updated_at")
+) throw std::invalid_argument("expected AiProviderCredential");
+    return holder::api::AiProviderCredential{
+        codec<std::string>::decode(value.at("provider")),
+        codec<bool>::decode(value.at("configured")),
+        codec<std::string>::decode(value.at("api_key_preview")),
+        codec<long long>::decode(value.at("created_at")),
+        codec<long long>::decode(value.at("updated_at")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCredentialsListData>::encode(const holder::api::AiProviderCredentialsListData& value) {
+    json result = json::object();
+    result["providers"] = codec<std::vector<holder::api::AiProviderCredential>>::encode(value.providers);
+    return result;
+}
+inline holder::api::AiProviderCredentialsListData codec<holder::api::AiProviderCredentialsListData>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("providers")
+) throw std::invalid_argument("expected AiProviderCredentialsListData");
+    return holder::api::AiProviderCredentialsListData{
+        codec<std::vector<holder::api::AiProviderCredential>>::decode(value.at("providers")),
+    };
+}
+
+inline json codec<holder::api::AiProviderCredentialsListResponse>::encode(const holder::api::AiProviderCredentialsListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderCredentialsListData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderCredentialsListResponse codec<holder::api::AiProviderCredentialsListResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected AiProviderCredentialsListResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderCredentialsListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderCredentialsListData>::decode(value.at("data")),
     };
 }
 

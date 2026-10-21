@@ -49,6 +49,11 @@ decodes DELETE's provider path parameter. The typed mutations normalize the
 provider and persist the change. The list and delete responses use inline
 records for `data`, matching the control's nested object schemas.
 
+`daemon/src/api/ProviderCredentials.h` declares
+`GET /ai/providers/credentials`. Its typed operation lists the stored
+credential metadata and masks previews before the generated codec serializes
+them. PUT and DELETE still use the existing secret-store handler.
+
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
 optional `runner_id` query parameter. The shared dispatcher decodes the query
 and path, calls the typed operation with Holder's runner registry, and encodes
@@ -83,8 +88,8 @@ rig inspect --header daemon/src/api/RigContract.h --namespace holder::api --name
 rig openapi --omit-operation-ids < /tmp/holder-rig.json > /tmp/holder-openapi.json
 ```
 
-The generated service metadata, bearer security, nine operations, and their
-twenty-two reachable schemas now match the control. The comparison treats an omitted
+The generated service metadata, bearer security, ten operations, and their
+twenty-four reachable schemas now match the control. The comparison treats an omitted
 `required` on a query parameter as `false`, as OpenAPI does. The generated
 document remains a partial slice; it must not replace the checked-in contract
 yet.

@@ -1,3 +1,4 @@
+#include "ai/AiProviderCredentialRepo.h"
 #include "api/GeneratedRoutes.h"
 #include "api/routes/ai/providers/AiProviderCredentialRoutes.h"
 #include "http_test_helpers.h"
@@ -110,6 +111,7 @@ TEST_CASE("HTTP ai provider credentials put/get/delete", "[http]") {
   REQUIRE(list["data"]["providers"].is_array());
   REQUIRE(list["data"]["providers"].size() == 1);
   REQUIRE(list["data"]["providers"][0]["provider"] == "chocolatefactory");
+  REQUIRE(list["data"]["providers"][0]["api_key_preview"] == "cf_t...45");
 
   const auto status = http_json_request(
       bound.bind,
@@ -211,6 +213,17 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
   auto db = open_db_with_schema(dir / "holder.db");
   http::response<http::string_body> res;
   auto secret_store = holder::privacy::make_default_secret_store(dir);
+
+  SECTION("credentials get masks older stored previews through RIG") {
+    holder::ai::AiProviderCredentialRepo(db).upsert("legacy", "secret-example-12345", 1, 2);
+    auto req = make_req(http::verb::get, "/ai/providers/credentials");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::ok);
+    const auto payload = nlohmann::json::parse(res.body());
+    REQUIRE(payload["data"]["providers"][0]["api_key_preview"] == "secr...45");
+    REQUIRE_FALSE(holder::api::routes::ai::providers::handle_ai_provider_credential_routes(
+        "/ai/providers/credentials", req, res, db, *secret_store));
+  }
 
   SECTION("settings get returns an empty list through RIG") {
     auto req = make_req(http::verb::get, "/ai/providers/settings");
@@ -398,7 +411,11 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
     REQUIRE(res.result() == http::status::bad_request);
   }
 
-  expect_bad_request(http::verb::get, "/ai/providers/credentials");
+  {
+    auto req = make_req(http::verb::get, "/ai/providers/credentials");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
+    REQUIRE(res.result() == http::status::bad_request);
+  }
   expect_bad_request(
       http::verb::put,
       "/ai/providers/credentials",

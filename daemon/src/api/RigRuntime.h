@@ -5,6 +5,7 @@
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/ProjectTags.h"
+#include "api/ProviderCredentials.h"
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"

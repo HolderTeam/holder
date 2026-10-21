@@ -18,10 +18,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-std::string preview_for_output(const std::string& stored) {
-  return stored.find('*') != std::string::npos ? stored : support::mask_api_key(stored);
-}
-
 } // namespace
 
 bool handle_ai_provider_credential_routes(
@@ -32,30 +28,6 @@ bool handle_ai_provider_credential_routes(
     holder::privacy::SecretStore& secret_store
 ) {
   static constexpr const char* kSecretService = "holder.ai_provider_credentials";
-  if (path == "/ai/providers/credentials" && req.method() == http::verb::get) {
-    try {
-      holder::ai::AiProviderCredentialRepo repo(db);
-      nlohmann::json providers = nlohmann::json::array();
-      for (const auto& credential : repo.list()) {
-        providers.push_back({
-            {"provider", credential.provider},
-            {"configured", true},
-            {"api_key_preview", preview_for_output(credential.api_key_preview)},
-            {"created_at", credential.created_at},
-            {"updated_at", credential.updated_at},
-        });
-      }
-      nlohmann::json payload;
-      payload["ok"] = true;
-      payload["data"] = {{"providers", providers}};
-      res = support::json_response(http::status::ok, payload);
-      return true;
-    } catch (const std::exception& ex) {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-      return true;
-    }
-  }
-
   if (path == "/ai/providers/credentials" && req.method() == http::verb::put) {
     try {
       const auto body = nlohmann::json::parse(req.body());

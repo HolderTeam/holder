@@ -28,6 +28,7 @@ def main(control_path: str, generated_path: str) -> None:
                          ("/ai/providers/settings", "put"),
                          ("/ai/providers/settings", "get"),
                          ("/ai/providers/settings/{provider}", "delete"),
+                         ("/ai/providers/credentials", "get"),
                          ("/projects/{project_id}/tags", "get"),
                          ("/ai/runner/pull/{job_id}", "get"),
                          ("/cards/{card_id}/links", "get"),
@@ -39,7 +40,8 @@ def main(control_path: str, generated_path: str) -> None:
     for name in ("ByeResponse", "RebuildRequest", "RebuildData", "RebuildResponse",
                  "AiProviderSetting", "AiProviderSettingUpdateRequest",
                  "AiProviderSettingResponse", "AiProviderSettingsResponse",
-                 "AiProviderSettingDeleteResponse",
+                 "AiProviderSettingDeleteResponse", "AiProviderCredential",
+                 "AiProviderCredentialsListResponse",
                  "ErrorResponse", "Error", "ProjectTag",
                  "ProjectTagListResponse", "RunnerPullProgress", "RunnerPullJob",
                  "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse",
@@ -49,7 +51,7 @@ def main(control_path: str, generated_path: str) -> None:
         actual = generated["components"]["schemas"][name]
         if actual != expected:
             raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG service metadata, nine operations, and schemas match api/openapi.yaml")
+    print("RIG service metadata, ten operations, and schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":
