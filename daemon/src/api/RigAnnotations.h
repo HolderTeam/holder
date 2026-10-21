@@ -12,6 +12,7 @@
 #define RIG_BOOL_VALUE(value)
 #define RIG_ERROR_RESPONSE(status, body, description)
 #define RIG_OPEN_RECORD
+#define RIG_INLINE_RECORD
 #define RIG_CONTEXT
 #define RIG_QUERY
 #define RIG_INT_VALUES(...)

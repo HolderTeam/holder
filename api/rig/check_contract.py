@@ -26,6 +26,7 @@ def main(control_path: str, generated_path: str) -> None:
         raise SystemExit("RIG security schemes differ from api/openapi.yaml")
     for path, method in (("/bye", "post"), ("/rebuild", "post"),
                          ("/ai/providers/settings", "put"),
+                         ("/ai/providers/settings", "get"),
                          ("/projects/{project_id}/tags", "get"),
                          ("/ai/runner/pull/{job_id}", "get"),
                          ("/cards/{card_id}/links", "get"),
@@ -36,7 +37,7 @@ def main(control_path: str, generated_path: str) -> None:
             raise SystemExit(f"RIG {method.upper()} {path} differs from api/openapi.yaml")
     for name in ("ByeResponse", "RebuildRequest", "RebuildData", "RebuildResponse",
                  "AiProviderSetting", "AiProviderSettingUpdateRequest",
-                 "AiProviderSettingResponse",
+                 "AiProviderSettingResponse", "AiProviderSettingsResponse",
                  "ErrorResponse", "Error", "ProjectTag",
                  "ProjectTagListResponse", "RunnerPullProgress", "RunnerPullJob",
                  "RunnerPullStatusResponse", "CardLink", "CardLinkListResponse",
@@ -46,7 +47,7 @@ def main(control_path: str, generated_path: str) -> None:
         actual = generated["components"]["schemas"][name]
         if actual != expected:
             raise SystemExit(f"RIG {name} differs from api/openapi.yaml")
-    print("RIG service metadata, seven operations, and schemas match api/openapi.yaml")
+    print("RIG service metadata, eight operations, and schemas match api/openapi.yaml")
 
 
 if __name__ == "__main__":

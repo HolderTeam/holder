@@ -129,6 +129,14 @@ template <> struct codec<holder::api::AiProviderSettingResponse> {
     static json encode(const holder::api::AiProviderSettingResponse& value);
     static holder::api::AiProviderSettingResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiProviderSettingsData> {
+    static json encode(const holder::api::AiProviderSettingsData& value);
+    static holder::api::AiProviderSettingsData decode(const json& value);
+};
+template <> struct codec<holder::api::AiProviderSettingsResponse> {
+    static json encode(const holder::api::AiProviderSettingsResponse& value);
+    static holder::api::AiProviderSettingsResponse decode(const json& value);
+};
 template <> struct codec<holder::api::RebuildRequest> {
     static json encode(const holder::api::RebuildRequest& value);
     static holder::api::RebuildRequest decode(const json& value);
@@ -398,6 +406,39 @@ inline holder::api::AiProviderSettingResponse codec<holder::api::AiProviderSetti
     return holder::api::AiProviderSettingResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderSetting>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingsData>::encode(const holder::api::AiProviderSettingsData& value) {
+    json result = json::object();
+    result["providers"] = codec<std::vector<holder::api::AiProviderSetting>>::encode(value.providers);
+    return result;
+}
+inline holder::api::AiProviderSettingsData codec<holder::api::AiProviderSettingsData>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("providers")
+) throw std::invalid_argument("expected AiProviderSettingsData");
+    return holder::api::AiProviderSettingsData{
+        codec<std::vector<holder::api::AiProviderSetting>>::decode(value.at("providers")),
+    };
+}
+
+inline json codec<holder::api::AiProviderSettingsResponse>::encode(const holder::api::AiProviderSettingsResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiProviderSettingsData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiProviderSettingsResponse codec<holder::api::AiProviderSettingsResponse>::decode(const json& value) {
+    if (!value.is_object()
+        || !value.contains("ok")
+        || !value.contains("data")
+) throw std::invalid_argument("expected AiProviderSettingsResponse");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiProviderSettingsResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiProviderSettingsData>::decode(value.at("data")),
     };
 }
 

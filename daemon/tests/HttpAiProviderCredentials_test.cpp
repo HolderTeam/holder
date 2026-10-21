@@ -199,6 +199,16 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
   http::response<http::string_body> res;
   auto secret_store = holder::privacy::make_default_secret_store(dir);
 
+  SECTION("settings get returns an empty list through RIG") {
+    auto req = make_req(http::verb::get, "/ai/providers/settings");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::ok);
+    REQUIRE(nlohmann::json::parse(res.body()) == nlohmann::json{
+        {"ok", true}, {"data", {{"providers", nlohmann::json::array()}}}});
+    REQUIRE_FALSE(holder::api::routes::ai::providers::handle_ai_provider_credential_routes(
+        "/ai/providers/settings", req, res, db, *secret_store));
+  }
+
   SECTION("settings put missing provider/enabled") {
     auto req = make_req(http::verb::put, "/ai/providers/settings", nlohmann::json::object().dump());
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -365,7 +375,11 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
         REQUIRE(res.result() == http::status::bad_request);
       };
 
-  expect_bad_request(http::verb::get, "/ai/providers/settings");
+  {
+    auto req = make_req(http::verb::get, "/ai/providers/settings");
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
+    REQUIRE(res.result() == http::status::bad_request);
+  }
   {
     auto req = make_req(
         http::verb::put,
