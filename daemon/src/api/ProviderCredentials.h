@@ -2,6 +2,7 @@
 
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
+#include "privacy/PrivacyError.h"
 
 #include <optional>
 #include <stdexcept>
@@ -54,8 +55,10 @@ AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db
 RIG_ROUTE(PUT, "/ai/providers/credentials")
 RIG_SUMMARY("Create or update a cloud provider API key")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", ProviderCredentialError)
 RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "Secret store unavailable",
+                   holder::privacy::PrivacyError)
 AiProviderCredentialUpsertResponse upsert_provider_credential(
     holder::platform::Db& db RIG_CONTEXT,
     holder::privacy::SecretStore* secret_store RIG_CONTEXT,

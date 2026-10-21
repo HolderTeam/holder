@@ -11,15 +11,11 @@
 namespace holder::api {
 
 AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db) {
-  try {
-    AiProviderSettingsData data;
-    for (const auto& setting : holder::ai::AiProviderSettingRepo(db).list()) {
-      data.providers.push_back({setting.provider, setting.enabled, setting.updated_at});
-    }
-    return {true, std::move(data)};
-  } catch (const std::exception& error) {
-    throw ProviderSettingError(error.what());
+  AiProviderSettingsData data;
+  for (const auto& setting : holder::ai::AiProviderSettingRepo(db).list()) {
+    data.providers.push_back({setting.provider, setting.enabled, setting.updated_at});
   }
+  return {true, std::move(data)};
 }
 
 AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,

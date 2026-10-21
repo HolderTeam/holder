@@ -109,6 +109,13 @@ template <typename T> T decode_body(const std::string& body) {
         throw std::invalid_argument(error.what());
     }
 }
+// The application supplies rig_error_body, found by argument-dependent
+// lookup, to build each declared error body from a mapped exception.
+template <typename Body, typename Error>
+json encode_error(int status, const Error& error) {
+    const Body body = rig_error_body(std::type_identity<Body>{}, status, error);
+    return rig_json::encode(body);
+}
 template <typename Context>
 inline std::optional<response> dispatch(const std::string& method,
                                     const std::string& path,
@@ -133,7 +140,13 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "rebuild_project_from_files");
         }
-        return response{200, rig_json::encode(holder::api::rebuild_project_from_files(context.db, context.fts, std::move(*argument_0))), "rebuild_project_from_files"};
+        try {
+            return response{200, rig_json::encode(holder::api::rebuild_project_from_files(context.db, context.fts, std::move(*argument_0))), "rebuild_project_from_files"};
+        } catch (const holder::api::RebuildFailed& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "rebuild_project_from_files"};
+        } catch (const holder::api::RebuildProjectNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "rebuild_project_from_files"};
+        }
     }
     static const std::regex route_1("^/card\\-references/resolve$");
     if (method == "POST" && std::regex_match(route_path, match, route_1)) {
@@ -145,7 +158,15 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "resolve_card_reference");
         }
-        return response{200, rig_json::encode(holder::api::resolve_card_reference(context.db, std::move(*argument_0))), "resolve_card_reference"};
+        try {
+            return response{200, rig_json::encode(holder::api::resolve_card_reference(context.db, std::move(*argument_0))), "resolve_card_reference"};
+        } catch (const holder::api::CardReferenceInvalidRequest& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "resolve_card_reference"};
+        } catch (const holder::api::CardReferenceProjectNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "resolve_card_reference"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "resolve_card_reference"};
+        }
     }
     static const std::regex route_3("^/ai/providers/credentials$");
     if (method == "GET" && std::regex_match(route_path, match, route_3)) {
@@ -161,7 +182,13 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "upsert_provider_credential");
         }
-        return response{200, rig_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
+        try {
+            return response{200, rig_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
+        } catch (const holder::api::ProviderCredentialError& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "upsert_provider_credential"};
+        } catch (const holder::privacy::PrivacyError& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "upsert_provider_credential"};
+        }
     }
     static const std::regex route_5("^/ai/providers/settings$");
     if (method == "GET" && std::regex_match(route_path, match, route_5)) {
@@ -177,7 +204,11 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "set_provider_setting");
         }
-        return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
+        try {
+            return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
+        } catch (const holder::api::ProviderSettingError& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "set_provider_setting"};
+        }
     }
     static const std::regex route_7("^/ai/providers/settings/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_7)) {
@@ -189,7 +220,11 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "delete_provider_setting");
         }
-        return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
+        try {
+            return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
+        } catch (const holder::api::ProviderSettingError& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_setting"};
+        }
     }
     static const std::regex route_9("^/ai/runner/pull/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_9)) {
@@ -208,7 +243,13 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "get_pull_status");
         }
-        return response{200, rig_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
+        try {
+            return response{200, rig_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
+        } catch (const holder::api::RunnerNotConfigured& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_pull_status"};
+        } catch (const holder::api::PullJobNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_pull_status"};
+        }
     }
     static const std::regex route_2("^/projects/([^/]+)/tags$");
     if (method == "GET" && std::regex_match(route_path, match, route_2)) {
@@ -220,7 +261,13 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "list_project_tags");
         }
-        return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
+        try {
+            return response{200, rig_json::encode(holder::api::list_project_tags(context.db, std::move(*argument_0))), "list_project_tags"};
+        } catch (const holder::api::ProjectNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "list_project_tags"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_project_tags"};
+        }
     }
     static const std::regex route_10("^/cards/([^/]+)/links$");
     if (method == "GET" && std::regex_match(route_path, match, route_10)) {
@@ -240,7 +287,11 @@ inline std::optional<response> dispatch(const std::string& method,
         } catch (const std::out_of_range& error) {
             return invalid_request(error.what(), "list_card_links");
         }
-        return response{200, rig_json::encode(holder::api::routes::list_card_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "list_card_links"};
+        try {
+            return response{200, rig_json::encode(holder::api::routes::list_card_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "list_card_links"};
+        } catch (const holder::api::routes::CardLinkSourceNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "list_card_links"};
+        }
     }
     return std::nullopt;
 }

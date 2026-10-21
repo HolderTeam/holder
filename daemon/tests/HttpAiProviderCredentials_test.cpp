@@ -389,9 +389,10 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
       };
 
   {
+    // Listing takes no input, so a database failure is a server error.
     auto req = make_req(http::verb::get, "/ai/providers/settings");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
   {
     auto req = make_req(
@@ -409,9 +410,10 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
   }
 
   {
+    // Listing takes no input, so a database failure is a server error.
     auto req = make_req(http::verb::get, "/ai/providers/credentials");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
   {
     auto req = make_req(

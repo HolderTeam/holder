@@ -34,7 +34,25 @@ Router::Response error_response(http::status status, std::string code, std::stri
       false, {std::move(code), std::move(message)}}));
 }
 
+std::string error_code(int status) {
+  switch (status) {
+  case 400: return "bad_request";
+  case 404: return "not_found";
+  default: return "error";
+  }
+}
+
 } // namespace
+
+ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+                             const std::exception& error) {
+  return {false, {error_code(status), error.what()}};
+}
+
+ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
+                             const holder::privacy::PrivacyError& error) {
+  return {false, {holder::privacy::privacy_error_code_name(error.code()), error.what()}};
+}
 
 bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
                                holder::platform::Db& db,
@@ -48,7 +66,9 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
         std::string(req.method_string()), std::string(target.data(), target.size()),
         req.body(), context);
     if (!generated) return false;
-    if (generated->status == 400) {
+    // RIG's own request-decoding failures use its invalid_request body; keep
+    // Holder's existing messages for them. Mapped exceptions arrive as ErrorResponse.
+    if (generated->status == 400 && generated->body.value("code", "") == "invalid_request") {
       if (generated->operation == "list_project_tags") {
         res = error_response(http::status::not_found, "not_found", "Project not found.");
       } else if (generated->operation == "get_pull_status") {
@@ -67,29 +87,6 @@ bool dispatch_generated_routes(const Router::Request& req, Router::Response& res
     } else {
       res = support::json_response(static_cast<http::status>(generated->status), generated->body);
     }
-  } catch (const ProjectNotFound& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
-  } catch (const RunnerNotConfigured& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
-  } catch (const PullJobNotFound& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
-  } catch (const routes::CardLinkSourceNotFound& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
-  } catch (const RebuildProjectNotFound& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
-  } catch (const RebuildFailed& error) {
-    res = error_response(http::status::bad_request, "bad_request", error.what());
-  } catch (const ProviderSettingError& error) {
-    res = error_response(http::status::bad_request, "bad_request", error.what());
-  } catch (const holder::privacy::PrivacyError& error) {
-    res = error_response(http::status::service_unavailable,
-                         holder::privacy::privacy_error_code_name(error.code()), error.what());
-  } catch (const ProviderCredentialError& error) {
-    res = error_response(http::status::bad_request, "bad_request", error.what());
-  } catch (const CardReferenceInvalidRequest& error) {
-    res = error_response(http::status::bad_request, "bad_request", error.what());
-  } catch (const CardReferenceProjectNotFound& error) {
-    res = error_response(http::status::not_found, "not_found", error.what());
   } catch (const std::exception& error) {
     res = error_response(http::status::internal_server_error, "error", error.what());
   }

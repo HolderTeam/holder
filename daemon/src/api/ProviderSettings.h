@@ -60,14 +60,14 @@ AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db RIG_C
 RIG_ROUTE(PUT, "/ai/providers/settings")
 RIG_SUMMARY("Set whether a cloud provider is enabled")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", ProviderSettingError)
 AiProviderSettingResponse set_provider_setting(holder::platform::Db& db RIG_CONTEXT,
                                                AiProviderSettingUpdateRequest request);
 
 RIG_ROUTE(DELETE, "/ai/providers/settings/{provider}")
 RIG_SUMMARY("Remove a cloud provider enabled override")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", ProviderSettingError)
 AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db RIG_CONTEXT,
                                                          std::string provider);
 

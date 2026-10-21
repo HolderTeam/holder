@@ -30,16 +30,21 @@ checked-in C++20 JSON codec and dispatcher in `daemon/src/api/generated/`.
 no-match result falls through to the registered and legacy routes.
 `RigAnnotations.h` makes annotations disappear in ordinary C++20 builds.
 
+Each `RIG_ERROR_RESPONSE` names the exception types that produce it, and the
+generated dispatcher catches them and returns that status. `rig_error_body` in
+`GeneratedRoutes.cpp` builds the `ErrorResponse`; `PrivacyError` keeps its own
+code. `GeneratedRoutes.cpp` still turns any unmapped exception into a 500 and
+rewrites RIG's own `invalid_request` 400s into Holder's existing messages.
+
 `daemon/src/api/ProjectTags.h` declares `GET /projects/{project_id}/tags`.
 The shared dispatcher handles this route and its JSON response. Holder supplies
-the database context in `GeneratedRoutes.cpp`, which also maps domain errors
-to HTTP responses. The old handwritten route and JSON response were removed.
+the database context in `GeneratedRoutes.cpp`. The old handwritten route and JSON response were removed.
 RIG omits the server-supplied context from OpenAPI while reflecting the path
 parameter, error responses, field descriptions, and integer minimum.
 
 `daemon/src/api/Rebuild.h` declares `POST /rebuild` with a required JSON request
 record. The generated dispatcher decodes the body and encodes the response;
-the typed operation calls core's rebuilder. Holder maps missing projects to 404
+the typed operation calls core's rebuilder. Missing projects map to 404
 and rebuild failures to 400. The old route wrapper was removed.
 
 `daemon/src/api/ProviderSettings.h` declares GET and PUT on
@@ -58,7 +63,7 @@ the existing secret-store handler.
 `daemon/src/api/RunnerPull.h` declares `GET /ai/runner/pull/{job_id}` with an
 optional `runner_id` query parameter. The shared dispatcher decodes the query
 and path, calls the typed operation with Holder's runner registry, and encodes
-the response. Holder maps runner lookup errors to its existing 404 response.
+the response. Runner lookup errors map to the existing 404 response.
 The response covers 64-bit integers, a double, omittable fields, and an
 omittable nullable field.
 
@@ -70,8 +75,9 @@ card's project from the database before listing links. POST and DELETE still
 use the existing card route. The reflected link response covers optional
 properties and an optional nullable label.
 
-With an installed RIG command and PyYAML, run the comparison from the repo
-root:
+With an installed RIG command, PyYAML and core's installed SDK (the daemon's
+build installs it under `core/out/install/local`; set `CORE_INCLUDE` to use
+another), run the comparison from the repo root:
 
 ```sh
 make -C api/rig check

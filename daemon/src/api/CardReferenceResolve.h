@@ -52,10 +52,10 @@ struct CardReferenceProjectNotFound : std::runtime_error {
 RIG_ROUTE(POST, "/card-references/resolve")
 RIG_SUMMARY("Resolve a card reference within a project and deletion scope")
 RIG_RESPONSE_DESCRIPTION("Resolved, ambiguous, or not-found result")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", CardReferenceInvalidRequest)
 RIG_ERROR_RESPONSE(401, ErrorResponse, "Unauthorized")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(500, ErrorResponse, "Internal server error")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found", CardReferenceProjectNotFound)
+RIG_ERROR_RESPONSE(500, ErrorResponse, "Internal server error", std::exception)
 CardReferenceResolveResponse resolve_card_reference(holder::platform::Db& db RIG_CONTEXT,
                                                      CardReferenceResolveRequest request);
 
