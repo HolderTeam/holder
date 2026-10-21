@@ -111,17 +111,17 @@ jobs:
   rig-contract:
     # The operations reflected from daemon/src/api must match api/openapi.yaml, and the checked-in
     # generated dispatcher and JSON codec in daemon/src/api/generated must match their declarations.
-    # Reflection needs GCC 16; the daemon's own builds do not.
+    # Reflection needs a GCC 16 release (parameter annotations arrived after Ubuntu 26.04's g++-16
+    # snapshot), so this runs in Fedora; the daemon's own builds do not need it.
     needs: core-sdk
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
+    container: fedora:45
     steps:
+      - name: Install GCC 16 and Python
+        run: dnf install -y gcc-c++ make diffutils git python3 python-unversioned-command
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Install GCC 16 and Python
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends g++-16 python3-venv python-is-python3
       - id: sdk
         uses: ./.github/actions/core-sdk
         with:
@@ -135,7 +135,7 @@ jobs:
         env:
           CORE_SDK: ${{ steps.sdk.outputs.sdk }}
         run: >-
-          make -C api/rig check check-generated CXX=g++-16
+          make -C api/rig check check-generated
           RIG="$RUNNER_TEMP/rig/bin/rig" PYTHON="$RUNNER_TEMP/rig/bin/python"
           CORE_INCLUDE="$CORE_SDK/include"
   core-sdk:

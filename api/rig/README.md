@@ -94,8 +94,9 @@ make -C api/rig check
 make -C api/rig check-generated
 ```
 
-Daemon / CI runs both on Ubuntu 26.04 with `g++-16` against the SDK built in the
-same run. After changing a migrated operation, run `make -C api/rig update-generated` and
+Daemon / CI runs both in a Fedora 45 container, whose GCC 16 release supports
+parameter annotations (Ubuntu 26.04's `g++-16` snapshot does not), against the
+SDK built in the same run. After changing a migrated operation, run `make -C api/rig update-generated` and
 commit the generated headers. These commands require RIG only while developing
 the contract; normal daemon builds compile the checked-in headers.
 
