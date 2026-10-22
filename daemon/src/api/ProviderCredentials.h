@@ -42,6 +42,15 @@ struct RIG_OPEN_RECORD AiProviderCredentialUpsertResponse {
   AiProviderCredential data;
 };
 
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderCredentialDeleteResponseData {
+  std::string provider;
+};
+
+struct RIG_OPEN_RECORD AiProviderCredentialDeleteResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  AiProviderCredentialDeleteResponseData data;
+};
+
 struct ProviderCredentialError : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
@@ -61,5 +70,21 @@ AiProviderCredentialUpsertResponse upsert_provider_credential(
     holder::platform::Db& db RIG_CONTEXT,
     holder::privacy::SecretStore* secret_store RIG_CONTEXT,
     AiProviderCredentialUpsertRequest request);
+
+// A privacy failure removing the stored key keeps its code.
+struct ProviderCredentialSecretFailure : holder::privacy::PrivacyError {
+  using PrivacyError::PrivacyError;
+};
+
+RIG_ROUTE(DELETE, "/ai/providers/credentials/{provider}")
+RIG_SUMMARY("Delete a configured cloud provider API key")
+RIG_DESCRIPTION("Removes the stored key and disables the provider. Deleting a provider with no key succeeds.")
+RIG_RESPONSE_DESCRIPTION("OK")
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid provider name", std::invalid_argument)
+RIG_ERROR_RESPONSE(503, ErrorResponse, "Secret store unavailable, or it failed removing the key", SecretStoreUnavailable, ProviderCredentialSecretFailure)
+AiProviderCredentialDeleteResponse delete_provider_credential(
+    holder::platform::Db& db RIG_CONTEXT,
+    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
+    std::string provider);
 
 } // namespace holder::api

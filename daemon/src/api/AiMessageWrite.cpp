@@ -1,10 +1,14 @@
 #include "api/AiMessageWrite.h"
 
 #include "ai/AiMessageRepo.h"
+#include "ai/AiThreadDurability.h"
 #include "ai/AiThreadRepo.h"
 #include "api/support/Time.h"
 #include "card/LinkMutation.h"
 #include "card/LinkRepo.h"
+#include "project/ProjectRepo.h"
+
+#include <nlohmann/json.hpp>
 
 #include <stdexcept>
 #include <utility>
@@ -175,6 +179,65 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
   }
   messages.update_links(message_id);
   return {true, {std::move(message_id)}};
+}
+
+AiMessageCaptureResponse post_ai_messages_capture(holder::platform::Db& db,
+                                                  holder::index::FtsIndexer* fts,
+                                                  const std::function<std::string()>& uuid_v4,
+                                                  AiMessageCaptureRequest request) {
+  if (!holder::project::ProjectRepo(db).get(request.project_id))
+    throw AiCaptureNotFound("Project not found.");
+  const long long created_at =
+      request.created_at.value_or(std::nullopt).value_or(support::now_epoch_seconds());
+  const auto source = request.source.value_or(std::nullopt).value_or("manual_paste");
+
+  holder::ai::AiThreadRepo threads(db);
+  auto thread_id = request.thread_id.value_or(std::nullopt);
+  if (thread_id) {
+    const auto existing = threads.get(*thread_id);
+    if (!existing) throw AiCaptureNotFound("AI thread not found.");
+    if (existing->project_id != request.project_id)
+      throw std::invalid_argument("Thread belongs to a different project.");
+  } else {
+    holder::model::AiThread thread;
+    thread.thread_id = uuid_v4();
+    thread.project_id = request.project_id;
+    thread.title = (request.prompt.empty() ? request.response : request.prompt).substr(0, 80);
+    if (thread.title.empty()) thread.title = "Captured response";
+    thread.created_at = created_at;
+    thread.updated_at = created_at;
+    threads.create(thread);
+    holder::ai::persist_ai_thread(db, thread, "Add AI thread metadata");
+    thread_id = thread.thread_id;
+  }
+
+  holder::ai::AiMessageRepo messages(db, fts);
+  holder::model::AiMessage prompt;
+  prompt.message_id = uuid_v4();
+  prompt.thread_id = *thread_id;
+  prompt.role = "user";
+  prompt.source = source;
+  prompt.content = std::move(request.prompt);
+  prompt.created_at = created_at;
+  messages.append(prompt);
+
+  holder::model::AiMessage response;
+  response.message_id = uuid_v4();
+  response.thread_id = *thread_id;
+  response.role = "assistant";
+  response.source = source;
+  response.provider = request.provider.value_or(std::nullopt);
+  response.model = request.model.value_or(std::nullopt);
+  response.content = std::move(request.response);
+  response.created_at = created_at;
+  nlohmann::json meta = nlohmann::json::object();
+  if (auto url = request.url.value_or(std::nullopt)) meta["url"] = std::move(*url);
+  if (auto context = request.context.value_or(std::nullopt)) meta["context"] = std::move(*context);
+  if (!meta.empty()) response.meta_json = meta.dump();
+  messages.append(response);
+
+  return {true, {std::move(*thread_id), std::move(prompt.message_id),
+                 std::move(response.message_id)}};
 }
 
 } // namespace holder::api

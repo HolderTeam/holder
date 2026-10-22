@@ -126,7 +126,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "The stored configuration",
             "content": {
               "application/json": {
                 "schema": {
@@ -147,6 +147,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -297,6 +307,7 @@
     "/ai/messages/capture": {
       "post": {
         "summary": "Capture prompt/response pair with provenance",
+        "description": "Appends the prompt as a user message and the response as an assistant message carrying provider, model, url and context.",
         "requestBody": {
           "required": true,
           "content": {
@@ -319,7 +330,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, or a thread in another project",
             "content": {
               "application/json": {
                 "schema": {
@@ -339,7 +350,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Project or thread not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -349,7 +360,17 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "A generated ID already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1099,6 +1120,7 @@
     "/ai/providers/credentials/{provider}": {
       "delete": {
         "summary": "Delete a configured cloud provider API key",
+        "description": "Removes the stored key and disables the provider. Deleting a provider with no key succeeds.",
         "parameters": [
           {
             "name": "provider",
@@ -1121,7 +1143,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid provider name",
             "content": {
               "application/json": {
                 "schema": {
@@ -1132,6 +1154,26 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secret store unavailable, or it failed removing the key",
             "content": {
               "application/json": {
                 "schema": {
@@ -9943,9 +9985,11 @@
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Optional; server uses current time if omitted or null."
           }
-        }
+        },
+        "description": "Replaces the whole configuration: an omitted, null or empty model clears it."
       },
       "AiMessage": {
         "type": "object",
@@ -10025,7 +10069,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "An existing thread in the project; when omitted or null a new thread is created, titled from the prompt."
           },
           "prompt": {
             "type": "string"
@@ -10037,7 +10082,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Optional; defaults to manual_paste."
           },
           "provider": {
             "type": [
@@ -10069,7 +10115,8 @@
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Optional; server uses current time if omitted or null."
           }
         },
         "required": [

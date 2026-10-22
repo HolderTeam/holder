@@ -1,4 +1,3 @@
-#include "api/routes/ai/status/AiLocalModelConfigRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
@@ -153,30 +152,4 @@ TEST_CASE("HTTP ai local model config validates input and handles error branches
 
   std::raise(SIGTERM);
   server_thread.join();
-}
-
-TEST_CASE("AiLocalModelConfigRoutes returns false for unrelated path", "[http]") {
-  namespace http = boost::beast::http;
-  auto dir = make_temp_dir();
-  auto db = open_db_with_schema(dir / "holder.db");
-
-  http::request<http::string_body> req{http::verb::get, "/not-local-model-config", 11};
-  http::response<http::string_body> res;
-
-  const bool handled = holder::api::routes::ai::status::handle_ai_local_model_config_routes(
-      "/not-local-model-config",
-      req,
-      res,
-      db
-  );
-  REQUIRE(handled == false);
-
-  // GET is generated; this handler keeps only PUT.
-  http::request<http::string_body> get_req{http::verb::get, "/ai/local-models/config", 11};
-  REQUIRE_FALSE(holder::api::routes::ai::status::handle_ai_local_model_config_routes(
-      "/ai/local-models/config",
-      get_req,
-      res,
-      db
-  ));
 }

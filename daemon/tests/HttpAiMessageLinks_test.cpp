@@ -1,5 +1,4 @@
 #include "api/GeneratedRoutes.h"
-#include "api/routes/ai/AiMessageRoutes.h"
 #include "http_test_helpers.h"
 
 #include "ai/AiMessageRepo.h"
@@ -38,17 +37,12 @@ http::request<http::string_body> make_route_request(
   return req;
 }
 
-// Routes a request as the daemon does: generated routes first, then the host-written fallback.
+// Routes a request through the generated routes, as the daemon does.
 bool route_message(const http::request<http::string_body>& req,
                    http::response<http::string_body>& res,
                    holder::platform::Db& db,
                    holder::index::FtsIndexer* fts) {
-  if (holder::api::dispatch_generated_routes(req, res, db, nullptr, fts)) return true;
-  const auto target = req.target();
-  return holder::api::routes::handle_ai_message_routes(
-      std::string(target.data(), target.size()), req, res, db, fts, [] {
-        return std::string("generated-id");
-      });
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts);
 }
 
 TEST_CASE("AI message links preserve qualified card targets", "[http]") {

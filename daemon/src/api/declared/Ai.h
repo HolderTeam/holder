@@ -12,20 +12,6 @@ namespace holder::api {
 
 // Declared for the contract; the existing route handlers still write these responses.
 
-RIG_ROUTE(DELETE, "/ai/providers/credentials/{provider}")
-RIG_SUMMARY("Delete a configured cloud provider API key")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiProviderCredentialDeleteResponse delete_ai_providers_credentials_provider(std::string provider);
-
-RIG_ROUTE(PUT, "/ai/local-models/config")
-RIG_SUMMARY("Set or clear local model configuration")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiLocalModelConfigResponse put_ai_local_models_config(AiLocalModelConfigUpdateRequest request);
-
 RIG_ROUTE(POST, "/ai/runs")
 RIG_SUMMARY("Create and execute an AI run with routing and streaming")
 RIG_DESCRIPTION("Creates one run and streams run_started (with run_id), provider-dependent progress/router/fallback/chunk events, then done or failed. Every frame has an opaque replay ID. Reconnect via GET /ai/runs/{run_id}/events rather than repeating this POST. Disconnecting does not cancel execution; terminal events follow persisted status.")
@@ -68,15 +54,5 @@ std::string get_ai_runner_pull_job_id_events(
     std::optional<std::string> runner_id RIG_QUERY,
     std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
     std::string job_id);
-
-RIG_ROUTE(POST, "/ai/messages/capture")
-RIG_SUMMARY("Capture prompt/response pair with provenance")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
-AiMessageCaptureResponse post_ai_messages_capture(AiMessageCaptureRequest request);
 
 } // namespace holder::api

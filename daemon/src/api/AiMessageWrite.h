@@ -60,6 +60,34 @@ struct RIG_OPEN_RECORD AiMessageUpdateRequest {
 };
 
 // The request names a thread that cannot be found.
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCaptureResponseData {
+  std::string thread_id;
+  std::string user_message_id;
+  std::string assistant_message_id;
+};
+
+struct RIG_OPEN_RECORD AiMessageCaptureResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  AiMessageCaptureResponseData data;
+};
+
+struct RIG_OPEN_RECORD AiMessageCaptureRequest {
+  std::string project_id;
+  std::optional<std::optional<std::string>> thread_id RIG_FIELD_DESCRIPTION("An existing thread in the project; when omitted or null a new thread is created, titled from the prompt.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::string prompt;
+  std::string response;
+  std::optional<std::optional<std::string>> source RIG_FIELD_DESCRIPTION("Optional; defaults to manual_paste.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> model RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> url RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<nlohmann::json>> context RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<long long>> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or null.") RIG_OMIT_EMPTY RIG_NULLABLE;
+};
+
+struct AiCaptureNotFound : std::runtime_error {
+  using std::runtime_error::runtime_error;
+};
+
 struct AiMessageThreadNotFound : std::invalid_argument {
   AiMessageThreadNotFound() : std::invalid_argument("Thread not found.") {}
 };
@@ -132,5 +160,18 @@ AiMessageCreateResponse delete_ai_messages_message_id_links(
     holder::index::FtsIndexer* fts RIG_CONTEXT,
     std::string message_id,
     std::optional<CardLinkDeleteRequest> request);
+
+RIG_ROUTE(POST, "/ai/messages/capture")
+RIG_SUMMARY("Capture prompt/response pair with provenance")
+RIG_DESCRIPTION("Appends the prompt as a user message and the response as an assistant message carrying provider, model, url and context.")
+RIG_RESPONSE_DESCRIPTION("Created")
+RIG_SUCCESS_STATUS(201)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request, or a thread in another project", std::invalid_argument)
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or thread not found", AiCaptureNotFound)
+RIG_ERROR_RESPONSE(409, ErrorResponse, "A generated ID already exists", holder::model::ConflictError)
+AiMessageCaptureResponse post_ai_messages_capture(holder::platform::Db& db RIG_CONTEXT,
+                                                  holder::index::FtsIndexer* fts RIG_CONTEXT,
+                                                  const std::function<std::string()>& uuid_v4 RIG_CONTEXT,
+                                                  AiMessageCaptureRequest request);
 
 } // namespace holder::api

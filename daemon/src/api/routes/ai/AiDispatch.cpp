@@ -1,11 +1,8 @@
 #include "api/routes/ai/AiDispatch.h"
 
-#include "api/routes/ai/AiMessageRoutes.h"
 #include "api/routes/ai/AiNudgeRoutes.h"
-#include "api/routes/ai/AiProviderRoutes.h"
 #include "api/routes/ai/AiRunRoutes.h"
 #include "api/routes/ai/AiRunnerRoutes.h"
-#include "api/routes/ai/AiStatusRoutes.h"
 
 #include <boost/beast/http.hpp>
 
@@ -52,18 +49,6 @@ DispatchResult dispatch_ai_routes(
 ) {
   const std::string ai_resource = segment_at(path, 2);
 
-  if (ai_resource == "capabilities" || ai_resource == "status" || ai_resource == "local-models") {
-    if (handle_ai_status_routes(path, req, res, db, runner_registry, param)) {
-      return {.handled = true, .streamed = false}; // LCOV_EXCL_LINE
-    }
-    return {.handled = false, .streamed = false};
-  }
-  if (ai_resource == "providers") {
-    if (secret_store && handle_ai_provider_routes(path, req, res, db, *secret_store)) {
-      return {.handled = true, .streamed = false};
-    }
-    return {.handled = false, .streamed = false};
-  }
   if (ai_resource == "nudges") {
     if (handle_ai_nudge_routes(path, req, res, nudge_service)) {
       return {.handled = true, .streamed = false};
@@ -90,9 +75,6 @@ DispatchResult dispatch_ai_routes(
     return {.handled = false, .streamed = false};
   }
   if (ai_resource == "runner" || ai_resource == "runners") {
-    if (handle_ai_status_routes(path, req, res, db, runner_registry, param)) {
-      return {.handled = true, .streamed = false}; // LCOV_EXCL_LINE
-    }
     if (const auto route_result = handle_ai_runner_routes(
             path,
             req,
@@ -107,13 +89,6 @@ DispatchResult dispatch_ai_routes(
     }
     return {.handled = false, .streamed = false};
   }
-  if (ai_resource == "messages") {
-    if (handle_ai_message_routes(path, req, res, db, fts, uuid_v4)) {
-      return {.handled = true, .streamed = false};
-    }
-    return {.handled = false, .streamed = false};
-  }
-
   return {.handled = false, .streamed = false};
 }
 

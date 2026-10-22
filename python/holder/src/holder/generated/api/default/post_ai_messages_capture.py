@@ -58,6 +58,11 @@ def _parse_response(
 
         return response_409
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -81,6 +86,9 @@ def sync_detailed(
     body: AiMessageCaptureRequest,
 ) -> Response[AiMessageCaptureResponse | ErrorResponse]:
     """Capture prompt/response pair with provenance
+
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
 
     Args:
         body (AiMessageCaptureRequest):
@@ -111,6 +119,9 @@ def sync(
 ) -> AiMessageCaptureResponse | ErrorResponse | None:
     """Capture prompt/response pair with provenance
 
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
+
     Args:
         body (AiMessageCaptureRequest):
 
@@ -134,6 +145,9 @@ async def asyncio_detailed(
     body: AiMessageCaptureRequest,
 ) -> Response[AiMessageCaptureResponse | ErrorResponse]:
     """Capture prompt/response pair with provenance
+
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
 
     Args:
         body (AiMessageCaptureRequest):
@@ -161,6 +175,9 @@ async def asyncio(
     body: AiMessageCaptureRequest,
 ) -> AiMessageCaptureResponse | ErrorResponse | None:
     """Capture prompt/response pair with provenance
+
+     Appends the prompt as a user message and the response as an assistant message carrying provider,
+    model, url and context.
 
     Args:
         body (AiMessageCaptureRequest):

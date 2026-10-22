@@ -7,7 +7,6 @@
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/ai/AiMessageRoutes.h"
 #include "http_test_helpers.h"
 #include "model/AiThread.h"
 
@@ -44,19 +43,14 @@ void seed_project_and_thread(holder::platform::Db& db, const std::filesystem::pa
   holder::ai::AiThreadRepo(db).create(thread);
 }
 
-// Routes a request as the daemon does: generated routes first, then the host-written fallback.
+// Routes a request through the generated routes, as the daemon does.
 bool route_message(const http::request<http::string_body>& req,
                    http::response<http::string_body>& res,
                    holder::platform::Db& db,
                    holder::index::FtsIndexer* fts,
                    std::function<std::string()> uuid_v4 = [] { return std::string("u"); }) {
-  if (holder::api::dispatch_generated_routes(req, res, db, nullptr, fts, nullptr, nullptr, uuid_v4,
-                                             {})) {
-    return true;
-  }
-  const auto target = req.target();
-  return holder::api::routes::handle_ai_message_routes(
-      std::string(target.data(), target.size()), req, res, db, fts, uuid_v4);
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts, nullptr, nullptr, uuid_v4,
+                                             {});
 }
 
 } // namespace

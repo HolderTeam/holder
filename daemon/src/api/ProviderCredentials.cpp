@@ -8,6 +8,7 @@
 #include "privacy/SecretStore.h"
 
 #include <exception>
+#include <stdexcept>
 #include <utility>
 
 namespace holder::api {
@@ -60,6 +61,25 @@ AiProviderCredentialUpsertResponse upsert_provider_credential(
   } catch (const std::exception& error) {
     throw ProviderCredentialError(error.what());
   }
+}
+
+AiProviderCredentialDeleteResponse delete_provider_credential(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    std::string provider) {
+  static constexpr const char* kSecretService = "holder.ai_provider_credentials";
+  if (!secret_store) throw SecretStoreUnavailable{};
+  provider = support::normalize_provider_name(provider);
+  if (provider.empty()) throw std::invalid_argument("Invalid provider.");
+  try {
+    secret_store->remove(kSecretService, provider);
+  } catch (const holder::privacy::PrivacyError& error) {
+    throw ProviderCredentialSecretFailure(error.code(), error.what());
+  }
+  holder::ai::AiProviderCredentialRepo(db).remove(provider);
+  holder::ai::AiProviderSettingRepo(db).upsert(provider, false, support::now_epoch_seconds());
+  holder::core::persist_device_config(db);
+  return {true, {std::move(provider)}};
 }
 
 } // namespace holder::api

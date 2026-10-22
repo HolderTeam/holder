@@ -37,14 +37,12 @@ add_executable(holder_daemon_tests
   AiDispatch_test.cpp
   AiDurability_test.cpp
   AiResourceRoutes_test.cpp
-  AiMessageRoutes_test.cpp
   AiMessageCrudRoutes_test.cpp
   HttpAiThreads_test.cpp
   AiThreadRoutes_test.cpp
   HttpAiLocalModelConfig_test.cpp
   HttpAiProviderCatalog_test.cpp
   HttpAiProviderCredentials_test.cpp
-  AiProviderRoutes_test.cpp
   AiNudgeRoutes_test.cpp
   NudgeService_test.cpp
   AiRuntimeStatusRoutes_test.cpp
@@ -192,13 +190,9 @@ add_executable(holder_daemon_tests
   ../src/api/TrashList.cpp
   ../src/api/TrashWrite.cpp
   ../src/api/Listener.cpp
-  ../src/api/routes/ai/AiProviderRoutes.cpp
-  ../src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
   ../src/api/routes/ai/AiNudgeRoutes.cpp
   ../src/api/routes/AuthenticatedRoutes.cpp
   ../src/api/routes/ai/AiDispatch.cpp
-  ../src/api/routes/ai/AiMessageRoutes.cpp
-  ../src/api/routes/ai/messages/AiMessageCaptureRoutes.cpp
   ../src/api/routes/AiResourceRoutes.cpp
   ../src/api/routes/GoogleDriveOAuthRoutes.cpp
   ../src/api/routes/ai/runs/AiRunPostRoute.cpp
@@ -206,8 +200,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/AiRunRoutes.cpp
   ../src/api/routes/ai/AiRunnerRoutes.cpp
   ../src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  ../src/api/routes/ai/AiStatusRoutes.cpp
-  ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
   ../src/api/Search.cpp
   ../src/api/routes/StaticRoutes.cpp

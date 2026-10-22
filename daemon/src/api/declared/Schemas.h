@@ -33,15 +33,6 @@ struct RIG_OPEN_RECORD LocalModel {
   std::optional<std::string> modified_at RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderCredentialDeleteResponseData {
-  std::string provider;
-};
-
-struct RIG_OPEN_RECORD AiProviderCredentialDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiProviderCredentialDeleteResponseData data;
-};
-
 struct RIG_OPEN_RECORD AiRunnerRuntime {
   bool configured;
   bool available;
@@ -84,13 +75,6 @@ struct RIG_OPEN_RECORD AiLocalModelConfigResponse {
   AiLocalModelConfigData data;
 };
 
-struct RIG_OPEN_RECORD AiLocalModelConfigUpdateRequest {
-  std::optional<std::optional<std::string>> fast_model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> strong_model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> deep_model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> updated_at RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
 struct RIG_OPEN_RECORD RIG_DESCRIPTION("Named run events share run_id. Fields vary by event and provider.") AiRunEventData {
   std::string run_id;
   std::optional<std::string> status RIG_OMIT_EMPTY;
@@ -112,30 +96,6 @@ struct RIG_OPEN_RECORD AiRunCreateRequest {
   std::optional<std::string> project_id RIG_OMIT_EMPTY;
   std::optional<std::string> thread_id RIG_OMIT_EMPTY;
   std::optional<nlohmann::json> context RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCaptureResponseData {
-  std::string thread_id;
-  std::string user_message_id;
-  std::string assistant_message_id;
-};
-
-struct RIG_OPEN_RECORD AiMessageCaptureResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiMessageCaptureResponseData data;
-};
-
-struct RIG_OPEN_RECORD AiMessageCaptureRequest {
-  std::string project_id;
-  std::optional<std::optional<std::string>> thread_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string prompt;
-  std::string response;
-  std::optional<std::optional<std::string>> source RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> model RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<nlohmann::json>> context RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> created_at RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD AiThread {
