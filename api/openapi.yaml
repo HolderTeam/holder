@@ -3724,11 +3724,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /locations/{location_id}/oauth/google-drive/callback:
     get:
       summary: Finish connecting a Google Drive location
