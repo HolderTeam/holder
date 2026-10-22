@@ -1,9 +1,10 @@
 #pragma once
 
-#include "api/Router.h"
+#include <boost/beast/http.hpp>
 
 #include <chrono>
 #include <functional>
+#include <string>
 
 namespace holder::platform { class Db; }
 namespace holder::llm { class RunnerRegistry; }
@@ -14,11 +15,14 @@ namespace holder::card { class CardStore; }
 
 namespace holder::api {
 
+using GeneratedRequest = boost::beast::http::request<boost::beast::http::string_body>;
+using GeneratedResponse = boost::beast::http::response<boost::beast::http::string_body>;
+
 // Whether the generated operation for this request is declared RIG_PUBLIC.
-bool is_public_generated_route(const Router::Request& req);
+bool is_public_generated_route(const GeneratedRequest& req);
 
 // Returns false only when no generated operation matches the request.
-bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
+bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry = nullptr,
                                holder::index::FtsIndexer* fts = nullptr,

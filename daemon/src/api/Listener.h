@@ -2,7 +2,6 @@
 
 #include "ai/NudgeService.h"
 #include "api/ConcurrencyProfile.h"
-#include "api/Router.h"
 #include "api/Session.h"
 #include "card/CardStore.h"
 #include "core/SerialExecutor.h"
@@ -40,7 +39,6 @@ class Listener {
       unsigned short port,
       holder::platform::Db& db,
       const std::string& auth_token,
-      const Router& router,
       std::chrono::steady_clock::time_point started_at,
       holder::card::CardStore* card_store,
       holder::index::FtsIndexer* fts,
@@ -73,7 +71,6 @@ class Listener {
   unsigned short port_;
   holder::platform::Db& db_;
   const std::string& auth_token_;
-  const Router& router_;
   std::chrono::steady_clock::time_point started_at_;
   holder::card::CardStore* card_store_ = nullptr;
   holder::index::FtsIndexer* fts_ = nullptr;

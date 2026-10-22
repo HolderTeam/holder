@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ai/NudgeService.h"
-#include "api/Router.h"
 #include "api/support/EventService.h"
 #include "card/CardStore.h"
 #include "git/GitOps.h"
@@ -60,7 +59,6 @@ class Session {
       tcp::socket socket,
       holder::platform::Db& db,
       const std::string& auth_token,
-      const Router& router,
       std::chrono::steady_clock::time_point started_at,
       holder::card::CardStore* card_store,
       holder::index::FtsIndexer* fts,
@@ -74,7 +72,6 @@ class Session {
       PreparedRequest prepared,
       holder::platform::Db& db,
       const std::string& auth_token,
-      const Router& router,
       std::chrono::steady_clock::time_point started_at,
       holder::card::CardStore* card_store,
       holder::index::FtsIndexer* fts,
@@ -107,7 +104,6 @@ class Session {
   tcp::socket socket_;
   holder::platform::Db& db_;
   const std::string& auth_token_;
-  const Router& router_;
   std::chrono::steady_clock::time_point started_at_;
   holder::card::CardStore* card_store_ = nullptr;
   holder::index::FtsIndexer* fts_ = nullptr;

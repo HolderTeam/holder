@@ -101,7 +101,6 @@ add_executable(holder_daemon_tests
   HttpSearchAiFlow_test.cpp
   Entrypoint_test.cpp
   FatalError_test.cpp
-  Router_test.cpp
   Cli_test.cpp
   HolderCtl_test.cpp
   HolderCtlSync_test.cpp
@@ -219,7 +218,6 @@ add_executable(holder_daemon_tests
   ../src/api/support/ChangeFeed.cpp
   ../src/api/support/EventService.cpp
   ../src/api/Session.cpp
-  ../src/api/Router.cpp
   ../src/git/ExecutorGitOps.cpp
   ../src/sync/ProjectSyncWorker.cpp
   ../src/storage/S3SigV4.cpp

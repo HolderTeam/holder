@@ -40,7 +40,6 @@ HttpServer::HttpServer(
       port_(port),
       db_(db),
       auth_token_(std::move(auth_token)),
-      router_(),
       runner_registry_(runner_registry),
       nudge_service_(db, runner_registry),
       secret_store_(holder::privacy::make_default_secret_store(
@@ -61,7 +60,6 @@ HttpServer::BoundInfo HttpServer::start() {
       port_,
       db_,
       auth_token_,
-      router_,
       started_at_,
       card_store_,
       fts_,

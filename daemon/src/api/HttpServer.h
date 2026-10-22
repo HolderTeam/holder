@@ -2,7 +2,6 @@
 
 #include "ai/NudgeService.h"
 #include "api/ConcurrencyProfile.h"
-#include "api/Router.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
 #include "llm/RunnerRegistry.h"
@@ -54,7 +53,6 @@ class HttpServer {
   holder::platform::Db& db_;
   std::string auth_token_;
   std::chrono::steady_clock::time_point started_at_;
-  Router router_;
   std::unique_ptr<Listener> listener_;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;
   holder::ai::NudgeService nudge_service_;

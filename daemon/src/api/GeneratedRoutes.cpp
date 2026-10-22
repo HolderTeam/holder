@@ -98,13 +98,13 @@ ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
   return {false, {error.code, error.what()}};
 }
 
-bool is_public_generated_route(const Router::Request& req) {
+bool is_public_generated_route(const GeneratedRequest& req) {
   const auto target = req.target();
   return rig_http::is_public(std::string(req.method_string()),
                              std::string(target.data(), target.size()));
 }
 
-bool dispatch_generated_routes(const Router::Request& req, Router::Response& res,
+bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry,
                                holder::index::FtsIndexer* fts,

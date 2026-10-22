@@ -242,7 +242,6 @@ Session::Session(
     tcp::socket socket,
     holder::platform::Db& db,
     const std::string& auth_token,
-    const Router& router,
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
@@ -255,7 +254,6 @@ Session::Session(
     : socket_(std::move(socket)),
       db_(db),
       auth_token_(auth_token),
-      router_(router),
       started_at_(started_at),
       card_store_(card_store),
       fts_(fts),
@@ -269,7 +267,6 @@ Session::Session(
     PreparedRequest prepared,
     holder::platform::Db& db,
     const std::string& auth_token,
-    const Router& router,
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
@@ -282,7 +279,6 @@ Session::Session(
     : socket_(std::move(prepared.socket)),
       db_(db),
       auth_token_(auth_token),
-      router_(router),
       started_at_(started_at),
       card_store_(card_store),
       fts_(fts),
@@ -402,8 +398,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
         if (streamed) return std::nullopt;
       } else if (!dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
                                             git_ops_, [] { return generate_uuid_v4(); },
-                                            started_at_, card_store_) &&
-                 !router_.dispatch(req_, res)) {
+                                            started_at_, card_store_)) {
         const auto route_result = routes::dispatch_authenticated_routes(
             path_,
             query_string_,

@@ -459,7 +459,6 @@ add_executable(holderd
   src/api/support/ChangeFeed.cpp
   src/api/support/EventService.cpp
   src/api/Session.cpp
-  src/api/Router.cpp
   src/git/ExecutorGitOps.cpp
   src/sync/ProjectSyncWorker.cpp
   src/storage/S3SigV4.cpp

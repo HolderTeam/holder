@@ -1,5 +1,4 @@
 #include "api/Listener.h"
-#include "api/Router.h"
 #include "platform/Db.h"
 #include "platform/Signal.h"
 
@@ -17,14 +16,11 @@
 TEST_CASE("Listener accept error branch is exercised", "[listener]") {
   holder::platform::Db db;
   db.open(std::filesystem::temp_directory_path() / "holder_listener_error.db");
-
-  holder::api::Router router;
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       "token",
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
