@@ -355,30 +355,52 @@ bool Session::ensure_request_loaded() {
 
 std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   Response res;
-  bool streamed = false;
+  support::StreamServer stream;
   if (!is_public_generated_route(req_) && !support::is_authorized_bearer(req_, auth_token_)) {
     res = support::error_response(
         http::status::unauthorized,
         "unauthorized",
         "Missing or invalid token."
     );
-  } else if (dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
-                                       git_ops_, [] { return generate_uuid_v4(); },
-                                       started_at_, card_store_, events_)) {
-    // Generated, or a 405 for a declared path with another method.
+  } else if (
+      dispatch_generated_routes(
+          req_,
+          res,
+          db_,
+          runner_registry_,
+          fts_,
+          secret_store_,
+          git_ops_,
+          [] {
+            return generate_uuid_v4();
+          },
+          started_at_,
+          card_store_,
+          events_,
+          &stream
+      )
+  ) {
+    // Generated, or a 405 for a declared path with another method. A stream the generated
+    // route has checked is written here, on this request's socket.
+    if (stream && stream(socket_, res)) return std::nullopt;
   } else if (!is_host_served_route(req_)) {
     // The handlers below serve only the routes the contract declares.
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
   } else if (path_ == "/ping") {
     res = ping_response();
-  } else if (routes::handle_static_routes(path_, req_, res) ||
-             routes::handle_google_drive_oauth_callback_route(
-                 path_, query_string_, req_, res, db_, secret_store_, git_ops_
-             )) {
+  } else if (
+      routes::handle_static_routes(path_, req_, res) ||
+      routes::handle_google_drive_oauth_callback_route(
+          path_,
+          query_string_,
+          req_,
+          res,
+          db_,
+          secret_store_,
+          git_ops_
+      )
+  ) {
     // Public: the callback is Google redirecting the user's browser, which has no token.
-  } else if (events_ &&
-             events_->dispatch(path_, query_string_, req_, res, socket_, db_, streamed)) {
-    if (streamed) return std::nullopt;
   } else {
     const auto route_result = routes::dispatch_authenticated_routes(
         path_,
@@ -387,14 +409,11 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
         res,
         socket_,
         db_,
-        fts_,
         secret_store_,
         git_ops_,
-        runner_registry_,
         [&]() { // LCOV_EXCL_LINE
           return generate_uuid_v4();
-        },
-        events_ ? events_->streams() : nullptr
+        }
     );
     if (route_result.streamed) return std::nullopt;
   }

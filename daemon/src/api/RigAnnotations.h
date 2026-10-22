@@ -6,6 +6,7 @@
 #include <rig/result.hpp>
 #include <rig/route.hpp>
 #else
+#include <any>
 #include <string>
 
 #define RIG_ROUTE(method, path)
@@ -57,6 +58,13 @@ template <typename Body>
 struct success {
   int status;
   Body body;
+};
+
+// RIG's rig::host_value: the status a RIG_HOST_RESPONSE operation chose, and what the host
+// needs to write the body itself.
+struct host_value {
+  int status = 200;
+  std::any value;
 };
 
 // RIG's rig::event: a declared event's name and encoded data. Build it with the generated

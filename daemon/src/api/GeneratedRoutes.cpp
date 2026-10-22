@@ -3,6 +3,7 @@
 #include "api/RigRuntime.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
+#include "api/support/StreamServer.h"
 #include "privacy/SecretStore.h"
 
 #include <boost/beast/http.hpp>
@@ -70,16 +71,20 @@ bool is_host_served_route(const GeneratedRequest& req) {
                                   std::string(target.data(), target.size()));
 }
 
-bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,
-                               holder::platform::Db& db,
-                               holder::llm::RunnerRegistry* registry,
-                               holder::index::FtsIndexer* fts,
-                               holder::privacy::SecretStore* secret_store,
-                               holder::git::GitOps* git_ops,
-                               std::function<std::string()> uuid_v4,
-                               std::chrono::steady_clock::time_point started_at,
-                               holder::card::CardStore* card_store,
-                               holder::api::support::EventService* events) {
+bool dispatch_generated_routes(
+    const GeneratedRequest& req,
+    GeneratedResponse& res,
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    holder::index::FtsIndexer* fts,
+    holder::privacy::SecretStore* secret_store,
+    holder::git::GitOps* git_ops,
+    std::function<std::string()> uuid_v4,
+    std::chrono::steady_clock::time_point started_at,
+    holder::card::CardStore* card_store,
+    holder::api::support::EventService* events,
+    support::StreamServer* stream
+) {
   const auto target = req.target();
   Context context{
       db,         registry,   fts,   secret_store, git_ops, std::move(uuid_v4),
@@ -96,6 +101,17 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
           return std::string(field->value());
         });
     if (!generated) return false;
+    if (generated->host.has_value()) {
+      // A host-value route: the session serves the body with the route's StreamServer.
+      auto server = std::any_cast<support::StreamServer>(std::move(generated->host));
+      if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
+      *stream = std::move(server);
+      return true;
+    }
+    if (generated->status == 204) {
+      res = support::stream_finished_response();
+      return true;
+    }
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
     if (!generated->allow.empty()) res.set(http::field::allow, generated->allow);
   } catch (const std::exception& error) {

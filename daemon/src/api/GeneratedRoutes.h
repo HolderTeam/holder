@@ -1,5 +1,7 @@
 #pragma once
 
+#include "api/support/StreamServer.h"
+
 #include <boost/beast/http.hpp>
 
 #include <chrono>
@@ -26,7 +28,8 @@ bool is_public_generated_route(const GeneratedRequest& req);
 // daemon's own handlers write.
 bool is_host_served_route(const GeneratedRequest& req);
 
-// Returns false only when no generated operation matches the request.
+// Returns false only when no generated operation matches the request. A route the daemon
+// writes itself, such as an event stream, leaves res alone and its server in *stream.
 bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,
                                holder::platform::Db& db,
                                holder::llm::RunnerRegistry* registry = nullptr,
@@ -36,6 +39,7 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
                                std::function<std::string()> uuid_v4 = {},
                                std::chrono::steady_clock::time_point started_at = {},
                                holder::card::CardStore* card_store = nullptr,
-                               holder::api::support::EventService* events = nullptr);
+                               holder::api::support::EventService* events = nullptr,
+                               support::StreamServer* stream = nullptr);
 
 } // namespace holder::api

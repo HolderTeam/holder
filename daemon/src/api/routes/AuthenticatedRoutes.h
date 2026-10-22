@@ -1,11 +1,6 @@
 #pragma once
 
-#include "api/support/SseStream.h"
-
-#include "card/CardStore.h"
 #include "git/GitOps.h"
-#include "index/FtsIndexer.h"
-#include "llm/RunnerRegistry.h"
 #include "platform/Db.h"
 #include "privacy/SecretStore.h"
 
@@ -21,6 +16,8 @@ struct AuthenticatedDispatchResult {
   bool streamed = false;
 };
 
+// The authenticated routes the daemon writes itself; the session calls it only for routes
+// the contract declares that way.
 AuthenticatedDispatchResult dispatch_authenticated_routes(
     const std::string& path,
     const std::string& query_string,
@@ -28,12 +25,9 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     boost::beast::http::response<boost::beast::http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
-    holder::index::FtsIndexer* fts,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
-    holder::llm::RunnerRegistry* runner_registry,
-    const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams = {}
+    const std::function<std::string()>& uuid_v4
 );
 
 } // namespace holder::api::routes

@@ -286,12 +286,12 @@ struct AiRunPostInput {
 };
 
 std::optional<AiRunPostInput> parse_ai_run_post_input(
-    const http::request<http::string_body>& req,
+    const std::string& body,
     http::response<http::string_body>& res
 ) {
   AiRunPostInput input;
   try {
-    input.body = nlohmann::json::parse(req.body());
+    input.body = nlohmann::json::parse(body);
   } catch (const std::exception& ex) {
     res = support::error_response(http::status::bad_request, "bad_request", ex.what());
     return std::nullopt;
@@ -1490,11 +1490,35 @@ RouteDispatchResult handle_ai_runs_post_route(
     const std::function<std::string()>& uuid_v4,
     std::shared_ptr<holder::api::support::SseRegistry> streams
 ) {
+  return execute_ai_run(
+      req.body(),
+      res,
+      socket,
+      db,
+      fts,
+      secret_store,
+      runner_registry,
+      uuid_v4,
+      std::move(streams)
+  );
+}
+
+RouteDispatchResult execute_ai_run(
+    const std::string& request_body,
+    http::response<http::string_body>& res,
+    boost::asio::ip::tcp::socket& socket,
+    holder::platform::Db& db,
+    holder::index::FtsIndexer* fts,
+    holder::privacy::SecretStore* secret_store,
+    holder::llm::RunnerRegistry* runner_registry,
+    const std::function<std::string()>& uuid_v4,
+    std::shared_ptr<holder::api::support::SseRegistry> streams
+) {
   RouteDispatchResult out{};
   out.handled = true;
   try {
     holder::llm::RunnerClient* runner = nullptr;
-    const auto parsed = parse_ai_run_post_input(req, res);
+    const auto parsed = parse_ai_run_post_input(request_body, res);
     if (!parsed.has_value()) {
       return out;
     }

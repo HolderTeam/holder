@@ -1844,6 +1844,16 @@
               }
             }
           },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Observer unavailable or stream limit reached",
             "content": {
@@ -2541,6 +2551,16 @@
               }
             }
           },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No local runner or configured cloud provider available",
             "content": {
@@ -2914,6 +2934,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -6004,7 +6034,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           {
@@ -6302,8 +6333,18 @@
               }
             }
           },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
-            "description": "Observer unavailable or stream limit reached",
+            "description": "Observer or project unavailable, or stream limit reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -6383,7 +6424,7 @@
             }
           },
           "503": {
-            "description": "Change feed unavailable",
+            "description": "Change feed or project unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -12108,22 +12149,44 @@
             "description": "auto or model"
           },
           "model": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Optional explicit model id; interpreted for local or cloud selected provider."
           },
           "provider": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Optional cloud provider id when local runner is unavailable."
           },
           "project_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "thread_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "context": {
-            "type": "object",
+            "type": [
+              "object",
+              "null"
+            ],
             "additionalProperties": true
+          },
+          "runner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The local runner to use; defaults to the automatic local runner."
           }
         },
         "required": [

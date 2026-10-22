@@ -6,6 +6,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/GeneratedRoutes.h"
 #include "api/HttpServer.h"
 #include "card/CardStore.h"
 #include "git/GitRepo.h"
@@ -73,6 +74,41 @@ class HttpServerThreadGuard {
   holder::core::SignalHandler& signals_;
   std::thread thread_;
 };
+
+struct ServedRequest {
+  bool handled = false;
+  bool streamed = false;
+};
+
+// Dispatches a request as the daemon's session does: through the generated routes, then
+// writing any stream a route hands back on socket. res holds the response otherwise.
+inline ServedRequest serve_generated(
+    const boost::beast::http::request<boost::beast::http::string_body>& req,
+    boost::beast::http::response<boost::beast::http::string_body>& res,
+    boost::asio::ip::tcp::socket& socket,
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry = nullptr,
+    holder::api::support::EventService* events = nullptr
+) {
+  holder::api::support::StreamServer stream;
+  const bool handled = holder::api::dispatch_generated_routes(
+      req,
+      res,
+      db,
+      registry,
+      nullptr,
+      nullptr,
+      nullptr,
+      [] {
+        return std::string("id");
+      },
+      {},
+      nullptr,
+      events,
+      &stream
+  );
+  return {handled, handled && stream && stream(socket, res)};
+}
 
 inline std::filesystem::path make_temp_dir() {
   const auto base = std::filesystem::temp_directory_path();

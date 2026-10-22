@@ -219,27 +219,16 @@ TEST_CASE("Ai run events route handles direct empty/missing identifiers", "[http
   boost::asio::ip::tcp::socket socket(ioc);
   http::response<http::string_body> res;
 
-  SECTION("empty run_id path returns not_found") {
+  SECTION("empty run_id path is not a route") {
     holder::platform::Db db = open_db_with_schema(make_temp_dir() / "holder.db");
-    auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(
-        "/ai/runs//events",
-        socket,
-        res,
-        db
-    );
-    REQUIRE(out.handled == true);
-    REQUIRE(out.streamed == false);
-    REQUIRE(res.result() == http::status::not_found);
+    http::request<http::string_body> req{http::verb::get, "/ai/runs//events", 11};
+    REQUIRE_FALSE(holder::test::serve_generated(req, res, socket, db).handled);
   }
 
   SECTION("db exception during get returns not_found") {
     holder::platform::Db unopened_db;
-    auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(
-        "/ai/runs/run-1/events",
-        socket,
-        res,
-        unopened_db
-    );
+    http::request<http::string_body> req{http::verb::get, "/ai/runs/run-1/events", 11};
+    auto out = holder::test::serve_generated(req, res, socket, unopened_db);
     REQUIRE(out.handled == true);
     REQUIRE(out.streamed == false);
     REQUIRE(res.result() == http::status::not_found);
@@ -356,7 +345,9 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
   boost::asio::ip::tcp::socket socket(ioc);
   const auto path = "/ai/runs/" + run.run_id + "/events";
   http::response<http::string_body> res;
-  auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(path, socket, res, db, done.id);
+  http::request<http::string_body> req{http::verb::get, path, 11};
+  req.set("Last-Event-ID", done.id);
+  auto out = holder::test::serve_generated(req, res, socket, db);
   REQUIRE(out.handled);
   REQUIRE_FALSE(out.streamed);
   REQUIRE(res.result() == http::status::no_content);
@@ -364,6 +355,7 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
 
   // A reconnect that has not yet received the final event is not told to stop.
   http::response<http::string_body> pending;
-  out = holder::api::routes::ai::runs::handle_ai_runs_events_route(path, socket, pending, db, started);
+  req.set("Last-Event-ID", started);
+  out = holder::test::serve_generated(req, pending, socket, db);
   REQUIRE(pending.result() != http::status::no_content);
 }

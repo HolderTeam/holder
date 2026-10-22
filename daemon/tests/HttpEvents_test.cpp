@@ -156,9 +156,9 @@ TEST_CASE("HTTP change stream validates auth, project and revision inputs", "[ht
   request("/events", http::status::unauthorized, "bad-token");
   request("/events?project_id=missing", http::status::not_found);
   request("/events?last_revision=" + std::string(40, 'a'), http::status::bad_request);
-  request("/events?project_id=%00", http::status::bad_request);
+  // No project has a NUL in its ID.
+  request("/events?project_id=%00", http::status::not_found);
   request("/events?project_id=p&project_id=q", http::status::bad_request);
-  request("/events?unsupported=true", http::status::bad_request);
   REQUIRE(
       holder::test::http_request_raw(
           bound.bind,

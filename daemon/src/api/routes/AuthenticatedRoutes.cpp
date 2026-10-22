@@ -1,7 +1,6 @@
 #include "api/routes/AuthenticatedRoutes.h"
 
 #include "api/routes/AiResourceRoutes.h"
-#include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
 #include "api/support/HttpResponses.h"
 
@@ -14,14 +13,6 @@ namespace {
 
 namespace http = boost::beast::http;
 
-std::string first_segment(const std::string& path) {
-  if (path.empty() || path[0] != '/') return {};
-  const auto start = std::size_t{1};
-  if (start >= path.size()) return {};
-  const auto end = path.find('/', start);
-  return path.substr(start, end == std::string::npos ? std::string::npos : end - start);
-}
-
 } // namespace
 
 AuthenticatedDispatchResult dispatch_authenticated_routes(
@@ -31,51 +22,27 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     http::response<http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
-    holder::index::FtsIndexer* fts,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
-    holder::llm::RunnerRegistry* runner_registry,
-    const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams
+    const std::function<std::string()>& uuid_v4
 ) {
-  const std::string resource = first_segment(path);
   auto param = [&](const std::string& key) -> std::string {
     return support::query_param_value(query_string, key);
   };
-
-  if (resource == "ai") {
-    const auto route_result = ai::dispatch_ai_routes(
-        path,
-        req,
-        res,
-        socket,
-        db,
-        fts,
-        secret_store,
-        runner_registry,
-        uuid_v4,
-        param,
-        streams
-    );
-    if (route_result.handled) {
-      return {.streamed = route_result.streamed};
-    }
-  } else if (resource == "resources" || resource == "locations") {
-    bool streamed = false;
-    if (handle_ai_resource_routes(
-            path,
-            req,
-            res,
-            db,
-            uuid_v4,
-            param,
-            secret_store,
-            git_ops,
-            &socket,
-            &streamed
-        ))
-      return {.streamed = streamed};
-  }
+  bool streamed = false;
+  if (handle_ai_resource_routes(
+          path,
+          req,
+          res,
+          db,
+          uuid_v4,
+          param,
+          secret_store,
+          git_ops,
+          &socket,
+          &streamed
+      ))
+    return {.streamed = streamed};
 
   res = support::error_response(http::status::not_found, "not_found", "Route not found.");
   return {};

@@ -1,9 +1,10 @@
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 
 #include "ai/AiRunRepo.h"
+#include "api/AiRuns.h"
 #include "api/generated/RuntimeJson.h"
-#include "api/support/HttpResponses.h"
 #include "api/support/RunEventStore.h"
+#include "api/support/StreamServer.h"
 #include "api/support/Time.h"
 #include "llm/RunnerModelRef.h"
 
@@ -18,39 +19,21 @@
 #include <vector>
 
 namespace holder::api::routes::ai::runs {
-namespace {
 
-namespace http = boost::beast::http;
-
-} // namespace
-
-RouteDispatchResult handle_ai_runs_events_route(
-    const std::string& path,
-    boost::asio::ip::tcp::socket& socket,
-    http::response<http::string_body>& res,
+rig::host_value get_ai_runs_run_id_events_stream(
     holder::platform::Db& db,
+    std::shared_ptr<support::SseRegistry> streams,
     const std::string& last_event_id,
-    std::shared_ptr<support::SseRegistry> streams
+    const std::string& run_id
 ) {
-  RouteDispatchResult out{.handled = true};
-  const std::string prefix = "/ai/runs/";
-  const std::string suffix = "/events";
-  const auto run_id = path.substr(prefix.size(), path.size() - prefix.size() - suffix.size());
-  if (!last_event_id.empty() && !support::EventJournal::valid_cursor(last_event_id)) {
-    res =
-        support::error_response(http::status::bad_request, "bad_request", "Invalid Last-Event-ID.");
-    return out;
-  }
+  if (!last_event_id.empty() && !support::EventJournal::valid_cursor(last_event_id))
+    throw std::invalid_argument("Invalid Last-Event-ID.");
   std::optional<holder::model::AiRun> run;
   try {
-    holder::ai::AiRunRepo repo(db);
-    run = repo.get(run_id);
+    run = holder::ai::AiRunRepo(db).get(run_id);
   } catch (const std::exception&) {
   }
-  if (!run || run_id.empty()) {
-    res = support::error_response(http::status::not_found, "not_found", "Run not found.");
-    return out;
-  }
+  if (!run || run_id.empty()) throw AiRunNotFound();
   // A completed run survives daemon restart even when its transient chunk history
   // does not. Return its terminal state on a fresh connection; a stale cursor
   // explicitly requests a refresh rather than silently replaying a new history.
@@ -58,8 +41,7 @@ RouteDispatchResult handle_ai_runs_events_route(
   // A reconnect already past the last event of a finished stream has nothing more to receive.
   if (!last_event_id.empty() && stored && stored->finished && stored->events.empty() &&
       !stored->resync_required) {
-    res = support::stream_finished_response();
-    return out;
+    return {204, {}};
   }
   if (!stored && (run->status == "completed" || run->status == "failed")) {
     AiRunEventData terminal{.run_id = run_id, .error = run->error};
@@ -98,17 +80,7 @@ RouteDispatchResult handle_ai_runs_events_route(
     cursor = batch->cursor;
     return *batch;
   };
-  auto stream = support::SseStream::start(socket, std::move(streams), std::move(source));
-  if (!stream) {
-    res = support::error_response(
-        http::status::service_unavailable,
-        "server_busy",
-        "Too many event streams."
-    );
-    return out;
-  }
-  out.streamed = true;
-  return out;
+  return {200, support::serve_events(std::move(streams), std::move(source))};
 }
 
 } // namespace holder::api::routes::ai::runs

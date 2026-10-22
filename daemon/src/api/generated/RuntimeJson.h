@@ -994,10 +994,6 @@ template <> struct codec<holder::api::TrashListResponse> {
     static json encode(const holder::api::TrashListResponse& value);
     static holder::api::TrashListResponse decode(const json& value);
 };
-template <> struct codec<holder::api::AiStreamResyncData> {
-    static json encode(const holder::api::AiStreamResyncData& value);
-    static holder::api::AiStreamResyncData decode(const json& value);
-};
 template <> struct codec<holder::api::MilestoneWithDatesResponse> {
     static json encode(const holder::api::MilestoneWithDatesResponse& value);
     static holder::api::MilestoneWithDatesResponse decode(const json& value);
@@ -1121,6 +1117,10 @@ template <> struct codec<holder::api::SearchMessageItem> {
 template <> struct codec<holder::api::SearchMessagesResponse> {
     static json encode(const holder::api::SearchMessagesResponse& value);
     static holder::api::SearchMessagesResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiStreamResyncData> {
+    static json encode(const holder::api::AiStreamResyncData& value);
+    static holder::api::AiStreamResyncData decode(const json& value);
 };
 template <> struct codec<holder::api::TrashEmptyResult> {
     static json encode(const holder::api::TrashEmptyResult& value);
@@ -2054,19 +2054,22 @@ inline json codec<holder::api::AiRunCreateRequest>::encode(const holder::api::Ai
         result["mode"] = codec<std::optional<std::string>>::encode(value.mode);
     }
     if (value.model) {
-        result["model"] = codec<std::optional<std::string>>::encode(value.model);
+        result["model"] = codec<std::optional<std::optional<std::string>>>::encode(value.model);
     }
     if (value.provider) {
-        result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
+        result["provider"] = codec<std::optional<std::optional<std::string>>>::encode(value.provider);
     }
     if (value.project_id) {
-        result["project_id"] = codec<std::optional<std::string>>::encode(value.project_id);
+        result["project_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.project_id);
     }
     if (value.thread_id) {
-        result["thread_id"] = codec<std::optional<std::string>>::encode(value.thread_id);
+        result["thread_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.thread_id);
     }
     if (value.context) {
-        result["context"] = codec<std::optional<nlohmann::json>>::encode(value.context);
+        result["context"] = codec<std::optional<std::optional<nlohmann::json>>>::encode(value.context);
+    }
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.runner_id);
     }
     return result;
 }
@@ -2076,11 +2079,12 @@ inline holder::api::AiRunCreateRequest codec<holder::api::AiRunCreateRequest>::d
     return holder::api::AiRunCreateRequest{
         codec<std::string>::decode(value.at("prompt")),
         value.contains("mode") ? codec<std::optional<std::string>>::decode(value.at("mode")) : std::nullopt,
-        value.contains("model") ? codec<std::optional<std::string>>::decode(value.at("model")) : std::nullopt,
-        value.contains("provider") ? codec<std::optional<std::string>>::decode(value.at("provider")) : std::nullopt,
-        value.contains("project_id") ? codec<std::optional<std::string>>::decode(value.at("project_id")) : std::nullopt,
-        value.contains("thread_id") ? codec<std::optional<std::string>>::decode(value.at("thread_id")) : std::nullopt,
-        value.contains("context") ? codec<std::optional<nlohmann::json>>::decode(value.at("context")) : std::nullopt,
+        value.contains("model") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("model"))} : std::nullopt,
+        value.contains("provider") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("provider"))} : std::nullopt,
+        value.contains("project_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("project_id"))} : std::nullopt,
+        value.contains("thread_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("thread_id"))} : std::nullopt,
+        value.contains("context") ? std::optional<std::optional<nlohmann::json>>{std::in_place, codec<std::optional<nlohmann::json>>::decode(value.at("context"))} : std::nullopt,
+        value.contains("runner_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("runner_id"))} : std::nullopt,
     };
 }
 
@@ -6145,21 +6149,6 @@ inline holder::api::TrashListResponse codec<holder::api::TrashListResponse>::dec
     };
 }
 
-inline json codec<holder::api::AiStreamResyncData>::encode(const holder::api::AiStreamResyncData& value) {
-    json result = json::object();
-    if (value.reason != "history_unavailable") throw std::invalid_argument("invalid reason");
-    result["reason"] = codec<std::string>::encode(value.reason);
-    return result;
-}
-inline holder::api::AiStreamResyncData codec<holder::api::AiStreamResyncData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiStreamResyncData");
-    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
-    if (value.at("reason") != "history_unavailable") throw std::invalid_argument("invalid reason");
-    return holder::api::AiStreamResyncData{
-        codec<std::string>::decode(value.at("reason")),
-    };
-}
-
 inline json codec<holder::api::MilestoneWithDatesResponse>::encode(const holder::api::MilestoneWithDatesResponse& value) {
     json result = json::object();
     if (value.ok != true) throw std::invalid_argument("invalid ok");
@@ -6794,6 +6783,21 @@ inline holder::api::SearchMessagesResponse codec<holder::api::SearchMessagesResp
     return holder::api::SearchMessagesResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::SearchMessageItem>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiStreamResyncData>::encode(const holder::api::AiStreamResyncData& value) {
+    json result = json::object();
+    if (value.reason != "history_unavailable") throw std::invalid_argument("invalid reason");
+    result["reason"] = codec<std::string>::encode(value.reason);
+    return result;
+}
+inline holder::api::AiStreamResyncData codec<holder::api::AiStreamResyncData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiStreamResyncData");
+    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
+    if (value.at("reason") != "history_unavailable") throw std::invalid_argument("invalid reason");
+    return holder::api::AiStreamResyncData{
+        codec<std::string>::decode(value.at("reason")),
     };
 }
 

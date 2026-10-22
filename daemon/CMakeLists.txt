@@ -433,15 +433,13 @@ add_executable(holderd
   src/api/Listener.cpp
   src/api/AiNudges.cpp
   src/api/EventCursor.cpp
+  src/api/Streams.cpp
   src/api/GoogleDriveOAuth.cpp
   src/api/routes/AuthenticatedRoutes.cpp
-  src/api/routes/ai/AiDispatch.cpp
   src/api/routes/AiResourceRoutes.cpp
   src/api/routes/GoogleDriveOAuthRoutes.cpp
   src/api/routes/ai/runs/AiRunPostRoute.cpp
   src/api/routes/ai/runs/AiRunQueryRoutes.cpp
-  src/api/routes/ai/AiRunRoutes.cpp
-  src/api/routes/ai/AiRunnerRoutes.cpp
   src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
   src/api/CardReferenceResolve.cpp
   src/api/Search.cpp
@@ -458,6 +456,7 @@ add_executable(holderd
   src/api/support/RunEventStore.cpp
   src/api/support/EventJournal.cpp
   src/api/support/SseStream.cpp
+  src/api/support/StreamServer.cpp
   src/api/support/ChangeFeed.cpp
   src/api/support/EventService.cpp
   src/api/Session.cpp

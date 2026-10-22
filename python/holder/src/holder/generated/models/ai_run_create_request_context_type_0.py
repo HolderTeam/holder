@@ -7,11 +7,11 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="AiRunCreateRequestContext")
+T = TypeVar("T", bound="AiRunCreateRequestContextType0")
 
 
 @_attrs_define
-class AiRunCreateRequestContext:
+class AiRunCreateRequestContextType0:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -24,10 +24,10 @@ class AiRunCreateRequestContext:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        ai_run_create_request_context = cls()
+        ai_run_create_request_context_type_0 = cls()
 
-        ai_run_create_request_context.additional_properties = d
-        return ai_run_create_request_context
+        ai_run_create_request_context_type_0.additional_properties = d
+        return ai_run_create_request_context_type_0
 
     @property
     def additional_keys(self) -> list[str]:

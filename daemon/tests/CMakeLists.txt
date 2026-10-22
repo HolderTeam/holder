@@ -34,7 +34,6 @@ add_executable(holder_daemon_tests
   HttpListener_test.cpp
   ListenerAcceptError_test.cpp
   HttpAiMessages_test.cpp
-  AiDispatch_test.cpp
   AiDurability_test.cpp
   AiResourceRoutes_test.cpp
   AiMessageCrudRoutes_test.cpp
@@ -48,7 +47,6 @@ add_executable(holder_daemon_tests
   AiRuntimeStatusRoutes_test.cpp
   HttpAiMessageLinks_test.cpp
   HttpAiRuns_test.cpp
-  AiRunRoutes_test.cpp
   AiRunQueryRoutes_test.cpp
   HttpAiRunEvents_test.cpp
   HttpAiRunnerPullEvents_test.cpp
@@ -191,15 +189,13 @@ add_executable(holder_daemon_tests
   ../src/api/Listener.cpp
   ../src/api/AiNudges.cpp
   ../src/api/EventCursor.cpp
+  ../src/api/Streams.cpp
   ../src/api/GoogleDriveOAuth.cpp
   ../src/api/routes/AuthenticatedRoutes.cpp
-  ../src/api/routes/ai/AiDispatch.cpp
   ../src/api/routes/AiResourceRoutes.cpp
   ../src/api/routes/GoogleDriveOAuthRoutes.cpp
   ../src/api/routes/ai/runs/AiRunPostRoute.cpp
   ../src/api/routes/ai/runs/AiRunQueryRoutes.cpp
-  ../src/api/routes/ai/AiRunRoutes.cpp
-  ../src/api/routes/ai/AiRunnerRoutes.cpp
   ../src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
   ../src/api/Search.cpp
@@ -217,6 +213,7 @@ add_executable(holder_daemon_tests
   ../src/api/support/RunEventStore.cpp
   ../src/api/support/EventJournal.cpp
   ../src/api/support/SseStream.cpp
+  ../src/api/support/StreamServer.cpp
   ../src/api/support/ChangeFeed.cpp
   ../src/api/support/EventService.cpp
   ../src/api/Session.cpp

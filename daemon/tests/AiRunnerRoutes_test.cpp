@@ -6,7 +6,6 @@
 
 #include "ai/AiRunnerRepo.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/ai/AiRunnerRoutes.h"
 #include "llm/RunnerModelRef.h"
 #include "http_test_helpers.h"
 
@@ -67,7 +66,7 @@ http::request<http::string_body> make_request(http::verb method, const std::stri
 }
 
 // Routes a runner request through the generated routes, as the daemon does.
-holder::api::routes::RunnerRouteDispatchResult route_runner(
+holder::test::ServedRequest route_runner(
     const http::request<http::string_body>& req,
     http::response<http::string_body>& res,
     holder::platform::Db& db,
@@ -90,16 +89,7 @@ TEST_CASE("AiRunnerRoutes returns pull-event dispatch result when handled", "[ai
   auto req = make_request(http::verb::get, "/ai/runner/pull/job-1/events");
   http::response<http::string_body> res;
 
-  const auto out = holder::api::routes::handle_ai_runner_routes(
-      "/ai/runner/pull/job-1/events",
-      req,
-      res,
-      socket,
-      static_cast<holder::llm::RunnerRegistry*>(nullptr),
-      [](const std::string&) -> std::string {
-        return {};
-      }
-  );
+  const auto out = holder::test::serve_generated(req, res, socket, db);
 
   REQUIRE(out.handled);
   REQUIRE_FALSE(out.streamed);

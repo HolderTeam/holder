@@ -943,6 +943,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
           description: Observer unavailable or stream limit reached
           content:
@@ -1277,6 +1282,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
           description: No local runner or configured cloud provider available
           content:
@@ -1442,6 +1452,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3088,7 +3103,7 @@ paths:
       - name: project_id
         in: query
         required: false
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: last_revision
         in: query
         required: false
@@ -3211,8 +3226,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Observer unavailable or stream limit reached
+          description: Observer or project unavailable, or stream limit reached
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3254,7 +3274,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Change feed unavailable
+          description: Change feed or project unavailable
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6085,12 +6105,22 @@ components:
       properties:
         prompt: {type: string}
         mode: {type: string, description: auto or model}
-        model: {type: string, description: Optional explicit model id; interpreted for local or cloud
-            selected provider.}
-        provider: {type: string, description: Optional cloud provider id when local runner is unavailable.}
-        project_id: {type: string}
-        thread_id: {type: string}
-        context: {type: object, additionalProperties: true}
+        model:
+          type: [string, 'null']
+          description: Optional explicit model id; interpreted for local or cloud selected provider.
+        provider:
+          type: [string, 'null']
+          description: Optional cloud provider id when local runner is unavailable.
+        project_id:
+          type: [string, 'null']
+        thread_id:
+          type: [string, 'null']
+        context:
+          type: [object, 'null']
+          additionalProperties: true
+        runner_id:
+          type: [string, 'null']
+          description: The local runner to use; defaults to the automatic local runner.
       required: [prompt]
     AiRunEventData:
       type: object

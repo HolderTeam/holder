@@ -105,11 +105,12 @@ struct RIG_OPEN_RECORD RIG_DESCRIPTION("Named run events share run_id. Fields va
 struct RIG_OPEN_RECORD AiRunCreateRequest {
   std::string prompt;
   std::optional<std::string> mode RIG_FIELD_DESCRIPTION("auto or model") RIG_OMIT_EMPTY;
-  std::optional<std::string> model RIG_FIELD_DESCRIPTION("Optional explicit model id; interpreted for local or cloud selected provider.") RIG_OMIT_EMPTY;
-  std::optional<std::string> provider RIG_FIELD_DESCRIPTION("Optional cloud provider id when local runner is unavailable.") RIG_OMIT_EMPTY;
-  std::optional<std::string> project_id RIG_OMIT_EMPTY;
-  std::optional<std::string> thread_id RIG_OMIT_EMPTY;
-  std::optional<nlohmann::json> context RIG_OMIT_EMPTY;
+  std::optional<std::optional<std::string>> model RIG_FIELD_DESCRIPTION("Optional explicit model id; interpreted for local or cloud selected provider.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> provider RIG_FIELD_DESCRIPTION("Optional cloud provider id when local runner is unavailable.") RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> project_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> thread_id RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<nlohmann::json>> context RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> runner_id RIG_FIELD_DESCRIPTION("The local runner to use; defaults to the automatic local runner.") RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD AiThread {

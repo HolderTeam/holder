@@ -56,7 +56,7 @@ from .ai_provider_setting_update_request import AiProviderSettingUpdateRequest
 from .ai_provider_settings_response import AiProviderSettingsResponse
 from .ai_provider_settings_response_data import AiProviderSettingsResponseData
 from .ai_run_create_request import AiRunCreateRequest
-from .ai_run_create_request_context import AiRunCreateRequestContext
+from .ai_run_create_request_context_type_0 import AiRunCreateRequestContextType0
 from .ai_run_event_data import AiRunEventData
 from .ai_run_get_response import AiRunGetResponse
 from .ai_run_item import AiRunItem
@@ -420,7 +420,7 @@ __all__ = (
     "AiProviderSettingsResponse",
     "AiProviderSettingsResponseData",
     "AiRunCreateRequest",
-    "AiRunCreateRequestContext",
+    "AiRunCreateRequestContextType0",
     "AiRunEventData",
     "AiRunGetResponse",
     "AiRunItem",
