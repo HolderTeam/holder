@@ -18,9 +18,6 @@ boost::beast::http::response<boost::beast::http::string_body> resource_error_res
     const std::exception& error
 );
 
-// Listener shutdown calls this before destroying the serialized Git executor used by imports.
-void wait_for_asset_import_jobs();
-
 bool handle_ai_resource_routes(
     const std::string& path,
     const boost::beast::http::request<boost::beast::http::string_body>& req,

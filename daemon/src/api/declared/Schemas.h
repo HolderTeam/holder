@@ -486,20 +486,4 @@ struct RIG_OPEN_RECORD AssetImportJobResponse {
   AssetImportJob data;
 };
 
-struct RIG_OPEN_RECORD AssetImportRequest {
-  std::string project_id;
-  std::string card_id;
-  std::string location_id;
-  std::string source_path RIG_FIELD_DESCRIPTION("Local readable regular file; never persisted into project metadata.");
-};
-
-struct RIG_OPEN_RECORD ReindexData {
-  std::string message;
-};
-
-struct RIG_OPEN_RECORD ReindexResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ReindexData data;
-};
-
 } // namespace holder::api

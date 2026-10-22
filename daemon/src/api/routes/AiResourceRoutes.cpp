@@ -1,14 +1,11 @@
-#include "core/ActivityTracker.h"
 #include "api/routes/AiResourceRoutes.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
-#include "api/support/AssetImportJobs.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/StorageErrors.h"
 #include "api/support/StorageProviders.h"
 #include "api/support/Time.h"
 #include "platform/Paths.h"
 
-#include "resource/AssetEnvelope.h"
 #include "resource/AssetImportService.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
@@ -25,23 +22,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 
 namespace holder::api::routes {
 namespace {
 
 namespace http = boost::beast::http;
-
-using support::ImportJob;
-using support::update_import_job;
-
-std::mutex import_threads_mutex;
-std::vector<std::thread> import_threads;
 
 std::string safe_download_filename(std::string filename) {
   for (auto& ch : filename) {
@@ -96,20 +84,6 @@ void stream_file_response(
   if (!input.eof()) throw std::runtime_error("failed while reading recovered asset");
 }
 
-nlohmann::json import_job_json(const ImportJob& job) {
-  return {
-      // LCOV_EXCL_LINE: initializer-list cleanup is reported as an unexecuted duplicate.
-      {"job_id", job.job_id},
-      {"status", job.status},
-      {"resource_id",
-       job.resource_id.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.resource_id)},
-      {"asset_id", job.asset_id.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.asset_id)},
-      {"duplicate_reused", job.duplicate_reused},
-      {"link_created", job.link_created},
-      {"error", job.error.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.error)},
-  };
-}
-
 } // namespace
 
 http::response<http::string_body> resource_error_response(const std::exception& ex) {
@@ -130,17 +104,6 @@ http::response<http::string_body> resource_error_response(const std::exception& 
   return support::error_response(http::status::bad_request, "bad_request", message);
 }
 
-void wait_for_asset_import_jobs() {
-  std::vector<std::thread> threads;
-  {
-    std::lock_guard<std::mutex> lock(import_threads_mutex);
-    threads.swap(import_threads);
-  }
-  for (auto& thread : threads) {
-    if (thread.joinable()) thread.join();
-  }
-}
-
 bool handle_ai_resource_routes(
     const std::string& path,
     const http::request<http::string_body>& req,
@@ -157,117 +120,6 @@ bool handle_ai_resource_routes(
   std::unique_ptr<holder::resource::LocationBindingStore> bindings;
   if (secret_store != nullptr) {
     bindings = std::make_unique<holder::resource::LocationBindingStore>(*secret_store);
-  }
-
-  if (path == "/imports" && req.method() == http::verb::post) {
-    try {
-      if (!bindings || git_ops == nullptr) {
-        throw std::runtime_error("asset import services unavailable");
-      }
-      const auto body = nlohmann::json::parse(req.body());
-      holder::resource::AssetImportRequest request;
-      request.project_id = body.at("project_id").get<std::string>();
-      request.card_id = body.at("card_id").get<std::string>();
-      request.location_id = body.at("location_id").get<std::string>();
-      request.source_file = body.at("source_path").get<std::string>();
-      request.now = support::now_epoch_seconds();
-      if (!std::filesystem::is_regular_file(request.source_file)) {
-        throw std::invalid_argument("asset source must be a readable regular file");
-      }
-      const auto location = holder::resource::LocationRepo(db).get(request.location_id);
-      if (!location.has_value() || location->project_id != request.project_id) {
-        throw std::runtime_error("storage location not found in project");
-      }
-      const auto binding = bindings->get(request.project_id, request.location_id);
-      if (!binding.has_value()) throw std::runtime_error("storage location configuration required");
-      // Resolve declarations and credentials before handing work to the background job. The job
-      // retains neither the HTTP body nor the local source path in durable project state.
-      const auto location_copy = *location;
-      const auto binding_copy = *binding;
-      const auto db_path = db.path();
-      const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-staging";
-      const auto job_id = uuid_v4();
-      support::put_import_job(ImportJob{
-          .job_id = job_id,
-          .status = "queued",
-          .resource_id = {},
-          .asset_id = {},
-          .duplicate_reused = false,
-          .link_created = false,
-          .error = {},
-      });
-      // The import outlives the request that queued it; it is work until it finishes.
-      std::thread import_thread(
-          [job_id,
-           request,
-           location_copy,
-           binding_copy,
-           db_path,
-           cache,
-           uuid_v4,
-           git_ops,
-           activity_scope = holder::core::activity().begin()]() mutable {
-            try {
-              holder::platform::Db job_db;
-              job_db.open(db_path);
-              auto provider = support::storage_provider(location_copy, binding_copy);
-              holder::resource::AssetImportService importer(
-                  job_db,
-                  cache,
-                  uuid_v4,
-                  nullptr,
-                  git_ops,
-                  [job_id](holder::resource::AssetImportStage stage) {
-                    switch (stage) {
-                    case holder::resource::AssetImportStage::Staging:
-                      update_import_job(job_id, "staging");
-                      break;
-                    case holder::resource::AssetImportStage::Storing:
-                      update_import_job(job_id, "storing");
-                      break;
-                    case holder::resource::AssetImportStage::Committing:
-                      update_import_job(job_id, "committing");
-                      break;
-                    }
-                  }
-              );
-              const auto result = importer.import_file(request, *provider);
-              support::complete_import_job(
-                  job_id,
-                  result.resource_id,
-                  result.asset_id,
-                  result.duplicate_reused,
-                  result.link_created
-              );
-            } catch (const std::exception& ex) {
-              update_import_job(job_id, "failed", ex.what());
-            } catch (...) { // LCOV_EXCL_LINE: defensive boundary for non-standard provider throws.
-              update_import_job(job_id, "failed", "unknown asset import error"); // LCOV_EXCL_LINE
-            } // LCOV_EXCL_LINE
-          }
-      );
-      {
-        std::lock_guard<std::mutex> lock(import_threads_mutex);
-        import_threads.push_back(std::move(import_thread));
-      }
-      res = support::json_response(
-          http::status::accepted,
-          {{"ok", true},
-           {"data",
-            import_job_json(ImportJob{
-                .job_id = job_id,
-                .status = "queued",
-                .resource_id = {},
-                .asset_id = {},
-                .duplicate_reused = false,
-                .link_created = false,
-                .error = {},
-            })}}
-      );
-    } catch (const std::exception& ex) {
-      res = resource_error_response(ex);
-    }
-    return true;
   }
 
   if (path.rfind("/resources/", 0) == 0 && path.find("/assets/") != std::string::npos &&

@@ -4,6 +4,7 @@
 #include <catch2/catch.hpp>
 #endif
 
+#include "api/AssetImportWrite.h"
 #include "api/GeneratedRoutes.h"
 #include "api/routes/AiResourceRoutes.h"
 #include "http_test_helpers.h"
@@ -533,6 +534,23 @@ TEST_CASE(
           .result() == http::status::not_found
   );
 
+  const nlohmann::json valid = {{"project_id", "project"},
+                                {"card_id", "card"},
+                                {"location_id", "location"},
+                                {"source_path", source.string()}};
+  CHECK(f.call(http::verb::post, "/imports", valid, "project", false, {}, &git).result() ==
+        http::status::service_unavailable);
+  CHECK(f.call(http::verb::post, "/imports", valid).result() == http::status::not_implemented);
+  holder::resource::LocationRepo(f.db).put(
+      {"unbound", "project", "Unbound", "local_directory", {}, 1, 1});
+  auto unbound = valid;
+  unbound["location_id"] = "unbound";
+  const auto needs_binding =
+      f.call(http::verb::post, "/imports", unbound, "project", true, {}, &git);
+  CHECK(needs_binding.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(needs_binding.body())["error"]["code"] ==
+        "storage_binding_required");
+
   f.put("unsupported", {}, {});
   const auto started = f.call(
       http::verb::post,
@@ -548,7 +566,7 @@ TEST_CASE(
   );
   REQUIRE(started.result() == http::status::accepted);
   const auto job_id = nlohmann::json::parse(started.body())["data"]["job_id"].get<std::string>();
-  holder::api::routes::wait_for_asset_import_jobs();
+  holder::api::wait_for_asset_import_jobs();
   const auto job = nlohmann::json::parse(f.poll_import(job_id).body());
   CHECK(job["data"]["status"] == "failed");
   CHECK_FALSE(job["data"]["error"].get<std::string>().empty());

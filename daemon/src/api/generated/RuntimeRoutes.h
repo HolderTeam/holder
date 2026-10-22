@@ -563,8 +563,31 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "GET" && std::regex_match(route_path, route_103))
         return std::nullopt;  // get_events is served by the host
     static const std::regex route_104("^/imports$");
-    if (method == "POST" && std::regex_match(route_path, route_104))
-        return std::nullopt;  // post_imports is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_104)) {
+        std::optional<holder::api::AssetImportRequest> argument_0;
+        try {
+            argument_0.emplace(decode_body<holder::api::AssetImportRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_imports");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_imports");
+        }
+        try {
+            return response{202, rig_json::encode(holder::api::post_imports(context.db, context.secret_store, context.git_ops, context.uuid_v4, std::move(*argument_0))), "post_imports"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_imports"};
+        } catch (const holder::api::AssetImportLocationNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_imports"};
+        } catch (const holder::api::support::StorageBindingRequired& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_imports"};
+        } catch (const holder::api::AssetImportUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "post_imports"};
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_imports"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_imports"};
+        }
+    }
     static const std::regex route_105("^/locations$");
     if (method == "POST" && std::regex_match(route_path, match, route_105)) {
         std::optional<holder::api::StorageLocationRequest> argument_0;
@@ -587,8 +610,13 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "GET" && std::regex_match(route_path, route_112))
         return std::nullopt;  // get_ping is served by the host
     static const std::regex route_116("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, route_116))
-        return std::nullopt;  // post_reindex is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_116)) {
+        try {
+            return response{200, rig_json::encode(holder::api::post_reindex(context.db)), "post_reindex"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_reindex"};
+        }
+    }
     static const std::regex route_120("^/trash$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_120)) {
         std::optional<std::string> argument_0;

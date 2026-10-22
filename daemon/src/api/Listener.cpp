@@ -1,5 +1,5 @@
 #include "api/Listener.h"
-#include "api/routes/AiResourceRoutes.h"
+#include "api/AssetImportWrite.h"
 
 #include "api/support/HttpResponses.h"
 #include "core/ActivityTracker.h"
@@ -359,7 +359,7 @@ void Listener::run(const holder::core::SignalHandler& signals) {
 
   // Import jobs outlive their initiating HTTP request but borrow the Listener's serialized Git
   // adapter. Join them before that adapter can be destroyed.
-  holder::api::routes::wait_for_asset_import_jobs();
+  holder::api::wait_for_asset_import_jobs();
 
   if (events_) events_->streams()->poll_workers().join();
   ioc_.stop();

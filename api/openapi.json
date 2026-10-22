@@ -5418,6 +5418,7 @@
     "/imports": {
       "post": {
         "summary": "Start a local-file asset import",
+        "description": "The location and its credentials are checked before the job is queued; failures after that are reported by polling GET /imports/{job_id}.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5439,8 +5440,68 @@
               }
             }
           },
+          "400": {
+            "description": "Malformed request, or the source is not a readable regular file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage location not found in the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The storage location has no credentials on this device (storage_binding_required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon cannot import assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secret store unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -8754,8 +8815,8 @@
               }
             }
           },
-          "400": {
-            "description": "Bad request",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -8764,8 +8825,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {

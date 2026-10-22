@@ -1,7 +1,6 @@
 #include "api/routes/AuthenticatedRoutes.h"
 
 #include "api/routes/AiResourceRoutes.h"
-#include "api/routes/ReindexRoutes.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
 #include "api/support/HttpResponses.h"
@@ -45,9 +44,7 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     return support::query_param_value(query_string, key);
   };
 
-  if (resource == "reindex") {
-    if (handle_reindex_routes(path, req, res, db)) return {};
-  } else if (resource == "ai") {
+  if (resource == "ai") {
     const auto route_result = ai::dispatch_ai_routes(
         path,
         req,
@@ -65,7 +62,7 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     if (route_result.handled) {
       return {.streamed = route_result.streamed};
     }
-  } else if (resource == "resources" || resource == "locations" || resource == "imports") {
+  } else if (resource == "resources" || resource == "locations") {
     bool streamed = false;
     if (handle_ai_resource_routes(
             path,

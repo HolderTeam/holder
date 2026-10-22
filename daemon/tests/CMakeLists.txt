@@ -175,6 +175,8 @@ add_executable(holder_daemon_tests
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectTags.cpp
   ../src/api/RecoveryToken.cpp
+  ../src/api/Reindex.cpp
+  ../src/api/AssetImportWrite.cpp
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp
   ../src/api/MilestonesWithDates.cpp
@@ -206,7 +208,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/AiStatusRoutes.cpp
   ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
-  ../src/api/routes/ReindexRoutes.cpp
   ../src/api/Search.cpp
   ../src/api/routes/StaticRoutes.cpp
   ../src/api/support/PathDiscovery.cpp

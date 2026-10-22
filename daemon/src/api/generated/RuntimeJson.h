@@ -478,18 +478,6 @@ template <> struct codec<holder::api::AssetImportJobResponse> {
     static json encode(const holder::api::AssetImportJobResponse& value);
     static holder::api::AssetImportJobResponse decode(const json& value);
 };
-template <> struct codec<holder::api::AssetImportRequest> {
-    static json encode(const holder::api::AssetImportRequest& value);
-    static holder::api::AssetImportRequest decode(const json& value);
-};
-template <> struct codec<holder::api::ReindexData> {
-    static json encode(const holder::api::ReindexData& value);
-    static holder::api::ReindexData decode(const json& value);
-};
-template <> struct codec<holder::api::ReindexResponse> {
-    static json encode(const holder::api::ReindexResponse& value);
-    static holder::api::ReindexResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiMessage> {
     static json encode(const holder::api::AiMessage& value);
     static holder::api::AiMessage decode(const json& value);
@@ -998,6 +986,10 @@ template <> struct codec<holder::api::MilestoneUpdateRequest> {
     static json encode(const holder::api::MilestoneUpdateRequest& value);
     static holder::api::MilestoneUpdateRequest decode(const json& value);
 };
+template <> struct codec<holder::api::AssetImportRequest> {
+    static json encode(const holder::api::AssetImportRequest& value);
+    static holder::api::AssetImportRequest decode(const json& value);
+};
 template <> struct codec<holder::api::StorageLocationRequest> {
     static json encode(const holder::api::StorageLocationRequest& value);
     static holder::api::StorageLocationRequest decode(const json& value);
@@ -1061,6 +1053,14 @@ template <> struct codec<holder::api::RecoveryTokenImportAutoResponseData> {
 template <> struct codec<holder::api::RecoveryTokenImportAutoResponse> {
     static json encode(const holder::api::RecoveryTokenImportAutoResponse& value);
     static holder::api::RecoveryTokenImportAutoResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ReindexData> {
+    static json encode(const holder::api::ReindexData& value);
+    static holder::api::ReindexData decode(const json& value);
+};
+template <> struct codec<holder::api::ReindexResponse> {
+    static json encode(const holder::api::ReindexResponse& value);
+    static holder::api::ReindexResponse decode(const json& value);
 };
 template <> struct codec<holder::api::SearchCardItem> {
     static json encode(const holder::api::SearchCardItem& value);
@@ -3223,59 +3223,6 @@ inline holder::api::AssetImportJobResponse codec<holder::api::AssetImportJobResp
     return holder::api::AssetImportJobResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AssetImportJob>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AssetImportRequest>::encode(const holder::api::AssetImportRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["location_id"] = codec<std::string>::encode(value.location_id);
-    result["source_path"] = codec<std::string>::encode(value.source_path);
-    return result;
-}
-inline holder::api::AssetImportRequest codec<holder::api::AssetImportRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AssetImportRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
-    if (!value.contains("source_path")) throw std::invalid_argument("missing source_path");
-    return holder::api::AssetImportRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("location_id")),
-        codec<std::string>::decode(value.at("source_path")),
-    };
-}
-
-inline json codec<holder::api::ReindexData>::encode(const holder::api::ReindexData& value) {
-    json result = json::object();
-    result["message"] = codec<std::string>::encode(value.message);
-    return result;
-}
-inline holder::api::ReindexData codec<holder::api::ReindexData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ReindexData");
-    if (!value.contains("message")) throw std::invalid_argument("missing message");
-    return holder::api::ReindexData{
-        codec<std::string>::decode(value.at("message")),
-    };
-}
-
-inline json codec<holder::api::ReindexResponse>::encode(const holder::api::ReindexResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ReindexData>::encode(value.data);
-    return result;
-}
-inline holder::api::ReindexResponse codec<holder::api::ReindexResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ReindexResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ReindexResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ReindexData>::decode(value.at("data")),
     };
 }
 
@@ -6086,6 +6033,28 @@ inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateReq
     };
 }
 
+inline json codec<holder::api::AssetImportRequest>::encode(const holder::api::AssetImportRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["source_path"] = codec<std::string>::encode(value.source_path);
+    return result;
+}
+inline holder::api::AssetImportRequest codec<holder::api::AssetImportRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AssetImportRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
+    if (!value.contains("source_path")) throw std::invalid_argument("missing source_path");
+    return holder::api::AssetImportRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("location_id")),
+        codec<std::string>::decode(value.at("source_path")),
+    };
+}
+
 inline json codec<holder::api::StorageLocationRequest>::encode(const holder::api::StorageLocationRequest& value) {
     json result = json::object();
     if (value.location_id) {
@@ -6400,6 +6369,37 @@ inline holder::api::RecoveryTokenImportAutoResponse codec<holder::api::RecoveryT
     return holder::api::RecoveryTokenImportAutoResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::RecoveryTokenImportAutoResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ReindexData>::encode(const holder::api::ReindexData& value) {
+    json result = json::object();
+    result["message"] = codec<std::string>::encode(value.message);
+    return result;
+}
+inline holder::api::ReindexData codec<holder::api::ReindexData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ReindexData");
+    if (!value.contains("message")) throw std::invalid_argument("missing message");
+    return holder::api::ReindexData{
+        codec<std::string>::decode(value.at("message")),
+    };
+}
+
+inline json codec<holder::api::ReindexResponse>::encode(const holder::api::ReindexResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ReindexData>::encode(value.data);
+    return result;
+}
+inline holder::api::ReindexResponse codec<holder::api::ReindexResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ReindexResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ReindexResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ReindexData>::decode(value.at("data")),
     };
 }
 

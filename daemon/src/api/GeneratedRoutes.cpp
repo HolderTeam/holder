@@ -29,6 +29,8 @@
 #include "api/ProjectGit.h"
 #include "api/ProjectRead.h"
 #include "api/RecoveryToken.h"
+#include "api/Reindex.h"
+#include "api/AssetImportWrite.h"
 #include "api/ProjectCards.h"
 #include "api/ProjectUpdate.h"
 #include "api/ProjectTags.h"
