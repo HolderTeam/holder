@@ -39,24 +39,4 @@ CardHistoryRestoreResponse post_projects_project_id_history_cards_card_id_restor
     std::string card_id,
     RevisionReference oid RIG_QUERY RIG_PARAMETER_DESCRIPTION("Revision containing the snapshot to restore."));
 
-RIG_ROUTE(POST, "/projects/{project_id}/recovery-token/export")
-RIG_SUMMARY("Export project recovery token")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectRecoveryTokenExportResponse post_projects_project_id_recovery_token_export(
-    std::string project_id,
-    ProjectRecoveryTokenExportRequest request);
-
-RIG_ROUTE(POST, "/projects/{project_id}/recovery-token/import")
-RIG_SUMMARY("Import project recovery token")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectRecoveryTokenImportResponse post_projects_project_id_recovery_token_import(
-    std::string project_id,
-    ProjectRecoveryTokenImportRequest request);
-
 } // namespace holder::api

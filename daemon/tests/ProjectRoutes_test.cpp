@@ -4,7 +4,6 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "api/routes/ProjectRoutes.h"
 #include "api/GeneratedRoutes.h"
 #include "api/support/PrivacyErrors.h"
 #include "card/TagRepo.h"
@@ -88,6 +87,16 @@ class ProjectRoutesTestGitOps final : public holder::git::GitOps {
   std::filesystem::path repo_dir() const override { return {}; }
 };
 
+
+// Routes a request through the generated routes, as the daemon does.
+bool route_project(const boost::beast::http::request<boost::beast::http::string_body>& req,
+                   boost::beast::http::response<boost::beast::http::string_body>& res,
+                   holder::platform::Db& db,
+                   holder::git::GitOps* git) {
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git,
+                                                [] { return std::string("generated-id"); });
+}
+
 } // namespace
 
 TEST_CASE("Generated project deletion records a removal without deleting files", "[project-routes]") {
@@ -136,13 +145,7 @@ TEST_CASE("ProjectRoutes returns false when path does not match", "[project-rout
   auto req = make_request(http::verb::get, "/not-projects");
   http::response<http::string_body> res;
 
-  const bool handled = holder::api::routes::handle_project_routes(
-      "/not-projects",
-      req,
-      res,
-      db,
-      nullptr
-  );
+  const bool handled = route_project(req, res, db, nullptr);
   REQUIRE_FALSE(handled);
 }
 
@@ -153,13 +156,7 @@ TEST_CASE("ProjectRoutes global recovery import validates required fields", "[pr
   auto req = make_request(http::verb::post, "/recovery-token/import", nlohmann::json::object());
   http::response<http::string_body> res;
 
-  const bool handled = holder::api::routes::handle_project_routes(
-      "/recovery-token/import",
-      req,
-      res,
-      db,
-      nullptr
-  );
+  const bool handled = route_project(req, res, db, nullptr);
   REQUIRE(handled);
   REQUIRE(res.result() == http::status::bad_request);
   const auto payload = nlohmann::json::parse(res.body());
@@ -167,25 +164,15 @@ TEST_CASE("ProjectRoutes global recovery import validates required fields", "[pr
   REQUIRE(payload["error"]["code"] == "bad_request");
 }
 
-TEST_CASE("ProjectRoutes rejects empty project id segment", "[project-routes]") {
+TEST_CASE("ProjectRoutes leave an empty project id segment unrouted", "[project-routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
 
   auto req = make_request(http::verb::get, "/projects/");
   http::response<http::string_body> res;
 
-  const bool handled = holder::api::routes::handle_project_routes(
-      "/projects/",
-      req,
-      res,
-      db,
-      nullptr
-  );
-  REQUIRE(handled);
-  REQUIRE(res.result() == http::status::not_found);
-  const auto payload = nlohmann::json::parse(res.body());
-  REQUIRE(payload["ok"] == false);
-  REQUIRE(payload["error"]["code"] == "not_found");
+  // An empty project ID matches no route, so the router answers 404.
+  REQUIRE_FALSE(route_project(req, res, db, nullptr));
 }
 
 TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes]") {
@@ -209,13 +196,7 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        path,
-        req,
-        res,
-        db,
-        &git
-    );
+    const bool handled = route_project(req, res, db, &git);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
@@ -264,9 +245,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
-        holder::api::routes::handle_project_routes(path, req, res, db, &git);
+    const bool handled = route_project(req, res, db, &git);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
@@ -647,12 +626,6 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE_FALSE(listed["data"][0].contains("card_count"));
   REQUIRE(listed["data"][0]["sync"]["uncommitted_changes_count"] == 0);
   REQUIRE(listed["data"][0]["sync"]["updated_at"].is_null());
-  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
-      "/projects", req, res, db, nullptr));
-
-  req = make_request(http::verb::post, "/projects", {{"name", "Created"}});
-  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
-      "/projects", req, res, db, nullptr));
 
   req = make_request(http::verb::get, "/projects/proj-1");
   REQUIRE_FALSE(holder::api::is_public_generated_route(req));
@@ -660,8 +633,6 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(res.result() == http::status::ok);
   const auto fetched = nlohmann::json::parse(res.body());
   REQUIRE(fetched["data"] == listed["data"][0]);
-  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1", req, res, db, nullptr));
 
   req = make_request(http::verb::get, "/projects/missing");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -669,24 +640,19 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   req = make_request(http::verb::delete_, "/projects/missing");
-  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
-      "/projects/missing", req, res, db, nullptr));
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   req = make_request(http::verb::patch, "/projects/missing",
                      {{"name", "Renamed"}, {"updated_at", 2}});
-  REQUIRE_FALSE(holder::api::routes::handle_project_routes(
-      "/projects/missing", req, res, db, nullptr));
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   req = make_request(http::verb::post, "/projects/proj-1/recovery-token/export");
-  REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
-  REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1/recovery-token/export", req, res, db, nullptr));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+  REQUIRE(res.result() == http::status::bad_request);
 
   // Hand-served operations are declared for the contract; the host serves them.
   req = make_request(http::verb::get, "/openapi.yaml");
@@ -703,9 +669,6 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
 TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[project-routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -713,9 +676,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
-        holder::api::routes::handle_project_routes(path, req, res, db, &git);
+    const bool handled = route_project(req, res, db, &git);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
@@ -752,7 +713,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
         "/recovery-token/import",
         {{"pin", "1234"}, {"recovery_token", token}}
     );
-    REQUIRE(import_status == http::status::created);
+    REQUIRE(import_status == http::status::ok);
     REQUIRE(import_payload["ok"] == true);
     REQUIRE(import_payload["data"]["remote_hint_present"] == true);
     REQUIRE(import_payload["data"]["remote_configured"] == true);
@@ -807,9 +768,6 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
 TEST_CASE("ProjectRoutes create and recovery required field branches", "[project-routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
   ProjectRoutesTestGitOps git;
 
   auto call = [&](http::verb method,
@@ -817,9 +775,7 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
                   const nlohmann::json& body = nlohmann::json()) {
     auto req = make_request(method, path, body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4) ||
-        holder::api::routes::handle_project_routes(path, req, res, db, &git);
+    const bool handled = route_project(req, res, db, &git);
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };

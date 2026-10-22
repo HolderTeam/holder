@@ -867,9 +867,28 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_preferred"};
         }
     }
-    static const std::regex route_115("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, route_115))
-        return std::nullopt;  // post_recovery_token_import is served by the host
+    static const std::regex route_113("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_113)) {
+        std::optional<holder::api::ProjectRecoveryTokenImportRequest> argument_0;
+        try {
+            argument_0.emplace(decode_body<holder::api::ProjectRecoveryTokenImportRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_recovery_token_import");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_recovery_token_import");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::post_recovery_token_import(context.db, context.git_ops, std::move(*argument_0))), "post_recovery_token_import"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_recovery_token_import"};
+        } catch (const holder::api::support::PrivacyBroken& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_recovery_token_import"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_recovery_token_import"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_recovery_token_import"};
+        }
+    }
     static const std::regex route_118("^/search/cards$");
     if (method == "GET" && std::regex_match(route_path, match, route_118)) {
         std::optional<std::string> argument_0;
@@ -2429,12 +2448,60 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_project_git_sync_status"};
         }
     }
-    static const std::regex route_113("^/projects/([^/]+)/recovery\\-token/export$");
-    if (method == "POST" && std::regex_match(route_path, route_113))
-        return std::nullopt;  // post_projects_project_id_recovery_token_export is served by the host
-    static const std::regex route_114("^/projects/([^/]+)/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, route_114))
-        return std::nullopt;  // post_projects_project_id_recovery_token_import is served by the host
+    static const std::regex route_114("^/projects/([^/]+)/recovery\\-token/export$");
+    if (method == "POST" && std::regex_match(route_path, match, route_114)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::ProjectRecoveryTokenExportRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::ProjectRecoveryTokenExportRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_projects_project_id_recovery_token_export");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_projects_project_id_recovery_token_export");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::post_projects_project_id_recovery_token_export(context.db, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_recovery_token_export"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_projects_project_id_recovery_token_export"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_projects_project_id_recovery_token_export"};
+        } catch (const holder::api::RecoveryTokenProjectNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_recovery_token_export"};
+        } catch (const holder::api::support::PrivacyBroken& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_recovery_token_export"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_projects_project_id_recovery_token_export"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_recovery_token_export"};
+        }
+    }
+    static const std::regex route_115("^/projects/([^/]+)/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_115)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::ProjectRecoveryTokenImportRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::ProjectRecoveryTokenImportRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_projects_project_id_recovery_token_import");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_projects_project_id_recovery_token_import");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::post_projects_project_id_recovery_token_import(context.db, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_recovery_token_import"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_projects_project_id_recovery_token_import"};
+        } catch (const holder::api::RecoveryTokenProjectNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_recovery_token_import"};
+        } catch (const holder::api::support::PrivacyBroken& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_recovery_token_import"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_projects_project_id_recovery_token_import"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_recovery_token_import"};
+        }
+    }
     static const std::regex route_39("^/projects/([^/]+)/history/cards/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_39)) {
         std::optional<std::string> argument_0;

@@ -1,7 +1,6 @@
 #include "LegacyMilestoneSchema.h"
 #include "http_test_helpers.h"
 
-#include "api/routes/ProjectRoutes.h"
 #include "api/GeneratedRoutes.h"
 #include "api/support/CloudQuota.h"
 #include "app/Bootstrap.h"
@@ -107,6 +106,16 @@ struct HomeLifecycle {
     REQUIRE(holder::project::ProjectRepo(db).list().empty());
   }
 };
+
+
+// Routes a request through the generated routes, as the daemon does.
+bool route_project(const boost::beast::http::request<boost::beast::http::string_body>& req,
+                   boost::beast::http::response<boost::beast::http::string_body>& res,
+                   holder::platform::Db& db,
+                   holder::git::GitOps* git) {
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr, git,
+                                                [] { return std::string("generated-id"); });
+}
 
 } // namespace
 
@@ -363,15 +372,10 @@ TEST_CASE("Explicit recovery re-registers a removed encrypted Home", "[home-life
   request.body() = nlohmann::json{{"pin", "1234"}, {"recovery_token", token}}.dump();
   request.prepare_payload();
   http::response<http::string_body> response;
-  REQUIRE(holder::api::routes::handle_project_routes(
-      target,
-      request,
-      response,
-      fixture.db,
-      nullptr
-  ));
+  REQUIRE(route_project(request, response, fixture.db, nullptr));
   INFO(response.body());
-  REQUIRE(response.result() == http::status::created);
+  REQUIRE(response.result() == http::status::ok);
+  REQUIRE(nlohmann::json::parse(response.body())["data"]["project_created"] == true);
   const auto restored = holder::project::ProjectRepo(fixture.db).get(original.project_id);
   REQUIRE(restored.has_value());
   REQUIRE(restored->project_key_id == original.project_key_id);

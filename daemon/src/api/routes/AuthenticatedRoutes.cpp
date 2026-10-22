@@ -3,7 +3,6 @@
 #include "api/routes/AiResourceRoutes.h"
 #include "api/routes/HistoryRoutes.h"
 #include "api/routes/ProjectCardRoutes.h"
-#include "api/routes/ProjectRoutes.h"
 #include "api/routes/ReindexRoutes.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
@@ -52,13 +51,9 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     return path == "/projects" ? decoded_param(key) : support::query_param_value(query_string, key);
   };
 
-  if (resource == "projects" || resource == "recovery-token") {
-    if (resource == "projects" &&
-        handle_project_card_routes(path, req, res, db, card_store))
-      return {};
-    if (resource == "projects" && handle_history_routes(path, req, res, db, param, card_store))
-      return {};
-    if (handle_project_routes(path, req, res, db, git_ops)) return {};
+  if (resource == "projects") {
+    if (handle_project_card_routes(path, req, res, db, card_store)) return {};
+    if (handle_history_routes(path, req, res, db, param, card_store)) return {};
   } else if (resource == "reindex") {
     if (handle_reindex_routes(path, req, res, db)) return {};
   } else if (resource == "search") {

@@ -383,35 +383,6 @@ struct RIG_OPEN_RECORD CardHistoryRestoreResponse {
   CardHistoryRestoreResponseData data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectRecoveryTokenExportResponseData {
-  std::string project_id;
-  std::string key_id;
-  std::string recovery_token RIG_FIELD_DESCRIPTION("Serialized `.hrk` recovery token JSON payload.");
-};
-
-struct RIG_OPEN_RECORD ProjectRecoveryTokenExportResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectRecoveryTokenExportResponseData data;
-};
-
-struct RIG_OPEN_RECORD ProjectRecoveryTokenExportRequest {
-  std::string pin RIG_FIELD_DESCRIPTION("User-provided PIN used to wrap the project key.");
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectRecoveryTokenImportResponseData {
-  std::string project_id;
-};
-
-struct RIG_OPEN_RECORD ProjectRecoveryTokenImportResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectRecoveryTokenImportResponseData data;
-};
-
-struct RIG_OPEN_RECORD ProjectRecoveryTokenImportRequest {
-  std::string pin;
-  std::string recovery_token RIG_FIELD_DESCRIPTION("Serialized `.hrk` recovery token JSON payload.");
-};
-
 struct RIG_DESCRIPTION("Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved.") MilestoneDateValue {
   std::string role RIG_MIN_LENGTH(1);
   std::optional<std::string> date RIG_FIELD_DESCRIPTION("Calendar day with no timezone; YYYY-MM-DD.") RIG_FORMAT("date") RIG_OMIT_EMPTY;
@@ -564,21 +535,6 @@ struct RIG_OPEN_RECORD ReindexData {
 struct RIG_OPEN_RECORD ReindexResponse {
   bool ok RIG_BOOL_VALUE(true);
   ReindexData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD RecoveryTokenImportAutoResponseData {
-  std::string project_id;
-  bool project_created;
-  bool remote_hint_present;
-  bool remote_configured;
-  std::optional<std::optional<std::string>> remote_error RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string pull_status RIG_STRING_VALUES("not_attempted", "succeeded", "failed");
-  std::optional<std::optional<std::string>> pull_error RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD RecoveryTokenImportAutoResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  RecoveryTokenImportAutoResponseData data;
 };
 
 } // namespace holder::api

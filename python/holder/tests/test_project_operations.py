@@ -200,7 +200,7 @@ def test_global_recovery_keeps_partial_remote_and_pull_outcomes():
             return ok(project_payload())
         requests.append(request)
         return httpx.Response(
-            201,
+            200,
             json={
                 "ok": True,
                 "data": {

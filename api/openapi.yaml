@@ -4265,7 +4265,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ProjectRecoveryTokenExportResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, a project with no key material, or a privacy error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4275,13 +4275,24 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: Project not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error, including missing key material or crypt metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: Keyring unavailable
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/recovery-token/import:
     post:
       summary: Import project recovery token
+      description: The token must be for this project.
       parameters:
       - name: project_id
         in: path
@@ -4299,7 +4310,8 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, or an invalid token or PIN, including one for another project
+            (recovery_token_invalid)
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4309,7 +4321,17 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: Project not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error, including missing key material or crypt metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: Keyring unavailable
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4492,6 +4514,9 @@ paths:
   /recovery-token/import:
     post:
       summary: Import recovery token and auto-match/create project
+      description: Matches the token's project_id to a local project, or creates one from the token's
+        metadata; project_created says which. When the token names a remote, it is configured and pulled;
+        failures there are reported in the result, not as HTTP errors.
       requestBody:
         required: true
         content:
@@ -4499,22 +4524,22 @@ paths:
             schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportRequest'}
       responses:
         '200':
-          description: Imported and matched an existing local project_id
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/RecoveryTokenImportAutoResponse'}
-        '201':
-          description: Imported and created a new local project_id from token metadata
+          description: Imported into a matched or newly created local project
           content:
             application/json:
               schema: {$ref: '#/components/schemas/RecoveryTokenImportAutoResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, or an invalid token or PIN (recovery_token_invalid)
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error, including missing key material or crypt metadata
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6946,7 +6971,7 @@ components:
     ProjectRecoveryTokenExportRequest:
       type: object
       properties:
-        pin: {type: string, description: User-provided PIN used to wrap the project key.}
+        pin: {type: string, description: User-provided PIN used to wrap the project key., minLength: 1}
       required: [pin]
     ProjectRecoveryTokenExportResponse:
       type: object
@@ -7104,7 +7129,8 @@ components:
           type: object
           properties:
             project_id: {type: string}
-            project_created: {type: boolean}
+            project_created: {type: boolean, description: 'True when no local project had the token''s
+                project_id, so one was created from the token''s metadata.'}
             remote_hint_present: {type: boolean}
             remote_configured: {type: boolean}
             remote_error:

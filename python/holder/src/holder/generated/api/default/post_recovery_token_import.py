@@ -42,11 +42,6 @@ def _parse_response(
 
         return response_200
 
-    if response.status_code == 201:
-        response_201 = RecoveryTokenImportAutoResponse.from_dict(response.json())
-
-        return response_201
-
     if response.status_code == 400:
         response_400 = ErrorResponse.from_dict(response.json())
 
@@ -56,6 +51,11 @@ def _parse_response(
         response_401 = ErrorResponse.from_dict(response.json())
 
         return response_401
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -86,6 +86,10 @@ def sync_detailed(
 ) -> Response[ErrorResponse | RecoveryTokenImportAutoResponse]:
     """Import recovery token and auto-match/create project
 
+     Matches the token's project_id to a local project, or creates one from the token's metadata;
+    project_created says which. When the token names a remote, it is configured and pulled; failures
+    there are reported in the result, not as HTTP errors.
+
     Args:
         body (ProjectRecoveryTokenImportRequest):
 
@@ -115,6 +119,10 @@ def sync(
 ) -> ErrorResponse | RecoveryTokenImportAutoResponse | None:
     """Import recovery token and auto-match/create project
 
+     Matches the token's project_id to a local project, or creates one from the token's metadata;
+    project_created says which. When the token names a remote, it is configured and pulled; failures
+    there are reported in the result, not as HTTP errors.
+
     Args:
         body (ProjectRecoveryTokenImportRequest):
 
@@ -138,6 +146,10 @@ async def asyncio_detailed(
     body: ProjectRecoveryTokenImportRequest,
 ) -> Response[ErrorResponse | RecoveryTokenImportAutoResponse]:
     """Import recovery token and auto-match/create project
+
+     Matches the token's project_id to a local project, or creates one from the token's metadata;
+    project_created says which. When the token names a remote, it is configured and pulled; failures
+    there are reported in the result, not as HTTP errors.
 
     Args:
         body (ProjectRecoveryTokenImportRequest):
@@ -165,6 +177,10 @@ async def asyncio(
     body: ProjectRecoveryTokenImportRequest,
 ) -> ErrorResponse | RecoveryTokenImportAutoResponse | None:
     """Import recovery token and auto-match/create project
+
+     Matches the token's project_id to a local project, or creates one from the token's metadata;
+    project_created says which. When the token names a remote, it is configured and pulled; failures
+    there are reported in the result, not as HTTP errors.
 
     Args:
         body (ProjectRecoveryTokenImportRequest):

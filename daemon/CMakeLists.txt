@@ -412,6 +412,8 @@ add_executable(holderd
   src/api/MilestoneWrite.cpp
   src/api/ProjectGit.cpp
   src/api/ProjectRead.cpp
+  src/api/ProjectTags.cpp
+  src/api/RecoveryToken.cpp
   src/api/ProjectCreate.cpp
   src/api/ProjectDelete.cpp
   src/api/MilestonesWithDates.cpp
@@ -445,7 +447,6 @@ add_executable(holderd
   src/api/CardReferenceResolve.cpp
   src/api/routes/ProjectCardRoutes.cpp
   src/api/routes/HistoryRoutes.cpp
-  src/api/routes/ProjectRoutes.cpp
   src/api/routes/ReindexRoutes.cpp
   src/api/Search.cpp
   src/api/routes/StaticRoutes.cpp

@@ -28,6 +28,7 @@
 #include "api/ProjectDelete.h"
 #include "api/ProjectGit.h"
 #include "api/ProjectRead.h"
+#include "api/RecoveryToken.h"
 #include "api/ProjectCards.h"
 #include "api/ProjectUpdate.h"
 #include "api/ProjectTags.h"

@@ -47,7 +47,7 @@
 #include "api/LocationWrite.h"
 #include "api/declared/Ping.h"
 #include "api/declared/Projects.h"
-#include "api/declared/RecoveryToken.h"
+#include "api/RecoveryToken.h"
 #include "api/declared/Reindex.h"
 #include "api/declared/Resources.h"
 #include "api/declared/Schemas.h"

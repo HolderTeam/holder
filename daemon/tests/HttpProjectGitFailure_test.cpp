@@ -237,7 +237,7 @@ TEST_CASE("Global recovery import keeps success when git remote setup fails", "[
         boost::beast::http::verb::post,
         "/recovery-token/import",
         {{"pin", "1234"}, {"recovery_token", recovery_token}},
-        boost::beast::http::status::created
+        boost::beast::http::status::ok
     );
     REQUIRE(imported["ok"] == true);
     REQUIRE(imported["data"]["project_id"] == "proj-1");
