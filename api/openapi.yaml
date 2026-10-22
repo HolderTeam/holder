@@ -1666,6 +1666,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ai_catalog.yaml:
     get:
       summary: Download canonical AI catalog config (models + cloud)
@@ -1678,6 +1683,11 @@ paths:
               schema: {type: string}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3057,6 +3067,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /docs/{file}:
     get:
       summary: Download one of the API documentation's files
@@ -3073,6 +3088,11 @@ paths:
             '*/*': {}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3293,6 +3313,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /git_providers.yaml:
     get:
       summary: Download git provider UI/runtime config
@@ -3305,6 +3330,11 @@ paths:
               schema: {type: string}
         '404':
           description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3845,6 +3875,11 @@ paths:
           content:
             application/json:
               schema: {type: object, additionalProperties: true}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /openapi.yaml:
     get:
       summary: Download the OpenAPI specification
@@ -3855,6 +3890,11 @@ paths:
           content:
             application/yaml:
               schema: {type: string}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ping:
     get:
       summary: Liveness check, unauthenticated

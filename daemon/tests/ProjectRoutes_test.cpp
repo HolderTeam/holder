@@ -655,7 +655,7 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(res.result() == http::status::bad_request);
 
   // Hand-served operations are declared for the contract; the host serves them.
-  req = make_request(http::verb::get, "/openapi.yaml");
+  req = make_request(http::verb::get, "/locations/l-1/oauth/google-drive/callback");
   REQUIRE(holder::api::is_public_generated_route(req));
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
 

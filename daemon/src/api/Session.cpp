@@ -1,7 +1,6 @@
 #include "api/Session.h"
 #include "api/GeneratedRoutes.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
-#include "api/routes/StaticRoutes.h"
 #include "api/support/HttpAuth.h"
 #include "api/support/HttpResponses.h"
 
@@ -376,8 +375,8 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   } else if (!is_host_served_route(req_)) {
     // The handlers below serve only the routes the contract declares.
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-  } else if (!routes::handle_static_routes(path_, req_, res)) {
-    // The rest is Google redirecting the user's browser, which has no token.
+  } else {
+    // Google redirecting the user's browser, which has no token.
     routes::handle_google_drive_oauth_callback_route(
         path_,
         query_string_,

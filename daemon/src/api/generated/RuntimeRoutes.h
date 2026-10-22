@@ -533,26 +533,74 @@ inline std::optional<response> dispatch(const std::string& method,
         }
     }
     static const std::regex route_93("^/openapi\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_93))
-        return std::nullopt;  // download_openapi_yaml is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_93)) {
+        try {
+            return response{200, json(holder::api::download_openapi_yaml()), "download_openapi_yaml", {}, {}, "application/yaml"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_openapi_yaml"};
+        }
+    }
     static const std::regex route_94("^/openapi\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_94))
-        return std::nullopt;  // download_openapi_json is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_94)) {
+        try {
+            return response{200, rig_json::encode(holder::api::download_openapi_json()), "download_openapi_json"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_openapi_json"};
+        }
+    }
     static const std::regex route_95("^/ai_catalog\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_95))
-        return std::nullopt;  // download_ai_catalog_yaml is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_95)) {
+        try {
+            return response{200, json(holder::api::download_ai_catalog_yaml()), "download_ai_catalog_yaml", {}, {}, "application/yaml"};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "download_ai_catalog_yaml"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_ai_catalog_yaml"};
+        }
+    }
     static const std::regex route_96("^/git_providers\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_96))
-        return std::nullopt;  // download_git_providers_yaml is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_96)) {
+        try {
+            return response{200, json(holder::api::download_git_providers_yaml()), "download_git_providers_yaml", {}, {}, "application/yaml"};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "download_git_providers_yaml"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_git_providers_yaml"};
+        }
+    }
     static const std::regex route_97("^/ai_catalog\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_97))
-        return std::nullopt;  // download_ai_catalog_json is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_97)) {
+        try {
+            return response{200, rig_json::encode(holder::api::download_ai_catalog_json()), "download_ai_catalog_json"};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "download_ai_catalog_json"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_ai_catalog_json"};
+        }
+    }
     static const std::regex route_98("^/git_providers\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_98))
-        return std::nullopt;  // download_git_providers_json is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_98)) {
+        try {
+            return response{200, rig_json::encode(holder::api::download_git_providers_json()), "download_git_providers_json"};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "download_git_providers_json"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_git_providers_json"};
+        }
+    }
     static const std::regex route_99("^/docs$");
-    if (method == "GET" && std::regex_match(route_path, route_99))
-        return std::nullopt;  // get_docs is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_99)) {
+        try {
+            auto outcome = holder::api::get_docs();
+            if (outcome.status != 200)
+                throw std::logic_error("get_docs chose an undeclared success status");
+            return response{outcome.status, json(), "get_docs", {}, std::move(outcome.value)};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_docs"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_docs"};
+        }
+    }
     static const std::regex route_101("^/trash$");
     if (method == "GET" && std::regex_match(route_path, match, route_101)) {
         std::optional<std::string> argument_0;
@@ -2021,8 +2069,26 @@ inline std::optional<response> dispatch(const std::string& method,
         }
     }
     static const std::regex route_100("^/docs/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, route_100))
-        return std::nullopt;  // get_docs_file is served by the host
+    if (method == "GET" && std::regex_match(route_path, match, route_100)) {
+        std::optional<std::string> argument_0;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "get_docs_file");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "get_docs_file");
+        }
+        try {
+            auto outcome = holder::api::get_docs_file(std::move(*argument_0));
+            if (outcome.status != 200)
+                throw std::logic_error("get_docs_file chose an undeclared success status");
+            return response{outcome.status, json(), "get_docs_file", {}, std::move(outcome.value)};
+        } catch (const holder::api::StaticFileNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_docs_file"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_docs_file"};
+        }
+    }
     static const std::regex route_111("^/locations/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, match, route_111)) {
         std::optional<std::string> argument_0;
@@ -3808,19 +3874,19 @@ inline bool is_host_served(const std::string& method, const std::string& path) {
     static const std::regex route_92("^/ping$");
     if (method == "GET" && std::regex_match(route_path, route_92)) return false;
     static const std::regex route_93("^/openapi\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_93)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_93)) return false;
     static const std::regex route_94("^/openapi\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_94)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_94)) return false;
     static const std::regex route_95("^/ai_catalog\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_95)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_95)) return false;
     static const std::regex route_96("^/git_providers\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_96)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_96)) return false;
     static const std::regex route_97("^/ai_catalog\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_97)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_97)) return false;
     static const std::regex route_98("^/git_providers\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_98)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_98)) return false;
     static const std::regex route_99("^/docs$");
-    if (method == "GET" && std::regex_match(route_path, route_99)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_99)) return false;
     static const std::regex route_101("^/trash$");
     if (method == "GET" && std::regex_match(route_path, route_101)) return false;
     static const std::regex route_109("^/imports$");
@@ -3956,7 +4022,7 @@ inline bool is_host_served(const std::string& method, const std::string& path) {
     static const std::regex route_87("^/cards/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, route_87)) return false;
     static const std::regex route_100("^/docs/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, route_100)) return true;
+    if (method == "GET" && std::regex_match(route_path, route_100)) return false;
     static const std::regex route_111("^/locations/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, route_111)) return false;
     static const std::regex route_112("^/locations/([^/]+)$");
