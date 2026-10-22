@@ -1,6 +1,5 @@
 #include "api/Session.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/AuthenticatedRoutes.h"
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/routes/StaticRoutes.h"
 #include "api/support/HttpAuth.h"
@@ -388,34 +387,17 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
   } else if (path_ == "/ping") {
     res = ping_response();
-  } else if (
-      routes::handle_static_routes(path_, req_, res) ||
-      routes::handle_google_drive_oauth_callback_route(
-          path_,
-          query_string_,
-          req_,
-          res,
-          db_,
-          secret_store_,
-          git_ops_
-      )
-  ) {
-    // Public: the callback is Google redirecting the user's browser, which has no token.
-  } else {
-    const auto route_result = routes::dispatch_authenticated_routes(
+  } else if (!routes::handle_static_routes(path_, req_, res)) {
+    // The rest is Google redirecting the user's browser, which has no token.
+    routes::handle_google_drive_oauth_callback_route(
         path_,
         query_string_,
         req_,
         res,
-        socket_,
         db_,
         secret_store_,
-        git_ops_,
-        [&]() { // LCOV_EXCL_LINE
-          return generate_uuid_v4();
-        }
+        git_ops_
     );
-    if (route_result.streamed) return std::nullopt;
   }
 
   PreparedResponse prepared{

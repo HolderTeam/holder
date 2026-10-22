@@ -6,7 +6,7 @@
 
 #include "api/AssetImportWrite.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/AiResourceRoutes.h"
+#include "api/support/StorageErrors.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
@@ -58,31 +58,6 @@ TEST_CASE("Resource create rejects a malformed body as a bad request", "[resourc
   REQUIRE(payload["error"]["code"] == "bad_request");
 }
 
-TEST_CASE("AiResourceRoutes returns false for unrelated paths", "[resources][routes]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  auto req = make_request(http::verb::get, "/not-a-resource-route");
-  http::response<http::string_body> res;
-
-  const bool handled = holder::api::routes::handle_ai_resource_routes(
-      "/not-a-resource-route",
-      req,
-      res,
-      db,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE_FALSE(handled);
-}
-
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
 #include "resource/LocationBindingStore.h"
@@ -130,23 +105,7 @@ struct LocationRouteFixture {
         )) {
       return response;
     }
-    auto request = make_request(method, path, body);
-    REQUIRE(holder::api::routes::handle_ai_resource_routes(
-        path,
-        request,
-        response,
-        db,
-        [&] {
-          return "id-" + std::to_string(++sequence);
-        },
-        [&](const std::string& key) {
-          const auto found = params.find(key);
-          if (found != params.end()) return found->second;
-          return key == "project_id" ? project : "";
-        },
-        with_secrets ? secrets.get() : nullptr,
-        git
-    ));
+    FAIL("no generated route for " << target);
     return response;
   }
   http::response<http::string_body> poll_import(const std::string& job_id) {
@@ -389,7 +348,7 @@ TEST_CASE("Location probes use Google OAuth and remove the probe object", "[reso
 
 #include "resource/StorageProvider.h"
 
-TEST_CASE("Resource errors preserve storage categories in HTTP responses", "[resources][routes]") {
+TEST_CASE("Storage failures keep their categories as HTTP statuses", "[resources][routes]") {
   using Code = holder::resource::StorageErrorCode;
   struct Case {
     Code code;
@@ -407,18 +366,12 @@ TEST_CASE("Resource errors preserve storage categories in HTTP responses", "[res
            {Code::Transient, 503, "storage_transient_failure"}
        }) {
     CAPTURE(item.name);
-    const auto response = holder::api::routes::resource_error_response(
+    const auto [status, code] = holder::api::support::storage_failure_status(
         holder::resource::StorageError(item.code, "storage failure")
     );
-    CHECK(response.result_int() == item.status);
-    const auto body = nlohmann::json::parse(response.body());
-    CHECK(body["error"]["code"] == item.name);
-    CHECK(body["error"]["message"] == "storage failure");
+    CHECK(status == item.status);
+    CHECK(std::string(code) == item.name);
   }
-  const auto conflict = holder::api::routes::resource_error_response(
-      std::runtime_error("conflict: resource already exists")
-  );
-  CHECK(conflict.result() == http::status::conflict);
 }
 
 TEST_CASE("Resource routes validate updates and report database failures", "[resources][routes]") {
@@ -600,26 +553,26 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
   boost::asio::ip::tcp::socket socket(io);
 
   auto retrieve = [&](const std::map<std::string, std::string>& params, bool& streamed) {
-    const std::string path = "/resources/resource/assets/asset/content";
-    auto request = make_request(http::verb::get, path);
+    std::string target = "/resources/resource/assets/asset/content";
+    if (const auto found = params.find("placement_id"); found != params.end())
+      target += "?placement_id=" + found->second;
+    auto request = make_request(http::verb::get, target);
     http::response<http::string_body> response;
-    REQUIRE(holder::api::routes::handle_ai_resource_routes(
-        path,
+    const auto served = holder::test::serve_generated(
         request,
         response,
+        socket,
         f.db,
-        [] {
-          return std::string("recovered");
-        },
-        [&](const std::string& key) {
-          const auto found = params.find(key);
-          return found == params.end() ? std::string() : found->second;
-        },
+        nullptr,
+        nullptr,
         f.secrets.get(),
         &git,
-        &socket,
-        &streamed
-    ));
+        [] {
+          return std::string("recovered");
+        }
+    );
+    REQUIRE(served.handled);
+    streamed = served.streamed;
     return response;
   };
 
@@ -634,8 +587,7 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
   }
   f.db.exec("PRAGMA foreign_keys=OFF; DELETE FROM storage_locations; PRAGMA foreign_keys=ON;");
   CHECK(retrieve({}, streamed).result() == http::status::not_found);
-  streamed = true;
-  (void)retrieve({{"placement_id", "other"}}, streamed);
+  CHECK_FALSE(streamed);
 }
 
 TEST_CASE("Location updates and removals persist their Git manifests", "[resources][routes]") {

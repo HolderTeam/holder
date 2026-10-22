@@ -88,7 +88,12 @@ inline ServedRequest serve_generated(
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::llm::RunnerRegistry* registry = nullptr,
-    holder::api::support::EventService* events = nullptr
+    holder::api::support::EventService* events = nullptr,
+    holder::privacy::SecretStore* secret_store = nullptr,
+    holder::git::GitOps* git_ops = nullptr,
+    std::function<std::string()> uuid_v4 = [] {
+      return std::string("id");
+    }
 ) {
   holder::api::support::StreamServer stream;
   const bool handled = holder::api::dispatch_generated_routes(
@@ -97,11 +102,9 @@ inline ServedRequest serve_generated(
       db,
       registry,
       nullptr,
-      nullptr,
-      nullptr,
-      [] {
-        return std::string("id");
-      },
+      secret_store,
+      git_ops,
+      std::move(uuid_v4),
       {},
       nullptr,
       events,

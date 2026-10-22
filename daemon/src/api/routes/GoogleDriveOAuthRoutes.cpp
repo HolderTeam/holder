@@ -66,7 +66,7 @@ struct PendingOAuthAttempt {
 
 // A pending attempt lives only between "the user clicked Connect" and "Google redirected
 // back" -- in-memory and process-lifetime is enough, the same shape as
-// AiResourceRoutes.cpp's own import_jobs map. One-shot: the callback erases an entry the
+// support/AssetImportJobs.cpp's import jobs. One-shot: the callback erases an entry the
 // moment it reads it, since an authorization code is itself single-use anyway.
 std::mutex pending_oauth_mutex;
 std::unordered_map<std::string, PendingOAuthAttempt> pending_oauth_attempts;
@@ -78,8 +78,7 @@ constexpr long long kPendingOAuthTtlSeconds = 600;
 constexpr const char* kDriveFileScope = "https://www.googleapis.com/auth/drive.file";
 
 // /locations/{id}/oauth/google-drive/callback -- the one path shape this file parses
-// itself, since the callback is dispatched before the normal /locations/{id}/<action>
-// routing (in handle_ai_resource_routes) ever runs.
+// itself, since the daemon writes the callback's response rather than a generated route.
 std::optional<std::string> parse_callback_location_id(const std::string& path) {
   static const std::string kPrefix = "/locations/";
   static const std::string kSuffix = "/oauth/google-drive/callback";

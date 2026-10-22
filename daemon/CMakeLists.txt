@@ -432,11 +432,10 @@ add_executable(holderd
   src/api/TrashWrite.cpp
   src/api/Listener.cpp
   src/api/AiNudges.cpp
+  src/api/AssetContent.cpp
   src/api/EventCursor.cpp
   src/api/Streams.cpp
   src/api/GoogleDriveOAuth.cpp
-  src/api/routes/AuthenticatedRoutes.cpp
-  src/api/routes/AiResourceRoutes.cpp
   src/api/routes/GoogleDriveOAuthRoutes.cpp
   src/api/routes/ai/runs/AiRunPostRoute.cpp
   src/api/routes/ai/runs/AiRunQueryRoutes.cpp
