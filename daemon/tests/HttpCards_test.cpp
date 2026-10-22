@@ -823,7 +823,7 @@ TEST_CASE("HTTP card move endpoint rejects invalid input", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(bad_intent["ok"] == false);
-  REQUIRE(bad_intent["error"]["code"] == "invalid_move_intent");
+  REQUIRE(bad_intent["error"]["code"] == "bad_request");
 
   std::raise(SIGTERM);
   server_thread.join();

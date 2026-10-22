@@ -57,15 +57,25 @@ def _parse_response(
 
         return response_404
 
-    if response.status_code == 409:
-        response_409 = ErrorResponse.from_dict(response.json())
-
-        return response_409
-
     if response.status_code == 422:
         response_422 = ErrorResponse.from_dict(response.json())
 
         return response_422
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -99,7 +109,7 @@ def sync_detailed(
 
     Args:
         card_id (str):
-        body (CardMoveRequest):
+        body (CardMoveRequest): Unlisted properties are rejected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -136,7 +146,7 @@ def sync(
 
     Args:
         card_id (str):
-        body (CardMoveRequest):
+        body (CardMoveRequest): Unlisted properties are rejected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -168,7 +178,7 @@ async def asyncio_detailed(
 
     Args:
         card_id (str):
-        body (CardMoveRequest):
+        body (CardMoveRequest): Unlisted properties are rejected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -203,7 +213,7 @@ async def asyncio(
 
     Args:
         card_id (str):
-        body (CardMoveRequest):
+        body (CardMoveRequest): Unlisted properties are rejected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

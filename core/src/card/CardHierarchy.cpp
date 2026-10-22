@@ -1,4 +1,5 @@
 #include "card/CardHierarchy.h"
+#include "card/CardPlacementError.h"
 
 #include <algorithm>
 #include <cctype>
@@ -128,7 +129,7 @@ std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& car
   auto next = card.parent_card_id;
   std::optional<std::string> candidate;
   while (next) {
-    if (!visited.insert(*next).second) throw std::runtime_error("move_would_create_cycle");
+    if (!visited.insert(*next).second) throw CardPlacementError(CardPlacementErrorCode::MoveWouldCreateCycle);
     const auto ancestor = repo.get(*next);
     if (!ancestor || ancestor->project_id != card.project_id) return std::nullopt;
     if (ancestor->deleted_at) {
@@ -143,7 +144,7 @@ std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& car
 
 void validate_card_parent(CardRepo& repo, const Card& card) {
   if (reachable_card_parent(repo, card) != card.parent_card_id) {
-    throw std::runtime_error("target_not_found");
+    throw CardPlacementError(CardPlacementErrorCode::TargetNotFound);
   }
 }
 

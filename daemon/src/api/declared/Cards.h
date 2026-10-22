@@ -2,7 +2,6 @@
 
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/CardWrite.h"
 #include "api/RigAnnotations.h"
 #include "api/declared/Schemas.h"
 
@@ -78,57 +77,5 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
 MilestoneRemoveResponse delete_cards_card_id_milestones_milestone_id(
     std::string card_id,
     std::string milestone_id);
-
-RIG_ROUTE(POST, "/cards/{card_id}/move")
-RIG_SUMMARY("Move/reparent/reorder a card using card move intent")
-RIG_DESCRIPTION("Placement is resolved and written under the project lock. When the card's new neighbours leave no room between their sort keys (tied keys, or a gap used up by repeated moves), nearby siblings are re-spaced in the same commit, keeping their order. The response describes only the moved card, so a client holding other cards' sort_key values should refresh the listing.")
-RIG_RESPONSE_DESCRIPTION("Move applied")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request (missing/invalid intent fields)")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Card or target not found")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Stale revision (if_revision mismatch)")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Invalid move (cycle/cross-project/invalid target)")
-CardMoveResponse post_cards_card_id_move(std::string card_id, CardMoveRequest request);
-
-RIG_ROUTE(POST, "/cards/{card_id}/tags")
-RIG_SUMMARY("Add a tag to a live card")
-RIG_RESPONSE_DESCRIPTION("Added or already present")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Missing fields or invalid tag")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card not found")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Card belongs to a different project")
-CardTagMutationResponse post_cards_card_id_tags(
-    std::string card_id,
-    CardTagMutationRequest request);
-
-RIG_ROUTE(DELETE, "/cards/{card_id}/tags")
-RIG_SUMMARY("Remove a tag from a live card's editable trailing tag line")
-RIG_RESPONSE_DESCRIPTION("Removed, not present, or present only outside the editable tag line")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Missing fields or invalid tag")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Live card not found")
-RIG_ERROR_RESPONSE(422, ErrorResponse, "Card belongs to a different project")
-CardTagMutationResponse delete_cards_card_id_tags(
-    std::string card_id,
-    CardTagMutationRequest request);
-
-RIG_ROUTE(DELETE, "/cards/{card_id}/links")
-RIG_SUMMARY("Delete links from a card")
-RIG_DESCRIPTION("Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector without target_project_id is rejected if more than one target project matches. Provide target_project_id together with to_card_id, to_type and kind to select one qualified target. If to_card_id is omitted, deletes all outgoing links.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardPatchResponse delete_cards_card_id_links(
-    std::string card_id,
-    std::optional<CardLinkDeleteRequest> request);
-
-RIG_ROUTE(POST, "/cards/{card_id}/restore")
-RIG_SUMMARY("Restore a card from trash")
-RIG_DESCRIPTION("Restores this card only. It returns to its saved parent when that parent is live and reachable, otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if restored afterwards.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardPatchResponse post_cards_card_id_restore(std::string card_id);
 
 } // namespace holder::api

@@ -6,7 +6,6 @@
 
 #include "ai/AiThreadRepo.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/CardRoutes.h"
 #include "card/CardStore.h"
 #include "card/LinkRepo.h"
 #include "http_test_helpers.h"
@@ -53,7 +52,7 @@ std::function<std::string(const std::string&)> map_param_getter(
 }
 
 
-// Routes a request as the daemon does: generated routes first, then the host-written card routes.
+// Routes a request through the generated routes, as the daemon does.
 // The query comes from the parameter function (an empty value is left out).
 template <typename Param>
 bool route_card(
@@ -97,7 +96,7 @@ bool route_card(
       return true;
     }
   }
-  return holder::api::routes::handle_card_routes(path, req, res, db, card_store, fts);
+  return false;
 }
 
 } // namespace
@@ -426,18 +425,10 @@ TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
         R"({"project_id":"proj-1","intent":"to_end"})"
     );
     http::response<http::string_body> res;
-    const bool handled = route_card(
-        "/cards//move",
-        req,
-        res,
-        db,
-        &card_store,
-        &fts,
-        uuid_v4,
-        param_get
-    );
-    REQUIRE(handled);
-    REQUIRE(res.result() == http::status::not_found);
+    // An empty card ID matches no route, so the router answers 404.
+    REQUIRE_FALSE(route_card(
+        "/cards//move", req, res, db, &card_store, &fts, uuid_v4, param_get
+    ));
   }
 
   SECTION("move route unavailable when card_store is null") {
@@ -1051,14 +1042,11 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
     REQUIRE(payload["error"]["code"] == "method_not_allowed");
   }
 
-  SECTION("unknown tail route returns not found") {
-    auto [status, payload] = call(
-        http::verb::get,
-        "/cards/11111111-1111-4111-8111-111111111111/unknown",
-        nlohmann::json::object()
-    );
-    REQUIRE(status == http::status::not_found);
-    REQUIRE(payload["error"]["code"] == "not_found");
+  SECTION("unknown tail route matches no route") {
+    const std::string path = "/cards/11111111-1111-4111-8111-111111111111/unknown";
+    auto req = make_request(http::verb::get, path);
+    http::response<http::string_body> res;
+    REQUIRE_FALSE(route_card(path, req, res, db, &card_store, &fts, uuid_v4, param_get));
   }
 }
 
@@ -1369,8 +1357,16 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
         "/cards/ffffffff-ffff-4fff-8fff-ffffffffffff/restore",
         nlohmann::json::object()
     );
-    REQUIRE(missing_status == http::status::bad_request);
-    REQUIRE(missing_payload["error"]["code"] == "bad_request");
+    REQUIRE(missing_status == http::status::not_found);
+    REQUIRE(missing_payload["error"]["code"] == "not_found");
+
+    auto [live_status, live_payload] = call(
+        http::verb::post,
+        "/cards/11111111-1111-4111-8111-111111111111/restore",
+        nlohmann::json::object()
+    );
+    REQUIRE(live_status == http::status::bad_request);
+    REQUIRE(live_payload["error"]["message"] == "Card is not in Trash.");
   }
 
   SECTION("item routes cover no-store, empty id, deleted and missing delete") {
@@ -2090,4 +2086,62 @@ TEST_CASE("CardRoutes card writes report their failures", "[card-routes]") {
 
   db.exec("DROP TABLE card_tags;");
   REQUIRE(status(http::verb::post, "/cards", create) == http::status::internal_server_error);
+}
+
+TEST_CASE("CardRoutes card actions report their failures", "[card-routes]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "proj-1", (dir / "repo").string());
+  holder::index::FtsIndexer fts(db);
+  holder::card::CardStore card_store(db, &fts);
+  const std::string parent = "99999999-9999-4999-8999-999999999991";
+  const std::string child = "99999999-9999-4999-8999-999999999992";
+  holder::test::create_card_fixture(card_store, parent, "proj-1", "Parent", "parent", 10);
+  holder::test::create_card_fixture(card_store, child, "proj-1", "Child", "child", 11, parent);
+  const auto call = [&](http::verb method, const std::string& path, const nlohmann::json& body,
+                        holder::card::CardStore* store) {
+    auto req = make_request(method, path, body.is_null() ? "" : body.dump());
+    http::response<http::string_body> res;
+    REQUIRE(route_card(path, req, res, db, store, &fts, [] { return std::string("id"); },
+                       [](const std::string&) { return std::string(); }));
+    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+  };
+  const std::string card = "/cards/" + parent;
+
+  for (const auto& [method, tail, body] :
+       {std::tuple{http::verb::post, std::string("/move"),
+                   nlohmann::json{{"project_id", "proj-1"}, {"intent", "to_end"}}},
+        std::tuple{http::verb::post, std::string("/restore"), nlohmann::json()},
+        std::tuple{http::verb::post, std::string("/tags"),
+                   nlohmann::json{{"project_id", "proj-1"}, {"tag", "x"}}},
+        std::tuple{http::verb::delete_, std::string("/tags"),
+                   nlohmann::json{{"project_id", "proj-1"}, {"tag", "x"}}},
+        std::tuple{http::verb::post, std::string("/links"), nlohmann::json{{"to_card_id", child}}},
+        std::tuple{http::verb::delete_, std::string("/links"), nlohmann::json()}}) {
+    CAPTURE(tail);
+    const auto [status, payload] = call(method, card + tail, body, nullptr);
+    REQUIRE(status == http::status::not_implemented);
+    REQUIRE(payload["error"]["code"] == "not_implemented");
+  }
+
+  // The move request is closed, so a revision guard is rejected rather than ignored.
+  const auto [guard_status, guard] = call(
+      http::verb::post, card + "/move",
+      {{"project_id", "proj-1"}, {"intent", "to_end"}, {"if_revision", 1}}, &card_store);
+  REQUIRE(guard_status == http::status::bad_request);
+  REQUIRE(guard["error"]["message"] == "unexpected CardMoveRequest field");
+
+  // A parent that would make a cycle is a client error on PATCH too.
+  const auto [cycle_status, cycle] = call(
+      http::verb::patch, card, {{"updated_at", 20}, {"parent_card_id", child}}, &card_store);
+  REQUIRE(cycle_status == http::status::bad_request);
+  REQUIRE(cycle["error"]["message"] == "Move would create a cycle.");
+
+  // A zero created_at takes the current time.
+  const auto [link_status, link] = call(
+      http::verb::post, "/cards/" + child + "/links", {{"to_card_id", parent}, {"created_at", 0}},
+      &card_store);
+  REQUIRE(link_status == http::status::created);
+  REQUIRE(link["data"]["created_at"].get<long long>() > 0);
+  REQUIRE(link["data"]["label"].is_null());
 }

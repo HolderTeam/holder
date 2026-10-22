@@ -1,7 +1,6 @@
 #include "api/routes/AuthenticatedRoutes.h"
 
 #include "api/routes/AiResourceRoutes.h"
-#include "api/routes/CardRoutes.h"
 #include "api/routes/HistoryRoutes.h"
 #include "api/routes/MilestoneRoutes.h"
 #include "api/routes/ProjectCardRoutes.h"
@@ -109,7 +108,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
   } else if (resource == "cards") {
     if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
-    if (handle_card_routes(path, req, res, db, card_store, fts)) return {};
   }
 
   res = support::error_response(http::status::not_found, "not_found", "Route not found.");

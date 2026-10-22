@@ -3581,6 +3581,7 @@
       },
       "post": {
         "summary": "Create or update a link from a card",
+        "description": "Creating a link that already exists updates its label and keeps its creation time.",
         "parameters": [
           {
             "name": "card_id",
@@ -3613,7 +3614,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, an invalid or unknown target, a source card in Trash, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -3633,7 +3634,37 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -3679,7 +3710,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Incomplete or ambiguous selector, a source card in Trash for a fully specified selector, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -3699,7 +3730,37 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4277,7 +4338,7 @@
             }
           },
           "400": {
-            "description": "Bad request (missing/invalid intent fields)",
+            "description": "Malformed request, target_card_id missing for into/before/after (missing_target_card_id), or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4297,17 +4358,7 @@
             }
           },
           "404": {
-            "description": "Card or target not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Stale revision (if_revision mismatch)",
+            "description": "Live card (not_found), or target or parent card (target_not_found), not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -4317,7 +4368,37 @@
             }
           },
           "422": {
-            "description": "Invalid move (cycle/cross-project/invalid target)",
+            "description": "Invalid move: cross_project_move_forbidden, move_would_create_cycle, invalid_target, or invalid_move_intent for up_level at the top level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4597,6 +4678,16 @@
               }
             }
           },
+          "400": {
+            "description": "The card is not in Trash, or a privacy error writing an encrypted card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4608,7 +4699,37 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4655,7 +4776,7 @@
             }
           },
           "400": {
-            "description": "Missing fields or invalid tag",
+            "description": "Malformed request, an invalid tag (invalid_tag), or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4685,7 +4806,37 @@
             }
           },
           "422": {
-            "description": "Card belongs to a different project",
+            "description": "Card belongs to a different project (cross_project_tag_forbidden)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4730,7 +4881,7 @@
             }
           },
           "400": {
-            "description": "Missing fields or invalid tag",
+            "description": "Malformed request, an invalid tag (invalid_tag), or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4760,7 +4911,37 @@
             }
           },
           "422": {
-            "description": "Card belongs to a different project",
+            "description": "Card belongs to a different project (cross_project_tag_forbidden)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -11907,20 +12088,14 @@
               "null"
             ],
             "description": "Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level."
-          },
-          "if_revision": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Optional optimistic-concurrency revision guard."
           }
         },
         "required": [
           "project_id",
           "intent"
-        ]
+        ],
+        "additionalProperties": false,
+        "description": "Unlisted properties are rejected."
       },
       "CardMoveResponse": {
         "type": "object",

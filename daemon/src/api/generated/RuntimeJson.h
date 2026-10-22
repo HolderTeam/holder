@@ -174,6 +174,62 @@ template <> struct codec<holder::api::AiProviderCredentialUpsertResponse> {
     static json encode(const holder::api::AiProviderCredentialUpsertResponse& value);
     static holder::api::AiProviderCredentialUpsertResponse decode(const json& value);
 };
+template <> struct codec<holder::api::CardCreateResponseData> {
+    static json encode(const holder::api::CardCreateResponseData& value);
+    static holder::api::CardCreateResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::CardCreateResponse> {
+    static json encode(const holder::api::CardCreateResponse& value);
+    static holder::api::CardCreateResponse decode(const json& value);
+};
+template <> struct codec<holder::api::CardCreateRequest> {
+    static json encode(const holder::api::CardCreateRequest& value);
+    static holder::api::CardCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardPatchResponseData> {
+    static json encode(const holder::api::CardPatchResponseData& value);
+    static holder::api::CardPatchResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::CardPatchResponse> {
+    static json encode(const holder::api::CardPatchResponse& value);
+    static holder::api::CardPatchResponse decode(const json& value);
+};
+template <> struct codec<holder::api::CardUpdateRequest> {
+    static json encode(const holder::api::CardUpdateRequest& value);
+    static holder::api::CardUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardMoveResult> {
+    static json encode(const holder::api::CardMoveResult& value);
+    static holder::api::CardMoveResult decode(const json& value);
+};
+template <> struct codec<holder::api::CardMoveResponse> {
+    static json encode(const holder::api::CardMoveResponse& value);
+    static holder::api::CardMoveResponse decode(const json& value);
+};
+template <> struct codec<holder::api::CardMoveIntent> {
+    static json encode(const holder::api::CardMoveIntent& value);
+    static holder::api::CardMoveIntent decode(const json& value);
+};
+template <> struct codec<holder::api::CardMoveRequest> {
+    static json encode(const holder::api::CardMoveRequest& value);
+    static holder::api::CardMoveRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardTagMutationResult> {
+    static json encode(const holder::api::CardTagMutationResult& value);
+    static holder::api::CardTagMutationResult decode(const json& value);
+};
+template <> struct codec<holder::api::CardTagMutationResponse> {
+    static json encode(const holder::api::CardTagMutationResponse& value);
+    static holder::api::CardTagMutationResponse decode(const json& value);
+};
+template <> struct codec<holder::api::CardTagMutationRequest> {
+    static json encode(const holder::api::CardTagMutationRequest& value);
+    static holder::api::CardTagMutationRequest decode(const json& value);
+};
+template <> struct codec<holder::api::CardLinkDeleteRequest> {
+    static json encode(const holder::api::CardLinkDeleteRequest& value);
+    static holder::api::CardLinkDeleteRequest decode(const json& value);
+};
 template <> struct codec<holder::api::AiLocalModelConfigData> {
     static json encode(const holder::api::AiLocalModelConfigData& value);
     static holder::api::AiLocalModelConfigData decode(const json& value);
@@ -269,10 +325,6 @@ template <> struct codec<holder::api::AiMessageCaptureRequest> {
 template <> struct codec<holder::api::AiThread> {
     static json encode(const holder::api::AiThread& value);
     static holder::api::AiThread decode(const json& value);
-};
-template <> struct codec<holder::api::CardLinkDeleteRequest> {
-    static json encode(const holder::api::CardLinkDeleteRequest& value);
-    static holder::api::CardLinkDeleteRequest decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectSync> {
     static json encode(const holder::api::ProjectSync& value);
@@ -501,34 +553,6 @@ template <> struct codec<holder::api::MilestoneCreateRequest> {
 template <> struct codec<holder::api::MilestoneUpdateRequest> {
     static json encode(const holder::api::MilestoneUpdateRequest& value);
     static holder::api::MilestoneUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::CardMoveResult> {
-    static json encode(const holder::api::CardMoveResult& value);
-    static holder::api::CardMoveResult decode(const json& value);
-};
-template <> struct codec<holder::api::CardMoveResponse> {
-    static json encode(const holder::api::CardMoveResponse& value);
-    static holder::api::CardMoveResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardMoveIntent> {
-    static json encode(const holder::api::CardMoveIntent& value);
-    static holder::api::CardMoveIntent decode(const json& value);
-};
-template <> struct codec<holder::api::CardMoveRequest> {
-    static json encode(const holder::api::CardMoveRequest& value);
-    static holder::api::CardMoveRequest decode(const json& value);
-};
-template <> struct codec<holder::api::CardTagMutationResult> {
-    static json encode(const holder::api::CardTagMutationResult& value);
-    static holder::api::CardTagMutationResult decode(const json& value);
-};
-template <> struct codec<holder::api::CardTagMutationResponse> {
-    static json encode(const holder::api::CardTagMutationResponse& value);
-    static holder::api::CardTagMutationResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardTagMutationRequest> {
-    static json encode(const holder::api::CardTagMutationRequest& value);
-    static holder::api::CardTagMutationRequest decode(const json& value);
 };
 template <> struct codec<holder::api::StorageLocation> {
     static json encode(const holder::api::StorageLocation& value);
@@ -1002,30 +1026,6 @@ template <> struct codec<holder::api::DeleteCardsCardIdResourcesRequest> {
     static json encode(const holder::api::DeleteCardsCardIdResourcesRequest& value);
     static holder::api::DeleteCardsCardIdResourcesRequest decode(const json& value);
 };
-template <> struct codec<holder::api::CardCreateResponseData> {
-    static json encode(const holder::api::CardCreateResponseData& value);
-    static holder::api::CardCreateResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::CardCreateResponse> {
-    static json encode(const holder::api::CardCreateResponse& value);
-    static holder::api::CardCreateResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardCreateRequest> {
-    static json encode(const holder::api::CardCreateRequest& value);
-    static holder::api::CardCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::CardPatchResponseData> {
-    static json encode(const holder::api::CardPatchResponseData& value);
-    static holder::api::CardPatchResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::CardPatchResponse> {
-    static json encode(const holder::api::CardPatchResponse& value);
-    static holder::api::CardPatchResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardUpdateRequest> {
-    static json encode(const holder::api::CardUpdateRequest& value);
-    static holder::api::CardUpdateRequest decode(const json& value);
-};
 template <> struct codec<holder::api::TrashItem> {
     static json encode(const holder::api::TrashItem& value);
     static holder::api::TrashItem decode(const json& value);
@@ -1308,6 +1308,331 @@ inline holder::api::AiProviderCredentialUpsertResponse codec<holder::api::AiProv
     return holder::api::AiProviderCredentialUpsertResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderCredential>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CardCreateResponseData>::encode(const holder::api::CardCreateResponseData& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["rel_path"] = codec<std::string>::encode(value.rel_path);
+    return result;
+}
+inline holder::api::CardCreateResponseData codec<holder::api::CardCreateResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardCreateResponseData");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("rel_path")) throw std::invalid_argument("missing rel_path");
+    return holder::api::CardCreateResponseData{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("rel_path")),
+    };
+}
+
+inline json codec<holder::api::CardCreateResponse>::encode(const holder::api::CardCreateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardCreateResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::CardCreateResponse codec<holder::api::CardCreateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardCreateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardCreateResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardCreateResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CardCreateRequest>::encode(const holder::api::CardCreateRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["content"] = codec<std::string>::encode(value.content);
+    if (value.created_at) {
+        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
+    }
+    if (value.updated_at) {
+        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
+    }
+    if (value.parent_card_id) {
+        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
+    }
+    if (value.sort_key) {
+        result["sort_key"] = codec<std::optional<double>>::encode(value.sort_key);
+    }
+    if (value.rel_path) {
+        result["rel_path"] = codec<std::optional<std::optional<std::string>>>::encode(value.rel_path);
+    }
+    return result;
+}
+inline holder::api::CardCreateRequest codec<holder::api::CardCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardCreateRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("content")) throw std::invalid_argument("missing content");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "title" && it.key() != "content" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "rel_path") throw std::invalid_argument("unexpected CardCreateRequest field");
+    return holder::api::CardCreateRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("title")),
+        codec<std::string>::decode(value.at("content")),
+        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
+        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
+        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
+        value.contains("sort_key") ? codec<std::optional<double>>::decode(value.at("sort_key")) : std::nullopt,
+        value.contains("rel_path") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("rel_path"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardPatchResponseData>::encode(const holder::api::CardPatchResponseData& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    return result;
+}
+inline holder::api::CardPatchResponseData codec<holder::api::CardPatchResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardPatchResponseData");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    return holder::api::CardPatchResponseData{
+        codec<std::string>::decode(value.at("card_id")),
+    };
+}
+
+inline json codec<holder::api::CardPatchResponse>::encode(const holder::api::CardPatchResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardPatchResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::CardPatchResponse codec<holder::api::CardPatchResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardPatchResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardPatchResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardPatchResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CardUpdateRequest>::encode(const holder::api::CardUpdateRequest& value) {
+    json result = json::object();
+    if (value.content) {
+        result["content"] = codec<std::optional<std::string>>::encode(value.content);
+    }
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    if (value.title) {
+        result["title"] = codec<std::optional<std::optional<std::string>>>::encode(value.title);
+    }
+    if (value.parent_card_id) {
+        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
+    }
+    if (value.sort_key) {
+        result["sort_key"] = codec<std::optional<double>>::encode(value.sort_key);
+    }
+    return result;
+}
+inline holder::api::CardUpdateRequest codec<holder::api::CardUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardUpdateRequest");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    return holder::api::CardUpdateRequest{
+        value.contains("content") ? codec<std::optional<std::string>>::decode(value.at("content")) : std::nullopt,
+        codec<long long>::decode(value.at("updated_at")),
+        value.contains("title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("title"))} : std::nullopt,
+        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
+        value.contains("sort_key") ? codec<std::optional<double>>::decode(value.at("sort_key")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardMoveResult>::encode(const holder::api::CardMoveResult& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["parent_card_id"] = codec<std::optional<std::string>>::encode(value.parent_card_id);
+    result["sort_key"] = codec<double>::encode(value.sort_key);
+    result["revision"] = codec<long long>::encode(value.revision);
+    if (value.moved_into_title) {
+        result["moved_into_title"] = codec<std::optional<std::optional<std::string>>>::encode(value.moved_into_title);
+    }
+    return result;
+}
+inline holder::api::CardMoveResult codec<holder::api::CardMoveResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardMoveResult");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("parent_card_id")) throw std::invalid_argument("missing parent_card_id");
+    if (!value.contains("sort_key")) throw std::invalid_argument("missing sort_key");
+    if (!value.contains("revision")) throw std::invalid_argument("missing revision");
+    return holder::api::CardMoveResult{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::optional<std::string>>::decode(value.at("parent_card_id")),
+        codec<double>::decode(value.at("sort_key")),
+        codec<long long>::decode(value.at("revision")),
+        value.contains("moved_into_title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("moved_into_title"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardMoveResponse>::encode(const holder::api::CardMoveResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardMoveResult>::encode(value.data);
+    return result;
+}
+inline holder::api::CardMoveResponse codec<holder::api::CardMoveResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardMoveResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardMoveResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardMoveResult>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CardMoveIntent>::encode(const holder::api::CardMoveIntent& value) {
+    switch (value) {
+    case holder::api::CardMoveIntent::into: return "into";
+    case holder::api::CardMoveIntent::before: return "before";
+    case holder::api::CardMoveIntent::after: return "after";
+    case holder::api::CardMoveIntent::left: return "left";
+    case holder::api::CardMoveIntent::right: return "right";
+    case holder::api::CardMoveIntent::to_start: return "to_start";
+    case holder::api::CardMoveIntent::to_end: return "to_end";
+    case holder::api::CardMoveIntent::up_level: return "up_level";
+    }
+    throw std::invalid_argument("invalid CardMoveIntent");
+}
+inline holder::api::CardMoveIntent codec<holder::api::CardMoveIntent>::decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("expected CardMoveIntent");
+    if (value == "into") return holder::api::CardMoveIntent::into;
+    if (value == "before") return holder::api::CardMoveIntent::before;
+    if (value == "after") return holder::api::CardMoveIntent::after;
+    if (value == "left") return holder::api::CardMoveIntent::left;
+    if (value == "right") return holder::api::CardMoveIntent::right;
+    if (value == "to_start") return holder::api::CardMoveIntent::to_start;
+    if (value == "to_end") return holder::api::CardMoveIntent::to_end;
+    if (value == "up_level") return holder::api::CardMoveIntent::up_level;
+    throw std::invalid_argument("unknown CardMoveIntent");
+}
+
+inline json codec<holder::api::CardMoveRequest>::encode(const holder::api::CardMoveRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["intent"] = codec<holder::api::CardMoveIntent>::encode(value.intent);
+    if (value.target_card_id) {
+        result["target_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.target_card_id);
+    }
+    if (value.parent_card_id) {
+        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
+    }
+    return result;
+}
+inline holder::api::CardMoveRequest codec<holder::api::CardMoveRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardMoveRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("intent")) throw std::invalid_argument("missing intent");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "intent" && it.key() != "target_card_id" && it.key() != "parent_card_id") throw std::invalid_argument("unexpected CardMoveRequest field");
+    return holder::api::CardMoveRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<holder::api::CardMoveIntent>::decode(value.at("intent")),
+        value.contains("target_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("target_card_id"))} : std::nullopt,
+        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::CardTagMutationResult>::encode(const holder::api::CardTagMutationResult& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["tag"] = codec<std::string>::encode(value.tag);
+    if (value.outcome != "added" && value.outcome != "already_present" && value.outcome != "removed" && value.outcome != "not_present" && value.outcome != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
+    result["outcome"] = codec<std::string>::encode(value.outcome);
+    result["changed"] = codec<bool>::encode(value.changed);
+    return result;
+}
+inline holder::api::CardTagMutationResult codec<holder::api::CardTagMutationResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResult");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
+    if (!value.contains("outcome")) throw std::invalid_argument("missing outcome");
+    if (!value.contains("changed")) throw std::invalid_argument("missing changed");
+    if (value.at("outcome") != "added" && value.at("outcome") != "already_present" && value.at("outcome") != "removed" && value.at("outcome") != "not_present" && value.at("outcome") != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
+    return holder::api::CardTagMutationResult{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("tag")),
+        codec<std::string>::decode(value.at("outcome")),
+        codec<bool>::decode(value.at("changed")),
+    };
+}
+
+inline json codec<holder::api::CardTagMutationResponse>::encode(const holder::api::CardTagMutationResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardTagMutationResult>::encode(value.data);
+    return result;
+}
+inline holder::api::CardTagMutationResponse codec<holder::api::CardTagMutationResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardTagMutationResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardTagMutationResult>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::CardTagMutationRequest>::encode(const holder::api::CardTagMutationRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["tag"] = codec<std::string>::encode(value.tag);
+    return result;
+}
+inline holder::api::CardTagMutationRequest codec<holder::api::CardTagMutationRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationRequest");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
+    if (value.contains("project_id") && value.at("project_id").is_string()) {
+        const auto length = value.at("project_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: project_id");
+    }
+    if (value.contains("tag") && value.at("tag").is_string()) {
+        const auto length = value.at("tag").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: tag");
+    }
+    return holder::api::CardTagMutationRequest{
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::string>::decode(value.at("tag")),
+    };
+}
+
+inline json codec<holder::api::CardLinkDeleteRequest>::encode(const holder::api::CardLinkDeleteRequest& value) {
+    json result = json::object();
+    if (value.to_card_id) {
+        result["to_card_id"] = codec<std::optional<std::string>>::encode(value.to_card_id);
+    }
+    if (value.target_project_id) {
+        result["target_project_id"] = codec<std::optional<std::string>>::encode(value.target_project_id);
+    }
+    if (value.to_type) {
+        result["to_type"] = codec<std::optional<std::string>>::encode(value.to_type);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::string>>::encode(value.kind);
+    }
+    return result;
+}
+inline holder::api::CardLinkDeleteRequest codec<holder::api::CardLinkDeleteRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardLinkDeleteRequest");
+    return holder::api::CardLinkDeleteRequest{
+        value.contains("to_card_id") ? codec<std::optional<std::string>>::decode(value.at("to_card_id")) : std::nullopt,
+        value.contains("target_project_id") ? codec<std::optional<std::string>>::decode(value.at("target_project_id")) : std::nullopt,
+        value.contains("to_type") ? codec<std::optional<std::string>>::decode(value.at("to_type")) : std::nullopt,
+        value.contains("kind") ? codec<std::optional<std::string>>::decode(value.at("kind")) : std::nullopt,
     };
 }
 
@@ -1897,32 +2222,6 @@ inline holder::api::AiThread codec<holder::api::AiThread>::decode(const json& va
         codec<std::string>::decode(value.at("title")),
         codec<long long>::decode(value.at("created_at")),
         codec<long long>::decode(value.at("updated_at")),
-    };
-}
-
-inline json codec<holder::api::CardLinkDeleteRequest>::encode(const holder::api::CardLinkDeleteRequest& value) {
-    json result = json::object();
-    if (value.to_card_id) {
-        result["to_card_id"] = codec<std::optional<std::string>>::encode(value.to_card_id);
-    }
-    if (value.target_project_id) {
-        result["target_project_id"] = codec<std::optional<std::string>>::encode(value.target_project_id);
-    }
-    if (value.to_type) {
-        result["to_type"] = codec<std::optional<std::string>>::encode(value.to_type);
-    }
-    if (value.kind) {
-        result["kind"] = codec<std::optional<std::string>>::encode(value.kind);
-    }
-    return result;
-}
-inline holder::api::CardLinkDeleteRequest codec<holder::api::CardLinkDeleteRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardLinkDeleteRequest");
-    return holder::api::CardLinkDeleteRequest{
-        value.contains("to_card_id") ? codec<std::optional<std::string>>::decode(value.at("to_card_id")) : std::nullopt,
-        value.contains("target_project_id") ? codec<std::optional<std::string>>::decode(value.at("target_project_id")) : std::nullopt,
-        value.contains("to_type") ? codec<std::optional<std::string>>::decode(value.at("to_type")) : std::nullopt,
-        value.contains("kind") ? codec<std::optional<std::string>>::decode(value.at("kind")) : std::nullopt,
     };
 }
 
@@ -3286,172 +3585,6 @@ inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateReq
         value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
         value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
         value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::CardMoveResult>::encode(const holder::api::CardMoveResult& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["parent_card_id"] = codec<std::optional<std::string>>::encode(value.parent_card_id);
-    result["sort_key"] = codec<double>::encode(value.sort_key);
-    result["revision"] = codec<long long>::encode(value.revision);
-    if (value.moved_into_title) {
-        result["moved_into_title"] = codec<std::optional<std::optional<std::string>>>::encode(value.moved_into_title);
-    }
-    return result;
-}
-inline holder::api::CardMoveResult codec<holder::api::CardMoveResult>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardMoveResult");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("parent_card_id")) throw std::invalid_argument("missing parent_card_id");
-    if (!value.contains("sort_key")) throw std::invalid_argument("missing sort_key");
-    if (!value.contains("revision")) throw std::invalid_argument("missing revision");
-    return holder::api::CardMoveResult{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::optional<std::string>>::decode(value.at("parent_card_id")),
-        codec<double>::decode(value.at("sort_key")),
-        codec<long long>::decode(value.at("revision")),
-        value.contains("moved_into_title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("moved_into_title"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::CardMoveResponse>::encode(const holder::api::CardMoveResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardMoveResult>::encode(value.data);
-    return result;
-}
-inline holder::api::CardMoveResponse codec<holder::api::CardMoveResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardMoveResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardMoveResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardMoveResult>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardMoveIntent>::encode(const holder::api::CardMoveIntent& value) {
-    switch (value) {
-    case holder::api::CardMoveIntent::into: return "into";
-    case holder::api::CardMoveIntent::before: return "before";
-    case holder::api::CardMoveIntent::after: return "after";
-    case holder::api::CardMoveIntent::left: return "left";
-    case holder::api::CardMoveIntent::right: return "right";
-    case holder::api::CardMoveIntent::to_start: return "to_start";
-    case holder::api::CardMoveIntent::to_end: return "to_end";
-    case holder::api::CardMoveIntent::up_level: return "up_level";
-    }
-    throw std::invalid_argument("invalid CardMoveIntent");
-}
-inline holder::api::CardMoveIntent codec<holder::api::CardMoveIntent>::decode(const json& value) {
-    if (!value.is_string()) throw std::invalid_argument("expected CardMoveIntent");
-    if (value == "into") return holder::api::CardMoveIntent::into;
-    if (value == "before") return holder::api::CardMoveIntent::before;
-    if (value == "after") return holder::api::CardMoveIntent::after;
-    if (value == "left") return holder::api::CardMoveIntent::left;
-    if (value == "right") return holder::api::CardMoveIntent::right;
-    if (value == "to_start") return holder::api::CardMoveIntent::to_start;
-    if (value == "to_end") return holder::api::CardMoveIntent::to_end;
-    if (value == "up_level") return holder::api::CardMoveIntent::up_level;
-    throw std::invalid_argument("unknown CardMoveIntent");
-}
-
-inline json codec<holder::api::CardMoveRequest>::encode(const holder::api::CardMoveRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["intent"] = codec<holder::api::CardMoveIntent>::encode(value.intent);
-    if (value.target_card_id) {
-        result["target_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.target_card_id);
-    }
-    if (value.parent_card_id) {
-        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
-    }
-    if (value.if_revision) {
-        result["if_revision"] = codec<std::optional<std::optional<long long>>>::encode(value.if_revision);
-    }
-    return result;
-}
-inline holder::api::CardMoveRequest codec<holder::api::CardMoveRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardMoveRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("intent")) throw std::invalid_argument("missing intent");
-    return holder::api::CardMoveRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<holder::api::CardMoveIntent>::decode(value.at("intent")),
-        value.contains("target_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("target_card_id"))} : std::nullopt,
-        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
-        value.contains("if_revision") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("if_revision"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::CardTagMutationResult>::encode(const holder::api::CardTagMutationResult& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["tag"] = codec<std::string>::encode(value.tag);
-    if (value.outcome != "added" && value.outcome != "already_present" && value.outcome != "removed" && value.outcome != "not_present" && value.outcome != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
-    result["outcome"] = codec<std::string>::encode(value.outcome);
-    result["changed"] = codec<bool>::encode(value.changed);
-    return result;
-}
-inline holder::api::CardTagMutationResult codec<holder::api::CardTagMutationResult>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResult");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (!value.contains("outcome")) throw std::invalid_argument("missing outcome");
-    if (!value.contains("changed")) throw std::invalid_argument("missing changed");
-    if (value.at("outcome") != "added" && value.at("outcome") != "already_present" && value.at("outcome") != "removed" && value.at("outcome") != "not_present" && value.at("outcome") != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
-    return holder::api::CardTagMutationResult{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("tag")),
-        codec<std::string>::decode(value.at("outcome")),
-        codec<bool>::decode(value.at("changed")),
-    };
-}
-
-inline json codec<holder::api::CardTagMutationResponse>::encode(const holder::api::CardTagMutationResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardTagMutationResult>::encode(value.data);
-    return result;
-}
-inline holder::api::CardTagMutationResponse codec<holder::api::CardTagMutationResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardTagMutationResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardTagMutationResult>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardTagMutationRequest>::encode(const holder::api::CardTagMutationRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["tag"] = codec<std::string>::encode(value.tag);
-    return result;
-}
-inline holder::api::CardTagMutationRequest codec<holder::api::CardTagMutationRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (value.contains("project_id") && value.at("project_id").is_string()) {
-        const auto length = value.at("project_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: project_id");
-    }
-    if (value.contains("tag") && value.at("tag").is_string()) {
-        const auto length = value.at("tag").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: tag");
-    }
-    return holder::api::CardTagMutationRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("tag")),
     };
 }
 
@@ -6039,141 +6172,6 @@ inline holder::api::DeleteCardsCardIdResourcesRequest codec<holder::api::DeleteC
     return holder::api::DeleteCardsCardIdResourcesRequest{
         codec<std::string>::decode(value.at("project_id")),
         codec<std::string>::decode(value.at("resource_id")),
-    };
-}
-
-inline json codec<holder::api::CardCreateResponseData>::encode(const holder::api::CardCreateResponseData& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["rel_path"] = codec<std::string>::encode(value.rel_path);
-    return result;
-}
-inline holder::api::CardCreateResponseData codec<holder::api::CardCreateResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardCreateResponseData");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("rel_path")) throw std::invalid_argument("missing rel_path");
-    return holder::api::CardCreateResponseData{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("rel_path")),
-    };
-}
-
-inline json codec<holder::api::CardCreateResponse>::encode(const holder::api::CardCreateResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardCreateResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::CardCreateResponse codec<holder::api::CardCreateResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardCreateResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardCreateResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardCreateResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardCreateRequest>::encode(const holder::api::CardCreateRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["content"] = codec<std::string>::encode(value.content);
-    if (value.created_at) {
-        result["created_at"] = codec<std::optional<long long>>::encode(value.created_at);
-    }
-    if (value.updated_at) {
-        result["updated_at"] = codec<std::optional<long long>>::encode(value.updated_at);
-    }
-    if (value.parent_card_id) {
-        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
-    }
-    if (value.sort_key) {
-        result["sort_key"] = codec<std::optional<double>>::encode(value.sort_key);
-    }
-    if (value.rel_path) {
-        result["rel_path"] = codec<std::optional<std::optional<std::string>>>::encode(value.rel_path);
-    }
-    return result;
-}
-inline holder::api::CardCreateRequest codec<holder::api::CardCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardCreateRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (!value.contains("content")) throw std::invalid_argument("missing content");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "project_id" && it.key() != "title" && it.key() != "content" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "rel_path") throw std::invalid_argument("unexpected CardCreateRequest field");
-    return holder::api::CardCreateRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("title")),
-        codec<std::string>::decode(value.at("content")),
-        value.contains("created_at") ? codec<std::optional<long long>>::decode(value.at("created_at")) : std::nullopt,
-        value.contains("updated_at") ? codec<std::optional<long long>>::decode(value.at("updated_at")) : std::nullopt,
-        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
-        value.contains("sort_key") ? codec<std::optional<double>>::decode(value.at("sort_key")) : std::nullopt,
-        value.contains("rel_path") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("rel_path"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::CardPatchResponseData>::encode(const holder::api::CardPatchResponseData& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    return result;
-}
-inline holder::api::CardPatchResponseData codec<holder::api::CardPatchResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardPatchResponseData");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    return holder::api::CardPatchResponseData{
-        codec<std::string>::decode(value.at("card_id")),
-    };
-}
-
-inline json codec<holder::api::CardPatchResponse>::encode(const holder::api::CardPatchResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardPatchResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::CardPatchResponse codec<holder::api::CardPatchResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardPatchResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardPatchResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardPatchResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardUpdateRequest>::encode(const holder::api::CardUpdateRequest& value) {
-    json result = json::object();
-    if (value.content) {
-        result["content"] = codec<std::optional<std::string>>::encode(value.content);
-    }
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    if (value.title) {
-        result["title"] = codec<std::optional<std::optional<std::string>>>::encode(value.title);
-    }
-    if (value.parent_card_id) {
-        result["parent_card_id"] = codec<std::optional<std::optional<std::string>>>::encode(value.parent_card_id);
-    }
-    if (value.sort_key) {
-        result["sort_key"] = codec<std::optional<double>>::encode(value.sort_key);
-    }
-    return result;
-}
-inline holder::api::CardUpdateRequest codec<holder::api::CardUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardUpdateRequest");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    return holder::api::CardUpdateRequest{
-        value.contains("content") ? codec<std::optional<std::string>>::decode(value.at("content")) : std::nullopt,
-        codec<long long>::decode(value.at("updated_at")),
-        value.contains("title") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("title"))} : std::nullopt,
-        value.contains("parent_card_id") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("parent_card_id"))} : std::nullopt,
-        value.contains("sort_key") ? codec<std::optional<double>>::decode(value.at("sort_key")) : std::nullopt,
     };
 }
 

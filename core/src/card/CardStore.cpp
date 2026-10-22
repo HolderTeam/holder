@@ -1,4 +1,5 @@
 #include "card/CardStore.h"
+#include "card/CardPlacementError.h"
 
 #include "card/CardFrontMatter.h"
 #include "card/CardHierarchy.h"
@@ -474,14 +475,14 @@ CardMoveResult CardStore::move_to(
     long long updated_at
 ) {
   auto card = card_repo_.get(card_id);
-  if (!card || card->deleted_at) throw std::runtime_error("card_not_found");
-  if (card->project_id != project_id) throw std::runtime_error("cross_project_move_forbidden");
+  if (!card || card->deleted_at) throw CardPlacementError(CardPlacementErrorCode::CardNotFound);
+  if (card->project_id != project_id) throw CardPlacementError(CardPlacementErrorCode::CrossProjectMoveForbidden);
   const auto project = require_project(project_id);
   auto operation = git_->lock_operation(project.root_path);
   const auto placement =
       CardPlacementResolver(card_repo_).resolve(project_id, card_id, request, updated_at);
   card = card_repo_.get(card_id);
-  if (!card) throw std::runtime_error("card_not_found"); // LCOV_EXCL_LINE - resolve checked.
+  if (!card) throw CardPlacementError(CardPlacementErrorCode::CardNotFound); // LCOV_EXCL_LINE - resolve checked.
   const bool moved = placement.parent_card_id != card->parent_card_id ||
                      placement.sort_key != card->sort_key;
   if (!moved && placement.sibling_changes.empty()) return {*card, placement.moved_into_title};

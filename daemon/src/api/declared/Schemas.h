@@ -187,13 +187,6 @@ struct RIG_OPEN_RECORD AiThread {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD CardLinkDeleteRequest {
-  std::optional<std::string> to_card_id RIG_OMIT_EMPTY;
-  std::optional<std::string> target_project_id RIG_FIELD_DESCRIPTION("Selects the target project. Requires to_card_id, to_type and kind; use it to distinguish equal card IDs in different projects.") RIG_OMIT_EMPTY;
-  std::optional<std::string> to_type RIG_OMIT_EMPTY;
-  std::optional<std::string> kind RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD ProjectSync {
   std::optional<long long> last_commit_at RIG_NULLABLE;
   std::optional<long long> last_push_at RIG_NULLABLE;
@@ -597,56 +590,6 @@ struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unch
   std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
-
-struct RIG_OPEN_RECORD CardMoveResult {
-  std::string card_id;
-  std::optional<std::string> parent_card_id RIG_NULLABLE;
-  double sort_key;
-  long long revision;
-  std::optional<std::optional<std::string>> moved_into_title RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD CardMoveResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardMoveResult data;
-};
-
-enum class CardMoveIntent {
-  into,
-  before,
-  after,
-  left,
-  right,
-  to_start,
-  to_end,
-  up_level,
-};
-
-struct RIG_OPEN_RECORD CardMoveRequest {
-  std::string project_id;
-  CardMoveIntent intent;
-  std::optional<std::optional<std::string>> target_card_id RIG_FIELD_DESCRIPTION("Required for intents into/before/after.") RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> parent_card_id RIG_FIELD_DESCRIPTION("Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level.") RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<long long>> if_revision RIG_FIELD_DESCRIPTION("Optional optimistic-concurrency revision guard.") RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD CardTagMutationResult {
-  std::string card_id;
-  std::string tag RIG_FIELD_DESCRIPTION("Normalized tag without the leading");
-  std::string outcome RIG_STRING_VALUES("added", "already_present", "removed", "not_present", "present_outside_editable_tag_line");
-  bool changed RIG_FIELD_DESCRIPTION("True only when card content was changed.");
-};
-
-struct RIG_OPEN_RECORD CardTagMutationResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardTagMutationResult data;
-};
-
-struct RIG_OPEN_RECORD CardTagMutationRequest {
-  std::string project_id RIG_FIELD_DESCRIPTION("Project that must own the live card.") RIG_MIN_LENGTH(1);
-  std::string tag RIG_FIELD_DESCRIPTION("Tag without the leading") RIG_MIN_LENGTH(1);
-};
-
 
 struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;

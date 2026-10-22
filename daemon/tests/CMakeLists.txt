@@ -167,6 +167,7 @@ add_executable(holder_daemon_tests
   ../src/api/Calendar.cpp
   ../src/api/CardMilestones.cpp
   ../src/api/CardRead.cpp
+  ../src/api/CardLinks.cpp
   ../src/api/CardResources.cpp
   ../src/api/CardWrite.cpp
   ../src/api/ProjectRead.cpp
@@ -200,7 +201,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/AiStatusRoutes.cpp
   ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
-  ../src/api/routes/CardRoutes.cpp
   ../src/api/routes/ProjectCardRoutes.cpp
   ../src/api/routes/HistoryRoutes.cpp
   ../src/api/routes/MilestoneRoutes.cpp
