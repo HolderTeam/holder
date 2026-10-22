@@ -278,7 +278,8 @@ class HolderNativeIntegrationTest {
 
         assertTrue(HolderNative.listCardMilestones(card.cardId).isEmpty())
 
-        val start = 1_800_000_000L
+        // An all-day milestone is a calendar date, stored as its midnight UTC.
+        val start = 1_799_971_200L
         val afterAdd = HolderNative.addCardMilestone(
             cardId = card.cardId,
             startAt = start,
