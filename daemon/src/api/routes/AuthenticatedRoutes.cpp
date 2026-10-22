@@ -109,7 +109,7 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
   } else if (resource == "cards") {
     if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
-    if (handle_card_routes(path, req, res, db, card_store, fts, uuid_v4, param)) return {};
+    if (handle_card_routes(path, req, res, db, card_store, fts)) return {};
   }
 
   res = support::error_response(http::status::not_found, "not_found", "Route not found.");

@@ -2,6 +2,7 @@
 
 #include "api/ApiService.h"
 #include "api/HttpError.h"
+#include "api/CardWrite.h"
 #include "api/RigAnnotations.h"
 #include "api/declared/Schemas.h"
 
@@ -77,34 +78,6 @@ RIG_ERROR_RESPONSE(404, ErrorResponse, "Card not found")
 MilestoneRemoveResponse delete_cards_card_id_milestones_milestone_id(
     std::string card_id,
     std::string milestone_id);
-
-RIG_ROUTE(POST, "/cards")
-RIG_SUMMARY("Create a card")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Conflict")
-CardCreateResponse post_cards(CardCreateRequest request);
-
-RIG_ROUTE(PATCH, "/cards/{card_id}")
-RIG_SUMMARY("Update card content and/or title")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardPatchResponse patch_cards_card_id(std::string card_id, CardUpdateRequest request);
-
-RIG_ROUTE(DELETE, "/cards/{card_id}")
-RIG_SUMMARY("Move card to trash")
-RIG_DESCRIPTION("The card and every changed card are written in one commit. With children=promote (the default), the card's immediate live children take its place among its siblings (or the project's top level) in their existing order, keeping their own descendants; children already in Trash stay there. With children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent there, including live cards beneath descendants that were already trashed, which keep their own trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid children value, or the card cannot be trashed (for example it is already in Trash)")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-CardPatchResponse delete_cards_card_id(
-    std::string card_id,
-    std::string children RIG_QUERY RIG_STRING_VALUES("promote", "trash_subtree") RIG_DEFAULT("promote") RIG_PARAMETER_DESCRIPTION("What happens to the card's live children. Any other value is rejected before anything changes."));
 
 RIG_ROUTE(POST, "/cards/{card_id}/move")
 RIG_SUMMARY("Move/reparent/reorder a card using card move intent")

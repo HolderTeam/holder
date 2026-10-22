@@ -63,7 +63,7 @@ TEST_CASE("CardReferenceRoutes only handles its POST endpoint", "[card-reference
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   http::response<http::string_body> res;
 
-  auto other_path = make_request(http::verb::post, "/cards", "{}");
+  auto other_path = make_request(http::verb::post, "/card-references", "{}");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(other_path, res, db));
 
   auto wrong_method = make_request(http::verb::get, "/card-references/resolve");

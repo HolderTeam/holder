@@ -6,15 +6,9 @@
 
 #include <boost/beast/http.hpp>
 
-#include <exception>
-#include <functional>
 #include <string>
 
 namespace holder::api::routes {
-
-boost::beast::http::response<boost::beast::http::string_body> card_create_error_response(
-    const std::exception& ex
-);
 
 bool handle_card_routes(
     const std::string& path,
@@ -22,9 +16,7 @@ bool handle_card_routes(
     boost::beast::http::response<boost::beast::http::string_body>& res,
     holder::platform::Db& db,
     holder::card::CardStore* card_store,
-    holder::index::FtsIndexer* fts,
-    const std::function<std::string()>& uuid_v4,
-    const std::function<std::string(const std::string&)>& param_get
+    holder::index::FtsIndexer* fts
 );
 
 } // namespace holder::api::routes

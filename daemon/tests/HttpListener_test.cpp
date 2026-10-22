@@ -214,7 +214,7 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
   );
   router.add(
       http::verb::patch,
-      "/cards/save-test",
+      "/cards/save-test/lane",
       [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
         res.result(http::status::ok);
         res.set(http::field::content_type, "application/json");
@@ -270,7 +270,7 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       bound.port,
       token,
       http::verb::patch,
-      "/cards/save-test",
+      "/cards/save-test/lane",
       nlohmann::json::object(),
       http::status::ok
   );
@@ -762,7 +762,7 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
     holder::api::Router router;
     router.add(
         http::verb::patch,
-        "/cards/save-test",
+        "/cards/save-test/lane",
         [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
           res.result(http::status::ok);
           res.set(http::field::content_type, "application/json");
@@ -802,7 +802,7 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
 
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
-    const std::string save_request = "PATCH /cards/save-test HTTP/1.1\r\n"
+    const std::string save_request = "PATCH /cards/save-test/lane HTTP/1.1\r\n"
                                      "Host: " +
                                      bound.bind +
                                      "\r\n"
@@ -1377,7 +1377,7 @@ TEST_CASE(
   );
   router.add(
       http::verb::patch,
-      "/cards/save-priority",
+      "/cards/save-priority/lane",
       [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
         res.result(http::status::ok);
         res.set(http::field::content_type, "application/json");
@@ -1463,7 +1463,7 @@ TEST_CASE(
       bound.port,
       token,
       http::verb::patch,
-      "/cards/save-priority",
+      "/cards/save-priority/lane",
       nlohmann::json::object(),
       http::status::ok
   );

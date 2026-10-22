@@ -407,6 +407,7 @@ add_executable(holderd
   src/api/CardMilestones.cpp
   src/api/CardRead.cpp
   src/api/CardResources.cpp
+  src/api/CardWrite.cpp
   src/api/ProjectRead.cpp
   src/api/ProjectCreate.cpp
   src/api/ProjectDelete.cpp

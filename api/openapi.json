@@ -2967,7 +2967,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, unknown project or parent card, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -2987,7 +2987,37 @@
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "A card with the generated ID or its file already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -3180,6 +3210,7 @@
       },
       "patch": {
         "summary": "Update card content and/or title",
+        "description": "Content and title are written first, then parent_card_id and sort_key, each as its own commit.",
         "parameters": [
           {
             "name": "card_id",
@@ -3212,7 +3243,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed or empty update, title without content, an unknown parent, moving a card in Trash, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -3232,7 +3263,37 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -3282,7 +3343,7 @@
             }
           },
           "400": {
-            "description": "Invalid children value, or the card cannot be trashed (for example it is already in Trash)",
+            "description": "Invalid children value, the card is already in Trash, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -3302,7 +3363,37 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -11070,14 +11161,17 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Optional; when supplied it must be the path Holder derives from the generated card ID."
           }
         },
         "required": [
           "project_id",
           "title",
           "content"
-        ]
+        ],
+        "additionalProperties": false,
+        "description": "Holder generates the card ID, so card_id, like any other unlisted property, is rejected."
       },
       "CardCreateResponse": {
         "type": "object",
@@ -12165,7 +12259,8 @@
         "type": "object",
         "properties": {
           "content": {
-            "type": "string"
+            "type": "string",
+            "description": "Required when title is supplied."
           },
           "updated_at": {
             "type": "integer",
@@ -12175,13 +12270,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Null keeps the current title."
           },
           "parent_card_id": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Null moves the card to the project's top level."
           },
           "sort_key": {
             "type": "number",

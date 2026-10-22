@@ -598,44 +598,6 @@ struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unch
   std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardCreateResponseData {
-  std::string card_id;
-  std::string rel_path;
-};
-
-struct RIG_OPEN_RECORD CardCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardCreateResponseData data;
-};
-
-struct RIG_OPEN_RECORD CardCreateRequest {
-  std::string project_id;
-  std::string title;
-  std::string content;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<double> sort_key RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> rel_path RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardPatchResponseData {
-  std::string card_id;
-};
-
-struct RIG_OPEN_RECORD CardPatchResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardPatchResponseData data;
-};
-
-struct RIG_OPEN_RECORD CardUpdateRequest {
-  std::optional<std::string> content RIG_OMIT_EMPTY;
-  long long updated_at;
-  std::optional<std::optional<std::string>> title RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<double> sort_key RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD CardMoveResult {
   std::string card_id;
   std::optional<std::string> parent_card_id RIG_NULLABLE;

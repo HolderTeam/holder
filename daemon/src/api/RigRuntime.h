@@ -35,6 +35,7 @@
 #include "api/CardMilestones.h"
 #include "api/CardRead.h"
 #include "api/CardResources.h"
+#include "api/CardWrite.h"
 #include "api/MilestonesWithDates.h"
 #include "api/StaticFiles.h"
 #include "api/TrashList.h"
