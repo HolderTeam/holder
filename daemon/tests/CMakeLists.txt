@@ -206,8 +206,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/AiStatusRoutes.cpp
   ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
-  ../src/api/routes/ProjectCardRoutes.cpp
-  ../src/api/routes/HistoryRoutes.cpp
   ../src/api/routes/ReindexRoutes.cpp
   ../src/api/Search.cpp
   ../src/api/routes/StaticRoutes.cpp

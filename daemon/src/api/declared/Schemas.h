@@ -219,27 +219,6 @@ struct RIG_OPEN_RECORD Project {
   ProjectSync sync;
 };
 
-struct RIG_OPEN_RECORD HierarchyRepairMove {
-  std::string card_id RIG_FIELD_DESCRIPTION("A hidden branch's top card. Its descendants stay attached and move with it.");
-  std::optional<std::string> parent_card_id RIG_FIELD_DESCRIPTION("Where it goes, or null for the project's top level.") RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD HierarchyRepair {
-  bool applied RIG_FIELD_DESCRIPTION("True when changes were written.");
-  std::vector<HierarchyRepairMove> moved;
-  int changed_card_count RIG_FIELD_DESCRIPTION("Cards whose placement changes, counting siblings re-spaced to make room.") RIG_MINIMUM(0);
-  std::vector<std::string> cycle_card_ids RIG_FIELD_DESCRIPTION("Live cards whose parent chain loops. They are left alone and need moving by hand.");
-};
-
-struct RIG_OPEN_RECORD HierarchyRepairResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  HierarchyRepair data;
-};
-
-struct RIG_OPEN_RECORD HierarchyRepairRequest {
-  bool apply RIG_FIELD_DESCRIPTION("Apply the repair. Without it, only report.") RIG_DEFAULT(false);
-};
-
 struct RIG_OPEN_RECORD CardListItem {
   std::string card_id;
   std::string project_id;
@@ -367,20 +346,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistorySnapshotResponseData {
 struct RIG_OPEN_RECORD CardHistorySnapshotResponse {
   bool ok RIG_BOOL_VALUE(true);
   CardHistorySnapshotResponseData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistoryRestoreResponseData {
-  std::string card_id;
-  std::string restored_from_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID of the selected historical snapshot.");
-  std::string result_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID created by the restoration.");
-  std::string title;
-  long long updated_at;
-  std::optional<long long> deleted_at RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD CardHistoryRestoreResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardHistoryRestoreResponseData data;
 };
 
 struct RIG_DESCRIPTION("Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved.") MilestoneDateValue {

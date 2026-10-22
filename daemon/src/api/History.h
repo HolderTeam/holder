@@ -10,8 +10,23 @@
 
 namespace holder::platform { class Db; }
 namespace holder::privacy { class PrivacyError; }
+namespace holder::card { class CardStore; }
 
 namespace holder::api {
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistoryRestoreResponseData {
+  std::string card_id;
+  std::string restored_from_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID of the selected historical snapshot.");
+  std::string result_oid RIG_FIELD_DESCRIPTION("Canonical full commit object ID created by the restoration.");
+  std::string title;
+  long long updated_at;
+  std::optional<long long> deleted_at RIG_NULLABLE;
+};
+
+struct RIG_OPEN_RECORD CardHistoryRestoreResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardHistoryRestoreResponseData data;
+};
 
 // History failures keep their own codes; each type is one response status.
 struct HistoryNotFound : CodedError {
@@ -95,5 +110,20 @@ CardHistorySnapshotResponse get_card_history_snapshot(
     std::string project_id,
     std::string card_id,
     RevisionReference oid RIG_QUERY);
+
+RIG_ROUTE(POST, "/projects/{project_id}/history/cards/{card_id}/restore")
+RIG_SUMMARY("Restore a card to a saved snapshot")
+RIG_DESCRIPTION("Restores the complete card snapshot at the selected commit and records the result as a new commit without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which the card was trashed promotes its current live children, as trashing does. Restoring a live snapshot places the card under a reachable parent, as restoring from Trash does.")
+RIG_RESPONSE_DESCRIPTION("Card snapshot restored")
+RIG_ERROR_RESPONSE(404, ErrorResponse, "Project, card, or revision not found", HistoryNotFound)
+RIG_ERROR_RESPONSE(409, ErrorResponse, "A revision reference is ambiguous or the encrypted project key is unavailable", HistoryConflict)
+RIG_ERROR_RESPONSE(501, ErrorResponse, "The daemon has no card store", CardStoreUnavailable)
+RIG_ERROR_RESPONSE(503, ErrorResponse, "The historical snapshot cannot be read or restored", HistoryUnavailable)
+CardHistoryRestoreResponse post_projects_project_id_history_cards_card_id_restore(
+    holder::platform::Db& db RIG_CONTEXT,
+    holder::card::CardStore* card_store RIG_CONTEXT,
+    std::string project_id,
+    std::string card_id,
+    RevisionReference oid RIG_QUERY RIG_PARAMETER_DESCRIPTION("Revision containing the snapshot to restore."));
 
 } // namespace holder::api

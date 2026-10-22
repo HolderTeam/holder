@@ -411,7 +411,6 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
             res,
             socket_,
             db_,
-            card_store_,
             fts_,
             nudge_service_,
             secret_store_,

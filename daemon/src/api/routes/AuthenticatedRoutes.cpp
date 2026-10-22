@@ -1,8 +1,6 @@
 #include "api/routes/AuthenticatedRoutes.h"
 
 #include "api/routes/AiResourceRoutes.h"
-#include "api/routes/HistoryRoutes.h"
-#include "api/routes/ProjectCardRoutes.h"
 #include "api/routes/ReindexRoutes.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
@@ -34,7 +32,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     http::response<http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
-    holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
     holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
@@ -44,19 +41,12 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     std::shared_ptr<holder::api::support::SseRegistry> streams
 ) {
   const std::string resource = first_segment(path);
-  auto decoded_param = [&](const std::string& key) -> std::string {
-    return support::decoded_query_param_value(query_string, key);
-  };
   auto param = [&](const std::string& key) -> std::string {
-    return path == "/projects" ? decoded_param(key) : support::query_param_value(query_string, key);
+    return support::query_param_value(query_string, key);
   };
 
-  if (resource == "projects") {
-    if (handle_project_card_routes(path, req, res, db, card_store)) return {};
-    if (handle_history_routes(path, req, res, db, param, card_store)) return {};
-  } else if (resource == "reindex") {
+  if (resource == "reindex") {
     if (handle_reindex_routes(path, req, res, db)) return {};
-  } else if (resource == "search") {
   } else if (resource == "ai") {
     const auto route_result = ai::dispatch_ai_routes(
         path,

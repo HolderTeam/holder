@@ -334,22 +334,6 @@ template <> struct codec<holder::api::Project> {
     static json encode(const holder::api::Project& value);
     static holder::api::Project decode(const json& value);
 };
-template <> struct codec<holder::api::HierarchyRepairMove> {
-    static json encode(const holder::api::HierarchyRepairMove& value);
-    static holder::api::HierarchyRepairMove decode(const json& value);
-};
-template <> struct codec<holder::api::HierarchyRepair> {
-    static json encode(const holder::api::HierarchyRepair& value);
-    static holder::api::HierarchyRepair decode(const json& value);
-};
-template <> struct codec<holder::api::HierarchyRepairResponse> {
-    static json encode(const holder::api::HierarchyRepairResponse& value);
-    static holder::api::HierarchyRepairResponse decode(const json& value);
-};
-template <> struct codec<holder::api::HierarchyRepairRequest> {
-    static json encode(const holder::api::HierarchyRepairRequest& value);
-    static holder::api::HierarchyRepairRequest decode(const json& value);
-};
 template <> struct codec<holder::api::CardListItem> {
     static json encode(const holder::api::CardListItem& value);
     static holder::api::CardListItem decode(const json& value);
@@ -421,14 +405,6 @@ template <> struct codec<holder::api::CardHistorySnapshotResponseData> {
 template <> struct codec<holder::api::CardHistorySnapshotResponse> {
     static json encode(const holder::api::CardHistorySnapshotResponse& value);
     static holder::api::CardHistorySnapshotResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardHistoryRestoreResponseData> {
-    static json encode(const holder::api::CardHistoryRestoreResponseData& value);
-    static holder::api::CardHistoryRestoreResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::CardHistoryRestoreResponse> {
-    static json encode(const holder::api::CardHistoryRestoreResponse& value);
-    static holder::api::CardHistoryRestoreResponse decode(const json& value);
 };
 template <> struct codec<holder::api::MilestoneDateValue> {
     static json encode(const holder::api::MilestoneDateValue& value);
@@ -682,6 +658,14 @@ template <> struct codec<holder::api::HealthResponse> {
     static json encode(const holder::api::HealthResponse& value);
     static holder::api::HealthResponse decode(const json& value);
 };
+template <> struct codec<holder::api::CardHistoryRestoreResponseData> {
+    static json encode(const holder::api::CardHistoryRestoreResponseData& value);
+    static holder::api::CardHistoryRestoreResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::CardHistoryRestoreResponse> {
+    static json encode(const holder::api::CardHistoryRestoreResponse& value);
+    static holder::api::CardHistoryRestoreResponse decode(const json& value);
+};
 template <> struct codec<holder::api::StorageLocationListResponse> {
     static json encode(const holder::api::StorageLocationListResponse& value);
     static holder::api::StorageLocationListResponse decode(const json& value);
@@ -865,6 +849,22 @@ template <> struct codec<holder::api::CardBreadcrumb> {
 template <> struct codec<holder::api::CardBreadcrumbsResponse> {
     static json encode(const holder::api::CardBreadcrumbsResponse& value);
     static holder::api::CardBreadcrumbsResponse decode(const json& value);
+};
+template <> struct codec<holder::api::HierarchyRepairMove> {
+    static json encode(const holder::api::HierarchyRepairMove& value);
+    static holder::api::HierarchyRepairMove decode(const json& value);
+};
+template <> struct codec<holder::api::HierarchyRepair> {
+    static json encode(const holder::api::HierarchyRepair& value);
+    static holder::api::HierarchyRepair decode(const json& value);
+};
+template <> struct codec<holder::api::HierarchyRepairResponse> {
+    static json encode(const holder::api::HierarchyRepairResponse& value);
+    static holder::api::HierarchyRepairResponse decode(const json& value);
+};
+template <> struct codec<holder::api::HierarchyRepairRequest> {
+    static json encode(const holder::api::HierarchyRepairRequest& value);
+    static holder::api::HierarchyRepairRequest decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectUpdateResponseData> {
     static json encode(const holder::api::ProjectUpdateResponseData& value);
@@ -2342,74 +2342,6 @@ inline holder::api::Project codec<holder::api::Project>::decode(const json& valu
     };
 }
 
-inline json codec<holder::api::HierarchyRepairMove>::encode(const holder::api::HierarchyRepairMove& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["parent_card_id"] = codec<std::optional<std::string>>::encode(value.parent_card_id);
-    return result;
-}
-inline holder::api::HierarchyRepairMove codec<holder::api::HierarchyRepairMove>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairMove");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("parent_card_id")) throw std::invalid_argument("missing parent_card_id");
-    return holder::api::HierarchyRepairMove{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::optional<std::string>>::decode(value.at("parent_card_id")),
-    };
-}
-
-inline json codec<holder::api::HierarchyRepair>::encode(const holder::api::HierarchyRepair& value) {
-    json result = json::object();
-    result["applied"] = codec<bool>::encode(value.applied);
-    result["moved"] = codec<std::vector<holder::api::HierarchyRepairMove>>::encode(value.moved);
-    result["changed_card_count"] = codec<int>::encode(value.changed_card_count);
-    result["cycle_card_ids"] = codec<std::vector<std::string>>::encode(value.cycle_card_ids);
-    return result;
-}
-inline holder::api::HierarchyRepair codec<holder::api::HierarchyRepair>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepair");
-    if (!value.contains("applied")) throw std::invalid_argument("missing applied");
-    if (!value.contains("moved")) throw std::invalid_argument("missing moved");
-    if (!value.contains("changed_card_count")) throw std::invalid_argument("missing changed_card_count");
-    if (!value.contains("cycle_card_ids")) throw std::invalid_argument("missing cycle_card_ids");
-    return holder::api::HierarchyRepair{
-        codec<bool>::decode(value.at("applied")),
-        codec<std::vector<holder::api::HierarchyRepairMove>>::decode(value.at("moved")),
-        codec<int>::decode(value.at("changed_card_count")),
-        codec<std::vector<std::string>>::decode(value.at("cycle_card_ids")),
-    };
-}
-
-inline json codec<holder::api::HierarchyRepairResponse>::encode(const holder::api::HierarchyRepairResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::HierarchyRepair>::encode(value.data);
-    return result;
-}
-inline holder::api::HierarchyRepairResponse codec<holder::api::HierarchyRepairResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::HierarchyRepairResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::HierarchyRepair>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::HierarchyRepairRequest>::encode(const holder::api::HierarchyRepairRequest& value) {
-    json result = json::object();
-    result["apply"] = codec<bool>::encode(value.apply);
-    return result;
-}
-inline holder::api::HierarchyRepairRequest codec<holder::api::HierarchyRepairRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairRequest");
-    return holder::api::HierarchyRepairRequest{
-        value.contains("apply") ? codec<bool>::decode(value.at("apply")) : bool(false),
-    };
-}
-
 inline json codec<holder::api::CardListItem>::encode(const holder::api::CardListItem& value) {
     json result = json::object();
     result["card_id"] = codec<std::string>::encode(value.card_id);
@@ -2831,52 +2763,6 @@ inline holder::api::CardHistorySnapshotResponse codec<holder::api::CardHistorySn
     return holder::api::CardHistorySnapshotResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::CardHistorySnapshotResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardHistoryRestoreResponseData>::encode(const holder::api::CardHistoryRestoreResponseData& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["restored_from_oid"] = codec<std::string>::encode(value.restored_from_oid);
-    result["result_oid"] = codec<std::string>::encode(value.result_oid);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    result["deleted_at"] = codec<std::optional<long long>>::encode(value.deleted_at);
-    return result;
-}
-inline holder::api::CardHistoryRestoreResponseData codec<holder::api::CardHistoryRestoreResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardHistoryRestoreResponseData");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("restored_from_oid")) throw std::invalid_argument("missing restored_from_oid");
-    if (!value.contains("result_oid")) throw std::invalid_argument("missing result_oid");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    if (!value.contains("deleted_at")) throw std::invalid_argument("missing deleted_at");
-    return holder::api::CardHistoryRestoreResponseData{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("restored_from_oid")),
-        codec<std::string>::decode(value.at("result_oid")),
-        codec<std::string>::decode(value.at("title")),
-        codec<long long>::decode(value.at("updated_at")),
-        codec<std::optional<long long>>::decode(value.at("deleted_at")),
-    };
-}
-
-inline json codec<holder::api::CardHistoryRestoreResponse>::encode(const holder::api::CardHistoryRestoreResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardHistoryRestoreResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::CardHistoryRestoreResponse codec<holder::api::CardHistoryRestoreResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardHistoryRestoreResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardHistoryRestoreResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardHistoryRestoreResponseData>::decode(value.at("data")),
     };
 }
 
@@ -4373,6 +4259,52 @@ inline holder::api::HealthResponse codec<holder::api::HealthResponse>::decode(co
     };
 }
 
+inline json codec<holder::api::CardHistoryRestoreResponseData>::encode(const holder::api::CardHistoryRestoreResponseData& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["restored_from_oid"] = codec<std::string>::encode(value.restored_from_oid);
+    result["result_oid"] = codec<std::string>::encode(value.result_oid);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["deleted_at"] = codec<std::optional<long long>>::encode(value.deleted_at);
+    return result;
+}
+inline holder::api::CardHistoryRestoreResponseData codec<holder::api::CardHistoryRestoreResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardHistoryRestoreResponseData");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("restored_from_oid")) throw std::invalid_argument("missing restored_from_oid");
+    if (!value.contains("result_oid")) throw std::invalid_argument("missing result_oid");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
+    if (!value.contains("deleted_at")) throw std::invalid_argument("missing deleted_at");
+    return holder::api::CardHistoryRestoreResponseData{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("restored_from_oid")),
+        codec<std::string>::decode(value.at("result_oid")),
+        codec<std::string>::decode(value.at("title")),
+        codec<long long>::decode(value.at("updated_at")),
+        codec<std::optional<long long>>::decode(value.at("deleted_at")),
+    };
+}
+
+inline json codec<holder::api::CardHistoryRestoreResponse>::encode(const holder::api::CardHistoryRestoreResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::CardHistoryRestoreResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::CardHistoryRestoreResponse codec<holder::api::CardHistoryRestoreResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected CardHistoryRestoreResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::CardHistoryRestoreResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::CardHistoryRestoreResponseData>::decode(value.at("data")),
+    };
+}
+
 inline json codec<holder::api::StorageLocationListResponse>::encode(const holder::api::StorageLocationListResponse& value) {
     json result = json::object();
     if (value.ok != true) throw std::invalid_argument("invalid ok");
@@ -5343,6 +5275,74 @@ inline holder::api::CardBreadcrumbsResponse codec<holder::api::CardBreadcrumbsRe
     return holder::api::CardBreadcrumbsResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::CardBreadcrumb>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::HierarchyRepairMove>::encode(const holder::api::HierarchyRepairMove& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["parent_card_id"] = codec<std::optional<std::string>>::encode(value.parent_card_id);
+    return result;
+}
+inline holder::api::HierarchyRepairMove codec<holder::api::HierarchyRepairMove>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairMove");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("parent_card_id")) throw std::invalid_argument("missing parent_card_id");
+    return holder::api::HierarchyRepairMove{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::optional<std::string>>::decode(value.at("parent_card_id")),
+    };
+}
+
+inline json codec<holder::api::HierarchyRepair>::encode(const holder::api::HierarchyRepair& value) {
+    json result = json::object();
+    result["applied"] = codec<bool>::encode(value.applied);
+    result["moved"] = codec<std::vector<holder::api::HierarchyRepairMove>>::encode(value.moved);
+    result["changed_card_count"] = codec<int>::encode(value.changed_card_count);
+    result["cycle_card_ids"] = codec<std::vector<std::string>>::encode(value.cycle_card_ids);
+    return result;
+}
+inline holder::api::HierarchyRepair codec<holder::api::HierarchyRepair>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepair");
+    if (!value.contains("applied")) throw std::invalid_argument("missing applied");
+    if (!value.contains("moved")) throw std::invalid_argument("missing moved");
+    if (!value.contains("changed_card_count")) throw std::invalid_argument("missing changed_card_count");
+    if (!value.contains("cycle_card_ids")) throw std::invalid_argument("missing cycle_card_ids");
+    return holder::api::HierarchyRepair{
+        codec<bool>::decode(value.at("applied")),
+        codec<std::vector<holder::api::HierarchyRepairMove>>::decode(value.at("moved")),
+        codec<int>::decode(value.at("changed_card_count")),
+        codec<std::vector<std::string>>::decode(value.at("cycle_card_ids")),
+    };
+}
+
+inline json codec<holder::api::HierarchyRepairResponse>::encode(const holder::api::HierarchyRepairResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::HierarchyRepair>::encode(value.data);
+    return result;
+}
+inline holder::api::HierarchyRepairResponse codec<holder::api::HierarchyRepairResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::HierarchyRepairResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::HierarchyRepair>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::HierarchyRepairRequest>::encode(const holder::api::HierarchyRepairRequest& value) {
+    json result = json::object();
+    result["apply"] = codec<bool>::encode(value.apply);
+    return result;
+}
+inline holder::api::HierarchyRepairRequest codec<holder::api::HierarchyRepairRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected HierarchyRepairRequest");
+    return holder::api::HierarchyRepairRequest{
+        value.contains("apply") ? codec<bool>::decode(value.at("apply")) : bool(false),
     };
 }
 

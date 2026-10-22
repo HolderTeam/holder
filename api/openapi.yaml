@@ -4106,7 +4106,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/CardHistoryRestoreResponse'}
         '400':
-          description: Missing revision reference
+          description: Bad request
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4122,6 +4122,16 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
           description: A revision reference is ambiguous or the encrypted project key is unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '501':
+          description: The daemon has no card store
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4374,6 +4384,11 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Project not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}

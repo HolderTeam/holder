@@ -29,7 +29,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     boost::beast::http::response<boost::beast::http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
-    holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
     holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,

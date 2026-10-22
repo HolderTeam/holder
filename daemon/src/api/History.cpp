@@ -1,8 +1,11 @@
 #include "api/History.h"
 
 #include "api/generated/RuntimeJson.h"
+#include "api/support/Time.h"
 
+#include "card/CardStore.h"
 #include "git/GitRepo.h"
+#include "git/RepoLocks.h"
 #include "git/RevisionReferenceResolver.h"
 #include "history/CardHistory.h"
 #include "history/ProjectHistory.h"
@@ -12,6 +15,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -259,6 +263,36 @@ CardHistorySnapshotResponse get_card_history_snapshot(holder::platform::Db& db,
     const auto snapshot =
         holder::history::CardHistoryService().compare(project, card_id, std::nullopt, resolved).to;
     return bounded(CardHistorySnapshotResponse{true, {card_id, version_item(snapshot)}});
+  });
+}
+
+CardHistoryRestoreResponse post_projects_project_id_history_cards_card_id_restore(
+    holder::platform::Db& db,
+    holder::card::CardStore* card_store,
+    std::string project_id,
+    std::string card_id,
+    RevisionReference oid) {
+  return guarded([&] {
+    const auto project = project_or_throw(db, project_id);
+    if (card_store == nullptr) throw CardStoreUnavailable{};
+    // Resolve and restore under the repository lock, so the revision cannot move in between.
+    const auto repo_mutex = holder::git::repo_mutex_for(project.root_path);
+    const std::lock_guard<std::recursive_mutex> repo_guard(*repo_mutex);
+    const auto resolved = resolve(project, oid.value, "oid");
+    const auto card = card_store->get(card_id);
+    if (!card || card->project_id != project.project_id)
+      throw HistoryNotFound("not_found", "Card not found.");
+    card_store->restore_version(card_id, resolved, support::now_epoch_seconds());
+    const auto restored = card_store->get(card_id);
+    if (!restored) throw std::runtime_error("restored card is missing"); // LCOV_EXCL_LINE
+    holder::git::GitRepo repo;
+    repo.open_existing(project.root_path);
+    const auto result_oid = repo.head_oid();
+    if (!result_oid) throw std::runtime_error("restored revision is missing"); // LCOV_EXCL_LINE
+    return CardHistoryRestoreResponse{
+        true,
+        {std::move(card_id), resolved, *result_oid, restored->title, restored->updated_at,
+         restored->deleted_at}};
   });
 }
 
