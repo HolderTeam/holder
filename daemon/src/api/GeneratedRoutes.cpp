@@ -31,7 +31,7 @@ struct Context {
   // The request's Host header: where the caller reached this daemon.
   std::optional<std::string> host;
   // The request's connection, for a route that streams as it runs.
-  boost::asio::ip::tcp::socket* socket;
+  support::RequestSocket* socket;
 };
 
 std::string error_code(int status) {
@@ -83,6 +83,8 @@ bool dispatch_generated_routes(
     boost::asio::ip::tcp::socket* socket
 ) {
   const auto target = req.target();
+  std::optional<support::RequestSocket> request_socket;
+  if (socket != nullptr) request_socket.emplace(support::RequestSocket{*socket});
   Context context{
       db,
       registry,
@@ -96,7 +98,7 @@ bool dispatch_generated_routes(
       req.count(http::field::host) > 0
           ? std::optional<std::string>(std::string(req[http::field::host]))
           : std::nullopt,
-      socket
+      request_socket ? &*request_socket : nullptr
   };
   try {
     const auto generated = rig_http::dispatch(

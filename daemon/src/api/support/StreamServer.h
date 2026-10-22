@@ -18,6 +18,12 @@ using StreamServer = std::function<bool(
     boost::beast::http::response<boost::beast::http::string_body>& res
 )>;
 
+// The request's connection, for a route that streams as it runs. Declaration headers
+// name it without including Boost, which RIG's inspection of them does not have.
+struct RequestSocket {
+  boost::asio::ip::tcp::socket& socket;
+};
+
 // Serves an event stream polled from source, or answers 503 when too many are open.
 StreamServer serve_events(std::shared_ptr<SseRegistry> streams, SseStream::Source source);
 

@@ -18,7 +18,7 @@ std::shared_ptr<support::SseRegistry> registry_of(support::EventService* events)
 } // namespace
 
 rig::host_value post_ai_runs(
-    boost::asio::ip::tcp::socket* socket,
+    holder::api::support::RequestSocket* socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     holder::privacy::SecretStore* secret_store,
@@ -32,7 +32,7 @@ rig::host_value post_ai_runs(
   // stream starts throws, and dispatch answers it with its declared status.
   if (!routes::ai::runs::execute_ai_run(
            rig_json::encode(request).dump(),
-           *socket,
+           socket->socket,
            db,
            fts,
            secret_store,
