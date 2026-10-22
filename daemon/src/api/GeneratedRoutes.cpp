@@ -112,6 +112,15 @@ bool dispatch_generated_routes(
       res = support::stream_finished_response();
       return true;
     }
+    if (generated->media_type != "application/json") {
+      // A text route: its body is the string to send.
+      res = {static_cast<http::status>(generated->status), 11};
+      res.set(http::field::content_type, std::string(generated->media_type));
+      res.keep_alive(false);
+      res.body() = generated->body.get<std::string>();
+      res.prepare_payload();
+      return true;
+    }
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
     if (!generated->allow.empty()) res.set(http::field::allow, generated->allow);
   } catch (const std::exception& error) {

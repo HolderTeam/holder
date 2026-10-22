@@ -53,15 +53,6 @@ std::string generate_uuid_v4() {
   return boost::uuids::to_string(gen());
 }
 
-Session::Response ping_response() {
-  Session::Response res{http::status::ok, 11};
-  res.set(http::field::content_type, "text/plain");
-  res.keep_alive(false);
-  res.body() = "pong";
-  res.prepare_payload();
-  return res;
-}
-
 struct AsyncReadResult {
   boost::system::error_code ec;
   Session::tcp::socket socket;
@@ -385,8 +376,6 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   } else if (!is_host_served_route(req_)) {
     // The handlers below serve only the routes the contract declares.
     res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-  } else if (path_ == "/ping") {
-    res = ping_response();
   } else if (!routes::handle_static_routes(path_, req_, res)) {
     // The rest is Google redirecting the user's browser, which has no token.
     routes::handle_google_drive_oauth_callback_route(

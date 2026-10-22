@@ -3867,6 +3867,11 @@ paths:
               schema:
                 type: string
                 enum: [pong]
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects:
     get:
       summary: List projects
