@@ -1288,7 +1288,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: No local runner or configured cloud provider available
+          description: No local runner or configured cloud provider available, or stream limit reached
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}

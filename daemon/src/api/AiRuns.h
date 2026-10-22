@@ -1,7 +1,8 @@
 #pragma once
 
+#include "api/HttpError.h"
 #include "api/RigAnnotations.h"
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
 
 #include <nlohmann/json.hpp>
 
@@ -51,6 +52,12 @@ struct AiRunsMissingScope : std::invalid_argument {
 
 struct AiRunNotFound : std::runtime_error {
   AiRunNotFound() : std::runtime_error("Run not found.") {}
+};
+
+// A run cannot start: no runner or cloud provider is available for it, or the daemon has
+// too many streams open. The code says which.
+struct AiRunUnavailable : CodedError {
+  using CodedError::CodedError;
 };
 
 RIG_ROUTE(GET, "/ai/runs")

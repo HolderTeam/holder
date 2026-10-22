@@ -365,7 +365,8 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
           started_at_,
           card_store_,
           events_,
-          &stream
+          &stream,
+          &socket_
       )
   ) {
     // Generated, or a 405 for a declared path with another method. A stream the generated

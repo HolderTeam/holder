@@ -108,7 +108,8 @@ inline ServedRequest serve_generated(
       {},
       nullptr,
       events,
-      &stream
+      &stream,
+      &socket
   );
   return {handled, handled && stream && stream(socket, res)};
 }

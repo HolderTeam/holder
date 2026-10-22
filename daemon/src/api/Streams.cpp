@@ -18,6 +18,7 @@ std::shared_ptr<support::SseRegistry> registry_of(support::EventService* events)
 } // namespace
 
 rig::host_value post_ai_runs(
+    boost::asio::ip::tcp::socket* socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     holder::privacy::SecretStore* secret_store,
@@ -26,31 +27,28 @@ rig::host_value post_ai_runs(
     holder::api::support::EventService* events,
     AiRunCreateRequest request
 ) {
-  // The stream runs after dispatch returns, so it keeps its own copies of what it needs.
+  if (socket == nullptr) throw std::logic_error("POST /ai/runs needs the request's socket");
+  // A run streams as it executes, in this worker, so it runs here: a failure before the
+  // stream starts throws, and dispatch answers it with its declared status.
+  if (!routes::ai::runs::execute_ai_run(
+           rig_json::encode(request).dump(),
+           *socket,
+           db,
+           fts,
+           secret_store,
+           registry,
+           uuid_v4,
+           registry_of(events)
+      )
+           .streamed) {
+    throw std::logic_error("run neither streamed nor failed");
+  }
+  // The stream has already taken the socket.
   return {
       200,
-      support::StreamServer([&db,
-                             fts,
-                             secret_store,
-                             registry,
-                             uuid_v4,
-                             streams = registry_of(events),
-                             body = rig_json::encode(request).dump()](
-                                boost::asio::ip::tcp::socket& socket,
-                                boost::beast::http::response<boost::beast::http::string_body>& res
-                            ) {
-        return routes::ai::runs::execute_ai_run(
-                   body,
-                   res,
-                   socket,
-                   db,
-                   fts,
-                   secret_store,
-                   registry,
-                   uuid_v4,
-                   streams
-        )
-            .streamed;
+      support::StreamServer([](boost::asio::ip::tcp::socket&,
+                               boost::beast::http::response<boost::beast::http::string_body>&) {
+        return true;
       })
   };
 }

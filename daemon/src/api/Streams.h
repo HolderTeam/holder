@@ -5,7 +5,9 @@
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
 #include "api/RunnerPull.h"
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
+
+#include <boost/asio/ip/tcp.hpp>
 
 #include <functional>
 #include <optional>
@@ -42,8 +44,9 @@ RIG_SSE_EVENT("fallback", AiRunEventData)
 RIG_SSE_EVENT("done", AiRunEventData)
 RIG_SSE_EVENT("failed", AiRunEventData)
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", std::invalid_argument)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "No local runner or configured cloud provider available")
+RIG_ERROR_RESPONSE(503, ErrorResponse, "No local runner or configured cloud provider available, or stream limit reached", AiRunUnavailable)
 rig::host_value post_ai_runs(
+    boost::asio::ip::tcp::socket* socket RIG_CONTEXT,
     holder::platform::Db& db RIG_CONTEXT,
     holder::index::FtsIndexer* fts RIG_CONTEXT,
     holder::privacy::SecretStore* secret_store RIG_CONTEXT,

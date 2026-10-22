@@ -2,7 +2,7 @@
 
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
 
 #include <optional>
 #include <stdexcept>

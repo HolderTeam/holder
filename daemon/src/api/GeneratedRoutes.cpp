@@ -30,6 +30,8 @@ struct Context {
   holder::api::support::EventService* events;
   // The request's Host header: where the caller reached this daemon.
   std::optional<std::string> host;
+  // The request's connection, for a route that streams as it runs.
+  boost::asio::ip::tcp::socket* socket;
 };
 
 std::string error_code(int status) {
@@ -77,15 +79,25 @@ bool dispatch_generated_routes(
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::api::support::EventService* events,
-    support::StreamServer* stream
+    support::StreamServer* stream,
+    boost::asio::ip::tcp::socket* socket
 ) {
   const auto target = req.target();
   Context context{
-      db,         registry,   fts,   secret_store, git_ops, std::move(uuid_v4),
-      started_at, card_store, events,
+      db,
+      registry,
+      fts,
+      secret_store,
+      git_ops,
+      std::move(uuid_v4),
+      started_at,
+      card_store,
+      events,
       req.count(http::field::host) > 0
           ? std::optional<std::string>(std::string(req[http::field::host]))
-          : std::nullopt};
+          : std::nullopt,
+      socket
+  };
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),

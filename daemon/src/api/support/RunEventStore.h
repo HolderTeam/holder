@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
 #include "api/support/EventJournal.h"
 
 #include <nlohmann/json.hpp>

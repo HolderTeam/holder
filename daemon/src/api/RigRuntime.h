@@ -1,7 +1,6 @@
 #pragma once
 
-// Operations the checked-in RIG dispatcher serves, or hands back to the host
-// when the host writes their response (RIG_HOST_RESPONSE).
+// Every operation the daemon serves, all dispatched by the checked-in RIG dispatcher.
 #include "api/AiLocalModelConfig.h"
 #include "api/AiMessageRead.h"
 #include "api/AiMessageWrite.h"
@@ -51,7 +50,7 @@
 #include "api/LocationWrite.h"
 #include "api/RecoveryToken.h"
 #include "api/Reindex.h"
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
 #include "api/Search.h"
 #include "api/Streams.h"
 #include "api/TrashWrite.h"

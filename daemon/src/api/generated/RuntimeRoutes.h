@@ -1192,12 +1192,14 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_runs");
         }
         try {
-            auto outcome = holder::api::post_ai_runs(context.db, context.fts, context.secret_store, context.registry, context.uuid_v4, context.events, std::move(*argument_0));
+            auto outcome = holder::api::post_ai_runs(context.socket, context.db, context.fts, context.secret_store, context.registry, context.uuid_v4, context.events, std::move(*argument_0));
             if (outcome.status != 200)
                 throw std::logic_error("post_ai_runs chose an undeclared success status");
             return response{outcome.status, json(), "post_ai_runs", {}, std::move(outcome.value)};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runs"};
+        } catch (const holder::api::AiRunUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_ai_runs"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runs"};
         }

@@ -41,21 +41,24 @@ in the same pull request.
 function annotated with `RIG_ROUTE`, plus its summary, description, errors and
 constraints; its parameters and return type give the request and response.
 
-- **Generated endpoints**, such as `ProjectTags.h` and `ProviderSettings.h`,
-  are defined in the daemon. The generated dispatcher decodes and validates the
-  request, calls the function and encodes its result. `GeneratedRoutes.cpp`
-  supplies the database and other context, and `Session.cpp` calls the
-  dispatcher after authentication.
-- **Host responses**, marked `RIG_HOST_RESPONSE(media_type)`, are declarations
-  only: an existing route handler still writes the response. They include the
-  event streams and file downloads, which stay host-written, and the endpoints
-  in `daemon/src/api/declared/` (with their schemas in `declared/Schemas.h`),
-  which still use their original handlers. The generated dispatcher hands their
-  requests back, so a broader generated route never takes them.
+Every endpoint is defined in the daemon and served by the generated dispatcher,
+which decodes and validates the request, calls the function and maps its
+exceptions to the declared errors. `GeneratedRoutes.cpp` supplies the database
+and other context, and `Session.cpp` calls the dispatcher after authentication;
+a request it does not take is a 404. Schemas shared by several endpoints are in
+`Schemas.h`.
 
-To move an endpoint behind the generated dispatcher, give its declaration a
-definition, remove `RIG_HOST_RESPONSE` and its old handler, and move it out of
-`declared/` into its own header.
+- **JSON endpoints**, such as `ProjectTags.h`, return a value the dispatcher
+  encodes as JSON.
+- **Text endpoints**, marked `RIG_RESPONSE_MEDIA_TYPE`, such as `/ping` and the
+  YAML files in `StaticFiles.h`, return a string sent as that media type.
+- **Host-written bodies**, marked `RIG_HOST_RESPONSE(media_type)` and returning
+  `rig::host_value`, are the event streams (`Streams.h`), the asset download
+  (`AssetContent.h`), the documentation files and the Google Drive callback.
+  The dispatcher still decodes the request and answers its errors; the function
+  returns a `support::StreamServer` that writes the body. Events are built with
+  the generated `rig_events::<name>(data)`, so a stream sends only declared
+  events with their declared data.
 
 ## Shared behaviour
 

@@ -24,11 +24,11 @@ struct RouteDispatchResult {
 
 namespace holder::api::routes::ai::runs {
 
-// Starts a run from a JSON request body and streams its events on the socket, or leaves an
-// error response in res. The generated POST /ai/runs route calls it with the decoded body.
+// Starts a run from a JSON request body and streams its events on the socket. Until the
+// stream starts, a failure throws: std::invalid_argument for a bad request, or
+// AiRunUnavailable. The generated POST /ai/runs route calls it with the decoded body.
 RouteDispatchResult execute_ai_run(
     const std::string& request_body,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
@@ -39,16 +39,5 @@ RouteDispatchResult execute_ai_run(
 );
 
 
-RouteDispatchResult handle_ai_runs_post_route(
-    const boost::beast::http::request<boost::beast::http::string_body>& req,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
-    boost::asio::ip::tcp::socket& socket,
-    holder::platform::Db& db,
-    holder::index::FtsIndexer* fts,
-    holder::privacy::SecretStore* secret_store,
-    holder::llm::RunnerRegistry* runner_registry,
-    const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams = {}
-);
 
 } // namespace holder::api::routes::ai::runs

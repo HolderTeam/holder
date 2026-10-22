@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/RigAnnotations.h"
-#include "api/declared/Schemas.h"
+#include "api/Schemas.h"
 #include "privacy/PrivacyError.h"
 
 #include <exception>

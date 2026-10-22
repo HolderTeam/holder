@@ -37,6 +37,7 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
                                std::chrono::steady_clock::time_point started_at = {},
                                holder::card::CardStore* card_store = nullptr,
                                holder::api::support::EventService* events = nullptr,
-                               support::StreamServer* stream = nullptr);
+                               support::StreamServer* stream = nullptr,
+                               boost::asio::ip::tcp::socket* socket = nullptr);
 
 } // namespace holder::api

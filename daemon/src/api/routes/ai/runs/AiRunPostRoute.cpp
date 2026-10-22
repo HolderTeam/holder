@@ -285,21 +285,16 @@ struct AiRunPostInput {
   std::optional<std::string> context_card_id;
 };
 
-std::optional<AiRunPostInput> parse_ai_run_post_input(
-    const std::string& body,
-    http::response<http::string_body>& res
-) {
+std::optional<AiRunPostInput> parse_ai_run_post_input(const std::string& body) {
   AiRunPostInput input;
   try {
     input.body = nlohmann::json::parse(body);
   } catch (const std::exception& ex) {
-    res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    return std::nullopt;
+    throw std::invalid_argument(ex.what());
   }
 
   if (!input.body.contains("prompt")) {
-    res = support::error_response(http::status::bad_request, "bad_request", "Missing prompt.");
-    return std::nullopt;
+    throw std::invalid_argument("Missing prompt.");
   }
 
   input.prompt = input.body.at("prompt").get<std::string>();
@@ -386,7 +381,6 @@ RouteDispatchResult execute_cloud_post_path(
     holder::llm::RunnerClient* runner,
     const std::function<std::string()>& uuid_v4,
     boost::asio::ip::tcp::socket& socket,
-    http::response<http::string_body>& res,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::shared_ptr<support::SseRegistry> streams,
@@ -397,12 +391,10 @@ RouteDispatchResult execute_cloud_post_path(
 
   const auto cloud_cfg = support::load_cloudproviders_config();
   if (!cloud_cfg.has_value()) {
-    res = support::error_response(
-        http::status::service_unavailable,
+    throw AiRunUnavailable(
         "runner_unavailable",
         "No local runner and ai_catalog.yaml models runtime/catalog not found."
     );
-    return out;
   }
 
   std::string requested_provider;
@@ -428,7 +420,6 @@ RouteDispatchResult execute_cloud_post_path(
   }
 
   const support::CloudProviderConfig* selected_provider = nullptr;
-  bool selection_failed = false;
   static constexpr const char* kSecretService = "holder.ai_provider_credentials";
 
   auto try_select = [&](const support::CloudProviderConfig& provider) -> bool {
@@ -447,16 +438,14 @@ RouteDispatchResult execute_cloud_post_path(
     if (provider && try_select(*provider)) {
       // selected by request
     } else {
-      res = support::error_response(
-          http::status::service_unavailable,
+      throw AiRunUnavailable(
           "cloud_not_configured",
           "Requested cloud provider is not enabled/configured."
       );
-      selection_failed = true;
     }
   }
 
-  if (!selected_provider && !selection_failed) {
+  if (!selected_provider) {
     for (const auto* provider_cfg : support::ordered_cloud_providers(cloud_cfg.value())) {
       if (provider_cfg && try_select(*provider_cfg)) {
         break;
@@ -464,9 +453,8 @@ RouteDispatchResult execute_cloud_post_path(
     }
   }
 
-  if (!selected_provider && !selection_failed) {
-    res = support::error_response(
-        http::status::service_unavailable,
+  if (!selected_provider) {
+    throw AiRunUnavailable(
         "cloud_not_configured",
         "No enabled cloud provider with stored API key."
     );
@@ -474,29 +462,24 @@ RouteDispatchResult execute_cloud_post_path(
 
   if (selected_provider) {
     if (secret_store == nullptr) {
-      res = support::error_response(
-          http::status::service_unavailable,
+      throw AiRunUnavailable(
           "cloud_not_configured",
           "Cloud provider credential secret store is unavailable."
       );
-      return out;
     }
     const auto selected_secret =
         secret_store->get(kSecretService, selected_provider->credential_provider_key);
     if (!selected_secret.has_value()) {
-      res = support::error_response(
-          http::status::service_unavailable,
+      throw AiRunUnavailable(
           "cloud_not_configured",
           "Cloud provider credential secret is missing."
       );
-      return out;
     }
     const std::string provider_api_key = selected_secret->secret;
     const auto candidate_models =
         support::cloud_model_candidates(*selected_provider, requested_model);
     if (candidate_models.empty()) {
-      res = support::error_response(
-          http::status::service_unavailable,
+      throw AiRunUnavailable(
           "cloud_not_configured",
           "No cloud model configured for selected provider."
       );
@@ -516,12 +499,7 @@ RouteDispatchResult execute_cloud_post_path(
       run.updated_at = run.created_at;
       auto channel = support::SseStream::reserve(socket, streams);
       if (!channel) {
-        res = support::error_response(
-            http::status::service_unavailable,
-            "server_busy",
-            "Too many event streams."
-        );
-        return out;
+        throw AiRunUnavailable("server_busy", "Too many event streams.");
       }
       try {
         run_repo.create(run);
@@ -1098,7 +1076,6 @@ RouteDispatchResult execute_local_post_path(
     holder::llm::RunnerClient* runner,
     const std::function<std::string()>& uuid_v4,
     boost::asio::ip::tcp::socket& socket,
-    http::response<http::string_body>& res,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
     std::shared_ptr<support::SseRegistry> streams,
@@ -1112,12 +1089,7 @@ RouteDispatchResult execute_local_post_path(
     const auto parsed_model =
         parse_requested_model_for_runner(body.at("model").get<std::string>(), runner_id);
     if (!parsed_model.has_value()) {
-      res = support::error_response(
-          http::status::bad_request,
-          "bad_request",
-          "Requested model runner is not available."
-      );
-      return out;
+      throw std::invalid_argument("Requested model runner is not available.");
     }
     forced_model = parsed_model.value();
     mode = "model";
@@ -1138,11 +1110,7 @@ RouteDispatchResult execute_local_post_path(
       forced_model.empty() ||
       std::find(candidates.begin(), candidates.end(), forced_model) != candidates.end();
   if (!forced_model_installed) {
-    res = support::error_response(
-        http::status::bad_request,
-        "bad_request",
-        "Requested model is not installed."
-    );
+    throw std::invalid_argument("Requested model is not installed.");
   } else if (forced_model.empty() && machine_caste.has_value()) {
     std::vector<std::string> caste_candidates;
     caste_candidates.reserve(candidates.size());
@@ -1244,12 +1212,7 @@ RouteDispatchResult execute_local_post_path(
   run.updated_at = run.created_at;
   auto channel = support::SseStream::reserve(socket, streams);
   if (!channel) {
-    res = support::error_response(
-        http::status::service_unavailable,
-        "server_busy",
-        "Too many event streams."
-    );
-    return out;
+    throw AiRunUnavailable("server_busy", "Too many event streams.");
   }
   try {
     run_repo.create(run);
@@ -1479,33 +1442,8 @@ RouteDispatchResult execute_local_post_path(
 
 } // namespace
 
-RouteDispatchResult handle_ai_runs_post_route(
-    const http::request<http::string_body>& req,
-    http::response<http::string_body>& res,
-    boost::asio::ip::tcp::socket& socket,
-    holder::platform::Db& db,
-    holder::index::FtsIndexer* fts,
-    holder::privacy::SecretStore* secret_store,
-    holder::llm::RunnerRegistry* runner_registry,
-    const std::function<std::string()>& uuid_v4,
-    std::shared_ptr<holder::api::support::SseRegistry> streams
-) {
-  return execute_ai_run(
-      req.body(),
-      res,
-      socket,
-      db,
-      fts,
-      secret_store,
-      runner_registry,
-      uuid_v4,
-      std::move(streams)
-  );
-}
-
 RouteDispatchResult execute_ai_run(
     const std::string& request_body,
-    http::response<http::string_body>& res,
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
@@ -1518,7 +1456,7 @@ RouteDispatchResult execute_ai_run(
   out.handled = true;
   try {
     holder::llm::RunnerClient* runner = nullptr;
-    const auto parsed = parse_ai_run_post_input(request_body, res);
+    const auto parsed = parse_ai_run_post_input(request_body);
     if (!parsed.has_value()) {
       return out;
     }
@@ -1540,12 +1478,7 @@ RouteDispatchResult execute_ai_run(
       if (parsed_model_ref.has_value()) {
         if (selected_runner_id != holder::llm::RunnerRegistry::kAutoLocalRunnerId &&
             selected_runner_id != parsed_model_ref->runner_id) {
-          res = support::error_response(
-              http::status::bad_request,
-              "bad_request",
-              "runner_id does not match requested model runner."
-          );
-          return out;
+          throw std::invalid_argument("runner_id does not match requested model runner.");
         }
         selected_runner_id = parsed_model_ref->runner_id;
       }
@@ -1561,12 +1494,7 @@ RouteDispatchResult execute_ai_run(
 
     if (cloud_provider_requested &&
         selected_runner_id != holder::llm::RunnerRegistry::kAutoLocalRunnerId) {
-      res = support::error_response(
-          http::status::bad_request,
-          "bad_request",
-          "runner_id cannot be combined with cloud provider requests."
-      );
-      return out;
+      throw std::invalid_argument("runner_id cannot be combined with cloud provider requests.");
     }
 
     holder::llm::RunnerStatus runner_status;
@@ -1592,7 +1520,6 @@ RouteDispatchResult execute_ai_run(
           runner,
           uuid_v4,
           socket,
-          res,
           db,
           fts,
           streams,
@@ -1612,20 +1539,16 @@ RouteDispatchResult execute_ai_run(
         runner,
         uuid_v4,
         socket,
-        res,
         db,
         fts,
         streams,
         out.streamed
     );
   } catch (const std::exception& ex) {
-    if (out.streamed) {
-      // Streaming owns the socket and its completion guard has sent failure.
-      out.streamed = true;
-      spdlog::warn("Streaming run failed: {}", ex.what());
-    } else {
-      res = support::error_response(http::status::bad_request, "bad_request", ex.what());
-    }
+    // Before the stream starts, the route answers with the failure's declared status.
+    if (!out.streamed) throw;
+    // Streaming owns the socket and its completion guard has sent failure.
+    spdlog::warn("Streaming run failed: {}", ex.what());
   }
   return out;
 }
