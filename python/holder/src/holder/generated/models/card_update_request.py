@@ -17,9 +17,9 @@ class CardUpdateRequest:
     """
     Attributes:
         updated_at (int):
-        content (str | Unset):
-        title (None | str | Unset):
-        parent_card_id (None | str | Unset):
+        content (str | Unset): Required when title is supplied.
+        title (None | str | Unset): Null keeps the current title.
+        parent_card_id (None | str | Unset): Null moves the card to the project's top level.
         sort_key (float | Unset):
     """
 

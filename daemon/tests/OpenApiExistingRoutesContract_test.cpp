@@ -55,6 +55,17 @@ void require_json_response_ref(
   );
 }
 
+// The data of one named event in an operation's text/event-stream itemSchema.
+YAML::Node sse_event_data(const YAML::Node& operation, const std::string& name) {
+  const auto events =
+      operation["responses"]["200"]["content"]["text/event-stream"]["itemSchema"]["oneOf"];
+  for (const auto& event : events) {
+    if (event["properties"]["event"]["const"].as<std::string>() == name)
+      return event["properties"]["data"];
+  }
+  return YAML::Node();
+}
+
 } // namespace
 
 TEST_CASE("OpenAPI contracts card item mutations on the card path", "[openapi][cards]") {
@@ -234,10 +245,9 @@ TEST_CASE(
       op["responses"]["200"]["headers"]["Content-Disposition"]["schema"]["type"].as<std::string>(
       ) == "string"
   );
-  CHECK(
-      op["responses"]["200"]["content"]["application/octet-stream"]["schema"]["format"]
-          .as<std::string>() == "binary"
-  );
+  // OpenAPI 3.2 describes raw bytes by their media type alone.
+  CHECK(op["responses"]["200"]["content"]["application/octet-stream"].IsMap());
+  CHECK_FALSE(op["responses"]["200"]["content"]["application/octet-stream"]["schema"].IsDefined());
   for (const auto& code : {"400", "401", "404", "409", "422", "502", "503", "507"}) {
     require_json_response_ref(op, code, "ErrorResponse");
   }
@@ -252,7 +262,9 @@ TEST_CASE(
   CHECK(parameter_named(list, "project_id")["required"].as<bool>());
   CHECK_FALSE(parameter_named(list, "card_id")["required"].as<bool>());
   CHECK(parameter_named(list, "limit")["schema"]["maximum"].as<int>() == 1000);
-  CHECK(parameter_named(list, "limit")["schema"]["default"].as<int>() == 100);
+  // limit and offset require card_id, so their defaults are described rather than declared.
+  CHECK(parameter_named(list, "limit")["description"].as<std::string>().find("100") !=
+        std::string::npos);
   CHECK(parameter_named(list, "offset")["schema"]["minimum"].as<int>() == 0);
   require_json_response_ref(list, "200", "ResourceListResponse");
   for (const auto& status : {"400", "401", "404", "422"})
@@ -271,7 +283,7 @@ TEST_CASE(
         std::vector<std::string>{"project_id", "resource_id"}
     );
     require_json_response_ref(op, "200", "ResourceAttachmentResponse");
-    for (const auto& status : {"400", "401", "404", "422"})
+    for (const auto& status : {"400", "401", "404", "422", "500", "501", "503"})
       require_json_response_ref(op, status, "ErrorResponse");
   }
 }
@@ -604,12 +616,26 @@ TEST_CASE("OpenAPI describes change feed recovery and SSE cursors", "[openapi][e
       "^[0-9a-f]{40}$"
   );
   CHECK(
-      events["x-sse-events"]["resync_required"]["$ref"].as<std::string>() ==
+      sse_event_data(events, "resync_required")["contentSchema"]["$ref"].as<std::string>() ==
       "#/components/schemas/EventResyncData"
   );
+  // A reconnect to a finished run or pull is told to stop with 204, which has no body.
+  for (const auto* path : {"/ai/runs/{run_id}/events", "/ai/runner/pull/{job_id}/events"}) {
+    const auto finished = paths[path]["get"]["responses"]["204"];
+    CHECK(finished.IsDefined());
+    CHECK_FALSE(finished["content"].IsDefined());
+  }
+  CHECK(sse_event_data(paths["/ai/runs"]["post"], "fallback").IsDefined());
+  CHECK(
+      sse_event_data(paths["/ai/runner/pull/{job_id}/events"]["get"], "completed")["contentSchema"]
+                    ["$ref"]
+                        .as<std::string>() == "#/components/schemas/RunnerPullJob"
+  );
   require_json_response_ref(paths["/events/cursor"]["get"], "200", "EventCheckpointResponse");
-  for (const auto* status : {"400", "401", "404", "405", "503"})
+  for (const auto* status : {"400", "401", "404", "503"})
     require_json_response_ref(events, status, "ErrorResponse");
+  // A request with an operation's own method never gets a 405, so no operation lists one.
+  CHECK_FALSE(events["responses"]["405"].IsDefined());
   for (const auto* path : {"/ai/runs/{run_id}/events", "/ai/runner/pull/{job_id}/events"})
     CHECK(parameter_named(paths[path]["get"], "Last-Event-ID").IsDefined());
   CHECK(

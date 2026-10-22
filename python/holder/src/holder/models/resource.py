@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
-from urllib.parse import quote
 
 import httpx
 
+from .._streams import stream_failure
 from ..collections import Collection
 from ..exceptions import (
-    APIError,
     AuthenticationError,
     ConnectionError,
     NotFoundError,
@@ -25,6 +23,7 @@ from ..generated.api.default import (
     delete_resources_resource_id,
     get_resources,
     get_resources_resource_id,
+    get_resources_resource_id_assets_asset_id_content,
     patch_resources_resource_id,
     post_cards_card_id_resources,
     post_resources,
@@ -36,6 +35,7 @@ from ..generated.models import (
     ResourceMetadata,
     ResourceUpdateRequest,
 )
+from ..generated.streams import StreamError
 from ..generated.types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -96,44 +96,33 @@ class Asset:
         if placement is not None and placement not in self.placements:
             raise ValueError("placement must belong to this asset")
         holder = self._project._holder
-        client = holder._active().get_httpx_client()
-        url = (
-            f"/resources/{quote(self.resource_id, safe='')}/assets/"
-            f"{quote(self.id, safe='')}/content"
-        )
         temporary: str | None = None
         try:
             for attempt in range(2):
-                with client.stream(
-                    "GET",
-                    url,
-                    params={"placement_id": placement.id} if placement else None,
-                ) as response:
-                    if response.status_code == 401 and holder._local and attempt == 0:
-                        holder._discover()
-                        client.base_url = holder._url
-                        client.headers["Authorization"] = f"Bearer {holder._token}"
-                        continue
-                    if response.status_code != 200:
-                        try:
-                            error = json.loads(response.read())["error"]
-                            code, message = error["code"], error["message"]
-                        except (ValueError, KeyError, TypeError):
-                            code, message = "http_error", "Asset download failed"
-                        kind = {
-                            401: AuthenticationError,
-                            404: NotFoundError,
-                        }.get(response.status_code, APIError)
-                        raise kind(response.status_code, code, message)
-                    with tempfile.NamedTemporaryFile(
+                download = get_resources_resource_id_assets_asset_id_content.stream(
+                    self.resource_id,
+                    self.id,
+                    client=holder._active(),
+                    placement_id=placement.id if placement is not None else UNSET,
+                )
+                try:
+                    with download, tempfile.NamedTemporaryFile(
                         mode="wb",
                         dir=destination.parent,
                         prefix=f".{destination.name}.",
                         delete=False,
                     ) as output:
                         temporary = output.name
-                        for chunk in response.iter_bytes():
-                            output.write(chunk)
+                        download.write_to(output)
+                except StreamError as error:
+                    if error.status_code == 401 and holder._local and attempt == 0:
+                        holder._discover()
+                        # Preserve the pool and custom transport while updating a restarted daemon.
+                        client = holder._active().get_httpx_client()
+                        client.base_url = holder._url
+                        client.headers["Authorization"] = f"Bearer {holder._token}"
+                        continue
+                    raise stream_failure(error, "Asset download failed") from None
                 os.replace(temporary, destination)
                 temporary = None
                 return destination
@@ -205,11 +194,7 @@ class Resource:
                     reference.updated_at,
                     tuple(reference.link_kinds),
                 )
-                for reference in (
-                    []
-                    if isinstance(row.referenced_by_cards, Unset)
-                    else row.referenced_by_cards
-                )
+                for reference in row.referenced_by_cards
             ),
             created_at=row.created_at,
             updated_at=row.updated_at,

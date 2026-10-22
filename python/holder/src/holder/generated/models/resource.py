@@ -7,8 +7,6 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..types import UNSET, Unset
-
 if TYPE_CHECKING:
     from ..models.resource_asset import ResourceAsset
     from ..models.resource_metadata import ResourceMetadata
@@ -30,7 +28,8 @@ class Resource:
         assets (list[ResourceAsset]):
         created_at (int):
         updated_at (int):
-        referenced_by_cards (list[ResourceReferencedByCardsItem] | Unset):
+        referenced_by_cards (list[ResourceReferencedByCardsItem]): Live cards linking to the resource, by title then
+            card ID. Empty in create and update responses.
     """
 
     resource_id: str
@@ -41,7 +40,7 @@ class Resource:
     assets: list[ResourceAsset]
     created_at: int
     updated_at: int
-    referenced_by_cards: list[ResourceReferencedByCardsItem] | Unset = UNSET
+    referenced_by_cards: list[ResourceReferencedByCardsItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -64,12 +63,10 @@ class Resource:
 
         updated_at = self.updated_at
 
-        referenced_by_cards: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.referenced_by_cards, Unset):
-            referenced_by_cards = []
-            for referenced_by_cards_item_data in self.referenced_by_cards:
-                referenced_by_cards_item = referenced_by_cards_item_data.to_dict()
-                referenced_by_cards.append(referenced_by_cards_item)
+        referenced_by_cards = []
+        for referenced_by_cards_item_data in self.referenced_by_cards:
+            referenced_by_cards_item = referenced_by_cards_item_data.to_dict()
+            referenced_by_cards.append(referenced_by_cards_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -83,10 +80,9 @@ class Resource:
                 "assets": assets,
                 "created_at": created_at,
                 "updated_at": updated_at,
+                "referenced_by_cards": referenced_by_cards,
             }
         )
-        if referenced_by_cards is not UNSET:
-            field_dict["referenced_by_cards"] = referenced_by_cards
 
         return field_dict
 
@@ -120,16 +116,14 @@ class Resource:
 
         updated_at = d.pop("updated_at")
 
-        _referenced_by_cards = d.pop("referenced_by_cards", UNSET)
-        referenced_by_cards: list[ResourceReferencedByCardsItem] | Unset = UNSET
-        if _referenced_by_cards is not UNSET:
-            referenced_by_cards = []
-            for referenced_by_cards_item_data in _referenced_by_cards:
-                referenced_by_cards_item = ResourceReferencedByCardsItem.from_dict(
-                    referenced_by_cards_item_data
-                )
+        referenced_by_cards = []
+        _referenced_by_cards = d.pop("referenced_by_cards")
+        for referenced_by_cards_item_data in _referenced_by_cards:
+            referenced_by_cards_item = ResourceReferencedByCardsItem.from_dict(
+                referenced_by_cards_item_data
+            )
 
-                referenced_by_cards.append(referenced_by_cards_item)
+            referenced_by_cards.append(referenced_by_cards_item)
 
         resource = cls(
             resource_id=resource_id,

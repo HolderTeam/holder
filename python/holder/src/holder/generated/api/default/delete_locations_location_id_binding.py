@@ -6,6 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.error_response import ErrorResponse
 from ...models.location_action_response import LocationActionResponse
 from ...types import Response
 
@@ -26,11 +27,36 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> LocationActionResponse | None:
+) -> ErrorResponse | LocationActionResponse | None:
     if response.status_code == 200:
         response_200 = LocationActionResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -40,7 +66,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[LocationActionResponse]:
+) -> Response[ErrorResponse | LocationActionResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -53,8 +79,10 @@ def sync_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[LocationActionResponse]:
+) -> Response[ErrorResponse | LocationActionResponse]:
     """Remove this device's private binding
+
+     Also clears the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -64,7 +92,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[LocationActionResponse]
+        Response[ErrorResponse | LocationActionResponse]
     """
 
     kwargs = _get_kwargs(
@@ -82,8 +110,10 @@ def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> LocationActionResponse | None:
+) -> ErrorResponse | LocationActionResponse | None:
     """Remove this device's private binding
+
+     Also clears the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -93,7 +123,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        LocationActionResponse
+        ErrorResponse | LocationActionResponse
     """
 
     return sync_detailed(
@@ -106,8 +136,10 @@ async def asyncio_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[LocationActionResponse]:
+) -> Response[ErrorResponse | LocationActionResponse]:
     """Remove this device's private binding
+
+     Also clears the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -117,7 +149,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[LocationActionResponse]
+        Response[ErrorResponse | LocationActionResponse]
     """
 
     kwargs = _get_kwargs(
@@ -133,8 +165,10 @@ async def asyncio(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> LocationActionResponse | None:
+) -> ErrorResponse | LocationActionResponse | None:
     """Remove this device's private binding
+
+     Also clears the preferred location if it was this one.
 
     Args:
         location_id (str):
@@ -144,7 +178,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        LocationActionResponse
+        ErrorResponse | LocationActionResponse
     """
 
     return (

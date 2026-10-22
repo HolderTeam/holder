@@ -1,0 +1,561 @@
+"""Streaming responses: Server-Sent Events and raw bytes, read as they arrive"""
+
+import asyncio
+import time
+from collections.abc import AsyncIterator, Callable, Iterator
+from types import TracebackType
+from typing import Any, BinaryIO, Generic, Self, TypeVar
+
+import httpx
+from attrs import define
+
+T = TypeVar("T")
+
+DEFAULT_RETRY_SECONDS = 3.0
+"""How long to wait before reconnecting, until the server sets its own delay with a `retry` field"""
+
+
+@define
+class ServerSentEvent(Generic[T]):
+    """One event from a `text/event-stream` response"""
+
+    event: str
+    """ The event's name, "message" when the server gave none """
+    data: T
+    """ The event's data, decoded when the API describes it """
+    id: str | None = None
+    """ The stream's last event ID when this event arrived """
+    retry: int | None = None
+    """ The reconnection delay in milliseconds, if this event set one """
+
+
+class StreamError(Exception):
+    """Raised when a stream's request is answered with an error status, or with something other than the stream"""
+
+    def __init__(
+        self, status_code: int, content: bytes, parsed: Any, message: str | None = None
+    ) -> None:
+        self.status_code = status_code
+        self.content = content
+        self.parsed = parsed
+        """ The response body, parsed as the API describes it for this status, or None """
+        super().__init__(message or f"Unexpected status code: {status_code}")
+
+
+def _split_lines(text: str, line: list[str], after_cr: bool) -> tuple[list[str], bool]:
+    """Split text into lines at CR, LF or CRLF only, as the event-stream format does, carrying a partial line"""
+    lines = []
+    for character in text:
+        if after_cr and character == "\n":
+            after_cr = False
+            continue
+        after_cr = character == "\r"
+        if character in "\r\n":
+            lines.append("".join(line))
+            line.clear()
+        else:
+            line.append(character)
+    return lines, after_cr
+
+
+def _lines(response: httpx.Response) -> Iterator[str]:
+    # An event stream is always UTF-8, and only CR and LF end its lines: not the Unicode line separators
+    # that str.splitlines (and so httpx's iter_lines) also splits at, which can appear in JSON strings.
+    response.encoding = "utf-8"
+    line: list[str] = []
+    after_cr = False
+    for text in response.iter_text():
+        lines, after_cr = _split_lines(text, line, after_cr)
+        yield from lines
+    # A partial line at the end is not a line: its event is incomplete.
+
+
+async def _alines(response: httpx.Response) -> AsyncIterator[str]:
+    response.encoding = "utf-8"
+    line: list[str] = []
+    after_cr = False
+    async for text in response.aiter_text():
+        lines, after_cr = _split_lines(text, line, after_cr)
+        for complete in lines:
+            yield complete
+
+
+def _check_event_stream(response: httpx.Response) -> str | None:
+    """Why a successful response is not an event stream, or None if it is one"""
+    content_type = (
+        response.headers.get("content-type", "").split(";")[0].strip().lower()
+    )
+    if content_type != "text/event-stream":
+        return f"Expected a text/event-stream response, got {content_type or 'no content type'}"
+    return None
+
+
+def _stream_timeout(
+    client: httpx.Client | httpx.AsyncClient, timeout: httpx.Timeout | None
+) -> httpx.Timeout:
+    """The timeout for an event stream: the client's, without a read timeout, since events can be far apart"""
+    if timeout is not None:
+        return timeout
+    default = client.timeout
+    return httpx.Timeout(
+        connect=default.connect, read=None, write=default.write, pool=default.pool
+    )
+
+
+async def _finish(cleanup: asyncio.Future[None]) -> None:
+    """Wait for cleanup to finish even if the calling task is cancelled meanwhile, then pass the cancellation on"""
+    cancelled = False
+    while not cleanup.done():
+        try:
+            await asyncio.shield(cleanup)
+        except asyncio.CancelledError:
+            cancelled = True
+    cleanup.result()
+    if cancelled:
+        raise asyncio.CancelledError
+
+
+class _ShieldedStream(httpx.AsyncByteStream):
+    """A response body whose closing finishes even when cancelled, including httpx's own close at its end"""
+
+    def __init__(self, stream: httpx.AsyncByteStream) -> None:
+        self._stream = stream
+        self._cleanup: asyncio.Future[None] | None = None
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        async for chunk in self._stream:
+            yield chunk
+
+    async def aclose(self) -> None:
+        if self._cleanup is None:
+            self._cleanup = asyncio.ensure_future(self._stream.aclose())
+        await _finish(self._cleanup)
+
+
+async def _asend(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Response:
+    response = await client.send(request, stream=True)
+    if isinstance(response.stream, httpx.AsyncByteStream):
+        response.stream = _ShieldedStream(response.stream)
+    return response
+
+
+async def _aclose(response: httpx.Response) -> None:
+    """Close a response, finishing the cleanup even if the calling task is cancelled again meanwhile"""
+    await _finish(asyncio.ensure_future(response.aclose()))
+
+
+class _EventParser:
+    """Turns the lines of an event stream into events, as the HTML standard defines"""
+
+    def __init__(self) -> None:
+        self.last_event_id: str | None = None
+        self.retry: int | None = None
+        self._first = True
+        # An id takes effect only when its event is dispatched, so an event cut off by a dropped
+        # connection never moves the stream past itself.
+        self._id_buffer: str | None = None
+        self._event = ""
+        self._data: list[str] = []
+        self._event_retry: int | None = None
+
+    def feed(self, line: str) -> ServerSentEvent[str] | None:
+        """Read one line; return the event it completes, if any"""
+        if self._first:
+            line = line.removeprefix("\ufeff")
+            self._first = False
+        if line == "":
+            return self._dispatch()
+        if line.startswith(":"):
+            return None
+        field, colon, value = line.partition(":")
+        if colon and value.startswith(" "):
+            value = value[1:]
+        if field == "event":
+            self._event = value
+        elif field == "data":
+            self._data.append(value)
+        elif field == "id" and "\0" not in value:
+            self._id_buffer = value or None
+        elif (
+            field == "retry"
+            and value
+            and all("0" <= character <= "9" for character in value)
+        ):
+            self.retry = self._event_retry = int(value)
+        return None
+
+    def _dispatch(self) -> ServerSentEvent[str] | None:
+        self.last_event_id = self._id_buffer
+        event = None
+        if self._data:
+            event = ServerSentEvent(
+                event=self._event or "message",
+                data="\n".join(self._data),
+                id=self.last_event_id,
+                retry=self._event_retry,
+            )
+        self._event = ""
+        self._data = []
+        self._event_retry = None
+        return event
+
+    def reconnect_headers(self, request: dict[str, Any]) -> dict[str, Any]:
+        """The request again, resuming after the last event this stream received"""
+        if self.last_event_id is None:
+            return request
+        headers = dict(request.get("headers") or {})
+        headers["Last-Event-ID"] = self.last_event_id
+        return {**request, "headers": headers}
+
+    def reconnect_delay(self, default: float) -> float:
+        return default if self.retry is None else self.retry / 1000
+
+
+def _check_status(
+    response: httpx.Response, parse_error: Callable[[httpx.Response], Any]
+) -> None:
+    if not 200 <= response.status_code <= 299:
+        # A body that doesn't match its declared schema must not hide the status.
+        try:
+            parsed = parse_error(response)
+        except Exception:
+            parsed = None
+        raise StreamError(response.status_code, response.content, parsed)
+
+
+class EventStream(Generic[T]):
+    """The events of a `text/event-stream` response, read as they arrive
+
+    Use it as a context manager, which closes the connection, and iterate over it for the events. With reconnection
+    on, which is the default for GET requests, a closed or broken connection is reopened after the server's `retry`
+    delay, resuming with `Last-Event-ID`, and the stream ends when the server answers a reconnection with 204 No
+    Content. Without it, the stream ends when the connection closes.
+
+    Set `reconnect_delay` (seconds) for the wait until the server sends its own `retry`, and `timeout` to replace
+    the default, which is the client's timeout without a read timeout. A successful response that isn't
+    `text/event-stream` raises `StreamError`.
+    """
+
+    def __init__(
+        self,
+        client: httpx.Client,
+        request: dict[str, Any],
+        decode: Callable[[ServerSentEvent[str]], ServerSentEvent[T]],
+        parse_error: Callable[[httpx.Response], Any],
+        *,
+        reconnect: bool,
+    ) -> None:
+        self._client = client
+        self._request = request
+        self._decode = decode
+        self._parse_error = parse_error
+        self._reconnect = reconnect
+        self._parser = _EventParser()
+        self._response: httpx.Response | None = None
+        self._lines: Iterator[str] | None = None
+        self._entered = False
+        self._finished = False
+        self.reconnect_delay = DEFAULT_RETRY_SECONDS
+        self.timeout: httpx.Timeout | None = None
+
+    @property
+    def last_event_id(self) -> str | None:
+        """The ID of the last event received, to resume from later"""
+        return self._parser.last_event_id
+
+    def _open(self, request: dict[str, Any]) -> None:
+        request = {**request, "timeout": _stream_timeout(self._client, self.timeout)}
+        response = self._client.send(self._client.build_request(**request), stream=True)
+        if response.status_code == 204:
+            response.close()
+            self._finished = True
+            return
+        if not 200 <= response.status_code <= 299:
+            try:
+                response.read()
+                _check_status(response, self._parse_error)
+            finally:
+                response.close()
+        problem = _check_event_stream(response)
+        if problem is not None:
+            response.close()
+            raise StreamError(response.status_code, b"", None, problem)
+        self._response = response
+        self._lines = _lines(response)
+
+    def _close_response(self) -> None:
+        if self._response is not None:
+            self._response.close()
+        self._response = None
+        self._lines = None
+
+    def __enter__(self) -> Self:
+        self._entered = True
+        self._open(self._request)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Close the connection; the stream then ends"""
+        self._finished = True
+        self._close_response()
+
+    def __iter__(self) -> Self:
+        return self
+
+    def __next__(self) -> ServerSentEvent[T]:
+        if not self._entered:
+            raise RuntimeError("Use the event stream in a with statement")
+        while not self._finished:
+            if self._lines is None:
+                # Reconnecting: an unreachable server is retried after the delay, as EventSource does.
+                time.sleep(self._parser.reconnect_delay(self.reconnect_delay))
+                try:
+                    self._open(self._parser.reconnect_headers(self._request))
+                except httpx.TransportError:
+                    pass
+                continue
+            try:
+                line = next(self._lines)
+            except (StopIteration, httpx.TransportError):
+                self._close_response()
+                if not self._reconnect:
+                    self._finished = True
+                continue
+            event = self._parser.feed(line)
+            if event is not None:
+                return self._decode(event)
+        raise StopIteration
+
+
+class AsyncEventStream(Generic[T]):
+    """The asyncio form of `EventStream`: use it with `async with` and `async for`"""
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        request: dict[str, Any],
+        decode: Callable[[ServerSentEvent[str]], ServerSentEvent[T]],
+        parse_error: Callable[[httpx.Response], Any],
+        *,
+        reconnect: bool,
+    ) -> None:
+        self._client = client
+        self._request = request
+        self._decode = decode
+        self._parse_error = parse_error
+        self._reconnect = reconnect
+        self._parser = _EventParser()
+        self._response: httpx.Response | None = None
+        self._lines: AsyncIterator[str] | None = None
+        self._entered = False
+        self._finished = False
+        self.reconnect_delay = DEFAULT_RETRY_SECONDS
+        self.timeout: httpx.Timeout | None = None
+
+    @property
+    def last_event_id(self) -> str | None:
+        """The ID of the last event received, to resume from later"""
+        return self._parser.last_event_id
+
+    async def _open(self, request: dict[str, Any]) -> None:
+        request = {**request, "timeout": _stream_timeout(self._client, self.timeout)}
+        response = await _asend(self._client, self._client.build_request(**request))
+        if response.status_code == 204:
+            await _aclose(response)
+            self._finished = True
+            return
+        if not 200 <= response.status_code <= 299:
+            try:
+                await response.aread()
+                _check_status(response, self._parse_error)
+            finally:
+                await _aclose(response)
+        problem = _check_event_stream(response)
+        if problem is not None:
+            await _aclose(response)
+            raise StreamError(response.status_code, b"", None, problem)
+        self._response = response
+        self._lines = _alines(response)
+
+    async def _close_response(self) -> None:
+        response, self._response, self._lines = self._response, None, None
+        if response is not None:
+            await _aclose(response)
+
+    async def __aenter__(self) -> Self:
+        self._entered = True
+        await self._open(self._request)
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the connection; the stream then ends"""
+        self._finished = True
+        await self._close_response()
+
+    def __aiter__(self) -> Self:
+        return self
+
+    async def __anext__(self) -> ServerSentEvent[T]:
+        if not self._entered:
+            raise RuntimeError("Use the event stream in an async with statement")
+        while not self._finished:
+            if self._lines is None:
+                # Reconnecting: an unreachable server is retried after the delay, as EventSource does.
+                await asyncio.sleep(self._parser.reconnect_delay(self.reconnect_delay))
+                try:
+                    await self._open(self._parser.reconnect_headers(self._request))
+                except httpx.TransportError:
+                    pass
+                continue
+            try:
+                line = await self._lines.__anext__()
+            except (StopAsyncIteration, httpx.TransportError):
+                await self._close_response()
+                if not self._reconnect:
+                    self._finished = True
+                continue
+            event = self._parser.feed(line)
+            if event is not None:
+                return self._decode(event)
+        raise StopAsyncIteration
+
+
+class ByteStream:
+    """A response's body, read in chunks as it arrives rather than held in memory
+
+    Use it as a context manager, which closes the connection.
+    """
+
+    def __init__(
+        self,
+        client: httpx.Client,
+        request: dict[str, Any],
+        parse_error: Callable[[httpx.Response], Any],
+    ) -> None:
+        self._client = client
+        self._request = request
+        self._parse_error = parse_error
+        self._response: httpx.Response | None = None
+
+    @property
+    def response(self) -> httpx.Response:
+        """The response, for its status code and headers"""
+        if self._response is None:
+            raise RuntimeError("Use the byte stream in a with statement")
+        return self._response
+
+    def __enter__(self) -> Self:
+        response = self._client.send(
+            self._client.build_request(**self._request), stream=True
+        )
+        if not 200 <= response.status_code <= 299:
+            try:
+                response.read()
+                _check_status(response, self._parse_error)
+            finally:
+                response.close()
+        self._response = response
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self._response is not None:
+            self._response.close()
+
+    def iter_bytes(self, chunk_size: int | None = None) -> Iterator[bytes]:
+        """The body in chunks, as they arrive"""
+        return self.response.iter_bytes(chunk_size)
+
+    def write_to(self, file: BinaryIO, chunk_size: int | None = None) -> int:
+        """Write the body to a binary file as it arrives, and return the number of bytes written"""
+        written = 0
+        for chunk in self.iter_bytes(chunk_size):
+            file.write(chunk)
+            written += len(chunk)
+        return written
+
+
+class AsyncByteStream:
+    """The asyncio form of `ByteStream`: use it with `async with`"""
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        request: dict[str, Any],
+        parse_error: Callable[[httpx.Response], Any],
+    ) -> None:
+        self._client = client
+        self._request = request
+        self._parse_error = parse_error
+        self._response: httpx.Response | None = None
+
+    @property
+    def response(self) -> httpx.Response:
+        """The response, for its status code and headers"""
+        if self._response is None:
+            raise RuntimeError("Use the byte stream in an async with statement")
+        return self._response
+
+    async def __aenter__(self) -> Self:
+        response = await _asend(
+            self._client, self._client.build_request(**self._request)
+        )
+        if not 200 <= response.status_code <= 299:
+            try:
+                await response.aread()
+                _check_status(response, self._parse_error)
+            finally:
+                await _aclose(response)
+        self._response = response
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self._response is not None:
+            await _aclose(self._response)
+
+    def aiter_bytes(self, chunk_size: int | None = None) -> AsyncIterator[bytes]:
+        """The body in chunks, as they arrive"""
+        return self.response.aiter_bytes(chunk_size)
+
+    async def write_to(self, file: BinaryIO, chunk_size: int | None = None) -> int:
+        """Write the body to a binary file as it arrives, and return the number of bytes written"""
+        written = 0
+        async for chunk in self.aiter_bytes(chunk_size):
+            file.write(chunk)
+            written += len(chunk)
+        return written
+
+
+__all__ = [
+    "AsyncByteStream",
+    "AsyncEventStream",
+    "ByteStream",
+    "EventStream",
+    "ServerSentEvent",
+    "StreamError",
+]

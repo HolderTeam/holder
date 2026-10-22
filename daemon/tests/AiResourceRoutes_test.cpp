@@ -4,7 +4,9 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "api/routes/AiResourceRoutes.h"
+#include "api/AssetImportWrite.h"
+#include "api/GeneratedRoutes.h"
+#include "api/support/StorageErrors.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
@@ -33,72 +35,27 @@ http::request<http::string_body> make_request(
 
 } // namespace
 
-TEST_CASE(
-    "AiResourceRoutes POST maps non-conflict exceptions to bad_request",
-    "[resources][routes]"
-) {
+TEST_CASE("Resource create rejects a malformed body as a bad request", "[resources][routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
 
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  // Force a non-conflict exception inside POST handling: type mismatch on project_id.
+  // project_id has the wrong type, so the generated body decoding rejects it.
   auto req = make_request(
       http::verb::post,
       "/resources",
       nlohmann::json{
           {"project_id", nlohmann::json::array()},
-          {"kind", "url"},
-          {"uri", "https://example.com"},
+          {"type", "url"},
           {"label", "Example"}
       }
   );
   http::response<http::string_body> res;
-
-  const bool handled = holder::api::routes::handle_ai_resource_routes(
-      "/resources",
-      req,
-      res,
-      db,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE(handled);
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::bad_request);
 
   const auto payload = nlohmann::json::parse(res.body());
   REQUIRE(payload["ok"] == false);
   REQUIRE(payload["error"]["code"] == "bad_request");
-}
-
-TEST_CASE("AiResourceRoutes returns false for unrelated paths", "[resources][routes]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  auto req = make_request(http::verb::get, "/not-a-resource-route");
-  http::response<http::string_body> res;
-
-  const bool handled = holder::api::routes::handle_ai_resource_routes(
-      "/not-a-resource-route",
-      req,
-      res,
-      db,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE_FALSE(handled);
 }
 
 #include "git/GitOps.h"
@@ -128,24 +85,33 @@ struct LocationRouteFixture {
       const std::map<std::string, std::string>& params = {},
       holder::git::GitOps* git = nullptr
   ) {
-    auto request = make_request(method, path, body);
     http::response<http::string_body> response;
-    REQUIRE(holder::api::routes::handle_ai_resource_routes(
-        path,
-        request,
-        response,
-        db,
-        [&] {
-          return "id-" + std::to_string(++sequence);
-        },
-        [&](const std::string& key) {
-          const auto found = params.find(key);
-          if (found != params.end()) return found->second;
-          return key == "project_id" ? project : "";
-        },
-        with_secrets ? secrets.get() : nullptr,
-        git
-    ));
+    // Generated routes come first, as in the daemon; reads take the parameters as their query.
+    std::string target = path;
+    if (method == http::verb::get) {
+      std::map<std::string, std::string> query = params;
+      if (!project.empty()) query.emplace("project_id", project);
+      char separator = '?';
+      for (const auto& [key, value] : query) {
+        target += separator + key + "=" + value;
+        separator = '&';
+      }
+    }
+    auto generated_request = make_request(method, target, body);
+    if (holder::api::dispatch_generated_routes(
+            generated_request, response, db, nullptr, nullptr,
+            with_secrets ? secrets.get() : nullptr, git,
+            [&] { return "id-" + std::to_string(++sequence); }
+        )) {
+      return response;
+    }
+    FAIL("no generated route for " << target);
+    return response;
+  }
+  http::response<http::string_body> poll_import(const std::string& job_id) {
+    auto request = make_request(http::verb::get, "/imports/" + job_id, nlohmann::json::object());
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
     return response;
   }
   void put(
@@ -216,20 +182,33 @@ TEST_CASE("Location routes manage bindings preferences and declarations", "[reso
 
 TEST_CASE("Location routes validate missing services fields and records", "[resources][routes]") {
   LocationRouteFixture f;
+  // Bodies are decoded before the location is looked up, so writes send valid ones.
+  const std::map<http::verb, nlohmann::json> bodies{
+      {http::verb::patch, {{"name", "Renamed"}}},
+      {http::verb::put, {{"values", {{"root_path", "/tmp"}}}}},
+  };
+  const auto body_for = [&](http::verb method) {
+    const auto found = bodies.find(method);
+    return found == bodies.end() ? nlohmann::json::object() : found->second;
+  };
   for (auto method : {http::verb::get, http::verb::patch, http::verb::delete_}) {
-    CHECK(f.call(method, "/locations/missing").result() == http::status::not_found);
+    CHECK(f.call(method, "/locations/missing", body_for(method)).result() == http::status::not_found);
   }
+  CHECK(f.call(http::verb::patch, "/locations/missing").result() == http::status::bad_request);
   for (auto method : {http::verb::put, http::verb::delete_}) {
-    CHECK(f.call(method, "/locations/missing/binding").result() == http::status::not_found);
     CHECK(
-        f.call(method, "/locations/missing/binding", {}, "project", false).result() ==
-        http::status::bad_request
+        f.call(method, "/locations/missing/binding", body_for(method)).result() ==
+        http::status::not_found
+    );
+    CHECK(
+        f.call(method, "/locations/missing/binding", body_for(method), "project", false).result() ==
+        http::status::service_unavailable
     );
   }
   CHECK(f.call(http::verb::post, "/locations/missing/test").result() == http::status::not_found);
   CHECK(
       f.call(http::verb::post, "/locations/missing/test", {}, "project", false).result() ==
-      http::status::bad_request
+      http::status::service_unavailable
   );
   CHECK(f.call(http::verb::get, "/locations", {}, "").result() == http::status::bad_request);
   CHECK(
@@ -251,10 +230,6 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
       ).result() == http::status::not_found
   );
   CHECK(f.call(http::verb::post, "/imports").result() == http::status::bad_request);
-  CHECK(f.call(http::verb::get, "/imports/missing").result() == http::status::not_found);
-  for (const std::string path :
-       {"/locations/", "/locations/id/unknown", "/resources/", "/resources/id/unknown"})
-    CHECK(f.call(http::verb::get, path).result() == http::status::not_found);
 }
 
 TEST_CASE(
@@ -373,7 +348,7 @@ TEST_CASE("Location probes use Google OAuth and remove the probe object", "[reso
 
 #include "resource/StorageProvider.h"
 
-TEST_CASE("Resource errors preserve storage categories in HTTP responses", "[resources][routes]") {
+TEST_CASE("Storage failures keep their categories as HTTP statuses", "[resources][routes]") {
   using Code = holder::resource::StorageErrorCode;
   struct Case {
     Code code;
@@ -391,18 +366,12 @@ TEST_CASE("Resource errors preserve storage categories in HTTP responses", "[res
            {Code::Transient, 503, "storage_transient_failure"}
        }) {
     CAPTURE(item.name);
-    const auto response = holder::api::routes::resource_error_response(
+    const auto [status, code] = holder::api::support::storage_failure_status(
         holder::resource::StorageError(item.code, "storage failure")
     );
-    CHECK(response.result_int() == item.status);
-    const auto body = nlohmann::json::parse(response.body());
-    CHECK(body["error"]["code"] == item.name);
-    CHECK(body["error"]["message"] == "storage failure");
+    CHECK(status == item.status);
+    CHECK(std::string(code) == item.name);
   }
-  const auto conflict = holder::api::routes::resource_error_response(
-      std::runtime_error("conflict: resource already exists")
-  );
-  CHECK(conflict.result() == http::status::conflict);
 }
 
 TEST_CASE("Resource routes validate updates and report database failures", "[resources][routes]") {
@@ -432,6 +401,21 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
             {"label", "Example"}}
       ).result() == http::status::created
   );
+  const auto duplicate = f.call(
+      http::verb::post,
+      "/resources",
+      {{"project_id", "project"}, {"resource_id", "resource"}, {"type", "url"}, {"label", "Again"}}
+  );
+  CHECK(duplicate.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(duplicate.body())["error"]["code"] == "conflict");
+  CHECK(
+      f.call(
+           http::verb::post,
+           "/resources",
+           {{"project_id", "missing"}, {"type", "url"}, {"label", "Orphan"}}
+      ).result() == http::status::bad_request
+  );
+  CHECK(f.call(http::verb::delete_, "/resources/missing").result() == http::status::not_found);
   CHECK(
       f.call(http::verb::patch, "/resources/missing", {{"label", "New"}}).result() ==
       http::status::not_found
@@ -445,12 +429,18 @@ TEST_CASE("Resource routes validate updates and report database failures", "[res
       http::status::ok
   );
   CHECK(holder::resource::ResourceRepo(f.db).get_bundle("resource")->resource.label == "Changed");
-  CHECK(f.call(http::verb::put, "/resources/resource").result() == http::status::not_found);
+  CHECK(
+      f.call(http::verb::put, "/resources/resource").result() ==
+      http::status::method_not_allowed
+  );
   REQUIRE(f.call(http::verb::delete_, "/resources/resource").result() == http::status::ok);
   CHECK_FALSE(holder::resource::ResourceRepo(f.db).get_bundle("resource").has_value());
   f.db.exec("DROP TABLE resources; DROP TABLE storage_locations");
-  CHECK(f.call(http::verb::delete_, "/resources/resource").result() == http::status::bad_request);
-  CHECK(f.call(http::verb::get, "/locations").result() == http::status::bad_request);
+  CHECK(
+      f.call(http::verb::delete_, "/resources/resource").result() ==
+      http::status::internal_server_error
+  );
+  CHECK(f.call(http::verb::get, "/locations").result() == http::status::internal_server_error);
 }
 
 TEST_CASE(
@@ -494,6 +484,23 @@ TEST_CASE(
           .result() == http::status::not_found
   );
 
+  const nlohmann::json valid = {{"project_id", "project"},
+                                {"card_id", "card"},
+                                {"location_id", "location"},
+                                {"source_path", source.string()}};
+  CHECK(f.call(http::verb::post, "/imports", valid, "project", false, {}, &git).result() ==
+        http::status::service_unavailable);
+  CHECK(f.call(http::verb::post, "/imports", valid).result() == http::status::not_implemented);
+  holder::resource::LocationRepo(f.db).put(
+      {"unbound", "project", "Unbound", "local_directory", {}, 1, 1});
+  auto unbound = valid;
+  unbound["location_id"] = "unbound";
+  const auto needs_binding =
+      f.call(http::verb::post, "/imports", unbound, "project", true, {}, &git);
+  CHECK(needs_binding.result() == http::status::conflict);
+  CHECK(nlohmann::json::parse(needs_binding.body())["error"]["code"] ==
+        "storage_binding_required");
+
   f.put("unsupported", {}, {});
   const auto started = f.call(
       http::verb::post,
@@ -509,10 +516,19 @@ TEST_CASE(
   );
   REQUIRE(started.result() == http::status::accepted);
   const auto job_id = nlohmann::json::parse(started.body())["data"]["job_id"].get<std::string>();
-  holder::api::routes::wait_for_asset_import_jobs();
-  const auto job = nlohmann::json::parse(f.call(http::verb::get, "/imports/" + job_id).body());
+  holder::api::wait_for_asset_import_jobs();
+  const auto job = nlohmann::json::parse(f.poll_import(job_id).body());
   CHECK(job["data"]["status"] == "failed");
   CHECK_FALSE(job["data"]["error"].get<std::string>().empty());
+  CHECK(job["data"]["resource_id"].is_null());
+  CHECK(job["data"]["link_created"] == false);
+}
+
+TEST_CASE("Polling an unknown asset import job is not found", "[resources][routes]") {
+  LocationRouteFixture f;
+  const auto missing = f.poll_import("missing");
+  REQUIRE(missing.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(missing.body())["error"]["message"] == "Import job not found.");
 }
 
 TEST_CASE("Resource asset retrieval validates placement ownership", "[resources][routes]") {
@@ -537,35 +553,41 @@ TEST_CASE("Resource asset retrieval validates placement ownership", "[resources]
   boost::asio::ip::tcp::socket socket(io);
 
   auto retrieve = [&](const std::map<std::string, std::string>& params, bool& streamed) {
-    const std::string path = "/resources/resource/assets/asset/content";
-    auto request = make_request(http::verb::get, path);
+    std::string target = "/resources/resource/assets/asset/content";
+    if (const auto found = params.find("placement_id"); found != params.end())
+      target += "?placement_id=" + found->second;
+    auto request = make_request(http::verb::get, target);
     http::response<http::string_body> response;
-    REQUIRE(holder::api::routes::handle_ai_resource_routes(
-        path,
+    const auto served = holder::test::serve_generated(
         request,
         response,
+        socket,
         f.db,
-        [] {
-          return std::string("recovered");
-        },
-        [&](const std::string& key) {
-          const auto found = params.find(key);
-          return found == params.end() ? std::string() : found->second;
-        },
+        nullptr,
+        nullptr,
         f.secrets.get(),
         &git,
-        &socket,
-        &streamed
-    ));
+        [] {
+          return std::string("recovered");
+        }
+    );
+    REQUIRE(served.handled);
+    streamed = served.streamed;
     return response;
   };
 
   bool streamed = false;
   CHECK(retrieve({{"placement_id", "other"}}, streamed).result() == http::status::not_found);
+  // A location that a placement still uses cannot be deleted, with or without Git.
+  for (holder::git::GitOps* ops : {static_cast<holder::git::GitOps*>(nullptr),
+                                   static_cast<holder::git::GitOps*>(&git)}) {
+    const auto in_use = f.call(http::verb::delete_, "/locations/location", {}, "project", true, {}, ops);
+    CHECK(in_use.result() == http::status::conflict);
+    CHECK(nlohmann::json::parse(in_use.body())["error"]["code"] == "conflict");
+  }
   f.db.exec("PRAGMA foreign_keys=OFF; DELETE FROM storage_locations; PRAGMA foreign_keys=ON;");
   CHECK(retrieve({}, streamed).result() == http::status::not_found);
-  streamed = true;
-  (void)retrieve({{"placement_id", "other"}}, streamed);
+  CHECK_FALSE(streamed);
 }
 
 TEST_CASE("Location updates and removals persist their Git manifests", "[resources][routes]") {

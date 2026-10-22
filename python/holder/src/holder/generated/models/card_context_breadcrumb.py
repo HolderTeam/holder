@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -19,14 +19,14 @@ class CardContextBreadcrumb:
     Attributes:
         type_ (CardContextBreadcrumbType):
         title (str):
-        project_id (None | str | Unset):
-        card_id (None | str | Unset):
+        project_id (str | Unset): Present on the project breadcrumb.
+        card_id (str | Unset): Present on card breadcrumbs.
     """
 
     type_: CardContextBreadcrumbType
     title: str
-    project_id: None | str | Unset = UNSET
-    card_id: None | str | Unset = UNSET
+    project_id: str | Unset = UNSET
+    card_id: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -34,17 +34,9 @@ class CardContextBreadcrumb:
 
         title = self.title
 
-        project_id: None | str | Unset
-        if isinstance(self.project_id, Unset):
-            project_id = UNSET
-        else:
-            project_id = self.project_id
+        project_id = self.project_id
 
-        card_id: None | str | Unset
-        if isinstance(self.card_id, Unset):
-            card_id = UNSET
-        else:
-            card_id = self.card_id
+        card_id = self.card_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -68,23 +60,9 @@ class CardContextBreadcrumb:
 
         title = d.pop("title")
 
-        def _parse_project_id(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+        project_id = d.pop("project_id", UNSET)
 
-        project_id = _parse_project_id(d.pop("project_id", UNSET))
-
-        def _parse_card_id(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        card_id = _parse_card_id(d.pop("card_id", UNSET))
+        card_id = d.pop("card_id", UNSET)
 
         card_context_breadcrumb = cls(
             type_=type_,

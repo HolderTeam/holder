@@ -6,7 +6,8 @@ import httpx
 import pytest
 from test_library import holder_for, ok, project_payload
 
-from holder.exceptions import NotFoundError, ProtocolError
+from holder.exceptions import ConnectionError, NotFoundError, ProtocolError
+from holder.intelligence_events import RunStream
 
 
 def thread_row(thread_id="t-1", project_id="p-0"):
@@ -178,8 +179,8 @@ def test_run_creation_streams_and_replay_uses_cursor():
             }
             stream = (
                 'id: e1\nevent: run_started\ndata: {"run_id":"r-1","status":"started"}\n\n'
-                'id: e2\nevent: chunk\ndata: {"delta":"Hello"}\n\n'
-                'id: e3\nevent: done\ndata: {"status":"completed"}\n\n'
+                'id: e2\nevent: chunk\ndata: {"run_id":"r-1","delta":"Hello"}\n\n'
+                'id: e3\nevent: done\ndata: {"run_id":"r-1","status":"completed"}\n\n'
             )
             return httpx.Response(
                 200, text=stream, headers={"content-type": "text/event-stream"}
@@ -190,7 +191,7 @@ def test_run_creation_streams_and_replay_uses_cursor():
         assert request.headers["Last-Event-ID"] == "e2"
         return httpx.Response(
             200,
-            text='id: e3\nevent: done\ndata: {"status":"completed"}\n\n',
+            text='id: e3\nevent: done\ndata: {"run_id":"r-1","status":"completed"}\n\n',
             headers={"content-type": "text/event-stream"},
         )
 
@@ -226,6 +227,62 @@ def test_run_stream_requires_started_id_and_preserves_resync():
             pass
 
 
+def test_following_a_run_reconnects_after_a_dropped_connection():
+    requests = []
+
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(
+                200,
+                text='retry: 0\nid: e1\nevent: chunk\ndata: {"run_id":"r-1","delta":"Hi"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        assert request.headers["Last-Event-ID"] == "e1"
+        return httpx.Response(
+            200,
+            text='id: e2\nevent: done\ndata: {"run_id":"r-1"}\n\n',
+            headers={"content-type": "text/event-stream"},
+        )
+
+    with holder_for(respond) as holder:
+        holder.projects.get("p-0")
+        with RunStream(holder, run_id="r-1") as stream:
+            assert [event.kind for event in stream] == ["chunk", "done"]
+            assert stream.cursor == "e2"
+    assert len(requests) == 2
+
+
+def test_new_run_closing_early_and_refused_streams_raise():
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        if request.url.path == "/ai/runs":
+            return httpx.Response(
+                200,
+                text='id: e1\nevent: run_started\ndata: {"run_id":"r-1"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx.Response(
+            404,
+            json={"ok": False, "error": {"code": "not_found", "message": "Run not found."}},
+        )
+
+    with holder_for(respond) as holder:
+        project = holder.projects.get("p-0")
+        with project.intelligence.run("Hello") as stream:
+            assert next(stream).kind == "run_started"
+            with pytest.raises(ConnectionError, match="before a terminal event"):
+                next(stream)
+        with (
+            pytest.raises(NotFoundError, match="Run not found"),
+            RunStream(holder, run_id="missing"),
+        ):
+            pass
+
+
 def test_provider_key_settings_and_partial_model_configuration():
     requests = []
 
@@ -241,11 +298,26 @@ def test_provider_key_settings_and_partial_model_configuration():
                             "display_name": "Example",
                             "enabled": True,
                             "configured": False,
-                            "api": None,
-                            "auth": None,
-                            "models": [],
+                            "cost_tier": None,
+                            "setup_url": None,
+                            "docs_url": None,
+                            "api_key_label": None,
+                            "api_key_hint": None,
+                            "api": {"base_url": "https://example.test"},
+                            "auth": {"type": "bearer"},
+                            "models": [
+                                {
+                                    "id": "small",
+                                    "endpoint": "/v1/chat",
+                                    "role": None,
+                                    "cost_tier": "free",
+                                    "default_for_low_budget": True,
+                                    "limits": {"rpm": 10, "tpm": 0, "rpd": 0},
+                                }
+                            ],
                         }
-                    ]
+                    ],
+                    "default_provider": None,
                 }
             )
         if path == "/ai/providers/credentials" and request.method == "PUT":
@@ -295,6 +367,7 @@ def test_provider_key_settings_and_partial_model_configuration():
 
     with holder_for(respond) as holder:
         provider = holder.intelligence.providers.get("example")
+        assert provider.models[0]["limits"] == {"rpm": 10, "tpm": 0, "rpd": 0}
         provider.set_key("secret")
         provider.set_enabled(False)
         assert holder.intelligence.models.configure(fast="new").strong == "strong"
@@ -325,6 +398,22 @@ def runner_row():
 
 
 def test_runners_and_model_pull_use_runner_scope():
+    finished_pull = {
+        "job_id": "j-1",
+        "runner_id": "manual-1",
+        "model": "tiny",
+        "status": "completed",
+        "active": False,
+        "updated_at": 3,
+        "progress": {
+            "completed": 1,
+            "total": 1,
+            "percent": 100.0,
+            "stage": "done",
+        },
+        "error": None,
+    }
+
     def respond(request):
         path = request.url.path
         if path == "/ai/runners" and request.method == "GET":
@@ -352,27 +441,13 @@ def test_runners_and_model_pull_use_runner_scope():
             )
         if path == "/ai/runner/pull/j-1" and request.method == "GET":
             assert request.url.params["runner_id"] == "manual-1"
-            return ok(
-                {
-                    "job_id": "j-1",
-                    "runner_id": "manual-1",
-                    "model": "tiny",
-                    "status": "completed",
-                    "updated_at": 3,
-                    "progress": {
-                        "completed": 1,
-                        "total": 1,
-                        "percent": 100.0,
-                        "stage": "done",
-                    },
-                    "error": None,
-                }
-            )
+            return ok(finished_pull)
         if path == "/ai/runner/pull/j-1/events":
             assert request.url.params["runner_id"] == "manual-1"
+            snapshot = json.dumps(finished_pull)
             return httpx.Response(
                 200,
-                text='event: progress\ndata: {"status":"completed"}\n\nevent: completed\ndata: {"status":"completed"}\n\n',
+                text=f"event: progress\ndata: {snapshot}\n\nevent: completed\ndata: {snapshot}\n\n",
                 headers={"content-type": "text/event-stream"},
             )
         raise AssertionError(path)
@@ -388,3 +463,104 @@ def test_runners_and_model_pull_use_runner_scope():
         assert job.refresh().status == "completed"
         with job.events() as stream:
             assert [event.kind for event in stream] == ["progress", "completed"]
+
+
+def runner_with_models(runner_id, *names):
+    row = runner_row()
+    row["runner_id"] = runner_id
+    row["runtime"]["models"] = [
+        {
+            "name": name,
+            "runner_id": runner_id,
+            "model_ref": f"{runner_id}::{name}",
+            "digest": "sha256:x",
+            "size": 7,
+            "modified_at": "now",
+        }
+        for name in names
+    ]
+    return row
+
+
+def recommendation(tag, installed):
+    return {
+        "tag": tag,
+        "provider": None,
+        "engine": None,
+        "category": "general",
+        "required_caste": "mini",
+        "installed": installed,
+    }
+
+
+def test_status_installed_and_recommendations_cover_every_runner():
+    capability_queries = []
+
+    def respond(request):
+        path = request.url.path
+        if path == "/ai/status":
+            # The daemon's real shape: device-wide counts plus every runner.
+            return ok(
+                {
+                    "checked_at": 9,
+                    "active_runs": 1,
+                    "active_pull_jobs": 0,
+                    "runners": [
+                        runner_with_models("auto-local", "tiny"),
+                        runner_with_models("manual-1"),
+                    ],
+                    "cloud": [],
+                    "cloud_configured_providers": 0,
+                }
+            )
+        if path == "/ai/runners":
+            return ok(
+                {
+                    "runners": [
+                        runner_with_models("auto-local", "tiny"),
+                        runner_with_models("manual-1", "big"),
+                    ]
+                }
+            )
+        if path == "/ai/capabilities":
+            capability_queries.append(dict(request.url.params))
+            return ok(
+                {
+                    "local_model_config": {
+                        "fast_model": None,
+                        "strong_model": None,
+                        "deep_model": None,
+                        "updated_at": None,
+                    },
+                    "caste": {"name": "user", "reason": None},
+                    "runners": [runner_with_models("auto-local", "tiny")],
+                    "recommended_models": [
+                        recommendation("tiny", True),
+                        recommendation("small", False),
+                    ],
+                    "recommended_install": [recommendation("small", False)],
+                }
+            )
+        raise AssertionError(path)
+
+    with holder_for(respond) as holder:
+        ai = holder.intelligence
+        status = ai.status()
+        assert (status.checked_at, status.active_runs, status.active_pull_jobs) == (9, 1, 0)
+        assert [runner.id for runner in status.runners] == ["auto-local", "manual-1"]
+        assert status.runners[0].available is True
+
+        installed = ai.models.installed()
+        assert [(model.runner_id, model.name) for model in installed] == [
+            ("auto-local", "tiny"),
+            ("manual-1", "big"),
+        ]
+        assert installed[1].model_ref == "manual-1::big"
+
+        assert [row["tag"] for row in ai.models.recommended()] == ["tiny", "small"]
+        assert [row["tag"] for row in ai.models.to_install(runner_id="manual-1")] == [
+            "small"
+        ]
+        assert capability_queries == [{}, {"runner_id": "manual-1"}]
+        with pytest.raises(ValueError):
+            ai.models.recommended(runner_id="")

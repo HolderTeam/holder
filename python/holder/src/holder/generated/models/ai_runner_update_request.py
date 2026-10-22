@@ -17,7 +17,7 @@ class AiRunnerUpdateRequest:
     """
     Attributes:
         name (str | Unset):
-        base_url (None | str | Unset):
+        base_url (None | str | Unset): http://host:port, or null to clear it.
         enabled (bool | Unset):
     """
 

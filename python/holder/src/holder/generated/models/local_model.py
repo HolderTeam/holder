@@ -17,12 +17,16 @@ class LocalModel:
     """
     Attributes:
         name (str):
+        runner_id (str | Unset): The runner that has this model.
+        model_ref (str | Unset): The runner-qualified model reference to request it by.
         digest (str | Unset):
         size (int | Unset):
         modified_at (str | Unset):
     """
 
     name: str
+    runner_id: str | Unset = UNSET
+    model_ref: str | Unset = UNSET
     digest: str | Unset = UNSET
     size: int | Unset = UNSET
     modified_at: str | Unset = UNSET
@@ -30,6 +34,10 @@ class LocalModel:
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
+
+        runner_id = self.runner_id
+
+        model_ref = self.model_ref
 
         digest = self.digest
 
@@ -44,6 +52,10 @@ class LocalModel:
                 "name": name,
             }
         )
+        if runner_id is not UNSET:
+            field_dict["runner_id"] = runner_id
+        if model_ref is not UNSET:
+            field_dict["model_ref"] = model_ref
         if digest is not UNSET:
             field_dict["digest"] = digest
         if size is not UNSET:
@@ -58,6 +70,10 @@ class LocalModel:
         d = dict(src_dict)
         name = d.pop("name")
 
+        runner_id = d.pop("runner_id", UNSET)
+
+        model_ref = d.pop("model_ref", UNSET)
+
         digest = d.pop("digest", UNSET)
 
         size = d.pop("size", UNSET)
@@ -66,6 +82,8 @@ class LocalModel:
 
         local_model = cls(
             name=name,
+            runner_id=runner_id,
+            model_ref=model_ref,
             digest=digest,
             size=size,
             modified_at=modified_at,

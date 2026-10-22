@@ -31,15 +31,21 @@ from holder.generated.api.default import (
 from holder.generated.errors import UnexpectedStatus
 from holder.generated.models import (
     AiLocalModelConfigData,
+    AiStreamResyncData,
     ByeResponse,
     CardUpdateRequest,
     ErrorResponse,
     EventCheckpointResponse,
+    EventResyncData,
     HealthResponse,
     ProjectGitSyncOperationResponseDataPush,
     ProjectUpdateRequest,
     RunnerCapabilitiesData,
+    RunnerPullJob,
+    StorageLocationProvider,
+    StorageLocationRequestProvider,
 )
+from holder.generated.streams import StreamError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT.parents[1] / "api/openapi.yaml"
@@ -81,7 +87,10 @@ def test_owning_contract_matches_provenance():
     assert hashlib.sha256(SCHEMA.read_bytes()).hexdigest() == provenance["sha256"]
     assert provenance["source"] == "api/openapi.yaml"
     assert provenance["generator"] == {
-        "openapi-python-client": "0.29.1",
+        "openapi-python-client": (
+            "https://github.com/zeth/openapi-python-client"
+            "@e0abac2ad9c0df67197ef7401504cb21aab7c1af"
+        ),
         "ruff": "0.16.10",
     }
 
@@ -119,33 +128,53 @@ def test_event_checkpoint_preserves_opaque_cursor_and_nullable_revisions():
 
 
 @pytest.mark.parametrize(
-    "endpoint,args,path,query",
+    "endpoint,args,path,query,payload,expected",
     [
         (
             stream_changes,
             (),
             "/events",
             {"project_id": "project & one", "last_revision": "a" * 40},
+            (
+                b"id: opaque:8\nevent: resync_required\ndata: "
+                b'{"cursor":"opaque:8","git_revisions":{},"history_urls":{},'
+                b'"reason":"history_unavailable","last_revision":null}\n\n'
+            ),
+            EventResyncData,
         ),
-        (get_ai_runs_run_id_events, ("run-1",), "/ai/runs/run-1/events", {}),
+        (
+            get_ai_runs_run_id_events,
+            ("run-1",),
+            "/ai/runs/run-1/events",
+            {},
+            b'id: opaque:8\nevent: resync_required\ndata: {"reason":"history_unavailable"}\n\n',
+            AiStreamResyncData,
+        ),
         (
             get_ai_runner_pull_job_id_events,
             ("job-1",),
             "/ai/runner/pull/job-1/events",
             {},
+            (
+                b"id: opaque:8\nevent: progress\ndata: "
+                b'{"job_id":"job-1","model":"m","status":"downloading","active":true,'
+                b'"updated_at":1,"progress":'
+                b'{"completed":1,"total":2,"percent":50.0,"stage":"d"}}\n\n'
+            ),
+            RunnerPullJob,
         ),
     ],
 )
-@pytest.mark.parametrize("status", [200, 400, 405, 503])
+@pytest.mark.parametrize("status", [200, 400, 503])
 def test_replay_headers_queries_and_documented_stream_errors(
     endpoint,
     args,
     path,
     query,
+    payload,
+    expected,
     status,
 ):
-    payload = b'id: opaque:7\nevent: resync_required\ndata: {"reason":"history_unavailable"}\n\n'
-
     def respond(request):
         assert request.method == "GET"
         assert request.url.path == path
@@ -169,23 +198,26 @@ def test_replay_headers_queries_and_documented_stream_errors(
     with AuthenticatedClient(
         base_url="http://holder.test",
         token="test-token",
-        raise_on_unexpected_status=True,
         httpx_args={"transport": httpx.MockTransport(respond)},
     ) as client:
-        response = endpoint.sync_detailed(
+        stream = endpoint.stream(
             *args,
             client=client,
             last_event_id="opaque:7",
+            reconnect=False,
             **query,
         )
-    assert response.status_code == status
-    if status == 200:
-        # Generation exposes the replay contract, but still buffers SSE bodies.
-        assert response.content == payload
-        assert response.parsed == payload.decode()
-    else:
-        assert isinstance(response.parsed, ErrorResponse)
-        assert response.parsed.error.code == "stream_error"
+        if status == 200:
+            with stream as events:
+                received = list(events)
+            assert [type(event.data) for event in received] == [expected]
+            assert events.last_event_id == "opaque:8"
+        else:
+            with pytest.raises(StreamError) as raised, stream:
+                pass
+            assert raised.value.status_code == status
+            assert isinstance(raised.value.parsed, ErrorResponse)
+            assert raised.value.parsed.error.code == "stream_error"
 
 
 def test_change_feed_omits_unspecified_replay_and_scope():
@@ -237,10 +269,9 @@ def test_authenticated_health_response():
                     "api_version": "0.1.0",
                     "server_version": "test",
                     "pid": 42,
-                    "crypt_filter": {
-                        "path": "/example/filter",
-                        "exists": True,
-                        "executable": True,
+                    "privacy": {
+                        "backend": "libsodium_xchacha20poly1305_ietf",
+                        "project_mode_supported": True,
                     },
                 },
             },
@@ -255,6 +286,8 @@ def test_authenticated_health_response():
     assert response.status_code == 200
     assert isinstance(response.parsed, HealthResponse)
     assert response.parsed.data.pid == 42
+    assert response.parsed.data.privacy.backend == "libsodium_xchacha20poly1305_ietf"
+    assert response.parsed.data.privacy.project_mode_supported is True
 
 
 def test_card_query_and_error_envelope():
@@ -309,13 +342,7 @@ def test_patch_preserves_omitted_and_explicit_null_fields():
 @pytest.mark.parametrize(
     "endpoint,args,content_type,payload",
     [
-        (get_openapi_yaml, (), "application/yaml", b"openapi: 3.1.0\n"),
-        (
-            get_ai_runs_run_id_events,
-            ("run-1",),
-            "text/event-stream",
-            b"data: hello\n\ndata: done\n\n",
-        ),
+        (get_openapi_yaml, (), "application/yaml", b"openapi: 3.2.0\n"),
     ],
 )
 def test_text_responses_are_buffered(endpoint, args, content_type, payload):
@@ -338,34 +365,33 @@ def test_text_responses_are_buffered(endpoint, args, content_type, payload):
 
 def test_binary_asset_preserves_bytes_and_headers():
     payload = b"\x00\xff\x80asset"
-    with Client(
-        base_url="http://holder.test",
-        httpx_args={
-            "transport": httpx.MockTransport(
-                lambda request: httpx.Response(
-                    200,
-                    content=payload,
-                    headers={"Content-Disposition": 'attachment; filename="asset.bin"'},
-                )
-            ),
-        },
-    ) as client:
-        result = get_resources_resource_id_assets_asset_id_content.sync_detailed(
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            content=payload,
+            headers={"Content-Disposition": 'attachment; filename="asset.bin"'},
+        )
+    )
+    with (
+        Client(
+            base_url="http://holder.test", httpx_args={"transport": transport}
+        ) as client,
+        get_resources_resource_id_assets_asset_id_content.stream(
             "resource",
             "asset",
             client=client,
+        ) as body,
+    ):
+        assert b"".join(body.iter_bytes()) == payload
+        assert body.response.headers["Content-Disposition"] == (
+            'attachment; filename="asset.bin"'
         )
-    assert result.content == payload
-    assert result.parsed.payload.read() == payload
-    assert result.headers["Content-Disposition"] == 'attachment; filename="asset.bin"'
 
 
 def test_runner_capabilities_preserve_null_caste():
     model = RunnerCapabilitiesData(
-        runner_available=False,
-        last_checked=0,
         local_model_config=AiLocalModelConfigData(None, None, None, None),
-        models=[],
+        runners=[],
         recommended_models=[],
         recommended_install=[],
         caste=None,
@@ -422,3 +448,10 @@ def test_async_public_ping():
             assert result.value == "pong"
 
     asyncio.run(run())
+
+
+def test_storage_locations_accept_every_daemon_provider():
+    # The daemon supports Google Drive locations; the enums once left them out.
+    for provider in ("local_directory", "s3_compatible", "google-drive"):
+        assert StorageLocationProvider(provider) == provider
+        assert StorageLocationRequestProvider(provider) == provider

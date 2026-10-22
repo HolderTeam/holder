@@ -10,7 +10,6 @@ from typing_extensions import Self
 from ..models.project_history_affected_object_kind import (
     ProjectHistoryAffectedObjectKind,
 )
-from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.project_history_affected_object_items_item import (
@@ -27,13 +26,13 @@ class ProjectHistoryAffectedObject:
     Attributes:
         kind (ProjectHistoryAffectedObjectKind):
         paths (list[str]):
-        items (list[ProjectHistoryAffectedObjectItemsItem] | Unset): Historical display details for the affected paths,
-            when available.
+        items (list[ProjectHistoryAffectedObjectItemsItem]): Historical display details for the affected paths, when
+            available.
     """
 
     kind: ProjectHistoryAffectedObjectKind
     paths: list[str]
-    items: list[ProjectHistoryAffectedObjectItemsItem] | Unset = UNSET
+    items: list[ProjectHistoryAffectedObjectItemsItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -41,12 +40,10 @@ class ProjectHistoryAffectedObject:
 
         paths = self.paths
 
-        items: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.items, Unset):
-            items = []
-            for items_item_data in self.items:
-                items_item = items_item_data.to_dict()
-                items.append(items_item)
+        items = []
+        for items_item_data in self.items:
+            items_item = items_item_data.to_dict()
+            items.append(items_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -54,10 +51,9 @@ class ProjectHistoryAffectedObject:
             {
                 "kind": kind,
                 "paths": paths,
+                "items": items,
             }
         )
-        if items is not UNSET:
-            field_dict["items"] = items
 
         return field_dict
 
@@ -72,16 +68,14 @@ class ProjectHistoryAffectedObject:
 
         paths = cast(list[str], d.pop("paths"))
 
-        _items = d.pop("items", UNSET)
-        items: list[ProjectHistoryAffectedObjectItemsItem] | Unset = UNSET
-        if _items is not UNSET:
-            items = []
-            for items_item_data in _items:
-                items_item = ProjectHistoryAffectedObjectItemsItem.from_dict(
-                    items_item_data
-                )
+        items = []
+        _items = d.pop("items")
+        for items_item_data in _items:
+            items_item = ProjectHistoryAffectedObjectItemsItem.from_dict(
+                items_item_data
+            )
 
-                items.append(items_item)
+            items.append(items_item)
 
         project_history_affected_object = cls(
             kind=kind,

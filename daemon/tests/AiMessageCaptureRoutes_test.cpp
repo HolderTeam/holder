@@ -6,7 +6,7 @@
 
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
-#include "api/routes/ai/messages/AiMessageCaptureRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 #include "model/AiThread.h"
 
@@ -59,13 +59,8 @@ TEST_CASE("AiMessageCaptureRoutes uncovered branches", "[ai][capture-routes]") {
   auto call = [&](const std::string& body, const std::function<std::string()>& uuid_v4) {
     auto req = make_request(http::verb::post, "/ai/messages/capture", body);
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_capture_routes(
-        "/ai/messages/capture",
-        req,
-        res,
-        db,
-        nullptr,
-        uuid_v4
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, nullptr, uuid_v4
     );
     REQUIRE(handled);
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
@@ -149,13 +144,8 @@ TEST_CASE("AiMessageCaptureRoutes uncovered branches", "[ai][capture-routes]") {
   SECTION("invalid json maps to bad_request") {
     auto req = make_request(http::verb::post, "/ai/messages/capture", "{");
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_capture_routes(
-        "/ai/messages/capture",
-        req,
-        res,
-        db,
-        nullptr,
-        []() {
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, nullptr, []() {
           return std::string("id");
         }
     );

@@ -20,7 +20,8 @@ class RecoveryTokenImportAutoResponseData:
     """
     Attributes:
         project_id (str):
-        project_created (bool):
+        project_created (bool): True when no local project had the token's project_id, so one was created from the
+            token's metadata.
         remote_hint_present (bool):
         remote_configured (bool):
         pull_status (RecoveryTokenImportAutoResponseDataPullStatus):

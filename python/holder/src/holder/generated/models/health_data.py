@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.health_data_crypt_filter import HealthDataCryptFilter
+    from ..models.health_data_privacy import HealthDataPrivacy
 
 
 T = TypeVar("T", bound="HealthData")
@@ -19,11 +19,11 @@ class HealthData:
     """
     Attributes:
         db_ok (bool):
-        uptime_ms (int):
+        uptime_ms (int): Milliseconds since the HTTP server started.
         api_version (str):
         server_version (str):
         pid (int):
-        crypt_filter (HealthDataCryptFilter):
+        privacy (HealthDataPrivacy):
     """
 
     db_ok: bool
@@ -31,7 +31,7 @@ class HealthData:
     api_version: str
     server_version: str
     pid: int
-    crypt_filter: HealthDataCryptFilter
+    privacy: HealthDataPrivacy
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -45,7 +45,7 @@ class HealthData:
 
         pid = self.pid
 
-        crypt_filter = self.crypt_filter.to_dict()
+        privacy = self.privacy.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -56,7 +56,7 @@ class HealthData:
                 "api_version": api_version,
                 "server_version": server_version,
                 "pid": pid,
-                "crypt_filter": crypt_filter,
+                "privacy": privacy,
             }
         )
 
@@ -64,9 +64,7 @@ class HealthData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.health_data_crypt_filter import (
-            HealthDataCryptFilter,
-        )
+        from ..models.health_data_privacy import HealthDataPrivacy
 
         d = dict(src_dict)
         db_ok = d.pop("db_ok")
@@ -79,7 +77,7 @@ class HealthData:
 
         pid = d.pop("pid")
 
-        crypt_filter = HealthDataCryptFilter.from_dict(d.pop("crypt_filter"))
+        privacy = HealthDataPrivacy.from_dict(d.pop("privacy"))
 
         health_data = cls(
             db_ok=db_ok,
@@ -87,7 +85,7 @@ class HealthData:
             api_version=api_version,
             server_version=server_version,
             pid=pid,
-            crypt_filter=crypt_filter,
+            privacy=privacy,
         )
 
         health_data.additional_properties = d

@@ -43,9 +43,10 @@ Most endpoints require:
 
 - `Authorization: Bearer <auth_token>`
 
-Unauthenticated endpoints are static/docs only:
+Unauthenticated endpoints are liveness checks and static documents only:
 
-- `GET /openapi.yaml`
+- `GET /ping` and `GET /alive`
+- `GET /openapi.yaml` and `GET /openapi.json`
 - `GET /ai_catalog.yaml`
 - `GET /ai_catalog.json`
 - `GET /git_providers.yaml`

@@ -5,7 +5,13 @@ The HTTP contract between the Holder daemon and its clients.
 - [`openapi.yaml`](openapi.yaml) - the OpenAPI description of every endpoint. It is the canonical
   contract: a change to the daemon's HTTP behaviour changes this file in the same pull request.
   The daemon serves it at `GET /openapi.yaml`, and the Python client in [`python/holder/`](../python/holder/)
-  is generated from a tested snapshot of it. The document uses OpenAPI 3.1.
+  is generated from a tested snapshot of it. The document uses OpenAPI 3.1. It is generated, so
+  never edit it by hand: see [Changing the contract](#changing-the-contract).
+- [`openapi.json`](openapi.json) - the same document as JSON, generated with it. The daemon
+  compiles it in and serves it at `GET /openapi.json`, so a daemon always serves the contract it
+  was built from.
+- [`rig/`](rig/) - how the contract is generated from the daemon's C++ declarations with
+  [RIG](https://github.com/zeth/rig).
 - [`API_VERSION`](API_VERSION) - the compatibility version clients check (`MAJOR.MINOR`). It is
   separate from the release version in the root [`VERSION`](../VERSION). A client states the range
   it supports with `holderctl ensure --api-min` and `--api-max-exclusive`.
@@ -17,6 +23,15 @@ How the daemon starts and stops (`holderctl ensure`, the idle exit) is documente
 daemon, in [`daemon/docs/`](../daemon/docs/).
 
 ## Changing the contract
+
+Every endpoint is declared in C++ in [`daemon/src/api/`](../daemon/src/api/): its route, parameters,
+request and response types, errors and descriptions. [RIG](rig/) reflects those declarations and
+generates `openapi.yaml`, together with the daemon's request dispatcher and JSON code for the
+endpoints it serves. To change the contract, change the declarations and run
+`make -C api/rig update`, which needs GCC 16 and the RIG version in
+[`rig/requirements.txt`](rig/requirements.txt); [`rig/README.md`](rig/README.md) has the details.
+`Daemon / CI` fails when `openapi.yaml` or the generated code differs from what the declarations
+produce.
 
 Holder's own clients (the desktop app, `holderctl`, the Python client) are clients like any
 other: they use only what this contract documents, never undocumented behaviour or the daemon's
@@ -32,8 +47,8 @@ or core's internals. Third-party clients rely on the same document.
   break no one. A maintainer can accept them without a bump by labelling the pull request
   `api: unreleased change`.
 - **Changes in meaning** that a schema comparison cannot see, such as a field that now accepts
-  `null` with a new effect or a default that changes, must be written into the descriptions in
-  `openapi.yaml` in the same pull request, and treated as breaking if an existing client could
+  `null` with a new effect or a default that changes, must be written into the declarations'
+  descriptions in the same pull request, and treated as breaking if an existing client could
   misbehave.
 
 ## Debian source package

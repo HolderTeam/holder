@@ -45,6 +45,16 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -68,6 +78,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiProviderCredentialDeleteResponse | ErrorResponse]:
     """Delete a configured cloud provider API key
+
+     Removes the stored key and disables the provider. Deleting a provider with no key succeeds.
 
     Args:
         provider (str):
@@ -98,6 +110,8 @@ def sync(
 ) -> AiProviderCredentialDeleteResponse | ErrorResponse | None:
     """Delete a configured cloud provider API key
 
+     Removes the stored key and disables the provider. Deleting a provider with no key succeeds.
+
     Args:
         provider (str):
 
@@ -121,6 +135,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiProviderCredentialDeleteResponse | ErrorResponse]:
     """Delete a configured cloud provider API key
+
+     Removes the stored key and disables the provider. Deleting a provider with no key succeeds.
 
     Args:
         provider (str):
@@ -148,6 +164,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiProviderCredentialDeleteResponse | ErrorResponse | None:
     """Delete a configured cloud provider API key
+
+     Removes the stored key and disables the provider. Deleting a provider with no key succeeds.
 
     Args:
         provider (str):

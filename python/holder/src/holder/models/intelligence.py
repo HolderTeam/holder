@@ -39,6 +39,9 @@ from ..generated.models import (
     CardLinkCreateRequest,
     CardLinkDeleteRequest,
 )
+from ..generated.models.get_ai_messages_include_deleted import (
+    GetAiMessagesIncludeDeleted,
+)
 from ..generated.models.get_ai_messages_message_id_backlinks_include_deleted import (
     GetAiMessagesMessageIdBacklinksIncludeDeleted,
 )
@@ -278,7 +281,7 @@ class MessageCollection(Collection["Message"]):
         rows = self._holder._call(
             get_ai_messages,
             thread_id=self._thread.id,
-            include_deleted=int(self._include_deleted),
+            include_deleted=GetAiMessagesIncludeDeleted(int(self._include_deleted)),
         )
         if any(row.thread_id != self._thread.id for row in rows):
             raise ProtocolError("Message listing returned another thread's message")
@@ -338,11 +341,11 @@ class Message:
             row.source,
             row.content,
             row.created_at,
-            _optional(row.provider),
-            _optional(row.model),
-            _optional(row.deleted_at),
-            _optional(row.prompt_hash),
-            _optional(row.meta_json),
+            row.provider,
+            row.model,
+            row.deleted_at,
+            row.prompt_hash,
+            row.meta_json,
             project,
         )
 

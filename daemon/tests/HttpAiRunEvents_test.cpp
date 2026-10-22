@@ -1,4 +1,5 @@
 #include "ai/AiRunRepo.h"
+#include "api/generated/RuntimeJson.h"
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 #include "api/support/RunEventStore.h"
 #include "http_test_helpers.h"
@@ -218,27 +219,16 @@ TEST_CASE("Ai run events route handles direct empty/missing identifiers", "[http
   boost::asio::ip::tcp::socket socket(ioc);
   http::response<http::string_body> res;
 
-  SECTION("empty run_id path returns not_found") {
+  SECTION("empty run_id path is not a route") {
     holder::platform::Db db = open_db_with_schema(make_temp_dir() / "holder.db");
-    auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(
-        "/ai/runs//events",
-        socket,
-        res,
-        db
-    );
-    REQUIRE(out.handled == true);
-    REQUIRE(out.streamed == false);
-    REQUIRE(res.result() == http::status::not_found);
+    http::request<http::string_body> req{http::verb::get, "/ai/runs//events", 11};
+    REQUIRE_FALSE(holder::test::serve_generated(req, res, socket, db).handled);
   }
 
   SECTION("db exception during get returns not_found") {
     holder::platform::Db unopened_db;
-    auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(
-        "/ai/runs/run-1/events",
-        socket,
-        res,
-        unopened_db
-    );
+    http::request<http::string_body> req{http::verb::get, "/ai/runs/run-1/events", 11};
+    auto out = holder::test::serve_generated(req, res, socket, unopened_db);
     REQUIRE(out.handled == true);
     REQUIRE(out.streamed == false);
     REQUIRE(res.result() == http::status::not_found);
@@ -267,8 +257,18 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
   run.updated_at = 2;
   repo.create(run);
 
-  holder::api::support::append_run_event("run-stream-1", "progress", {{"step", 1}}, false);
-  holder::api::support::append_run_event("run-stream-1", "done", {{"status", "completed"}}, true);
+  holder::api::support::append_run_event(
+      "run-stream-1",
+      rig_events::progress,
+      {.message = "step 1"},
+      false
+  );
+  holder::api::support::append_run_event(
+      "run-stream-1",
+      rig_events::done,
+      {.status = "completed"},
+      true
+  );
 
   const std::string token = "testtoken";
   holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
@@ -305,13 +305,57 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
 TEST_CASE("RunEventStore trims in-memory event stream to last 512 events", "[http]") {
   const std::string run_id = "run-trim-coverage-1";
   for (int i = 0; i < 520; ++i) {
-    holder::api::support::append_run_event(run_id, "progress", {{"idx", i}}, i == 519);
+    holder::api::support::append_run_event(
+        run_id,
+        rig_events::progress,
+        {.message = std::to_string(i)},
+        i == 519
+    );
   }
 
   const auto stream_opt = holder::api::support::get_run_event_stream(run_id);
   REQUIRE(stream_opt.has_value());
   REQUIRE(stream_opt->events.size() == 512);
-  REQUIRE(stream_opt->events.front().data["idx"] == 8);
-  REQUIRE(stream_opt->events.back().data["idx"] == 519);
+  REQUIRE(stream_opt->events.front().data["message"] == "8");
+  REQUIRE(stream_opt->events.back().data["message"] == "519");
   REQUIRE(stream_opt->finished == true);
+}
+
+TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "[http]") {
+  holder::platform::Db db = open_db_with_schema(make_temp_dir() / "holder.db");
+  db.exec("INSERT INTO projects(project_id, name, root_path, created_at, updated_at) "
+          "VALUES('proj-1', 'Project', '/tmp/project', 1, 1);");
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1);");
+  holder::model::AiRun run;
+  run.run_id = "run-finished-reconnect";
+  run.project_id = "proj-1";
+  run.thread_id = "thread-1";
+  run.mode = "auto";
+  run.prompt = "hello";
+  run.status = "completed";
+  run.created_at = 1;
+  run.updated_at = 2;
+  holder::ai::AiRunRepo(db).create(run);
+  holder::api::support::append_run_event(run.run_id, rig_events::run_started, {}, false);
+  const auto started = holder::api::support::read_run_events(run.run_id, "")->cursor;
+  const auto done = holder::api::support::append_run_event(run.run_id, rig_events::done, {}, true);
+
+  boost::asio::io_context ioc;
+  boost::asio::ip::tcp::socket socket(ioc);
+  const auto path = "/ai/runs/" + run.run_id + "/events";
+  http::response<http::string_body> res;
+  http::request<http::string_body> req{http::verb::get, path, 11};
+  req.set("Last-Event-ID", done.id);
+  auto out = holder::test::serve_generated(req, res, socket, db);
+  REQUIRE(out.handled);
+  REQUIRE_FALSE(out.streamed);
+  REQUIRE(res.result() == http::status::no_content);
+  REQUIRE(res.body().empty());
+
+  // A reconnect that has not yet received the final event is not told to stop.
+  http::response<http::string_body> pending;
+  req.set("Last-Event-ID", started);
+  out = holder::test::serve_generated(req, pending, socket, db);
+  REQUIRE(pending.result() != http::status::no_content);
 }

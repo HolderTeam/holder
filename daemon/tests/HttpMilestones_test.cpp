@@ -1,6 +1,10 @@
 #include "http_test_helpers.h"
 
+#include "api/GeneratedRoutes.h"
 #include "model/Card.h"
+#include "model/Milestone.h"
+
+#include <tuple>
 
 using holder::test::create_project;
 using holder::test::http_json_request;
@@ -395,9 +399,8 @@ TEST_CASE("HTTP milestone and calendar routes validate inputs", "[http][mileston
   REQUIRE(missing_card["error"]["code"] == "not_found");
 }
 
-#include "api/routes/MilestoneRoutes.h"
-
-TEST_CASE("Milestone routes validate paths and unavailable card services", "[milestones][routes]") {
+TEST_CASE("Milestone writes validate paths, bodies and unavailable card services",
+          "[milestones][routes]") {
   namespace http = boost::beast::http;
   const auto root = make_temp_dir();
   auto db = open_db_with_schema(root / "holder.db");
@@ -407,50 +410,38 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
   auto call = [&](http::verb method,
                   const std::string& path,
                   holder::card::CardStore* store,
-                  const std::string& body,
-                  const std::map<std::string, std::string>& params = {}) {
+                  const std::string& body) {
     http::request<http::string_body> request{method, path, 11};
     request.body() = body;
     http::response<http::string_body> response;
-    const bool handled = holder::api::routes::handle_milestone_routes(
-        path,
-        request,
-        response,
-        db,
-        store,
-        [] {
-          return "milestone";
-        },
-        [&](const std::string& key) {
-          auto it = params.find(key);
-          return it == params.end() ? "" : it->second;
-        }
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        request, response, db, nullptr, nullptr, nullptr, nullptr,
+        [] { return std::string("milestone"); }, {}, store);
     return std::pair{handled, response.result()};
   };
   for (const std::string path :
-       {"/cards",
-        "/cards/id",
-        "/cards/id/other",
+       {"/cards//milestones",
         "/cards/id/milestones-invalid",
         "/cards/id/milestones/",
         "/cards/id/milestones/a/b"})
-    CHECK_FALSE(call(http::verb::get, path, &cards, "{}").first);
-  CHECK(
-      call(http::verb::get, "/cards//milestones", &cards, "{}").second == http::status::bad_request
-  );
-  CHECK(call(http::verb::get, "/calendar", &cards, "").second == http::status::bad_request);
-  for (auto method : {http::verb::post, http::verb::patch, http::verb::delete_}) {
-    const auto path = method == http::verb::post ? "/cards/card-one/milestones"
-                                                 : "/cards/card-one/milestones/id";
-    CHECK(call(method, path, nullptr, "{}").second == http::status::not_implemented);
-  }
-  CHECK_FALSE(call(http::verb::put, "/cards/card-one/milestones", &cards, "{}").first);
+    CHECK_FALSE(call(http::verb::post, path, &cards, "{}").first);
+  CHECK(call(http::verb::put, "/cards/card-one/milestones", &cards, "{}").second ==
+        http::status::method_not_allowed);
+  for (const auto& [method, path, body] :
+       {std::tuple{http::verb::post, "/cards/card-one/milestones", R"({"start_at":1})"},
+        std::tuple{http::verb::patch, "/cards/card-one/milestones/id", R"({"kind":"x"})"},
+        std::tuple{http::verb::delete_, "/cards/card-one/milestones/id", ""},
+        std::tuple{http::verb::post, "/cards/card-one/milestones-with-dates", R"({"dates":[]})"},
+        std::tuple{http::verb::patch, "/cards/card-one/milestones-with-dates/id",
+                   R"({"kind":"x"})"},
+        std::tuple{http::verb::delete_, "/cards/card-one/milestones-with-dates/id", ""}})
+    CHECK(call(method, path, nullptr, body).second == http::status::not_implemented);
   for (const std::string body :
        {"{}",
         R"({"start_at":"bad"})",
         R"({"start_at":1,"end_at":"bad"})",
-        R"({"start_at":1,"all_day":12})"})
+        R"({"start_at":1,"all_day":12})",
+        R"({"start_at":2,"end_at":1})"})
     CHECK(
         call(http::verb::post, "/cards/card-one/milestones", &cards, body).second ==
         http::status::bad_request
@@ -472,30 +463,323 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
       call(http::verb::patch, "/cards/card-one/milestones/id", &cards, R"({"kind":"new"})")
           .second == http::status::not_found
   );
-  for (const std::map<std::string, std::string> params :
-       {std::map<std::string, std::string>{{"project_id", "proj-1"}, {"from", "10"}},
-        {{"project_id", "proj-1"}, {"from", "10"}, {"to", "bad"}},
-        {{"project_id", "proj-1"}, {"from", "10"}, {"to", "11trailing"}}})
-    CHECK(
-        call(http::verb::get, "/calendar", &cards, "", params).second == http::status::bad_request
+  CHECK(call(http::verb::post, "/cards/missing/milestones", &cards, R"({"start_at":1})").second ==
+        http::status::not_found);
+  CHECK(call(http::verb::post, "/cards/card-one/milestones-with-dates", &cards,
+             R"({"dates":[{"role":"due"}]})")
+            .second == http::status::bad_request);
+}
+
+TEST_CASE("Generated calendar route keeps its range, filters and errors", "[milestones][calendar]") {
+  namespace http = boost::beast::http;
+  const auto root = make_temp_dir();
+  auto db = open_db_with_schema(root / "holder.db");
+  create_project(db, "proj-1", (root / "project").string());
+  holder::card::CardStore cards(db, nullptr);
+  auto calendar = [&](const std::string& target) {
+    http::request<http::string_body> request{http::verb::get, target, 11};
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
+    return std::pair{response.result(), nlohmann::json::parse(response.body())};
+  };
+  int next_milestone = 0;
+  auto add_milestone = [&](const std::string& card_id,
+                           long long at,
+                           std::vector<holder::model::MilestoneDate> dates) {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = "milestone-" + std::to_string(++next_milestone);
+    milestone.project_id = "proj-1";
+    milestone.card_id = card_id;
+    milestone.dates = std::move(dates);
+    milestone.created_at = at;
+    milestone.updated_at = at;
+    return cards.add_milestone(milestone, at).milestone_id;
+  };
+  auto start = [](long long at) {
+    return holder::model::milestone_date_from_legacy("start", at, false);
+  };
+
+  cards.create(card("card-a", "Live", 100, 100), "Live\n");
+  cards.create(card("card-b", "Edited", 50, 300), "Edited\n");
+  cards.create(card("card-c", "Trashed", 200, 200), "Trashed\n");
+  // Milestones keep each card's updated_at, so only card-b counts as updated.
+  const auto first = add_milestone("card-a", 100, {start(100)});
+  const auto last = add_milestone("card-a", 100, {start(300)});
+  add_milestone("card-a", 100, {start(99)});
+  add_milestone("card-a", 100, {start(301)});
+  add_milestone("card-a", 100, {});
+  add_milestone("card-a", 100, {start(150), start(160)});
+  add_milestone("card-c", 200, {start(200)});
+  cards.trash("card-c", 400);
+
+  SECTION("bounds are inclusive; trashed cards and milestones without one start are left out") {
+    const auto [status, body] = calendar("/calendar?project_id=proj-1&from=100&to=300");
+    REQUIRE(status == http::status::ok);
+    REQUIRE(body["ok"] == true);
+    const auto& data = body["data"];
+    CHECK(data["project_id"] == "proj-1");
+    CHECK(data["from"] == 100);
+    CHECK(data["to"] == 300);
+    REQUIRE(data["milestones"].size() == 2);
+    CHECK(data["milestones"][0] == nlohmann::json{
+        {"milestone_id", first},
+        {"card_id", "card-a"},
+        {"start_at", 100},
+        {"end_at", nullptr},
+        {"all_day", false},
+        {"kind", nullptr},
+        {"description", nullptr},
+        {"created_at", 100},
+        {"updated_at", 100},
+        {"card_title", "Live"},
+    });
+    CHECK(data["milestones"][1]["milestone_id"] == last);
+    REQUIRE(data["created_cards"].size() == 1);
+    CHECK(data["created_cards"][0] == nlohmann::json{
+        {"card_id", "card-a"}, {"title", "Live"}, {"created_at", 100}, {"updated_at", 100}});
+    REQUIRE(data["updated_cards"].size() == 1);
+    CHECK(data["updated_cards"][0]["card_id"] == "card-b");
+  }
+
+  SECTION("a single-second range matches only that second") {
+    const auto [status, body] = calendar("/calendar?project_id=proj-1&from=300&to=300");
+    REQUIRE(status == http::status::ok);
+    CHECK(body["data"]["milestones"].size() == 1);
+    CHECK(body["data"]["created_cards"].empty());
+    CHECK(body["data"]["updated_cards"].size() == 1);
+  }
+
+  SECTION("invalid queries are bad requests") {
+    for (const std::string query :
+         {"",
+          "?from=0&to=1",
+          "?project_id=&from=0&to=1",
+          "?project_id=proj-1&to=1",
+          "?project_id=proj-1&from=0",
+          "?project_id=proj-1&from=&to=1",
+          "?project_id=proj-1&from=0&to=bad",
+          "?project_id=proj-1&from=0&to=11trailing",
+          "?project_id=proj-1&from=0&to=99999999999999999999",
+          "?project_id=proj-1&from=20&to=10"}) {
+      CAPTURE(query);
+      const auto [status, body] = calendar("/calendar" + query);
+      CHECK(status == http::status::bad_request);
+      CHECK(body["ok"] == false);
+      CHECK(body["error"]["code"] == "bad_request");
+    }
+    CHECK(calendar("/calendar?project_id=proj-1&from=0").second["error"]["message"] ==
+          "missing query parameter: to");
+    CHECK(calendar("/calendar?project_id=proj-1&from=20&to=10").second["error"]["message"] ==
+          "from must not be after to.");
+  }
+
+  SECTION("an unknown project is not found") {
+    const auto [status, body] = calendar("/calendar?project_id=missing&from=0&to=1");
+    CHECK(status == http::status::not_found);
+    CHECK(body["error"]["code"] == "not_found");
+    CHECK(body["error"]["message"] == "Project not found.");
+  }
+
+  SECTION("a storage failure is an internal error") {
+    db.exec("DROP TABLE milestones");
+    CHECK(calendar("/calendar?project_id=proj-1&from=0&to=1").first ==
+          http::status::internal_server_error);
+  }
+}
+
+TEST_CASE(
+    "Generated project milestone query keeps its ranges, filters and errors",
+    "[milestones][milestones-with-dates]"
+) {
+  namespace http = boost::beast::http;
+  const auto root = make_temp_dir();
+  auto db = open_db_with_schema(root / "holder.db");
+  create_project(db, "proj-1", (root / "project").string());
+  holder::card::CardStore cards(db, nullptr);
+  auto query = [&](const std::string& target) {
+    http::request<http::string_body> request{http::verb::get, target, 11};
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
+    return std::pair{response.result(), nlohmann::json::parse(response.body())};
+  };
+  auto add_milestone = [&](const std::string& milestone_id,
+                           const std::string& card_id,
+                           std::vector<holder::model::MilestoneDate> dates) {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = milestone_id;
+    milestone.project_id = "proj-1";
+    milestone.card_id = card_id;
+    milestone.dates = std::move(dates);
+    milestone.created_at = 10;
+    milestone.updated_at = 10;
+    cards.add_milestone(milestone, 10);
+  };
+
+  cards.create(card("card-a", "Live", 10, 10), "Live\n");
+  cards.create(card("card-b", "Trashed", 10, 10), "Trashed\n");
+  const std::vector<holder::model::MilestoneDate> dates{
+      {"deadline", std::string("2026-06-01"), std::nullopt},
+      {"occurred", std::nullopt, std::string("1970-01-01T00:01:40Z")},
+  };
+  add_milestone("milestone-1", "card-a", dates);
+  add_milestone("milestone-2", "card-a", {{"deadline", std::string("2026-06-04"), std::nullopt}});
+  add_milestone("milestone-3", "card-b", dates);
+  cards.trash("card-b", 20);
+  const std::string base = "/projects/proj-1/milestones-with-dates";
+
+  SECTION("day and instant bounds are inclusive and trashed cards are left out") {
+    const auto [day_status, days] =
+        query(base + "?role=deadline&value_type=date&from=2026-05-01&to=2026-06-01");
+    REQUIRE(day_status == http::status::ok);
+    REQUIRE(days["ok"] == true);
+    REQUIRE(days["data"].size() == 1);
+    CHECK(days["data"][0] == nlohmann::json{
+        {"milestone_id", "milestone-1"},
+        {"card_id", "card-a"},
+        {"dates",
+         {{{"role", "deadline"}, {"date", "2026-06-01"}},
+          {{"role", "occurred"}, {"datetime", "1970-01-01T00:01:40Z"}}}},
+        {"kind", nullptr},
+        {"description", nullptr},
+        {"created_at", 10},
+        {"updated_at", 10},
+    });
+
+    const auto [instant_status, instants] =
+        query(base + "?role=occurred&value_type=datetime&from=100&to=100");
+    REQUIRE(instant_status == http::status::ok);
+    REQUIRE(instants["data"].size() == 1);
+    CHECK(instants["data"][0]["milestone_id"] == "milestone-1");
+
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=101&to=200")
+              .second["data"]
+              .empty());
+  }
+
+  SECTION("invalid queries are bad requests") {
+    for (const std::string parameters :
+         {"?value_type=date&from=2026-06-01&to=2026-06-01",
+          "?role=&value_type=date&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&value_type=week&from=2026-06-01&to=2026-06-01",
+          "?role=deadline&value_type=date&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-6-1&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-02-30&to=2026-06-01",
+          "?role=deadline&value_type=date&from=2026-06-02&to=2026-06-01",
+          "?role=occurred&value_type=datetime&from=&to=1",
+          "?role=occurred&value_type=datetime&from=0&to=bad",
+          "?role=occurred&value_type=datetime&from=0&to=1trailing",
+          "?role=occurred&value_type=datetime&from=2&to=1"}) {
+      CAPTURE(parameters);
+      const auto [status, body] = query(base + parameters);
+      CHECK(status == http::status::bad_request);
+      CHECK(body["ok"] == false);
+      CHECK(body["error"]["code"] == "bad_request");
+    }
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=&to=1")
+              .second["error"]["message"] == "Missing from.");
+    CHECK(query(base + "?role=occurred&value_type=datetime&from=0&to=bad")
+              .second["error"]["message"] == "to must be an epoch-second integer.");
+    CHECK(query(base + "?role=deadline&value_type=date&from=2026-6-1&to=2026-06-01")
+              .second["error"]["message"] == "from and to must use YYYY-MM-DD for date queries.");
+    CHECK(query(base + "?role=deadline&value_type=date&from=2026-06-02&to=2026-06-01")
+              .second["error"]["message"] == "from must not be after to.");
+  }
+
+  SECTION("an unknown project is not found") {
+    const auto [status, body] = query(
+        "/projects/missing/milestones-with-dates?role=deadline&value_type=date&from=2026-06-01&to=2026-06-01"
     );
-  CHECK(
-      call(
-          http::verb::get,
-          "/calendar",
-          &cards,
-          "",
-          {{"project_id", "missing"}, {"from", "0"}, {"to", "1"}}
-      ).second == http::status::not_found
+    CHECK(status == http::status::not_found);
+    CHECK(body["error"]["code"] == "not_found");
+    CHECK(body["error"]["message"] == "Project not found.");
+  }
+}
+
+TEST_CASE(
+    "Generated card milestone listing keeps every milestone and date in order",
+    "[milestones][milestones-with-dates]"
+) {
+  namespace http = boost::beast::http;
+  const auto root = make_temp_dir();
+  auto db = open_db_with_schema(root / "holder.db");
+  create_project(db, "proj-1", (root / "project").string());
+  holder::card::CardStore cards(db, nullptr);
+  auto list = [&](const std::string& target) {
+    http::request<http::string_body> request{http::verb::get, target, 11};
+    http::response<http::string_body> response;
+    REQUIRE(holder::api::dispatch_generated_routes(request, response, db));
+    return std::pair{response.result(), nlohmann::json::parse(response.body())};
+  };
+  auto add_milestone = [&](const std::string& milestone_id,
+                           const std::string& card_id,
+                           std::vector<holder::model::MilestoneDate> dates) {
+    holder::model::Milestone milestone;
+    milestone.milestone_id = milestone_id;
+    milestone.project_id = "proj-1";
+    milestone.card_id = card_id;
+    milestone.dates = std::move(dates);
+    milestone.kind = "task";
+    milestone.created_at = 10;
+    milestone.updated_at = 10;
+    cards.add_milestone(milestone, 10);
+  };
+
+  cards.create(card("card-a", "Live", 10, 10), "Live\n");
+  cards.create(card("card-b", "Trashed", 10, 10), "Trashed\n");
+  cards.create(card("card-c", "Empty", 10, 10), "Empty\n");
+  add_milestone("milestone-1", "card-a", {});
+  add_milestone(
+      "milestone-2", "card-a",
+      {{"deadline", std::string("2026-06-03"), std::nullopt},
+       {"deadline", std::string("2026-06-01"), std::nullopt},
+       {"occurred", std::nullopt, std::string("2026-06-02T12:30:00+02:30")}}
   );
-  db.exec("DROP TABLE milestones");
-  CHECK(
-      call(
-          http::verb::get,
-          "/calendar",
-          &cards,
-          "",
-          {{"project_id", "proj-1"}, {"from", "0"}, {"to", "1"}}
-      ).second == http::status::bad_request
-  );
+  add_milestone("milestone-3", "card-b", {});
+  cards.trash("card-b", 20);
+
+  SECTION("undated milestones and repeated roles are kept in stored order") {
+    const auto [status, body] = list("/cards/card-a/milestones-with-dates");
+    REQUIRE(status == http::status::ok);
+    REQUIRE(body["ok"] == true);
+    REQUIRE(body["data"].size() == 2);
+    const auto& undated = body["data"][0]["milestone_id"] == "milestone-1" ? body["data"][0]
+                                                                          : body["data"][1];
+    const auto& dated = body["data"][0]["milestone_id"] == "milestone-1" ? body["data"][1]
+                                                                        : body["data"][0];
+    CHECK(undated == nlohmann::json{
+        {"milestone_id", "milestone-1"},
+        {"card_id", "card-a"},
+        {"dates", nlohmann::json::array()},
+        {"kind", "task"},
+        {"description", nullptr},
+        {"created_at", 10},
+        {"updated_at", 10},
+    });
+    CHECK(dated["dates"] == nlohmann::json::array({
+        {{"role", "deadline"}, {"date", "2026-06-03"}},
+        {{"role", "deadline"}, {"date", "2026-06-01"}},
+        {{"role", "occurred"}, {"datetime", "2026-06-02T12:30:00+02:30"}},
+    }));
+  }
+
+  SECTION("a card without milestones has an empty list") {
+    const auto [status, body] = list("/cards/card-c/milestones-with-dates");
+    REQUIRE(status == http::status::ok);
+    CHECK(body["data"].empty());
+  }
+
+  SECTION("missing and trashed cards are not found") {
+    for (const std::string card_id : {"missing", "card-b"}) {
+      CAPTURE(card_id);
+      const auto [status, body] = list("/cards/" + card_id + "/milestones-with-dates");
+      CHECK(status == http::status::not_found);
+      CHECK(body["error"]["code"] == "not_found");
+      CHECK(body["error"]["message"] == "Card not found.");
+    }
+  }
+
+  SECTION("a malformed card id is a bad request") {
+    CHECK(list("/cards/%zz/milestones-with-dates").first == http::status::bad_request);
+  }
 }

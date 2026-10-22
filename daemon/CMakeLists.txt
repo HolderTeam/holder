@@ -388,57 +388,77 @@ add_executable(holderd
   src/llm/RunnerModelRef.cpp
   src/llm/RunnerRegistry.cpp
   src/api/HttpServer.cpp
+  src/api/GeneratedRoutes.cpp
+  src/api/Health.cpp
+  src/api/History.cpp
+  src/api/LocationRead.cpp
+  src/api/LocationWrite.cpp
+  src/api/AiMessageRead.cpp
+  src/api/AiMessageWrite.cpp
+  src/api/AiLocalModelConfig.cpp
+  src/api/AiProviderCatalog.cpp
+  src/api/AiRunnerRead.cpp
+  src/api/AiRunnerWrite.cpp
+  src/api/RunnerPull.cpp
+  src/api/AssetImportRead.cpp
+  src/api/AiRuns.cpp
+  src/api/AiStatus.cpp
+  src/api/AiThreadRead.cpp
+  src/api/AiThreadWrite.cpp
+  src/api/Calendar.cpp
+  src/api/CardMilestones.cpp
+  src/api/CardRead.cpp
+  src/api/CardLinks.cpp
+  src/api/CardResources.cpp
+  src/api/CardWrite.cpp
+  src/api/MilestoneWrite.cpp
+  src/api/ProjectGit.cpp
+  src/api/ProjectRead.cpp
+  src/api/ProjectTags.cpp
+  src/api/RecoveryToken.cpp
+  src/api/Reindex.cpp
+  src/api/AssetImportWrite.cpp
+  src/api/ProjectCreate.cpp
+  src/api/ProjectDelete.cpp
+  src/api/MilestonesWithDates.cpp
+  src/api/ProjectCards.cpp
+  src/api/ProjectUpdate.cpp
+  src/api/ProviderCredentials.cpp
+  src/api/ProviderSettings.cpp
+  src/api/ResourceRead.cpp
+  src/api/ResourceWrite.cpp
+  src/api/Rebuild.cpp
+  src/api/TrashList.cpp
+  src/api/TrashWrite.cpp
   src/api/Listener.cpp
-  src/api/routes/ai/AiProviderRoutes.cpp
-  src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp
-  src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
-  src/api/routes/ai/AiNudgeRoutes.cpp
-  src/api/routes/AuthenticatedRoutes.cpp
-  src/api/routes/ai/AiDispatch.cpp
-  src/api/routes/ai/AiMessageRoutes.cpp
-  src/api/routes/ai/messages/AiMessageCaptureRoutes.cpp
-  src/api/routes/ai/messages/AiMessageCrudRoutes.cpp
-  src/api/routes/ai/messages/AiMessageLinkRoutes.cpp
-  src/api/routes/AiResourceRoutes.cpp
+  src/api/AiNudges.cpp
+  src/api/AssetContent.cpp
+  src/api/EventCursor.cpp
+  src/api/Streams.cpp
+  src/api/GoogleDriveOAuth.cpp
   src/api/routes/GoogleDriveOAuthRoutes.cpp
   src/api/routes/ai/runs/AiRunPostRoute.cpp
   src/api/routes/ai/runs/AiRunQueryRoutes.cpp
-  src/api/routes/ai/AiRunRoutes.cpp
-  src/api/routes/ai/AiRunnerRoutes.cpp
   src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
-  src/api/routes/ai/AiStatusRoutes.cpp
-  src/api/routes/ai/status/AiCapabilitiesRoutes.cpp
-  src/api/routes/ai/status/AiRuntimeStatusRoutes.cpp
-  src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
-  src/api/routes/ai/AiThreadRoutes.cpp
-  src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp
-  src/api/routes/ai/threads/AiThreadItemRoutes.cpp
-  src/api/routes/CardReferenceRoutes.cpp
-  src/api/routes/CardRoutes.cpp
-  src/api/routes/ProjectCardRoutes.cpp
-  src/api/routes/HistoryRoutes.cpp
-  src/api/routes/MilestoneRoutes.cpp
-  src/api/routes/ProjectRoutes.cpp
-  src/api/routes/RebuildRoutes.cpp
-  src/api/routes/ReindexRoutes.cpp
-  src/api/routes/SearchRoutes.cpp
-  src/api/routes/TrashRoutes.cpp
-  src/api/routes/StaticRoutes.cpp
-  src/api/support/Health.cpp
+  src/api/CardReferenceResolve.cpp
+  src/api/Search.cpp
+  src/api/StaticFiles.cpp
   src/api/support/PathDiscovery.cpp
   src/api/support/CloudConfig.cpp
   src/api/support/CloudClient.cpp
   src/api/support/CloudQuota.cpp
   src/api/support/ThreadCompaction.cpp
   src/api/support/LocalModelRouting.cpp
+  src/api/support/AssetImportJobs.cpp
+  src/api/support/StorageErrors.cpp
+  src/api/support/StorageProviders.cpp
   src/api/support/RunEventStore.cpp
   src/api/support/EventJournal.cpp
   src/api/support/SseStream.cpp
+  src/api/support/StreamServer.cpp
   src/api/support/ChangeFeed.cpp
   src/api/support/EventService.cpp
   src/api/Session.cpp
-  src/api/Router.cpp
   src/git/ExecutorGitOps.cpp
   src/sync/ProjectSyncWorker.cpp
   src/storage/S3SigV4.cpp
@@ -455,9 +475,41 @@ add_executable(holderd
   # src/markdown/parse_links.cpp
 )
 
+# The daemon serves api/openapi.json and api/openapi.yaml from bytes compiled into it, so it
+# always serves the contract it was built from and no file has to be shipped beside it.
+set(HOLDER_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.json
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h
+    -DNAME=openapi_json
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.json" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_command(
+  OUTPUT "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${HOLDER_GENERATED_INCLUDE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DINPUT=${HOLDER_API_DIR}/openapi.yaml
+    -DOUTPUT=${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h
+    -DNAME=openapi_yaml
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake
+  DEPENDS "${HOLDER_API_DIR}/openapi.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_file.cmake"
+  VERBATIM
+)
+add_custom_target(holder_openapi_documents DEPENDS
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiJson.h"
+  "${HOLDER_GENERATED_INCLUDE_DIR}/OpenApiYaml.h"
+)
+add_dependencies(holderd holder_openapi_documents)
+
 target_include_directories(holderd PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${HOLDER_COMMON_DIR}/src
+  ${HOLDER_GENERATED_INCLUDE_DIR}
 )
 
 target_compile_definitions(holderd PRIVATE

@@ -4,13 +4,13 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "api/routes/StaticRoutes.h"
 #include "http_test_helpers.h"
 
 #include <boost/beast/http.hpp>
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 
 namespace {
@@ -28,6 +28,14 @@ class CwdGuard {
   std::filesystem::path prev_;
 };
 
+// Serves a request through the generated routes, as the daemon does.
+bool serve(const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+  holder::platform::Db db;
+  boost::asio::io_context io;
+  boost::asio::ip::tcp::socket socket(io);
+  return holder::test::serve_generated(req, res, socket, db).handled;
+}
+
 http::request<http::string_body> make_request(http::verb method, const std::string& target) {
   http::request<http::string_body> req{method, target, 11};
   req.set(http::field::host, "127.0.0.1");
@@ -36,43 +44,28 @@ http::request<http::string_body> make_request(http::verb method, const std::stri
 
 } // namespace
 
-TEST_CASE("StaticRoutes rejects non-GET methods", "[static-routes]") {
-  auto req = make_request(http::verb::post, "/docs");
-  http::response<http::string_body> res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs", req, res));
-  REQUIRE(res.result() == http::status::method_not_allowed);
-}
-
-TEST_CASE("StaticRoutes openapi not-found variants", "[static-routes]") {
+TEST_CASE("StaticRoutes serves the compiled-in contract, never a file on disk", "[static-routes]") {
   const auto dir = holder::test::make_temp_dir();
   CwdGuard cwd(dir);
+  // A stray contract in the working directory, or one named by the old override, is ignored.
+  {
+    std::ofstream out(dir / "openapi.yaml");
+    REQUIRE(out.is_open());
+    out << "openapi: 3.0.0\ninfo:\n  title: Stray\n  version: 0.1\n";
+  }
+  holder::test::EnvGuard openapi_env("HOLDER_OPENAPI_PATH", (dir / "openapi.yaml").string());
 
-  holder::test::EnvGuard openapi_env(
-      "HOLDER_OPENAPI_PATH",
-      (dir / "missing-openapi.yaml").string()
-  );
+  std::ifstream contract_file(OPENAPI_YAML_PATH, std::ios::binary);
+  const std::string contract_bytes{std::istreambuf_iterator<char>(contract_file), {}};
+  REQUIRE_FALSE(contract_bytes.empty());
+
   auto req = make_request(http::verb::get, "/openapi.yaml");
   http::response<http::string_body> res;
-  REQUIRE(holder::api::routes::handle_static_routes("/openapi.yaml", req, res));
-  REQUIRE(res.result() == http::status::not_found);
-
-#ifndef _WIN32
-  const auto unreadable_openapi = dir / "openapi-unreadable.yaml";
-  {
-    std::ofstream out(unreadable_openapi);
-    REQUIRE(out.is_open());
-    out << "openapi: 3.0.0\n";
-  }
-  std::filesystem::permissions(
-      unreadable_openapi,
-      std::filesystem::perms::none,
-      std::filesystem::perm_options::replace
-  );
-  holder::test::EnvGuard openapi_env_dir("HOLDER_OPENAPI_PATH", unreadable_openapi.string());
-  http::response<http::string_body> res2;
-  REQUIRE(holder::api::routes::handle_static_routes("/openapi.yaml", req, res2));
-  REQUIRE(res2.result() == http::status::not_found);
-#endif
+  REQUIRE(serve(req, res));
+  REQUIRE(res.result() == http::status::ok);
+  REQUIRE(std::string(res[http::field::content_type]) == "application/yaml");
+  REQUIRE(res.body() == contract_bytes);
+  REQUIRE(res.body().find("Stray") == std::string::npos);
 }
 
 TEST_CASE("StaticRoutes serves docs and openapi success cases", "[static-routes]") {
@@ -87,26 +80,18 @@ TEST_CASE("StaticRoutes serves docs and openapi success cases", "[static-routes]
     out << "<!doctype html><title>Docs</title>";
   }
 
-  const auto openapi_path = dir / "openapi.yaml";
-  {
-    std::ofstream out(openapi_path);
-    REQUIRE(out.is_open());
-    out << "openapi: 3.0.0\ninfo:\n  title: Test\n  version: 0.1\n";
-  }
-
   holder::test::EnvGuard docs_env("HOLDER_DOCS_ROOT", docs_root.string());
-  holder::test::EnvGuard openapi_env("HOLDER_OPENAPI_PATH", openapi_path.string());
 
   auto docs_req = make_request(http::verb::get, "/docs");
   http::response<http::string_body> docs_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs", docs_req, docs_res));
+  REQUIRE(serve(docs_req, docs_res));
   REQUIRE(docs_res.result() == http::status::ok);
   REQUIRE(std::string(docs_res[http::field::content_type]).find("text/html") != std::string::npos);
   REQUIRE(docs_res.body().find("Docs") != std::string::npos);
 
   auto openapi_req = make_request(http::verb::get, "/openapi.yaml");
   http::response<http::string_body> openapi_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/openapi.yaml", openapi_req, openapi_res));
+  REQUIRE(serve(openapi_req, openapi_res));
   REQUIRE(openapi_res.result() == http::status::ok);
   REQUIRE(
       std::string(openapi_res[http::field::content_type]).find("application/yaml") !=
@@ -123,8 +108,11 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
 
   holder::test::EnvGuard missing_env("HOLDER_AI_CATALOG_PATH", (dir / "missing-ai.yaml").string());
   http::response<http::string_body> missing_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", req, missing_res));
+  REQUIRE(serve(req, missing_res));
   REQUIRE(missing_res.result() == http::status::not_found);
+  // The declared ErrorResponse, not plain text.
+  REQUIRE(nlohmann::json::parse(missing_res.body())["error"] ==
+          nlohmann::json{{"code", "not_found"}, {"message", "ai_catalog.yaml not found."}});
 
 #ifndef _WIN32
   const auto ai_unreadable = dir / "ai-unreadable.yaml";
@@ -140,7 +128,7 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
   );
   holder::test::EnvGuard unreadable_env("HOLDER_AI_CATALOG_PATH", ai_unreadable.string());
   http::response<http::string_body> unreadable_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", req, unreadable_res));
+  REQUIRE(serve(req, unreadable_res));
   REQUIRE(unreadable_res.result() == http::status::not_found);
 #endif
 
@@ -152,7 +140,7 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
   }
   holder::test::EnvGuard bad_env("HOLDER_AI_CATALOG_PATH", bad_yaml.string());
   http::response<http::string_body> bad_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", req, bad_res));
+  REQUIRE(serve(req, bad_res));
   REQUIRE(bad_res.result() == http::status::internal_server_error);
 
   const auto null_yaml = dir / "null-ai.yaml";
@@ -162,9 +150,9 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
   }
   holder::test::EnvGuard null_env("HOLDER_AI_CATALOG_PATH", null_yaml.string());
   http::response<http::string_body> null_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", req, null_res));
-  REQUIRE(null_res.result() == http::status::ok);
-  REQUIRE(null_res.body().find("null") != std::string::npos);
+  REQUIRE(serve(req, null_res));
+  // An empty catalog is null, not the object the contract declares.
+  REQUIRE(null_res.result() == http::status::internal_server_error);
 }
 
 TEST_CASE("StaticRoutes ai_catalog success cases", "[static-routes]") {
@@ -186,7 +174,7 @@ TEST_CASE("StaticRoutes ai_catalog success cases", "[static-routes]") {
 
   auto yaml_req = make_request(http::verb::get, "/ai_catalog.yaml");
   http::response<http::string_body> yaml_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.yaml", yaml_req, yaml_res));
+  REQUIRE(serve(yaml_req, yaml_res));
   REQUIRE(yaml_res.result() == http::status::ok);
   REQUIRE(
       std::string(yaml_res[http::field::content_type]).find("application/yaml") != std::string::npos
@@ -195,7 +183,7 @@ TEST_CASE("StaticRoutes ai_catalog success cases", "[static-routes]") {
 
   auto json_req = make_request(http::verb::get, "/ai_catalog.json");
   http::response<http::string_body> json_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", json_req, json_res));
+  REQUIRE(serve(json_req, json_res));
   REQUIRE(json_res.result() == http::status::ok);
   REQUIRE(
       std::string(json_res[http::field::content_type]).find("application/json") != std::string::npos
@@ -218,12 +206,10 @@ TEST_CASE("StaticRoutes git_providers missing and parse errors", "[static-routes
       (dir / "missing-git.yaml").string()
   );
   http::response<http::string_body> miss_yaml_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/git_providers.yaml", yaml_req, miss_yaml_res)
-  );
+  REQUIRE(serve(yaml_req, miss_yaml_res));
   REQUIRE(miss_yaml_res.result() == http::status::not_found);
   http::response<http::string_body> miss_json_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/git_providers.json", json_req, miss_json_res)
-  );
+  REQUIRE(serve(json_req, miss_json_res));
   REQUIRE(miss_json_res.result() == http::status::not_found);
 
 #ifndef _WIN32
@@ -240,14 +226,10 @@ TEST_CASE("StaticRoutes git_providers missing and parse errors", "[static-routes
   );
   holder::test::EnvGuard unreadable_env("HOLDER_GIT_PROVIDERS_PATH", git_unreadable.string());
   http::response<http::string_body> miss_yaml_read_res;
-  REQUIRE(
-      holder::api::routes::handle_static_routes("/git_providers.yaml", yaml_req, miss_yaml_read_res)
-  );
+  REQUIRE(serve(yaml_req, miss_yaml_read_res));
   REQUIRE(miss_yaml_read_res.result() == http::status::not_found);
   http::response<http::string_body> miss_json_read_res;
-  REQUIRE(
-      holder::api::routes::handle_static_routes("/git_providers.json", json_req, miss_json_read_res)
-  );
+  REQUIRE(serve(json_req, miss_json_read_res));
   REQUIRE(miss_json_read_res.result() == http::status::not_found);
 #endif
 
@@ -259,7 +241,7 @@ TEST_CASE("StaticRoutes git_providers missing and parse errors", "[static-routes
   }
   holder::test::EnvGuard bad_env("HOLDER_GIT_PROVIDERS_PATH", bad_yaml.string());
   http::response<http::string_body> bad_json_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/git_providers.json", json_req, bad_json_res));
+  REQUIRE(serve(json_req, bad_json_res));
   REQUIRE(bad_json_res.result() == http::status::internal_server_error);
 }
 
@@ -283,7 +265,7 @@ TEST_CASE("StaticRoutes git_providers success cases", "[static-routes]") {
 
   auto yaml_req = make_request(http::verb::get, "/git_providers.yaml");
   http::response<http::string_body> yaml_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/git_providers.yaml", yaml_req, yaml_res));
+  REQUIRE(serve(yaml_req, yaml_res));
   REQUIRE(yaml_res.result() == http::status::ok);
   REQUIRE(
       std::string(yaml_res[http::field::content_type]).find("application/yaml") != std::string::npos
@@ -292,7 +274,7 @@ TEST_CASE("StaticRoutes git_providers success cases", "[static-routes]") {
 
   auto json_req = make_request(http::verb::get, "/git_providers.json");
   http::response<http::string_body> json_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/git_providers.json", json_req, json_res));
+  REQUIRE(serve(json_req, json_res));
   REQUIRE(json_res.result() == http::status::ok);
   REQUIRE(
       std::string(json_res[http::field::content_type]).find("application/json") != std::string::npos
@@ -312,7 +294,7 @@ TEST_CASE("StaticRoutes ai_catalog yaml handles missing and unreadable path", "[
       (dir / "missing-ai-yaml.yaml").string()
   );
   http::response<http::string_body> missing_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.yaml", req, missing_res));
+  REQUIRE(serve(req, missing_res));
   REQUIRE(missing_res.result() == http::status::not_found);
 
 #ifndef _WIN32
@@ -329,7 +311,7 @@ TEST_CASE("StaticRoutes ai_catalog yaml handles missing and unreadable path", "[
   );
   holder::test::EnvGuard unreadable_env("HOLDER_AI_CATALOG_PATH", ai_unreadable.string());
   http::response<http::string_body> unreadable_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.yaml", req, unreadable_res));
+  REQUIRE(serve(req, unreadable_res));
   REQUIRE(unreadable_res.result() == http::status::not_found);
 #endif
 }
@@ -343,8 +325,9 @@ TEST_CASE(
 
   auto docs_req = make_request(http::verb::get, "/docs");
   http::response<http::string_body> no_root_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs", docs_req, no_root_res));
+  REQUIRE(serve(docs_req, no_root_res));
   REQUIRE(no_root_res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(no_root_res.body())["error"]["code"] == "not_found");
 
   const auto docs_root = dir / "assets" / "swagger-ui";
   std::filesystem::create_directories(docs_root);
@@ -355,18 +338,20 @@ TEST_CASE(
   }
   holder::test::EnvGuard docs_env("HOLDER_DOCS_ROOT", docs_root.string());
 
-  auto docs_slash_req = make_request(http::verb::get, "/docs/");
-  http::response<http::string_body> docs_slash_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs/", docs_slash_req, docs_slash_res));
-  REQUIRE(docs_slash_res.result() == http::status::ok);
+  // Neither names a declared route, so the daemon answers 404 before any handler runs.
+  for (const auto* undeclared : {"/docs/", "/docs/../secret"}) {
+    auto req = make_request(http::verb::get, undeclared);
+    http::response<http::string_body> res;
+    REQUIRE_FALSE(serve(req, res));
+  }
 
-  auto unsafe_req = make_request(http::verb::get, "/docs/../secret");
+  auto unsafe_req = make_request(http::verb::get, "/docs/..");
   http::response<http::string_body> unsafe_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs/../secret", unsafe_req, unsafe_res));
+  REQUIRE(serve(unsafe_req, unsafe_res));
   REQUIRE(unsafe_res.result() == http::status::not_found);
 
   auto missing_req = make_request(http::verb::get, "/docs/missing.js");
   http::response<http::string_body> missing_res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs/missing.js", missing_req, missing_res));
+  REQUIRE(serve(missing_req, missing_res));
   REQUIRE(missing_res.result() == http::status::not_found);
 }

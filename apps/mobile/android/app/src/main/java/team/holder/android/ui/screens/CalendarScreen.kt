@@ -565,7 +565,7 @@ private fun MilestoneRow(
 
 /** Hands a milestone off to whatever calendar app is installed via ACTION_INSERT -- Android's
  * no-permission-needed contract for "let the user's own calendar app finish the save" (Level 1
- * of the calendar plan; see holder-planning/current/android/calendar.md). Silently no-ops if no
+ * of the calendar plan). Silently no-ops if no
  * calendar app can handle the intent, matching this codebase's convention for other
  * external-app hand-offs (e.g. [team.holder.android.ui.OpenUrl]). */
 private fun addMilestoneToDeviceCalendar(context: Context, milestone: HolderMilestone) {

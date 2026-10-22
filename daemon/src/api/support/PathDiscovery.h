@@ -6,7 +6,6 @@
 
 namespace holder::api::support {
 
-std::optional<std::filesystem::path> find_openapi_path();
 std::optional<std::filesystem::path> find_ai_catalog_path();
 std::optional<std::filesystem::path> find_git_providers_path();
 std::optional<std::filesystem::path> find_docs_root();

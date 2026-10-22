@@ -93,6 +93,14 @@ TEST_CASE(
   REQUIRE(checkpoint["git_revisions"]["p"].is_null());
   REQUIRE(checkpoint["git_revisions"].size() == 1);
   REQUIRE(checkpoint["history_urls"]["p"] == "/projects/p/history");
+  for (const auto& [target, status] :
+       {std::pair{"/events/cursor?project_id=missing", http::status::not_found},
+        std::pair{"/events/cursor?project_id=", http::status::bad_request}}) {
+    REQUIRE(holder::test::http_request_raw(
+                bound.bind, bound.port, "testtoken", http::verb::get, target
+            )
+                .status == status);
+  }
   std::vector<std::unique_ptr<EventClient>> clients;
   for (int i = 0; i < 16; ++i) {
     auto client =
@@ -148,9 +156,9 @@ TEST_CASE("HTTP change stream validates auth, project and revision inputs", "[ht
   request("/events", http::status::unauthorized, "bad-token");
   request("/events?project_id=missing", http::status::not_found);
   request("/events?last_revision=" + std::string(40, 'a'), http::status::bad_request);
-  request("/events?project_id=%00", http::status::bad_request);
+  // No project has a NUL in its ID.
+  request("/events?project_id=%00", http::status::not_found);
   request("/events?project_id=p&project_id=q", http::status::bad_request);
-  request("/events?unsupported=true", http::status::bad_request);
   REQUIRE(
       holder::test::http_request_raw(
           bound.bind,

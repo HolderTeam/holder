@@ -1,11 +1,16 @@
+import json
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.change_event_data import ChangeEventData
 from ...models.error_response import ErrorResponse
+from ...models.event_checkpoint import EventCheckpoint
+from ...models.event_resync_data import EventResyncData
+from ...streams import AsyncEventStream, EventStream, ServerSentEvent
 from ...types import UNSET, Response, Unset
 
 
@@ -39,9 +44,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | str | None:
+) -> Any | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = response.text
+        response_200 = cast(Any, None)
         return response_200
 
     if response.status_code == 400:
@@ -59,10 +64,10 @@ def _parse_response(
 
         return response_404
 
-    if response.status_code == 405:
-        response_405 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
 
-        return response_405
+        return response_500
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -77,7 +82,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | str]:
+) -> Response[Any | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -92,7 +97,7 @@ def sync_detailed(
     project_id: str | Unset = UNSET,
     last_revision: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
-) -> Response[ErrorResponse | str]:
+) -> Response[Any | ErrorResponse]:
     """Subscribe to committed daemon state changes (SSE)
 
      Sends ready, then project.changed, card.changed, resource.changed,
@@ -115,7 +120,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -137,7 +142,7 @@ def sync(
     project_id: str | Unset = UNSET,
     last_revision: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
-) -> ErrorResponse | str | None:
+) -> Any | ErrorResponse | None:
     """Subscribe to committed daemon state changes (SSE)
 
      Sends ready, then project.changed, card.changed, resource.changed,
@@ -160,7 +165,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse
     """
 
     return sync_detailed(
@@ -177,7 +182,7 @@ async def asyncio_detailed(
     project_id: str | Unset = UNSET,
     last_revision: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
-) -> Response[ErrorResponse | str]:
+) -> Response[Any | ErrorResponse]:
     """Subscribe to committed daemon state changes (SSE)
 
      Sends ready, then project.changed, card.changed, resource.changed,
@@ -200,7 +205,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -220,7 +225,7 @@ async def asyncio(
     project_id: str | Unset = UNSET,
     last_revision: str | Unset = UNSET,
     last_event_id: str | Unset = UNSET,
-) -> ErrorResponse | str | None:
+) -> Any | ErrorResponse | None:
     """Subscribe to committed daemon state changes (SSE)
 
      Sends ready, then project.changed, card.changed, resource.changed,
@@ -243,7 +248,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse
     """
 
     return (
@@ -254,3 +259,181 @@ async def asyncio(
             last_event_id=last_event_id,
         )
     ).parsed
+
+
+def _decode_event(
+    event: ServerSentEvent[str],
+) -> ServerSentEvent[ChangeEventData | EventCheckpoint | EventResyncData | str]:
+    if event.event == "ready":
+        data = json.loads(event.data)
+        ready_data = EventCheckpoint.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=ready_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "project.changed":
+        data = json.loads(event.data)
+        project_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=project_changed_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "card.changed":
+        data = json.loads(event.data)
+        card_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=card_changed_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "resource.changed":
+        data = json.loads(event.data)
+        resource_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event,
+            data=resource_changed_data,
+            id=event.id,
+            retry=event.retry,
+        )
+
+    if event.event == "location.changed":
+        data = json.loads(event.data)
+        location_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event,
+            data=location_changed_data,
+            id=event.id,
+            retry=event.retry,
+        )
+
+    if event.event == "thread.changed":
+        data = json.loads(event.data)
+        thread_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=thread_changed_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "message.changed":
+        data = json.loads(event.data)
+        message_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=message_changed_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "run.changed":
+        data = json.loads(event.data)
+        run_changed_data = ChangeEventData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=run_changed_data, id=event.id, retry=event.retry
+        )
+
+    if event.event == "resync_required":
+        data = json.loads(event.data)
+        resync_required_data = EventResyncData.from_dict(data)
+
+        return ServerSentEvent(
+            event=event.event, data=resync_required_data, id=event.id, retry=event.retry
+        )
+
+    return ServerSentEvent(
+        event=event.event, data=event.data, id=event.id, retry=event.retry
+    )
+
+
+def stream(
+    *,
+    client: AuthenticatedClient | Client,
+    project_id: str | Unset = UNSET,
+    last_revision: str | Unset = UNSET,
+    last_event_id: str | Unset = UNSET,
+    reconnect: bool = True,
+) -> EventStream[ChangeEventData | EventCheckpoint | EventResyncData | str]:
+    """Subscribe to committed daemon state changes (SSE)
+
+     Sends ready, then project.changed, card.changed, resource.changed,
+    location.changed, thread.changed, message.changed and run.changed invalidations.
+    Intermediate states can coalesce. Each frame has an opaque id and JSON data.
+    Without a cursor starts at the current tail. Last-Event-ID replays bounded
+    in-memory history. Restart, an expired cursor or last_revision without a
+    replayable cursor returns resync_required with current Git revisions and
+    history URLs, then closes. This endpoint does not synthesize events from Git.
+    Refresh current state on resync; Git is the durable project history.
+    Comments provide heartbeats. Disconnecting unsubscribes without cancelling jobs.
+
+    Args:
+        project_id (str | Unset):
+        last_revision (str | Unset):
+        last_event_id (str | Unset):
+
+    Raises:
+        StreamError: If the server answers with an error status instead of the stream.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        EventStream[ChangeEventData | EventCheckpoint | EventResyncData | str]
+    """
+
+    return EventStream(
+        client.get_httpx_client(),
+        _get_kwargs(
+            project_id=project_id,
+            last_revision=last_revision,
+            last_event_id=last_event_id,
+        ),
+        _decode_event,
+        lambda response: _parse_response(client=client, response=response),
+        reconnect=reconnect,
+    )
+
+
+def astream(
+    *,
+    client: AuthenticatedClient | Client,
+    project_id: str | Unset = UNSET,
+    last_revision: str | Unset = UNSET,
+    last_event_id: str | Unset = UNSET,
+    reconnect: bool = True,
+) -> AsyncEventStream[ChangeEventData | EventCheckpoint | EventResyncData | str]:
+    """Subscribe to committed daemon state changes (SSE)
+
+     Sends ready, then project.changed, card.changed, resource.changed,
+    location.changed, thread.changed, message.changed and run.changed invalidations.
+    Intermediate states can coalesce. Each frame has an opaque id and JSON data.
+    Without a cursor starts at the current tail. Last-Event-ID replays bounded
+    in-memory history. Restart, an expired cursor or last_revision without a
+    replayable cursor returns resync_required with current Git revisions and
+    history URLs, then closes. This endpoint does not synthesize events from Git.
+    Refresh current state on resync; Git is the durable project history.
+    Comments provide heartbeats. Disconnecting unsubscribes without cancelling jobs.
+
+    Args:
+        project_id (str | Unset):
+        last_revision (str | Unset):
+        last_event_id (str | Unset):
+
+    Raises:
+        StreamError: If the server answers with an error status instead of the stream.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        AsyncEventStream[ChangeEventData | EventCheckpoint | EventResyncData | str]
+    """
+
+    return AsyncEventStream(
+        client.get_async_httpx_client(),
+        _get_kwargs(
+            project_id=project_id,
+            last_revision=last_revision,
+            last_event_id=last_event_id,
+        ),
+        _decode_event,
+        lambda response: _parse_response(client=client, response=response),
+        reconnect=reconnect,
+    )

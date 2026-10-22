@@ -57,6 +57,21 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -81,6 +96,8 @@ def sync_detailed(
     body: CardUpdateRequest,
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Update card content and/or title
+
+     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
 
     Args:
         card_id (str):
@@ -114,6 +131,8 @@ def sync(
 ) -> CardPatchResponse | ErrorResponse | None:
     """Update card content and/or title
 
+     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
+
     Args:
         card_id (str):
         body (CardUpdateRequest):
@@ -140,6 +159,8 @@ async def asyncio_detailed(
     body: CardUpdateRequest,
 ) -> Response[CardPatchResponse | ErrorResponse]:
     """Update card content and/or title
+
+     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
 
     Args:
         card_id (str):
@@ -170,6 +191,8 @@ async def asyncio(
     body: CardUpdateRequest,
 ) -> CardPatchResponse | ErrorResponse | None:
     """Update card content and/or title
+
+     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
 
     Args:
         card_id (str):

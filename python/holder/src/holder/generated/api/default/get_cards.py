@@ -7,6 +7,7 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.card_list_response import CardListResponse
 from ...models.error_response import ErrorResponse
+from ...models.get_cards_include_deleted import GetCardsIncludeDeleted
 from ...models.get_cards_order import GetCardsOrder
 from ...models.get_cards_view import GetCardsView
 from ...types import UNSET, Response, Unset
@@ -21,7 +22,7 @@ def _get_kwargs(
     order: GetCardsOrder | Unset = UNSET,
     count: bool | Unset = False,
     limit: int | Unset = 200,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetCardsIncludeDeleted | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -48,7 +49,11 @@ def _get_kwargs(
 
     params["limit"] = limit
 
-    params["include_deleted"] = include_deleted
+    json_include_deleted: int | Unset = UNSET
+    if not isinstance(include_deleted, Unset):
+        json_include_deleted = include_deleted.value
+
+    params["include_deleted"] = json_include_deleted
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -79,6 +84,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -106,9 +116,11 @@ def sync_detailed(
     order: GetCardsOrder | Unset = UNSET,
     count: bool | Unset = False,
     limit: int | Unset = 200,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetCardsIncludeDeleted | Unset = UNSET,
 ) -> Response[CardListResponse | ErrorResponse]:
     """List cards
+
+     With tag, returns the project's live cards carrying that tag and ignores the other filters.
 
     Args:
         project_id (str):
@@ -118,7 +130,7 @@ def sync_detailed(
         order (GetCardsOrder | Unset):
         count (bool | Unset):  Default: False.
         limit (int | Unset):  Default: 200.
-        include_deleted (int | Unset):
+        include_deleted (GetCardsIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -156,9 +168,11 @@ def sync(
     order: GetCardsOrder | Unset = UNSET,
     count: bool | Unset = False,
     limit: int | Unset = 200,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetCardsIncludeDeleted | Unset = UNSET,
 ) -> CardListResponse | ErrorResponse | None:
     """List cards
+
+     With tag, returns the project's live cards carrying that tag and ignores the other filters.
 
     Args:
         project_id (str):
@@ -168,7 +182,7 @@ def sync(
         order (GetCardsOrder | Unset):
         count (bool | Unset):  Default: False.
         limit (int | Unset):  Default: 200.
-        include_deleted (int | Unset):
+        include_deleted (GetCardsIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -201,9 +215,11 @@ async def asyncio_detailed(
     order: GetCardsOrder | Unset = UNSET,
     count: bool | Unset = False,
     limit: int | Unset = 200,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetCardsIncludeDeleted | Unset = UNSET,
 ) -> Response[CardListResponse | ErrorResponse]:
     """List cards
+
+     With tag, returns the project's live cards carrying that tag and ignores the other filters.
 
     Args:
         project_id (str):
@@ -213,7 +229,7 @@ async def asyncio_detailed(
         order (GetCardsOrder | Unset):
         count (bool | Unset):  Default: False.
         limit (int | Unset):  Default: 200.
-        include_deleted (int | Unset):
+        include_deleted (GetCardsIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -249,9 +265,11 @@ async def asyncio(
     order: GetCardsOrder | Unset = UNSET,
     count: bool | Unset = False,
     limit: int | Unset = 200,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetCardsIncludeDeleted | Unset = UNSET,
 ) -> CardListResponse | ErrorResponse | None:
     """List cards
+
+     With tag, returns the project's live cards carrying that tag and ignores the other filters.
 
     Args:
         project_id (str):
@@ -261,7 +279,7 @@ async def asyncio(
         order (GetCardsOrder | Unset):
         count (bool | Unset):  Default: False.
         limit (int | Unset):  Default: 200.
-        include_deleted (int | Unset):
+        include_deleted (GetCardsIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

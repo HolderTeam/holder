@@ -114,7 +114,7 @@ std::vector<unsigned char> sha256_bytes(const std::string& value) {
 // POSTs application/x-www-form-urlencoded to a fixed host. Same request/response shape
 // as CloudClient.cpp's https_post_json, deliberately duplicated rather than shared --
 // storage-provider code in this codebase is independently written per provider by
-// design (see holder-planning's S3_ANDROID.md), and this needs a different content type
+// design, and this needs a different content type
 // and body serialization than that helper provides anyway.
 bool https_post_form(
     const std::string& host,

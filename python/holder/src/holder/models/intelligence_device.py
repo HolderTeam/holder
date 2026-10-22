@@ -40,7 +40,6 @@ from ..generated.types import UNSET, Unset
 if TYPE_CHECKING:
     from ..client import Holder
     from ..intelligence_events import PullEventStream
-    from .project import Project
 
 
 def _optional(value: Any) -> Any:
@@ -65,22 +64,22 @@ class HolderIntelligence:
         data = self._holder._call(get_ai_status)
         return IntelligenceStatus(
             data.checked_at,
-            data.runner_available,
             data.active_runs,
             data.active_pull_jobs,
             data.cloud_configured_providers,
-            _optional(data.runner_error),
+            tuple(Runner._from(self._holder, row) for row in data.runners),
         )
 
 
 @dataclass(frozen=True)
 class IntelligenceStatus:
+    """Device-wide AI activity, with each runner's availability in ``runners``."""
+
     checked_at: int
-    runner_available: bool
     active_runs: int
     active_pull_jobs: int
     configured_providers: int
-    runner_error: str | None
+    runners: tuple[Runner, ...]
 
 
 class ProviderCollection(Collection["Provider"]):
@@ -169,7 +168,11 @@ class Provider:
 
 @dataclass(frozen=True)
 class LocalModel:
+    """A model installed on one runner; request it by ``model_ref``."""
+
     name: str
+    runner_id: str | None
+    model_ref: str | None
     digest: str | None
     size: int | None
     modified_at: str | None
@@ -178,6 +181,8 @@ class LocalModel:
     def _from(cls, row: Any) -> Self:
         return cls(
             row.name,
+            _optional(row.runner_id),
+            _optional(row.model_ref),
             _optional(row.digest),
             _optional(row.size),
             _optional(row.modified_at),
@@ -202,21 +207,27 @@ class LocalModels:
     def __init__(self, holder: Holder) -> None:
         self._holder = holder
 
-    def installed(self, *, project: Project | None = None) -> tuple[LocalModel, ...]:
-        data = self._holder._call(
-            get_ai_capabilities,
-            project_id=project.id if project is not None else UNSET,
+    def installed(self) -> tuple[LocalModel, ...]:
+        """Models installed on every runner, each naming its runner."""
+        return tuple(
+            model for runner in self._holder.intelligence.runners for model in runner.models
         )
-        return tuple(LocalModel._from(row) for row in data.models)
 
-    def recommended(
-        self, *, project: Project | None = None
-    ) -> tuple[dict[str, Any], ...]:
-        data = self._holder._call(
-            get_ai_capabilities,
-            project_id=project.id if project is not None else UNSET,
+    def recommended(self, *, runner_id: str | None = None) -> tuple[dict[str, Any], ...]:
+        """Catalog models this machine can run, best first, each marking whether
+        the runner (auto-local unless named) has it installed."""
+        return tuple(row.to_dict() for row in self._capabilities(runner_id).recommended_models)
+
+    def to_install(self, *, runner_id: str | None = None) -> tuple[dict[str, Any], ...]:
+        """The recommended models the runner (auto-local unless named) lacks."""
+        return tuple(row.to_dict() for row in self._capabilities(runner_id).recommended_install)
+
+    def _capabilities(self, runner_id: str | None) -> Any:
+        if runner_id is not None:
+            _nonempty("runner_id", runner_id)
+        return self._holder._call(
+            get_ai_capabilities, runner_id=runner_id if runner_id is not None else UNSET
         )
-        return tuple(row.to_dict() for row in data.recommended_models)
 
     def preferences(self) -> ModelPreferences:
         return ModelPreferences._from(self._holder._call(get_ai_local_models_config))

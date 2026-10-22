@@ -138,7 +138,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
 
 @pytest.mark.parametrize(
     "filter_method,expected_type",
-    [(None, None), ("cards", "card"), ("messages", "ai_message")],
+    [(None, "all"), ("cards", "card"), ("messages", "ai_message")],
 )
 def test_empty_trash_scopes_the_project_and_optional_type(filter_method, expected_type):
     writes = []
@@ -158,7 +158,7 @@ def test_empty_trash_scopes_the_project_and_optional_type(filter_method, expecte
     assert writes[0].method == "DELETE"
     assert writes[0].url.path == "/trash"
     assert writes[0].url.params["project_id"] == "p-0"
-    assert writes[0].url.params.get("type") == expected_type
+    assert writes[0].url.params["type"] == expected_type
 
 
 @pytest.mark.parametrize(

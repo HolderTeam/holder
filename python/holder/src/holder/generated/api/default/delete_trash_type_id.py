@@ -6,13 +6,14 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.delete_trash_type_id_type import DeleteTrashTypeIdType
 from ...models.error_response import ErrorResponse
 from ...models.trash_delete_response import TrashDeleteResponse
 from ...types import Response
 
 
 def _get_kwargs(
-    type_: str,
+    type_: DeleteTrashTypeIdType,
     id: str,
 ) -> dict[str, Any]:
 
@@ -40,6 +41,11 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 401:
+        response_401 = ErrorResponse.from_dict(response.json())
+
+        return response_401
+
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
 
@@ -49,6 +55,11 @@ def _parse_response(
         response_409 = ErrorResponse.from_dict(response.json())
 
         return response_409
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 501:
         response_501 = ErrorResponse.from_dict(response.json())
@@ -73,7 +84,7 @@ def _build_response(
 
 
 def sync_detailed(
-    type_: str,
+    type_: DeleteTrashTypeIdType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -83,7 +94,7 @@ def sync_detailed(
      The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
-        type_ (str):
+        type_ (DeleteTrashTypeIdType):
         id (str):
 
     Raises:
@@ -107,7 +118,7 @@ def sync_detailed(
 
 
 def sync(
-    type_: str,
+    type_: DeleteTrashTypeIdType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -117,7 +128,7 @@ def sync(
      The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
-        type_ (str):
+        type_ (DeleteTrashTypeIdType):
         id (str):
 
     Raises:
@@ -136,7 +147,7 @@ def sync(
 
 
 async def asyncio_detailed(
-    type_: str,
+    type_: DeleteTrashTypeIdType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -146,7 +157,7 @@ async def asyncio_detailed(
      The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
-        type_ (str):
+        type_ (DeleteTrashTypeIdType):
         id (str):
 
     Raises:
@@ -168,7 +179,7 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    type_: str,
+    type_: DeleteTrashTypeIdType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -178,7 +189,7 @@ async def asyncio(
      The item must still be in Trash. Use the project-scoped route for new clients.
 
     Args:
-        type_ (str):
+        type_ (DeleteTrashTypeIdType):
         id (str):
 
     Raises:
