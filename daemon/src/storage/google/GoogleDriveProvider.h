@@ -25,7 +25,7 @@ struct GoogleDriveCredentials {
 
 // StorageProvider backed by a single, well-known Google Drive folder -- the C++
 // counterpart to Android's GoogleDriveStorageProvider (independently written, no
-// shared code; see holder-planning's GOOGLE_DRIVE.md/S3_ANDROID.md for why). Every
+// shared code). Every
 // method mints a fresh access token from the stored refresh token before calling
 // DriveApi; there is no token caching within a provider instance, since a fresh
 // instance is constructed per request by support/StorageProviders.cpp storage_provider()

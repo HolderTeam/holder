@@ -29,7 +29,7 @@ import org.junit.runner.RunWith
 import team.holder.android.ui.screens.CardListScreen
 import team.holder.android.ui.sortKeyOrderedSiblings
 
-/** Flowboard Phase 2 (see holder-planning/current/android/flowboard.md): the Board-mode move
+/** Flowboard Phase 2: the Board-mode move
  * menu (Part A) and drag-to-reorder handle (Part B) on [CardListScreen], both funneling through
  * [HolderNative.moveCard]. Follows [MilestoneCalendarSmokeTest]'s shape -- seed real data
  * straight through HolderNative into an isolated project/dataDir, render just [CardListScreen]
