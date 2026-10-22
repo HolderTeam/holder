@@ -26,6 +26,7 @@
 #include "api/MilestonesWithDates.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectDelete.h"
+#include "api/ProjectGit.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectCards.h"
 #include "api/ProjectUpdate.h"

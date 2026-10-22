@@ -7037,7 +7037,7 @@
     "/projects/{project_id}/git/pull": {
       "post": {
         "summary": "Pull and reconcile a project immediately",
-        "description": "Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution, then reconciles the SQLite index before returning. Concurrent Git operations for the same project are serialized.",
+        "description": "Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution, then reconciles the SQLite index before returning. Concurrent Git operations for the same project are serialized. Git failures are reported in the result, not as HTTP errors.",
         "parameters": [
           {
             "name": "project_id",
@@ -7098,6 +7098,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7105,6 +7115,7 @@
     "/projects/{project_id}/git/push": {
       "post": {
         "summary": "Push project repository to remote",
+        "description": "Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before pushing, so no plaintext card leaves the device.",
         "parameters": [
           {
             "name": "project_id",
@@ -7137,7 +7148,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, or an encrypted project whose cards are not safe to push",
             "content": {
               "application/json": {
                 "schema": {
@@ -7157,7 +7168,27 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error, including missing key material or crypt metadata for an encrypted project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to check an encrypted project is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -7172,7 +7203,7 @@
     "/projects/{project_id}/git/sync": {
       "post": {
         "summary": "Pull, reconcile, and push a project immediately",
-        "description": "Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for the same project are serialized.",
+        "description": "Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for the same project are serialized. Git failures are reported in the result, not as HTTP errors.",
         "parameters": [
           {
             "name": "project_id",
@@ -7226,6 +7257,16 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -7307,7 +7348,7 @@
     "/projects/{project_id}/git/test-remote": {
       "post": {
         "summary": "Test project remote reachability/auth",
-        "description": "Connects and lists remote refs using daemon credentials. Does not fetch, create a project repository, or change stored project configuration or Git configuration.",
+        "description": "Connects and lists remote refs using daemon credentials. Does not fetch, create a project repository, or change stored project configuration or Git configuration. Git failures are reported in the result, not as HTTP errors.",
         "parameters": [
           {
             "name": "project_id",
@@ -7360,7 +7401,17 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {

@@ -26,6 +26,7 @@
 #include "api/ResourceRead.h"
 #include "api/ResourceWrite.h"
 #include "api/RunnerPull.h"
+#include "api/ProjectGit.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectCreate.h"
 #include "api/ProjectCards.h"

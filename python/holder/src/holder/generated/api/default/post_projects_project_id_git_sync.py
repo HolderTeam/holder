@@ -60,6 +60,11 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -86,7 +91,7 @@ def sync_detailed(
     """Pull, reconcile, and push a project immediately
 
      Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for
-    the same project are serialized.
+    the same project are serialized. Git failures are reported in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -121,7 +126,7 @@ def sync(
     """Pull, reconcile, and push a project immediately
 
      Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for
-    the same project are serialized.
+    the same project are serialized. Git failures are reported in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -151,7 +156,7 @@ async def asyncio_detailed(
     """Pull, reconcile, and push a project immediately
 
      Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for
-    the same project are serialized.
+    the same project are serialized. Git failures are reported in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -184,7 +189,7 @@ async def asyncio(
     """Pull, reconcile, and push a project immediately
 
      Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for
-    the same project are serialized.
+    the same project are serialized. Git failures are reported in the result, not as HTTP errors.
 
     Args:
         project_id (str):

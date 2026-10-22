@@ -39,49 +39,6 @@ CardHistoryRestoreResponse post_projects_project_id_history_cards_card_id_restor
     std::string card_id,
     RevisionReference oid RIG_QUERY RIG_PARAMETER_DESCRIPTION("Revision containing the snapshot to restore."));
 
-RIG_ROUTE(POST, "/projects/{project_id}/git/test-remote")
-RIG_SUMMARY("Test project remote reachability/auth")
-RIG_DESCRIPTION("Connects and lists remote refs using daemon credentials. Does not fetch, create a project repository, or change stored project configuration or Git configuration.")
-RIG_RESPONSE_DESCRIPTION("Probe completed with structured status.")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectGitTestRemoteResponse post_projects_project_id_git_test_remote(
-    std::string project_id,
-    std::optional<ProjectGitTestRemoteRequest> request);
-
-RIG_ROUTE(POST, "/projects/{project_id}/git/push")
-RIG_SUMMARY("Push project repository to remote")
-RIG_RESPONSE_DESCRIPTION("Push attempted with structured status.")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-ProjectGitPushResponse post_projects_project_id_git_push(
-    std::string project_id,
-    std::optional<ProjectGitPushRequest> request);
-
-RIG_ROUTE(POST, "/projects/{project_id}/git/pull")
-RIG_SUMMARY("Pull and reconcile a project immediately")
-RIG_DESCRIPTION("Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution, then reconciles the SQLite index before returning. Concurrent Git operations for the same project are serialized.")
-RIG_RESPONSE_DESCRIPTION("Pull completed with structured status.")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-ProjectGitSyncOperationResponse post_projects_project_id_git_pull(
-    std::string project_id,
-    std::optional<ProjectGitSyncRequest> request);
-
-RIG_ROUTE(POST, "/projects/{project_id}/git/sync")
-RIG_SUMMARY("Pull, reconcile, and push a project immediately")
-RIG_DESCRIPTION("Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git operations for the same project are serialized.")
-RIG_RESPONSE_DESCRIPTION("Forced sync completed with structured phase statuses.")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-ProjectGitSyncOperationResponse post_projects_project_id_git_sync(
-    std::string project_id,
-    std::optional<ProjectGitSyncRequest> request);
-
 RIG_ROUTE(POST, "/projects/{project_id}/recovery-token/export")
 RIG_SUMMARY("Export project recovery token")
 RIG_RESPONSE_DESCRIPTION("OK")

@@ -171,6 +171,7 @@ add_executable(holder_daemon_tests
   ../src/api/CardResources.cpp
   ../src/api/CardWrite.cpp
   ../src/api/MilestoneWrite.cpp
+  ../src/api/ProjectGit.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp

@@ -6,6 +6,7 @@
 
 #include "api/routes/ProjectRoutes.h"
 #include "api/GeneratedRoutes.h"
+#include "api/support/PrivacyErrors.h"
 #include "card/TagRepo.h"
 #include "git/GitOps.h"
 #include "http_test_helpers.h"
@@ -306,13 +307,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.body() = "{";
     req.prepare_payload();
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        "/projects/proj-1/git/test-remote",
-        req,
-        res,
-        db,
-        &git
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -379,15 +375,26 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.body() = "{";
     req.prepare_payload();
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        "/projects/proj-1/git/push",
-        req,
-        res,
-        db,
-        &git
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
+  }
+
+  SECTION("git routes report a missing project") {
+    for (const std::string action : {"test-remote", "push", "pull", "sync"}) {
+      CAPTURE(action);
+      auto [status, payload] = call(http::verb::post, "/projects/missing/git/" + action);
+      REQUIRE(status == http::status::not_found);
+      REQUIRE(payload["error"]["message"] == "Project not found.");
+    }
+  }
+
+  SECTION("missing key material is an internal privacy failure") {
+    const holder::privacy::PrivacyError missing(
+        holder::privacy::PrivacyErrorCode::KeyMaterialMissing, "missing");
+    REQUIRE_THROWS_AS(holder::api::support::throw_privacy_failure(missing),
+                      holder::api::support::PrivacyBroken);
   }
 
   SECTION("forced pull returns structured success") {
@@ -455,13 +462,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     req.body() = "{";
     req.prepare_payload();
     http::response<http::string_body> res;
-    const bool handled = holder::api::routes::handle_project_routes(
-        "/projects/proj-1/git/sync",
-        req,
-        res,
-        db,
-        &git
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, nullptr, nullptr, &git, uuid_v4);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
@@ -681,10 +683,10 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
-  req = make_request(http::verb::post, "/projects/proj-1/git/test-remote");
+  req = make_request(http::verb::post, "/projects/proj-1/recovery-token/export");
   REQUIRE_FALSE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(holder::api::routes::handle_project_routes(
-      "/projects/proj-1/git/test-remote", req, res, db, nullptr));
+      "/projects/proj-1/recovery-token/export", req, res, db, nullptr));
 
   // Hand-served operations are declared for the contract; the host serves them.
   req = make_request(http::verb::get, "/openapi.yaml");

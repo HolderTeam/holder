@@ -430,54 +430,6 @@ template <> struct codec<holder::api::CardHistoryRestoreResponse> {
     static json encode(const holder::api::CardHistoryRestoreResponse& value);
     static holder::api::CardHistoryRestoreResponse decode(const json& value);
 };
-template <> struct codec<holder::api::ProjectGitTestRemoteResponseData> {
-    static json encode(const holder::api::ProjectGitTestRemoteResponseData& value);
-    static holder::api::ProjectGitTestRemoteResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitTestRemoteResponse> {
-    static json encode(const holder::api::ProjectGitTestRemoteResponse& value);
-    static holder::api::ProjectGitTestRemoteResponse decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitTestRemoteRequest> {
-    static json encode(const holder::api::ProjectGitTestRemoteRequest& value);
-    static holder::api::ProjectGitTestRemoteRequest decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitPushResponseData> {
-    static json encode(const holder::api::ProjectGitPushResponseData& value);
-    static holder::api::ProjectGitPushResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitPushResponse> {
-    static json encode(const holder::api::ProjectGitPushResponse& value);
-    static holder::api::ProjectGitPushResponse decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitPushRequest> {
-    static json encode(const holder::api::ProjectGitPushRequest& value);
-    static holder::api::ProjectGitPushRequest decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPull> {
-    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value);
-    static holder::api::ProjectGitSyncOperationResponseDataPull decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus> {
-    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value);
-    static holder::api::ProjectGitSyncOperationResponseDataPushStatus decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPush> {
-    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value);
-    static holder::api::ProjectGitSyncOperationResponseDataPush decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncOperationResponseData> {
-    static json encode(const holder::api::ProjectGitSyncOperationResponseData& value);
-    static holder::api::ProjectGitSyncOperationResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncOperationResponse> {
-    static json encode(const holder::api::ProjectGitSyncOperationResponse& value);
-    static holder::api::ProjectGitSyncOperationResponse decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectGitSyncRequest> {
-    static json encode(const holder::api::ProjectGitSyncRequest& value);
-    static holder::api::ProjectGitSyncRequest decode(const json& value);
-};
 template <> struct codec<holder::api::ProjectRecoveryTokenExportResponseData> {
     static json encode(const holder::api::ProjectRecoveryTokenExportResponseData& value);
     static holder::api::ProjectRecoveryTokenExportResponseData decode(const json& value);
@@ -833,6 +785,54 @@ template <> struct codec<holder::api::ResourceDeleteResponseData> {
 template <> struct codec<holder::api::ResourceDeleteResponse> {
     static json encode(const holder::api::ResourceDeleteResponse& value);
     static holder::api::ResourceDeleteResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitTestRemoteResponseData> {
+    static json encode(const holder::api::ProjectGitTestRemoteResponseData& value);
+    static holder::api::ProjectGitTestRemoteResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitTestRemoteResponse> {
+    static json encode(const holder::api::ProjectGitTestRemoteResponse& value);
+    static holder::api::ProjectGitTestRemoteResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitTestRemoteRequest> {
+    static json encode(const holder::api::ProjectGitTestRemoteRequest& value);
+    static holder::api::ProjectGitTestRemoteRequest decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitPushResponseData> {
+    static json encode(const holder::api::ProjectGitPushResponseData& value);
+    static holder::api::ProjectGitPushResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitPushResponse> {
+    static json encode(const holder::api::ProjectGitPushResponse& value);
+    static holder::api::ProjectGitPushResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitPushRequest> {
+    static json encode(const holder::api::ProjectGitPushRequest& value);
+    static holder::api::ProjectGitPushRequest decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPull> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPull decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPushStatus decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseDataPush> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value);
+    static holder::api::ProjectGitSyncOperationResponseDataPush decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponseData> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponseData& value);
+    static holder::api::ProjectGitSyncOperationResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncOperationResponse> {
+    static json encode(const holder::api::ProjectGitSyncOperationResponse& value);
+    static holder::api::ProjectGitSyncOperationResponse decode(const json& value);
+};
+template <> struct codec<holder::api::ProjectGitSyncRequest> {
+    static json encode(const holder::api::ProjectGitSyncRequest& value);
+    static holder::api::ProjectGitSyncRequest decode(const json& value);
 };
 template <> struct codec<holder::api::ProjectListResponse> {
     static json encode(const holder::api::ProjectListResponse& value);
@@ -2880,312 +2880,6 @@ inline holder::api::CardHistoryRestoreResponse codec<holder::api::CardHistoryRes
     };
 }
 
-inline json codec<holder::api::ProjectGitTestRemoteResponseData>::encode(const holder::api::ProjectGitTestRemoteResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    if (value.remote_url) {
-        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
-    }
-    result["branch"] = codec<std::string>::encode(value.branch);
-    if (value.status != "reachable" && value.status != "auth_failed" && value.status != "not_found" && value.status != "network_error" && value.status != "invalid_remote_url" && value.status != "remote_unset" && value.status != "unknown_error") throw std::invalid_argument("invalid status");
-    result["status"] = codec<std::string>::encode(value.status);
-    result["remote_has_head"] = codec<bool>::encode(value.remote_has_head);
-    if (value.error_code) {
-        result["error_code"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_code);
-    }
-    if (value.error_message) {
-        result["error_message"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_message);
-    }
-    return result;
-}
-inline holder::api::ProjectGitTestRemoteResponseData codec<holder::api::ProjectGitTestRemoteResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("remote_has_head")) throw std::invalid_argument("missing remote_has_head");
-    if (value.at("status") != "reachable" && value.at("status") != "auth_failed" && value.at("status") != "not_found" && value.at("status") != "network_error" && value.at("status") != "invalid_remote_url" && value.at("status") != "remote_unset" && value.at("status") != "unknown_error") throw std::invalid_argument("invalid status");
-    return holder::api::ProjectGitTestRemoteResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
-        codec<std::string>::decode(value.at("branch")),
-        codec<std::string>::decode(value.at("status")),
-        codec<bool>::decode(value.at("remote_has_head")),
-        value.contains("error_code") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_code"))} : std::nullopt,
-        value.contains("error_message") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_message"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ProjectGitTestRemoteResponse>::encode(const holder::api::ProjectGitTestRemoteResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectGitTestRemoteResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectGitTestRemoteResponse codec<holder::api::ProjectGitTestRemoteResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectGitTestRemoteResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectGitTestRemoteResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitTestRemoteRequest>::encode(const holder::api::ProjectGitTestRemoteRequest& value) {
-    json result = json::object();
-    if (value.remote_url) {
-        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
-    }
-    if (value.branch) {
-        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
-    }
-    return result;
-}
-inline holder::api::ProjectGitTestRemoteRequest codec<holder::api::ProjectGitTestRemoteRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteRequest");
-    return holder::api::ProjectGitTestRemoteRequest{
-        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
-        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ProjectGitPushResponseData>::encode(const holder::api::ProjectGitPushResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    if (value.remote_url) {
-        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
-    }
-    result["branch"] = codec<std::string>::encode(value.branch);
-    if (value.status != "pushed" && value.status != "up_to_date" && value.status != "auth_failed" && value.status != "not_found" && value.status != "network_error" && value.status != "non_fast_forward" && value.status != "remote_unset" && value.status != "unknown_error") throw std::invalid_argument("invalid status");
-    result["status"] = codec<std::string>::encode(value.status);
-    result["ahead_count"] = codec<int>::encode(value.ahead_count);
-    result["behind_count"] = codec<int>::encode(value.behind_count);
-    if (value.local_head_commit) {
-        result["local_head_commit"] = codec<std::optional<std::optional<std::string>>>::encode(value.local_head_commit);
-    }
-    if (value.error_code) {
-        result["error_code"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_code);
-    }
-    if (value.error_message) {
-        result["error_message"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_message);
-    }
-    if (value.next_action) {
-        result["next_action"] = codec<std::optional<std::optional<std::string>>>::encode(value.next_action);
-    }
-    return result;
-}
-inline holder::api::ProjectGitPushResponseData codec<holder::api::ProjectGitPushResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("ahead_count")) throw std::invalid_argument("missing ahead_count");
-    if (!value.contains("behind_count")) throw std::invalid_argument("missing behind_count");
-    if (value.at("status") != "pushed" && value.at("status") != "up_to_date" && value.at("status") != "auth_failed" && value.at("status") != "not_found" && value.at("status") != "network_error" && value.at("status") != "non_fast_forward" && value.at("status") != "remote_unset" && value.at("status") != "unknown_error") throw std::invalid_argument("invalid status");
-    return holder::api::ProjectGitPushResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
-        codec<std::string>::decode(value.at("branch")),
-        codec<std::string>::decode(value.at("status")),
-        codec<int>::decode(value.at("ahead_count")),
-        codec<int>::decode(value.at("behind_count")),
-        value.contains("local_head_commit") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("local_head_commit"))} : std::nullopt,
-        value.contains("error_code") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_code"))} : std::nullopt,
-        value.contains("error_message") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_message"))} : std::nullopt,
-        value.contains("next_action") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("next_action"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ProjectGitPushResponse>::encode(const holder::api::ProjectGitPushResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectGitPushResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectGitPushResponse codec<holder::api::ProjectGitPushResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectGitPushResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectGitPushResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitPushRequest>::encode(const holder::api::ProjectGitPushRequest& value) {
-    json result = json::object();
-    if (value.branch) {
-        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
-    }
-    if (value.set_upstream) {
-        result["set_upstream"] = codec<std::optional<std::optional<bool>>>::encode(value.set_upstream);
-    }
-    return result;
-}
-inline holder::api::ProjectGitPushRequest codec<holder::api::ProjectGitPushRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushRequest");
-    return holder::api::ProjectGitPushRequest{
-        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
-        value.contains("set_upstream") ? std::optional<std::optional<bool>>{std::in_place, codec<std::optional<bool>>::decode(value.at("set_upstream"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value) {
-    json result = json::object();
-    result["attempted"] = codec<bool>::encode(value.attempted);
-    if (value.status != "not_attempted" && value.status != "succeeded" && value.status != "remote_unset" && value.status != "failed") throw std::invalid_argument("invalid status");
-    result["status"] = codec<std::string>::encode(value.status);
-    result["conflicts_resolved"] = codec<int>::encode(value.conflicts_resolved);
-    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
-    return result;
-}
-inline holder::api::ProjectGitSyncOperationResponseDataPull codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPull");
-    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("conflicts_resolved")) throw std::invalid_argument("missing conflicts_resolved");
-    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
-    if (value.at("status") != "not_attempted" && value.at("status") != "succeeded" && value.at("status") != "remote_unset" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
-    return holder::api::ProjectGitSyncOperationResponseDataPull{
-        codec<bool>::decode(value.at("attempted")),
-        codec<std::string>::decode(value.at("status")),
-        codec<int>::decode(value.at("conflicts_resolved")),
-        codec<std::optional<std::string>>::decode(value.at("error_message")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value) {
-    switch (value) {
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed: return "pushed";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date: return "up_to_date";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed: return "auth_failed";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found: return "not_found";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error: return "network_error";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward: return "non_fast_forward";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset: return "remote_unset";
-    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error: return "unknown_error";
-    }
-    throw std::invalid_argument("invalid ProjectGitSyncOperationResponseDataPushStatus");
-}
-inline holder::api::ProjectGitSyncOperationResponseDataPushStatus codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::decode(const json& value) {
-    if (!value.is_string()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPushStatus");
-    if (value == "pushed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed;
-    if (value == "up_to_date") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date;
-    if (value == "auth_failed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed;
-    if (value == "not_found") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found;
-    if (value == "network_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error;
-    if (value == "non_fast_forward") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward;
-    if (value == "remote_unset") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset;
-    if (value == "unknown_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error;
-    throw std::invalid_argument("unknown ProjectGitSyncOperationResponseDataPushStatus");
-}
-
-inline json codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value) {
-    json result = json::object();
-    result["attempted"] = codec<bool>::encode(value.attempted);
-    result["status"] = codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::encode(value.status);
-    result["ahead_count"] = codec<int>::encode(value.ahead_count);
-    result["behind_count"] = codec<int>::encode(value.behind_count);
-    result["local_head_commit"] = codec<std::optional<std::string>>::encode(value.local_head_commit);
-    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
-    return result;
-}
-inline holder::api::ProjectGitSyncOperationResponseDataPush codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPush");
-    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("ahead_count")) throw std::invalid_argument("missing ahead_count");
-    if (!value.contains("behind_count")) throw std::invalid_argument("missing behind_count");
-    if (!value.contains("local_head_commit")) throw std::invalid_argument("missing local_head_commit");
-    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
-    return holder::api::ProjectGitSyncOperationResponseDataPush{
-        codec<bool>::decode(value.at("attempted")),
-        codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::decode(value.at("status")),
-        codec<int>::decode(value.at("ahead_count")),
-        codec<int>::decode(value.at("behind_count")),
-        codec<std::optional<std::string>>::decode(value.at("local_head_commit")),
-        codec<std::optional<std::string>>::decode(value.at("error_message")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncOperationResponseData>::encode(const holder::api::ProjectGitSyncOperationResponseData& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    if (value.remote_url) {
-        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
-    }
-    result["branch"] = codec<std::string>::encode(value.branch);
-    if (value.status != "succeeded" && value.status != "failed") throw std::invalid_argument("invalid status");
-    result["status"] = codec<std::string>::encode(value.status);
-    result["error_code"] = codec<std::optional<std::string>>::encode(value.error_code);
-    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
-    result["pull"] = codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(value.pull);
-    result["push"] = codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(value.push);
-    return result;
-}
-inline holder::api::ProjectGitSyncOperationResponseData codec<holder::api::ProjectGitSyncOperationResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseData");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("error_code")) throw std::invalid_argument("missing error_code");
-    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
-    if (!value.contains("pull")) throw std::invalid_argument("missing pull");
-    if (!value.contains("push")) throw std::invalid_argument("missing push");
-    if (value.at("status") != "succeeded" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
-    return holder::api::ProjectGitSyncOperationResponseData{
-        codec<std::string>::decode(value.at("project_id")),
-        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
-        codec<std::string>::decode(value.at("branch")),
-        codec<std::string>::decode(value.at("status")),
-        codec<std::optional<std::string>>::decode(value.at("error_code")),
-        codec<std::optional<std::string>>::decode(value.at("error_message")),
-        codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(value.at("pull")),
-        codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(value.at("push")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncOperationResponse>::encode(const holder::api::ProjectGitSyncOperationResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::ProjectGitSyncOperationResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectGitSyncOperationResponse codec<holder::api::ProjectGitSyncOperationResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectGitSyncOperationResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::ProjectGitSyncOperationResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::ProjectGitSyncRequest>::encode(const holder::api::ProjectGitSyncRequest& value) {
-    json result = json::object();
-    if (value.branch) {
-        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
-    }
-    if (value.set_upstream) {
-        result["set_upstream"] = codec<std::optional<std::optional<bool>>>::encode(value.set_upstream);
-    }
-    return result;
-}
-inline holder::api::ProjectGitSyncRequest codec<holder::api::ProjectGitSyncRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncRequest");
-    return holder::api::ProjectGitSyncRequest{
-        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
-        value.contains("set_upstream") ? std::optional<std::optional<bool>>{std::in_place, codec<std::optional<bool>>::decode(value.at("set_upstream"))} : std::nullopt,
-    };
-}
-
 inline json codec<holder::api::ProjectRecoveryTokenExportResponseData>::encode(const holder::api::ProjectRecoveryTokenExportResponseData& value) {
     json result = json::object();
     result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -5182,6 +4876,312 @@ inline holder::api::ResourceDeleteResponse codec<holder::api::ResourceDeleteResp
     return holder::api::ResourceDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ResourceDeleteResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitTestRemoteResponseData>::encode(const holder::api::ProjectGitTestRemoteResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.remote_url) {
+        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
+    }
+    result["branch"] = codec<std::string>::encode(value.branch);
+    if (value.status != "reachable" && value.status != "auth_failed" && value.status != "not_found" && value.status != "network_error" && value.status != "invalid_remote_url" && value.status != "remote_unset" && value.status != "unknown_error") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["remote_has_head"] = codec<bool>::encode(value.remote_has_head);
+    if (value.error_code) {
+        result["error_code"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_code);
+    }
+    if (value.error_message) {
+        result["error_message"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_message);
+    }
+    return result;
+}
+inline holder::api::ProjectGitTestRemoteResponseData codec<holder::api::ProjectGitTestRemoteResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("remote_has_head")) throw std::invalid_argument("missing remote_has_head");
+    if (value.at("status") != "reachable" && value.at("status") != "auth_failed" && value.at("status") != "not_found" && value.at("status") != "network_error" && value.at("status") != "invalid_remote_url" && value.at("status") != "remote_unset" && value.at("status") != "unknown_error") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitTestRemoteResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
+        codec<std::string>::decode(value.at("branch")),
+        codec<std::string>::decode(value.at("status")),
+        codec<bool>::decode(value.at("remote_has_head")),
+        value.contains("error_code") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_code"))} : std::nullopt,
+        value.contains("error_message") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_message"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectGitTestRemoteResponse>::encode(const holder::api::ProjectGitTestRemoteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectGitTestRemoteResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGitTestRemoteResponse codec<holder::api::ProjectGitTestRemoteResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGitTestRemoteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectGitTestRemoteResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitTestRemoteRequest>::encode(const holder::api::ProjectGitTestRemoteRequest& value) {
+    json result = json::object();
+    if (value.remote_url) {
+        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
+    }
+    if (value.branch) {
+        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
+    }
+    return result;
+}
+inline holder::api::ProjectGitTestRemoteRequest codec<holder::api::ProjectGitTestRemoteRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitTestRemoteRequest");
+    return holder::api::ProjectGitTestRemoteRequest{
+        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
+        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectGitPushResponseData>::encode(const holder::api::ProjectGitPushResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.remote_url) {
+        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
+    }
+    result["branch"] = codec<std::string>::encode(value.branch);
+    if (value.status != "pushed" && value.status != "up_to_date" && value.status != "auth_failed" && value.status != "not_found" && value.status != "network_error" && value.status != "non_fast_forward" && value.status != "remote_unset" && value.status != "unknown_error") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["ahead_count"] = codec<int>::encode(value.ahead_count);
+    result["behind_count"] = codec<int>::encode(value.behind_count);
+    if (value.local_head_commit) {
+        result["local_head_commit"] = codec<std::optional<std::optional<std::string>>>::encode(value.local_head_commit);
+    }
+    if (value.error_code) {
+        result["error_code"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_code);
+    }
+    if (value.error_message) {
+        result["error_message"] = codec<std::optional<std::optional<std::string>>>::encode(value.error_message);
+    }
+    if (value.next_action) {
+        result["next_action"] = codec<std::optional<std::optional<std::string>>>::encode(value.next_action);
+    }
+    return result;
+}
+inline holder::api::ProjectGitPushResponseData codec<holder::api::ProjectGitPushResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("ahead_count")) throw std::invalid_argument("missing ahead_count");
+    if (!value.contains("behind_count")) throw std::invalid_argument("missing behind_count");
+    if (value.at("status") != "pushed" && value.at("status") != "up_to_date" && value.at("status") != "auth_failed" && value.at("status") != "not_found" && value.at("status") != "network_error" && value.at("status") != "non_fast_forward" && value.at("status") != "remote_unset" && value.at("status") != "unknown_error") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitPushResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
+        codec<std::string>::decode(value.at("branch")),
+        codec<std::string>::decode(value.at("status")),
+        codec<int>::decode(value.at("ahead_count")),
+        codec<int>::decode(value.at("behind_count")),
+        value.contains("local_head_commit") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("local_head_commit"))} : std::nullopt,
+        value.contains("error_code") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_code"))} : std::nullopt,
+        value.contains("error_message") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("error_message"))} : std::nullopt,
+        value.contains("next_action") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("next_action"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectGitPushResponse>::encode(const holder::api::ProjectGitPushResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectGitPushResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGitPushResponse codec<holder::api::ProjectGitPushResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGitPushResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectGitPushResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitPushRequest>::encode(const holder::api::ProjectGitPushRequest& value) {
+    json result = json::object();
+    if (value.branch) {
+        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
+    }
+    if (value.set_upstream) {
+        result["set_upstream"] = codec<std::optional<std::optional<bool>>>::encode(value.set_upstream);
+    }
+    return result;
+}
+inline holder::api::ProjectGitPushRequest codec<holder::api::ProjectGitPushRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitPushRequest");
+    return holder::api::ProjectGitPushRequest{
+        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
+        value.contains("set_upstream") ? std::optional<std::optional<bool>>{std::in_place, codec<std::optional<bool>>::decode(value.at("set_upstream"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(const holder::api::ProjectGitSyncOperationResponseDataPull& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    if (value.status != "not_attempted" && value.status != "succeeded" && value.status != "remote_unset" && value.status != "failed") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["conflicts_resolved"] = codec<int>::encode(value.conflicts_resolved);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPull codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPull");
+    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("conflicts_resolved")) throw std::invalid_argument("missing conflicts_resolved");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    if (value.at("status") != "not_attempted" && value.at("status") != "succeeded" && value.at("status") != "remote_unset" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitSyncOperationResponseDataPull{
+        codec<bool>::decode(value.at("attempted")),
+        codec<std::string>::decode(value.at("status")),
+        codec<int>::decode(value.at("conflicts_resolved")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::encode(const holder::api::ProjectGitSyncOperationResponseDataPushStatus& value) {
+    switch (value) {
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed: return "pushed";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date: return "up_to_date";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed: return "auth_failed";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found: return "not_found";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error: return "network_error";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward: return "non_fast_forward";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset: return "remote_unset";
+    case holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error: return "unknown_error";
+    }
+    throw std::invalid_argument("invalid ProjectGitSyncOperationResponseDataPushStatus");
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPushStatus codec<holder::api::ProjectGitSyncOperationResponseDataPushStatus>::decode(const json& value) {
+    if (!value.is_string()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPushStatus");
+    if (value == "pushed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::pushed;
+    if (value == "up_to_date") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::up_to_date;
+    if (value == "auth_failed") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::auth_failed;
+    if (value == "not_found") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::not_found;
+    if (value == "network_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::network_error;
+    if (value == "non_fast_forward") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::non_fast_forward;
+    if (value == "remote_unset") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::remote_unset;
+    if (value == "unknown_error") return holder::api::ProjectGitSyncOperationResponseDataPushStatus::unknown_error;
+    throw std::invalid_argument("unknown ProjectGitSyncOperationResponseDataPushStatus");
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(const holder::api::ProjectGitSyncOperationResponseDataPush& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    result["status"] = codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::encode(value.status);
+    result["ahead_count"] = codec<int>::encode(value.ahead_count);
+    result["behind_count"] = codec<int>::encode(value.behind_count);
+    result["local_head_commit"] = codec<std::optional<std::string>>::encode(value.local_head_commit);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseDataPush codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseDataPush");
+    if (!value.contains("attempted")) throw std::invalid_argument("missing attempted");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("ahead_count")) throw std::invalid_argument("missing ahead_count");
+    if (!value.contains("behind_count")) throw std::invalid_argument("missing behind_count");
+    if (!value.contains("local_head_commit")) throw std::invalid_argument("missing local_head_commit");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    return holder::api::ProjectGitSyncOperationResponseDataPush{
+        codec<bool>::decode(value.at("attempted")),
+        codec<std::optional<holder::api::ProjectGitSyncOperationResponseDataPushStatus>>::decode(value.at("status")),
+        codec<int>::decode(value.at("ahead_count")),
+        codec<int>::decode(value.at("behind_count")),
+        codec<std::optional<std::string>>::decode(value.at("local_head_commit")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponseData>::encode(const holder::api::ProjectGitSyncOperationResponseData& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.remote_url) {
+        result["remote_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.remote_url);
+    }
+    result["branch"] = codec<std::string>::encode(value.branch);
+    if (value.status != "succeeded" && value.status != "failed") throw std::invalid_argument("invalid status");
+    result["status"] = codec<std::string>::encode(value.status);
+    result["error_code"] = codec<std::optional<std::string>>::encode(value.error_code);
+    result["error_message"] = codec<std::optional<std::string>>::encode(value.error_message);
+    result["pull"] = codec<holder::api::ProjectGitSyncOperationResponseDataPull>::encode(value.pull);
+    result["push"] = codec<holder::api::ProjectGitSyncOperationResponseDataPush>::encode(value.push);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponseData codec<holder::api::ProjectGitSyncOperationResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponseData");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("branch")) throw std::invalid_argument("missing branch");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    if (!value.contains("error_code")) throw std::invalid_argument("missing error_code");
+    if (!value.contains("error_message")) throw std::invalid_argument("missing error_message");
+    if (!value.contains("pull")) throw std::invalid_argument("missing pull");
+    if (!value.contains("push")) throw std::invalid_argument("missing push");
+    if (value.at("status") != "succeeded" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
+    return holder::api::ProjectGitSyncOperationResponseData{
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("remote_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("remote_url"))} : std::nullopt,
+        codec<std::string>::decode(value.at("branch")),
+        codec<std::string>::decode(value.at("status")),
+        codec<std::optional<std::string>>::decode(value.at("error_code")),
+        codec<std::optional<std::string>>::decode(value.at("error_message")),
+        codec<holder::api::ProjectGitSyncOperationResponseDataPull>::decode(value.at("pull")),
+        codec<holder::api::ProjectGitSyncOperationResponseDataPush>::decode(value.at("push")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncOperationResponse>::encode(const holder::api::ProjectGitSyncOperationResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::ProjectGitSyncOperationResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::ProjectGitSyncOperationResponse codec<holder::api::ProjectGitSyncOperationResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncOperationResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::ProjectGitSyncOperationResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::ProjectGitSyncOperationResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::ProjectGitSyncRequest>::encode(const holder::api::ProjectGitSyncRequest& value) {
+    json result = json::object();
+    if (value.branch) {
+        result["branch"] = codec<std::optional<std::optional<std::string>>>::encode(value.branch);
+    }
+    if (value.set_upstream) {
+        result["set_upstream"] = codec<std::optional<std::optional<bool>>>::encode(value.set_upstream);
+    }
+    return result;
+}
+inline holder::api::ProjectGitSyncRequest codec<holder::api::ProjectGitSyncRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected ProjectGitSyncRequest");
+    return holder::api::ProjectGitSyncRequest{
+        value.contains("branch") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("branch"))} : std::nullopt,
+        value.contains("set_upstream") ? std::optional<std::optional<bool>>{std::in_place, codec<std::optional<bool>>::decode(value.at("set_upstream"))} : std::nullopt,
     };
 }
 
