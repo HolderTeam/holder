@@ -1,49 +1,6 @@
 #include "api/GeneratedRoutes.h"
 
-#include "api/AiLocalModelConfig.h"
-#include "api/AiMessageRead.h"
-#include "api/AiMessageWrite.h"
-#include "api/AiProviderCatalog.h"
-#include "api/AiRunnerRead.h"
-#include "api/AiRunnerWrite.h"
-#include "api/AssetImportRead.h"
-#include "api/AiRuns.h"
-#include "api/AiStatus.h"
-#include "api/AiThreadRead.h"
-#include "api/AiThreadWrite.h"
-#include "api/Alive.h"
-#include "api/Calendar.h"
-#include "api/CardMilestones.h"
-#include "api/CardRead.h"
-#include "api/CardResources.h"
-#include "api/CardWrite.h"
-#include "api/MilestoneWrite.h"
-#include "api/CardLinks.h"
-#include "api/CardReferenceResolve.h"
-#include "api/Health.h"
-#include "api/History.h"
-#include "api/LocationRead.h"
-#include "api/LocationWrite.h"
-#include "api/MilestonesWithDates.h"
-#include "api/ProjectCreate.h"
-#include "api/ProjectDelete.h"
-#include "api/ProjectGit.h"
-#include "api/ProjectRead.h"
-#include "api/RecoveryToken.h"
-#include "api/Reindex.h"
-#include "api/AssetImportWrite.h"
-#include "api/ProjectCards.h"
-#include "api/ProjectUpdate.h"
-#include "api/ProjectTags.h"
-#include "api/ProviderCredentials.h"
-#include "api/ProviderSettings.h"
-#include "api/Rebuild.h"
-#include "api/ResourceRead.h"
-#include "api/ResourceWrite.h"
-#include "api/RunnerPull.h"
-#include "api/Search.h"
-#include "api/TrashList.h"
-#include "api/TrashWrite.h"
+#include "api/RigRuntime.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "privacy/SecretStore.h"
@@ -102,6 +59,12 @@ bool is_public_generated_route(const GeneratedRequest& req) {
   const auto target = req.target();
   return rig_http::is_public(std::string(req.method_string()),
                              std::string(target.data(), target.size()));
+}
+
+bool is_host_served_route(const GeneratedRequest& req) {
+  const auto target = req.target();
+  return rig_http::is_host_served(std::string(req.method_string()),
+                                  std::string(target.data(), target.size()));
 }
 
 bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,

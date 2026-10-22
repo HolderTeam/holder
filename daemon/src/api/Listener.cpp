@@ -119,7 +119,6 @@ struct WorkerContext {
   std::unique_ptr<holder::index::FtsIndexer> fts;
   std::unique_ptr<holder::card::CardStore> card_store;
   std::unique_ptr<holder::llm::RunnerRegistry> runner_registry;
-  std::unique_ptr<holder::ai::NudgeService> nudge_service;
 };
 
 WorkerContext make_worker_context(
@@ -127,7 +126,6 @@ WorkerContext make_worker_context(
     holder::index::FtsIndexer* root_fts,
     holder::card::CardStore* root_card_store,
     holder::llm::RunnerRegistry* root_runner_registry,
-    holder::ai::NudgeService* root_nudge_service,
     holder::git::GitOps* git_ops,
     const holder::core::SerialExecutor* ai_runtime_executor
 ) {
@@ -152,11 +150,6 @@ WorkerContext make_worker_context(
         auto_local_client,
         ai_runtime_executor
     );
-  }
-
-  if (root_nudge_service != nullptr) {
-    context.nudge_service =
-        std::make_unique<holder::ai::NudgeService>(context.db, context.runner_registry.get());
   }
 
   return context;
@@ -194,7 +187,6 @@ Listener::Listener(
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
@@ -208,7 +200,6 @@ Listener::Listener(
       started_at_(started_at),
       card_store_(card_store),
       fts_(fts),
-      nudge_service_(nudge_service),
       secret_store_(secret_store),
       git_ops_(git_ops),
       runner_registry_(runner_registry),
@@ -576,7 +567,6 @@ void Listener::run_save_worker() {
       fts_,
       card_store_,
       runner_registry_,
-      nudge_service_,
       request_git_ops_,
       ai_runtime_executor_.get()
   );
@@ -610,7 +600,6 @@ void Listener::run_save_worker() {
         started_at_,
         context.card_store.get(),
         context.fts.get(),
-        context.nudge_service.get(),
         secret_store_,
         request_git_ops_,
         context.runner_registry.get(),
@@ -637,7 +626,6 @@ void Listener::run_general_worker() {
       fts_,
       card_store_,
       runner_registry_,
-      nudge_service_,
       request_git_ops_,
       ai_runtime_executor_.get()
   );
@@ -690,7 +678,6 @@ void Listener::run_general_worker() {
         started_at_,
         context.card_store.get(),
         context.fts.get(),
-        context.nudge_service.get(),
         secret_store_,
         request_git_ops_,
         context.runner_registry.get(),

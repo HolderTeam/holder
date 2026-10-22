@@ -498,6 +498,107 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /ai/nudges:
+    get:
+      summary: List a project's current nudges
+      description: Nudges whose evidence no longer holds are removed before listing, and dismissed nudges
+        are left out.
+      parameters:
+      - name: project_id
+        in: query
+        required: true
+        schema: {type: string, minLength: 1}
+      - name: card_id
+        in: query
+        required: false
+        schema: {type: string}
+        description: Only this card's nudges; empty means every card's.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiNudgeListResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /ai/nudges/evaluate:
+    post:
+      summary: Evaluate a nudge candidate and record the nudge it warrants
+      description: Answers whether the candidate is accepted and whether it warrants a nudge, with the
+        reason. A candidate the daemon does not know is answered, not rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AiNudgeCandidate'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiNudgeEvaluateResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /ai/nudges/{nudge_id}/dismiss:
+    post:
+      summary: Dismiss a nudge
+      parameters:
+      - name: nudge_id
+        in: path
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiNudgeDismissResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Nudge not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /ai/providers/catalog:
     get:
       summary: Get provider-agnostic cloud catalog with configured flags
@@ -2926,6 +3027,40 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /docs:
+    get:
+      summary: Browse the API documentation
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            text/html:
+              schema: {type: string}
+        '404':
+          description: Documentation assets not installed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /docs/{file}:
+    get:
+      summary: Download one of the API documentation's files
+      security: []
+      parameters:
+      - name: file
+        in: path
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: OK, with the file's media type
+          content:
+            '*/*': {}
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /events:
     get:
       operationId: stream_changes
@@ -3557,6 +3692,65 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /locations/{location_id}/oauth/google-drive/authorize:
+    post:
+      summary: Start connecting a Google Drive location
+      description: Returns the Google authorization URL for the user to open in a browser. Google then
+        redirects the browser to this location's callback, on the host and port this request used.
+      parameters:
+      - name: location_id
+        in: path
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GoogleDriveAuthorizeResponse'}
+        '400':
+          description: The location does not exist or is not a Google Drive location, or the daemon has
+            no Google OAuth client
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /locations/{location_id}/oauth/google-drive/callback:
+    get:
+      summary: Finish connecting a Google Drive location
+      description: Google redirects the user's browser here after authorization, so the request carries
+        no token; the state from the authorize call authenticates it instead. The daemon exchanges the
+        code, creates the location's Drive folder if needed, and binds the location. A failure is answered
+        with 400 and an HTML page that explains it.
+      security: []
+      parameters:
+      - name: location_id
+        in: path
+        required: true
+        schema: {type: string}
+      - name: code
+        in: query
+        required: false
+        schema: {type: string}
+      - name: state
+        in: query
+        required: false
+        schema: {type: string}
+      - name: error
+        in: query
+        required: false
+        schema: {type: string}
+        description: Set by Google when the user declined or authorization failed.
+      responses:
+        '200':
+          description: An HTML page telling the user the location is connected
+          content:
+            text/html:
+              schema: {type: string}
   /locations/{location_id}/test:
     post:
       summary: Upload, verify, and remove a storage probe
@@ -5626,6 +5820,91 @@ components:
             message_id: {type: string}
           required: [message_id]
       required: [ok, data]
+    AiNudge:
+      type: object
+      properties:
+        nudge_id: {type: string}
+        kind: {type: string}
+        project_id: {type: string}
+        card_id:
+          type: [string, 'null']
+        title: {type: string}
+        body: {type: string}
+        meta_json: {type: object, additionalProperties: true, description: The evidence and details the
+            nudge was built from.}
+        basis_fingerprint:
+          type: [string, 'null']
+        basis_commit:
+          type: [string, 'null']
+        created_at: {type: integer, format: int64}
+        suggestions:
+          type: array
+          items: {type: string}
+          description: Suggested titles, for a card.title_suggestion nudge.
+      required: [nudge_id, kind, project_id, card_id, title, body, meta_json, basis_fingerprint, basis_commit,
+        created_at]
+    AiNudgeCandidate:
+      type: object
+      properties:
+        kind: {type: string, description: 'The candidate''s kind, such as card.title_only; an unknown
+            kind is not accepted.', minLength: 1}
+        project_id: {type: string, minLength: 1}
+        card_id: {type: string}
+        created_at: {type: integer, format: int64}
+        basis_fingerprint: {type: string}
+        basis_commit: {type: string}
+        facts: {type: object, additionalProperties: true, description: 'The evidence for the candidate,
+            which depends on its kind.'}
+      required: [kind, project_id, created_at, facts]
+    AiNudgeDismissResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            nudge_id: {type: string}
+            dismissed:
+              type: boolean
+              enum: [true]
+          required: [nudge_id, dismissed]
+      required: [ok, data]
+    AiNudgeEvaluateResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            kind: {type: string}
+            accepted: {type: boolean}
+            should_nudge: {type: boolean}
+            reason: {type: string}
+            nudge:
+              anyOf:
+              - {$ref: '#/components/schemas/AiNudge'}
+              - {type: 'null'}
+              description: The recorded nudge, or null when there is nothing to show.
+          required: [kind, accepted, should_nudge, reason, nudge]
+      required: [ok, data]
+    AiNudgeListResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            nudges:
+              type: array
+              items: {$ref: '#/components/schemas/AiNudge'}
+          required: [nudges]
+      required: [ok, data]
     AiProviderCatalogModel:
       type: object
       properties:
@@ -6757,6 +7036,18 @@ components:
           last_revision:
             type: [string, 'null']
         required: [reason, last_revision]
+    GoogleDriveAuthorizeResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            authorization_url: {type: string}
+          required: [authorization_url]
+      required: [ok, data]
     HealthData:
       type: object
       properties:

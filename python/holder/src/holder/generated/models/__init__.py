@@ -18,6 +18,16 @@ from .ai_message_list_response import AiMessageListResponse
 from .ai_message_update_request import AiMessageUpdateRequest
 from .ai_message_update_response import AiMessageUpdateResponse
 from .ai_message_update_response_data import AiMessageUpdateResponseData
+from .ai_nudge import AiNudge
+from .ai_nudge_candidate import AiNudgeCandidate
+from .ai_nudge_candidate_facts import AiNudgeCandidateFacts
+from .ai_nudge_dismiss_response import AiNudgeDismissResponse
+from .ai_nudge_dismiss_response_data import AiNudgeDismissResponseData
+from .ai_nudge_evaluate_response import AiNudgeEvaluateResponse
+from .ai_nudge_evaluate_response_data import AiNudgeEvaluateResponseData
+from .ai_nudge_list_response import AiNudgeListResponse
+from .ai_nudge_list_response_data import AiNudgeListResponseData
+from .ai_nudge_meta_json import AiNudgeMetaJson
 from .ai_provider_catalog_model import AiProviderCatalogModel
 from .ai_provider_catalog_model_limits import AiProviderCatalogModelLimits
 from .ai_provider_catalog_provider import AiProviderCatalogProvider
@@ -198,6 +208,8 @@ from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKin
 from .get_projects_project_id_milestones_with_dates_value_type import (
     GetProjectsProjectIdMilestonesWithDatesValueType,
 )
+from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
+from .google_drive_authorize_response_data import GoogleDriveAuthorizeResponseData
 from .health_data import HealthData
 from .health_data_privacy import HealthDataPrivacy
 from .health_response import HealthResponse
@@ -376,6 +388,16 @@ __all__ = (
     "AiMessageUpdateRequest",
     "AiMessageUpdateResponse",
     "AiMessageUpdateResponseData",
+    "AiNudge",
+    "AiNudgeCandidate",
+    "AiNudgeCandidateFacts",
+    "AiNudgeDismissResponse",
+    "AiNudgeDismissResponseData",
+    "AiNudgeEvaluateResponse",
+    "AiNudgeEvaluateResponseData",
+    "AiNudgeListResponse",
+    "AiNudgeListResponseData",
+    "AiNudgeMetaJson",
     "AiProviderCatalogModel",
     "AiProviderCatalogModelLimits",
     "AiProviderCatalogProvider",
@@ -536,6 +558,8 @@ __all__ = (
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
     "GetProjectsProjectIdMilestonesWithDatesValueType",
+    "GoogleDriveAuthorizeResponse",
+    "GoogleDriveAuthorizeResponseData",
     "HealthData",
     "HealthDataPrivacy",
     "HealthResponse",

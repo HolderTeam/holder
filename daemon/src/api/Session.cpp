@@ -54,15 +54,7 @@ std::string generate_uuid_v4() {
   return boost::uuids::to_string(gen());
 }
 
-Session::Response ping_response(const Session::Request& req) {
-  if (req.method() != http::verb::get) {
-    return support::error_response(
-        http::status::method_not_allowed,
-        "method_not_allowed",
-        "Use GET for /ping."
-    );
-  }
-
+Session::Response ping_response() {
   Session::Response res{http::status::ok, 11};
   res.set(http::field::content_type, "text/plain");
   res.keep_alive(false);
@@ -245,7 +237,6 @@ Session::Session(
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
@@ -257,7 +248,6 @@ Session::Session(
       started_at_(started_at),
       card_store_(card_store),
       fts_(fts),
-      nudge_service_(nudge_service),
       secret_store_(secret_store),
       git_ops_(git_ops),
       runner_registry_(runner_registry),
@@ -270,7 +260,6 @@ Session::Session(
     std::chrono::steady_clock::time_point started_at,
     holder::card::CardStore* card_store,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,
@@ -282,7 +271,6 @@ Session::Session(
       started_at_(started_at),
       card_store_(card_store),
       fts_(fts),
-      nudge_service_(nudge_service),
       secret_store_(secret_store),
       git_ops_(git_ops),
       runner_registry_(runner_registry),
@@ -368,57 +356,47 @@ bool Session::ensure_request_loaded() {
 std::optional<Session::PreparedResponse> Session::process_loaded_request() {
   Response res;
   bool streamed = false;
-  if (path_ == "/ping") {
-    res = ping_response(req_);
-  } else if (!routes::handle_static_routes(path_, req_, res)) {
-    // Google's redirect after the user finishes authorizing in their browser hits this
-    // directly -- the browser never carries auth_token_, so this one path+method
-    // combination under /locations/ must be checked (and, if matched, fully handled)
-    // before the bearer-auth gate below, the same way handle_static_routes already is.
-    // Everything else under /locations/, including starting the OAuth flow itself, still
-    // requires the normal token. See GoogleDriveOAuthRoutes.h's own doc comments.
-    if (!routes::handle_google_drive_oauth_callback_route(
-            path_,
-            query_string_,
-            req_,
-            res,
-            db_,
-            secret_store_,
-            git_ops_
-        )) {
-      if (!is_public_generated_route(req_) &&
-          !support::is_authorized_bearer(req_, auth_token_)) {
-        res = support::error_response(
-            http::status::unauthorized,
-            "unauthorized",
-            "Missing or invalid token."
-        );
-      } else if (events_ &&
-                 events_->dispatch(path_, query_string_, req_, res, socket_, db_, streamed)) {
-        if (streamed) return std::nullopt;
-      } else if (!dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
-                                            git_ops_, [] { return generate_uuid_v4(); },
-                                            started_at_, card_store_)) {
-        const auto route_result = routes::dispatch_authenticated_routes(
-            path_,
-            query_string_,
-            req_,
-            res,
-            socket_,
-            db_,
-            fts_,
-            nudge_service_,
-            secret_store_,
-            git_ops_,
-            runner_registry_,
-            [&]() { // LCOV_EXCL_LINE
-              return generate_uuid_v4();
-            },
-            events_ ? events_->streams() : nullptr
-        );
-        if (route_result.streamed) return std::nullopt;
-      }
-    }
+  if (!is_public_generated_route(req_) && !support::is_authorized_bearer(req_, auth_token_)) {
+    res = support::error_response(
+        http::status::unauthorized,
+        "unauthorized",
+        "Missing or invalid token."
+    );
+  } else if (dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
+                                       git_ops_, [] { return generate_uuid_v4(); },
+                                       started_at_, card_store_)) {
+    // Generated, or a 405 for a declared path with another method.
+  } else if (!is_host_served_route(req_)) {
+    // The handlers below serve only the routes the contract declares.
+    res = support::error_response(http::status::not_found, "not_found", "Route not found.");
+  } else if (path_ == "/ping") {
+    res = ping_response();
+  } else if (routes::handle_static_routes(path_, req_, res) ||
+             routes::handle_google_drive_oauth_callback_route(
+                 path_, query_string_, req_, res, db_, secret_store_, git_ops_
+             )) {
+    // Public: the callback is Google redirecting the user's browser, which has no token.
+  } else if (events_ &&
+             events_->dispatch(path_, query_string_, req_, res, socket_, db_, streamed)) {
+    if (streamed) return std::nullopt;
+  } else {
+    const auto route_result = routes::dispatch_authenticated_routes(
+        path_,
+        query_string_,
+        req_,
+        res,
+        socket_,
+        db_,
+        fts_,
+        secret_store_,
+        git_ops_,
+        runner_registry_,
+        [&]() { // LCOV_EXCL_LINE
+          return generate_uuid_v4();
+        },
+        events_ ? events_->streams() : nullptr
+    );
+    if (route_result.streamed) return std::nullopt;
   }
 
   PreparedResponse prepared{

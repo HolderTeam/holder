@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ai/NudgeService.h"
 #include "api/ConcurrencyProfile.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
@@ -55,7 +54,6 @@ class HttpServer {
   std::chrono::steady_clock::time_point started_at_;
   std::unique_ptr<Listener> listener_;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;
-  holder::ai::NudgeService nudge_service_;
   std::unique_ptr<holder::privacy::SecretStore> secret_store_;
   holder::card::CardStore* card_store_ = nullptr;
   holder::index::FtsIndexer* fts_ = nullptr;

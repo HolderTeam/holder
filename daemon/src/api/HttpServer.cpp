@@ -41,7 +41,6 @@ HttpServer::HttpServer(
       db_(db),
       auth_token_(std::move(auth_token)),
       runner_registry_(runner_registry),
-      nudge_service_(db, runner_registry),
       secret_store_(holder::privacy::make_default_secret_store(
           holder::core::Paths::resolve("holder").server_dir()
       )),
@@ -62,8 +61,7 @@ HttpServer::BoundInfo HttpServer::start() {
       auth_token_,
       started_at_,
       card_store_,
-      fts_,
-      &nudge_service_, // LCOV_EXCL_LINE
+      fts_, // LCOV_EXCL_LINE
       secret_store_.get(),
       git_ops_,
       runner_registry_,

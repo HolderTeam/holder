@@ -498,6 +498,38 @@ template <> struct codec<holder::api::AiMessageCaptureRequest> {
     static json encode(const holder::api::AiMessageCaptureRequest& value);
     static holder::api::AiMessageCaptureRequest decode(const json& value);
 };
+template <> struct codec<holder::api::AiNudge> {
+    static json encode(const holder::api::AiNudge& value);
+    static holder::api::AiNudge decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeListData> {
+    static json encode(const holder::api::AiNudgeListData& value);
+    static holder::api::AiNudgeListData decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeListResponse> {
+    static json encode(const holder::api::AiNudgeListResponse& value);
+    static holder::api::AiNudgeListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeDismissData> {
+    static json encode(const holder::api::AiNudgeDismissData& value);
+    static holder::api::AiNudgeDismissData decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeDismissResponse> {
+    static json encode(const holder::api::AiNudgeDismissResponse& value);
+    static holder::api::AiNudgeDismissResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeCandidate> {
+    static json encode(const holder::api::AiNudgeCandidate& value);
+    static holder::api::AiNudgeCandidate decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeEvaluateData> {
+    static json encode(const holder::api::AiNudgeEvaluateData& value);
+    static holder::api::AiNudgeEvaluateData decode(const json& value);
+};
+template <> struct codec<holder::api::AiNudgeEvaluateResponse> {
+    static json encode(const holder::api::AiNudgeEvaluateResponse& value);
+    static holder::api::AiNudgeEvaluateResponse decode(const json& value);
+};
 template <> struct codec<holder::api::AiProviderCatalogModelLimits> {
     static json encode(const holder::api::AiProviderCatalogModelLimits& value);
     static holder::api::AiProviderCatalogModelLimits decode(const json& value);
@@ -989,6 +1021,14 @@ template <> struct codec<holder::api::MilestoneCreateRequest> {
 template <> struct codec<holder::api::MilestoneUpdateRequest> {
     static json encode(const holder::api::MilestoneUpdateRequest& value);
     static holder::api::MilestoneUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::GoogleDriveAuthorizeData> {
+    static json encode(const holder::api::GoogleDriveAuthorizeData& value);
+    static holder::api::GoogleDriveAuthorizeData decode(const json& value);
+};
+template <> struct codec<holder::api::GoogleDriveAuthorizeResponse> {
+    static json encode(const holder::api::GoogleDriveAuthorizeResponse& value);
+    static holder::api::GoogleDriveAuthorizeResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AssetImportRequest> {
     static json encode(const holder::api::AssetImportRequest& value);
@@ -3378,6 +3418,204 @@ inline holder::api::AiMessageCaptureRequest codec<holder::api::AiMessageCaptureR
         value.contains("url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("url"))} : std::nullopt,
         value.contains("context") ? std::optional<std::optional<nlohmann::json>>{std::in_place, codec<std::optional<nlohmann::json>>::decode(value.at("context"))} : std::nullopt,
         value.contains("created_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("created_at"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiNudge>::encode(const holder::api::AiNudge& value) {
+    json result = json::object();
+    result["nudge_id"] = codec<std::string>::encode(value.nudge_id);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::optional<std::string>>::encode(value.card_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["body"] = codec<std::string>::encode(value.body);
+    result["meta_json"] = codec<nlohmann::json>::encode(value.meta_json);
+    result["basis_fingerprint"] = codec<std::optional<std::string>>::encode(value.basis_fingerprint);
+    result["basis_commit"] = codec<std::optional<std::string>>::encode(value.basis_commit);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    if (value.suggestions) {
+        result["suggestions"] = codec<std::optional<std::vector<std::string>>>::encode(value.suggestions);
+    }
+    return result;
+}
+inline holder::api::AiNudge codec<holder::api::AiNudge>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudge");
+    if (!value.contains("nudge_id")) throw std::invalid_argument("missing nudge_id");
+    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("title")) throw std::invalid_argument("missing title");
+    if (!value.contains("body")) throw std::invalid_argument("missing body");
+    if (!value.contains("meta_json")) throw std::invalid_argument("missing meta_json");
+    if (!value.contains("basis_fingerprint")) throw std::invalid_argument("missing basis_fingerprint");
+    if (!value.contains("basis_commit")) throw std::invalid_argument("missing basis_commit");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    return holder::api::AiNudge{
+        codec<std::string>::decode(value.at("nudge_id")),
+        codec<std::string>::decode(value.at("kind")),
+        codec<std::string>::decode(value.at("project_id")),
+        codec<std::optional<std::string>>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("title")),
+        codec<std::string>::decode(value.at("body")),
+        codec<nlohmann::json>::decode(value.at("meta_json")),
+        codec<std::optional<std::string>>::decode(value.at("basis_fingerprint")),
+        codec<std::optional<std::string>>::decode(value.at("basis_commit")),
+        codec<long long>::decode(value.at("created_at")),
+        value.contains("suggestions") ? codec<std::optional<std::vector<std::string>>>::decode(value.at("suggestions")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiNudgeListData>::encode(const holder::api::AiNudgeListData& value) {
+    json result = json::object();
+    result["nudges"] = codec<std::vector<holder::api::AiNudge>>::encode(value.nudges);
+    return result;
+}
+inline holder::api::AiNudgeListData codec<holder::api::AiNudgeListData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeListData");
+    if (!value.contains("nudges")) throw std::invalid_argument("missing nudges");
+    return holder::api::AiNudgeListData{
+        codec<std::vector<holder::api::AiNudge>>::decode(value.at("nudges")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeListResponse>::encode(const holder::api::AiNudgeListResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiNudgeListData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiNudgeListResponse codec<holder::api::AiNudgeListResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeListResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiNudgeListResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiNudgeListData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeDismissData>::encode(const holder::api::AiNudgeDismissData& value) {
+    json result = json::object();
+    result["nudge_id"] = codec<std::string>::encode(value.nudge_id);
+    if (value.dismissed != true) throw std::invalid_argument("invalid dismissed");
+    result["dismissed"] = codec<bool>::encode(value.dismissed);
+    return result;
+}
+inline holder::api::AiNudgeDismissData codec<holder::api::AiNudgeDismissData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeDismissData");
+    if (!value.contains("nudge_id")) throw std::invalid_argument("missing nudge_id");
+    if (!value.contains("dismissed")) throw std::invalid_argument("missing dismissed");
+    if (value.at("dismissed") != true) throw std::invalid_argument("invalid dismissed");
+    return holder::api::AiNudgeDismissData{
+        codec<std::string>::decode(value.at("nudge_id")),
+        codec<bool>::decode(value.at("dismissed")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeDismissResponse>::encode(const holder::api::AiNudgeDismissResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiNudgeDismissData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiNudgeDismissResponse codec<holder::api::AiNudgeDismissResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeDismissResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiNudgeDismissResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiNudgeDismissData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeCandidate>::encode(const holder::api::AiNudgeCandidate& value) {
+    json result = json::object();
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    if (value.card_id) {
+        result["card_id"] = codec<std::optional<std::string>>::encode(value.card_id);
+    }
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    if (value.basis_fingerprint) {
+        result["basis_fingerprint"] = codec<std::optional<std::string>>::encode(value.basis_fingerprint);
+    }
+    if (value.basis_commit) {
+        result["basis_commit"] = codec<std::optional<std::string>>::encode(value.basis_commit);
+    }
+    result["facts"] = codec<nlohmann::json>::encode(value.facts);
+    return result;
+}
+inline holder::api::AiNudgeCandidate codec<holder::api::AiNudgeCandidate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeCandidate");
+    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
+    if (!value.contains("facts")) throw std::invalid_argument("missing facts");
+    if (value.contains("kind") && value.at("kind").is_string()) {
+        const auto length = value.at("kind").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: kind");
+    }
+    if (value.contains("project_id") && value.at("project_id").is_string()) {
+        const auto length = value.at("project_id").get_ref<const std::string&>().size();
+        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
+            throw std::invalid_argument("invalid length: project_id");
+    }
+    return holder::api::AiNudgeCandidate{
+        codec<std::string>::decode(value.at("kind")),
+        codec<std::string>::decode(value.at("project_id")),
+        value.contains("card_id") ? codec<std::optional<std::string>>::decode(value.at("card_id")) : std::nullopt,
+        codec<long long>::decode(value.at("created_at")),
+        value.contains("basis_fingerprint") ? codec<std::optional<std::string>>::decode(value.at("basis_fingerprint")) : std::nullopt,
+        value.contains("basis_commit") ? codec<std::optional<std::string>>::decode(value.at("basis_commit")) : std::nullopt,
+        codec<nlohmann::json>::decode(value.at("facts")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeEvaluateData>::encode(const holder::api::AiNudgeEvaluateData& value) {
+    json result = json::object();
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["accepted"] = codec<bool>::encode(value.accepted);
+    result["should_nudge"] = codec<bool>::encode(value.should_nudge);
+    result["reason"] = codec<std::string>::encode(value.reason);
+    result["nudge"] = codec<std::optional<holder::api::AiNudge>>::encode(value.nudge);
+    return result;
+}
+inline holder::api::AiNudgeEvaluateData codec<holder::api::AiNudgeEvaluateData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeEvaluateData");
+    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
+    if (!value.contains("accepted")) throw std::invalid_argument("missing accepted");
+    if (!value.contains("should_nudge")) throw std::invalid_argument("missing should_nudge");
+    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
+    if (!value.contains("nudge")) throw std::invalid_argument("missing nudge");
+    return holder::api::AiNudgeEvaluateData{
+        codec<std::string>::decode(value.at("kind")),
+        codec<bool>::decode(value.at("accepted")),
+        codec<bool>::decode(value.at("should_nudge")),
+        codec<std::string>::decode(value.at("reason")),
+        codec<std::optional<holder::api::AiNudge>>::decode(value.at("nudge")),
+    };
+}
+
+inline json codec<holder::api::AiNudgeEvaluateResponse>::encode(const holder::api::AiNudgeEvaluateResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiNudgeEvaluateData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiNudgeEvaluateResponse codec<holder::api::AiNudgeEvaluateResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiNudgeEvaluateResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiNudgeEvaluateResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiNudgeEvaluateData>::decode(value.at("data")),
     };
 }
 
@@ -6049,6 +6287,37 @@ inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateReq
         value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
         value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
         value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::GoogleDriveAuthorizeData>::encode(const holder::api::GoogleDriveAuthorizeData& value) {
+    json result = json::object();
+    result["authorization_url"] = codec<std::string>::encode(value.authorization_url);
+    return result;
+}
+inline holder::api::GoogleDriveAuthorizeData codec<holder::api::GoogleDriveAuthorizeData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeData");
+    if (!value.contains("authorization_url")) throw std::invalid_argument("missing authorization_url");
+    return holder::api::GoogleDriveAuthorizeData{
+        codec<std::string>::decode(value.at("authorization_url")),
+    };
+}
+
+inline json codec<holder::api::GoogleDriveAuthorizeResponse>::encode(const holder::api::GoogleDriveAuthorizeResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::GoogleDriveAuthorizeData>::encode(value.data);
+    return result;
+}
+inline holder::api::GoogleDriveAuthorizeResponse codec<holder::api::GoogleDriveAuthorizeResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::GoogleDriveAuthorizeResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::GoogleDriveAuthorizeData>::decode(value.at("data")),
     };
 }
 

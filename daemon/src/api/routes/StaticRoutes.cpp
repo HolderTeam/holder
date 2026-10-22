@@ -2,6 +2,7 @@
 
 #include "OpenApiJson.h"
 #include "OpenApiYaml.h"
+#include "api/support/HttpResponses.h"
 #include "api/support/PathDiscovery.h"
 
 #include <boost/beast/http.hpp>
@@ -10,6 +11,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace holder::api::routes {
@@ -63,32 +65,33 @@ nlohmann::json yaml_to_json(const YAML::Node& node) {
   return nullptr; // LCOV_EXCL_LINE
 }
 
-bool serve_yaml_as_json(
-    const std::filesystem::path& path,
-    std::string not_found_message,
-    http::response<http::string_body>& res
+http::response<http::string_body> not_found(const std::string& message) {
+  return support::error_response(http::status::not_found, "not_found", message);
+}
+
+// Serves a YAML config file as it is, or converted to JSON.
+http::response<http::string_body> config_response(
+    const std::optional<std::filesystem::path>& path,
+    const std::string& name,
+    bool as_json
 ) {
-  const auto content = support::read_file(path);
-  if (!content.has_value()) {
-    res = text_response(
-        http::status::not_found,
-        std::move(not_found_message),
-        "text/plain; charset=utf-8"
+  const auto content = path.has_value() ? support::read_file(path.value()) : std::nullopt;
+  if (!content.has_value()) return not_found(name + " not found.");
+  if (!as_json) {
+    return text_response(
+        http::status::ok,
+        content.value(),
+        support::content_type_for_extension(path->extension().string())
     );
-    return true;
   }
   try {
-    const YAML::Node root = YAML::Load(content.value());
-    const auto json = yaml_to_json(root);
-    res = text_response(http::status::ok, json.dump(2), "application/json");
-    return true;
-  } catch (const std::exception&) {
-    res = text_response(
-        http::status::internal_server_error,
-        "Failed to parse YAML.",
-        "text/plain; charset=utf-8"
+    return text_response(
+        http::status::ok, yaml_to_json(YAML::Load(content.value())).dump(2), "application/json"
     );
-    return true;
+  } catch (const std::exception&) {
+    return support::error_response(
+        http::status::internal_server_error, "error", "Failed to parse " + name + "."
+    );
   }
 }
 
@@ -96,140 +99,47 @@ bool serve_yaml_as_json(
 
 bool handle_static_routes(
     const std::string& path,
-    const http::request<http::string_body>& req,
+    const http::request<http::string_body>&,
     http::response<http::string_body>& res
 ) {
-  if (!(path == "/openapi.yaml" || path == "/openapi.json" || path == "/ai_catalog.yaml" ||
-        path == "/ai_catalog.json" ||
-        path == "/git_providers.yaml" || path == "/git_providers.json" || path == "/docs" ||
-        path.rfind("/docs/", 0) == 0)) {
-    return false;
-  }
-
-  if (req.method() != http::verb::get) {
-    res = text_response(
-        http::status::method_not_allowed,
-        "Method not allowed.",
-        "text/plain; charset=utf-8"
-    );
-    return true;
-  }
-
   if (path == "/openapi.json") {
     res = text_response(http::status::ok, std::string(holder::generated::openapi_json()),
                         "application/json");
     return true;
   }
-
   if (path == "/openapi.yaml") {
     res = text_response(http::status::ok, std::string(holder::generated::openapi_yaml()),
                         "application/yaml");
     return true;
   }
-
-  if (path == "/ai_catalog.yaml") {
-    const auto ai_catalog_path = support::find_ai_catalog_path();
-    if (!ai_catalog_path.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "ai_catalog.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    const auto content = support::read_file(ai_catalog_path.value());
-    if (!content.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "ai_catalog.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    res = text_response(
-        http::status::ok,
-        content.value(),
-        support::content_type_for_extension(ai_catalog_path->extension().string())
+  if (path == "/ai_catalog.yaml" || path == "/ai_catalog.json") {
+    res = config_response(
+        support::find_ai_catalog_path(), "ai_catalog.yaml", path.ends_with(".json")
     );
     return true;
   }
-  if (path == "/ai_catalog.json") {
-    const auto ai_catalog_path = support::find_ai_catalog_path();
-    if (!ai_catalog_path.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "ai_catalog.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    return serve_yaml_as_json(ai_catalog_path.value(), "ai_catalog.yaml not found.", res);
-  }
-
-  if (path == "/git_providers.yaml") {
-    const auto git_providers_path = support::find_git_providers_path();
-    if (!git_providers_path.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "git_providers.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    const auto content = support::read_file(git_providers_path.value());
-    if (!content.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "git_providers.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    res = text_response(
-        http::status::ok,
-        content.value(),
-        support::content_type_for_extension(git_providers_path->extension().string())
+  if (path == "/git_providers.yaml" || path == "/git_providers.json") {
+    res = config_response(
+        support::find_git_providers_path(), "git_providers.yaml", path.ends_with(".json")
     );
     return true;
   }
-  if (path == "/git_providers.json") {
-    const auto git_providers_path = support::find_git_providers_path();
-    if (!git_providers_path.has_value()) {
-      res = text_response(
-          http::status::not_found,
-          "git_providers.yaml not found.",
-          "text/plain; charset=utf-8"
-      );
-      return true;
-    }
-    return serve_yaml_as_json(git_providers_path.value(), "git_providers.yaml not found.", res);
-  }
+  if (path != "/docs" && !path.starts_with("/docs/")) return false;
 
   const auto docs_root = support::find_docs_root();
   if (!docs_root.has_value()) {
-    res = text_response(
-        http::status::not_found,
-        "Docs assets not found.",
-        "text/plain; charset=utf-8"
-    );
+    res = not_found("Docs assets not found.");
     return true;
   }
-
-  std::string rel = "index.html";
-  if (path.rfind("/docs/", 0) == 0) {
-    rel = path.substr(std::string("/docs/").size());
-    if (rel.empty()) rel = "index.html";
-  }
-  std::filesystem::path rel_path(rel);
+  const std::filesystem::path rel_path(path == "/docs" ? "index.html" : path.substr(6));
   if (!support::is_safe_relpath(rel_path)) {
-    res = text_response(http::status::not_found, "Not found.", "text/plain; charset=utf-8");
+    res = not_found("Not found.");
     return true;
   }
-
   const auto full_path = docs_root.value() / rel_path;
   const auto content = support::read_file(full_path);
   if (!content.has_value()) {
-    res = text_response(http::status::not_found, "Not found.", "text/plain; charset=utf-8");
+    res = not_found("Not found.");
     return true;
   }
   res = text_response(

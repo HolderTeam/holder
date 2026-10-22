@@ -1,6 +1,5 @@
 #include "api/routes/ai/AiDispatch.h"
 
-#include "api/routes/ai/AiNudgeRoutes.h"
 #include "api/routes/ai/AiRunRoutes.h"
 #include "api/routes/ai/AiRunnerRoutes.h"
 
@@ -40,7 +39,6 @@ DispatchResult dispatch_ai_routes(
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::llm::RunnerRegistry* runner_registry,
     const std::function<std::string()>& uuid_v4,
@@ -49,12 +47,6 @@ DispatchResult dispatch_ai_routes(
 ) {
   const std::string ai_resource = segment_at(path, 2);
 
-  if (ai_resource == "nudges") {
-    if (handle_ai_nudge_routes(path, req, res, nudge_service)) {
-      return {.handled = true, .streamed = false};
-    }
-    return {.handled = false, .streamed = false};
-  }
   if (ai_resource == "runs") {
     if (const auto route_result = handle_ai_run_routes(
             path,

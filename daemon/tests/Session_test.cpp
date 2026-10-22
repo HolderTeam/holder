@@ -68,7 +68,6 @@ TEST_CASE("Session handles end_of_stream read and returns", "[session]") {
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr,
       nullptr
   );
   REQUIRE_NOTHROW(session.run());
@@ -89,7 +88,6 @@ TEST_CASE("Session handles generic read error and returns", "[session]") {
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -119,7 +117,6 @@ TEST_CASE("Session handles write error and returns", "[session]") {
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr,
       nullptr
   );
   REQUIRE_NOTHROW(session.run());
@@ -142,7 +139,6 @@ TEST_CASE("Session handles normal request/response path", "[session]") {
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr
@@ -189,7 +185,6 @@ TEST_CASE("Session bypasses bearer auth for the Google Drive OAuth callback rout
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr,
       nullptr
   );
   REQUIRE_NOTHROW(session.run());
@@ -228,7 +223,6 @@ TEST_CASE("Session still requires bearer auth for other /locations routes", "[se
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr

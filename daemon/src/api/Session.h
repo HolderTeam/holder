@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ai/NudgeService.h"
 #include "api/support/EventService.h"
 #include "card/CardStore.h"
 #include "git/GitOps.h"
@@ -62,7 +61,6 @@ class Session {
       std::chrono::steady_clock::time_point started_at,
       holder::card::CardStore* card_store,
       holder::index::FtsIndexer* fts,
-      holder::ai::NudgeService* nudge_service,
       holder::privacy::SecretStore* secret_store = nullptr,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
@@ -75,7 +73,6 @@ class Session {
       std::chrono::steady_clock::time_point started_at,
       holder::card::CardStore* card_store,
       holder::index::FtsIndexer* fts,
-      holder::ai::NudgeService* nudge_service,
       holder::privacy::SecretStore* secret_store = nullptr,
       holder::git::GitOps* git_ops = nullptr,
       holder::llm::RunnerRegistry* runner_registry = nullptr,
@@ -107,7 +104,6 @@ class Session {
   std::chrono::steady_clock::time_point started_at_;
   holder::card::CardStore* card_store_ = nullptr;
   holder::index::FtsIndexer* fts_ = nullptr;
-  holder::ai::NudgeService* nudge_service_ = nullptr;
   holder::privacy::SecretStore* secret_store_ = nullptr;
   holder::git::GitOps* git_ops_ = nullptr;
   holder::llm::RunnerRegistry* runner_registry_ = nullptr;

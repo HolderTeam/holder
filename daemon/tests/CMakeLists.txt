@@ -189,7 +189,7 @@ add_executable(holder_daemon_tests
   ../src/api/TrashList.cpp
   ../src/api/TrashWrite.cpp
   ../src/api/Listener.cpp
-  ../src/api/routes/ai/AiNudgeRoutes.cpp
+  ../src/api/AiNudges.cpp
   ../src/api/routes/AuthenticatedRoutes.cpp
   ../src/api/routes/ai/AiDispatch.cpp
   ../src/api/routes/AiResourceRoutes.cpp

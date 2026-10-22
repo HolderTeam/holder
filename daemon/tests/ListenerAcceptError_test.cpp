@@ -23,7 +23,6 @@ TEST_CASE("Listener accept error branch is exercised", "[listener]") {
       "token",
       std::chrono::steady_clock::now(),
       nullptr,
-      nullptr,
       nullptr
   );
   holder::api::Listener::BoundInfo bound{};

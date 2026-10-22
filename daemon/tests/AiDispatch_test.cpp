@@ -4,7 +4,6 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "ai/NudgeService.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "http_test_helpers.h"
 #include "privacy/SecretStore.h"
@@ -41,7 +40,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
   boost::asio::io_context ioc;
   boost::asio::ip::tcp::socket socket(ioc);
   http::response<http::string_body> res;
-  holder::ai::NudgeService nudge_service(db);
   auto secret_store = holder::privacy::make_default_secret_store(dir);
 
   const auto uuid_v4 = []() {
@@ -60,7 +58,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -79,7 +76,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -98,7 +94,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -117,26 +112,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
-        secret_store.get(),
-        nullptr,
-        uuid_v4,
-        param_get
-    );
-    REQUIRE_FALSE(out.handled);
-    REQUIRE_FALSE(out.streamed);
-  }
-
-  SECTION("nudges unmatched method/path combo") {
-    auto req = make_request(http::verb::get, "/ai/nudges/evaluate");
-    const auto out = holder::api::routes::ai::dispatch_ai_routes(
-        "/ai/nudges/evaluate",
-        req,
-        res,
-        socket,
-        db,
-        nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -155,7 +130,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -174,7 +148,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -193,7 +166,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -212,7 +184,6 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
         socket,
         db,
         nullptr,
-        &nudge_service,
         secret_store.get(),
         nullptr,
         uuid_v4,
@@ -221,56 +192,4 @@ TEST_CASE("AiDispatch returns unhandled for malformed and unknown routes", "[ai]
     REQUIRE_FALSE(out.handled);
     REQUIRE_FALSE(out.streamed);
   }
-}
-
-TEST_CASE("AiDispatch handles nudge evaluation routes", "[ai][dispatch]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  holder::test::create_project(db, "proj-1");
-  create_card_fixture(db, "proj-1", "card-1");
-
-  boost::asio::io_context ioc;
-  boost::asio::ip::tcp::socket socket(ioc);
-  http::response<http::string_body> res;
-  holder::ai::NudgeService nudge_service(db);
-  auto secret_store = holder::privacy::make_default_secret_store(dir);
-
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  auto req = make_request(http::verb::post, "/ai/nudges/evaluate");
-  req.body() = R"({
-    "kind":"card.title_only",
-    "project_id":"proj-1",
-    "card_id":"card-1",
-    "created_at":123,
-    "facts":{
-      "title":"Frog",
-      "body_empty":true,
-      "doc_chars":12,
-      "body_chars":0
-    }
-  })";
-  req.prepare_payload();
-
-  const auto out = holder::api::routes::ai::dispatch_ai_routes(
-      "/ai/nudges/evaluate",
-      req,
-      res,
-      socket,
-      db,
-      nullptr,
-      &nudge_service,
-      secret_store.get(),
-      nullptr,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE(out.handled);
-  REQUIRE_FALSE(out.streamed);
-  REQUIRE(res.result() == http::status::ok);
 }

@@ -37,13 +37,6 @@ http::request<http::string_body> make_request(http::verb method, const std::stri
 
 } // namespace
 
-TEST_CASE("StaticRoutes rejects non-GET methods", "[static-routes]") {
-  auto req = make_request(http::verb::post, "/docs");
-  http::response<http::string_body> res;
-  REQUIRE(holder::api::routes::handle_static_routes("/docs", req, res));
-  REQUIRE(res.result() == http::status::method_not_allowed);
-}
-
 TEST_CASE("StaticRoutes serves the compiled-in contract, never a file on disk", "[static-routes]") {
   const auto dir = holder::test::make_temp_dir();
   CwdGuard cwd(dir);
@@ -110,6 +103,9 @@ TEST_CASE("StaticRoutes ai_catalog json handles not-found and parse errors", "[s
   http::response<http::string_body> missing_res;
   REQUIRE(holder::api::routes::handle_static_routes("/ai_catalog.json", req, missing_res));
   REQUIRE(missing_res.result() == http::status::not_found);
+  // The declared ErrorResponse, not plain text.
+  REQUIRE(nlohmann::json::parse(missing_res.body())["error"] ==
+          nlohmann::json{{"code", "not_found"}, {"message", "ai_catalog.yaml not found."}});
 
 #ifndef _WIN32
   const auto ai_unreadable = dir / "ai-unreadable.yaml";
@@ -330,6 +326,7 @@ TEST_CASE(
   http::response<http::string_body> no_root_res;
   REQUIRE(holder::api::routes::handle_static_routes("/docs", docs_req, no_root_res));
   REQUIRE(no_root_res.result() == http::status::not_found);
+  REQUIRE(nlohmann::json::parse(no_root_res.body())["error"]["code"] == "not_found");
 
   const auto docs_root = dir / "assets" / "swagger-ui";
   std::filesystem::create_directories(docs_root);

@@ -2,7 +2,6 @@
 
 #include "api/support/SseStream.h"
 
-#include "ai/NudgeService.h"
 #include "card/CardStore.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
@@ -30,7 +29,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
     holder::llm::RunnerRegistry* runner_registry,

@@ -1,6 +1,5 @@
 #include "http_test_helpers.h"
 
-#include "ai/NudgeService.h"
 #include "api/Listener.h"
 #include "card/CardStore.h"
 #include "index/FtsIndexer.h"
@@ -144,7 +143,6 @@ TEST_CASE("Slow background route does not block foreground route", "[listener]")
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr,
       &secrets
   );
   holder::api::Listener::BoundInfo bound;
@@ -219,7 +217,6 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       &secrets
@@ -298,7 +295,6 @@ TEST_CASE("Listener worker-owned DB handles support concurrent mixed request loa
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      nullptr,
       nullptr,
       nullptr,
       &runner_registry
@@ -429,9 +425,7 @@ TEST_CASE("Listener stop cancels in-flight ingress read and returns promptly", "
       token,
       std::chrono::steady_clock::now(),
       nullptr,
-      nullptr,
-      nullptr
-  );
+      nullptr);
   holder::api::Listener::BoundInfo bound;
   try {
     bound = listener.start();
@@ -492,8 +486,6 @@ TEST_CASE("Listener stop closes queued ingress sockets and returns promptly", "[
       token,
 
       std::chrono::steady_clock::now(),
-
-      nullptr,
 
       nullptr,
 
@@ -566,7 +558,6 @@ TEST_CASE("Listener test hook can enqueue a pending socket", "[listener]") {
       nullptr,
       nullptr,
       nullptr,
-      nullptr,
       concurrency
   );
 
@@ -598,7 +589,6 @@ TEST_CASE("Listener drops accepted sockets when ingress queue is full", "[listen
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr,
@@ -668,7 +658,6 @@ TEST_CASE("Listener rejects background requests when lane queue is full", "[list
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr,
@@ -756,7 +745,6 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
         nullptr,
         nullptr,
         nullptr,
-        nullptr,
         concurrency
     );
     holder::api::Listener::BoundInfo bound;
@@ -812,7 +800,6 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
         db,
         token,
         std::chrono::steady_clock::now(),
-        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -894,8 +881,6 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
       token,
 
       std::chrono::steady_clock::now(),
-
-      nullptr,
 
       nullptr,
 
@@ -1013,8 +998,6 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
 
       nullptr,
 
-      nullptr,
-
       &secrets,
 
       nullptr,
@@ -1073,7 +1056,6 @@ TEST_CASE("Listener serves card nudge and ai status routes without regression", 
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore card_store(db, &fts);
   holder::llm::RunnerRegistry runner_registry(&db, nullptr);
-  holder::ai::NudgeService nudge_service(db, &runner_registry);
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
@@ -1083,7 +1065,6 @@ TEST_CASE("Listener serves card nudge and ai status routes without regression", 
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      &nudge_service,
       nullptr,
       nullptr,
       &runner_registry
@@ -1177,7 +1158,6 @@ TEST_CASE(
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      nullptr,
       &secrets,
       nullptr,
       &runner_registry
@@ -1311,7 +1291,6 @@ TEST_CASE(
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr,
       &secrets
   );
   holder::api::Listener::BoundInfo bound;
@@ -1438,7 +1417,6 @@ TEST_CASE(
       db,
       token,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       &secrets

@@ -46,11 +46,27 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   REQUIRE(ping.content_type == "text/plain");
   REQUIRE(ping.body == "pong");
 
+  // A RIG_PUBLIC operation needs no token, but only for its declared method.
   const auto ping_post =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::post, "/ping");
-  REQUIRE(ping_post.status == boost::beast::http::status::method_not_allowed);
+  REQUIRE(ping_post.status == boost::beast::http::status::unauthorized);
+  const auto ping_post_authorized =
+      http_request_raw(bound.bind, bound.port, token, boost::beast::http::verb::post, "/ping");
+  REQUIRE(ping_post_authorized.status == boost::beast::http::status::method_not_allowed);
 
-  // A RIG_PUBLIC operation needs no token, but only for its declared method.
+  // The daemon serves only the routes the contract declares, including its own handlers'.
+  const auto docs_post =
+      http_request_raw(bound.bind, bound.port, token, boost::beast::http::verb::post, "/docs");
+  REQUIRE(docs_post.status == boost::beast::http::status::method_not_allowed);
+  for (const auto* undeclared : {"/nowhere", "/docs/a/b", "/locations/l-1/unknown",
+                                 "/resources/r-1/assets/a-1/content/extra"}) {
+    const auto response = http_request_raw(
+        bound.bind, bound.port, token, boost::beast::http::verb::get, undeclared
+    );
+    REQUIRE(response.status == boost::beast::http::status::not_found);
+    REQUIRE(nlohmann::json::parse(response.body)["error"]["code"] == "not_found");
+  }
+
   const auto alive =
       http_request_raw(bound.bind, bound.port, "", boost::beast::http::verb::get, "/alive");
   REQUIRE(alive.status == boost::beast::http::status::ok);

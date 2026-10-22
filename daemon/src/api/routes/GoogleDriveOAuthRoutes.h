@@ -26,12 +26,11 @@ bool handle_google_drive_oauth_authorize_route(
 );
 
 // GET /locations/{id}/oauth/google-drive/callback -- Google's redirect hits this
-// directly from the user's browser, which never carries the daemon's own bearer token.
-// Must be dispatched from Session::process_loaded_request *before* the bearer-auth
-// check, the same way handle_static_routes already is (see that call site) -- this is
-// the one path+method combination under /locations/ that bypasses auth; everything else
-// there still requires it. Returns false immediately (does nothing) for any path/method
-// that doesn't match, so it's safe to probe on every request.
+// directly from the user's browser, which never carries the daemon's own bearer token,
+// so its declaration (declared/GoogleDriveOAuth.h) is RIG_PUBLIC -- the one path+method
+// combination under /locations/ that needs no token; everything else there still
+// requires it. Returns false immediately (does nothing) for any path/method that
+// doesn't match.
 //
 // Validates state against what the authorize call generated, exchanges the code for
 // tokens, finds-or-creates the "Holder/Resources" Drive folder, writes its id into the

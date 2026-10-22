@@ -71,7 +71,8 @@ regenerate with anything else installed. Generation runs in a
 temporary directory and fails on warnings before replacing the package. The
 provenance file records the contract's SHA-256, the generator's repository and
 commit, and the Ruff version. The config treats YAML download
-responses as plain text so their bodies are retained. CI checks the owning
+responses as plain text so their bodies are retained, and a response of any
+media type (`*/*`, the documentation's files) as binary. CI checks the owning
 contract against the generated client, runs tests and builds on Python 3.11
 and 3.14. Installed packages contain the generated code and do not need the
 repository contract.

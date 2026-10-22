@@ -21,6 +21,10 @@ using GeneratedResponse = boost::beast::http::response<boost::beast::http::strin
 // Whether the generated operation for this request is declared RIG_PUBLIC.
 bool is_public_generated_route(const GeneratedRequest& req);
 
+// Whether this request names an operation declared RIG_HOST_RESPONSE, whose response the
+// daemon's own handlers write.
+bool is_host_served_route(const GeneratedRequest& req);
+
 // Returns false only when no generated operation matches the request.
 bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,
                                holder::platform::Db& db,

@@ -2,7 +2,6 @@
 
 #include "api/support/SseStream.h"
 
-#include "ai/NudgeService.h"
 #include "git/GitOps.h"
 #include "index/FtsIndexer.h"
 #include "llm/RunnerRegistry.h"
@@ -29,7 +28,6 @@ DispatchResult dispatch_ai_routes(
     boost::asio::ip::tcp::socket& socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
-    holder::ai::NudgeService* nudge_service,
     holder::privacy::SecretStore* secret_store,
     holder::llm::RunnerRegistry* runner_registry,
     const std::function<std::string()>& uuid_v4,
