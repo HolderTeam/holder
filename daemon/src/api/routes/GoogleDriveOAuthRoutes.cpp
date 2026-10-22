@@ -31,14 +31,11 @@ namespace http = boost::beast::http;
 // exactly what Google needs to redirect back to. Falls back to a literal loopback
 // address only if a request somehow arrives with no Host header at all.
 std::string oauth_redirect_uri(
-    const http::request<http::string_body>& req,
+    const std::optional<std::string>& host,
     const std::string& location_id
 ) {
-  std::string host = "127.0.0.1";
-  if (req.count(http::field::host) > 0) {
-    host = std::string(req[http::field::host]);
-  }
-  return "http://" + host + "/locations/" + location_id + "/oauth/google-drive/callback";
+  return "http://" + (host.has_value() && !host->empty() ? *host : std::string("127.0.0.1")) +
+         "/locations/" + location_id + "/oauth/google-drive/callback";
 }
 
 std::string percent_decode(const std::string& value) {
@@ -112,53 +109,42 @@ http::response<http::string_body> html_response(
 
 } // namespace
 
-bool handle_google_drive_oauth_authorize_route(
-    const std::string& location_id,
-    const http::request<http::string_body>& req,
-    http::response<http::string_body>& res,
+std::string start_google_drive_authorization(
     holder::platform::Db& db,
+    const std::string& location_id,
+    const std::optional<std::string>& host,
     std::optional<long long> now
 ) {
-  try {
-    const auto location = holder::resource::LocationRepo(db).get(location_id);
-    if (!location.has_value()) {
-      throw std::runtime_error("location not found");
-    }
-    if (location->provider != "google-drive") {
-      throw std::invalid_argument("location is not a google-drive location");
-    }
-
-    const auto client = holder::storage::google::google_oauth_client_from_env();
-    const auto pkce = holder::storage::google::generate_pkce_challenge();
-    const auto state = holder::storage::google::generate_state();
-    const auto redirect_uri = oauth_redirect_uri(req, location_id);
-
-    {
-      std::lock_guard<std::mutex> lock(pending_oauth_mutex);
-      pending_oauth_attempts[location_id] = PendingOAuthAttempt{
-          pkce.code_verifier,
-          state,
-          location->project_id,
-          now.value_or(support::now_epoch_seconds())
-      };
-    }
-
-    const auto authorization_url = holder::storage::google::build_authorization_url(
-        client,
-        redirect_uri,
-        kDriveFileScope,
-        pkce.code_challenge,
-        state
-    );
-
-    res = support::json_response(
-        http::status::ok,
-        {{"ok", true}, {"data", {{"authorization_url", authorization_url}}}}
-    );
-  } catch (const std::exception& ex) {
-    res = support::error_response(http::status::bad_request, "bad_request", ex.what());
+  const auto location = holder::resource::LocationRepo(db).get(location_id);
+  if (!location.has_value()) {
+    throw std::runtime_error("location not found");
   }
-  return true;
+  if (location->provider != "google-drive") {
+    throw std::invalid_argument("location is not a google-drive location");
+  }
+
+  const auto client = holder::storage::google::google_oauth_client_from_env();
+  const auto pkce = holder::storage::google::generate_pkce_challenge();
+  const auto state = holder::storage::google::generate_state();
+  const auto redirect_uri = oauth_redirect_uri(host, location_id);
+
+  {
+    std::lock_guard<std::mutex> lock(pending_oauth_mutex);
+    pending_oauth_attempts[location_id] = PendingOAuthAttempt{
+        pkce.code_verifier,
+        state,
+        location->project_id,
+        now.value_or(support::now_epoch_seconds())
+    };
+  }
+
+  return holder::storage::google::build_authorization_url(
+      client,
+      redirect_uri,
+      kDriveFileScope,
+      pkce.code_challenge,
+      state
+  );
 }
 
 bool handle_google_drive_oauth_callback_route(
@@ -240,7 +226,12 @@ bool handle_google_drive_oauth_callback_route(
       throw std::runtime_error("secret store unavailable");
     }
     const auto client = holder::storage::google::google_oauth_client_from_env();
-    const auto redirect_uri = oauth_redirect_uri(req, *location_id);
+    const auto redirect_uri = oauth_redirect_uri(
+        req.count(http::field::host) > 0
+            ? std::optional<std::string>(std::string(req[http::field::host]))
+            : std::nullopt,
+        *location_id
+    );
     const auto token = holder::storage::google::exchange_authorization_code(
         client,
         redirect_uri,

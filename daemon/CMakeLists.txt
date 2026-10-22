@@ -433,6 +433,7 @@ add_executable(holderd
   src/api/Listener.cpp
   src/api/AiNudges.cpp
   src/api/EventCursor.cpp
+  src/api/GoogleDriveOAuth.cpp
   src/api/routes/AuthenticatedRoutes.cpp
   src/api/routes/ai/AiDispatch.cpp
   src/api/routes/AiResourceRoutes.cpp

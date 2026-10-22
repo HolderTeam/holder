@@ -1,5 +1,4 @@
 #include "api/routes/AiResourceRoutes.h"
-#include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/StorageErrors.h"
 #include "api/support/StorageProviders.h"
@@ -24,7 +23,6 @@
 #include <fstream>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace holder::api::routes {
@@ -187,15 +185,6 @@ bool handle_ai_resource_routes(
   }
 
   // The other location and resource routes are generated.
-  static constexpr std::string_view authorize_suffix = "/oauth/google-drive/authorize";
-  if (path.starts_with("/locations/") && path.ends_with(authorize_suffix) &&
-      req.method() == http::verb::post) {
-    const auto location_id = path.substr(
-        std::string("/locations/").size(),
-        path.size() - std::string("/locations/").size() - authorize_suffix.size()
-    );
-    return handle_google_drive_oauth_authorize_route(location_id, req, res, db);
-  }
   return false;
 }
 

@@ -666,6 +666,14 @@ template <> struct codec<holder::api::CardReferenceResolveResponse> {
     static json encode(const holder::api::CardReferenceResolveResponse& value);
     static holder::api::CardReferenceResolveResponse decode(const json& value);
 };
+template <> struct codec<holder::api::GoogleDriveAuthorizeData> {
+    static json encode(const holder::api::GoogleDriveAuthorizeData& value);
+    static holder::api::GoogleDriveAuthorizeData decode(const json& value);
+};
+template <> struct codec<holder::api::GoogleDriveAuthorizeResponse> {
+    static json encode(const holder::api::GoogleDriveAuthorizeResponse& value);
+    static holder::api::GoogleDriveAuthorizeResponse decode(const json& value);
+};
 template <> struct codec<holder::api::HealthDataPrivacy> {
     static json encode(const holder::api::HealthDataPrivacy& value);
     static holder::api::HealthDataPrivacy decode(const json& value);
@@ -1021,14 +1029,6 @@ template <> struct codec<holder::api::MilestoneCreateRequest> {
 template <> struct codec<holder::api::MilestoneUpdateRequest> {
     static json encode(const holder::api::MilestoneUpdateRequest& value);
     static holder::api::MilestoneUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::GoogleDriveAuthorizeData> {
-    static json encode(const holder::api::GoogleDriveAuthorizeData& value);
-    static holder::api::GoogleDriveAuthorizeData decode(const json& value);
-};
-template <> struct codec<holder::api::GoogleDriveAuthorizeResponse> {
-    static json encode(const holder::api::GoogleDriveAuthorizeResponse& value);
-    static holder::api::GoogleDriveAuthorizeResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AssetImportRequest> {
     static json encode(const holder::api::AssetImportRequest& value);
@@ -4386,6 +4386,37 @@ inline holder::api::CardReferenceResolveResponse codec<holder::api::CardReferenc
     };
 }
 
+inline json codec<holder::api::GoogleDriveAuthorizeData>::encode(const holder::api::GoogleDriveAuthorizeData& value) {
+    json result = json::object();
+    result["authorization_url"] = codec<std::string>::encode(value.authorization_url);
+    return result;
+}
+inline holder::api::GoogleDriveAuthorizeData codec<holder::api::GoogleDriveAuthorizeData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeData");
+    if (!value.contains("authorization_url")) throw std::invalid_argument("missing authorization_url");
+    return holder::api::GoogleDriveAuthorizeData{
+        codec<std::string>::decode(value.at("authorization_url")),
+    };
+}
+
+inline json codec<holder::api::GoogleDriveAuthorizeResponse>::encode(const holder::api::GoogleDriveAuthorizeResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::GoogleDriveAuthorizeData>::encode(value.data);
+    return result;
+}
+inline holder::api::GoogleDriveAuthorizeResponse codec<holder::api::GoogleDriveAuthorizeResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::GoogleDriveAuthorizeResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::GoogleDriveAuthorizeData>::decode(value.at("data")),
+    };
+}
+
 inline json codec<holder::api::HealthDataPrivacy>::encode(const holder::api::HealthDataPrivacy& value) {
     json result = json::object();
     result["backend"] = codec<std::string>::encode(value.backend);
@@ -6287,37 +6318,6 @@ inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateReq
         value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
         value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
         value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::GoogleDriveAuthorizeData>::encode(const holder::api::GoogleDriveAuthorizeData& value) {
-    json result = json::object();
-    result["authorization_url"] = codec<std::string>::encode(value.authorization_url);
-    return result;
-}
-inline holder::api::GoogleDriveAuthorizeData codec<holder::api::GoogleDriveAuthorizeData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeData");
-    if (!value.contains("authorization_url")) throw std::invalid_argument("missing authorization_url");
-    return holder::api::GoogleDriveAuthorizeData{
-        codec<std::string>::decode(value.at("authorization_url")),
-    };
-}
-
-inline json codec<holder::api::GoogleDriveAuthorizeResponse>::encode(const holder::api::GoogleDriveAuthorizeResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::GoogleDriveAuthorizeData>::encode(value.data);
-    return result;
-}
-inline holder::api::GoogleDriveAuthorizeResponse codec<holder::api::GoogleDriveAuthorizeResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected GoogleDriveAuthorizeResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::GoogleDriveAuthorizeResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::GoogleDriveAuthorizeData>::decode(value.at("data")),
     };
 }
 

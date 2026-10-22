@@ -90,6 +90,12 @@ TEST_CASE(
   REQUIRE(url.find("state=") != std::string::npos);
   // Never leaked into the URL the user's browser (and its history) sees.
   REQUIRE(url.find("test-client-secret") == std::string::npos);
+  // Google sends the browser back to the address in the request's Host header.
+  REQUIRE(
+      extract_query_value(url, "redirect_uri") == "http%3A%2F%2F" + running.bound.bind +
+                                                      "%2Flocations%2F" + location_id +
+                                                      "%2Foauth%2Fgoogle-drive%2Fcallback"
+  );
 }
 
 TEST_CASE(
@@ -306,10 +312,7 @@ TEST_CASE(
   });
   http::request<http::string_body> request{http::verb::post, "/", 11};
   http::response<http::string_body> response;
-  REQUIRE(routes::handle_google_drive_oauth_authorize_route("location", request, response, db));
-  REQUIRE(response.result() == http::status::ok);
-  const auto authorization =
-      nlohmann::json::parse(response.body())["data"]["authorization_url"].get<std::string>();
+  const auto authorization = routes::start_google_drive_authorization(db, "location", std::nullopt);
   CHECK(extract_query_value(authorization, "redirect_uri").find("127.0.0.1") != std::string::npos);
   const auto state = extract_query_value(authorization, "state");
   if (removed_location) holder::resource::LocationRepo(db).remove("location");
@@ -344,9 +347,8 @@ TEST_CASE(
     CHECK_FALSE(binding.has_value());
   if (success) {
     request.method(http::verb::post);
-    REQUIRE(routes::handle_google_drive_oauth_authorize_route("location", request, response, db));
     const auto authorization2 =
-        nlohmann::json::parse(response.body())["data"]["authorization_url"].get<std::string>();
+        routes::start_google_drive_authorization(db, "location", std::nullopt);
     const auto state2 = extract_query_value(authorization2, "state");
     request.method(http::verb::get);
     REQUIRE(routes::handle_google_drive_oauth_callback_route(
@@ -414,8 +416,7 @@ TEST_CASE(
       nullptr,
       nullptr
   ));
-  CHECK(routes::handle_google_drive_oauth_authorize_route("missing", request, response, db));
-  CHECK(response.result() == http::status::bad_request);
+  CHECK_THROWS(routes::start_google_drive_authorization(db, "missing", std::nullopt));
 }
 
 TEST_CASE("Google Drive OAuth callback expires stale pending state", "[google_drive][routes]") {
@@ -430,9 +431,8 @@ TEST_CASE("Google Drive OAuth callback expires stale pending state", "[google_dr
   EnvGuard client_secret("HOLDER_GOOGLE_OAUTH_CLIENT_SECRET", "secret");
   http::request<http::string_body> request{http::verb::post, "/", 11};
   http::response<http::string_body> response;
-  REQUIRE(routes::handle_google_drive_oauth_authorize_route("location", request, response, db, 1));
   const auto authorization =
-      nlohmann::json::parse(response.body())["data"]["authorization_url"].get<std::string>();
+      routes::start_google_drive_authorization(db, "location", std::nullopt, 1);
   const auto state = extract_query_value(authorization, "state");
   request.method(http::verb::get);
   REQUIRE(routes::handle_google_drive_oauth_callback_route(

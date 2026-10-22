@@ -11,17 +11,14 @@
 
 namespace holder::api::routes {
 
-// POST /locations/{id}/oauth/google-drive/authorize -- authenticated, dispatched from
-// handle_ai_resource_routes's normal /locations/{id}/<action> routing alongside
-// "binding"/"test", since the desktop app calling this already carries the daemon's own
-// bearer token. Generates a fresh PKCE challenge and state, stashes them keyed by
-// location_id, and returns the Google authorization URL for the caller to open in the
-// system browser.
-bool handle_google_drive_oauth_authorize_route(
-    const std::string& location_id,
-    const boost::beast::http::request<boost::beast::http::string_body>& req,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
+// Starts connecting a Google Drive location for POST /locations/{id}/oauth/google-drive/
+// authorize: generates a fresh PKCE challenge and state, stashes them keyed by location_id,
+// and returns the Google authorization URL for the caller to open in the system browser.
+// Google redirects back to host, the address the caller reached this daemon on.
+std::string start_google_drive_authorization(
     holder::platform::Db& db,
+    const std::string& location_id,
+    const std::optional<std::string>& host,
     std::optional<long long> now = std::nullopt
 );
 

@@ -27,6 +27,8 @@ struct Context {
   std::chrono::steady_clock::time_point started_at;
   holder::card::CardStore* card_store;
   holder::api::support::EventService* events;
+  // The request's Host header: where the caller reached this daemon.
+  std::optional<std::string> host;
 };
 
 std::string error_code(int status) {
@@ -81,11 +83,18 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
   const auto target = req.target();
   Context context{
       db,         registry,   fts,   secret_store, git_ops, std::move(uuid_v4),
-      started_at, card_store, events};
+      started_at, card_store, events,
+      req.count(http::field::host) > 0
+          ? std::optional<std::string>(std::string(req[http::field::host]))
+          : std::nullopt};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),
-        req.body(), context);
+        req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {
+          const auto field = req.find(boost::beast::string_view(name.data(), name.size()));
+          if (field == req.end()) return std::nullopt;
+          return std::string(field->value());
+        });
     if (!generated) return false;
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
     if (!generated->allow.empty()) res.set(http::field::allow, generated->allow);
