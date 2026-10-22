@@ -954,6 +954,10 @@ template <> struct codec<holder::api::TrashListResponse> {
     static json encode(const holder::api::TrashListResponse& value);
     static holder::api::TrashListResponse decode(const json& value);
 };
+template <> struct codec<holder::api::AiStreamResyncData> {
+    static json encode(const holder::api::AiStreamResyncData& value);
+    static holder::api::AiStreamResyncData decode(const json& value);
+};
 template <> struct codec<holder::api::MilestoneWithDatesResponse> {
     static json encode(const holder::api::MilestoneWithDatesResponse& value);
     static holder::api::MilestoneWithDatesResponse decode(const json& value);
@@ -5849,6 +5853,21 @@ inline holder::api::TrashListResponse codec<holder::api::TrashListResponse>::dec
     return holder::api::TrashListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::TrashItem>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiStreamResyncData>::encode(const holder::api::AiStreamResyncData& value) {
+    json result = json::object();
+    if (value.reason != "history_unavailable") throw std::invalid_argument("invalid reason");
+    result["reason"] = codec<std::string>::encode(value.reason);
+    return result;
+}
+inline holder::api::AiStreamResyncData codec<holder::api::AiStreamResyncData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiStreamResyncData");
+    if (!value.contains("reason")) throw std::invalid_argument("missing reason");
+    if (value.at("reason") != "history_unavailable") throw std::invalid_argument("invalid reason");
+    return holder::api::AiStreamResyncData{
+        codec<std::string>::decode(value.at("reason")),
     };
 }
 

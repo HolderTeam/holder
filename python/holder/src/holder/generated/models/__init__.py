@@ -64,6 +64,8 @@ from .ai_runner_runtime import AiRunnerRuntime
 from .ai_runner_update_request import AiRunnerUpdateRequest
 from .ai_status_data import AiStatusData
 from .ai_status_response import AiStatusResponse
+from .ai_stream_resync_data import AiStreamResyncData
+from .ai_stream_resync_data_reason import AiStreamResyncDataReason
 from .ai_thread import AiThread
 from .ai_thread_create_request import AiThreadCreateRequest
 from .ai_thread_create_response import AiThreadCreateResponse
@@ -414,6 +416,8 @@ __all__ = (
     "AiRunnerUpdateRequest",
     "AiStatusData",
     "AiStatusResponse",
+    "AiStreamResyncData",
+    "AiStreamResyncDataReason",
     "AiThread",
     "AiThreadCreateRequest",
     "AiThreadCreateResponse",

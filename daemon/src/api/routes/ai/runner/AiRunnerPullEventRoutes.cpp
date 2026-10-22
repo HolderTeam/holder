@@ -94,30 +94,32 @@ RunnerRouteDispatchResult handle_ai_runner_pull_event_routes(
         support::error_response(http::status::bad_request, "bad_request", "Invalid Last-Event-ID.");
     return out;
   }
-  // Pull progress is a replaceable status snapshot, not a token/delta history.
-  // Each connection has its own incarnation; reconnect with an old cursor asks
-  // the caller to refresh the authoritative job-status resource.
+  const auto job = runner->get_pull(job_id);
+  if (!job) {
+    res = support::error_response(http::status::not_found, "not_found", "Pull job not found.");
+    return out;
+  }
+  // A reconnect to a finished pull has nothing more to receive.
+  if (!last_event_id.empty() && (job->status == "completed" || job->status == "failed")) {
+    res = support::stream_finished_response();
+    return out;
+  }
+  // Pull progress is a replaceable status snapshot, not a token/delta history, so each
+  // connection has its own journal and starts with the current snapshot, reconnects included.
   auto journal = std::make_shared<support::EventJournal>();
   auto source =
-      [runner, runner_id, job_id, journal, cursor = last_event_id, previous = std::string()](
+      [runner, runner_id, job_id, journal, cursor = std::string(), previous = std::string()](
       ) mutable {
-        const auto job = runner->get_pull(job_id);
-        if (!job) {
-          if (previous.empty()) {
-            journal->append(
-                "failed",
-                {{"runner_id", runner_id}, {"job_id", job_id}, {"error", "Pull job not found."}},
-                true
-            );
-            previous = "missing";
-          }
-        } else {
-          const auto data = pull_job_to_json(*job, runner_id);
+        if (const auto current_job = runner->get_pull(job_id)) {
+          const auto data = pull_job_to_json(*current_job, runner_id);
           const auto current = data.dump();
           if (current != previous) {
             journal->append("progress", data);
-            if (job->status == "completed" || job->status == "failed")
-              journal->append(job->status == "completed" ? "completed" : "failed", data, true);
+            if (current_job->status == "completed" || current_job->status == "failed") {
+              journal->append(
+                  current_job->status == "completed" ? "completed" : "failed", data, true
+              );
+            }
             previous = current;
           }
         }

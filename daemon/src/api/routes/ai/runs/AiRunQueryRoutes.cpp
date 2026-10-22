@@ -54,6 +54,12 @@ RouteDispatchResult handle_ai_runs_events_route(
   // does not. Return its terminal state on a fresh connection; a stale cursor
   // explicitly requests a refresh rather than silently replaying a new history.
   const auto stored = support::read_run_events(run_id, last_event_id);
+  // A reconnect already past the last event of a finished stream has nothing more to receive.
+  if (!last_event_id.empty() && stored && stored->finished && stored->events.empty() &&
+      !stored->resync_required) {
+    res = support::stream_finished_response();
+    return out;
+  }
   if (!stored && (run->status == "completed" || run->status == "failed")) {
     nlohmann::json terminal = {{"run_id", run_id}};
     if (run->chosen_model) {

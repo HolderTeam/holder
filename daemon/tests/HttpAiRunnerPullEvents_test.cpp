@@ -1,4 +1,5 @@
 #include "api/routes/ai/runner/AiRunnerPullEventRoutes.h"
+#include "api/support/EventJournal.h"
 #include "http_test_helpers.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/LocalRunnerClient.h"
@@ -18,11 +19,13 @@ using tcp = boost::asio::ip::tcp;
 struct StreamResult {
   holder::api::routes::RunnerRouteDispatchResult route_result;
   std::string raw_response;
+  http::status status;
 };
 
 StreamResult invoke_pull_event_route_and_capture(
     const std::string& path,
-    holder::llm::RunnerRegistry* runner_registry
+    holder::llm::RunnerRegistry* runner_registry,
+    const std::string& last_event_id = {}
 ) {
   boost::asio::io_context ioc;
   tcp::acceptor acceptor(ioc, {boost::asio::ip::make_address("127.0.0.1"), 0});
@@ -36,6 +39,7 @@ StreamResult invoke_pull_event_route_and_capture(
 
   http::request<http::string_body> req{http::verb::get, path, 11};
   req.set(http::field::host, "127.0.0.1");
+  if (!last_event_id.empty()) req.set("Last-Event-ID", last_event_id);
   http::response<http::string_body> res;
   holder::api::routes::RunnerRouteDispatchResult route_result{};
 
@@ -72,7 +76,7 @@ StreamResult invoke_pull_event_route_and_capture(
   }
 
   route_thread.join();
-  return {route_result, raw};
+  return {route_result, raw, res.result()};
 }
 
 } // namespace
@@ -146,7 +150,7 @@ TEST_CASE("Ai runner pull events route rejects empty job id path at guard", "[ht
   REQUIRE_FALSE(out.streamed);
 }
 
-TEST_CASE("Ai runner pull events route streams failed event for missing job", "[http]") {
+TEST_CASE("Ai runner pull events route reports a missing job as not found", "[http]") {
   holder::llm::LocalModelRunner runner;
   runner.set_fake_mode(true);
   holder::llm::LocalRunnerClient local_runner_client(&runner);
@@ -155,11 +159,25 @@ TEST_CASE("Ai runner pull events route streams failed event for missing job", "[
   const auto stream =
       invoke_pull_event_route_and_capture("/ai/runner/pull/missing-job/events", &runner_registry);
   REQUIRE(stream.route_result.handled);
-  REQUIRE(stream.route_result.streamed);
-  REQUIRE(stream.raw_response.find("text/event-stream") != std::string::npos);
-  REQUIRE(stream.raw_response.find("event: failed") != std::string::npos);
-  REQUIRE(stream.raw_response.find("\"runner_id\":\"auto-local\"") != std::string::npos);
-  REQUIRE(stream.raw_response.find("Pull job not found.") != std::string::npos);
+  REQUIRE_FALSE(stream.route_result.streamed);
+  REQUIRE(stream.status == http::status::not_found);
+}
+
+TEST_CASE("Ai runner pull events route tells a reconnect to a finished pull to stop", "[http]") {
+  holder::llm::LocalModelRunner runner;
+  runner.set_fake_mode(true);
+  const auto job = runner.start_pull("fake-echo");
+  holder::llm::LocalRunnerClient local_runner_client(&runner);
+  holder::llm::RunnerRegistry runner_registry(nullptr, &local_runner_client);
+  const auto path = "/ai/runner/pull/" + job.job_id + "/events";
+
+  const auto first = invoke_pull_event_route_and_capture(path, &runner_registry);
+  REQUIRE(first.raw_response.find("event: completed") != std::string::npos);
+  const auto cursor = holder::api::support::EventJournal().cursor();
+  const auto reconnect = invoke_pull_event_route_and_capture(path, &runner_registry, cursor);
+  REQUIRE(reconnect.route_result.handled);
+  REQUIRE_FALSE(reconnect.route_result.streamed);
+  REQUIRE(reconnect.status == http::status::no_content);
 }
 
 TEST_CASE("Ai runner pull events route streams progress and completed for job", "[http]") {

@@ -14,7 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT.parents[1] / "api/openapi.yaml"
 TARGET = ROOT / "src/holder/generated"
-VERSIONS = {"openapi-python-client": "0.29.1", "ruff": "0.16.10"}
+VERSIONS = {"ruff": "0.16.10"}
+# A fork of openapi-python-client that reads OpenAPI 3.2 and streams event-stream and binary
+# responses, pinned by commit in requirements-generator.txt until the changes are accepted upstream.
+GENERATOR_REPOSITORY = "https://github.com/zeth/openapi-python-client"
+GENERATOR_COMMIT = "e0abac2ad9c0df67197ef7401504cb21aab7c1af"
 
 
 def files(directory: Path) -> dict[str, bytes]:
@@ -23,6 +27,19 @@ def files(directory: Path) -> dict[str, bytes]:
         for path in directory.rglob("*")
         if path.is_file() and "__pycache__" not in path.parts
     }
+
+
+def installed_generator_commit() -> str | None:
+    """The commit of the installed openapi-python-client, if it was installed from Git"""
+    try:
+        direct_url = importlib.metadata.distribution("openapi-python-client").read_text(
+            "direct_url.json"
+        )
+    except importlib.metadata.PackageNotFoundError:
+        return None
+    if not direct_url:
+        return None
+    return json.loads(direct_url).get("vcs_info", {}).get("commit_id")
 
 
 def main() -> int:
@@ -42,7 +59,10 @@ def main() -> int:
     provenance = {
         "source": "api/openapi.yaml",
         "sha256": hashlib.sha256(data).hexdigest(),
-        "generator": VERSIONS,
+        "generator": {
+            "openapi-python-client": f"{GENERATOR_REPOSITORY}@{GENERATOR_COMMIT}",
+            **VERSIONS,
+        },
     }
     if args.check and (
         not provenance_path.exists()
@@ -56,6 +76,11 @@ def main() -> int:
     for package, version in VERSIONS.items():
         if importlib.metadata.version(package) != version:
             parser.error(f"Install {package}=={version} before regenerating")
+    if installed_generator_commit() != GENERATOR_COMMIT:
+        parser.error(
+            "Install the pinned generator with "
+            "`python -m pip install -r requirements-generator.txt` before regenerating"
+        )
 
     # Use the generator and Ruff installed beside this Python, independent of shell activation.
     env = os.environ.copy()

@@ -11,15 +11,12 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 import httpx
 
+from ._streams import stream_failure
 from .events import ChangeStream, Event
-from .exceptions import (
-    APIError,
-    AuthenticationError,
-    NotFoundError,
-    ProtocolError,
-)
+from .exceptions import ProtocolError
 from .generated import AuthenticatedClient
 from .generated.api.default import get_event_cursor
+from .generated.streams import StreamError
 
 if TYPE_CHECKING:
     from .client import Holder
@@ -100,10 +97,15 @@ def _checkpoint(data: Any, project_id: str | None) -> ChangeCheckpoint:
 
 
 def _payload(frame: Event) -> dict[str, Any]:
-    try:
-        data = json.loads(frame.data)
-    except (ValueError, TypeError):
-        raise ProtocolError("Invalid change event JSON") from None
+    data = frame.data
+    if isinstance(data, str):
+        # An event the contract doesn't name still carries a JSON object.
+        try:
+            data = json.loads(data)
+        except ValueError:
+            raise ProtocolError("Invalid change event JSON") from None
+    else:
+        data = data.to_dict()
     if not isinstance(data, dict):
         raise ProtocolError("Invalid change event JSON")
     return data
@@ -248,17 +250,12 @@ class ChangeWatcher(AsyncIterator[ChangeNotice]):
             self._changes._holder._active()
             try:
                 frame = await anext(self._stream)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == 401 and self._changes._holder._local:
+            except StreamError as exc:
+                if exc.status_code == 401 and self._changes._holder._local:
                     checkpoint = await asyncio.to_thread(self._changes.checkpoint)
                     self._closed = True
                     return ResyncRequired("daemon_restarted", checkpoint, None)
-                error_type = {401: AuthenticationError, 404: NotFoundError}.get(
-                    exc.response.status_code, APIError
-                )
-                raise error_type(
-                    exc.response.status_code, "http_error", "Change stream failed"
-                ) from None
+                raise stream_failure(exc, "Expected a change event stream") from None
             notice = _notice(frame, self._changes._project_id)
             if isinstance(notice, ResyncRequired):
                 self._closed = True

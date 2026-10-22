@@ -6,7 +6,8 @@ import httpx
 import pytest
 from test_library import holder_for, ok, project_payload
 
-from holder.exceptions import NotFoundError, ProtocolError
+from holder.exceptions import ConnectionError, NotFoundError, ProtocolError
+from holder.intelligence_events import RunStream
 
 
 def thread_row(thread_id="t-1", project_id="p-0"):
@@ -178,8 +179,8 @@ def test_run_creation_streams_and_replay_uses_cursor():
             }
             stream = (
                 'id: e1\nevent: run_started\ndata: {"run_id":"r-1","status":"started"}\n\n'
-                'id: e2\nevent: chunk\ndata: {"delta":"Hello"}\n\n'
-                'id: e3\nevent: done\ndata: {"status":"completed"}\n\n'
+                'id: e2\nevent: chunk\ndata: {"run_id":"r-1","delta":"Hello"}\n\n'
+                'id: e3\nevent: done\ndata: {"run_id":"r-1","status":"completed"}\n\n'
             )
             return httpx.Response(
                 200, text=stream, headers={"content-type": "text/event-stream"}
@@ -190,7 +191,7 @@ def test_run_creation_streams_and_replay_uses_cursor():
         assert request.headers["Last-Event-ID"] == "e2"
         return httpx.Response(
             200,
-            text='id: e3\nevent: done\ndata: {"status":"completed"}\n\n',
+            text='id: e3\nevent: done\ndata: {"run_id":"r-1","status":"completed"}\n\n',
             headers={"content-type": "text/event-stream"},
         )
 
@@ -222,6 +223,62 @@ def test_run_stream_requires_started_id_and_preserves_resync():
         with (
             pytest.raises(ProtocolError, match="run ID"),
             project.intelligence.run("Hello"),
+        ):
+            pass
+
+
+def test_following_a_run_reconnects_after_a_dropped_connection():
+    requests = []
+
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(
+                200,
+                text='retry: 0\nid: e1\nevent: chunk\ndata: {"run_id":"r-1","delta":"Hi"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        assert request.headers["Last-Event-ID"] == "e1"
+        return httpx.Response(
+            200,
+            text='id: e2\nevent: done\ndata: {"run_id":"r-1"}\n\n',
+            headers={"content-type": "text/event-stream"},
+        )
+
+    with holder_for(respond) as holder:
+        holder.projects.get("p-0")
+        with RunStream(holder, run_id="r-1") as stream:
+            assert [event.kind for event in stream] == ["chunk", "done"]
+            assert stream.cursor == "e2"
+    assert len(requests) == 2
+
+
+def test_new_run_closing_early_and_refused_streams_raise():
+    def respond(request):
+        if request.url.path == "/projects/p-0":
+            return ok(project_payload())
+        if request.url.path == "/ai/runs":
+            return httpx.Response(
+                200,
+                text='id: e1\nevent: run_started\ndata: {"run_id":"r-1"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx.Response(
+            404,
+            json={"ok": False, "error": {"code": "not_found", "message": "Run not found."}},
+        )
+
+    with holder_for(respond) as holder:
+        project = holder.projects.get("p-0")
+        with project.intelligence.run("Hello") as stream:
+            assert next(stream).kind == "run_started"
+            with pytest.raises(ConnectionError, match="before a terminal event"):
+                next(stream)
+        with (
+            pytest.raises(NotFoundError, match="Run not found"),
+            RunStream(holder, run_id="missing"),
         ):
             pass
 
@@ -341,6 +398,22 @@ def runner_row():
 
 
 def test_runners_and_model_pull_use_runner_scope():
+    finished_pull = {
+        "job_id": "j-1",
+        "runner_id": "manual-1",
+        "model": "tiny",
+        "status": "completed",
+        "active": False,
+        "updated_at": 3,
+        "progress": {
+            "completed": 1,
+            "total": 1,
+            "percent": 100.0,
+            "stage": "done",
+        },
+        "error": None,
+    }
+
     def respond(request):
         path = request.url.path
         if path == "/ai/runners" and request.method == "GET":
@@ -368,28 +441,13 @@ def test_runners_and_model_pull_use_runner_scope():
             )
         if path == "/ai/runner/pull/j-1" and request.method == "GET":
             assert request.url.params["runner_id"] == "manual-1"
-            return ok(
-                {
-                    "job_id": "j-1",
-                    "runner_id": "manual-1",
-                    "model": "tiny",
-                    "status": "completed",
-                    "active": False,
-                    "updated_at": 3,
-                    "progress": {
-                        "completed": 1,
-                        "total": 1,
-                        "percent": 100.0,
-                        "stage": "done",
-                    },
-                    "error": None,
-                }
-            )
+            return ok(finished_pull)
         if path == "/ai/runner/pull/j-1/events":
             assert request.url.params["runner_id"] == "manual-1"
+            snapshot = json.dumps(finished_pull)
             return httpx.Response(
                 200,
-                text='event: progress\ndata: {"status":"completed"}\n\nevent: completed\ndata: {"status":"completed"}\n\n',
+                text=f"event: progress\ndata: {snapshot}\n\nevent: completed\ndata: {snapshot}\n\n",
                 headers={"content-type": "text/event-stream"},
             )
         raise AssertionError(path)

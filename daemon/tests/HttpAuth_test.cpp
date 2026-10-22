@@ -69,7 +69,7 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   std::ifstream contract_file(OPENAPI_JSON_PATH, std::ios::binary);
   const std::string contract_bytes{std::istreambuf_iterator<char>(contract_file), {}};
   REQUIRE(contract.body == contract_bytes);
-  REQUIRE(nlohmann::json::parse(contract.body)["openapi"] == "3.1.0");
+  REQUIRE(nlohmann::json::parse(contract.body)["openapi"] == "3.2.0");
 
   // So is the YAML the docs page loads.
   const auto contract_yaml =

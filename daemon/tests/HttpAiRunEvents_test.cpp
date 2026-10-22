@@ -315,3 +315,39 @@ TEST_CASE("RunEventStore trims in-memory event stream to last 512 events", "[htt
   REQUIRE(stream_opt->events.back().data["idx"] == 519);
   REQUIRE(stream_opt->finished == true);
 }
+
+TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "[http]") {
+  holder::platform::Db db = open_db_with_schema(make_temp_dir() / "holder.db");
+  db.exec("INSERT INTO projects(project_id, name, root_path, created_at, updated_at) "
+          "VALUES('proj-1', 'Project', '/tmp/project', 1, 1);");
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1);");
+  holder::model::AiRun run;
+  run.run_id = "run-finished-reconnect";
+  run.project_id = "proj-1";
+  run.thread_id = "thread-1";
+  run.mode = "auto";
+  run.prompt = "hello";
+  run.status = "completed";
+  run.created_at = 1;
+  run.updated_at = 2;
+  holder::ai::AiRunRepo(db).create(run);
+  holder::api::support::append_run_event(run.run_id, "run_started", {}, false);
+  const auto started = holder::api::support::read_run_events(run.run_id, "")->cursor;
+  const auto done = holder::api::support::append_run_event(run.run_id, "done", {}, true);
+
+  boost::asio::io_context ioc;
+  boost::asio::ip::tcp::socket socket(ioc);
+  const auto path = "/ai/runs/" + run.run_id + "/events";
+  http::response<http::string_body> res;
+  auto out = holder::api::routes::ai::runs::handle_ai_runs_events_route(path, socket, res, db, done.id);
+  REQUIRE(out.handled);
+  REQUIRE_FALSE(out.streamed);
+  REQUIRE(res.result() == http::status::no_content);
+  REQUIRE(res.body().empty());
+
+  // A reconnect that has not yet received the final event is not told to stop.
+  http::response<http::string_body> pending;
+  out = holder::api::routes::ai::runs::handle_ai_runs_events_route(path, socket, pending, db, started);
+  REQUIRE(pending.result() != http::status::no_content);
+}
