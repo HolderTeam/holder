@@ -259,7 +259,7 @@ TEST_CASE("HTTP global recovery token import auto-creates project by token proje
       boost::beast::http::verb::post,
       "/recovery-token/import",
       {{"pin", "1234"}, {"recovery_token", recovery_token}},
-      boost::beast::http::status::ok
+      boost::beast::http::status::created
   );
   REQUIRE(imported["ok"] == true);
   REQUIRE(imported["data"]["project_id"] == "proj-1");

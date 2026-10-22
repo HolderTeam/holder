@@ -8829,7 +8829,7 @@
     "/recovery-token/import": {
       "post": {
         "summary": "Import recovery token and auto-match/create project",
-        "description": "Matches the token's project_id to a local project, or creates one from the token's metadata; project_created says which. When the token names a remote, it is configured and pulled; failures there are reported in the result, not as HTTP errors.",
+        "description": "Matches the token's project_id to a local project, or creates one from the token's metadata; the status and project_created say which. When the token names a remote, it is configured and pulled; failures there are reported in the result, not as HTTP errors.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8842,7 +8842,17 @@
         },
         "responses": {
           "200": {
-            "description": "Imported into a matched or newly created local project",
+            "description": "Imported and matched an existing local project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryTokenImportAutoResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Imported and created a new local project from the token's metadata",
             "content": {
               "application/json": {
                 "schema": {

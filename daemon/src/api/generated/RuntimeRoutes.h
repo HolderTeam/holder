@@ -921,7 +921,10 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_recovery_token_import");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_recovery_token_import(context.db, context.git_ops, std::move(*argument_0))), "post_recovery_token_import"};
+            auto outcome = holder::api::post_recovery_token_import(context.db, context.git_ops, std::move(*argument_0));
+            if (outcome.status != 200 && outcome.status != 201)
+                throw std::logic_error("post_recovery_token_import chose an undeclared success status");
+            return response{outcome.status, rig_json::encode(outcome.body), "post_recovery_token_import"};
         } catch (const holder::api::support::PrivacyRejected& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_recovery_token_import"};
         } catch (const holder::api::support::PrivacyBroken& error) {

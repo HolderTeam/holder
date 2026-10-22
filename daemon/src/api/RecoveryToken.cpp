@@ -54,7 +54,7 @@ OptionalText text(const std::string& value) {
 
 } // namespace
 
-RecoveryTokenImportAutoResponse post_recovery_token_import(holder::platform::Db& db,
+rig::success<RecoveryTokenImportAutoResponse> post_recovery_token_import(holder::platform::Db& db,
                                                            holder::git::GitOps* git_ops,
                                                            ProjectRecoveryTokenImportRequest request) {
   try {
@@ -117,9 +117,10 @@ RecoveryTokenImportAutoResponse post_recovery_token_import(holder::platform::Db&
     holder::core::ProjectRegistry(holder::core::Paths::resolve("holder").project_registry_path())
         .restore(refreshed);
 
-    return {true,
-            {metadata.project_id, project_created, remote_hint_present, remote_configured,
-             text(remote_error), std::move(pull_status), text(pull_error)}};
+    return {project_created ? 201 : 200,
+            {true,
+             {metadata.project_id, project_created, remote_hint_present, remote_configured,
+              text(remote_error), std::move(pull_status), text(pull_error)}}};
   } catch (const holder::privacy::PrivacyError& error) {
     support::throw_privacy_failure(error);
   }

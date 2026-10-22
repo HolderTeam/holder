@@ -3,6 +3,7 @@
 // RIG supplies reflection attributes only while generating the contract.
 // Ordinary daemon builds do not need RIG or a C++26 compiler.
 #ifdef RIG_GENERATING
+#include <rig/result.hpp>
 #include <rig/route.hpp>
 #else
 #define RIG_ROUTE(method, path)
@@ -46,4 +47,15 @@
 #define RIG_SUCCESS_STATUS(status)
 #define RIG_INTERNAL_ERROR(body, description)
 #define RIG_METHOD_NOT_ALLOWED(body, description)
+
+namespace rig {
+
+// RIG's rig::success: a success body with the status the operation chose from its declared ones.
+template <typename Body>
+struct success {
+  int status;
+  Body body;
+};
+
+} // namespace rig
 #endif

@@ -63,12 +63,13 @@ struct RecoveryTokenProjectNotFound : std::runtime_error {
 
 RIG_ROUTE(POST, "/recovery-token/import")
 RIG_SUMMARY("Import recovery token and auto-match/create project")
-RIG_DESCRIPTION("Matches the token's project_id to a local project, or creates one from the token's metadata; project_created says which. When the token names a remote, it is configured and pulled; failures there are reported in the result, not as HTTP errors.")
-RIG_RESPONSE_DESCRIPTION("Imported into a matched or newly created local project")
+RIG_DESCRIPTION("Matches the token's project_id to a local project, or creates one from the token's metadata; the status and project_created say which. When the token names a remote, it is configured and pulled; failures there are reported in the result, not as HTTP errors.")
+RIG_RESPONSE_DESCRIPTION("Imported and matched an existing local project")
+RIG_SUCCESS_RESPONSE(201, "Imported and created a new local project from the token's metadata")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request, or an invalid token or PIN (recovery_token_invalid)", support::PrivacyRejected)
 RIG_ERROR_RESPONSE(500, ErrorResponse, "Internal server error, including missing key material or crypt metadata", support::PrivacyBroken)
 RIG_ERROR_RESPONSE(503, ErrorResponse, "Keyring unavailable", support::KeyringUnavailable)
-RecoveryTokenImportAutoResponse post_recovery_token_import(
+rig::success<RecoveryTokenImportAutoResponse> post_recovery_token_import(
     holder::platform::Db& db RIG_CONTEXT,
     holder::git::GitOps* git_ops RIG_CONTEXT,
     ProjectRecoveryTokenImportRequest request);

@@ -713,7 +713,7 @@ TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[proje
         "/recovery-token/import",
         {{"pin", "1234"}, {"recovery_token", token}}
     );
-    REQUIRE(import_status == http::status::ok);
+    REQUIRE(import_status == http::status::created);
     REQUIRE(import_payload["ok"] == true);
     REQUIRE(import_payload["data"]["remote_hint_present"] == true);
     REQUIRE(import_payload["data"]["remote_configured"] == true);

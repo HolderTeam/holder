@@ -374,7 +374,7 @@ TEST_CASE("Explicit recovery re-registers a removed encrypted Home", "[home-life
   http::response<http::string_body> response;
   REQUIRE(route_project(request, response, fixture.db, nullptr));
   INFO(response.body());
-  REQUIRE(response.result() == http::status::ok);
+  REQUIRE(response.result() == http::status::created);
   REQUIRE(nlohmann::json::parse(response.body())["data"]["project_created"] == true);
   const auto restored = holder::project::ProjectRepo(fixture.db).get(original.project_id);
   REQUIRE(restored.has_value());
