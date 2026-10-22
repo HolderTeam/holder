@@ -18,6 +18,7 @@
 #include "api/Bye.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
+#include "api/EventCursor.h"
 #include "api/Health.h"
 #include "api/History.h"
 #include "api/LocationRead.h"

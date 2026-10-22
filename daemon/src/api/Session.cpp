@@ -364,7 +364,7 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
     );
   } else if (dispatch_generated_routes(req_, res, db_, runner_registry_, fts_, secret_store_,
                                        git_ops_, [] { return generate_uuid_v4(); },
-                                       started_at_, card_store_)) {
+                                       started_at_, card_store_, events_)) {
     // Generated, or a 405 for a declared path with another method.
   } else if (!is_host_served_route(req_)) {
     // The handlers below serve only the routes the contract declares.

@@ -10,18 +10,7 @@
 
 namespace holder::api {
 
-// Declared for the contract; the existing route handlers still write these responses.
-
-RIG_ROUTE(GET, "/events/cursor")
-RIG_OPERATION_ID("get_event_cursor")
-RIG_SUMMARY("Get a change-feed checkpoint before fetching a live snapshot")
-RIG_DESCRIPTION("Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID. Replayed invalidations close the race between snapshot reads and subscription.")
-RIG_RESPONSE_DESCRIPTION("Current checkpoint")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid query or cursor")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit reached")
-EventCheckpointResponse get_events_cursor(std::optional<std::string> project_id RIG_QUERY);
+// Declared for the contract; support::EventService writes this response.
 
 RIG_ROUTE(GET, "/events")
 RIG_OPERATION_ID("stream_changes")

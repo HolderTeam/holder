@@ -24,6 +24,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace holder::api::routes {
@@ -185,31 +186,16 @@ bool handle_ai_resource_routes(
     return true;
   }
 
-  if (path.rfind("/locations/", 0) == 0) {
-    const auto suffix = path.substr(std::string("/locations/").size());
-    const auto separator = suffix.find('/');
-    const auto location_id = suffix.substr(0, separator);
-    const auto action = separator == std::string::npos ? std::string()
-                                                       : suffix.substr(separator + 1);
-    if (location_id.empty()) {
-      res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-      return true;
-    }
-
-    if (action == "oauth/google-drive/authorize" && req.method() == http::verb::post) {
-      return handle_google_drive_oauth_authorize_route(location_id, req, res, db);
-    }
-
-    res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-    return true;
+  // The other location and resource routes are generated.
+  static constexpr std::string_view authorize_suffix = "/oauth/google-drive/authorize";
+  if (path.starts_with("/locations/") && path.ends_with(authorize_suffix) &&
+      req.method() == http::verb::post) {
+    const auto location_id = path.substr(
+        std::string("/locations/").size(),
+        path.size() - std::string("/locations/").size() - authorize_suffix.size()
+    );
+    return handle_google_drive_oauth_authorize_route(location_id, req, res, db);
   }
-
-  // The other resource routes are generated; anything else under /resources/ is not a route.
-  if (path.rfind("/resources/", 0) == 0) {
-    res = support::error_response(http::status::not_found, "not_found", "Route not found.");
-    return true;
-  }
-
   return false;
 }
 

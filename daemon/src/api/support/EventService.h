@@ -5,6 +5,7 @@
 
 #include <condition_variable>
 #include <filesystem>
+#include <optional>
 #include <thread>
 
 namespace holder::api::support {
@@ -15,6 +16,9 @@ class EventService {
   ~EventService();
   void stop();
   std::shared_ptr<SseRegistry> streams() const { return streams_; }
+  // The checkpoint GET /events/cursor answers, for every project or only the named one;
+  // nullopt while the change feed is unavailable.
+  std::optional<nlohmann::json> current_checkpoint(const std::string& project);
   bool dispatch(
       const std::string& path,
       const std::string& query,

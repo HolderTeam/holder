@@ -271,9 +271,6 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
       ).result() == http::status::not_found
   );
   CHECK(f.call(http::verb::post, "/imports").result() == http::status::bad_request);
-  for (const std::string path :
-       {"/locations/", "/locations/id/unknown", "/resources/", "/resources/id/unknown"})
-    CHECK(f.call(http::verb::get, path).result() == http::status::not_found);
 }
 
 TEST_CASE(

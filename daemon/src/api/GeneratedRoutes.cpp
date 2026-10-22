@@ -26,6 +26,7 @@ struct Context {
   std::function<std::string()> uuid_v4;
   std::chrono::steady_clock::time_point started_at;
   holder::card::CardStore* card_store;
+  holder::api::support::EventService* events;
 };
 
 std::string error_code(int status) {
@@ -75,10 +76,12 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
                                holder::git::GitOps* git_ops,
                                std::function<std::string()> uuid_v4,
                                std::chrono::steady_clock::time_point started_at,
-                               holder::card::CardStore* card_store) {
+                               holder::card::CardStore* card_store,
+                               holder::api::support::EventService* events) {
   const auto target = req.target();
   Context context{
-      db, registry, fts, secret_store, git_ops, std::move(uuid_v4), started_at, card_store};
+      db,         registry,   fts,   secret_store, git_ops, std::move(uuid_v4),
+      started_at, card_store, events};
   try {
     const auto generated = rig_http::dispatch(
         std::string(req.method_string()), std::string(target.data(), target.size()),

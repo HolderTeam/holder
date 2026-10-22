@@ -6326,7 +6326,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -6342,7 +6343,7 @@
             }
           },
           "400": {
-            "description": "Invalid query or cursor",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
@@ -6371,8 +6372,18 @@
               }
             }
           },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
-            "description": "Observer unavailable or stream limit reached",
+            "description": "Change feed unavailable",
             "content": {
               "application/json": {
                 "schema": {

@@ -12,6 +12,7 @@ namespace holder::index { class FtsIndexer; }
 namespace holder::privacy { class SecretStore; }
 namespace holder::git { class GitOps; }
 namespace holder::card { class CardStore; }
+namespace holder::api::support { class EventService; }
 
 namespace holder::api {
 
@@ -34,6 +35,7 @@ bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& r
                                holder::git::GitOps* git_ops = nullptr,
                                std::function<std::string()> uuid_v4 = {},
                                std::chrono::steady_clock::time_point started_at = {},
-                               holder::card::CardStore* card_store = nullptr);
+                               holder::card::CardStore* card_store = nullptr,
+                               holder::api::support::EventService* events = nullptr);
 
 } // namespace holder::api

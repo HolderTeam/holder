@@ -93,6 +93,14 @@ TEST_CASE(
   REQUIRE(checkpoint["git_revisions"]["p"].is_null());
   REQUIRE(checkpoint["git_revisions"].size() == 1);
   REQUIRE(checkpoint["history_urls"]["p"] == "/projects/p/history");
+  for (const auto& [target, status] :
+       {std::pair{"/events/cursor?project_id=missing", http::status::not_found},
+        std::pair{"/events/cursor?project_id=", http::status::bad_request}}) {
+    REQUIRE(holder::test::http_request_raw(
+                bound.bind, bound.port, "testtoken", http::verb::get, target
+            )
+                .status == status);
+  }
   std::vector<std::unique_ptr<EventClient>> clients;
   for (int i = 0; i < 16; ++i) {
     auto client =

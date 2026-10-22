@@ -139,6 +139,12 @@ void EventService::stop() {
   if (observer_.joinable()) observer_.join();
 }
 
+std::optional<nlohmann::json> EventService::current_checkpoint(const std::string& project) {
+  std::lock_guard lock(state_->mutex);
+  if (!state_->available || state_->stopped) return std::nullopt;
+  return checkpoint(state_->changes.cursor(), state_->revisions, project);
+}
+
 bool EventService::dispatch(
     const std::string& path,
     const std::string& query,
@@ -148,15 +154,7 @@ bool EventService::dispatch(
     holder::platform::Db& db,
     bool& streamed
 ) {
-  if (path != "/events" && path != "/events/cursor") return false;
-  if (req.method() != http::verb::get) {
-    res = error_response(
-        http::status::method_not_allowed,
-        "method_not_allowed",
-        "Use GET for events."
-    );
-    return true;
-  }
+  if (path != "/events") return false;
   std::string project, revision;
   try {
     const auto params = parameters(query);
@@ -165,8 +163,6 @@ bool EventService::dispatch(
       if (project.empty()) throw std::invalid_argument("project_id must not be empty.");
     }
     if (const auto it = params.find("last_revision"); it != params.end()) {
-      if (path == "/events/cursor")
-        throw std::invalid_argument("last_revision is only supported on /events.");
       revision = it->second;
       if (project.empty() || revision.size() != 40 ||
           revision.find_first_not_of("0123456789abcdef") != std::string::npos)
@@ -226,13 +222,6 @@ bool EventService::dispatch(
           http::status::service_unavailable,
           "unavailable",
           "Change feed unavailable."
-      );
-      return true;
-    }
-    if (path == "/events/cursor") {
-      res = json_response(
-          http::status::ok,
-          {{"ok", true}, {"data", checkpoint(state_->changes.cursor(), state_->revisions, project)}}
       );
       return true;
     }

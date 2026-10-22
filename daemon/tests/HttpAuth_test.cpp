@@ -58,8 +58,9 @@ TEST_CASE("HTTP endpoints require auth token", "[http]") {
   const auto docs_post =
       http_request_raw(bound.bind, bound.port, token, boost::beast::http::verb::post, "/docs");
   REQUIRE(docs_post.status == boost::beast::http::status::method_not_allowed);
-  for (const auto* undeclared : {"/nowhere", "/docs/a/b", "/locations/l-1/unknown",
-                                 "/resources/r-1/assets/a-1/content/extra"}) {
+  for (const auto* undeclared :
+       {"/nowhere", "/docs/a/b", "/locations/", "/locations/l-1/unknown", "/resources/",
+        "/resources/r-1/unknown", "/resources/r-1/assets/a-1/content/extra"}) {
     const auto response = http_request_raw(
         bound.bind, bound.port, token, boost::beast::http::verb::get, undeclared
     );
