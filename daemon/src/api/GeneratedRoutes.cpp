@@ -5,6 +5,7 @@
 #include "api/AiMessageWrite.h"
 #include "api/AiProviderCatalog.h"
 #include "api/AiRunnerRead.h"
+#include "api/AiRunnerWrite.h"
 #include "api/AssetImportRead.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"

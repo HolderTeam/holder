@@ -79,28 +79,6 @@ struct RIG_OPEN_RECORD AiRunnerResponse {
   AiRunner data;
 };
 
-struct RIG_OPEN_RECORD AiRunnerCreateRequest {
-  std::string name;
-  std::string kind RIG_STRING_VALUES("ollama");
-  std::string base_url;
-  std::optional<bool> enabled RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD AiRunnerUpdateRequest {
-  std::optional<std::string> name RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> base_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<bool> enabled RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiRunnerDeleteResponseData {
-  std::string runner_id;
-};
-
-struct RIG_OPEN_RECORD AiRunnerDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  AiRunnerDeleteResponseData data;
-};
-
 struct RIG_OPEN_RECORD AiLocalModelConfigResponse {
   bool ok RIG_BOOL_VALUE(true);
   AiLocalModelConfigData data;
@@ -134,24 +112,6 @@ struct RIG_OPEN_RECORD AiRunCreateRequest {
   std::optional<std::string> project_id RIG_OMIT_EMPTY;
   std::optional<std::string> thread_id RIG_OMIT_EMPTY;
   std::optional<nlohmann::json> context RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD RunnerPullStartResponseData {
-  std::string job_id;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
-  std::optional<std::string> model_ref RIG_OMIT_EMPTY;
-  std::string model;
-  std::string status;
-};
-
-struct RIG_OPEN_RECORD RunnerPullStartResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  RunnerPullStartResponseData data;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PostAiRunnerPullRequest {
-  std::string model;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiMessageCaptureResponseData {

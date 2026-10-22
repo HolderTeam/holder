@@ -665,6 +665,8 @@ paths:
   /ai/runner/pull:
     post:
       summary: Start pulling a local model
+      description: Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress
+        with GET /ai/runner/pull/{job_id} or its events stream.
       requestBody:
         required: true
         content:
@@ -682,7 +684,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/RunnerPullStartResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, or the runner rejected the pull
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -691,13 +693,18 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Not implemented
+        '404':
+          description: Runner not configured
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Runner unavailable
+          description: Runner unavailable (runner_unavailable)
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -736,11 +743,6 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
           description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Not implemented
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -827,12 +829,17 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiRunnerResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, an empty name, or a base_url that is not http://host:port
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -889,7 +896,8 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiRunnerResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, an empty name, a base_url that is not http://host:port, or the
+            auto-local runner
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -899,7 +907,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: Runner not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -917,7 +930,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiRunnerDeleteResponse'}
         '400':
-          description: Bad request
+          description: The auto-local runner cannot be removed
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -927,7 +940,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: Runner not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -945,13 +963,23 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AiRunnerResponse'}
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: Runner not found or not configured
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5559,8 +5587,8 @@ components:
         kind:
           type: string
           enum: [ollama]
-        base_url: {type: string}
-        enabled: {type: boolean}
+        base_url: {type: string, description: 'http://host:port'}
+        enabled: {type: boolean, description: Optional; defaults to true.}
       required: [name, kind, base_url]
     AiRunnerDeleteResponse:
       type: object
@@ -5620,6 +5648,7 @@ components:
         name: {type: string}
         base_url:
           type: [string, 'null']
+          description: http://host:port, or null to clear it.
         enabled: {type: boolean}
     AiStatusData:
       type: object

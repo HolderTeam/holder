@@ -8,8 +8,13 @@
 #include <vector>
 
 namespace holder::llm { class RunnerRegistry; }
+namespace holder::model { struct AiRunner; }
 
 namespace holder::api {
+
+// One runner with its live runtime, which reports it unconfigured without a registry.
+AiRunner runner_with_runtime(const holder::model::AiRunner& runner,
+                             holder::llm::RunnerRegistry* registry);
 
 // Every registered runner with its live runtime, as the runner routes report it; empty without a
 // registry.

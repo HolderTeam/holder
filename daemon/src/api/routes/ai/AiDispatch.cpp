@@ -98,9 +98,7 @@ DispatchResult dispatch_ai_routes(
             req,
             res,
             socket,
-            db,
             runner_registry,
-            uuid_v4,
             param,
             streams
         );

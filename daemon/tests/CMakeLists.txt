@@ -159,6 +159,8 @@ add_executable(holder_daemon_tests
   ../src/api/AiLocalModelConfig.cpp
   ../src/api/AiProviderCatalog.cpp
   ../src/api/AiRunnerRead.cpp
+  ../src/api/AiRunnerWrite.cpp
+  ../src/api/RunnerPull.cpp
   ../src/api/AssetImportRead.cpp
   ../src/api/AiRuns.cpp
   ../src/api/AiStatus.cpp
@@ -204,7 +206,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/AiRunRoutes.cpp
   ../src/api/routes/ai/AiRunnerRoutes.cpp
   ../src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  ../src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
   ../src/api/routes/ai/AiStatusRoutes.cpp
   ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
   ../src/api/CardReferenceResolve.cpp

@@ -1,6 +1,5 @@
 #include "ai/AiRunnerRepo.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/ai/runner/AiRunnerPullRoutes.h"
 #include "http_test_helpers.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/LocalRunnerClient.h"
@@ -12,7 +11,12 @@ namespace {
 
 namespace http = boost::beast::http;
 
-holder::api::routes::RunnerRouteDispatchResult call_pull_route(
+struct PullRouteResult {
+  bool handled;
+};
+
+// Sends a pull request through the generated routes, as the daemon does.
+PullRouteResult call_pull_route(
     const std::string& path,
     http::verb method,
     const std::string& body,
@@ -20,21 +24,9 @@ holder::api::routes::RunnerRouteDispatchResult call_pull_route(
     http::response<http::string_body>& res
 ) {
   http::request<http::string_body> req{method, path, 11};
-  req.set(http::field::host, "127.0.0.1");
-  if (!body.empty()) {
-    req.set(http::field::content_type, "application/json");
-    req.body() = body;
-  }
-  const auto param_get = [](const std::string&) -> std::string {
-    return {};
-  };
-  return holder::api::routes::ai::runner::handle_ai_runner_pull_routes(
-      path,
-      req,
-      res,
-      runner_registry,
-      param_get
-  );
+  req.body() = body;
+  holder::platform::Db db;
+  return {holder::api::dispatch_generated_routes(req, res, db, runner_registry)};
 }
 
 bool call_generated_pull_route(
@@ -59,7 +51,14 @@ TEST_CASE("Ai runner pull routes ignore unmatched paths", "[http]") {
       res
   );
   REQUIRE_FALSE(out.handled);
-  REQUIRE_FALSE(out.streamed);
+}
+
+TEST_CASE("Ai runner pull routes POST reports a runner that is not configured", "[http]") {
+  http::response<http::string_body> res;
+  auto out = call_pull_route("/ai/runner/pull", http::verb::post, R"({"model":"fake-echo"})",
+                             static_cast<holder::llm::RunnerRegistry*>(nullptr), res);
+  REQUIRE(out.handled);
+  REQUIRE(res.result() == http::status::not_found);
 }
 
 TEST_CASE("Ai runner pull routes POST returns unavailable when runner not ready", "[http]") {
@@ -76,7 +75,6 @@ TEST_CASE("Ai runner pull routes POST returns unavailable when runner not ready"
       res
   );
   REQUIRE(out.handled);
-  REQUIRE_FALSE(out.streamed);
   REQUIRE(res.result() == http::status::service_unavailable);
   REQUIRE(res.body().find("runner_unavailable") != std::string::npos);
 }
@@ -94,7 +92,7 @@ TEST_CASE("Ai runner pull routes POST validates request body", "[http]") {
         call_pull_route("/ai/runner/pull", http::verb::post, R"({"x":"y"})", &runner_registry, res);
     REQUIRE(out.handled);
     REQUIRE(res.result() == http::status::bad_request);
-    REQUIRE(res.body().find("Missing model.") != std::string::npos);
+    REQUIRE(res.body().find("bad_request") != std::string::npos);
   }
 
   SECTION("invalid JSON catches exception") {
@@ -290,16 +288,7 @@ TEST_CASE("Ai runner pull routes can target a manual runner by runner_id", "[htt
   req.set(http::field::content_type, "application/json");
   req.body() = R"({"runner_id":"manual-a","model":"fake-echo"})";
 
-  const auto out = holder::api::routes::ai::runner::handle_ai_runner_pull_routes(
-      "/ai/runner/pull",
-      req,
-      res,
-      &runner_registry,
-      [](const std::string&) -> std::string {
-        return {};
-      }
-  );
-  REQUIRE(out.handled);
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db, &runner_registry));
   REQUIRE(res.result() == http::status::ok);
 
   const auto payload = nlohmann::json::parse(res.body());
@@ -314,49 +303,4 @@ TEST_CASE("Ai runner pull routes can target a manual runner by runner_id", "[htt
   const auto status = nlohmann::json::parse(get_res.body());
   REQUIRE(status["data"]["runner_id"] == "manual-a");
   REQUIRE(status["data"]["model_ref"] == "manual-a::fake-echo");
-}
-
-TEST_CASE("Ai runner pull routes prefer param_get runner_id over request body", "[http]") {
-  const auto dir = holder::test::make_temp_dir();
-  holder::test::EnvGuard fake_env("HOLDER_MODEL_RUNNER_FAKE", "1");
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
-  holder::ai::AiRunnerRepo repo(db);
-  repo.upsert(holder::model::AiRunner{
-      .runner_id = "manual-a",
-      .name = "Office Ollama",
-      .kind = "ollama",
-      .base_url = std::optional<std::string>("http://office:11434"),
-      .source = "manual",
-      .enabled = true,
-      .created_at = 1,
-      .updated_at = 1,
-  });
-
-  holder::llm::RunnerRegistry runner_registry(&db, nullptr);
-  http::response<http::string_body> res;
-  http::request<http::string_body> req{http::verb::post, "/ai/runner/pull", 11};
-  req.set(http::field::host, "127.0.0.1");
-  req.set(http::field::content_type, "application/json");
-  req.body() = R"({"runner_id":"auto-local","model":"fake-echo"})";
-
-  const auto out = holder::api::routes::ai::runner::handle_ai_runner_pull_routes(
-      "/ai/runner/pull",
-      req,
-      res,
-      &runner_registry,
-      [](const std::string& key) -> std::string {
-        if (key == "runner_id") {
-          return "manual-a";
-        }
-        return {};
-      }
-  );
-  REQUIRE(out.handled);
-  REQUIRE(res.result() == http::status::ok);
-
-  const auto payload = nlohmann::json::parse(res.body());
-  REQUIRE(payload["ok"] == true);
-  REQUIRE(payload["data"]["runner_id"] == "manual-a");
-  REQUIRE(payload["data"]["model_ref"] == "manual-a::fake-echo");
 }

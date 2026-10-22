@@ -19,37 +19,6 @@ RIG_HOST_RESPONSE("application/json")
 RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
 AiProviderCredentialDeleteResponse delete_ai_providers_credentials_provider(std::string provider);
 
-RIG_ROUTE(POST, "/ai/runners")
-RIG_SUMMARY("Configure a local model runner")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_HOST_RESPONSE("application/json")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-AiRunnerResponse post_ai_runners(AiRunnerCreateRequest request);
-
-RIG_ROUTE(PATCH, "/ai/runners/{runner_id}")
-RIG_SUMMARY("Update a local model runner")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiRunnerResponse patch_ai_runners_runner_id(std::string runner_id, AiRunnerUpdateRequest request);
-
-RIG_ROUTE(DELETE, "/ai/runners/{runner_id}")
-RIG_SUMMARY("Remove a configured local model runner")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiRunnerDeleteResponse delete_ai_runners_runner_id(std::string runner_id);
-
-RIG_ROUTE(POST, "/ai/runners/{runner_id}/retry")
-RIG_SUMMARY("Retry one local model runner")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found")
-AiRunnerResponse post_ai_runners_runner_id_retry(std::string runner_id);
-
 RIG_ROUTE(PUT, "/ai/local-models/config")
 RIG_SUMMARY("Set or clear local model configuration")
 RIG_RESPONSE_DESCRIPTION("OK")
@@ -85,15 +54,6 @@ RIG_ERROR_RESPONSE(503, ErrorResponse, "Observer unavailable or stream limit rea
 std::string get_ai_runs_run_id_events(
     std::optional<std::string> last_event_id RIG_HEADER("Last-Event-ID") RIG_PARAMETER_DESCRIPTION("Opaque SSE event ID; unavailable history emits resync_required and closes."),
     std::string run_id);
-
-RIG_ROUTE(POST, "/ai/runner/pull")
-RIG_SUMMARY("Start pulling a local model")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request")
-RIG_ERROR_RESPONSE(501, ErrorResponse, "Not implemented")
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Runner unavailable")
-RunnerPullStartResponse post_ai_runner_pull(PostAiRunnerPullRequest request);
 
 RIG_ROUTE(GET, "/ai/runner/pull/{job_id}/events")
 RIG_SUMMARY("Stream pull job progress (SSE)")

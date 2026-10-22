@@ -154,6 +154,18 @@ template <> struct codec<holder::api::RunnerPullStatusResponse> {
     static json encode(const holder::api::RunnerPullStatusResponse& value);
     static holder::api::RunnerPullStatusResponse decode(const json& value);
 };
+template <> struct codec<holder::api::RunnerPullStartResponseData> {
+    static json encode(const holder::api::RunnerPullStartResponseData& value);
+    static holder::api::RunnerPullStartResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::RunnerPullStartResponse> {
+    static json encode(const holder::api::RunnerPullStartResponse& value);
+    static holder::api::RunnerPullStartResponse decode(const json& value);
+};
+template <> struct codec<holder::api::PostAiRunnerPullRequest> {
+    static json encode(const holder::api::PostAiRunnerPullRequest& value);
+    static holder::api::PostAiRunnerPullRequest decode(const json& value);
+};
 template <> struct codec<holder::api::AiProviderCredential> {
     static json encode(const holder::api::AiProviderCredential& value);
     static holder::api::AiProviderCredential decode(const json& value);
@@ -266,22 +278,6 @@ template <> struct codec<holder::api::AiRunnerResponse> {
     static json encode(const holder::api::AiRunnerResponse& value);
     static holder::api::AiRunnerResponse decode(const json& value);
 };
-template <> struct codec<holder::api::AiRunnerCreateRequest> {
-    static json encode(const holder::api::AiRunnerCreateRequest& value);
-    static holder::api::AiRunnerCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::AiRunnerUpdateRequest> {
-    static json encode(const holder::api::AiRunnerUpdateRequest& value);
-    static holder::api::AiRunnerUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::AiRunnerDeleteResponseData> {
-    static json encode(const holder::api::AiRunnerDeleteResponseData& value);
-    static holder::api::AiRunnerDeleteResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::AiRunnerDeleteResponse> {
-    static json encode(const holder::api::AiRunnerDeleteResponse& value);
-    static holder::api::AiRunnerDeleteResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiLocalModelConfigResponse> {
     static json encode(const holder::api::AiLocalModelConfigResponse& value);
     static holder::api::AiLocalModelConfigResponse decode(const json& value);
@@ -297,18 +293,6 @@ template <> struct codec<holder::api::AiRunEventData> {
 template <> struct codec<holder::api::AiRunCreateRequest> {
     static json encode(const holder::api::AiRunCreateRequest& value);
     static holder::api::AiRunCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::RunnerPullStartResponseData> {
-    static json encode(const holder::api::RunnerPullStartResponseData& value);
-    static holder::api::RunnerPullStartResponseData decode(const json& value);
-};
-template <> struct codec<holder::api::RunnerPullStartResponse> {
-    static json encode(const holder::api::RunnerPullStartResponse& value);
-    static holder::api::RunnerPullStartResponse decode(const json& value);
-};
-template <> struct codec<holder::api::PostAiRunnerPullRequest> {
-    static json encode(const holder::api::PostAiRunnerPullRequest& value);
-    static holder::api::PostAiRunnerPullRequest decode(const json& value);
 };
 template <> struct codec<holder::api::AiMessageCaptureResponseData> {
     static json encode(const holder::api::AiMessageCaptureResponseData& value);
@@ -541,6 +525,22 @@ template <> struct codec<holder::api::AiProviderCatalogResponseData> {
 template <> struct codec<holder::api::AiProviderCatalogResponse> {
     static json encode(const holder::api::AiProviderCatalogResponse& value);
     static holder::api::AiProviderCatalogResponse decode(const json& value);
+};
+template <> struct codec<holder::api::AiRunnerCreateRequest> {
+    static json encode(const holder::api::AiRunnerCreateRequest& value);
+    static holder::api::AiRunnerCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::AiRunnerUpdateRequest> {
+    static json encode(const holder::api::AiRunnerUpdateRequest& value);
+    static holder::api::AiRunnerUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::AiRunnerDeleteResponseData> {
+    static json encode(const holder::api::AiRunnerDeleteResponseData& value);
+    static holder::api::AiRunnerDeleteResponseData decode(const json& value);
+};
+template <> struct codec<holder::api::AiRunnerDeleteResponse> {
+    static json encode(const holder::api::AiRunnerDeleteResponse& value);
+    static holder::api::AiRunnerDeleteResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AiRunItem> {
     static json encode(const holder::api::AiRunItem& value);
@@ -1229,6 +1229,68 @@ inline holder::api::RunnerPullStatusResponse codec<holder::api::RunnerPullStatus
     };
 }
 
+inline json codec<holder::api::RunnerPullStartResponseData>::encode(const holder::api::RunnerPullStartResponseData& value) {
+    json result = json::object();
+    result["job_id"] = codec<std::string>::encode(value.job_id);
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
+    }
+    if (value.model_ref) {
+        result["model_ref"] = codec<std::optional<std::string>>::encode(value.model_ref);
+    }
+    result["model"] = codec<std::string>::encode(value.model);
+    result["status"] = codec<std::string>::encode(value.status);
+    return result;
+}
+inline holder::api::RunnerPullStartResponseData codec<holder::api::RunnerPullStartResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullStartResponseData");
+    if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
+    if (!value.contains("model")) throw std::invalid_argument("missing model");
+    if (!value.contains("status")) throw std::invalid_argument("missing status");
+    return holder::api::RunnerPullStartResponseData{
+        codec<std::string>::decode(value.at("job_id")),
+        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
+        value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
+        codec<std::string>::decode(value.at("model")),
+        codec<std::string>::decode(value.at("status")),
+    };
+}
+
+inline json codec<holder::api::RunnerPullStartResponse>::encode(const holder::api::RunnerPullStartResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::RunnerPullStartResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::RunnerPullStartResponse codec<holder::api::RunnerPullStartResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullStartResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::RunnerPullStartResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::RunnerPullStartResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::PostAiRunnerPullRequest>::encode(const holder::api::PostAiRunnerPullRequest& value) {
+    json result = json::object();
+    result["model"] = codec<std::string>::encode(value.model);
+    if (value.runner_id) {
+        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
+    }
+    return result;
+}
+inline holder::api::PostAiRunnerPullRequest codec<holder::api::PostAiRunnerPullRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected PostAiRunnerPullRequest");
+    if (!value.contains("model")) throw std::invalid_argument("missing model");
+    return holder::api::PostAiRunnerPullRequest{
+        codec<std::string>::decode(value.at("model")),
+        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
+    };
+}
+
 inline json codec<holder::api::AiProviderCredential>::encode(const holder::api::AiProviderCredential& value) {
     json result = json::object();
     result["provider"] = codec<std::string>::encode(value.provider);
@@ -1854,84 +1916,6 @@ inline holder::api::AiRunnerResponse codec<holder::api::AiRunnerResponse>::decod
     };
 }
 
-inline json codec<holder::api::AiRunnerCreateRequest>::encode(const holder::api::AiRunnerCreateRequest& value) {
-    json result = json::object();
-    result["name"] = codec<std::string>::encode(value.name);
-    if (value.kind != "ollama") throw std::invalid_argument("invalid kind");
-    result["kind"] = codec<std::string>::encode(value.kind);
-    result["base_url"] = codec<std::string>::encode(value.base_url);
-    if (value.enabled) {
-        result["enabled"] = codec<std::optional<bool>>::encode(value.enabled);
-    }
-    return result;
-}
-inline holder::api::AiRunnerCreateRequest codec<holder::api::AiRunnerCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerCreateRequest");
-    if (!value.contains("name")) throw std::invalid_argument("missing name");
-    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
-    if (!value.contains("base_url")) throw std::invalid_argument("missing base_url");
-    if (value.at("kind") != "ollama") throw std::invalid_argument("invalid kind");
-    return holder::api::AiRunnerCreateRequest{
-        codec<std::string>::decode(value.at("name")),
-        codec<std::string>::decode(value.at("kind")),
-        codec<std::string>::decode(value.at("base_url")),
-        value.contains("enabled") ? codec<std::optional<bool>>::decode(value.at("enabled")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiRunnerUpdateRequest>::encode(const holder::api::AiRunnerUpdateRequest& value) {
-    json result = json::object();
-    if (value.name) {
-        result["name"] = codec<std::optional<std::string>>::encode(value.name);
-    }
-    if (value.base_url) {
-        result["base_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.base_url);
-    }
-    if (value.enabled) {
-        result["enabled"] = codec<std::optional<bool>>::encode(value.enabled);
-    }
-    return result;
-}
-inline holder::api::AiRunnerUpdateRequest codec<holder::api::AiRunnerUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerUpdateRequest");
-    return holder::api::AiRunnerUpdateRequest{
-        value.contains("name") ? codec<std::optional<std::string>>::decode(value.at("name")) : std::nullopt,
-        value.contains("base_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("base_url"))} : std::nullopt,
-        value.contains("enabled") ? codec<std::optional<bool>>::decode(value.at("enabled")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::AiRunnerDeleteResponseData>::encode(const holder::api::AiRunnerDeleteResponseData& value) {
-    json result = json::object();
-    result["runner_id"] = codec<std::string>::encode(value.runner_id);
-    return result;
-}
-inline holder::api::AiRunnerDeleteResponseData codec<holder::api::AiRunnerDeleteResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerDeleteResponseData");
-    if (!value.contains("runner_id")) throw std::invalid_argument("missing runner_id");
-    return holder::api::AiRunnerDeleteResponseData{
-        codec<std::string>::decode(value.at("runner_id")),
-    };
-}
-
-inline json codec<holder::api::AiRunnerDeleteResponse>::encode(const holder::api::AiRunnerDeleteResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AiRunnerDeleteResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::AiRunnerDeleteResponse codec<holder::api::AiRunnerDeleteResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerDeleteResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AiRunnerDeleteResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AiRunnerDeleteResponseData>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::AiLocalModelConfigResponse>::encode(const holder::api::AiLocalModelConfigResponse& value) {
     json result = json::object();
     if (value.ok != true) throw std::invalid_argument("invalid ok");
@@ -2059,68 +2043,6 @@ inline holder::api::AiRunCreateRequest codec<holder::api::AiRunCreateRequest>::d
         value.contains("project_id") ? codec<std::optional<std::string>>::decode(value.at("project_id")) : std::nullopt,
         value.contains("thread_id") ? codec<std::optional<std::string>>::decode(value.at("thread_id")) : std::nullopt,
         value.contains("context") ? codec<std::optional<nlohmann::json>>::decode(value.at("context")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::RunnerPullStartResponseData>::encode(const holder::api::RunnerPullStartResponseData& value) {
-    json result = json::object();
-    result["job_id"] = codec<std::string>::encode(value.job_id);
-    if (value.runner_id) {
-        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
-    }
-    if (value.model_ref) {
-        result["model_ref"] = codec<std::optional<std::string>>::encode(value.model_ref);
-    }
-    result["model"] = codec<std::string>::encode(value.model);
-    result["status"] = codec<std::string>::encode(value.status);
-    return result;
-}
-inline holder::api::RunnerPullStartResponseData codec<holder::api::RunnerPullStartResponseData>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullStartResponseData");
-    if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
-    if (!value.contains("model")) throw std::invalid_argument("missing model");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    return holder::api::RunnerPullStartResponseData{
-        codec<std::string>::decode(value.at("job_id")),
-        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
-        value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
-        codec<std::string>::decode(value.at("model")),
-        codec<std::string>::decode(value.at("status")),
-    };
-}
-
-inline json codec<holder::api::RunnerPullStartResponse>::encode(const holder::api::RunnerPullStartResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::RunnerPullStartResponseData>::encode(value.data);
-    return result;
-}
-inline holder::api::RunnerPullStartResponse codec<holder::api::RunnerPullStartResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected RunnerPullStartResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::RunnerPullStartResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::RunnerPullStartResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::PostAiRunnerPullRequest>::encode(const holder::api::PostAiRunnerPullRequest& value) {
-    json result = json::object();
-    result["model"] = codec<std::string>::encode(value.model);
-    if (value.runner_id) {
-        result["runner_id"] = codec<std::optional<std::string>>::encode(value.runner_id);
-    }
-    return result;
-}
-inline holder::api::PostAiRunnerPullRequest codec<holder::api::PostAiRunnerPullRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected PostAiRunnerPullRequest");
-    if (!value.contains("model")) throw std::invalid_argument("missing model");
-    return holder::api::PostAiRunnerPullRequest{
-        codec<std::string>::decode(value.at("model")),
-        value.contains("runner_id") ? codec<std::optional<std::string>>::decode(value.at("runner_id")) : std::nullopt,
     };
 }
 
@@ -3623,6 +3545,84 @@ inline holder::api::AiProviderCatalogResponse codec<holder::api::AiProviderCatal
     return holder::api::AiProviderCatalogResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderCatalogResponseData>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::AiRunnerCreateRequest>::encode(const holder::api::AiRunnerCreateRequest& value) {
+    json result = json::object();
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.kind != "ollama") throw std::invalid_argument("invalid kind");
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["base_url"] = codec<std::string>::encode(value.base_url);
+    if (value.enabled) {
+        result["enabled"] = codec<std::optional<bool>>::encode(value.enabled);
+    }
+    return result;
+}
+inline holder::api::AiRunnerCreateRequest codec<holder::api::AiRunnerCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerCreateRequest");
+    if (!value.contains("name")) throw std::invalid_argument("missing name");
+    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
+    if (!value.contains("base_url")) throw std::invalid_argument("missing base_url");
+    if (value.at("kind") != "ollama") throw std::invalid_argument("invalid kind");
+    return holder::api::AiRunnerCreateRequest{
+        codec<std::string>::decode(value.at("name")),
+        codec<std::string>::decode(value.at("kind")),
+        codec<std::string>::decode(value.at("base_url")),
+        value.contains("enabled") ? codec<std::optional<bool>>::decode(value.at("enabled")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiRunnerUpdateRequest>::encode(const holder::api::AiRunnerUpdateRequest& value) {
+    json result = json::object();
+    if (value.name) {
+        result["name"] = codec<std::optional<std::string>>::encode(value.name);
+    }
+    if (value.base_url) {
+        result["base_url"] = codec<std::optional<std::optional<std::string>>>::encode(value.base_url);
+    }
+    if (value.enabled) {
+        result["enabled"] = codec<std::optional<bool>>::encode(value.enabled);
+    }
+    return result;
+}
+inline holder::api::AiRunnerUpdateRequest codec<holder::api::AiRunnerUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerUpdateRequest");
+    return holder::api::AiRunnerUpdateRequest{
+        value.contains("name") ? codec<std::optional<std::string>>::decode(value.at("name")) : std::nullopt,
+        value.contains("base_url") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("base_url"))} : std::nullopt,
+        value.contains("enabled") ? codec<std::optional<bool>>::decode(value.at("enabled")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::AiRunnerDeleteResponseData>::encode(const holder::api::AiRunnerDeleteResponseData& value) {
+    json result = json::object();
+    result["runner_id"] = codec<std::string>::encode(value.runner_id);
+    return result;
+}
+inline holder::api::AiRunnerDeleteResponseData codec<holder::api::AiRunnerDeleteResponseData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerDeleteResponseData");
+    if (!value.contains("runner_id")) throw std::invalid_argument("missing runner_id");
+    return holder::api::AiRunnerDeleteResponseData{
+        codec<std::string>::decode(value.at("runner_id")),
+    };
+}
+
+inline json codec<holder::api::AiRunnerDeleteResponse>::encode(const holder::api::AiRunnerDeleteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::AiRunnerDeleteResponseData>::encode(value.data);
+    return result;
+}
+inline holder::api::AiRunnerDeleteResponse codec<holder::api::AiRunnerDeleteResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected AiRunnerDeleteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::AiRunnerDeleteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::AiRunnerDeleteResponseData>::decode(value.at("data")),
     };
 }
 
