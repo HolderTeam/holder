@@ -524,11 +524,6 @@ struct RIG_OPEN_RECORD MilestoneWithDatesListResponse {
   std::vector<MilestoneWithDates> data;
 };
 
-struct RIG_OPEN_RECORD TrashDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  nlohmann::json data;
-};
-
 struct RIG_OPEN_RECORD Milestone {
   std::string milestone_id RIG_FIELD_DESCRIPTION("Canonical milestone identifier; this is not a card ID and is never abbreviated.") RIG_FORMAT("uuid");
   std::string card_id;

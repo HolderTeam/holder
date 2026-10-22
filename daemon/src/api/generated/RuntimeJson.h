@@ -514,10 +514,6 @@ template <> struct codec<holder::api::MilestoneWithDatesListResponse> {
     static json encode(const holder::api::MilestoneWithDatesListResponse& value);
     static holder::api::MilestoneWithDatesListResponse decode(const json& value);
 };
-template <> struct codec<holder::api::TrashDeleteResponse> {
-    static json encode(const holder::api::TrashDeleteResponse& value);
-    static holder::api::TrashDeleteResponse decode(const json& value);
-};
 template <> struct codec<holder::api::Milestone> {
     static json encode(const holder::api::Milestone& value);
     static holder::api::Milestone decode(const json& value);
@@ -1081,6 +1077,22 @@ template <> struct codec<holder::api::SearchMessageItem> {
 template <> struct codec<holder::api::SearchMessagesResponse> {
     static json encode(const holder::api::SearchMessagesResponse& value);
     static holder::api::SearchMessagesResponse decode(const json& value);
+};
+template <> struct codec<holder::api::TrashEmptyResult> {
+    static json encode(const holder::api::TrashEmptyResult& value);
+    static holder::api::TrashEmptyResult decode(const json& value);
+};
+template <> struct codec<holder::api::TrashEmptyResponse> {
+    static json encode(const holder::api::TrashEmptyResponse& value);
+    static holder::api::TrashEmptyResponse decode(const json& value);
+};
+template <> struct codec<holder::api::TrashDeleteResult> {
+    static json encode(const holder::api::TrashDeleteResult& value);
+    static holder::api::TrashDeleteResult decode(const json& value);
+};
+template <> struct codec<holder::api::TrashDeleteResponse> {
+    static json encode(const holder::api::TrashDeleteResponse& value);
+    static holder::api::TrashDeleteResponse decode(const json& value);
 };
 template <> struct codec<holder::api::routes::CardLinkListResponse> {
     static json encode(const holder::api::routes::CardLinkListResponse& value);
@@ -3345,24 +3357,6 @@ inline holder::api::MilestoneWithDatesListResponse codec<holder::api::MilestoneW
     return holder::api::MilestoneWithDatesListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::MilestoneWithDates>>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::TrashDeleteResponse>::encode(const holder::api::TrashDeleteResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<nlohmann::json>::encode(value.data);
-    return result;
-}
-inline holder::api::TrashDeleteResponse codec<holder::api::TrashDeleteResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected TrashDeleteResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::TrashDeleteResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<nlohmann::json>::decode(value.at("data")),
     };
 }
 
@@ -6487,6 +6481,73 @@ inline holder::api::SearchMessagesResponse codec<holder::api::SearchMessagesResp
     return holder::api::SearchMessagesResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::SearchMessageItem>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::TrashEmptyResult>::encode(const holder::api::TrashEmptyResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::api::TrashEmptyResult codec<holder::api::TrashEmptyResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected TrashEmptyResult");
+    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
+    return holder::api::TrashEmptyResult{
+        codec<std::string>::decode(value.at("project_id")),
+    };
+}
+
+inline json codec<holder::api::TrashEmptyResponse>::encode(const holder::api::TrashEmptyResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::TrashEmptyResult>::encode(value.data);
+    return result;
+}
+inline holder::api::TrashEmptyResponse codec<holder::api::TrashEmptyResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected TrashEmptyResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::TrashEmptyResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::TrashEmptyResult>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::TrashDeleteResult>::encode(const holder::api::TrashDeleteResult& value) {
+    json result = json::object();
+    if (value.card_id) {
+        result["card_id"] = codec<std::optional<std::string>>::encode(value.card_id);
+    }
+    if (value.message_id) {
+        result["message_id"] = codec<std::optional<std::string>>::encode(value.message_id);
+    }
+    return result;
+}
+inline holder::api::TrashDeleteResult codec<holder::api::TrashDeleteResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected TrashDeleteResult");
+    return holder::api::TrashDeleteResult{
+        value.contains("card_id") ? codec<std::optional<std::string>>::decode(value.at("card_id")) : std::nullopt,
+        value.contains("message_id") ? codec<std::optional<std::string>>::decode(value.at("message_id")) : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::TrashDeleteResponse>::encode(const holder::api::TrashDeleteResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::TrashDeleteResult>::encode(value.data);
+    return result;
+}
+inline holder::api::TrashDeleteResponse codec<holder::api::TrashDeleteResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected TrashDeleteResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::TrashDeleteResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::TrashDeleteResult>::decode(value.at("data")),
     };
 }
 

@@ -5,22 +5,27 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.delete_trash_type import DeleteTrashType
 from ...models.error_response import ErrorResponse
-from ...models.trash_delete_response import TrashDeleteResponse
+from ...models.trash_empty_response import TrashEmptyResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     project_id: str,
-    type_: str | Unset = UNSET,
+    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["project_id"] = project_id
 
-    params["type"] = type_
+    json_type_: str | Unset = UNSET
+    if not isinstance(type_, Unset):
+        json_type_ = type_.value
+
+    params["type"] = json_type_
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -35,9 +40,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | TrashDeleteResponse | None:
+) -> ErrorResponse | TrashEmptyResponse | None:
     if response.status_code == 200:
-        response_200 = TrashDeleteResponse.from_dict(response.json())
+        response_200 = TrashEmptyResponse.from_dict(response.json())
 
         return response_200
 
@@ -51,6 +56,16 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -59,7 +74,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | TrashDeleteResponse]:
+) -> Response[ErrorResponse | TrashEmptyResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -72,20 +87,23 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> Response[ErrorResponse | TrashDeleteResponse]:
+    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
+) -> Response[ErrorResponse | TrashEmptyResponse]:
     """Empty trash by project
+
+     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
+    nothing in Trash, or one that is not registered, succeeds without changes.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashDeleteResponse]
+        Response[ErrorResponse | TrashEmptyResponse]
     """
 
     kwargs = _get_kwargs(
@@ -104,20 +122,23 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> ErrorResponse | TrashDeleteResponse | None:
+    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
+) -> ErrorResponse | TrashEmptyResponse | None:
     """Empty trash by project
+
+     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
+    nothing in Trash, or one that is not registered, succeeds without changes.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashDeleteResponse
+        ErrorResponse | TrashEmptyResponse
     """
 
     return sync_detailed(
@@ -131,20 +152,23 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> Response[ErrorResponse | TrashDeleteResponse]:
+    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
+) -> Response[ErrorResponse | TrashEmptyResponse]:
     """Empty trash by project
+
+     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
+    nothing in Trash, or one that is not registered, succeeds without changes.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashDeleteResponse]
+        Response[ErrorResponse | TrashEmptyResponse]
     """
 
     kwargs = _get_kwargs(
@@ -161,20 +185,23 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> ErrorResponse | TrashDeleteResponse | None:
+    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
+) -> ErrorResponse | TrashEmptyResponse | None:
     """Empty trash by project
+
+     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
+    nothing in Trash, or one that is not registered, succeeds without changes.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashDeleteResponse
+        ErrorResponse | TrashEmptyResponse
     """
 
     return (

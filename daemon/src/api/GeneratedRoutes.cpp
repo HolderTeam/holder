@@ -38,6 +38,7 @@
 #include "api/RunnerPull.h"
 #include "api/Search.h"
 #include "api/TrashList.h"
+#include "api/TrashWrite.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "api/support/HttpResponses.h"
 #include "privacy/SecretStore.h"

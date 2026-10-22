@@ -321,9 +321,9 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       boost::beast::http::verb::delete_,
       "/trash/card/",
       nlohmann::json::object(),
-      boost::beast::http::status::bad_request
+      boost::beast::http::status::not_found
   );
-  REQUIRE(missing_id["error"]["code"] == "bad_request");
+  REQUIRE(missing_id["error"]["code"] == "not_found");
 
   auto unknown_type = http_json_request(
       bound.bind,
@@ -563,9 +563,9 @@ TEST_CASE("HTTP trash top-level routes catch repository exceptions", "[http]") {
       boost::beast::http::verb::delete_,
       "/trash?project_id=proj-1&type=ai_message",
       nlohmann::json::object(),
-      boost::beast::http::status::bad_request
+      boost::beast::http::status::internal_server_error
   );
-  REQUIRE(delete_fail["error"]["code"] == "bad_request");
+  REQUIRE(delete_fail["ok"] == false);
 
   std::raise(SIGTERM);
   server_thread.join();

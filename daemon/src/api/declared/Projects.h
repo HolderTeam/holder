@@ -102,18 +102,4 @@ ProjectRecoveryTokenImportResponse post_projects_project_id_recovery_token_impor
     std::string project_id,
     ProjectRecoveryTokenImportRequest request);
 
-RIG_ROUTE(DELETE, "/projects/{project_id}/trash/{type}/{id}")
-RIG_SUMMARY("Permanently remove a trashed item from one project")
-RIG_DESCRIPTION("The item must belong to the named project and still be in Trash. For cards, older Git revisions remain available; this operation does not erase repository history.")
-RIG_RESPONSE_DESCRIPTION("Trashed item removed")
-RIG_HOST_RESPONSE("application/json")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid item type or identifier")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Item not found in the named project")
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Item is not in Trash")
-RIG_ERROR_RESPONSE(501, ErrorResponse, "Card store unavailable")
-TrashDeleteResponse delete_projects_project_id_trash_type_id(
-    std::string project_id,
-    std::string type RIG_STRING_VALUES("card", "ai_message"),
-    std::string id);
-
 } // namespace holder::api

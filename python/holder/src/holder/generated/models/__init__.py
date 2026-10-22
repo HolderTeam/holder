@@ -154,6 +154,8 @@ from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
 from .delete_projects_project_id_trash_type_id_type import (
     DeleteProjectsProjectIdTrashTypeIdType,
 )
+from .delete_trash_type import DeleteTrashType
+from .delete_trash_type_id_type import DeleteTrashTypeIdType
 from .error import Error
 from .error_response import ErrorResponse
 from .event_checkpoint import EventCheckpoint
@@ -350,6 +352,8 @@ from .storage_location_request_provider import StorageLocationRequestProvider
 from .storage_location_response import StorageLocationResponse
 from .trash_delete_response import TrashDeleteResponse
 from .trash_delete_response_data import TrashDeleteResponseData
+from .trash_empty_response import TrashEmptyResponse
+from .trash_empty_response_data import TrashEmptyResponseData
 from .trash_item import TrashItem
 from .trash_list_response import TrashListResponse
 
@@ -498,6 +502,8 @@ __all__ = (
     "DeleteCardsCardIdChildren",
     "DeleteCardsCardIdResourcesBody",
     "DeleteProjectsProjectIdTrashTypeIdType",
+    "DeleteTrashType",
+    "DeleteTrashTypeIdType",
     "Error",
     "ErrorResponse",
     "EventCheckpoint",
@@ -652,6 +658,8 @@ __all__ = (
     "StorageLocationResponse",
     "TrashDeleteResponse",
     "TrashDeleteResponseData",
+    "TrashEmptyResponse",
+    "TrashEmptyResponseData",
     "TrashItem",
     "TrashListResponse",
 )

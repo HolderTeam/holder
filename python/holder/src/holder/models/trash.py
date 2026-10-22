@@ -18,6 +18,7 @@ from ..generated.api.default import (
 from ..generated.models import (
     DeleteProjectsProjectIdTrashTypeIdType as TrashType,
 )
+from ..generated.models import DeleteTrashType
 from ..generated.types import Unset
 
 if TYPE_CHECKING:
@@ -133,6 +134,5 @@ class TrashCollection(Collection[TrashItem]):
         Call cards() or messages() first to limit the operation. Saved card
         revisions remain in Git history. Refresh cached listings afterwards.
         """
-        self._holder._call(
-            delete_trash, project_id=self._project.id, write=True, **self._query
-        )
+        query = {key: DeleteTrashType(value) for key, value in self._query.items()}
+        self._holder._call(delete_trash, project_id=self._project.id, write=True, **query)

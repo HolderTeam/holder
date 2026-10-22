@@ -183,6 +183,7 @@ add_executable(holder_daemon_tests
   ../src/api/ResourceWrite.cpp
   ../src/api/Rebuild.cpp
   ../src/api/TrashList.cpp
+  ../src/api/TrashWrite.cpp
   ../src/api/Listener.cpp
   ../src/api/routes/ai/AiProviderRoutes.cpp
   ../src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
@@ -207,7 +208,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ProjectRoutes.cpp
   ../src/api/routes/ReindexRoutes.cpp
   ../src/api/Search.cpp
-  ../src/api/routes/TrashRoutes.cpp
   ../src/api/routes/StaticRoutes.cpp
   ../src/api/support/PathDiscovery.cpp
   ../src/platform/InstalledDataPath.cpp

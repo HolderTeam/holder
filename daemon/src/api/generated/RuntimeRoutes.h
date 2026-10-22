@@ -586,12 +586,41 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_106("^/ping$");
     if (method == "GET" && std::regex_match(route_path, route_106))
         return std::nullopt;  // get_ping is served by the host
-    static const std::regex route_117("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, route_117))
+    static const std::regex route_116("^/reindex$");
+    if (method == "POST" && std::regex_match(route_path, route_116))
         return std::nullopt;  // post_reindex is served by the host
-    static const std::regex route_121("^/trash$");
-    if (method == "DELETE" && std::regex_match(route_path, route_121))
-        return std::nullopt;  // delete_trash is served by the host
+    static const std::regex route_120("^/trash$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_120)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        try {
+            const auto query_values = decode_query(query_string);
+            const auto query_0 = query_values.find("project_id");
+            if (query_0 == query_values.end())
+                throw std::invalid_argument("missing query parameter: project_id");
+            argument_0.emplace(std::string(query_0->second));
+            const auto query_1 = query_values.find("type");
+            if (query_1 == query_values.end())
+                argument_1.emplace("all");
+            else
+                argument_1.emplace(std::string(query_1->second));
+            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "project_id");
+            enforce_string_values(*argument_1, {"card", "ai_message", "all"}, "type");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_trash");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_trash");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_trash(context.db, context.fts, context.card_store, std::move(*argument_0), std::move(*argument_1))), "delete_trash"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_trash"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "delete_trash"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_trash"};
+        }
+    }
     static const std::regex route_11("^/ai/messages$");
     if (method == "GET" && std::regex_match(route_path, match, route_11)) {
         std::optional<std::string> argument_0;
@@ -838,11 +867,11 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_preferred"};
         }
     }
-    static const std::regex route_116("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, route_116))
+    static const std::regex route_115("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, route_115))
         return std::nullopt;  // post_recovery_token_import is served by the host
-    static const std::regex route_119("^/search/cards$");
-    if (method == "GET" && std::regex_match(route_path, match, route_119)) {
+    static const std::regex route_118("^/search/cards$");
+    if (method == "GET" && std::regex_match(route_path, match, route_118)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         std::optional<int> argument_2;
@@ -886,8 +915,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_search_cards"};
         }
     }
-    static const std::regex route_120("^/search/ai$");
-    if (method == "GET" && std::regex_match(route_path, match, route_120)) {
+    static const std::regex route_119("^/search/ai$");
+    if (method == "GET" && std::regex_match(route_path, match, route_119)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         std::optional<int> argument_2;
@@ -2592,15 +2621,61 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_projects_project_id_cards_card_id_breadcrumbs"};
         }
     }
-    static const std::regex route_118("^/resources/([^/]+)/assets/([^/]+)/content$");
-    if (method == "GET" && std::regex_match(route_path, route_118))
+    static const std::regex route_117("^/resources/([^/]+)/assets/([^/]+)/content$");
+    if (method == "GET" && std::regex_match(route_path, route_117))
         return std::nullopt;  // get_resources_resource_id_assets_asset_id_content is served by the host
-    static const std::regex route_115("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_115))
-        return std::nullopt;  // delete_projects_project_id_trash_type_id is served by the host
-    static const std::regex route_122("^/trash/([^/]+)/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_122))
-        return std::nullopt;  // delete_trash_type_id is served by the host
+    static const std::regex route_122("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_122)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        std::optional<std::string> argument_2;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+            argument_2.emplace(decode_path_string(match[3].str()));
+            enforce_string_values(*argument_1, {"card", "ai_message"}, "type");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_projects_project_id_trash_type_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_projects_project_id_trash_type_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_projects_project_id_trash_type_id(context.db, context.fts, context.card_store, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2))), "delete_projects_project_id_trash_type_id"};
+        } catch (const holder::api::TrashItemNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_projects_project_id_trash_type_id"};
+        } catch (const holder::api::TrashItemNotTrashed& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "delete_projects_project_id_trash_type_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "delete_projects_project_id_trash_type_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_projects_project_id_trash_type_id"};
+        }
+    }
+    static const std::regex route_121("^/trash/([^/]+)/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_121)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+            enforce_string_values(*argument_0, {"card", "ai_message"}, "type");
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_trash_type_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_trash_type_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_trash_type_id(context.db, context.fts, context.card_store, std::move(*argument_0), std::move(*argument_1))), "delete_trash_type_id"};
+        } catch (const holder::api::TrashItemNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_trash_type_id"};
+        } catch (const holder::api::TrashItemNotTrashed& error) {
+            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "delete_trash_type_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "delete_trash_type_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_trash_type_id"};
+        }
+    }
     std::set<std::string_view> allowed;
     static const std::regex path_0("^/cards$");
     if (std::regex_match(route_path, path_0)) allowed.insert({"GET", "POST"});

@@ -51,4 +51,4 @@
 #include "api/declared/Resources.h"
 #include "api/declared/Schemas.h"
 #include "api/Search.h"
-#include "api/declared/Trash.h"
+#include "api/TrashWrite.h"

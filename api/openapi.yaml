@@ -4396,7 +4396,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TrashDeleteResponse'}
         '400':
-          description: Invalid item type or identifier
+          description: Bad request
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4411,7 +4411,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Item is not in Trash
+          description: Item is not in Trash (not_trashed)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4906,29 +4911,43 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
     delete:
       summary: Empty trash by project
+      description: Permanently removes the project's trashed cards, AI messages, or both (the default).
+        A project with nothing in Trash, or one that is not registered, succeeds without changes.
       parameters:
       - name: project_id
         in: query
         required: true
-        schema: {type: string}
+        schema: {type: string, minLength: 1}
       - name: type
         in: query
         required: false
-        schema: {type: string}
-        description: card | ai_message | all
+        schema:
+          type: string
+          enum: [card, ai_message, all]
+          default: all
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TrashDeleteResponse'}
+              schema: {$ref: '#/components/schemas/TrashEmptyResponse'}
         '400':
-          description: Bad request
+          description: Missing project_id or unknown type
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '501':
+          description: Removing cards needs the card store, which the daemon does not have
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4940,7 +4959,9 @@ paths:
       - name: type
         in: path
         required: true
-        schema: {type: string}
+        schema:
+          type: string
+          enum: [card, ai_message]
       - name: id
         in: path
         required: true
@@ -4967,7 +4988,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Item is not in Trash
+          description: Item is not in Trash (not_trashed)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -7382,7 +7408,23 @@ components:
         ok:
           type: boolean
           enum: [true]
-        data: {type: object, additionalProperties: true}
+        data:
+          type: object
+          properties:
+            card_id: {type: string, description: Present when a card was removed.}
+            message_id: {type: string, description: Present when an AI message was removed.}
+      required: [ok, data]
+    TrashEmptyResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            project_id: {type: string}
+          required: [project_id]
       required: [ok, data]
     TrashItem:
       type: object

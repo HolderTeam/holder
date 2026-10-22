@@ -5,7 +5,6 @@
 #include "api/routes/ProjectCardRoutes.h"
 #include "api/routes/ProjectRoutes.h"
 #include "api/routes/ReindexRoutes.h"
-#include "api/routes/TrashRoutes.h"
 #include "api/routes/ai/AiDispatch.h"
 #include "api/support/HttpQuery.h"
 #include "api/support/HttpResponses.h"
@@ -54,8 +53,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
   };
 
   if (resource == "projects" || resource == "recovery-token") {
-    if (resource == "projects" && handle_trash_routes(path, req, res, db, card_store, fts, param))
-      return {};
     if (resource == "projects" &&
         handle_project_card_routes(path, req, res, db, card_store))
       return {};
@@ -98,8 +95,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
             &streamed
         ))
       return {.streamed = streamed};
-  } else if (resource == "trash") {
-    if (handle_trash_routes(path, req, res, db, card_store, fts, param)) return {};
   }
 
   res = support::error_response(http::status::not_found, "not_found", "Route not found.");
