@@ -6,6 +6,8 @@
 #include <rig/result.hpp>
 #include <rig/route.hpp>
 #else
+#include <string>
+
 #define RIG_ROUTE(method, path)
 #define RIG_SUMMARY(text)
 #define RIG_DESCRIPTION(text)
@@ -55,6 +57,13 @@ template <typename Body>
 struct success {
   int status;
   Body body;
+};
+
+// RIG's rig::event: a declared event's name and encoded data. Build it with the generated
+// rig_events::<name>(data), which pairs each declared name with its declared type.
+template <typename Json> struct event {
+  std::string name;
+  Json data;
 };
 
 } // namespace rig

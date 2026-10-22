@@ -1,5 +1,6 @@
 #include "api/routes/ai/runner/AiRunnerPullEventRoutes.h"
 
+#include "api/generated/RuntimeJson.h"
 #include "api/support/HttpResponses.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/RunnerModelRef.h"
@@ -16,28 +17,6 @@ namespace holder::api::routes::ai::runner {
 namespace {
 
 namespace http = boost::beast::http;
-
-nlohmann::json pull_job_to_json(
-    const holder::llm::RunnerPullJob& job,
-    const std::string& runner_id
-) {
-  nlohmann::json data;
-  data["job_id"] = job.job_id;
-  data["runner_id"] = runner_id;
-  data["model"] = job.model;
-  data["model_ref"] = holder::llm::make_runner_model_ref(runner_id, job.model);
-  data["status"] = job.status;
-  data["active"] = holder::llm::pull_job_active(job);
-  data["updated_at"] = job.updated_at;
-  data["error"] = job.error.empty() ? nlohmann::json(nullptr) : nlohmann::json(job.error);
-  data["progress"] = {
-      {"completed", job.progress.completed},
-      {"total", job.progress.total},
-      {"percent", job.progress.percent},
-      {"stage", job.progress.stage},
-  };
-  return data;
-}
 
 std::string requested_runner_id(const std::function<std::string(const std::string&)>& param_get) {
   const auto query_runner_id = param_get("runner_id");
@@ -111,14 +90,15 @@ RunnerRouteDispatchResult handle_ai_runner_pull_event_routes(
       [runner, runner_id, job_id, journal, cursor = std::string(), previous = std::string()](
       ) mutable {
         if (const auto current_job = runner->get_pull(job_id)) {
-          const auto data = pull_job_to_json(*current_job, runner_id);
-          const auto current = data.dump();
+          const auto status = pull_job_status(*current_job, runner_id);
+          auto progress = rig_events::progress(status);
+          const auto current = progress.data.dump();
           if (current != previous) {
-            journal->append("progress", data);
-            if (current_job->status == "completed" || current_job->status == "failed") {
-              journal->append(
-                  current_job->status == "completed" ? "completed" : "failed", data, true
-              );
+            journal->append(std::move(progress));
+            if (current_job->status == "completed") {
+              journal->append(rig_events::completed(status), true);
+            } else if (current_job->status == "failed") {
+              journal->append(rig_events::failed(status), true);
             }
             previous = current;
           }

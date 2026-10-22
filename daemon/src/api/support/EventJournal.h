@@ -1,5 +1,7 @@
 #pragma once
 
+#include "api/RigAnnotations.h"
+
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
@@ -10,7 +12,12 @@
 
 namespace holder::api::support {
 
+// An event as sent: its ID and a declared event, built with the generated rig_events.
 struct StreamEvent {
+  StreamEvent(std::string event_id, rig::event<nlohmann::json> event)
+      : id(std::move(event_id)),
+        name(std::move(event.name)),
+        data(std::move(event.data)) {}
   std::string id;
   std::string name;
   nlohmann::json data;
@@ -29,7 +36,7 @@ struct EventBatch {
 class EventJournal {
  public:
   explicit EventJournal(std::size_t capacity = 512, std::size_t byte_limit = 1024 * 1024);
-  StreamEvent append(std::string name, nlohmann::json data, bool finished = false);
+  StreamEvent append(rig::event<nlohmann::json> event, bool finished = false);
   EventBatch read(const std::string& after = "") const;
   std::string cursor() const;
   static bool valid_cursor(const std::string& cursor);

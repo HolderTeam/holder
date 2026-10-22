@@ -76,16 +76,30 @@ struct RIG_OPEN_RECORD AiLocalModelConfigResponse {
 };
 
 struct RIG_OPEN_RECORD RIG_DESCRIPTION("Named run events share run_id. Fields vary by event and provider.") AiRunEventData {
-  std::string run_id;
-  std::optional<std::string> status RIG_OMIT_EMPTY;
-  std::optional<long long> created_at RIG_OMIT_EMPTY;
-  std::optional<std::string> delta RIG_OMIT_EMPTY;
-  std::optional<std::string> message RIG_OMIT_EMPTY;
-  std::optional<std::string> error RIG_OMIT_EMPTY;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
-  std::optional<std::string> model_ref RIG_OMIT_EMPTY;
-  std::optional<std::string> model RIG_OMIT_EMPTY;
-  std::optional<std::string> provider RIG_OMIT_EMPTY;
+  // support::append_run_event fills run_id, so producers name only their own fields.
+  std::string run_id = {};
+  std::optional<std::string> status RIG_OMIT_EMPTY{};
+  std::optional<long long> created_at RIG_OMIT_EMPTY{};
+  std::optional<std::string> delta RIG_OMIT_EMPTY{};
+  std::optional<std::string> message RIG_OMIT_EMPTY{};
+  std::optional<std::string> error RIG_OMIT_EMPTY{};
+  std::optional<std::string> runner_id RIG_OMIT_EMPTY{};
+  std::optional<std::string> model_ref RIG_OMIT_EMPTY{};
+  std::optional<std::string> model RIG_OMIT_EMPTY{};
+  std::optional<std::string> provider RIG_OMIT_EMPTY{};
+  std::optional<bool> context_compacted RIG_OMIT_EMPTY RIG_FIELD_DESCRIPTION(
+      "On a cloud progress event: whether the thread was summarized to fit the model's context."
+  ){};
+  std::optional<long long> cooldown_until RIG_OMIT_EMPTY RIG_FIELD_DESCRIPTION(
+      "On a cloud fallback: when the failed model may be tried again, in epoch seconds."
+  ){};
+  std::optional<std::string> router_model RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("On router_result: the model that ranked the candidates."){};
+  std::optional<std::vector<std::string>> ranked RIG_OMIT_EMPTY
+      RIG_FIELD_DESCRIPTION("On router_result: the candidate models, best first."){};
+  std::optional<bool> partial RIG_OMIT_EMPTY RIG_FIELD_DESCRIPTION(
+      "On a local fallback: whether the failed model had already streamed some output."
+  ){};
 };
 
 struct RIG_OPEN_RECORD AiRunCreateRequest {

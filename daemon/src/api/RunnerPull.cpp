@@ -10,6 +10,22 @@
 
 namespace holder::api {
 
+RunnerPullJob pull_job_status(const holder::llm::RunnerPullJob& job, const std::string& runner_id) {
+  std::optional<std::string> error;
+  if (!job.error.empty()) error = job.error;
+  return {
+      job.job_id,
+      runner_id,
+      holder::llm::make_runner_model_ref(runner_id, job.model),
+      job.model,
+      job.status,
+      holder::llm::pull_job_active(job),
+      job.updated_at,
+      std::optional<std::optional<std::string>>{std::in_place, error},
+      {job.progress.completed, job.progress.total, job.progress.percent, job.progress.stage}
+  };
+}
+
 RunnerPullStatusResponse get_pull_status(
     holder::llm::RunnerRegistry* registry,
     std::optional<std::string> requested_runner_id,
@@ -24,21 +40,7 @@ RunnerPullStatusResponse get_pull_status(
 
   const auto job = runner->get_pull(job_id);
   if (!job.has_value()) throw PullJobNotFound{};
-  std::optional<std::string> error;
-  if (!job->error.empty()) error = job->error;
-  return {true,
-          {job->job_id,
-           runner_id,
-           holder::llm::make_runner_model_ref(runner_id, job->model),
-           job->model,
-           job->status,
-           holder::llm::pull_job_active(*job),
-           job->updated_at,
-           std::optional<std::optional<std::string>>{std::in_place, error},
-           {job->progress.completed,
-            job->progress.total,
-            job->progress.percent,
-            job->progress.stage}}};
+  return {true, pull_job_status(*job, runner_id)};
 }
 
 RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registry,

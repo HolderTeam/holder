@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api/declared/Schemas.h"
 #include "api/support/SseStream.h"
 #include "platform/Db.h"
 
@@ -18,7 +19,7 @@ class EventService {
   std::shared_ptr<SseRegistry> streams() const { return streams_; }
   // The checkpoint GET /events/cursor answers, for every project or only the named one;
   // nullopt while the change feed is unavailable.
-  std::optional<nlohmann::json> current_checkpoint(const std::string& project);
+  std::optional<EventCheckpoint> current_checkpoint(const std::string& project);
   bool dispatch(
       const std::string& path,
       const std::string& query,

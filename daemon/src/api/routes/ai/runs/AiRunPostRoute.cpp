@@ -7,6 +7,7 @@
 #include "ai/AiRunRepo.h"
 #include "ai/AiThreadDurability.h"
 #include "ai/AiThreadRepo.h"
+#include "api/generated/RuntimeJson.h"
 #include "api/support/CloudClient.h"
 #include "api/support/CloudConfig.h"
 #include "api/support/CloudQuota.h"
@@ -35,6 +36,12 @@
 namespace holder::api::routes::ai::runs {
 namespace {
 
+// done and failed end a run's stream.
+bool is_terminal(support::RunEventConstructor make) {
+  return make == static_cast<support::RunEventConstructor>(rig_events::done) ||
+         make == static_cast<support::RunEventConstructor>(rig_events::failed);
+}
+
 namespace http = boost::beast::http;
 
 // Persist failure before closing a stream if execution throws after HTTP headers.
@@ -57,7 +64,9 @@ struct RunStreamCompletion {
             std::nullopt,
             support::now_epoch_seconds()
         );
-        channel->send(support::append_run_event(run_id, "failed", {{"error", error}}, true));
+        channel->send(
+            support::append_run_event(run_id, rig_events::failed, {.error = error}, true)
+        );
       } catch (const std::exception& ex) {
         spdlog::warn("Cannot persist failed streaming run: {}", ex.what());
       }
@@ -522,8 +531,8 @@ RouteDispatchResult execute_cloud_post_path(
       }
       const auto started_event = support::append_run_event(
           run.run_id,
-          "run_started",
-          {{"run_id", run.run_id}, {"status", "started"}, {"created_at", run.created_at}},
+          rig_events::run_started,
+          {.status = "started", .created_at = run.created_at},
           false
       );
 
@@ -532,11 +541,10 @@ RouteDispatchResult execute_cloud_post_path(
       out.streamed = true;
       streaming_started = true;
       const RunStreamCompletion completion{run_repo, run.run_id, channel};
-      auto send_event = [&](const std::string& name, const nlohmann::json& data) -> bool {
-        const bool terminal = name == "done" || name == "failed";
-        const auto event = support::append_run_event(run.run_id, name, data, terminal);
-        const bool sent = channel->send(event);
-        return sent;
+      auto send_event = [&](support::RunEventConstructor make, AiRunEventData data) -> bool {
+        const auto event =
+            support::append_run_event(run.run_id, make, std::move(data), is_terminal(make));
+        return channel->send(event);
       };
 
       nlohmann::json policy_trace;
@@ -552,8 +560,8 @@ RouteDispatchResult execute_cloud_post_path(
       policy_trace["attempts"] = nlohmann::json::array();
 
       send_event(
-          "progress",
-          {{"message", "Using cloud provider"}, {"provider", selected_provider->id}}
+          rig_events::progress,
+          {.message = "Using cloud provider", .provider = selected_provider->id}
       );
 
       if (thread_id.has_value()) {
@@ -685,10 +693,10 @@ RouteDispatchResult execute_cloud_post_path(
 
               if (!quota_reject) {
                 send_event(
-                    "progress",
-                    {{"message", "Refreshing rolling summary"},
-                     {"provider", selected_provider->id},
-                     {"model", compact_model->id}}
+                    rig_events::progress,
+                    {.message = "Refreshing rolling summary",
+                     .model = compact_model->id,
+                     .provider = selected_provider->id}
                 );
                 std::string summary_error;
                 const auto summary_output = support::run_cloud_model(
@@ -880,11 +888,11 @@ RouteDispatchResult execute_cloud_post_path(
         attempt["decision"] = "selected";
         policy_trace["attempts"].push_back(attempt);
         send_event(
-            "progress",
-            {{"message", "Trying cloud model"},
-             {"provider", selected_provider->id},
-             {"model", candidate->id},
-             {"context_compacted", compacted}}
+            rig_events::progress,
+            {.message = "Trying cloud model",
+             .model = candidate->id,
+             .provider = selected_provider->id,
+             .context_compacted = compacted}
         );
 
         std::string cloud_error;
@@ -933,11 +941,11 @@ RouteDispatchResult execute_cloud_post_path(
           policy_trace["attempts"].back()["cooldown"] = attempt["cooldown"];
         }
         send_event(
-            "fallback",
-            {{"provider", selected_provider->id},
-             {"model", candidate->id},
-             {"error", final_error},
-             {"cooldown_until", cooldown.cooldown_until}}
+            rig_events::fallback,
+            {.error = final_error,
+             .model = candidate->id,
+             .provider = selected_provider->id,
+             .cooldown_until = cooldown.cooldown_until}
         );
       }
 
@@ -960,7 +968,7 @@ RouteDispatchResult execute_cloud_post_path(
             std::optional<std::string>(policy_trace.dump()),
             updated_at
         );
-        send_event("failed", {{"error", final_error}, {"provider", selected_provider->id}});
+        send_event(rig_events::failed, {.error = final_error, .provider = selected_provider->id});
       } else {
         const long long response_tokens = support::estimate_tokens_from_text(output.value());
         if (thread_id.has_value() && !context_json.empty() && !summary_refreshed) {
@@ -985,10 +993,10 @@ RouteDispatchResult execute_cloud_post_path(
         };
 
         send_event(
-            "chunk",
-            {{"provider", selected_provider->id},
-             {"model", chosen_model_id.value()},
-             {"delta", output.value()}}
+            rig_events::chunk,
+            {.delta = output.value(),
+             .model = chosen_model_id.value(),
+             .provider = selected_provider->id}
         );
 
         std::optional<std::string> message_id;
@@ -1029,8 +1037,8 @@ RouteDispatchResult execute_cloud_post_path(
             updated_at
         );
         send_event(
-            "done",
-            {{"provider", selected_provider->id}, {"model", chosen_model_id.value()}}
+            rig_events::done,
+            {.model = chosen_model_id.value(), .provider = selected_provider->id}
         );
       }
     }
@@ -1066,14 +1074,14 @@ std::string local_model_ref(const std::string& runner_id, const std::string& mod
   return holder::llm::make_runner_model_ref(runner_id, model_name);
 }
 
-nlohmann::json with_local_runner_fields(
-    nlohmann::json data,
+AiRunEventData with_local_runner_fields(
+    AiRunEventData data,
     const std::string& runner_id,
     const std::string& model_name
 ) {
-  data["runner_id"] = runner_id;
-  data["model"] = model_name;
-  data["model_ref"] = local_model_ref(runner_id, model_name);
+  data.runner_id = runner_id;
+  data.model = model_name;
+  data.model_ref = local_model_ref(runner_id, model_name);
   return data;
 }
 
@@ -1251,8 +1259,8 @@ RouteDispatchResult execute_local_post_path(
   }
   const auto started_event = support::append_run_event(
       run.run_id,
-      "run_started",
-      {{"run_id", run.run_id}, {"status", "started"}, {"created_at", run.created_at}},
+      rig_events::run_started,
+      {.status = "started", .created_at = run.created_at},
       false
   );
 
@@ -1261,11 +1269,10 @@ RouteDispatchResult execute_local_post_path(
   out.streamed = true;
   streaming_started = true;
   const RunStreamCompletion completion{run_repo, run.run_id, channel};
-  auto send_event = [&](const std::string& name, const nlohmann::json& data) -> bool {
-    const bool terminal = name == "done" || name == "failed";
-    const auto event = support::append_run_event(run.run_id, name, data, terminal);
-    const bool sent = channel->send(event);
-    return sent;
+  auto send_event = [&](support::RunEventConstructor make, AiRunEventData data) -> bool {
+    const auto event =
+        support::append_run_event(run.run_id, make, std::move(data), is_terminal(make));
+    return channel->send(event);
   };
 
   std::string ranked_json;
@@ -1285,10 +1292,10 @@ RouteDispatchResult execute_local_post_path(
   }
 
   if (!forced_model.empty()) {
-    send_event("router", {{"message", "routing skipped (forced model)"}});
+    send_event(rig_events::router, {.message = "routing skipped (forced model)"});
     candidates = {forced_model};
   } else if (candidates.size() == 1) {
-    send_event("router", {{"message", "routing skipped (single model)"}});
+    send_event(rig_events::router, {.message = "routing skipped (single model)"});
   } else {
     const size_t router_limit = 50000;
     std::string router_input = prompt;
@@ -1332,7 +1339,7 @@ RouteDispatchResult execute_local_post_path(
         router_options.dump(),
         [&](const std::string& chunk) {
           router_text += chunk;
-          send_event("router", {{"delta", chunk}});
+          send_event(rig_events::router, {.delta = chunk});
         },
         &router_error
     );
@@ -1352,16 +1359,16 @@ RouteDispatchResult execute_local_post_path(
         ranked = {fallback};
       }
     }
-    nlohmann::json ranked_payload = nlohmann::json::array();
+    std::vector<std::string> ranked_refs;
     for (const auto& ranked_model : ranked) {
-      ranked_payload.push_back(local_model_ref(runner_id, ranked_model));
+      ranked_refs.push_back(local_model_ref(runner_id, ranked_model));
     }
-    ranked_json = ranked_payload.dump();
+    ranked_json = nlohmann::json(ranked_refs).dump();
     send_event(
-        "router_result",
-        {{"router_model", local_model_ref(runner_id, router_model)},
-         {"ranked", ranked_payload},
-         {"error", router_error.empty() ? nlohmann::json(nullptr) : nlohmann::json(router_error)}}
+        rig_events::router_result,
+        {.error = router_error.empty() ? std::nullopt : std::optional<std::string>(router_error),
+         .router_model = local_model_ref(runner_id, router_model),
+         .ranked = std::move(ranked_refs)}
     );
     candidates = ranked;
   }
@@ -1370,8 +1377,8 @@ RouteDispatchResult execute_local_post_path(
   bool any_output = false;
   for (const auto& model : candidates) {
     send_event(
-        "progress",
-        with_local_runner_fields({{"message", "Trying model"}}, runner_id, model)
+        rig_events::progress,
+        with_local_runner_fields({.message = "Trying model"}, runner_id, model)
     );
     std::string prompt_full = prompt;
     if (!context_json.empty()) {
@@ -1388,7 +1395,10 @@ RouteDispatchResult execute_local_post_path(
           got_output = true;
           any_output = true;
           assistant_text += chunk;
-          send_event("chunk", with_local_runner_fields({{"delta", chunk}}, runner_id, model));
+          send_event(
+              rig_events::chunk,
+              with_local_runner_fields({.delta = chunk}, runner_id, model)
+          );
         },
         &model_error
     );
@@ -1398,23 +1408,20 @@ RouteDispatchResult execute_local_post_path(
       break;
     }
 
-    nlohmann::json fallback_event =
-        with_local_runner_fields(nlohmann::json::object(), runner_id, model);
-    if (!model_error.empty()) fallback_event["error"] = model_error;
-    if (got_output && !ok) fallback_event["partial"] = true;
-    send_event("fallback", fallback_event);
+    auto fallback_event = with_local_runner_fields({}, runner_id, model);
+    if (!model_error.empty()) fallback_event.error = model_error;
+    if (got_output && !ok) fallback_event.partial = true;
+    send_event(rig_events::fallback, std::move(fallback_event));
   }
 
   const long long updated_at = support::now_epoch_seconds();
   if (!chosen_model.empty()) {
     spdlog::info("AI run completed runner_id=" + runner_id + " model_ref=" + chosen_model);
-    nlohmann::json done_event;
-    done_event["runner_id"] = runner_id;
-    done_event["model_ref"] = chosen_model;
+    AiRunEventData done_event{.runner_id = runner_id, .model_ref = chosen_model};
     if (const auto parsed = holder::llm::parse_runner_model_ref(chosen_model); parsed.has_value()) {
-      done_event["model"] = parsed->model_name;
+      done_event.model = parsed->model_name;
     } else {
-      done_event["model"] = chosen_model; // LCOV_EXCL_LINE
+      done_event.model = chosen_model; // LCOV_EXCL_LINE
     }
     std::optional<std::string> message_id;
     if (thread_id.has_value()) {
@@ -1451,7 +1458,7 @@ RouteDispatchResult execute_local_post_path(
         std::nullopt,
         updated_at
     );
-    send_event("done", done_event);
+    send_event(rig_events::done, std::move(done_event));
   } else {
     spdlog::warn("AI run failed runner_id=" + runner_id + " reason=all_models_failed");
     run_repo.update_status(
@@ -1464,7 +1471,7 @@ RouteDispatchResult execute_local_post_path(
         std::nullopt,
         updated_at
     );
-    send_event("failed", {{"runner_id", runner_id}, {"error", "All models failed."}});
+    send_event(rig_events::failed, {.error = "All models failed.", .runner_id = runner_id});
   }
 
   return out;

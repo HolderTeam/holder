@@ -1,4 +1,5 @@
 #include "api/support/ChangeFeed.h"
+#include "api/generated/RuntimeJson.h"
 #include "git/GitRepo.h"
 
 #include <openssl/evp.h>
@@ -12,6 +13,18 @@
 
 namespace holder::api::support {
 namespace {
+
+// Each kind of entity has its own declared event.
+rig::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
+  if (data.entity == "project") return rig_events::project_changed(data);
+  if (data.entity == "card") return rig_events::card_changed(data);
+  if (data.entity == "resource") return rig_events::resource_changed(data);
+  if (data.entity == "location") return rig_events::location_changed(data);
+  if (data.entity == "thread") return rig_events::thread_changed(data);
+  if (data.entity == "message") return rig_events::message_changed(data);
+  if (data.entity == "run") return rig_events::run_changed(data);
+  throw std::logic_error("undeclared change event entity: " + data.entity);
+}
 
 using Statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
 
@@ -189,14 +202,16 @@ void ChangeFeed::poll() {
       changed.insert(Key{"project", project, project});
   }
   for (const auto& [kind, id, project] : changed) {
-    journal_.append(
-        kind + ".changed",
-        {{"entity", kind},
-         {"entity_id", id},
-         {"project_id", project.empty() ? nlohmann::json(nullptr) : nlohmann::json(project)},
-         {"deleted", !current.contains(Key{kind, id, project})},
-         {"git_revision", current_revisions.value(project, nlohmann::json(nullptr))}}
-    );
+    const auto revision = current_revisions.value(project, nlohmann::json(nullptr));
+    const holder::api::ChangeEventData data{
+        kind,
+        id,
+        project.empty() ? std::nullopt : std::optional<std::string>(project),
+        !current.contains(Key{kind, id, project}),
+        revision.is_string() ? std::optional<std::string>(revision.get<std::string>())
+                             : std::nullopt,
+    };
+    journal_.append(change_event(data));
   }
   previous_ = std::move(current);
   version_ = current_version;

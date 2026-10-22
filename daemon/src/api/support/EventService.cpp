@@ -1,5 +1,6 @@
 #include "api/support/EventService.h"
 
+#include "api/generated/RuntimeJson.h"
 #include "api/support/ChangeFeed.h"
 #include "api/support/HttpResponses.h"
 
@@ -65,17 +66,35 @@ std::string history_url(const std::string& project) {
   return "/projects/" + encoded + "/history";
 }
 
-nlohmann::json checkpoint(
+EventCheckpoint checkpoint(
     const std::string& cursor,
     const nlohmann::json& revisions,
     const std::string& project
 ) {
   auto selected = revisions;
   if (!project.empty()) selected = {{project, revisions.value(project, nlohmann::json(nullptr))}};
-  auto history = nlohmann::json::object();
-  for (const auto& [id, revision] : selected.items())
-    history[id] = history_url(id);
-  return {{"cursor", cursor}, {"git_revisions", selected}, {"history_urls", history}};
+  EventCheckpoint result{cursor, {}, {}};
+  for (const auto& [id, revision] : selected.items()) {
+    result.git_revisions[id] = revision.is_string()
+                                   ? std::optional<std::string>(revision.get<std::string>())
+                                   : std::nullopt;
+    result.history_urls[id] = history_url(id);
+  }
+  return result;
+}
+
+rig::event<nlohmann::json> resync_required(
+    EventCheckpoint at,
+    std::string reason,
+    const std::string& revision
+) {
+  return rig_events::resync_required(
+      EventResyncData{
+          std::move(at),
+          std::move(reason),
+          revision.empty() ? std::nullopt : std::optional<std::string>(revision),
+      }
+  );
 }
 
 } // namespace
@@ -101,7 +120,12 @@ EventService::EventService(const std::filesystem::path& database) {
         state->available = true;
       } catch (const std::exception& ex) {
         if (state->available) {
-          state->changes.append("resync_required", {{"reason", "observer_unavailable"}});
+          // Each subscriber's source rewrites this for its own project and revision.
+          state->changes.append(resync_required(
+              checkpoint(state->changes.cursor(), state->revisions, ""),
+              "observer_unavailable",
+              ""
+          ));
           spdlog::warn("change feed observer unavailable: {}", ex.what());
         }
         state->available = false;
@@ -139,7 +163,7 @@ void EventService::stop() {
   if (observer_.joinable()) observer_.join();
 }
 
-std::optional<nlohmann::json> EventService::current_checkpoint(const std::string& project) {
+std::optional<EventCheckpoint> EventService::current_checkpoint(const std::string& project) {
   std::lock_guard lock(state_->mutex);
   if (!state_->available || state_->stopped) return std::nullopt;
   return checkpoint(state_->changes.cursor(), state_->revisions, project);
@@ -232,10 +256,14 @@ bool EventService::dispatch(
     auto batch = state->changes.read(cursor);
 
     if (batch.resync_required || !state->available || (!revision.empty() && cursor.empty())) {
-      auto data = checkpoint(batch.cursor, state->revisions, project);
-      data["reason"] = state->available ? "history_unavailable" : "observer_unavailable";
-      data["last_revision"] = revision.empty() ? nlohmann::json(nullptr) : nlohmann::json(revision);
-      batch.events = {{batch.cursor, "resync_required", data}};
+      batch.events = {StreamEvent{
+          batch.cursor,
+          resync_required(
+              checkpoint(batch.cursor, state->revisions, project),
+              state->available ? "history_unavailable" : "observer_unavailable",
+              revision
+          )
+      }};
       batch.resync_required = false;
       batch.finished = true;
       return batch;
@@ -250,17 +278,23 @@ bool EventService::dispatch(
       // could silently skip events if the connection dropped during its handshake.
       batch.events.insert(
           batch.events.begin(),
-          {cursor, "ready", checkpoint(batch.cursor, state->revisions, project)}
+          StreamEvent{
+              cursor,
+              rig_events::ready(checkpoint(batch.cursor, state->revisions, project))
+          }
       );
       first = false;
     }
     for (auto& event : batch.events) {
       if (event.name == "resync_required") {
-        const auto reason = event.data.value("reason", "observer_unavailable");
-        event.data = checkpoint(batch.cursor, state->revisions, project);
-        event.data["reason"] = reason;
-        event.data["last_revision"] = revision.empty() ? nlohmann::json(nullptr)
-                                                       : nlohmann::json(revision);
+        event = StreamEvent{
+            event.id,
+            resync_required(
+                checkpoint(batch.cursor, state->revisions, project),
+                event.data.value("reason", "observer_unavailable"),
+                revision
+            )
+        };
         batch.finished = true;
       }
     }

@@ -2008,6 +2008,21 @@ inline json codec<holder::api::AiRunEventData>::encode(const holder::api::AiRunE
     if (value.provider) {
         result["provider"] = codec<std::optional<std::string>>::encode(value.provider);
     }
+    if (value.context_compacted) {
+        result["context_compacted"] = codec<std::optional<bool>>::encode(value.context_compacted);
+    }
+    if (value.cooldown_until) {
+        result["cooldown_until"] = codec<std::optional<long long>>::encode(value.cooldown_until);
+    }
+    if (value.router_model) {
+        result["router_model"] = codec<std::optional<std::string>>::encode(value.router_model);
+    }
+    if (value.ranked) {
+        result["ranked"] = codec<std::optional<std::vector<std::string>>>::encode(value.ranked);
+    }
+    if (value.partial) {
+        result["partial"] = codec<std::optional<bool>>::encode(value.partial);
+    }
     return result;
 }
 inline holder::api::AiRunEventData codec<holder::api::AiRunEventData>::decode(const json& value) {
@@ -2024,6 +2039,11 @@ inline holder::api::AiRunEventData codec<holder::api::AiRunEventData>::decode(co
         value.contains("model_ref") ? codec<std::optional<std::string>>::decode(value.at("model_ref")) : std::nullopt,
         value.contains("model") ? codec<std::optional<std::string>>::decode(value.at("model")) : std::nullopt,
         value.contains("provider") ? codec<std::optional<std::string>>::decode(value.at("provider")) : std::nullopt,
+        value.contains("context_compacted") ? codec<std::optional<bool>>::decode(value.at("context_compacted")) : std::nullopt,
+        value.contains("cooldown_until") ? codec<std::optional<long long>>::decode(value.at("cooldown_until")) : std::nullopt,
+        value.contains("router_model") ? codec<std::optional<std::string>>::decode(value.at("router_model")) : std::nullopt,
+        value.contains("ranked") ? codec<std::optional<std::vector<std::string>>>::decode(value.at("ranked")) : std::nullopt,
+        value.contains("partial") ? codec<std::optional<bool>>::decode(value.at("partial")) : std::nullopt,
     };
 }
 
@@ -6981,3 +7001,70 @@ inline holder::api::routes::CardBacklinkListResponse codec<holder::api::routes::
 template <typename T> json encode(const T& value) { return codec<T>::encode(value); }
 template <typename T> T decode(const json& value) { return codec<T>::decode(value); }
 } // namespace rig_json
+
+// An event can only be built with the data type its operation declares for it.
+namespace rig_events {
+inline rig::event<nlohmann::json> card_changed(const holder::api::ChangeEventData& data) {
+    return {"card.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> chunk(const holder::api::AiRunEventData& data) {
+    return {"chunk", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> completed(const holder::api::RunnerPullJob& data) {
+    return {"completed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> done(const holder::api::AiRunEventData& data) {
+    return {"done", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> failed(const holder::api::AiRunEventData& data) {
+    return {"failed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> failed(const holder::api::RunnerPullJob& data) {
+    return {"failed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> fallback(const holder::api::AiRunEventData& data) {
+    return {"fallback", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> location_changed(const holder::api::ChangeEventData& data) {
+    return {"location.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> message_changed(const holder::api::ChangeEventData& data) {
+    return {"message.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> progress(const holder::api::AiRunEventData& data) {
+    return {"progress", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> progress(const holder::api::RunnerPullJob& data) {
+    return {"progress", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> project_changed(const holder::api::ChangeEventData& data) {
+    return {"project.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> ready(const holder::api::EventCheckpoint& data) {
+    return {"ready", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> resource_changed(const holder::api::ChangeEventData& data) {
+    return {"resource.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> resync_required(const holder::api::AiStreamResyncData& data) {
+    return {"resync_required", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> resync_required(const holder::api::EventResyncData& data) {
+    return {"resync_required", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> router(const holder::api::AiRunEventData& data) {
+    return {"router", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> router_result(const holder::api::AiRunEventData& data) {
+    return {"router_result", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> run_changed(const holder::api::ChangeEventData& data) {
+    return {"run.changed", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> run_started(const holder::api::AiRunEventData& data) {
+    return {"run_started", rig_json::encode(data)};
+}
+inline rig::event<nlohmann::json> thread_changed(const holder::api::ChangeEventData& data) {
+    return {"thread.changed", rig_json::encode(data)};
+}
+} // namespace rig_events

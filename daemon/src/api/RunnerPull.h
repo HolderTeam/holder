@@ -8,7 +8,10 @@
 #include <stdexcept>
 #include <string>
 
-namespace holder::llm { class RunnerRegistry; }
+namespace holder::llm {
+class RunnerRegistry;
+struct RunnerPullJob;
+} // namespace holder::llm
 
 namespace holder::api {
 
@@ -30,6 +33,9 @@ struct RIG_OPEN_RECORD RunnerPullJob {
   std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
   RunnerPullProgress progress;
 };
+
+// A pull job's status as the status route and the pull event stream report it.
+RunnerPullJob pull_job_status(const holder::llm::RunnerPullJob& job, const std::string& runner_id);
 
 struct RIG_OPEN_RECORD RunnerPullStatusResponse {
   bool ok RIG_BOOL_VALUE(true);

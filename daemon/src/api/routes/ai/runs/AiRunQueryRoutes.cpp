@@ -1,6 +1,7 @@
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 
 #include "ai/AiRunRepo.h"
+#include "api/generated/RuntimeJson.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/Time.h"
@@ -61,29 +62,39 @@ RouteDispatchResult handle_ai_runs_events_route(
     return out;
   }
   if (!stored && (run->status == "completed" || run->status == "failed")) {
-    nlohmann::json terminal = {{"run_id", run_id}};
+    AiRunEventData terminal{.run_id = run_id, .error = run->error};
     if (run->chosen_model) {
-      terminal["model_ref"] = *run->chosen_model;
+      terminal.model_ref = *run->chosen_model;
       const auto parsed = holder::llm::parse_runner_model_ref(*run->chosen_model);
-      terminal["model"] = parsed ? parsed->model_name : *run->chosen_model;
-      if (parsed) terminal["runner_id"] = parsed->runner_id;
+      terminal.model = parsed ? parsed->model_name : *run->chosen_model;
+      if (parsed) terminal.runner_id = parsed->runner_id;
     }
-    if (run->error) terminal["error"] = *run->error;
     support::append_run_event(
         run_id,
-        run->status == "completed" ? "done" : "failed",
-        terminal,
+        run->status == "completed" ? static_cast<support::RunEventConstructor>(rig_events::done)
+                                   : static_cast<support::RunEventConstructor>(rig_events::failed),
+        std::move(terminal),
         true
     );
   }
   auto source = [run_id, cursor = last_event_id]() mutable {
     auto batch = support::read_run_events(run_id, cursor);
     if (!batch) {
-      support::EventBatch result;
-      result.resync_required = !cursor.empty();
-      return result;
+      batch.emplace();
+      batch->resync_required = !cursor.empty();
+    } else if (cursor.empty() && batch->truncated) {
+      batch->resync_required = true;
     }
-    if (cursor.empty() && batch->truncated) batch->resync_required = true;
+    if (batch->resync_required) {
+      // The history no longer covers the cursor: the client fetches the run and reconnects.
+      batch->events = {support::StreamEvent{
+          batch->cursor,
+          rig_events::resync_required(AiStreamResyncData{"history_unavailable"})
+      }};
+      batch->resync_required = false;
+      batch->finished = true;
+      return *batch;
+    }
     cursor = batch->cursor;
     return *batch;
   };

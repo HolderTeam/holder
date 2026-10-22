@@ -12,18 +12,9 @@ EventCheckpointResponse get_events_cursor(holder::platform::Db& db,
     throw EventCursorProjectNotFound();
   }
   if (events == nullptr) throw ChangeFeedUnavailable();
-  const auto data = events->current_checkpoint(project_id.value_or(""));
-  if (!data.has_value()) throw ChangeFeedUnavailable();
-
-  EventCheckpointResponse response{true, {data->value("cursor", ""), {}, {}}};
-  for (const auto& [id, revision] : data->at("git_revisions").items()) {
-    response.data.git_revisions[id] =
-        revision.is_null() ? std::nullopt : std::optional<std::string>(revision.get<std::string>());
-  }
-  for (const auto& [id, url] : data->at("history_urls").items()) {
-    response.data.history_urls[id] = url.get<std::string>();
-  }
-  return response;
+  auto checkpoint = events->current_checkpoint(project_id.value_or(""));
+  if (!checkpoint.has_value()) throw ChangeFeedUnavailable();
+  return {true, std::move(*checkpoint)};
 }
 
 } // namespace holder::api

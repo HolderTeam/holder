@@ -12163,6 +12163,30 @@
           },
           "provider": {
             "type": "string"
+          },
+          "context_compacted": {
+            "type": "boolean",
+            "description": "On a cloud progress event: whether the thread was summarized to fit the model's context."
+          },
+          "cooldown_until": {
+            "type": "integer",
+            "format": "int64",
+            "description": "On a cloud fallback: when the failed model may be tried again, in epoch seconds."
+          },
+          "router_model": {
+            "type": "string",
+            "description": "On router_result: the model that ranked the candidates."
+          },
+          "ranked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "On router_result: the candidate models, best first."
+          },
+          "partial": {
+            "type": "boolean",
+            "description": "On a local fallback: whether the failed model had already streamed some output."
           }
         },
         "required": [

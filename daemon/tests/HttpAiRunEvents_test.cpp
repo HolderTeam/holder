@@ -1,4 +1,5 @@
 #include "ai/AiRunRepo.h"
+#include "api/generated/RuntimeJson.h"
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 #include "api/support/RunEventStore.h"
 #include "http_test_helpers.h"
@@ -267,8 +268,18 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
   run.updated_at = 2;
   repo.create(run);
 
-  holder::api::support::append_run_event("run-stream-1", "progress", {{"step", 1}}, false);
-  holder::api::support::append_run_event("run-stream-1", "done", {{"status", "completed"}}, true);
+  holder::api::support::append_run_event(
+      "run-stream-1",
+      rig_events::progress,
+      {.message = "step 1"},
+      false
+  );
+  holder::api::support::append_run_event(
+      "run-stream-1",
+      rig_events::done,
+      {.status = "completed"},
+      true
+  );
 
   const std::string token = "testtoken";
   holder::api::HttpServer server("127.0.0.1", 0, db, token, nullptr, nullptr);
@@ -305,14 +316,19 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
 TEST_CASE("RunEventStore trims in-memory event stream to last 512 events", "[http]") {
   const std::string run_id = "run-trim-coverage-1";
   for (int i = 0; i < 520; ++i) {
-    holder::api::support::append_run_event(run_id, "progress", {{"idx", i}}, i == 519);
+    holder::api::support::append_run_event(
+        run_id,
+        rig_events::progress,
+        {.message = std::to_string(i)},
+        i == 519
+    );
   }
 
   const auto stream_opt = holder::api::support::get_run_event_stream(run_id);
   REQUIRE(stream_opt.has_value());
   REQUIRE(stream_opt->events.size() == 512);
-  REQUIRE(stream_opt->events.front().data["idx"] == 8);
-  REQUIRE(stream_opt->events.back().data["idx"] == 519);
+  REQUIRE(stream_opt->events.front().data["message"] == "8");
+  REQUIRE(stream_opt->events.back().data["message"] == "519");
   REQUIRE(stream_opt->finished == true);
 }
 
@@ -332,9 +348,9 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
   run.created_at = 1;
   run.updated_at = 2;
   holder::ai::AiRunRepo(db).create(run);
-  holder::api::support::append_run_event(run.run_id, "run_started", {}, false);
+  holder::api::support::append_run_event(run.run_id, rig_events::run_started, {}, false);
   const auto started = holder::api::support::read_run_events(run.run_id, "")->cursor;
-  const auto done = holder::api::support::append_run_event(run.run_id, "done", {}, true);
+  const auto done = holder::api::support::append_run_event(run.run_id, rig_events::done, {}, true);
 
   boost::asio::io_context ioc;
   boost::asio::ip::tcp::socket socket(ioc);
