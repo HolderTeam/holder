@@ -346,6 +346,15 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
     REQUIRE(payload["error"]["message"] == "Invalid provider.");
   }
 
+  SECTION("credentials put without a secret store") {
+    auto req = make_req(
+        http::verb::put, "/ai/providers/credentials",
+        nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump());
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
+    REQUIRE(res.result() == http::status::service_unavailable);
+    REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "secret_store_unavailable");
+  }
+
   SECTION("credentials delete without a secret store") {
     auto req = make_req(http::verb::delete_, "/ai/providers/credentials/switchyard");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -354,7 +363,7 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
   }
 }
 
-TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
+TEST_CASE("AiProviderCredentialRoutes report database failures as internal errors", "[http]") {
   holder::platform::Db unopened;
   http::response<http::string_body> res;
   const auto dir = make_temp_dir();
@@ -373,12 +382,12 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
         nlohmann::json{{"provider", "switchyard"}, {"enabled", true}}.dump()
     );
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
   {
     auto req = make_req(http::verb::delete_, "/ai/providers/settings/switchyard");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 
   {
@@ -393,7 +402,7 @@ TEST_CASE("AiProviderCredentialRoutes direct DB exception branches", "[http]") {
         nlohmann::json{{"provider", "switchyard"}, {"api_key", "key"}}.dump());
     REQUIRE(holder::api::dispatch_generated_routes(req, res, unopened, nullptr, nullptr,
                                                    secret_store.get()));
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
   {
     auto req = make_req(http::verb::delete_, "/ai/providers/credentials/switchyard");

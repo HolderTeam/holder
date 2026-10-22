@@ -51,8 +51,9 @@ struct RIG_OPEN_RECORD AiProviderCredentialDeleteResponse {
   AiProviderCredentialDeleteResponseData data;
 };
 
-struct ProviderCredentialError : std::runtime_error {
-  using std::runtime_error::runtime_error;
+// A secret store failure keeps its privacy code.
+struct ProviderCredentialSecretFailure : holder::privacy::PrivacyError {
+  using PrivacyError::PrivacyError;
 };
 
 RIG_ROUTE(GET, "/ai/providers/credentials")
@@ -63,18 +64,12 @@ AiProviderCredentialsListResponse list_provider_credentials(holder::platform::Db
 RIG_ROUTE(PUT, "/ai/providers/credentials")
 RIG_SUMMARY("Create or update a cloud provider API key")
 RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", ProviderCredentialError)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Secret store unavailable",
-                   holder::privacy::PrivacyError)
+RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request, an invalid provider name, or an empty api_key", std::invalid_argument)
+RIG_ERROR_RESPONSE(503, ErrorResponse, "Secret store unavailable, or it failed storing the key", SecretStoreUnavailable, ProviderCredentialSecretFailure)
 AiProviderCredentialUpsertResponse upsert_provider_credential(
     holder::platform::Db& db RIG_CONTEXT,
     holder::privacy::SecretStore* secret_store RIG_CONTEXT,
     AiProviderCredentialUpsertRequest request);
-
-// A privacy failure removing the stored key keeps its code.
-struct ProviderCredentialSecretFailure : holder::privacy::PrivacyError {
-  using PrivacyError::PrivacyError;
-};
 
 RIG_ROUTE(DELETE, "/ai/providers/credentials/{provider}")
 RIG_SUMMARY("Delete a configured cloud provider API key")

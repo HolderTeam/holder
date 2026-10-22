@@ -555,7 +555,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiProviderCredentialUpsertResponse'}
         '400':
-          description: Bad request
+          description: Malformed request, an invalid provider name, or an empty api_key
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -570,7 +570,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Secret store unavailable
+          description: Secret store unavailable, or it failed storing the key
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -642,7 +642,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiProviderSettingResponse'}
         '400':
-          description: Bad request
+          description: Malformed request or an invalid provider name
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -671,7 +671,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AiProviderSettingDeleteResponse'}
         '400':
-          description: Bad request
+          description: Invalid provider name
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}

@@ -1064,9 +1064,11 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         try {
             return response{200, rig_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
-        } catch (const holder::api::ProviderCredentialError& error) {
+        } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "upsert_provider_credential"};
-        } catch (const holder::privacy::PrivacyError& error) {
+        } catch (const holder::api::SecretStoreUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "upsert_provider_credential"};
+        } catch (const holder::api::ProviderCredentialSecretFailure& error) {
             return response{503, encode_error<holder::api::ErrorResponse>(503, error), "upsert_provider_credential"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "upsert_provider_credential"};
@@ -1148,7 +1150,7 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         try {
             return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
-        } catch (const holder::api::ProviderSettingError& error) {
+        } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "set_provider_setting"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "set_provider_setting"};
@@ -1215,7 +1217,7 @@ inline std::optional<response> dispatch(const std::string& method,
         }
         try {
             return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
-        } catch (const holder::api::ProviderSettingError& error) {
+        } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_setting"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_provider_setting"};

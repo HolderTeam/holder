@@ -1075,7 +1075,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, an invalid provider name, or an empty api_key",
             "content": {
               "application/json": {
                 "schema": {
@@ -1105,7 +1105,7 @@
             }
           },
           "503": {
-            "description": "Secret store unavailable",
+            "description": "Secret store unavailable, or it failed storing the key",
             "content": {
               "application/json": {
                 "schema": {
@@ -1245,7 +1245,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request or an invalid provider name",
             "content": {
               "application/json": {
                 "schema": {
@@ -1302,7 +1302,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid provider name",
             "content": {
               "application/json": {
                 "schema": {
