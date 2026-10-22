@@ -2045,11 +2045,61 @@ inline std::optional<response> dispatch(const std::string& method,
         }
     }
     static const std::regex route_90("^/cards/([^/]+)/milestones\\-with\\-dates$");
-    if (method == "POST" && std::regex_match(route_path, route_90))
-        return std::nullopt;  // post_cards_card_id_milestones_with_dates is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_90)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::MilestoneWithDatesCreateRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::MilestoneWithDatesCreateRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_cards_card_id_milestones_with_dates");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_cards_card_id_milestones_with_dates");
+        }
+        try {
+            return response{201, rig_json::encode(holder::api::post_cards_card_id_milestones_with_dates(context.db, context.card_store, context.uuid_v4, std::move(*argument_0), std::move(*argument_1))), "post_cards_card_id_milestones_with_dates"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_cards_card_id_milestones_with_dates"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_cards_card_id_milestones_with_dates"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_cards_card_id_milestones_with_dates"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "post_cards_card_id_milestones_with_dates"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_cards_card_id_milestones_with_dates"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_cards_card_id_milestones_with_dates"};
+        }
+    }
     static const std::regex route_93("^/cards/([^/]+)/milestones$");
-    if (method == "POST" && std::regex_match(route_path, route_93))
-        return std::nullopt;  // post_cards_card_id_milestones is served by the host
+    if (method == "POST" && std::regex_match(route_path, match, route_93)) {
+        std::optional<std::string> argument_0;
+        std::optional<holder::api::MilestoneCreateRequest> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_body<holder::api::MilestoneCreateRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "post_cards_card_id_milestones");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "post_cards_card_id_milestones");
+        }
+        try {
+            return response{201, rig_json::encode(holder::api::post_cards_card_id_milestones(context.db, context.card_store, context.uuid_v4, std::move(*argument_0), std::move(*argument_1))), "post_cards_card_id_milestones"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_cards_card_id_milestones"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_cards_card_id_milestones"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_cards_card_id_milestones"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "post_cards_card_id_milestones"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_cards_card_id_milestones"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_cards_card_id_milestones"};
+        }
+    }
     static const std::regex route_102("^/locations/([^/]+)/binding$");
     if (method == "PUT" && std::regex_match(route_path, match, route_102)) {
         std::optional<std::string> argument_0;
@@ -2409,17 +2459,117 @@ inline std::optional<response> dispatch(const std::string& method,
     if (method == "POST" && std::regex_match(route_path, route_108))
         return std::nullopt;  // post_projects_project_id_history_cards_card_id_restore is served by the host
     static const std::regex route_91("^/cards/([^/]+)/milestones\\-with\\-dates/([^/]+)$");
-    if (method == "PATCH" && std::regex_match(route_path, route_91))
-        return std::nullopt;  // patch_cards_card_id_milestones_with_dates_milestone_id is served by the host
+    if (method == "PATCH" && std::regex_match(route_path, match, route_91)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        std::optional<holder::api::MilestoneWithDatesUpdateRequest> argument_2;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+            argument_2.emplace(decode_body<holder::api::MilestoneWithDatesUpdateRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "patch_cards_card_id_milestones_with_dates_milestone_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "patch_cards_card_id_milestones_with_dates_milestone_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::patch_cards_card_id_milestones_with_dates_milestone_id(context.db, context.card_store, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2))), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_cards_card_id_milestones_with_dates_milestone_id"};
+        }
+    }
     static const std::regex route_92("^/cards/([^/]+)/milestones\\-with\\-dates/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_92))
-        return std::nullopt;  // delete_cards_card_id_milestones_with_dates_milestone_id is served by the host
+    if (method == "DELETE" && std::regex_match(route_path, match, route_92)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_cards_card_id_milestones_with_dates_milestone_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_cards_card_id_milestones_with_dates_milestone_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_cards_card_id_milestones_with_dates_milestone_id(context.db, context.card_store, std::move(*argument_0), std::move(*argument_1))), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_cards_card_id_milestones_with_dates_milestone_id"};
+        }
+    }
     static const std::regex route_94("^/cards/([^/]+)/milestones/([^/]+)$");
-    if (method == "PATCH" && std::regex_match(route_path, route_94))
-        return std::nullopt;  // patch_cards_card_id_milestones_milestone_id is served by the host
+    if (method == "PATCH" && std::regex_match(route_path, match, route_94)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        std::optional<holder::api::MilestoneUpdateRequest> argument_2;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+            argument_2.emplace(decode_body<holder::api::MilestoneUpdateRequest>(body));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "patch_cards_card_id_milestones_milestone_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "patch_cards_card_id_milestones_milestone_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::patch_cards_card_id_milestones_milestone_id(context.db, context.card_store, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2))), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const std::invalid_argument& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "patch_cards_card_id_milestones_milestone_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_cards_card_id_milestones_milestone_id"};
+        }
+    }
     static const std::regex route_95("^/cards/([^/]+)/milestones/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_95))
-        return std::nullopt;  // delete_cards_card_id_milestones_milestone_id is served by the host
+    if (method == "DELETE" && std::regex_match(route_path, match, route_95)) {
+        std::optional<std::string> argument_0;
+        std::optional<std::string> argument_1;
+        try {
+            argument_0.emplace(decode_path_string(match[1].str()));
+            argument_1.emplace(decode_path_string(match[2].str()));
+        } catch (const std::invalid_argument& error) {
+            return invalid_request(error, "delete_cards_card_id_milestones_milestone_id");
+        } catch (const std::out_of_range& error) {
+            return invalid_request(error, "delete_cards_card_id_milestones_milestone_id");
+        }
+        try {
+            return response{200, rig_json::encode(holder::api::delete_cards_card_id_milestones_milestone_id(context.db, context.card_store, std::move(*argument_0), std::move(*argument_1))), "delete_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::support::PrivacyRejected& error) {
+            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::MilestoneWriteNotFound& error) {
+            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::CardStoreUnavailable& error) {
+            return response{501, encode_error<holder::api::ErrorResponse>(501, error), "delete_cards_card_id_milestones_milestone_id"};
+        } catch (const holder::api::support::KeyringUnavailable& error) {
+            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "delete_cards_card_id_milestones_milestone_id"};
+        } catch (const std::exception& error) {
+            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_cards_card_id_milestones_milestone_id"};
+        }
+    }
     static const std::regex route_60("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
     if (method == "GET" && std::regex_match(route_path, match, route_60)) {
         std::optional<std::string> argument_0;

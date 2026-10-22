@@ -170,6 +170,7 @@ add_executable(holder_daemon_tests
   ../src/api/CardLinks.cpp
   ../src/api/CardResources.cpp
   ../src/api/CardWrite.cpp
+  ../src/api/MilestoneWrite.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp
@@ -203,7 +204,6 @@ add_executable(holder_daemon_tests
   ../src/api/CardReferenceResolve.cpp
   ../src/api/routes/ProjectCardRoutes.cpp
   ../src/api/routes/HistoryRoutes.cpp
-  ../src/api/routes/MilestoneRoutes.cpp
   ../src/api/routes/ProjectRoutes.cpp
   ../src/api/routes/ReindexRoutes.cpp
   ../src/api/Search.cpp

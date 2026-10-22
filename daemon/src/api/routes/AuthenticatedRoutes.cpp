@@ -2,7 +2,6 @@
 
 #include "api/routes/AiResourceRoutes.h"
 #include "api/routes/HistoryRoutes.h"
-#include "api/routes/MilestoneRoutes.h"
 #include "api/routes/ProjectCardRoutes.h"
 #include "api/routes/ProjectRoutes.h"
 #include "api/routes/ReindexRoutes.h"
@@ -58,9 +57,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
     if (resource == "projects" && handle_trash_routes(path, req, res, db, card_store, fts, param))
       return {};
     if (resource == "projects" &&
-        handle_milestone_routes(path, req, res, db, card_store, uuid_v4, decoded_param))
-      return {};
-    if (resource == "projects" &&
         handle_project_card_routes(path, req, res, db, card_store))
       return {};
     if (resource == "projects" && handle_history_routes(path, req, res, db, param, card_store))
@@ -104,10 +100,6 @@ AuthenticatedDispatchResult dispatch_authenticated_routes(
       return {.streamed = streamed};
   } else if (resource == "trash") {
     if (handle_trash_routes(path, req, res, db, card_store, fts, param)) return {};
-  } else if (resource == "calendar") {
-    if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
-  } else if (resource == "cards") {
-    if (handle_milestone_routes(path, req, res, db, card_store, uuid_v4, param)) return {};
   }
 
   res = support::error_response(http::status::not_found, "not_found", "Route not found.");

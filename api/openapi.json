@@ -3874,7 +3874,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request, end_at before start_at, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -3894,7 +3894,37 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "Live card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4007,7 +4037,7 @@
             }
           },
           "400": {
-            "description": "Invalid milestone dates",
+            "description": "Malformed request, invalid milestone dates, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4027,7 +4057,37 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "Live card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4084,7 +4144,7 @@
             }
           },
           "400": {
-            "description": "Invalid update",
+            "description": "Malformed or empty update, invalid milestone dates, or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4104,7 +4164,37 @@
             }
           },
           "404": {
-            "description": "Card or milestone not found",
+            "description": "Live card or milestone not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4117,7 +4207,7 @@
       },
       "delete": {
         "summary": "Remove a milestone from a live card",
-        "description": "Equivalent to deleting the same milestone through the scheduled timestamp route.",
+        "description": "Equivalent to deleting the same milestone through the scheduled timestamp route. Removing a milestone that is already absent succeeds with removed false.",
         "parameters": [
           {
             "name": "card_id",
@@ -4148,6 +4238,16 @@
               }
             }
           },
+          "400": {
+            "description": "A privacy error writing an encrypted card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4159,7 +4259,37 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "Live card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4217,7 +4347,7 @@
             }
           },
           "400": {
-            "description": "Invalid or empty update",
+            "description": "Malformed or empty update, an end before the start, a milestone without the timestamp view (use the labelled dates route), or a privacy error writing an encrypted card",
             "content": {
               "application/json": {
                 "schema": {
@@ -4245,11 +4375,42 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
         "summary": "Remove a milestone from a card",
+        "description": "Removing a milestone that is already absent succeeds with removed false.",
         "parameters": [
           {
             "name": "card_id",
@@ -4279,6 +4440,16 @@
               }
             }
           },
+          "400": {
+            "description": "A privacy error writing an encrypted card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4290,7 +4461,37 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "Live card not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "The daemon has no card store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {

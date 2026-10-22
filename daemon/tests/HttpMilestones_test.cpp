@@ -4,6 +4,8 @@
 #include "model/Card.h"
 #include "model/Milestone.h"
 
+#include <tuple>
+
 using holder::test::create_project;
 using holder::test::http_json_request;
 using holder::test::make_temp_dir;
@@ -397,9 +399,8 @@ TEST_CASE("HTTP milestone and calendar routes validate inputs", "[http][mileston
   REQUIRE(missing_card["error"]["code"] == "not_found");
 }
 
-#include "api/routes/MilestoneRoutes.h"
-
-TEST_CASE("Milestone routes validate paths and unavailable card services", "[milestones][routes]") {
+TEST_CASE("Milestone writes validate paths, bodies and unavailable card services",
+          "[milestones][routes]") {
   namespace http = boost::beast::http;
   const auto root = make_temp_dir();
   auto db = open_db_with_schema(root / "holder.db");
@@ -409,56 +410,38 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
   auto call = [&](http::verb method,
                   const std::string& path,
                   holder::card::CardStore* store,
-                  const std::string& body,
-                  const std::map<std::string, std::string>& params = {}) {
+                  const std::string& body) {
     http::request<http::string_body> request{method, path, 11};
     request.body() = body;
     http::response<http::string_body> response;
-    const bool handled = holder::api::routes::handle_milestone_routes(
-        path,
-        request,
-        response,
-        db,
-        store,
-        [] {
-          return "milestone";
-        },
-        [&](const std::string& key) {
-          auto it = params.find(key);
-          return it == params.end() ? "" : it->second;
-        }
-    );
+    const bool handled = holder::api::dispatch_generated_routes(
+        request, response, db, nullptr, nullptr, nullptr, nullptr,
+        [] { return std::string("milestone"); }, {}, store);
     return std::pair{handled, response.result()};
   };
   for (const std::string path :
-       {"/cards",
-        "/cards/id",
-        "/cards/id/other",
+       {"/cards//milestones",
         "/cards/id/milestones-invalid",
         "/cards/id/milestones/",
         "/cards/id/milestones/a/b"})
-    CHECK_FALSE(call(http::verb::get, path, &cards, "{}").first);
-  CHECK(
-      call(http::verb::get, "/cards//milestones", &cards, "{}").second == http::status::bad_request
-  );
-  CHECK_FALSE(call(http::verb::get, "/calendar", &cards, "").first);
-  CHECK_FALSE(
-      call(http::verb::get, "/projects/proj-1/milestones-with-dates", &cards, "").first
-  );
-  CHECK_FALSE(
-      call(http::verb::get, "/cards/card-one/milestones-with-dates", &cards, "").first
-  );
-  for (auto method : {http::verb::post, http::verb::patch, http::verb::delete_}) {
-    const auto path = method == http::verb::post ? "/cards/card-one/milestones"
-                                                 : "/cards/card-one/milestones/id";
-    CHECK(call(method, path, nullptr, "{}").second == http::status::not_implemented);
-  }
-  CHECK_FALSE(call(http::verb::put, "/cards/card-one/milestones", &cards, "{}").first);
+    CHECK_FALSE(call(http::verb::post, path, &cards, "{}").first);
+  CHECK(call(http::verb::put, "/cards/card-one/milestones", &cards, "{}").second ==
+        http::status::method_not_allowed);
+  for (const auto& [method, path, body] :
+       {std::tuple{http::verb::post, "/cards/card-one/milestones", R"({"start_at":1})"},
+        std::tuple{http::verb::patch, "/cards/card-one/milestones/id", R"({"kind":"x"})"},
+        std::tuple{http::verb::delete_, "/cards/card-one/milestones/id", ""},
+        std::tuple{http::verb::post, "/cards/card-one/milestones-with-dates", R"({"dates":[]})"},
+        std::tuple{http::verb::patch, "/cards/card-one/milestones-with-dates/id",
+                   R"({"kind":"x"})"},
+        std::tuple{http::verb::delete_, "/cards/card-one/milestones-with-dates/id", ""}})
+    CHECK(call(method, path, nullptr, body).second == http::status::not_implemented);
   for (const std::string body :
        {"{}",
         R"({"start_at":"bad"})",
         R"({"start_at":1,"end_at":"bad"})",
-        R"({"start_at":1,"all_day":12})"})
+        R"({"start_at":1,"all_day":12})",
+        R"({"start_at":2,"end_at":1})"})
     CHECK(
         call(http::verb::post, "/cards/card-one/milestones", &cards, body).second ==
         http::status::bad_request
@@ -480,6 +463,11 @@ TEST_CASE("Milestone routes validate paths and unavailable card services", "[mil
       call(http::verb::patch, "/cards/card-one/milestones/id", &cards, R"({"kind":"new"})")
           .second == http::status::not_found
   );
+  CHECK(call(http::verb::post, "/cards/missing/milestones", &cards, R"({"start_at":1})").second ==
+        http::status::not_found);
+  CHECK(call(http::verb::post, "/cards/card-one/milestones-with-dates", &cards,
+             R"({"dates":[{"role":"due"}]})")
+            .second == http::status::bad_request);
 }
 
 TEST_CASE("Generated calendar route keeps its range, filters and errors", "[milestones][calendar]") {

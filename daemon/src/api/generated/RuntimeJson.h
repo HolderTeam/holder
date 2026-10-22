@@ -518,41 +518,9 @@ template <> struct codec<holder::api::TrashDeleteResponse> {
     static json encode(const holder::api::TrashDeleteResponse& value);
     static holder::api::TrashDeleteResponse decode(const json& value);
 };
-template <> struct codec<holder::api::MilestoneWithDatesResponse> {
-    static json encode(const holder::api::MilestoneWithDatesResponse& value);
-    static holder::api::MilestoneWithDatesResponse decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneWithDatesCreateRequest> {
-    static json encode(const holder::api::MilestoneWithDatesCreateRequest& value);
-    static holder::api::MilestoneWithDatesCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneWithDatesUpdateRequest> {
-    static json encode(const holder::api::MilestoneWithDatesUpdateRequest& value);
-    static holder::api::MilestoneWithDatesUpdateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneRemoveResult> {
-    static json encode(const holder::api::MilestoneRemoveResult& value);
-    static holder::api::MilestoneRemoveResult decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneRemoveResponse> {
-    static json encode(const holder::api::MilestoneRemoveResponse& value);
-    static holder::api::MilestoneRemoveResponse decode(const json& value);
-};
 template <> struct codec<holder::api::Milestone> {
     static json encode(const holder::api::Milestone& value);
     static holder::api::Milestone decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneResponse> {
-    static json encode(const holder::api::MilestoneResponse& value);
-    static holder::api::MilestoneResponse decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneCreateRequest> {
-    static json encode(const holder::api::MilestoneCreateRequest& value);
-    static holder::api::MilestoneCreateRequest decode(const json& value);
-};
-template <> struct codec<holder::api::MilestoneUpdateRequest> {
-    static json encode(const holder::api::MilestoneUpdateRequest& value);
-    static holder::api::MilestoneUpdateRequest decode(const json& value);
 };
 template <> struct codec<holder::api::StorageLocation> {
     static json encode(const holder::api::StorageLocation& value);
@@ -1033,6 +1001,38 @@ template <> struct codec<holder::api::TrashItem> {
 template <> struct codec<holder::api::TrashListResponse> {
     static json encode(const holder::api::TrashListResponse& value);
     static holder::api::TrashListResponse decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneWithDatesResponse> {
+    static json encode(const holder::api::MilestoneWithDatesResponse& value);
+    static holder::api::MilestoneWithDatesResponse decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneWithDatesCreateRequest> {
+    static json encode(const holder::api::MilestoneWithDatesCreateRequest& value);
+    static holder::api::MilestoneWithDatesCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneWithDatesUpdateRequest> {
+    static json encode(const holder::api::MilestoneWithDatesUpdateRequest& value);
+    static holder::api::MilestoneWithDatesUpdateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneRemoveResult> {
+    static json encode(const holder::api::MilestoneRemoveResult& value);
+    static holder::api::MilestoneRemoveResult decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneRemoveResponse> {
+    static json encode(const holder::api::MilestoneRemoveResponse& value);
+    static holder::api::MilestoneRemoveResponse decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneResponse> {
+    static json encode(const holder::api::MilestoneResponse& value);
+    static holder::api::MilestoneResponse decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneCreateRequest> {
+    static json encode(const holder::api::MilestoneCreateRequest& value);
+    static holder::api::MilestoneCreateRequest decode(const json& value);
+};
+template <> struct codec<holder::api::MilestoneUpdateRequest> {
+    static json encode(const holder::api::MilestoneUpdateRequest& value);
+    static holder::api::MilestoneUpdateRequest decode(const json& value);
 };
 template <> struct codec<holder::api::StorageLocationRequest> {
     static json encode(const holder::api::StorageLocationRequest& value);
@@ -3366,109 +3366,6 @@ inline holder::api::TrashDeleteResponse codec<holder::api::TrashDeleteResponse>:
     };
 }
 
-inline json codec<holder::api::MilestoneWithDatesResponse>::encode(const holder::api::MilestoneWithDatesResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::MilestoneWithDates>::encode(value.data);
-    return result;
-}
-inline holder::api::MilestoneWithDatesResponse codec<holder::api::MilestoneWithDatesResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::MilestoneWithDatesResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::MilestoneWithDates>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::MilestoneWithDatesCreateRequest>::encode(const holder::api::MilestoneWithDatesCreateRequest& value) {
-    json result = json::object();
-    result["dates"] = codec<std::vector<holder::api::MilestoneDateValue>>::encode(value.dates);
-    if (value.kind) {
-        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
-    }
-    if (value.description) {
-        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
-    }
-    return result;
-}
-inline holder::api::MilestoneWithDatesCreateRequest codec<holder::api::MilestoneWithDatesCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesCreateRequest");
-    if (!value.contains("dates")) throw std::invalid_argument("missing dates");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneWithDatesCreateRequest field");
-    return holder::api::MilestoneWithDatesCreateRequest{
-        codec<std::vector<holder::api::MilestoneDateValue>>::decode(value.at("dates")),
-        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
-        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::MilestoneWithDatesUpdateRequest>::encode(const holder::api::MilestoneWithDatesUpdateRequest& value) {
-    json result = json::object();
-    if (value.dates) {
-        result["dates"] = codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::encode(value.dates);
-    }
-    if (value.kind) {
-        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
-    }
-    if (value.description) {
-        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
-    }
-    return result;
-}
-inline holder::api::MilestoneWithDatesUpdateRequest codec<holder::api::MilestoneWithDatesUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesUpdateRequest");
-    if (value.size() < 1) throw std::invalid_argument("too few MilestoneWithDatesUpdateRequest fields");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneWithDatesUpdateRequest field");
-    return holder::api::MilestoneWithDatesUpdateRequest{
-        value.contains("dates") ? codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::decode(value.at("dates")) : std::nullopt,
-        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
-        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::MilestoneRemoveResult>::encode(const holder::api::MilestoneRemoveResult& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["milestone_id"] = codec<std::string>::encode(value.milestone_id);
-    result["removed"] = codec<bool>::encode(value.removed);
-    return result;
-}
-inline holder::api::MilestoneRemoveResult codec<holder::api::MilestoneRemoveResult>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneRemoveResult");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("milestone_id")) throw std::invalid_argument("missing milestone_id");
-    if (!value.contains("removed")) throw std::invalid_argument("missing removed");
-    return holder::api::MilestoneRemoveResult{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("milestone_id")),
-        codec<bool>::decode(value.at("removed")),
-    };
-}
-
-inline json codec<holder::api::MilestoneRemoveResponse>::encode(const holder::api::MilestoneRemoveResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::MilestoneRemoveResult>::encode(value.data);
-    return result;
-}
-inline holder::api::MilestoneRemoveResponse codec<holder::api::MilestoneRemoveResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneRemoveResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::MilestoneRemoveResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::MilestoneRemoveResult>::decode(value.at("data")),
-    };
-}
-
 inline json codec<holder::api::Milestone>::encode(const holder::api::Milestone& value) {
     json result = json::object();
     result["milestone_id"] = codec<std::string>::encode(value.milestone_id);
@@ -3507,84 +3404,6 @@ inline holder::api::Milestone codec<holder::api::Milestone>::decode(const json& 
         codec<long long>::decode(value.at("created_at")),
         codec<long long>::decode(value.at("updated_at")),
         value.contains("card_title") ? codec<std::optional<std::string>>::decode(value.at("card_title")) : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::MilestoneResponse>::encode(const holder::api::MilestoneResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::Milestone>::encode(value.data);
-    return result;
-}
-inline holder::api::MilestoneResponse codec<holder::api::MilestoneResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::MilestoneResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::Milestone>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::MilestoneCreateRequest>::encode(const holder::api::MilestoneCreateRequest& value) {
-    json result = json::object();
-    result["start_at"] = codec<long long>::encode(value.start_at);
-    if (value.end_at) {
-        result["end_at"] = codec<std::optional<std::optional<long long>>>::encode(value.end_at);
-    }
-    result["all_day"] = codec<bool>::encode(value.all_day);
-    if (value.kind) {
-        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
-    }
-    if (value.description) {
-        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
-    }
-    return result;
-}
-inline holder::api::MilestoneCreateRequest codec<holder::api::MilestoneCreateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneCreateRequest");
-    if (!value.contains("start_at")) throw std::invalid_argument("missing start_at");
-    return holder::api::MilestoneCreateRequest{
-        codec<long long>::decode(value.at("start_at")),
-        value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
-        value.contains("all_day") ? codec<bool>::decode(value.at("all_day")) : bool(false),
-        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
-        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
-    };
-}
-
-inline json codec<holder::api::MilestoneUpdateRequest>::encode(const holder::api::MilestoneUpdateRequest& value) {
-    json result = json::object();
-    if (value.start_at) {
-        result["start_at"] = codec<std::optional<long long>>::encode(value.start_at);
-    }
-    if (value.end_at) {
-        result["end_at"] = codec<std::optional<std::optional<long long>>>::encode(value.end_at);
-    }
-    if (value.all_day) {
-        result["all_day"] = codec<std::optional<bool>>::encode(value.all_day);
-    }
-    if (value.kind) {
-        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
-    }
-    if (value.description) {
-        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
-    }
-    return result;
-}
-inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected MilestoneUpdateRequest");
-    if (value.size() < 1) throw std::invalid_argument("too few MilestoneUpdateRequest fields");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "start_at" && it.key() != "end_at" && it.key() != "all_day" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneUpdateRequest field");
-    return holder::api::MilestoneUpdateRequest{
-        value.contains("start_at") ? codec<std::optional<long long>>::decode(value.at("start_at")) : std::nullopt,
-        value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
-        value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
-        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
-        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
     };
 }
 
@@ -6239,6 +6058,187 @@ inline holder::api::TrashListResponse codec<holder::api::TrashListResponse>::dec
     return holder::api::TrashListResponse{
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::TrashItem>>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::MilestoneWithDatesResponse>::encode(const holder::api::MilestoneWithDatesResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::MilestoneWithDates>::encode(value.data);
+    return result;
+}
+inline holder::api::MilestoneWithDatesResponse codec<holder::api::MilestoneWithDatesResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::MilestoneWithDatesResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::MilestoneWithDates>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::MilestoneWithDatesCreateRequest>::encode(const holder::api::MilestoneWithDatesCreateRequest& value) {
+    json result = json::object();
+    result["dates"] = codec<std::vector<holder::api::MilestoneDateValue>>::encode(value.dates);
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneWithDatesCreateRequest codec<holder::api::MilestoneWithDatesCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesCreateRequest");
+    if (!value.contains("dates")) throw std::invalid_argument("missing dates");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneWithDatesCreateRequest field");
+    return holder::api::MilestoneWithDatesCreateRequest{
+        codec<std::vector<holder::api::MilestoneDateValue>>::decode(value.at("dates")),
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::MilestoneWithDatesUpdateRequest>::encode(const holder::api::MilestoneWithDatesUpdateRequest& value) {
+    json result = json::object();
+    if (value.dates) {
+        result["dates"] = codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::encode(value.dates);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneWithDatesUpdateRequest codec<holder::api::MilestoneWithDatesUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneWithDatesUpdateRequest");
+    if (value.size() < 1) throw std::invalid_argument("too few MilestoneWithDatesUpdateRequest fields");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneWithDatesUpdateRequest field");
+    return holder::api::MilestoneWithDatesUpdateRequest{
+        value.contains("dates") ? codec<std::optional<std::vector<holder::api::MilestoneDateValue>>>::decode(value.at("dates")) : std::nullopt,
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::MilestoneRemoveResult>::encode(const holder::api::MilestoneRemoveResult& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["milestone_id"] = codec<std::string>::encode(value.milestone_id);
+    result["removed"] = codec<bool>::encode(value.removed);
+    return result;
+}
+inline holder::api::MilestoneRemoveResult codec<holder::api::MilestoneRemoveResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneRemoveResult");
+    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
+    if (!value.contains("milestone_id")) throw std::invalid_argument("missing milestone_id");
+    if (!value.contains("removed")) throw std::invalid_argument("missing removed");
+    return holder::api::MilestoneRemoveResult{
+        codec<std::string>::decode(value.at("card_id")),
+        codec<std::string>::decode(value.at("milestone_id")),
+        codec<bool>::decode(value.at("removed")),
+    };
+}
+
+inline json codec<holder::api::MilestoneRemoveResponse>::encode(const holder::api::MilestoneRemoveResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::MilestoneRemoveResult>::encode(value.data);
+    return result;
+}
+inline holder::api::MilestoneRemoveResponse codec<holder::api::MilestoneRemoveResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneRemoveResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::MilestoneRemoveResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::MilestoneRemoveResult>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::MilestoneResponse>::encode(const holder::api::MilestoneResponse& value) {
+    json result = json::object();
+    if (value.ok != true) throw std::invalid_argument("invalid ok");
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["data"] = codec<holder::api::Milestone>::encode(value.data);
+    return result;
+}
+inline holder::api::MilestoneResponse codec<holder::api::MilestoneResponse>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneResponse");
+    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
+    if (!value.contains("data")) throw std::invalid_argument("missing data");
+    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
+    return holder::api::MilestoneResponse{
+        codec<bool>::decode(value.at("ok")),
+        codec<holder::api::Milestone>::decode(value.at("data")),
+    };
+}
+
+inline json codec<holder::api::MilestoneCreateRequest>::encode(const holder::api::MilestoneCreateRequest& value) {
+    json result = json::object();
+    result["start_at"] = codec<long long>::encode(value.start_at);
+    if (value.end_at) {
+        result["end_at"] = codec<std::optional<std::optional<long long>>>::encode(value.end_at);
+    }
+    result["all_day"] = codec<bool>::encode(value.all_day);
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneCreateRequest codec<holder::api::MilestoneCreateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneCreateRequest");
+    if (!value.contains("start_at")) throw std::invalid_argument("missing start_at");
+    return holder::api::MilestoneCreateRequest{
+        codec<long long>::decode(value.at("start_at")),
+        value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
+        value.contains("all_day") ? codec<bool>::decode(value.at("all_day")) : bool(false),
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
+    };
+}
+
+inline json codec<holder::api::MilestoneUpdateRequest>::encode(const holder::api::MilestoneUpdateRequest& value) {
+    json result = json::object();
+    if (value.start_at) {
+        result["start_at"] = codec<std::optional<long long>>::encode(value.start_at);
+    }
+    if (value.end_at) {
+        result["end_at"] = codec<std::optional<std::optional<long long>>>::encode(value.end_at);
+    }
+    if (value.all_day) {
+        result["all_day"] = codec<std::optional<bool>>::encode(value.all_day);
+    }
+    if (value.kind) {
+        result["kind"] = codec<std::optional<std::optional<std::string>>>::encode(value.kind);
+    }
+    if (value.description) {
+        result["description"] = codec<std::optional<std::optional<std::string>>>::encode(value.description);
+    }
+    return result;
+}
+inline holder::api::MilestoneUpdateRequest codec<holder::api::MilestoneUpdateRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected MilestoneUpdateRequest");
+    if (value.size() < 1) throw std::invalid_argument("too few MilestoneUpdateRequest fields");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "start_at" && it.key() != "end_at" && it.key() != "all_day" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("unexpected MilestoneUpdateRequest field");
+    return holder::api::MilestoneUpdateRequest{
+        value.contains("start_at") ? codec<std::optional<long long>>::decode(value.at("start_at")) : std::nullopt,
+        value.contains("end_at") ? std::optional<std::optional<long long>>{std::in_place, codec<std::optional<long long>>::decode(value.at("end_at"))} : std::nullopt,
+        value.contains("all_day") ? codec<std::optional<bool>>::decode(value.at("all_day")) : std::nullopt,
+        value.contains("kind") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("kind"))} : std::nullopt,
+        value.contains("description") ? std::optional<std::optional<std::string>>{std::in_place, codec<std::optional<std::string>>::decode(value.at("description"))} : std::nullopt,
     };
 }
 

@@ -30,18 +30,6 @@ long long parse_epoch(const std::string& raw, const std::string& name) {
   return value;
 }
 
-MilestoneWithDates milestone_with_dates(const holder::model::Milestone& milestone) {
-  MilestoneWithDates value{
-      milestone.milestone_id, milestone.card_id, {}, milestone.kind, milestone.description,
-      milestone.created_at, milestone.updated_at,
-  };
-  value.dates.reserve(milestone.dates.size());
-  for (const auto& date : milestone.dates) {
-    value.dates.push_back({date.role, date.date, date.datetime});
-  }
-  return value;
-}
-
 MilestoneWithDatesListResponse list_response(const std::vector<holder::model::Milestone>& milestones) {
   MilestoneWithDatesListResponse response{true, {}};
   response.data.reserve(milestones.size());
@@ -71,6 +59,18 @@ std::vector<holder::model::Milestone> matching_milestones(holder::platform::Db& 
 }
 
 } // namespace
+
+MilestoneWithDates milestone_with_dates(const holder::model::Milestone& milestone) {
+  MilestoneWithDates value{
+      milestone.milestone_id, milestone.card_id, {}, milestone.kind, milestone.description,
+      milestone.created_at, milestone.updated_at,
+  };
+  value.dates.reserve(milestone.dates.size());
+  for (const auto& date : milestone.dates) {
+    value.dates.push_back({date.role, date.date, date.datetime});
+  }
+  return value;
+}
 
 MilestoneWithDatesListResponse get_project_milestones_with_dates(holder::platform::Db& db,
                                                                  std::string project_id,

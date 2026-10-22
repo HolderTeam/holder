@@ -35,6 +35,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -44,6 +49,21 @@ def _parse_response(
         response_404 = ErrorResponse.from_dict(response.json())
 
         return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -69,6 +89,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | MilestoneRemoveResponse]:
     """Remove a milestone from a card
+
+     Removing a milestone that is already absent succeeds with removed false.
 
     Args:
         card_id (str):
@@ -102,6 +124,8 @@ def sync(
 ) -> ErrorResponse | MilestoneRemoveResponse | None:
     """Remove a milestone from a card
 
+     Removing a milestone that is already absent succeeds with removed false.
+
     Args:
         card_id (str):
         milestone_id (str):
@@ -128,6 +152,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | MilestoneRemoveResponse]:
     """Remove a milestone from a card
+
+     Removing a milestone that is already absent succeeds with removed false.
 
     Args:
         card_id (str):
@@ -158,6 +184,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | MilestoneRemoveResponse | None:
     """Remove a milestone from a card
+
+     Removing a milestone that is already absent succeeds with removed false.
 
     Args:
         card_id (str):

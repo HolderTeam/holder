@@ -16,6 +16,7 @@
 #include "api/CardRead.h"
 #include "api/CardResources.h"
 #include "api/CardWrite.h"
+#include "api/MilestoneWrite.h"
 #include "api/CardLinks.h"
 #include "api/CardReferenceResolve.h"
 #include "api/Health.h"

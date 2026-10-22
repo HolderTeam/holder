@@ -7,8 +7,12 @@
 #include <string>
 
 namespace holder::platform { class Db; }
+namespace holder::model { struct Milestone; }
 
 namespace holder::api {
+
+// A milestone with its complete ordered dates, as the labelled dates routes report it.
+MilestoneWithDates milestone_with_dates(const holder::model::Milestone& milestone);
 
 struct ProjectMilestonesInvalidQuery : std::invalid_argument {
   using std::invalid_argument::invalid_argument;

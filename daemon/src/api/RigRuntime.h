@@ -40,7 +40,7 @@
 #include "api/StaticFiles.h"
 #include "api/TrashList.h"
 #include "api/declared/Ai.h"
-#include "api/declared/Cards.h"
+#include "api/MilestoneWrite.h"
 #include "api/declared/Events.h"
 #include "api/declared/Imports.h"
 #include "api/LocationWrite.h"

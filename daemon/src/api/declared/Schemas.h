@@ -529,34 +529,6 @@ struct RIG_OPEN_RECORD TrashDeleteResponse {
   nlohmann::json data;
 };
 
-struct RIG_OPEN_RECORD MilestoneWithDatesResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  MilestoneWithDates data;
-};
-
-struct MilestoneWithDatesCreateRequest {
-  std::vector<MilestoneDateValue> dates RIG_FIELD_DESCRIPTION("May be empty for an undated milestone.");
-  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_DESCRIPTION("Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.") RIG_MIN_PROPERTIES(1) MilestoneWithDatesUpdateRequest {
-  std::optional<std::vector<MilestoneDateValue>> dates RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_OPEN_RECORD MilestoneRemoveResult {
-  std::string card_id;
-  std::string milestone_id RIG_FIELD_DESCRIPTION("Canonical milestone identifier supplied in the request.") RIG_FORMAT("uuid");
-  bool removed RIG_FIELD_DESCRIPTION("True when the milestone existed and was removed; false when it was already absent.");
-};
-
-struct RIG_OPEN_RECORD MilestoneRemoveResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  MilestoneRemoveResult data;
-};
-
 struct RIG_OPEN_RECORD Milestone {
   std::string milestone_id RIG_FIELD_DESCRIPTION("Canonical milestone identifier; this is not a card ID and is never abbreviated.") RIG_FORMAT("uuid");
   std::string card_id;
@@ -568,27 +540,6 @@ struct RIG_OPEN_RECORD Milestone {
   long long created_at;
   long long updated_at;
   std::optional<std::string> card_title RIG_FIELD_DESCRIPTION("Included in project calendar responses.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD MilestoneResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  Milestone data;
-};
-
-struct RIG_OPEN_RECORD MilestoneCreateRequest {
-  long long start_at RIG_FIELD_DESCRIPTION("Unix epoch seconds. For all_day=true, encode the local calendar date at local midnight.");
-  std::optional<std::optional<long long>> end_at RIG_FIELD_DESCRIPTION("Inclusive milestone end. For all_day=true, encode the inclusive ending local date at local midnight.") RIG_OMIT_EMPTY RIG_NULLABLE;
-  bool all_day RIG_FIELD_DESCRIPTION("Marks start_at and end_at as local calendar dates rather than timed instants.") RIG_DEFAULT(false);
-  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
-};
-
-struct RIG_DESCRIPTION("Partial milestone update. Omitted properties remain unchanged; null clears a nullable property.") RIG_MIN_PROPERTIES(1) MilestoneUpdateRequest {
-  std::optional<long long> start_at RIG_FIELD_DESCRIPTION("Unix epoch seconds. When changing an all-day milestone, encode the local calendar date at local midnight.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<long long>> end_at RIG_FIELD_DESCRIPTION("Inclusive milestone end, or null to clear it. The resulting end must not precede start_at.") RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<bool> all_day RIG_FIELD_DESCRIPTION("Whether start_at and end_at carry local calendar-date semantics rather than timed-instant semantics.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> kind RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> description RIG_OMIT_EMPTY RIG_NULLABLE;
 };
 
 struct RIG_OPEN_RECORD StorageLocation {
