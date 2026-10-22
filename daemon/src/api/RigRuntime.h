@@ -47,7 +47,6 @@
 #include "api/StaticFiles.h"
 #include "api/TrashList.h"
 #include "api/MilestoneWrite.h"
-#include "api/declared/GoogleDriveOAuth.h"
 #include "api/AssetImportWrite.h"
 #include "api/LocationWrite.h"
 #include "api/RecoveryToken.h"

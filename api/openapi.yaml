@@ -3806,6 +3806,11 @@ paths:
           content:
             text/html:
               schema: {type: string}
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /locations/{location_id}/test:
     post:
       summary: Upload, verify, and remove a storage probe

@@ -22,26 +22,21 @@ std::string start_google_drive_authorization(
     std::optional<long long> now = std::nullopt
 );
 
-// GET /locations/{id}/oauth/google-drive/callback -- Google's redirect hits this
-// directly from the user's browser, which never carries the daemon's own bearer token,
-// so its declaration (declared/GoogleDriveOAuth.h) is RIG_PUBLIC -- the one path+method
-// combination under /locations/ that needs no token; everything else there still
-// requires it. Returns false immediately (does nothing) for any path/method that
-// doesn't match.
-//
-// Validates state against what the authorize call generated, exchanges the code for
-// tokens, finds-or-creates the "Holder/Resources" Drive folder, writes its id into the
-// Location's configuration, and binds the refresh token -- then serves a plain HTML
-// page telling the user they can close the tab, since a browser (not the GTK app) is
-// what's showing this response.
-bool handle_google_drive_oauth_callback_route(
-    const std::string& path,
-    const std::string& query_string,
-    const boost::beast::http::request<boost::beast::http::string_body>& req,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
+// Finishes connecting a Google Drive location for GET /locations/{id}/oauth/google-drive/
+// callback, where Google redirects the user's browser: checks state against what the
+// authorize call stored, exchanges the code for tokens, finds or creates the
+// "Holder/Resources" Drive folder, writes its ID into the location and binds the refresh
+// token. Returns the HTML page the browser shows, since the browser, not the app, is
+// showing it.
+boost::beast::http::response<boost::beast::http::string_body> finish_google_drive_authorization(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
+    const std::optional<std::string>& host,
+    const std::string& location_id,
+    const std::string& code,
+    const std::string& state,
+    const std::string& oauth_error,
     std::optional<long long> now = std::nullopt
 );
 

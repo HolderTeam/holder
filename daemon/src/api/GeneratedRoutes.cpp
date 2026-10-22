@@ -65,12 +65,6 @@ bool is_public_generated_route(const GeneratedRequest& req) {
                              std::string(target.data(), target.size()));
 }
 
-bool is_host_served_route(const GeneratedRequest& req) {
-  const auto target = req.target();
-  return rig_http::is_host_served(std::string(req.method_string()),
-                                  std::string(target.data(), target.size()));
-}
-
 bool dispatch_generated_routes(
     const GeneratedRequest& req,
     GeneratedResponse& res,

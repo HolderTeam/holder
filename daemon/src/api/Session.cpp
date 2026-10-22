@@ -1,6 +1,5 @@
 #include "api/Session.h"
 #include "api/GeneratedRoutes.h"
-#include "api/routes/GoogleDriveOAuthRoutes.h"
 #include "api/support/HttpAuth.h"
 #include "api/support/HttpResponses.h"
 
@@ -372,20 +371,9 @@ std::optional<Session::PreparedResponse> Session::process_loaded_request() {
     // Generated, or a 405 for a declared path with another method. A stream the generated
     // route has checked is written here, on this request's socket.
     if (stream && stream(socket_, res)) return std::nullopt;
-  } else if (!is_host_served_route(req_)) {
-    // The handlers below serve only the routes the contract declares.
-    res = support::error_response(http::status::not_found, "not_found", "Route not found.");
   } else {
-    // Google redirecting the user's browser, which has no token.
-    routes::handle_google_drive_oauth_callback_route(
-        path_,
-        query_string_,
-        req_,
-        res,
-        db_,
-        secret_store_,
-        git_ops_
-    );
+    // Every route the daemon serves is declared and dispatched by generated code.
+    res = support::error_response(http::status::not_found, "not_found", "Route not found.");
   }
 
   PreparedResponse prepared{
