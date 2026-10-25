@@ -86,10 +86,6 @@ sudo apt install -y libboost-process-dev
 ./make.sh
 ```
 
-On Ubuntu 24.04, skip the `libboost-process-dev` command: Boost.Process is
-header-only in its Boost version. On Ubuntu 26.04, omitting this package can
-cause undefined references to `boost::process::v2` symbols when linking.
-
 Server will start at `127.0.0.1:11499` by default and print docs URL + auth token in the terminal log.
 
 ## Quick Start (Fedora)
