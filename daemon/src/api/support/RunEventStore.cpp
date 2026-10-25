@@ -20,10 +20,12 @@ constexpr std::size_t kMaxRetainedRuns = 128;
 
 StreamEvent append_run_event(
     const std::string& run_id,
-    std::string name,
-    nlohmann::json data,
+    RunEventConstructor make,
+    AiRunEventData data,
     bool finished
 ) {
+  data.run_id = run_id;
+  auto event = make(data);
   std::lock_guard lock(g_run_events_mu);
   if (!g_run_events.contains(run_id) && g_run_events.size() >= kMaxRetainedRuns) {
     auto oldest = g_run_events.begin();
@@ -33,13 +35,13 @@ StreamEvent append_run_event(
     g_run_events.erase(oldest);
   }
   auto& stream = g_run_events[run_id];
-  if (!stream.journal || name == "run_started") stream.journal = std::make_shared<EventJournal>();
+  if (!stream.journal || event.name == "run_started")
+    stream.journal = std::make_shared<EventJournal>();
   stream.updated_at = std::chrono::duration_cast<std::chrono::seconds>(
                           std::chrono::system_clock::now().time_since_epoch()
   )
                           .count();
-  data["run_id"] = run_id;
-  return stream.journal->append(std::move(name), std::move(data), finished);
+  return stream.journal->append(std::move(event), finished);
 }
 
 std::optional<EventBatch> read_run_events(const std::string& run_id, const std::string& after) {

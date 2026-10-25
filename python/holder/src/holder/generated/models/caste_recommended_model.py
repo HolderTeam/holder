@@ -10,7 +10,6 @@ from typing_extensions import Self
 from ..models.caste_recommended_model_required_caste import (
     CasteRecommendedModelRequiredCaste,
 )
-from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="CasteRecommendedModel")
 
@@ -20,61 +19,49 @@ class CasteRecommendedModel:
     """
     Attributes:
         tag (str):
+        provider (None | str):
+        engine (None | str):
+        category (None | str):
         required_caste (CasteRecommendedModelRequiredCaste):
         installed (bool):
-        provider (None | str | Unset):
-        engine (None | str | Unset):
-        category (None | str | Unset):
     """
 
     tag: str
+    provider: None | str
+    engine: None | str
+    category: None | str
     required_caste: CasteRecommendedModelRequiredCaste
     installed: bool
-    provider: None | str | Unset = UNSET
-    engine: None | str | Unset = UNSET
-    category: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         tag = self.tag
 
+        provider: None | str
+        provider = self.provider
+
+        engine: None | str
+        engine = self.engine
+
+        category: None | str
+        category = self.category
+
         required_caste = self.required_caste.value
 
         installed = self.installed
-
-        provider: None | str | Unset
-        if isinstance(self.provider, Unset):
-            provider = UNSET
-        else:
-            provider = self.provider
-
-        engine: None | str | Unset
-        if isinstance(self.engine, Unset):
-            engine = UNSET
-        else:
-            engine = self.engine
-
-        category: None | str | Unset
-        if isinstance(self.category, Unset):
-            category = UNSET
-        else:
-            category = self.category
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "tag": tag,
+                "provider": provider,
+                "engine": engine,
+                "category": category,
                 "required_caste": required_caste,
                 "installed": installed,
             }
         )
-        if provider is not UNSET:
-            field_dict["provider"] = provider
-        if engine is not UNSET:
-            field_dict["engine"] = engine
-        if category is not UNSET:
-            field_dict["category"] = category
 
         return field_dict
 
@@ -83,44 +70,38 @@ class CasteRecommendedModel:
         d = dict(src_dict)
         tag = d.pop("tag")
 
+        def _parse_provider(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        provider = _parse_provider(d.pop("provider"))
+
+        def _parse_engine(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        engine = _parse_engine(d.pop("engine"))
+
+        def _parse_category(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        category = _parse_category(d.pop("category"))
+
         required_caste = CasteRecommendedModelRequiredCaste(d.pop("required_caste"))
 
         installed = d.pop("installed")
 
-        def _parse_provider(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        provider = _parse_provider(d.pop("provider", UNSET))
-
-        def _parse_engine(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        engine = _parse_engine(d.pop("engine", UNSET))
-
-        def _parse_category(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        category = _parse_category(d.pop("category", UNSET))
-
         caste_recommended_model = cls(
             tag=tag,
-            required_caste=required_caste,
-            installed=installed,
             provider=provider,
             engine=engine,
             category=category,
+            required_caste=required_caste,
+            installed=installed,
         )
 
         caste_recommended_model.additional_properties = d

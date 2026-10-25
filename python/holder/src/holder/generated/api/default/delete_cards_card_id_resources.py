@@ -62,6 +62,21 @@ def _parse_response(
 
         return response_422
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -86,6 +101,8 @@ def sync_detailed(
     body: DeleteCardsCardIdResourcesBody,
 ) -> Response[ErrorResponse | ResourceAttachmentResponse]:
     """Detach one attachment without deleting the project resource (idempotent)
+
+     A resource that no longer exists can still be detached.
 
     Args:
         card_id (str):
@@ -119,6 +136,8 @@ def sync(
 ) -> ErrorResponse | ResourceAttachmentResponse | None:
     """Detach one attachment without deleting the project resource (idempotent)
 
+     A resource that no longer exists can still be detached.
+
     Args:
         card_id (str):
         body (DeleteCardsCardIdResourcesBody):
@@ -145,6 +164,8 @@ async def asyncio_detailed(
     body: DeleteCardsCardIdResourcesBody,
 ) -> Response[ErrorResponse | ResourceAttachmentResponse]:
     """Detach one attachment without deleting the project resource (idempotent)
+
+     A resource that no longer exists can still be detached.
 
     Args:
         card_id (str):
@@ -175,6 +196,8 @@ async def asyncio(
     body: DeleteCardsCardIdResourcesBody,
 ) -> ErrorResponse | ResourceAttachmentResponse | None:
     """Detach one attachment without deleting the project resource (idempotent)
+
+     A resource that no longer exists can still be detached.
 
     Args:
         card_id (str):

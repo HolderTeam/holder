@@ -7,6 +7,7 @@
 
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
+#include "card/LinkVisibility.h"
 #include "model/Card.h"
 #include "model/CardLink.h"
 #include "model/Project.h"
@@ -20,6 +21,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -571,4 +573,52 @@ TEST_CASE("LinkRepo delete methods throw when sqlite delete step fails", "[linkr
       repo.delete_links_from("proj-1", "card-a"),
       Catch::Matchers::ContainsSubstring("delete links failed: blocked delete")
   );
+}
+
+TEST_CASE("Link visibility hides missing or trashed local endpoints", "[linkrepo]") {
+  const auto dir = make_temp_dir();
+  holder::platform::Db db;
+  db.open(dir / "holder.db");
+  apply_schema(db);
+  create_project(db, "proj-1");
+  create_card(db, "card-live", "proj-1");
+  create_card(db, "card-trashed", "proj-1");
+  holder::card::CardRepo(db).soft_delete("card-trashed", 5, 5);
+  db.exec("INSERT INTO ai_threads(thread_id, project_id, title, created_at, updated_at) "
+          "VALUES('thread-1', 'proj-1', 'Thread', 1, 1);");
+  db.exec("INSERT INTO ai_messages(message_id, thread_id, role, source, content, created_at) "
+          "VALUES('msg-live', 'thread-1', 'user', 'manual', 'hi', 1);");
+  db.exec("INSERT INTO ai_messages(message_id, thread_id, role, source, content, created_at, "
+          "deleted_at) VALUES('msg-trashed', 'thread-1', 'user', 'manual', 'hi', 1, 5);");
+
+  const auto link = [](std::string from, std::string to, std::string type) {
+    holder::model::CardLink value;
+    value.project_id = "proj-1";
+    value.from_card_id = std::move(from);
+    value.to_card_id = std::move(to);
+    value.to_type = std::move(type);
+    value.kind = "ref";
+    return value;
+  };
+  using holder::card::backlink_source_visible;
+  using holder::card::link_target_visible;
+
+  CHECK(link_target_visible(db, link("x", "card-live", "card")));
+  CHECK_FALSE(link_target_visible(db, link("x", "card-trashed", "card")));
+  CHECK_FALSE(link_target_visible(db, link("x", "card-missing", "card")));
+  auto external = link("x", "card-missing", "card");
+  external.target_project_id = "proj-2";
+  CHECK(link_target_visible(db, external));
+  auto same_project = link("x", "card-missing", "card");
+  same_project.target_project_id = "proj-1";
+  CHECK_FALSE(link_target_visible(db, same_project));
+  CHECK(link_target_visible(db, link("x", "msg-live", "ai_message")));
+  CHECK_FALSE(link_target_visible(db, link("x", "msg-trashed", "ai_message")));
+  CHECK(link_target_visible(db, link("x", "res-missing", "resource")));
+
+  CHECK(backlink_source_visible(db, link("card-live", "y", "card")));
+  CHECK_FALSE(backlink_source_visible(db, link("card-trashed", "y", "card")));
+  CHECK(backlink_source_visible(db, link("msg-live", "y", "ai_message")));
+  CHECK_FALSE(backlink_source_visible(db, link("msg-trashed", "y", "ai_message")));
+  CHECK_FALSE(backlink_source_visible(db, link("missing", "y", "card")));
 }

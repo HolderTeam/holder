@@ -248,11 +248,6 @@ void SseStream::schedule_poll() {
     }
     boost::asio::post(self->strand_, [self, batch = std::move(batch)] {
       if (!self->open()) return;
-      if (batch.resync_required) {
-        self->send({batch.cursor, "resync_required", {{"reason", "history_unavailable"}}});
-        self->finish();
-        return;
-      }
       for (const auto& event : batch.events)
         if (!self->send(event)) return;
       if (batch.finished) {

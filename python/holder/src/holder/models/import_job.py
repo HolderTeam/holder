@@ -9,17 +9,12 @@ from typing import TYPE_CHECKING, Any, Self
 
 from ..generated.api.default import get_imports_job_id, post_imports
 from ..generated.models import AssetImportRequest
-from ..generated.types import Unset
 
 if TYPE_CHECKING:
     from .card import Card
     from .project import Project
     from .resource import Resource
     from .storage import StorageLocation
-
-
-def _optional(value: Any) -> Any:
-    return None if isinstance(value, Unset) else value
 
 
 @dataclass(frozen=True, eq=False)
@@ -38,11 +33,11 @@ class ImportJob:
         return cls(
             id=row.job_id,
             status=str(row.status),
-            resource_id=_optional(row.resource_id),
-            asset_id=_optional(row.asset_id),
+            resource_id=row.resource_id,
+            asset_id=row.asset_id,
             duplicate_reused=row.duplicate_reused,
-            link_created=_optional(row.link_created) is True,
-            error=_optional(row.error),
+            link_created=row.link_created,
+            error=row.error,
             _project=project,
         )
 

@@ -58,6 +58,11 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -84,7 +89,8 @@ def sync_detailed(
     """Test project remote reachability/auth
 
      Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration.
+    repository, or change stored project configuration or Git configuration. Git failures are reported
+    in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -119,7 +125,8 @@ def sync(
     """Test project remote reachability/auth
 
      Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration.
+    repository, or change stored project configuration or Git configuration. Git failures are reported
+    in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -149,7 +156,8 @@ async def asyncio_detailed(
     """Test project remote reachability/auth
 
      Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration.
+    repository, or change stored project configuration or Git configuration. Git failures are reported
+    in the result, not as HTTP errors.
 
     Args:
         project_id (str):
@@ -182,7 +190,8 @@ async def asyncio(
     """Test project remote reachability/auth
 
      Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration.
+    repository, or change stored project configuration or Git configuration. Git failures are reported
+    in the result, not as HTTP errors.
 
     Args:
         project_id (str):

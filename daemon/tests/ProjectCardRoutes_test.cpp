@@ -1,19 +1,52 @@
-#include "api/routes/CardRoutes.h"
-#include "api/routes/ProjectCardRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "api/support/HttpQuery.h"
 #include "card/CardRepo.h"
 #include "card/TagRepo.h"
 #include "http_test_helpers.h"
+#include <cctype>
 #include <unordered_map>
 
 namespace {
 namespace http = boost::beast::http;
 using Params = std::unordered_map<std::string, std::string>;
-auto getter(Params params) {
-  return [params](const std::string& name) {
-    const auto it = params.find(name);
-    return it == params.end() ? std::string{} : it->second;
-  };
+
+std::string query_encode(const std::string& value) {
+  constexpr char hex[] = "0123456789ABCDEF";
+  std::string result;
+  for (const char character : value) {
+    const auto byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte) || byte == '-' || byte == '_' || byte == '.' || byte == '~') {
+      result += character;
+    } else {
+      result += '%';
+      result += hex[byte >> 4];
+      result += hex[byte & 15];
+    }
+  }
+  return result;
+}
+
+// Routes a request through the generated routes, as the daemon does.
+// An empty value leaves the parameter out.
+std::pair<http::status, nlohmann::json> route_project_cards(
+    holder::platform::Db& db,
+    holder::card::CardStore* card_store,
+    const std::string& path,
+    const Params& params = {},
+    http::verb method = http::verb::get
+) {
+  std::string target = path;
+  char separator = '?';
+  for (const auto& [key, value] : params) {
+    if (value.empty()) continue;
+    target += separator + key + "=" + query_encode(value);
+    separator = '&';
+  }
+  http::request<http::string_body> req{method, target, 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(
+      req, res, db, nullptr, nullptr, nullptr, nullptr, {}, {}, card_store));
+  return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
 }
 } // namespace
 
@@ -41,10 +74,7 @@ TEST_CASE(
   auto call = [&](Params params,
                   std::string path = "/projects/p/cards",
                   http::verb method = http::verb::get) {
-    http::request<http::string_body> req{method, path, 11};
-    http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_project_card_routes(path, req, res, db, getter(params)));
-    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+    return route_project_cards(db, nullptr, path, params, method);
   };
   auto [status, payload] = call({{"limit", "2"}});
   REQUIRE(status == http::status::ok);
@@ -89,29 +119,25 @@ TEST_CASE(
 
   // The display endpoint retains its original hierarchy, recent mode and tag precedence.
   auto display = [&](Params params) {
-    http::request<http::string_body> req{http::verb::get, "/cards", 11};
-    http::response<http::string_body> res;
     params["project_id"] = "p";
-    REQUIRE(
-        holder::api::routes::handle_card_routes(
-            "/cards",
-            req,
-            res,
-            db,
-            &store,
-            &fts,
-            [] {
-              return "unused";
-            },
-            getter(params)
-        )
-    );
+    std::string target = "/cards";
+    char separator = '?';
+    for (const auto& [key, value] : params) {
+      target += separator + key + "=" + value;
+      separator = '&';
+    }
+    http::request<http::string_body> req{http::verb::get, target, 11};
+    http::response<http::string_body> res;
+    REQUIRE(holder::api::dispatch_generated_routes(
+        req, res, db, nullptr, &fts, nullptr, nullptr, {}, {}, &store
+    ));
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
   CHECK(display({}).second["data"].size() == 1);
   CHECK(display({{"parent_card_id", first}}).second["data"].size() == 2);
   CHECK(display({{"tag", "work"}, {"parent_card_id", first}}).second["data"].size() == 3);
-  CHECK(display({{"view", "recent"}, {"limit", "2junk"}}).second["data"].size() == 2);
+  CHECK(display({{"view", "recent"}, {"limit", "2"}}).second["data"].size() == 2);
+  CHECK(display({{"view", "recent"}, {"limit", "2junk"}}).first == http::status::bad_request);
   CHECK(display({{"view", "all"}}).first == http::status::bad_request);
   CHECK(display({{"after_card_id", third}}).second["data"].size() == 1);
 
@@ -134,21 +160,6 @@ TEST_CASE(
   CHECK(call({{"parent", first}}).second["data"]["items"].empty());
 }
 
-TEST_CASE("Project card routes decline unrelated paths", "[card-pages]") {
-  holder::platform::Db db;
-  for (const auto* path :
-       {"/cards",
-        "/projects/p",
-        "/projects/cards",
-        "/projects/p/tags",
-        "/projects/p/cards/id",
-        "/projects//cards"}) {
-    http::request<http::string_body> req{http::verb::get, path, 11};
-    http::response<http::string_body> res;
-    CHECK_FALSE(holder::api::routes::handle_project_card_routes(path, req, res, db, getter({})));
-  }
-}
-
 TEST_CASE("Project card pages follow sibling sort keys across cursors", "[card-pages]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
@@ -164,13 +175,7 @@ TEST_CASE("Project card pages follow sibling sort keys across cursors", "[card-p
   holder::test::create_card_fixture(store, second, "p", "second", "second", 3, parent, 20.0);
   holder::test::create_card_fixture(store, third, "p", "third", "third", 4, parent, 20.0);
   auto call = [&](Params params) {
-    const std::string path = "/projects/p/cards";
-    http::request<http::string_body> req{http::verb::get, path, 11};
-    http::response<http::string_body> res;
-    REQUIRE(
-        holder::api::routes::handle_project_card_routes(path, req, res, db, getter(params), &store)
-    );
-    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+    return route_project_cards(db, &store, "/projects/p/cards", params);
   };
   Params params{{"parent", parent}, {"order", "sort_key_asc"}, {"limit", "1"}};
   auto [status, payload] = call(params);
@@ -206,12 +211,7 @@ TEST_CASE(
   auto call = [&](const std::string& path,
                   Params params = {},
                   http::verb method = http::verb::get) {
-    http::request<http::string_body> req{method, path, 11};
-    http::response<http::string_body> res;
-    REQUIRE(
-        holder::api::routes::handle_project_card_routes(path, req, res, db, getter(params), &store)
-    );
-    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+    return route_project_cards(db, &store, path, params, method);
   };
   const auto list_path = std::string("/projects/p/cards");
   const auto plain = call(list_path, {{"parent", "roots"}}).second["data"]["items"];
@@ -275,18 +275,7 @@ TEST_CASE("Project card collection pages can include card content", "[card-pages
   holder::test::create_card_fixture(store, first, "p", "one", "one body\n#work", 10);
   holder::test::create_card_fixture(store, second, "p", "two", "two body", 20);
   auto call = [&](Params params, holder::card::CardStore* card_store) {
-    const std::string path = "/projects/p/cards";
-    http::request<http::string_body> req{http::verb::get, path, 11};
-    http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_project_card_routes(
-        path,
-        req,
-        res,
-        db,
-        getter(params),
-        card_store
-    ));
-    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
+    return route_project_cards(db, card_store, "/projects/p/cards", params);
   };
 
   auto [status, payload] = call({{"include_content", "true"}, {"limit", "1"}}, &store);
@@ -338,14 +327,9 @@ TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-page
     http::request<http::string_body> req{method, path, 11};
     req.body() = body;
     http::response<http::string_body> res;
-    REQUIRE(holder::api::routes::handle_project_card_routes(
-        path,
-        req,
-        res,
-        db,
-        getter({}),
-        card_store ? card_store : &store
-    ));
+    REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, nullptr, nullptr,
+                                                   nullptr, {}, {},
+                                                   card_store ? card_store : &store));
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
 
@@ -373,4 +357,9 @@ TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-page
       call("", http::verb::post, "/projects/missing/repair-hierarchy").first ==
       http::status::not_found
   );
+
+  http::request<http::string_body> no_store{http::verb::post, "/projects/p/repair-hierarchy", 11};
+  http::response<http::string_body> res;
+  REQUIRE(holder::api::dispatch_generated_routes(no_store, res, db));
+  CHECK(res.result() == http::status::not_implemented);
 }

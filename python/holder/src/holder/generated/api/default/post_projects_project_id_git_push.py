@@ -58,6 +58,16 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -82,6 +92,9 @@ def sync_detailed(
     body: ProjectGitPushRequest | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectGitPushResponse]:
     """Push project repository to remote
+
+     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
+    pushing, so no plaintext card leaves the device.
 
     Args:
         project_id (str):
@@ -115,6 +128,9 @@ def sync(
 ) -> ErrorResponse | ProjectGitPushResponse | None:
     """Push project repository to remote
 
+     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
+    pushing, so no plaintext card leaves the device.
+
     Args:
         project_id (str):
         body (ProjectGitPushRequest | Unset):
@@ -141,6 +157,9 @@ async def asyncio_detailed(
     body: ProjectGitPushRequest | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectGitPushResponse]:
     """Push project repository to remote
+
+     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
+    pushing, so no plaintext card leaves the device.
 
     Args:
         project_id (str):
@@ -171,6 +190,9 @@ async def asyncio(
     body: ProjectGitPushRequest | Unset = UNSET,
 ) -> ErrorResponse | ProjectGitPushResponse | None:
     """Push project repository to remote
+
+     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
+    pushing, so no plaintext card leaves the device.
 
     Args:
         project_id (str):

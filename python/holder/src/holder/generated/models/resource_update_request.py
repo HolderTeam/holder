@@ -23,7 +23,7 @@ class ResourceUpdateRequest:
         type_ (str | Unset):
         label (str | Unset):
         metadata (ResourceMetadata | Unset): Permissive metadata map. Repeated and custom values are preserved in order.
-        updated_at (int | Unset):
+        updated_at (int | Unset): Optional; server uses current time if omitted.
     """
 
     type_: str | Unset = UNSET

@@ -1,17 +1,19 @@
 #include "http_test_helpers.h"
 
-#include "ai/NudgeService.h"
 #include "api/Listener.h"
-#include "api/Router.h"
 #include "card/CardStore.h"
 #include "index/FtsIndexer.h"
 #include "llm/RunnerRegistry.h"
 #include "platform/Signal.h"
+#include "privacy/SecretStore.h"
 
 #include <atomic>
 #include <boost/asio.hpp>
 #include <cstddef>
+#include <functional>
 #include <future>
+#include <optional>
+#include <string>
 #include <thread>
 #include <utility>
 
@@ -21,6 +23,28 @@ using holder::test::open_db_with_schema;
 using holder::test::wait_for_http_listener;
 
 namespace {
+
+// A secret store whose reads and removals run the test's hooks, so that tests can hold real
+// routes open: GET /locations?project_id=P reads P's preferred location (foreground lane), and
+// DELETE /ai/providers/credentials/P removes P's key (background lane).
+class HookedSecretStore final : public holder::privacy::SecretStore {
+ public:
+  std::function<std::optional<holder::privacy::StoredSecret>(const std::string& account)> on_get;
+  std::function<void(const std::string& account)> on_remove;
+
+  std::optional<holder::privacy::StoredSecret> get(const std::string&,
+                                                   const std::string& account) const override {
+    return on_get ? on_get(account) : std::nullopt;
+  }
+  std::vector<holder::privacy::SecretMetadata> list(const std::string&) const override {
+    return {};
+  }
+  void set(const std::string&, const std::string&, const std::string&, const std::string&,
+           long long, long long) override {}
+  void remove(const std::string&, const std::string& account) override {
+    if (on_remove) on_remove(account);
+  }
+};
 
 boost::asio::ip::tcp::socket connect_test_socket(
     boost::asio::io_context& ioc,
@@ -102,31 +126,13 @@ TEST_CASE("Slow background route does not block foreground route", "[listener]")
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
-
-  holder::api::Router router;
   std::atomic<bool> slow_started{false};
-  router.add(
-      http::verb::get,
-      "/ai/slow",
-      [&slow_started](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        slow_started.store(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::get,
-      "/foreground-fast",
-      [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_remove = [&slow_started](const std::string&) {
+    slow_started.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  };
 
   const std::string token = "testtoken";
   holder::api::Listener listener(
@@ -134,11 +140,10 @@ TEST_CASE("Slow background route does not block foreground route", "[listener]")
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr
+      &secrets
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -159,8 +164,8 @@ TEST_CASE("Slow background route does not block foreground route", "[listener]")
         bound.bind,
         bound.port,
         token,
-        http::verb::get,
-        "/ai/slow"
+        http::verb::delete_,
+        "/ai/providers/credentials/slow"
     );
   });
 
@@ -175,7 +180,7 @@ TEST_CASE("Slow background route does not block foreground route", "[listener]")
       bound.port,
       token,
       http::verb::get,
-      "/foreground-fast"
+      "/locations?project_id=fast"
   );
   const auto fast_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - fast_started
@@ -197,31 +202,13 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
-
-  holder::api::Router router;
   std::atomic<bool> slow_started{false};
-  router.add(
-      http::verb::get,
-      "/ai/slow",
-      [&slow_started](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        slow_started.store(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::patch,
-      "/cards/save-test",
-      [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_remove = [&slow_started](const std::string&) {
+    slow_started.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  };
 
   const std::string token = "testtoken";
   holder::api::Listener listener(
@@ -229,11 +216,10 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr
+      &secrets
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -254,8 +240,8 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
         bound.bind,
         bound.port,
         token,
-        http::verb::get,
-        "/ai/slow"
+        http::verb::delete_,
+        "/ai/providers/credentials/slow"
     );
   });
 
@@ -271,15 +257,16 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       token,
       http::verb::patch,
       "/cards/save-test",
-      nlohmann::json::object(),
-      http::status::ok
+      // Without a card store the save is refused at once; only its lane matters here.
+      nlohmann::json{{"updated_at", 1}, {"content", "x"}},
+      http::status::not_implemented
   );
   const auto save_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - save_started
   )
                                    .count();
 
-  REQUIRE(saved["ok"] == true);
+  REQUIRE(saved["ok"] == false);
   REQUIRE(save_elapsed_ms < 200);
 
   const auto slow = slow_future.get();
@@ -299,19 +286,15 @@ TEST_CASE("Listener worker-owned DB handles support concurrent mixed request loa
   holder::card::CardStore card_store(db, &fts);
   holder::test::EnvGuard fake_runner_env("HOLDER_MODEL_RUNNER_FAKE", "1");
   holder::llm::RunnerRegistry runner_registry(&db, nullptr);
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      nullptr,
       nullptr,
       nullptr,
       &runner_registry
@@ -434,20 +417,15 @@ TEST_CASE("Listener stop cancels in-flight ingress read and returns promptly", "
   const auto db_path = dir / "holder.db";
   holder::platform::Db db;
   db.open(db_path);
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
-      nullptr,
-      nullptr
-  );
+      nullptr);
   holder::api::Listener::BoundInfo bound;
   try {
     bound = listener.start();
@@ -489,8 +467,6 @@ TEST_CASE("Listener stop closes queued ingress sockets and returns promptly", "[
   const auto db_path = dir / "holder.db";
   holder::platform::Db db;
   db.open(db_path);
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::ConcurrencyProfile concurrency;
   concurrency.io_threads = 1;
@@ -500,19 +476,29 @@ TEST_CASE("Listener stop closes queued ingress sockets and returns promptly", "[
   concurrency.writer_workers = 1;
 
   holder::api::Listener listener(
+
       "127.0.0.1",
+
       0,
+
       db,
+
       token,
-      router,
+
       std::chrono::steady_clock::now(),
+
       nullptr,
+
       nullptr,
+
       nullptr,
+
       nullptr,
+
       nullptr,
-      nullptr,
+
       concurrency
+
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -560,17 +546,13 @@ TEST_CASE("Listener test hook can enqueue a pending socket", "[listener]") {
   concurrency.save_workers = 1;
   concurrency.general_workers = 1;
   concurrency.writer_workers = 1;
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr,
@@ -600,17 +582,13 @@ TEST_CASE("Listener drops accepted sockets when ingress queue is full", "[listen
   concurrency.save_workers = 1;
   concurrency.general_workers = 1;
   concurrency.writer_workers = 1;
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr,
@@ -673,17 +651,13 @@ TEST_CASE("Listener rejects background requests when lane queue is full", "[list
   concurrency.save_workers = 1;
   concurrency.general_workers = 0;
   concurrency.writer_workers = 1;
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
-      nullptr,
       nullptr,
       nullptr,
       nullptr,
@@ -759,27 +733,13 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
     concurrency.general_workers = 1;
     concurrency.writer_workers = 1;
 
-    holder::api::Router router;
-    router.add(
-        http::verb::patch,
-        "/cards/save-test",
-        [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-          res.result(http::status::ok);
-          res.set(http::field::content_type, "application/json");
-          res.body() = R"({"ok":true})";
-          res.prepare_payload();
-        }
-    );
-
     const std::string token = "testtoken";
     holder::api::Listener listener(
         "127.0.0.1",
         0,
         db,
         token,
-        router,
         std::chrono::steady_clock::now(),
-        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -833,27 +793,13 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
     concurrency.general_workers = 1;
     concurrency.writer_workers = 0;
 
-    holder::api::Router router;
-    router.add(
-        http::verb::get,
-        "/queued-response",
-        [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-          res.result(http::status::ok);
-          res.set(http::field::content_type, "application/json");
-          res.body() = R"({"ok":true})";
-          res.prepare_payload();
-        }
-    );
-
     const std::string token = "testtoken";
     holder::api::Listener listener(
         "127.0.0.1",
         0,
         db,
         token,
-        router,
         std::chrono::steady_clock::now(),
-        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -876,7 +822,7 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
 
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
-    const std::string request = "GET /queued-response HTTP/1.1\r\n"
+    const std::string request = "GET /health HTTP/1.1\r\n"
                                 "Host: " +
                                 bound.bind +
                                 "\r\n"
@@ -905,36 +851,16 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
   const auto db_path = dir / "holder.db";
   holder::platform::Db db;
   db.open(db_path);
-
-  holder::api::Router router;
   std::atomic<int> foreground_started{0};
   std::atomic<int> background_runs{0};
-  router.add(
-      http::verb::get,
-      "/foreground-slow",
-      [&foreground_started](
-          const holder::api::Router::Request&,
-          holder::api::Router::Response& res
-      ) {
-        foreground_started.fetch_add(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::get,
-      "/ai/queued-stop-test",
-      [&background_runs](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        background_runs.fetch_add(1);
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_get = [&foreground_started](const std::string&) {
+    foreground_started.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    return std::optional<holder::privacy::StoredSecret>();
+  };
+  secrets.on_remove = [&background_runs](const std::string&) { background_runs.fetch_add(1); };
 
   const std::string token = "testtoken";
   holder::api::ConcurrencyProfile concurrency;
@@ -945,19 +871,29 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
   concurrency.writer_workers = 1;
 
   holder::api::Listener listener(
+
       "127.0.0.1",
+
       0,
+
       db,
+
       token,
-      router,
+
       std::chrono::steady_clock::now(),
+
       nullptr,
+
       nullptr,
+
+      &secrets,
+
       nullptr,
+
       nullptr,
-      nullptr,
-      nullptr,
+
       concurrency
+
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -978,7 +914,7 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
 
@@ -992,7 +928,7 @@ TEST_CASE("Listener stop drops queued background work and returns promptly", "[l
   auto endpoints = resolver.resolve(bound.bind, std::to_string(bound.port));
   boost::asio::ip::tcp::socket background_socket(ioc);
   boost::asio::connect(background_socket, endpoints);
-  const std::string background_request = "GET /ai/queued-stop-test HTTP/1.1\r\n"
+  const std::string background_request = "DELETE /ai/providers/credentials/queued HTTP/1.1\r\n"
                                          "Host: " +
                                          bound.bind +
                                          "\r\n"
@@ -1028,20 +964,15 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
-
-  holder::api::Router router;
   std::atomic<int> route_started{0};
-  router.add(
-      http::verb::get,
-      "/large-response",
-      [&route_started](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        route_started.fetch_add(1);
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "text/plain");
-        res.body() = std::string(std::size_t{32} * 1024 * 1024, 'x');
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  // The preferred location ID is the response's large payload.
+  secrets.on_get = [&route_started](const std::string&) {
+    route_started.fetch_add(1);
+    return std::optional<holder::privacy::StoredSecret>(
+        holder::privacy::StoredSecret{{}, std::string(std::size_t{32} * 1024 * 1024, 'x')});
+  };
 
   const std::string token = "testtoken";
   holder::api::ConcurrencyProfile concurrency;
@@ -1052,19 +983,29 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   concurrency.writer_workers = 1;
 
   holder::api::Listener listener(
+
       "127.0.0.1",
+
       0,
+
       db,
+
       token,
-      router,
+
       std::chrono::steady_clock::now(),
+
       nullptr,
+
       nullptr,
+
+      &secrets,
+
       nullptr,
+
       nullptr,
-      nullptr,
-      nullptr,
+
       concurrency
+
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -1084,7 +1025,7 @@ TEST_CASE("Listener stop cancels in-flight writer response and returns promptly"
   auto endpoints = resolver.resolve(bound.bind, std::to_string(bound.port));
   tcp::socket socket(ioc);
   boost::asio::connect(socket, endpoints);
-  const std::string request = "GET /large-response HTTP/1.1\r\n"
+  const std::string request = "GET /locations?project_id=large HTTP/1.1\r\n"
                               "Host: " +
                               bound.bind +
                               "\r\n"
@@ -1115,20 +1056,15 @@ TEST_CASE("Listener serves card nudge and ai status routes without regression", 
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore card_store(db, &fts);
   holder::llm::RunnerRegistry runner_registry(&db, nullptr);
-  holder::ai::NudgeService nudge_service(db, &runner_registry);
-
-  holder::api::Router router;
   const std::string token = "testtoken";
   holder::api::Listener listener(
       "127.0.0.1",
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      &nudge_service,
       nullptr,
       nullptr,
       &runner_registry
@@ -1205,21 +1141,13 @@ TEST_CASE(
   holder::card::CardStore card_store(db, &fts);
   holder::test::EnvGuard fake_runner_env("HOLDER_MODEL_RUNNER_FAKE", "1");
   holder::llm::RunnerRegistry runner_registry(&db, nullptr);
-
-  holder::api::Router router;
   std::atomic<int> slow_started{0};
-  router.add(
-      http::verb::get,
-      "/ai/slow",
-      [&slow_started](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        slow_started.fetch_add(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_remove = [&slow_started](const std::string&) {
+    slow_started.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  };
 
   const std::string token = "testtoken";
   holder::api::Listener listener(
@@ -1227,12 +1155,10 @@ TEST_CASE(
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       &card_store,
       &fts,
-      nullptr,
-      nullptr,
+      &secrets,
       nullptr,
       &runner_registry
   );
@@ -1274,8 +1200,8 @@ TEST_CASE(
         bound.bind,
         bound.port,
         token,
-        http::verb::get,
-        "/ai/slow"
+        http::verb::delete_,
+        "/ai/providers/credentials/slow"
     );
   });
   auto slow2 = std::async(std::launch::async, [&]() {
@@ -1283,8 +1209,8 @@ TEST_CASE(
         bound.bind,
         bound.port,
         token,
-        http::verb::get,
-        "/ai/slow"
+        http::verb::delete_,
+        "/ai/providers/credentials/slow"
     );
   });
   auto slow3 = std::async(std::launch::async, [&]() {
@@ -1292,8 +1218,8 @@ TEST_CASE(
         bound.bind,
         bound.port,
         token,
-        http::verb::get,
-        "/ai/slow"
+        http::verb::delete_,
+        "/ai/providers/credentials/slow"
     );
   });
 
@@ -1339,52 +1265,22 @@ TEST_CASE(
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
-
-  holder::api::Router router;
   std::atomic<int> slow_foreground_started{0};
   // Set the instant this handler actually runs -- proof that the general-worker pool has
   // dispatched it, independent of any wall-clock assumption about how long that takes to
   // happen. See the REQUIRE_FALSE below for why this replaces a timing-based wait_for check.
   std::atomic<bool> fast_foreground_started{false};
-  router.add(
-      http::verb::get,
-      "/foreground-slow",
-      [&slow_foreground_started](
-          const holder::api::Router::Request&,
-          holder::api::Router::Response& res
-      ) {
-        slow_foreground_started.fetch_add(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::get,
-      "/foreground-fast",
-      [&fast_foreground_started](
-          const holder::api::Router::Request&,
-          holder::api::Router::Response& res
-      ) {
-        fast_foreground_started.store(true);
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::patch,
-      "/cards/save-priority",
-      [](const holder::api::Router::Request&, holder::api::Router::Response& res) {
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_get = [&](const std::string& account) {
+    if (account == "slow") {
+      slow_foreground_started.fetch_add(1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    } else {
+      fast_foreground_started.store(true);
+    }
+    return std::optional<holder::privacy::StoredSecret>();
+  };
 
   const std::string token = "testtoken";
   holder::api::Listener listener(
@@ -1392,11 +1288,10 @@ TEST_CASE(
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr
+      &secrets
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -1418,7 +1313,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
   auto slow2 = std::async(std::launch::async, [&]() {
@@ -1427,7 +1322,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
   auto slow3 = std::async(std::launch::async, [&]() {
@@ -1436,7 +1331,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
 
@@ -1451,7 +1346,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-fast"
+        "/locations?project_id=fast"
     );
   });
 
@@ -1464,20 +1359,21 @@ TEST_CASE(
       token,
       http::verb::patch,
       "/cards/save-priority",
-      nlohmann::json::object(),
-      http::status::ok
+      // Without a card store the save is refused at once; only its lane matters here.
+      nlohmann::json{{"updated_at", 1}, {"content", "x"}},
+      http::status::not_implemented
   );
   const auto save_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - save_started
   )
                                    .count();
 
-  REQUIRE(saved["ok"] == true);
+  REQUIRE(saved["ok"] == false);
   REQUIRE(save_elapsed_ms < 200);
   // Deterministic, not a timing race: the default ConcurrencyProfile has exactly 3
   // general_workers_, all still occupied by the still-sleeping slow1/slow2/slow3 handlers at
   // this point (each holds its worker for a fixed 300ms, far longer than this test body takes
-  // to reach here) -- so it is architecturally impossible for /foreground-fast to have been
+  // to reach here) -- so it is architecturally impossible for the fast foreground request to have been
   // dispatched yet, regardless of scheduling delays on this thread. A wait_for(...)-based
   // check here previously inferred that from a fixed wall-clock window instead of observing it
   // directly, which is what made this assertion flaky under CI scheduling contention.
@@ -1501,39 +1397,18 @@ TEST_CASE(
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = open_db_with_schema(db_path);
-
-  holder::api::Router router;
   std::atomic<int> slow_foreground_started{0};
   std::atomic<int> canceled_background_runs{0};
-  router.add(
-      http::verb::get,
-      "/foreground-slow",
-      [&slow_foreground_started](
-          const holder::api::Router::Request&,
-          holder::api::Router::Response& res
-      ) {
-        slow_foreground_started.fetch_add(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
-  router.add(
-      http::verb::get,
-      "/ai/cancel-test",
-      [&canceled_background_runs](
-          const holder::api::Router::Request&,
-          holder::api::Router::Response& res
-      ) {
-        canceled_background_runs.fetch_add(1);
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = R"({"ok":true})";
-        res.prepare_payload();
-      }
-  );
+
+  HookedSecretStore secrets;
+  secrets.on_get = [&slow_foreground_started](const std::string&) {
+    slow_foreground_started.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    return std::optional<holder::privacy::StoredSecret>();
+  };
+  secrets.on_remove = [&canceled_background_runs](const std::string&) {
+    canceled_background_runs.fetch_add(1);
+  };
 
   const std::string token = "testtoken";
   holder::api::Listener listener(
@@ -1541,11 +1416,10 @@ TEST_CASE(
       0,
       db,
       token,
-      router,
       std::chrono::steady_clock::now(),
       nullptr,
       nullptr,
-      nullptr
+      &secrets
   );
   holder::api::Listener::BoundInfo bound;
   try {
@@ -1567,7 +1441,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
   auto slow2 = std::async(std::launch::async, [&]() {
@@ -1576,7 +1450,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
   auto slow3 = std::async(std::launch::async, [&]() {
@@ -1585,7 +1459,7 @@ TEST_CASE(
         bound.port,
         token,
         http::verb::get,
-        "/foreground-slow"
+        "/locations?project_id=slow"
     );
   });
 
@@ -1601,7 +1475,7 @@ TEST_CASE(
     tcp::socket socket(ioc);
     boost::asio::connect(socket, endpoints);
 
-    const std::string request = "GET /ai/cancel-test HTTP/1.1\r\n"
+    const std::string request = "DELETE /ai/providers/credentials/canceled HTTP/1.1\r\n"
                                 "Host: " +
                                 bound.bind +
                                 "\r\n"

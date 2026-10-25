@@ -1,4 +1,4 @@
-#include "api/routes/ai/messages/AiMessageLinkRoutes.h"
+#include "api/GeneratedRoutes.h"
 #include "http_test_helpers.h"
 
 #include "ai/AiMessageRepo.h"
@@ -37,6 +37,14 @@ http::request<http::string_body> make_route_request(
   return req;
 }
 
+// Routes a request through the generated routes, as the daemon does.
+bool route_message(const http::request<http::string_body>& req,
+                   http::response<http::string_body>& res,
+                   holder::platform::Db& db,
+                   holder::index::FtsIndexer* fts) {
+  return holder::api::dispatch_generated_routes(req, res, db, nullptr, fts);
+}
+
 TEST_CASE("AI message links preserve qualified card targets", "[http]") {
   const auto dir = make_temp_dir();
   auto db = open_db_with_schema(dir / "holder.db");
@@ -55,13 +63,10 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
   msg_repo.append(msg);
 
   const auto route = "/ai/messages/msg-1/links";
-  auto no_query = [](const std::string&) { return std::string(); };
   http::response<http::string_body> res;
   auto request = [&](http::verb method, const nlohmann::json& body) {
     auto req = make_route_request(method, route, body.dump());
-    REQUIRE(holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        route, req, res, db, &fts, no_query
-    ));
+    REQUIRE(route_message(req, res, db, &fts));
     return nlohmann::json::parse(res.body());
   };
 
@@ -74,9 +79,7 @@ TEST_CASE("AI message links preserve qualified card targets", "[http]") {
   REQUIRE(created["data"]["target_project_id"] == "not-loaded");
 
   auto req = make_route_request(http::verb::get, route);
-  REQUIRE(holder::api::routes::ai::messages::handle_ai_message_link_routes(
-      route, req, res, db, &fts, no_query
-  ));
+  REQUIRE(holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts));
   const auto listed = nlohmann::json::parse(res.body());
   REQUIRE(listed["data"].size() == 1);
   REQUIRE(listed["data"][0]["target_project_id"] == "not-loaded");
@@ -318,104 +321,51 @@ TEST_CASE("AiMessageLinkRoutes direct route validates and handles malformed requ
   msg_repo.append(msg);
 
   http::response<http::string_body> res;
-  const auto no_query = [](const std::string&) {
-    return std::string();
-  };
 
   {
+    // An empty message ID matches no route, so the router answers 404.
     auto req = make_route_request(http::verb::get, "/ai/messages//links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages//links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
-    REQUIRE(handled);
-    REQUIRE(res.result() == http::status::not_found);
+    REQUIRE_FALSE(route_message(req, res, db, &fts));
   }
 
   {
     auto req = make_route_request(http::verb::put, "/ai/messages/msg-1/links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::method_not_allowed);
   }
 
   {
     auto req = make_route_request(http::verb::post, "/ai/messages/msg-1/backlinks");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::method_not_allowed);
   }
 
   {
     auto req = make_route_request(http::verb::post, "/ai/messages/msg-1/links", "{");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
 
   {
     auto req = make_route_request(http::verb::delete_, "/ai/messages/msg-1/links", "{");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
   }
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/missing/links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/missing/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::not_found);
   }
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/missing/backlinks");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/missing/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::not_found);
   }
@@ -498,23 +448,10 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
   upsert_link(link_repo, "proj-1", "missing-source", "msg-1", "ai_message");
 
   http::response<http::string_body> res;
-  auto no_query = [](const std::string&) {
-    return std::string();
-  };
-  auto include_deleted = [](const std::string& key) {
-    return key == "include_deleted" ? std::string("1") : std::string();
-  };
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-1/links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
@@ -523,14 +460,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-1/links?include_deleted=1");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        include_deleted
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
@@ -539,14 +469,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-1/backlinks");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
@@ -556,14 +479,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
   {
     auto req =
         make_route_request(http::verb::get, "/ai/messages/msg-1/backlinks?include_deleted=1");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        include_deleted
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
     const auto payload = nlohmann::json::parse(res.body());
@@ -573,21 +489,19 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
   auto expect_bad_request_message = [&](const nlohmann::json& body,
                                         const std::string& expected_message) {
     auto req = make_route_request(http::verb::post, "/ai/messages/msg-1/links", body.dump());
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == expected_message);
   };
 
-  expect_bad_request_message(nlohmann::json::object(), "Missing to_card_id.");
+  {
+    // The generated body decoder rejects a body without to_card_id.
+    auto req = make_route_request(http::verb::post, "/ai/messages/msg-1/links", "{}");
+    REQUIRE(route_message(req, res, db, &fts));
+    REQUIRE(res.result() == http::status::bad_request);
+  }
   expect_bad_request_message({{"to_card_id", ""}, {"to_type", "card"}}, "Missing to_card_id.");
   expect_bad_request_message(
       {{"to_card_id", "missing-card"}, {"to_type", "card"}},
@@ -632,14 +546,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
         "/ai/messages/msg-1/links",
         nlohmann::json({{"to_card_id", "thread-1"}, {"to_type", "ai_thread"}}).dump()
     );
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::created);
     const auto payload = nlohmann::json::parse(res.body());
@@ -652,14 +559,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
         "/ai/messages/msg-1/links",
         nlohmann::json({{"to_card_id", "res-1"}, {"to_type", "resource"}}).dump()
     );
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::created);
     const auto payload = nlohmann::json::parse(res.body());
@@ -668,32 +568,18 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-orphan/links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-orphan/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "Thread not found.");
   }
 
   {
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-orphan/backlinks");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-orphan/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["error"]["message"] == "Thread not found.");
   }
@@ -704,14 +590,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
         "/ai/messages/msg-1/links",
         nlohmann::json({{"to_card_id", "card-1"}, {"to_type", nullptr}, {"kind", nullptr}}).dump()
     );
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::created);
     const auto payload = nlohmann::json::parse(res.body());
@@ -730,14 +609,7 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
                         {"created_at", 777}}
         ).dump()
     );
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::created);
     const auto payload = nlohmann::json::parse(res.body());
@@ -751,28 +623,14 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
         "/ai/messages/msg-1/links",
         nlohmann::json({{"to_card_id", "card-1"}, {"to_type", "card"}, {"kind", "ref"}}).dump()
     );
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
   }
 
   {
     auto req = make_route_request(http::verb::delete_, "/ai/messages/msg-1/links");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/links",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = route_message(req, res, db, &fts);
     REQUIRE(handled);
     REQUIRE(res.result() == http::status::ok);
   }
@@ -780,15 +638,8 @@ TEST_CASE("AiMessageLinkRoutes direct route filters links and validates target t
   {
     db.exec("DROP TABLE ai_messages;");
     auto req = make_route_request(http::verb::get, "/ai/messages/msg-1/backlinks");
-    const bool handled = holder::api::routes::ai::messages::handle_ai_message_link_routes(
-        "/ai/messages/msg-1/backlinks",
-        req,
-        res,
-        db,
-        &fts,
-        no_query
-    );
+    const bool handled = holder::api::dispatch_generated_routes(req, res, db, nullptr, &fts);
     REQUIRE(handled);
-    REQUIRE(res.result() == http::status::bad_request);
+    REQUIRE(res.result() == http::status::internal_server_error);
   }
 }

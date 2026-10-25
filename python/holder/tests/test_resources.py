@@ -218,8 +218,11 @@ def test_location_binding_preference_and_import_job():
                     "data": {
                         "job_id": "j-1",
                         "status": "queued",
+                        "resource_id": None,
+                        "asset_id": None,
                         "duplicate_reused": False,
                         "link_created": False,
+                        "error": None,
                     },
                 },
             )
@@ -233,6 +236,7 @@ def test_location_binding_preference_and_import_job():
                     "asset_id": "a-1",
                     "duplicate_reused": False,
                     "link_created": True,
+                    "error": None,
                 }
             )
         if path == "/resources/r-1":
@@ -318,6 +322,8 @@ def test_import_wait_reports_failure_and_times_out():
             {
                 "job_id": "j-1",
                 "status": "failed",
+                "resource_id": None,
+                "asset_id": None,
                 "duplicate_reused": False,
                 "link_created": False,
                 "error": "Storage unavailable",

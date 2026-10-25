@@ -59,9 +59,8 @@ class CardTagCollection(TagCollection):
         data = self._holder._call(get_cards_card_id, self._card.id)
         if data.project_id != self._project.id:
             raise NotFoundError(404, "not_found", "Card not found in this project")
-        # The generated client retains the daemon's tag array as an additional
-        # property because CardData does not yet declare it explicitly.
-        names = data.additional_properties.get("tags")
+        # The generated model does not check the array's item types.
+        names = data.tags
         if not isinstance(names, list) or any(
             not isinstance(name, str) or not name for name in names
         ):

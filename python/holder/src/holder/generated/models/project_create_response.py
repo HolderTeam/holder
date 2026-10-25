@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_create_response_data import ProjectCreateResponseData
+    from ..models.project import Project
 
 
 T = TypeVar("T", bound="ProjectCreateResponse")
@@ -19,11 +19,11 @@ class ProjectCreateResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectCreateResponseData):
+        data (Project):
     """
 
     ok: bool
-    data: ProjectCreateResponseData
+    data: Project
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,14 +44,12 @@ class ProjectCreateResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_create_response_data import (
-            ProjectCreateResponseData,
-        )
+        from ..models.project import Project
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectCreateResponseData.from_dict(d.pop("data"))
+        data = Project.from_dict(d.pop("data"))
 
         project_create_response = cls(
             ok=ok,

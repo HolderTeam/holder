@@ -51,6 +51,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -75,6 +80,8 @@ def sync_detailed(
     thread_id: str | Unset = UNSET,
 ) -> Response[AiRunListResponse | ErrorResponse]:
     """List AI runs by project or thread
+
+     Needs project_id or thread_id; with both, thread_id is used.
 
     Args:
         project_id (str | Unset):
@@ -108,6 +115,8 @@ def sync(
 ) -> AiRunListResponse | ErrorResponse | None:
     """List AI runs by project or thread
 
+     Needs project_id or thread_id; with both, thread_id is used.
+
     Args:
         project_id (str | Unset):
         thread_id (str | Unset):
@@ -134,6 +143,8 @@ async def asyncio_detailed(
     thread_id: str | Unset = UNSET,
 ) -> Response[AiRunListResponse | ErrorResponse]:
     """List AI runs by project or thread
+
+     Needs project_id or thread_id; with both, thread_id is used.
 
     Args:
         project_id (str | Unset):
@@ -164,6 +175,8 @@ async def asyncio(
     thread_id: str | Unset = UNSET,
 ) -> AiRunListResponse | ErrorResponse | None:
     """List AI runs by project or thread
+
+     Needs project_id or thread_id; with both, thread_id is used.
 
     Args:
         project_id (str | Unset):

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "api/HttpError.h"
+
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
@@ -25,10 +27,20 @@ inline boost::beast::http::response<boost::beast::http::string_body> error_respo
     std::string code,
     std::string message
 ) {
-  nlohmann::json payload;
-  payload["ok"] = false;
-  payload["error"] = {{"code", std::move(code)}, {"message", std::move(message)}};
-  return json_response(status, payload);
+  const holder::api::ErrorResponse payload{false, {std::move(code), std::move(message)}};
+  return json_response(
+      status,
+      {{"ok", payload.ok}, {"error", {{"code", payload.error.code}, {"message", payload.error.message}}}}
+  );
+}
+
+// The event-stream standard's answer to a reconnect once a stream has finished: stop reconnecting.
+inline boost::beast::http::response<boost::beast::http::string_body> stream_finished_response() {
+  namespace http = boost::beast::http;
+  http::response<http::string_body> res{http::status::no_content, 11};
+  res.keep_alive(false);
+  res.prepare_payload();
+  return res;
 }
 
 } // namespace holder::api::support

@@ -57,6 +57,21 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 501:
+        response_501 = ErrorResponse.from_dict(response.json())
+
+        return response_501
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -81,6 +96,8 @@ def sync_detailed(
     body: CardLinkCreateRequest,
 ) -> Response[CardLinkCreateResponse | ErrorResponse]:
     """Create or update a link from a card
+
+     Creating a link that already exists updates its label and keeps its creation time.
 
     Args:
         card_id (str):
@@ -114,6 +131,8 @@ def sync(
 ) -> CardLinkCreateResponse | ErrorResponse | None:
     """Create or update a link from a card
 
+     Creating a link that already exists updates its label and keeps its creation time.
+
     Args:
         card_id (str):
         body (CardLinkCreateRequest):
@@ -140,6 +159,8 @@ async def asyncio_detailed(
     body: CardLinkCreateRequest,
 ) -> Response[CardLinkCreateResponse | ErrorResponse]:
     """Create or update a link from a card
+
+     Creating a link that already exists updates its label and keeps its creation time.
 
     Args:
         card_id (str):
@@ -170,6 +191,8 @@ async def asyncio(
     body: CardLinkCreateRequest,
 ) -> CardLinkCreateResponse | ErrorResponse | None:
     """Create or update a link from a card
+
+     Creating a link that already exists updates its label and keeps its creation time.
 
     Args:
         card_id (str):

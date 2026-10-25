@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..types import UNSET, Unset
+if TYPE_CHECKING:
+    from ..models.card_tag_occurrence import CardTagOccurrence
+
 
 T = TypeVar("T", bound="CardData")
 
@@ -23,9 +25,11 @@ class CardData:
         sort_key (float):
         created_at (int):
         updated_at (int):
+        parent_card_id (None | str):
+        deleted_at (int | None):
         content (str):
-        parent_card_id (None | str | Unset):
-        deleted_at (int | None | Unset):
+        tags (list[str]): The card's normalized tags.
+        tag_occurrences (list[CardTagOccurrence]): Each tag written in content, in order.
     """
 
     card_id: str
@@ -35,9 +39,11 @@ class CardData:
     sort_key: float
     created_at: int
     updated_at: int
+    parent_card_id: None | str
+    deleted_at: int | None
     content: str
-    parent_card_id: None | str | Unset = UNSET
-    deleted_at: int | None | Unset = UNSET
+    tags: list[str]
+    tag_occurrences: list[CardTagOccurrence]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -55,19 +61,20 @@ class CardData:
 
         updated_at = self.updated_at
 
+        parent_card_id: None | str
+        parent_card_id = self.parent_card_id
+
+        deleted_at: int | None
+        deleted_at = self.deleted_at
+
         content = self.content
 
-        parent_card_id: None | str | Unset
-        if isinstance(self.parent_card_id, Unset):
-            parent_card_id = UNSET
-        else:
-            parent_card_id = self.parent_card_id
+        tags = self.tags
 
-        deleted_at: int | None | Unset
-        if isinstance(self.deleted_at, Unset):
-            deleted_at = UNSET
-        else:
-            deleted_at = self.deleted_at
+        tag_occurrences = []
+        for tag_occurrences_item_data in self.tag_occurrences:
+            tag_occurrences_item = tag_occurrences_item_data.to_dict()
+            tag_occurrences.append(tag_occurrences_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -80,18 +87,20 @@ class CardData:
                 "sort_key": sort_key,
                 "created_at": created_at,
                 "updated_at": updated_at,
+                "parent_card_id": parent_card_id,
+                "deleted_at": deleted_at,
                 "content": content,
+                "tags": tags,
+                "tag_occurrences": tag_occurrences,
             }
         )
-        if parent_card_id is not UNSET:
-            field_dict["parent_card_id"] = parent_card_id
-        if deleted_at is not UNSET:
-            field_dict["deleted_at"] = deleted_at
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.card_tag_occurrence import CardTagOccurrence
+
         d = dict(src_dict)
         card_id = d.pop("card_id")
 
@@ -107,25 +116,32 @@ class CardData:
 
         updated_at = d.pop("updated_at")
 
+        def _parse_parent_card_id(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        parent_card_id = _parse_parent_card_id(d.pop("parent_card_id"))
+
+        def _parse_deleted_at(data: object) -> int | None:
+            if data is None:
+                return data
+            return cast(int | None, data)
+
+        deleted_at = _parse_deleted_at(d.pop("deleted_at"))
+
         content = d.pop("content")
 
-        def _parse_parent_card_id(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+        tags = cast(list[str], d.pop("tags"))
 
-        parent_card_id = _parse_parent_card_id(d.pop("parent_card_id", UNSET))
+        tag_occurrences = []
+        _tag_occurrences = d.pop("tag_occurrences")
+        for tag_occurrences_item_data in _tag_occurrences:
+            tag_occurrences_item = CardTagOccurrence.from_dict(
+                tag_occurrences_item_data
+            )
 
-        def _parse_deleted_at(data: object) -> int | None | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
-
-        deleted_at = _parse_deleted_at(d.pop("deleted_at", UNSET))
+            tag_occurrences.append(tag_occurrences_item)
 
         card_data = cls(
             card_id=card_id,
@@ -135,9 +151,11 @@ class CardData:
             sort_key=sort_key,
             created_at=created_at,
             updated_at=updated_at,
-            content=content,
             parent_card_id=parent_card_id,
             deleted_at=deleted_at,
+            content=content,
+            tags=tags,
+            tag_occurrences=tag_occurrences,
         )
 
         card_data.additional_properties = d

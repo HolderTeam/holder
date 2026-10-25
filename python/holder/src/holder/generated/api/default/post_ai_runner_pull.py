@@ -48,10 +48,15 @@ def _parse_response(
 
         return response_401
 
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
 
-        return response_501
+        return response_404
+
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -82,6 +87,9 @@ def sync_detailed(
 ) -> Response[ErrorResponse | RunnerPullStartResponse]:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
         body (PostAiRunnerPullBody):
 
@@ -111,6 +119,9 @@ def sync(
 ) -> ErrorResponse | RunnerPullStartResponse | None:
     """Start pulling a local model
 
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
+
     Args:
         body (PostAiRunnerPullBody):
 
@@ -134,6 +145,9 @@ async def asyncio_detailed(
     body: PostAiRunnerPullBody,
 ) -> Response[ErrorResponse | RunnerPullStartResponse]:
     """Start pulling a local model
+
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
 
     Args:
         body (PostAiRunnerPullBody):
@@ -161,6 +175,9 @@ async def asyncio(
     body: PostAiRunnerPullBody,
 ) -> ErrorResponse | RunnerPullStartResponse | None:
     """Start pulling a local model
+
+     Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET
+    /ai/runner/pull/{job_id} or its events stream.
 
     Args:
         body (PostAiRunnerPullBody):

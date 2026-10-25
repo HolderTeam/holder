@@ -478,6 +478,16 @@ TEST_CASE(
       resources["data"][0]["referenced_by_cards"][1]["link_kinds"] ==
       nlohmann::json::array({"attachment"})
   );
+  const auto single = http_json_request(
+      running.bound.bind,
+      running.bound.port,
+      token,
+      boost::beast::http::verb::get,
+      "/resources/" + job["resource_id"].get<std::string>(),
+      nlohmann::json::object(),
+      boost::beast::http::status::ok
+  );
+  REQUIRE(single["data"]["referenced_by_cards"] == resources["data"][0]["referenced_by_cards"]);
 
   const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-cache";
   std::filesystem::create_directories(cache / "directory-entry");

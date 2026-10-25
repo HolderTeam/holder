@@ -12,21 +12,21 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    card_id: str | Unset = UNSET,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
     project_id: str,
+    card_id: str | Unset = UNSET,
+    limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
+
+    params["project_id"] = project_id
 
     params["card_id"] = card_id
 
     params["limit"] = limit
 
     params["offset"] = offset
-
-    params["project_id"] = project_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -67,6 +67,11 @@ def _parse_response(
 
         return response_422
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -87,10 +92,10 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    card_id: str | Unset = UNSET,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
     project_id: str,
+    card_id: str | Unset = UNSET,
+    limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> Response[ErrorResponse | ResourceListResponse]:
     """List project resources or attachments to a live card
 
@@ -99,10 +104,10 @@ def sync_detailed(
     Detach preserves project resources; delete removes them globally.
 
     Args:
-        card_id (str | Unset):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
         project_id (str):
+        card_id (str | Unset):
+        limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -113,10 +118,10 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         limit=limit,
         offset=offset,
-        project_id=project_id,
     )
 
     response = client.get_httpx_client().request(
@@ -129,10 +134,10 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    card_id: str | Unset = UNSET,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
     project_id: str,
+    card_id: str | Unset = UNSET,
+    limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> ErrorResponse | ResourceListResponse | None:
     """List project resources or attachments to a live card
 
@@ -141,10 +146,10 @@ def sync(
     Detach preserves project resources; delete removes them globally.
 
     Args:
-        card_id (str | Unset):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
         project_id (str):
+        card_id (str | Unset):
+        limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -156,20 +161,20 @@ def sync(
 
     return sync_detailed(
         client=client,
+        project_id=project_id,
         card_id=card_id,
         limit=limit,
         offset=offset,
-        project_id=project_id,
     ).parsed
 
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    card_id: str | Unset = UNSET,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
     project_id: str,
+    card_id: str | Unset = UNSET,
+    limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> Response[ErrorResponse | ResourceListResponse]:
     """List project resources or attachments to a live card
 
@@ -178,10 +183,10 @@ async def asyncio_detailed(
     Detach preserves project resources; delete removes them globally.
 
     Args:
-        card_id (str | Unset):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
         project_id (str):
+        card_id (str | Unset):
+        limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -192,10 +197,10 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         limit=limit,
         offset=offset,
-        project_id=project_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -206,10 +211,10 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    card_id: str | Unset = UNSET,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
     project_id: str,
+    card_id: str | Unset = UNSET,
+    limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> ErrorResponse | ResourceListResponse | None:
     """List project resources or attachments to a live card
 
@@ -218,10 +223,10 @@ async def asyncio(
     Detach preserves project resources; delete removes them globally.
 
     Args:
-        card_id (str | Unset):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
         project_id (str):
+        card_id (str | Unset):
+        limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -234,9 +239,9 @@ async def asyncio(
     return (
         await asyncio_detailed(
             client=client,
+            project_id=project_id,
             card_id=card_id,
             limit=limit,
             offset=offset,
-            project_id=project_id,
         )
     ).parsed

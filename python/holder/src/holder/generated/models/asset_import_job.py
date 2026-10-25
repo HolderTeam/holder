@@ -8,7 +8,6 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 from ..models.asset_import_job_status import AssetImportJobStatus
-from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="AssetImportJob")
 
@@ -19,20 +18,20 @@ class AssetImportJob:
     Attributes:
         job_id (str):
         status (AssetImportJobStatus):
+        resource_id (None | str):
+        asset_id (None | str):
         duplicate_reused (bool):
-        resource_id (None | str | Unset):
-        asset_id (None | str | Unset):
-        link_created (bool | Unset):
-        error (None | str | Unset):
+        link_created (bool):
+        error (None | str):
     """
 
     job_id: str
     status: AssetImportJobStatus
+    resource_id: None | str
+    asset_id: None | str
     duplicate_reused: bool
-    resource_id: None | str | Unset = UNSET
-    asset_id: None | str | Unset = UNSET
-    link_created: bool | Unset = UNSET
-    error: None | str | Unset = UNSET
+    link_created: bool
+    error: None | str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,27 +39,18 @@ class AssetImportJob:
 
         status = self.status.value
 
+        resource_id: None | str
+        resource_id = self.resource_id
+
+        asset_id: None | str
+        asset_id = self.asset_id
+
         duplicate_reused = self.duplicate_reused
-
-        resource_id: None | str | Unset
-        if isinstance(self.resource_id, Unset):
-            resource_id = UNSET
-        else:
-            resource_id = self.resource_id
-
-        asset_id: None | str | Unset
-        if isinstance(self.asset_id, Unset):
-            asset_id = UNSET
-        else:
-            asset_id = self.asset_id
 
         link_created = self.link_created
 
-        error: None | str | Unset
-        if isinstance(self.error, Unset):
-            error = UNSET
-        else:
-            error = self.error
+        error: None | str
+        error = self.error
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -68,17 +58,13 @@ class AssetImportJob:
             {
                 "job_id": job_id,
                 "status": status,
+                "resource_id": resource_id,
+                "asset_id": asset_id,
                 "duplicate_reused": duplicate_reused,
+                "link_created": link_created,
+                "error": error,
             }
         )
-        if resource_id is not UNSET:
-            field_dict["resource_id"] = resource_id
-        if asset_id is not UNSET:
-            field_dict["asset_id"] = asset_id
-        if link_created is not UNSET:
-            field_dict["link_created"] = link_created
-        if error is not UNSET:
-            field_dict["error"] = error
 
         return field_dict
 
@@ -89,43 +75,37 @@ class AssetImportJob:
 
         status = AssetImportJobStatus(d.pop("status"))
 
+        def _parse_resource_id(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        resource_id = _parse_resource_id(d.pop("resource_id"))
+
+        def _parse_asset_id(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        asset_id = _parse_asset_id(d.pop("asset_id"))
+
         duplicate_reused = d.pop("duplicate_reused")
 
-        def _parse_resource_id(data: object) -> None | str | Unset:
+        link_created = d.pop("link_created")
+
+        def _parse_error(data: object) -> None | str:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+            return cast(None | str, data)
 
-        resource_id = _parse_resource_id(d.pop("resource_id", UNSET))
-
-        def _parse_asset_id(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        asset_id = _parse_asset_id(d.pop("asset_id", UNSET))
-
-        link_created = d.pop("link_created", UNSET)
-
-        def _parse_error(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        error = _parse_error(d.pop("error", UNSET))
+        error = _parse_error(d.pop("error"))
 
         asset_import_job = cls(
             job_id=job_id,
             status=status,
-            duplicate_reused=duplicate_reused,
             resource_id=resource_id,
             asset_id=asset_id,
+            duplicate_reused=duplicate_reused,
             link_created=link_created,
             error=error,
         )

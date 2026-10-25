@@ -1,6 +1,5 @@
 from http import HTTPStatus
-from io import BytesIO
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 
 import httpx
@@ -8,7 +7,8 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...types import UNSET, File, Response, Unset
+from ...streams import AsyncByteStream, ByteStream
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -38,10 +38,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | File | None:
+) -> Any | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = File(payload=BytesIO(response.content))
-
+        response_200 = cast(Any, None)
         return response_200
 
     if response.status_code == 400:
@@ -92,7 +91,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | File]:
+) -> Response[Any | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -107,7 +106,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     placement_id: str | Unset = UNSET,
-) -> Response[ErrorResponse | File]:
+) -> Response[Any | ErrorResponse]:
     """Stream verified asset content
 
      Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
@@ -124,7 +123,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | File]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -146,7 +145,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     placement_id: str | Unset = UNSET,
-) -> ErrorResponse | File | None:
+) -> Any | ErrorResponse | None:
     """Stream verified asset content
 
      Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
@@ -163,7 +162,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | File
+        Any | ErrorResponse
     """
 
     return sync_detailed(
@@ -180,7 +179,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     placement_id: str | Unset = UNSET,
-) -> Response[ErrorResponse | File]:
+) -> Response[Any | ErrorResponse]:
     """Stream verified asset content
 
      Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
@@ -197,7 +196,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | File]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -217,7 +216,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     placement_id: str | Unset = UNSET,
-) -> ErrorResponse | File | None:
+) -> Any | ErrorResponse | None:
     """Stream verified asset content
 
      Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
@@ -234,7 +233,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | File
+        Any | ErrorResponse
     """
 
     return (
@@ -245,3 +244,77 @@ async def asyncio(
             placement_id=placement_id,
         )
     ).parsed
+
+
+def stream(
+    resource_id: str,
+    asset_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    placement_id: str | Unset = UNSET,
+) -> ByteStream:
+    """Stream verified asset content
+
+     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
+    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
+    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+
+    Args:
+        resource_id (str):
+        asset_id (str):
+        placement_id (str | Unset):
+
+    Raises:
+        StreamError: If the server answers with an error status instead of the stream.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ByteStream
+    """
+
+    return ByteStream(
+        client.get_httpx_client(),
+        _get_kwargs(
+            resource_id=resource_id,
+            asset_id=asset_id,
+            placement_id=placement_id,
+        ),
+        lambda response: _parse_response(client=client, response=response),
+    )
+
+
+def astream(
+    resource_id: str,
+    asset_id: str,
+    *,
+    client: AuthenticatedClient | Client,
+    placement_id: str | Unset = UNSET,
+) -> AsyncByteStream:
+    """Stream verified asset content
+
+     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
+    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
+    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+
+    Args:
+        resource_id (str):
+        asset_id (str):
+        placement_id (str | Unset):
+
+    Raises:
+        StreamError: If the server answers with an error status instead of the stream.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        AsyncByteStream
+    """
+
+    return AsyncByteStream(
+        client.get_async_httpx_client(),
+        _get_kwargs(
+            resource_id=resource_id,
+            asset_id=asset_id,
+            placement_id=placement_id,
+        ),
+        lambda response: _parse_response(client=client, response=response),
+    )

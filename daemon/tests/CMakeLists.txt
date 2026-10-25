@@ -34,25 +34,19 @@ add_executable(holder_daemon_tests
   HttpListener_test.cpp
   ListenerAcceptError_test.cpp
   HttpAiMessages_test.cpp
-  AiDispatch_test.cpp
   AiDurability_test.cpp
   AiResourceRoutes_test.cpp
-  AiMessageRoutes_test.cpp
   AiMessageCrudRoutes_test.cpp
   HttpAiThreads_test.cpp
   AiThreadRoutes_test.cpp
-  AiThreadCollectionRoutes_test.cpp
-  AiThreadItemRoutes_test.cpp
   HttpAiLocalModelConfig_test.cpp
   HttpAiProviderCatalog_test.cpp
   HttpAiProviderCredentials_test.cpp
-  AiProviderRoutes_test.cpp
   AiNudgeRoutes_test.cpp
   NudgeService_test.cpp
   AiRuntimeStatusRoutes_test.cpp
   HttpAiMessageLinks_test.cpp
   HttpAiRuns_test.cpp
-  AiRunRoutes_test.cpp
   AiRunQueryRoutes_test.cpp
   HttpAiRunEvents_test.cpp
   HttpAiRunnerPullEvents_test.cpp
@@ -66,7 +60,7 @@ add_executable(holder_daemon_tests
   HttpTrash_test.cpp
   TrashRoutes_test.cpp
   HttpRebuild_test.cpp
-  RebuildRoutes_test.cpp
+  RebuildGeneratedRoutes_test.cpp
   ReindexRoutes_test.cpp
   ProjectRoutes_test.cpp
   HttpFirstRun_test.cpp
@@ -105,7 +99,6 @@ add_executable(holder_daemon_tests
   HttpSearchAiFlow_test.cpp
   Entrypoint_test.cpp
   FatalError_test.cpp
-  Router_test.cpp
   Cli_test.cpp
   HolderCtl_test.cpp
   HolderCtlSync_test.cpp
@@ -151,44 +144,61 @@ add_executable(holder_daemon_tests
   ../src/llm/RunnerModelRef.cpp
   ../src/llm/RunnerRegistry.cpp
   ../src/api/HttpServer.cpp
+  ../src/api/GeneratedRoutes.cpp
+  ../src/api/Health.cpp
+  ../src/api/History.cpp
+  ../src/api/LocationRead.cpp
+  ../src/api/LocationWrite.cpp
+  ../src/api/AiMessageRead.cpp
+  ../src/api/AiMessageWrite.cpp
+  ../src/api/AiLocalModelConfig.cpp
+  ../src/api/AiProviderCatalog.cpp
+  ../src/api/AiRunnerRead.cpp
+  ../src/api/AiRunnerWrite.cpp
+  ../src/api/RunnerPull.cpp
+  ../src/api/AssetImportRead.cpp
+  ../src/api/AiRuns.cpp
+  ../src/api/AiStatus.cpp
+  ../src/api/AiThreadRead.cpp
+  ../src/api/AiThreadWrite.cpp
+  ../src/api/Calendar.cpp
+  ../src/api/CardMilestones.cpp
+  ../src/api/CardRead.cpp
+  ../src/api/CardLinks.cpp
+  ../src/api/CardResources.cpp
+  ../src/api/CardWrite.cpp
+  ../src/api/MilestoneWrite.cpp
+  ../src/api/ProjectGit.cpp
+  ../src/api/ProjectRead.cpp
+  ../src/api/ProjectTags.cpp
+  ../src/api/RecoveryToken.cpp
+  ../src/api/Reindex.cpp
+  ../src/api/AssetImportWrite.cpp
+  ../src/api/ProjectCreate.cpp
+  ../src/api/ProjectDelete.cpp
+  ../src/api/MilestonesWithDates.cpp
+  ../src/api/ProjectCards.cpp
+  ../src/api/ProjectUpdate.cpp
+  ../src/api/ProviderCredentials.cpp
+  ../src/api/ProviderSettings.cpp
+  ../src/api/ResourceRead.cpp
+  ../src/api/ResourceWrite.cpp
+  ../src/api/Rebuild.cpp
+  ../src/api/TrashList.cpp
+  ../src/api/TrashWrite.cpp
   ../src/api/Listener.cpp
-  ../src/api/routes/ai/AiProviderRoutes.cpp
-  ../src/api/routes/ai/providers/AiProviderCatalogRoutes.cpp
-  ../src/api/routes/ai/providers/AiProviderCredentialRoutes.cpp
-  ../src/api/routes/ai/AiNudgeRoutes.cpp
-  ../src/api/routes/AuthenticatedRoutes.cpp
-  ../src/api/routes/ai/AiDispatch.cpp
-  ../src/api/routes/ai/AiMessageRoutes.cpp
-  ../src/api/routes/ai/messages/AiMessageCaptureRoutes.cpp
-  ../src/api/routes/ai/messages/AiMessageCrudRoutes.cpp
-  ../src/api/routes/ai/messages/AiMessageLinkRoutes.cpp
-  ../src/api/routes/AiResourceRoutes.cpp
+  ../src/api/AiNudges.cpp
+  ../src/api/AssetContent.cpp
+  ../src/api/EventCursor.cpp
+  ../src/api/Streams.cpp
+  ../src/api/GoogleDriveOAuth.cpp
   ../src/api/routes/GoogleDriveOAuthRoutes.cpp
   ../src/api/routes/ai/runs/AiRunPostRoute.cpp
   ../src/api/routes/ai/runs/AiRunQueryRoutes.cpp
-  ../src/api/routes/ai/AiRunRoutes.cpp
-  ../src/api/routes/ai/AiRunnerRoutes.cpp
   ../src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  ../src/api/routes/ai/runner/AiRunnerPullRoutes.cpp
-  ../src/api/routes/ai/AiStatusRoutes.cpp
-  ../src/api/routes/ai/status/AiCapabilitiesRoutes.cpp
-  ../src/api/routes/ai/status/AiRuntimeStatusRoutes.cpp
-  ../src/api/routes/ai/status/AiLocalModelConfigRoutes.cpp
-  ../src/api/routes/ai/AiThreadRoutes.cpp
-  ../src/api/routes/ai/threads/AiThreadCollectionRoutes.cpp
-  ../src/api/routes/ai/threads/AiThreadItemRoutes.cpp
-  ../src/api/routes/CardReferenceRoutes.cpp
-  ../src/api/routes/CardRoutes.cpp
-  ../src/api/routes/ProjectCardRoutes.cpp
-  ../src/api/routes/HistoryRoutes.cpp
-  ../src/api/routes/MilestoneRoutes.cpp
-  ../src/api/routes/ProjectRoutes.cpp
-  ../src/api/routes/RebuildRoutes.cpp
-  ../src/api/routes/ReindexRoutes.cpp
-  ../src/api/routes/SearchRoutes.cpp
-  ../src/api/routes/TrashRoutes.cpp
-  ../src/api/routes/StaticRoutes.cpp
-  ../src/api/support/Health.cpp
+  ../src/api/CardReferenceResolve.cpp
+  ../src/api/Search.cpp
+  ../src/api/StaticFiles.cpp
   ../src/api/support/PathDiscovery.cpp
   ../src/platform/InstalledDataPath.cpp
   ../src/api/support/CloudConfig.cpp
@@ -196,13 +206,16 @@ add_executable(holder_daemon_tests
   ../src/api/support/CloudQuota.cpp
   ../src/api/support/ThreadCompaction.cpp
   ../src/api/support/LocalModelRouting.cpp
+  ../src/api/support/AssetImportJobs.cpp
+  ../src/api/support/StorageErrors.cpp
+  ../src/api/support/StorageProviders.cpp
   ../src/api/support/RunEventStore.cpp
   ../src/api/support/EventJournal.cpp
   ../src/api/support/SseStream.cpp
+  ../src/api/support/StreamServer.cpp
   ../src/api/support/ChangeFeed.cpp
   ../src/api/support/EventService.cpp
   ../src/api/Session.cpp
-  ../src/api/Router.cpp
   ../src/git/ExecutorGitOps.cpp
   ../src/sync/ProjectSyncWorker.cpp
   ../src/storage/S3SigV4.cpp
@@ -222,6 +235,7 @@ target_include_directories(holder_daemon_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
   ${HOLDER_CLI_DIR}/src
   ${HOLDER_COMMON_DIR}/src
+  ${HOLDER_GENERATED_INCLUDE_DIR}
 )
 if(MSVC)
   target_compile_options(holder_daemon_tests PRIVATE "/FI${CMAKE_CURRENT_SOURCE_DIR}/WinEnvCompat.h")
@@ -239,12 +253,14 @@ target_compile_definitions(holder_daemon_tests PRIVATE
   CARD_SERVER_API_VERSION="${HOLDER_DAEMON_API_VERSION}"
   CARD_SERVER_VERSION="${HOLDER_DAEMON_VERSION}"
   OPENAPI_YAML_PATH="${HOLDER_API_DIR}/openapi.yaml"
+  OPENAPI_JSON_PATH="${HOLDER_API_DIR}/openapi.json"
+  OPENAPI_YAML_PATH="${HOLDER_API_DIR}/openapi.yaml"
   SCHEMA_SQL_PATH="${HOLDER_CORE_SCHEMA}"
   DAEMON_AI_CATALOG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../config/ai_catalog.yaml"
   HOLDER_BIN_PATH="$<TARGET_FILE:holderd>"
   HOLDER_CTL_PATH="$<TARGET_FILE:holderctl>"
 )
-add_dependencies(holder_daemon_tests lock_helper holderd holderctl)
+add_dependencies(holder_daemon_tests lock_helper holderd holderctl holder_openapi_documents)
 
 if(HOLDER_ENABLE_ENCRYPTED_GIT)
   target_compile_definitions(holder_daemon_tests PRIVATE

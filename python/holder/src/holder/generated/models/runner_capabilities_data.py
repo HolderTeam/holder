@@ -11,9 +11,9 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.ai_local_model_config_data import AiLocalModelConfigData
+    from ..models.ai_runner import AiRunner
     from ..models.caste_info import CasteInfo
     from ..models.caste_recommended_model import CasteRecommendedModel
-    from ..models.local_model import LocalModel
 
 
 T = TypeVar("T", bound="RunnerCapabilitiesData")
@@ -23,43 +23,30 @@ T = TypeVar("T", bound="RunnerCapabilitiesData")
 class RunnerCapabilitiesData:
     """
     Attributes:
-        runner_available (bool):
-        last_checked (int):
         local_model_config (AiLocalModelConfigData):
-        models (list[LocalModel]):
-        recommended_models (list[CasteRecommendedModel]):
-        recommended_install (list[CasteRecommendedModel]):
-        spawn_attempted (bool | Unset):
-        version (str | Unset):
-        error (None | str | Unset):
-        caste (CasteInfo | None | Unset):
+        runners (list[AiRunner]):
+        recommended_models (list[CasteRecommendedModel]): Catalog models this machine's caste can run, best first.
+        recommended_install (list[CasteRecommendedModel]): The recommended models that the selected runner has not
+            installed.
+        caste (CasteInfo | None | Unset): This machine's hardware caste, or null when it cannot be detected.
     """
 
-    runner_available: bool
-    last_checked: int
     local_model_config: AiLocalModelConfigData
-    models: list[LocalModel]
+    runners: list[AiRunner]
     recommended_models: list[CasteRecommendedModel]
     recommended_install: list[CasteRecommendedModel]
-    spawn_attempted: bool | Unset = UNSET
-    version: str | Unset = UNSET
-    error: None | str | Unset = UNSET
     caste: CasteInfo | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.caste_info import CasteInfo
 
-        runner_available = self.runner_available
-
-        last_checked = self.last_checked
-
         local_model_config = self.local_model_config.to_dict()
 
-        models = []
-        for models_item_data in self.models:
-            models_item = models_item_data.to_dict()
-            models.append(models_item)
+        runners = []
+        for runners_item_data in self.runners:
+            runners_item = runners_item_data.to_dict()
+            runners.append(runners_item)
 
         recommended_models = []
         for recommended_models_item_data in self.recommended_models:
@@ -70,16 +57,6 @@ class RunnerCapabilitiesData:
         for recommended_install_item_data in self.recommended_install:
             recommended_install_item = recommended_install_item_data.to_dict()
             recommended_install.append(recommended_install_item)
-
-        spawn_attempted = self.spawn_attempted
-
-        version = self.version
-
-        error: None | str | Unset
-        if isinstance(self.error, Unset):
-            error = UNSET
-        else:
-            error = self.error
 
         caste: dict[str, Any] | None | Unset
         if isinstance(self.caste, Unset):
@@ -93,20 +70,12 @@ class RunnerCapabilitiesData:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "runner_available": runner_available,
-                "last_checked": last_checked,
                 "local_model_config": local_model_config,
-                "models": models,
+                "runners": runners,
                 "recommended_models": recommended_models,
                 "recommended_install": recommended_install,
             }
         )
-        if spawn_attempted is not UNSET:
-            field_dict["spawn_attempted"] = spawn_attempted
-        if version is not UNSET:
-            field_dict["version"] = version
-        if error is not UNSET:
-            field_dict["error"] = error
         if caste is not UNSET:
             field_dict["caste"] = caste
 
@@ -117,27 +86,23 @@ class RunnerCapabilitiesData:
         from ..models.ai_local_model_config_data import (
             AiLocalModelConfigData,
         )
+        from ..models.ai_runner import AiRunner
         from ..models.caste_info import CasteInfo
         from ..models.caste_recommended_model import (
             CasteRecommendedModel,
         )
-        from ..models.local_model import LocalModel
 
         d = dict(src_dict)
-        runner_available = d.pop("runner_available")
-
-        last_checked = d.pop("last_checked")
-
         local_model_config = AiLocalModelConfigData.from_dict(
             d.pop("local_model_config")
         )
 
-        models = []
-        _models = d.pop("models")
-        for models_item_data in _models:
-            models_item = LocalModel.from_dict(models_item_data)
+        runners = []
+        _runners = d.pop("runners")
+        for runners_item_data in _runners:
+            runners_item = AiRunner.from_dict(runners_item_data)
 
-            models.append(models_item)
+            runners.append(runners_item)
 
         recommended_models = []
         _recommended_models = d.pop("recommended_models")
@@ -157,19 +122,6 @@ class RunnerCapabilitiesData:
 
             recommended_install.append(recommended_install_item)
 
-        spawn_attempted = d.pop("spawn_attempted", UNSET)
-
-        version = d.pop("version", UNSET)
-
-        def _parse_error(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        error = _parse_error(d.pop("error", UNSET))
-
         def _parse_caste(data: object) -> CasteInfo | None | Unset:
             if data is None:
                 return data
@@ -188,15 +140,10 @@ class RunnerCapabilitiesData:
         caste = _parse_caste(d.pop("caste", UNSET))
 
         runner_capabilities_data = cls(
-            runner_available=runner_available,
-            last_checked=last_checked,
             local_model_config=local_model_config,
-            models=models,
+            runners=runners,
             recommended_models=recommended_models,
             recommended_install=recommended_install,
-            spawn_attempted=spawn_attempted,
-            version=version,
-            error=error,
             caste=caste,
         )
 

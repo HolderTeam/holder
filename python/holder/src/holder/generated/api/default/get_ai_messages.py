@@ -7,20 +7,25 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.ai_message_list_response import AiMessageListResponse
 from ...models.error_response import ErrorResponse
+from ...models.get_ai_messages_include_deleted import GetAiMessagesIncludeDeleted
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     thread_id: str,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetAiMessagesIncludeDeleted | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["thread_id"] = thread_id
 
-    params["include_deleted"] = include_deleted
+    json_include_deleted: int | Unset = UNSET
+    if not isinstance(include_deleted, Unset):
+        json_include_deleted = include_deleted.value
+
+    params["include_deleted"] = json_include_deleted
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -51,6 +56,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -72,13 +82,13 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     thread_id: str,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetAiMessagesIncludeDeleted | Unset = UNSET,
 ) -> Response[AiMessageListResponse | ErrorResponse]:
     """List AI messages by thread
 
     Args:
         thread_id (str):
-        include_deleted (int | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -104,13 +114,13 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     thread_id: str,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetAiMessagesIncludeDeleted | Unset = UNSET,
 ) -> AiMessageListResponse | ErrorResponse | None:
     """List AI messages by thread
 
     Args:
         thread_id (str):
-        include_deleted (int | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,13 +141,13 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     thread_id: str,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetAiMessagesIncludeDeleted | Unset = UNSET,
 ) -> Response[AiMessageListResponse | ErrorResponse]:
     """List AI messages by thread
 
     Args:
         thread_id (str):
-        include_deleted (int | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -161,13 +171,13 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     thread_id: str,
-    include_deleted: int | Unset = UNSET,
+    include_deleted: GetAiMessagesIncludeDeleted | Unset = UNSET,
 ) -> AiMessageListResponse | ErrorResponse | None:
     """List AI messages by thread
 
     Args:
         thread_id (str):
-        include_deleted (int | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

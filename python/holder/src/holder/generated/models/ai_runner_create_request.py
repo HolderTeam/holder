@@ -19,8 +19,8 @@ class AiRunnerCreateRequest:
     Attributes:
         name (str):
         kind (AiRunnerCreateRequestKind):
-        base_url (str):
-        enabled (bool | Unset):
+        base_url (str): http://host:port
+        enabled (bool | Unset): Optional; defaults to true.
     """
 
     name: str

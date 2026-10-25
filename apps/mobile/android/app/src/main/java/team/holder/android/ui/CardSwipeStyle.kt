@@ -6,8 +6,8 @@ import kotlin.random.Random
  * How swiping between a card and its siblings looks and feels (see CardViewPagerScreen) -- purely a
  * rendering choice layered on the same underlying gesture, sibling deck, and navigation semantics
  * regardless of which one is picked; switching styles never changes what a swipe *does*, only how
- * it looks while doing it. See holder-planning/current/swipe-styles.md for the full brief (twelve
- * styles, "serious businessman to teenager") -- the rest arrive as they're built and validated, not
+ * it looks while doing it. The full brief has twelve styles, "serious businessman to
+ * teenager"; the rest arrive as they're built and validated, not
  * all at once. Order here matches the brief's numbering (1 Slide, 2 Straight, 3 Stack, 4 Swing, 5
  * Stealth, ..., 11 Spin), with [SURPRISE] -- not in the brief -- last, so a future picker reads in
  * the same order the brief does.

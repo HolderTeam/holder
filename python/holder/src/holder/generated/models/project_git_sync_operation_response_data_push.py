@@ -81,9 +81,9 @@ class ProjectGitSyncOperationResponseDataPush:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                status_status = ProjectGitSyncOperationResponseDataPushStatus(data)
+                status_type_0 = ProjectGitSyncOperationResponseDataPushStatus(data)
 
-                return status_status
+                return status_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | ProjectGitSyncOperationResponseDataPushStatus, data)

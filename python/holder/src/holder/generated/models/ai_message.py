@@ -7,8 +7,6 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..types import UNSET, Unset
-
 T = TypeVar("T", bound="AiMessage")
 
 
@@ -20,26 +18,26 @@ class AiMessage:
         thread_id (str):
         role (str):
         source (str):
+        provider (None | str):
+        model (None | str):
         content (str):
         created_at (int):
-        provider (None | str | Unset):
-        model (None | str | Unset):
-        deleted_at (int | None | Unset):
-        prompt_hash (None | str | Unset):
-        meta_json (None | str | Unset):
+        deleted_at (int | None):
+        prompt_hash (None | str):
+        meta_json (None | str):
     """
 
     message_id: str
     thread_id: str
     role: str
     source: str
+    provider: None | str
+    model: None | str
     content: str
     created_at: int
-    provider: None | str | Unset = UNSET
-    model: None | str | Unset = UNSET
-    deleted_at: int | None | Unset = UNSET
-    prompt_hash: None | str | Unset = UNSET
-    meta_json: None | str | Unset = UNSET
+    deleted_at: int | None
+    prompt_hash: None | str
+    meta_json: None | str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,39 +49,24 @@ class AiMessage:
 
         source = self.source
 
+        provider: None | str
+        provider = self.provider
+
+        model: None | str
+        model = self.model
+
         content = self.content
 
         created_at = self.created_at
 
-        provider: None | str | Unset
-        if isinstance(self.provider, Unset):
-            provider = UNSET
-        else:
-            provider = self.provider
+        deleted_at: int | None
+        deleted_at = self.deleted_at
 
-        model: None | str | Unset
-        if isinstance(self.model, Unset):
-            model = UNSET
-        else:
-            model = self.model
+        prompt_hash: None | str
+        prompt_hash = self.prompt_hash
 
-        deleted_at: int | None | Unset
-        if isinstance(self.deleted_at, Unset):
-            deleted_at = UNSET
-        else:
-            deleted_at = self.deleted_at
-
-        prompt_hash: None | str | Unset
-        if isinstance(self.prompt_hash, Unset):
-            prompt_hash = UNSET
-        else:
-            prompt_hash = self.prompt_hash
-
-        meta_json: None | str | Unset
-        if isinstance(self.meta_json, Unset):
-            meta_json = UNSET
-        else:
-            meta_json = self.meta_json
+        meta_json: None | str
+        meta_json = self.meta_json
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -93,20 +76,15 @@ class AiMessage:
                 "thread_id": thread_id,
                 "role": role,
                 "source": source,
+                "provider": provider,
+                "model": model,
                 "content": content,
                 "created_at": created_at,
+                "deleted_at": deleted_at,
+                "prompt_hash": prompt_hash,
+                "meta_json": meta_json,
             }
         )
-        if provider is not UNSET:
-            field_dict["provider"] = provider
-        if model is not UNSET:
-            field_dict["model"] = model
-        if deleted_at is not UNSET:
-            field_dict["deleted_at"] = deleted_at
-        if prompt_hash is not UNSET:
-            field_dict["prompt_hash"] = prompt_hash
-        if meta_json is not UNSET:
-            field_dict["meta_json"] = meta_json
 
         return field_dict
 
@@ -121,64 +99,54 @@ class AiMessage:
 
         source = d.pop("source")
 
+        def _parse_provider(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        provider = _parse_provider(d.pop("provider"))
+
+        def _parse_model(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        model = _parse_model(d.pop("model"))
+
         content = d.pop("content")
 
         created_at = d.pop("created_at")
 
-        def _parse_provider(data: object) -> None | str | Unset:
+        def _parse_deleted_at(data: object) -> int | None:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+            return cast(int | None, data)
 
-        provider = _parse_provider(d.pop("provider", UNSET))
+        deleted_at = _parse_deleted_at(d.pop("deleted_at"))
 
-        def _parse_model(data: object) -> None | str | Unset:
+        def _parse_prompt_hash(data: object) -> None | str:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+            return cast(None | str, data)
 
-        model = _parse_model(d.pop("model", UNSET))
+        prompt_hash = _parse_prompt_hash(d.pop("prompt_hash"))
 
-        def _parse_deleted_at(data: object) -> int | None | Unset:
+        def _parse_meta_json(data: object) -> None | str:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
+            return cast(None | str, data)
 
-        deleted_at = _parse_deleted_at(d.pop("deleted_at", UNSET))
-
-        def _parse_prompt_hash(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        prompt_hash = _parse_prompt_hash(d.pop("prompt_hash", UNSET))
-
-        def _parse_meta_json(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        meta_json = _parse_meta_json(d.pop("meta_json", UNSET))
+        meta_json = _parse_meta_json(d.pop("meta_json"))
 
         ai_message = cls(
             message_id=message_id,
             thread_id=thread_id,
             role=role,
             source=source,
-            content=content,
-            created_at=created_at,
             provider=provider,
             model=model,
+            content=content,
+            created_at=created_at,
             deleted_at=deleted_at,
             prompt_hash=prompt_hash,
             meta_json=meta_json,

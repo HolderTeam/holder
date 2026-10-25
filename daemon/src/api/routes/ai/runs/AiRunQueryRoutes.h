@@ -1,6 +1,7 @@
 #pragma once
 
-#include "api/routes/ai/AiRunRoutes.h"
+#include "api/RigAnnotations.h"
+#include "api/support/SseStream.h"
 #include "platform/Db.h"
 
 #include <boost/asio/ip/tcp.hpp>
@@ -11,25 +12,13 @@
 
 namespace holder::api::routes::ai::runs {
 
-RouteDispatchResult handle_ai_runs_list_route(
-    const std::function<std::string(const std::string&)>& param_get,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
-    holder::platform::Db& db
-);
-
-RouteDispatchResult handle_ai_runs_events_route(
-    const std::string& path,
-    boost::asio::ip::tcp::socket& socket,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
+// GET /ai/runs/{run_id}/events after generated dispatch has decoded it: a 204 when a
+// reconnect is past a finished run's last event, otherwise a support::StreamServer.
+rig::host_value get_ai_runs_run_id_events_stream(
     holder::platform::Db& db,
-    const std::string& last_event_id = "",
-    std::shared_ptr<holder::api::support::SseRegistry> streams = {}
-);
-
-RouteDispatchResult handle_ai_runs_get_route(
-    const std::string& path,
-    boost::beast::http::response<boost::beast::http::string_body>& res,
-    holder::platform::Db& db
+    std::shared_ptr<holder::api::support::SseRegistry> streams,
+    const std::string& last_event_id,
+    const std::string& run_id
 );
 
 } // namespace holder::api::routes::ai::runs

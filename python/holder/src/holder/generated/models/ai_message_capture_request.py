@@ -25,13 +25,14 @@ class AiMessageCaptureRequest:
         project_id (str):
         prompt (str):
         response (str):
-        thread_id (None | str | Unset):
-        source (None | str | Unset):
+        thread_id (None | str | Unset): An existing thread in the project; when omitted or null a new thread is created,
+            titled from the prompt.
+        source (None | str | Unset): Optional; defaults to manual_paste.
         provider (None | str | Unset):
         model (None | str | Unset):
         url (None | str | Unset):
         context (AiMessageCaptureRequestContextType0 | None | Unset):
-        created_at (int | None | Unset):
+        created_at (int | None | Unset): Optional; server uses current time if omitted or null.
     """
 
     project_id: str

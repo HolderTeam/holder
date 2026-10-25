@@ -18,12 +18,21 @@ from .ai_message_list_response import AiMessageListResponse
 from .ai_message_update_request import AiMessageUpdateRequest
 from .ai_message_update_response import AiMessageUpdateResponse
 from .ai_message_update_response_data import AiMessageUpdateResponseData
+from .ai_nudge import AiNudge
+from .ai_nudge_candidate import AiNudgeCandidate
+from .ai_nudge_candidate_facts import AiNudgeCandidateFacts
+from .ai_nudge_dismiss_response import AiNudgeDismissResponse
+from .ai_nudge_dismiss_response_data import AiNudgeDismissResponseData
+from .ai_nudge_evaluate_response import AiNudgeEvaluateResponse
+from .ai_nudge_evaluate_response_data import AiNudgeEvaluateResponseData
+from .ai_nudge_list_response import AiNudgeListResponse
+from .ai_nudge_list_response_data import AiNudgeListResponseData
+from .ai_nudge_meta_json import AiNudgeMetaJson
+from .ai_provider_catalog_model import AiProviderCatalogModel
+from .ai_provider_catalog_model_limits import AiProviderCatalogModelLimits
 from .ai_provider_catalog_provider import AiProviderCatalogProvider
-from .ai_provider_catalog_provider_api_type_0 import AiProviderCatalogProviderApiType0
-from .ai_provider_catalog_provider_auth_type_0 import AiProviderCatalogProviderAuthType0
-from .ai_provider_catalog_provider_models_item import (
-    AiProviderCatalogProviderModelsItem,
-)
+from .ai_provider_catalog_provider_api import AiProviderCatalogProviderApi
+from .ai_provider_catalog_provider_auth import AiProviderCatalogProviderAuth
 from .ai_provider_catalog_response import AiProviderCatalogResponse
 from .ai_provider_catalog_response_data import AiProviderCatalogResponseData
 from .ai_provider_credential import AiProviderCredential
@@ -47,7 +56,7 @@ from .ai_provider_setting_update_request import AiProviderSettingUpdateRequest
 from .ai_provider_settings_response import AiProviderSettingsResponse
 from .ai_provider_settings_response_data import AiProviderSettingsResponseData
 from .ai_run_create_request import AiRunCreateRequest
-from .ai_run_create_request_context import AiRunCreateRequestContext
+from .ai_run_create_request_context_type_0 import AiRunCreateRequestContextType0
 from .ai_run_event_data import AiRunEventData
 from .ai_run_get_response import AiRunGetResponse
 from .ai_run_item import AiRunItem
@@ -64,8 +73,9 @@ from .ai_runner_response import AiRunnerResponse
 from .ai_runner_runtime import AiRunnerRuntime
 from .ai_runner_update_request import AiRunnerUpdateRequest
 from .ai_status_data import AiStatusData
-from .ai_status_pull_job import AiStatusPullJob
 from .ai_status_response import AiStatusResponse
+from .ai_stream_resync_data import AiStreamResyncData
+from .ai_stream_resync_data_reason import AiStreamResyncDataReason
 from .ai_thread import AiThread
 from .ai_thread_create_request import AiThreadCreateRequest
 from .ai_thread_create_response import AiThreadCreateResponse
@@ -75,6 +85,7 @@ from .ai_thread_list_response import AiThreadListResponse
 from .ai_thread_patch_response import AiThreadPatchResponse
 from .ai_thread_patch_response_data import AiThreadPatchResponseData
 from .ai_thread_update_request import AiThreadUpdateRequest
+from .alive_response import AliveResponse
 from .asset_import_job import AssetImportJob
 from .asset_import_job_response import AssetImportJobResponse
 from .asset_import_job_status import AssetImportJobStatus
@@ -142,6 +153,7 @@ from .card_tag_mutation_request import CardTagMutationRequest
 from .card_tag_mutation_response import CardTagMutationResponse
 from .card_tag_mutation_result import CardTagMutationResult
 from .card_tag_mutation_result_outcome import CardTagMutationResultOutcome
+from .card_tag_occurrence import CardTagOccurrence
 from .card_update_request import CardUpdateRequest
 from .caste_info import CasteInfo
 from .caste_info_name import CasteInfoName
@@ -154,6 +166,8 @@ from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
 from .delete_projects_project_id_trash_type_id_type import (
     DeleteProjectsProjectIdTrashTypeIdType,
 )
+from .delete_trash_type import DeleteTrashType
+from .delete_trash_type_id_type import DeleteTrashTypeIdType
 from .error import Error
 from .error_response import ErrorResponse
 from .event_checkpoint import EventCheckpoint
@@ -163,6 +177,7 @@ from .event_checkpoint_response import EventCheckpointResponse
 from .event_resync_data import EventResyncData
 from .event_resync_data_reason import EventResyncDataReason
 from .get_ai_catalog_json_response_200 import GetAiCatalogJsonResponse200
+from .get_ai_messages_include_deleted import GetAiMessagesIncludeDeleted
 from .get_ai_messages_message_id_backlinks_include_deleted import (
     GetAiMessagesMessageIdBacklinksIncludeDeleted,
 )
@@ -175,9 +190,11 @@ from .get_cards_card_id_backlinks_include_deleted import (
 from .get_cards_card_id_backlinks_scope import GetCardsCardIdBacklinksScope
 from .get_cards_card_id_links_include_deleted import GetCardsCardIdLinksIncludeDeleted
 from .get_cards_context_order import GetCardsContextOrder
+from .get_cards_include_deleted import GetCardsIncludeDeleted
 from .get_cards_order import GetCardsOrder
 from .get_cards_view import GetCardsView
 from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
+from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order import GetProjectsOrder
 from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
@@ -191,8 +208,10 @@ from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKin
 from .get_projects_project_id_milestones_with_dates_value_type import (
     GetProjectsProjectIdMilestonesWithDatesValueType,
 )
+from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
+from .google_drive_authorize_response_data import GoogleDriveAuthorizeResponseData
 from .health_data import HealthData
-from .health_data_crypt_filter import HealthDataCryptFilter
+from .health_data_privacy import HealthDataPrivacy
 from .health_response import HealthResponse
 from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
@@ -230,7 +249,6 @@ from .project_calendar_response_data import ProjectCalendarResponseData
 from .project_create_request import ProjectCreateRequest
 from .project_create_request_privacy_mode import ProjectCreateRequestPrivacyMode
 from .project_create_response import ProjectCreateResponse
-from .project_create_response_data import ProjectCreateResponseData
 from .project_delete_response import ProjectDeleteResponse
 from .project_delete_response_data import ProjectDeleteResponseData
 from .project_encryption_check import ProjectEncryptionCheck
@@ -348,6 +366,8 @@ from .storage_location_request_provider import StorageLocationRequestProvider
 from .storage_location_response import StorageLocationResponse
 from .trash_delete_response import TrashDeleteResponse
 from .trash_delete_response_data import TrashDeleteResponseData
+from .trash_empty_response import TrashEmptyResponse
+from .trash_empty_response_data import TrashEmptyResponseData
 from .trash_item import TrashItem
 from .trash_list_response import TrashListResponse
 
@@ -368,10 +388,21 @@ __all__ = (
     "AiMessageUpdateRequest",
     "AiMessageUpdateResponse",
     "AiMessageUpdateResponseData",
+    "AiNudge",
+    "AiNudgeCandidate",
+    "AiNudgeCandidateFacts",
+    "AiNudgeDismissResponse",
+    "AiNudgeDismissResponseData",
+    "AiNudgeEvaluateResponse",
+    "AiNudgeEvaluateResponseData",
+    "AiNudgeListResponse",
+    "AiNudgeListResponseData",
+    "AiNudgeMetaJson",
+    "AiProviderCatalogModel",
+    "AiProviderCatalogModelLimits",
     "AiProviderCatalogProvider",
-    "AiProviderCatalogProviderApiType0",
-    "AiProviderCatalogProviderAuthType0",
-    "AiProviderCatalogProviderModelsItem",
+    "AiProviderCatalogProviderApi",
+    "AiProviderCatalogProviderAuth",
     "AiProviderCatalogResponse",
     "AiProviderCatalogResponseData",
     "AiProviderCredential",
@@ -389,7 +420,7 @@ __all__ = (
     "AiProviderSettingsResponse",
     "AiProviderSettingsResponseData",
     "AiRunCreateRequest",
-    "AiRunCreateRequestContext",
+    "AiRunCreateRequestContextType0",
     "AiRunEventData",
     "AiRunGetResponse",
     "AiRunItem",
@@ -406,8 +437,9 @@ __all__ = (
     "AiRunnerRuntime",
     "AiRunnerUpdateRequest",
     "AiStatusData",
-    "AiStatusPullJob",
     "AiStatusResponse",
+    "AiStreamResyncData",
+    "AiStreamResyncDataReason",
     "AiThread",
     "AiThreadCreateRequest",
     "AiThreadCreateResponse",
@@ -417,6 +449,7 @@ __all__ = (
     "AiThreadPatchResponse",
     "AiThreadPatchResponseData",
     "AiThreadUpdateRequest",
+    "AliveResponse",
     "AssetImportJob",
     "AssetImportJobResponse",
     "AssetImportJobStatus",
@@ -484,6 +517,7 @@ __all__ = (
     "CardTagMutationResponse",
     "CardTagMutationResult",
     "CardTagMutationResultOutcome",
+    "CardTagOccurrence",
     "CardUpdateRequest",
     "CasteInfo",
     "CasteInfoName",
@@ -494,6 +528,8 @@ __all__ = (
     "DeleteCardsCardIdChildren",
     "DeleteCardsCardIdResourcesBody",
     "DeleteProjectsProjectIdTrashTypeIdType",
+    "DeleteTrashType",
+    "DeleteTrashTypeIdType",
     "Error",
     "ErrorResponse",
     "EventCheckpoint",
@@ -503,15 +539,18 @@ __all__ = (
     "EventResyncData",
     "EventResyncDataReason",
     "GetAiCatalogJsonResponse200",
+    "GetAiMessagesIncludeDeleted",
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
     "GetCardsCardIdBacklinksIncludeDeleted",
     "GetCardsCardIdBacklinksScope",
     "GetCardsCardIdLinksIncludeDeleted",
     "GetCardsContextOrder",
+    "GetCardsIncludeDeleted",
     "GetCardsOrder",
     "GetCardsView",
     "GetGitProvidersJsonResponse200",
+    "GetOpenapiJsonResponse200",
     "GetPingResponse200",
     "GetProjectsOrder",
     "GetProjectsProjectIdCardsOrder",
@@ -519,8 +558,10 @@ __all__ = (
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
     "GetProjectsProjectIdMilestonesWithDatesValueType",
+    "GoogleDriveAuthorizeResponse",
+    "GoogleDriveAuthorizeResponseData",
     "HealthData",
-    "HealthDataCryptFilter",
+    "HealthDataPrivacy",
     "HealthResponse",
     "HierarchyRepair",
     "HierarchyRepairMove",
@@ -556,7 +597,6 @@ __all__ = (
     "ProjectCreateRequest",
     "ProjectCreateRequestPrivacyMode",
     "ProjectCreateResponse",
-    "ProjectCreateResponseData",
     "ProjectDeleteResponse",
     "ProjectDeleteResponseData",
     "ProjectEncryptionCheck",
@@ -646,6 +686,8 @@ __all__ = (
     "StorageLocationResponse",
     "TrashDeleteResponse",
     "TrashDeleteResponseData",
+    "TrashEmptyResponse",
+    "TrashEmptyResponseData",
     "TrashItem",
     "TrashListResponse",
 )

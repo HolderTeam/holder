@@ -21,7 +21,7 @@ class LocationBindingRequest:
     """
     Attributes:
         values (LocationBindingRequestValues):
-        preview (str | Unset):
+        preview (str | Unset): Safe display text for the binding; defaults to Configured.
     """
 
     values: LocationBindingRequestValues

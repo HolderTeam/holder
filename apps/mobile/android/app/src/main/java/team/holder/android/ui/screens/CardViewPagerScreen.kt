@@ -95,7 +95,7 @@ import team.holder.android.ui.sortKeyOrderedSiblings
  * keyed by that page's card id, is therefore enough to make that already-saveable state survive
  * HorizontalPager disposing an off-screen page -- no bespoke per-card scroll-state map needed.
  *
- * **Visual styles** (see holder-planning/current/swipe-styles.md for the full brief): each
+ * **Visual styles**: each
  * [HolderCardSwipeStyle] is a `graphicsLayer` hand-computed per page from
  * [androidx.compose.foundation.pager.PagerState.currentPageOffsetFraction] -- this only changes
  * how pages are *drawn*; HorizontalPager's own gesture handling, fling physics, and

@@ -1,3 +1,4 @@
+#include "api/generated/RuntimeJson.h"
 #include "api/support/EventJournal.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
@@ -12,7 +13,7 @@ TEST_CASE("Event journal uses absolute replay cursors across trimming", "[events
   const auto baseline = journal.cursor();
   std::string third;
   for (int n = 1; n <= 600; ++n) {
-    const auto event = journal.append("chunk", {{"n", n}}, n == 600);
+    const auto event = journal.append({"chunk", {{"n", n}}}, n == 600);
     if (n == 597) third = event.id;
   }
   auto batch = journal.read(third);
@@ -30,9 +31,9 @@ TEST_CASE("Event journal uses absolute replay cursors across trimming", "[events
 
 TEST_CASE("Event journal bounds bytes and encodes one JSON data line", "[events]") {
   EventJournal journal(10, 180);
-  auto first = journal.append("chunk", {{"delta", "line one\nline two"}});
+  auto first = journal.append({"chunk", {{"delta", "line one\nline two"}}});
   REQUIRE(encode_sse(first).find("line one\\nline two") != std::string::npos);
-  journal.append("chunk", {{"delta", std::string(300, 'x')}});
+  journal.append({"chunk", {{"delta", std::string(300, 'x')}}});
   REQUIRE(journal.read().events.empty());
   REQUIRE(journal.read(first.id).resync_required);
   for (const auto& bad :
@@ -44,9 +45,9 @@ TEST_CASE("Event journal bounds bytes and encodes one JSON data line", "[events]
 }
 
 TEST_CASE("A reused run ID starts a new event epoch", "[events]") {
-  const auto first = append_run_event("journal-reuse", "run_started", {}, false);
-  append_run_event("journal-reuse", "done", {}, true);
-  const auto next = append_run_event("journal-reuse", "run_started", {}, false);
+  const auto first = append_run_event("journal-reuse", rig_events::run_started, {}, false);
+  append_run_event("journal-reuse", rig_events::done, {}, true);
+  const auto next = append_run_event("journal-reuse", rig_events::run_started, {}, false);
   REQUIRE(first.id != next.id);
   const auto batch = read_run_events("journal-reuse", "");
   REQUIRE(batch);
@@ -62,7 +63,7 @@ TEST_CASE("SSE admission restores rejected sockets and bounds producer output", 
   auto stream = SseStream::reserve(one, registry);
   REQUIRE(stream);
   REQUIRE_FALSE(SseStream::reserve(two, registry));
-  REQUIRE_FALSE(stream->send({"id", "chunk", {{"delta", std::string(2 * 1024 * 1024, 'x')}}}));
+  REQUIRE_FALSE(stream->send({"id", {"chunk", {{"delta", std::string(2 * 1024 * 1024, 'x')}}}}));
   REQUIRE_FALSE(stream->open());
   ioc.run();
 }

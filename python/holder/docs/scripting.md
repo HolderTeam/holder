@@ -523,7 +523,13 @@ manages local runners; `runners.create(name=..., base_url=...)` currently create
 an Ollama runner. Pass `runner_id` to `models.pull()` to choose one. Pull events
 are replaceable progress snapshots; after a disconnect, call `job.refresh()`
 and open a new stream without an old event ID. `holder.intelligence.status()`
-reports active run and pull counts and runner availability.
+reports active run and pull counts and, in `runners`, each runner's
+availability.
+
+`models.installed()` lists the models on every runner; each names its
+`runner_id` and the `model_ref` to request it by. `models.recommended()` lists
+catalog models this machine can run, best first, and `models.to_install()` the
+ones a runner lacks. Both use the auto-local runner unless given `runner_id`.
 
 ## Find and repair hidden cards
 

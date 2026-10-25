@@ -59,9 +59,6 @@ class StorageLocation:
     def _from(cls, project: Project, row: Any) -> Self:
         if row.project_id != project.id:
             raise ProtocolError("Storage location belongs to another project")
-        preview = (
-            None if isinstance(row.binding_preview, Unset) else row.binding_preview
-        )
         return cls(
             id=row.location_id,
             project_id=row.project_id,
@@ -69,7 +66,7 @@ class StorageLocation:
             provider=str(row.provider),
             configuration=dict(row.configuration.additional_properties),
             bound=row.bound,
-            binding_preview=preview,
+            binding_preview=row.binding_preview,
             created_at=row.created_at,
             updated_at=row.updated_at,
             _project=project,
