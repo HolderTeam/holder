@@ -84,7 +84,7 @@ nlohmann::json tag_mutation_request(
       method,
       "/cards/" + url_encode_component(card_id) + "/tags",
       std::chrono::seconds(30), // LCOV_EXCL_LINE
-      nlohmann::json{{"project_id", project_id}, {"tag", tag}}
+      std::make_optional<nlohmann::json>(nlohmann::json{{"project_id", project_id}, {"tag", tag}})
   );
   if (response.status == boost::beast::http::status::ok && response.payload.value("ok", false)) {
     return response.payload;

@@ -431,7 +431,7 @@ int command_milestone(const holder::core::Paths& paths, int argc, char* argv[]) 
           "/cards/" + url_encode_component(card_id) + "/milestones/" +
               url_encode_component(options.value),
           boost::beast::http::status::ok,
-          nlohmann::json::object()
+          std::make_optional<nlohmann::json>(nlohmann::json::object())
       );
       if (options.json_output) {
         std::cout << payload.dump(2) << "\n";
@@ -511,7 +511,7 @@ int command_milestone(const holder::core::Paths& paths, int argc, char* argv[]) 
           "/cards/" + url_encode_component(card_id) + "/milestones/" +
               url_encode_component(options.value),
           boost::beast::http::status::ok,
-          body
+          std::make_optional<nlohmann::json>(body)
       );
       if (options.json_output) {
         std::cout << payload.dump(2) << "\n";
@@ -562,7 +562,7 @@ int command_milestone(const holder::core::Paths& paths, int argc, char* argv[]) 
         boost::beast::http::verb::post,
         "/cards/" + url_encode_component(card_id) + "/milestones",
         boost::beast::http::status::created,
-        body
+        std::make_optional<nlohmann::json>(body)
     );
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";
