@@ -342,6 +342,10 @@ private void test_right_clicking_a_card_offers_open_and_create_child() {
     }
     var h = cvb_project_harness();
     assert(h.wait_for_nodes(3));
+    // Native popups need a mapped parent on Windows; the harness normally keeps
+    // its window hidden because the other tests only inspect widgets.
+    h.window.present();
+    assert(h.wait(() => h.window.get_mapped()));
     var node = cv_node(h.content(), "Card Two");
     assert(cvb_popover(node) == null);
 
@@ -355,6 +359,8 @@ private void test_right_clicking_a_card_offers_open_and_create_child() {
     create.clicked();
     assert(h.card_opens.size == 1 && h.card_opens[0] == "c2");
     assert(h.child_requests.size == 1 && h.child_requests[0] == "c2");
+    ((!) popover).popdown();
+    h.window.destroy();
 }
 
 private void test_only_a_single_right_click_on_a_card_opens_the_menu() {
