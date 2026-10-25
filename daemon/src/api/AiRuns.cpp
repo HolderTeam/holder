@@ -21,7 +21,7 @@ std::optional<nlohmann::json> parse_json(const std::optional<std::string>& raw) 
   try {
     auto value = nlohmann::json::parse(*raw);
     if (value.is_null()) return std::nullopt;
-    return value;
+    return std::optional<nlohmann::json>{std::in_place, std::move(value)};
   } catch (const std::exception&) {
     return std::nullopt;
   }
