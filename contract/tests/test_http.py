@@ -122,12 +122,16 @@ def test_paths_take_their_parameters_from_the_binding():
 
 def test_success_is_enveloped_with_the_bindings_status():
     responses = openapi()["paths"]["/cards"]["post"]["responses"]
-    assert list(responses) == ["201", "400", "404", "500"]
+    assert list(responses) == ["201", "400", "404", "409", "500", "503"]
     assert responses["201"]["content"]["application/json"]["schema"] == {
         "type": "object",
         "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": {"$ref": "#/components/schemas/Card"}},
         "required": ["ok", "data"]}
     assert responses["404"]["description"] == "The thing asked for does not exist, or is in the trash."
+    # Error kinds that share a status share its response.
+    assert responses["409"]["description"] == (
+        "What would be created already exists, such as a card with the same ID or file. "
+        "An encrypted project's key is not on this device; the project's recovery token restores it.")
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
 
 

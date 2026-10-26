@@ -1,4 +1,4 @@
-// Generated from contract/interface/cards.py by holder_contract.
+// Generated from contract/interface/cards.py, contract/interface/errors.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -141,6 +141,14 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
   } catch (const contract::NotFound& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_NOT_FOUND, e.what());
+  } catch (const contract::Conflict& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_CONFLICT, e.what());
+  } catch (const contract::KeyringUnavailable& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_KEYRING_UNAVAILABLE, e.what());
+  } catch (const contract::KeyMissing& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_KEY_MISSING, e.what());
+  } catch (const contract::DataCorrupted& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_DATA_CORRUPTED, e.what());
   } catch (const std::bad_alloc&) {
     return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {

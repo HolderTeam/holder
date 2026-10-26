@@ -155,13 +155,13 @@ class Converter:
                     "required": ["ok", "data"]}
         responses = {str(binding["status"]): {"description": "Success",
                                               "content": {"application/json": {"schema": envelope}}}}
-        descriptions: dict[int, list[str]] = {400: ["Invalid argument"]}
+        descriptions: dict[int, list[str]] = {400: ["Invalid argument."]}
         for error in op["errors"]:
             doc = next(e for e in self.model.errors if e["name"] == error)["doc"]
             descriptions.setdefault(statuses[error], []).append(doc or error)
-        descriptions.setdefault(500, []).append("Unexpected failure")
+        descriptions.setdefault(500, []).append("Unexpected failure.")
         for status, texts in descriptions.items():
-            responses[str(status)] = {"description": " Or: ".join(texts),
+            responses[str(status)] = {"description": " ".join(texts),
                                       "content": {"application/json": {"schema": dict(ERROR_RESPONSE)}}}
         result["responses"] = responses
         return result
