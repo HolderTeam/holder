@@ -1,0 +1,46 @@
+name: Restore core compiler cache
+description: Install ccache and restore a compiler/configuration-specific cache for core
+inputs:
+  variant:
+    required: true
+    description: tests or sdk; separates configurations with different build flags
+  build-type:
+    required: true
+    description: CMake build configuration
+  measure:
+    default: 'false'
+    description: Use an empty local cache for a cold/warm measurement
+outputs:
+  key:
+    value: ${{ steps.identity.outputs.key }}
+    description: Unique cache snapshot key
+  prefix:
+    value: ${{ steps.identity.outputs.prefix }}
+    description: Compatible cache snapshot prefix
+runs:
+  using: composite
+  steps:
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get install -y ccache
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: brew install ccache
+    - if: runner.os == 'Windows'
+      shell: pwsh
+      run: choco install ccache --no-progress -y
+    - id: identity
+      shell: bash
+      env:
+        CACHE_VARIANT: ${{ inputs.variant }}
+        CACHE_BUILD_TYPE: ${{ inputs.build-type }}
+        CACHE_MEASURE: ${{ inputs.measure }}
+      run: python "$GITHUB_ACTION_PATH/setup.py"
+    - if: inputs.measure != 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: .core-ccache
+        key: ${{ steps.identity.outputs.key }}
+        restore-keys: ${{ steps.identity.outputs.prefix }}
+    - shell: bash
+      run: ccache --zero-stats
