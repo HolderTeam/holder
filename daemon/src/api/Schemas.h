@@ -154,7 +154,9 @@ struct RIG_OPEN_RECORD Project {
   ProjectSync sync;
 };
 
-struct RIG_OPEN_RECORD CardListItem {
+// A card in GET /cards and GET /cards/context. The contract's CardListItem replaces it when those
+// routes move to the contract.
+struct RIG_OPEN_RECORD CardViewItem {
   std::string card_id;
   std::string project_id;
   std::string title;

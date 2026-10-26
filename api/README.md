@@ -24,14 +24,20 @@ daemon, in [`daemon/docs/`](../daemon/docs/).
 
 ## Changing the contract
 
-Every endpoint is declared in C++ in [`daemon/src/api/`](../daemon/src/api/): its route, parameters,
-request and response types, errors and descriptions. [RIG](rig/) reflects those declarations and
-generates `openapi.yaml`, together with the daemon's request dispatcher and JSON code for the
-endpoints it serves. To change the contract, change the declarations and run
-`make -C api/rig update`, which needs GCC 16 and the RIG version in
-[`rig/requirements.txt`](rig/requirements.txt); [`rig/README.md`](rig/README.md) has the details.
-`Daemon / CI` fails when `openapi.yaml` or the generated code differs from what the declarations
-produce.
+Endpoints are moving to Holder's contract, [`contract/`](../contract/), which declares them once in
+Python and generates the daemon's routes for them ([`contract/HTTP.md`](../contract/HTTP.md)). The
+rest are declared in C++ in [`daemon/src/api/`](../daemon/src/api/): route, parameters, request and
+response types, errors and descriptions. [RIG](rig/) reflects those declarations and generates their
+document, `rig/openapi.rig.json`, together with the daemon's request dispatcher and JSON code for
+them. `make -C contract update` merges the contract's endpoints into RIG's document to write
+`openapi.yaml` and `openapi.json`.
+
+To change an endpoint the contract serves, change the contract and run `make -C contract update`.
+To change any other, change its declaration and run `make -C api/rig update`, which needs GCC 16 and
+the RIG version in [`rig/requirements.txt`](rig/requirements.txt) ([`rig/README.md`](rig/README.md)
+has the details), then `make -C contract update`. `Daemon / CI` fails when RIG's document or its
+generated code differs from what the declarations produce, and `Contract / Check` when
+`openapi.yaml`, `openapi.json` or the contract's generated code is out of date.
 
 Holder's own clients (the desktop app, `holderctl`, the Python client) are clients like any
 other: they use only what this contract documents, never undocumented behaviour or the daemon's

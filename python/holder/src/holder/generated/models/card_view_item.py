@@ -9,11 +9,11 @@ from typing_extensions import Self
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="CardPageItem")
+T = TypeVar("T", bound="CardViewItem")
 
 
 @_attrs_define
-class CardPageItem:
+class CardViewItem:
     """
     Attributes:
         card_id (str):
@@ -27,7 +27,6 @@ class CardPageItem:
         deleted_at (int | None):
         child_count (int | Unset): Live children, present when requested (count=true, or include_child_count=true on
             project card pages).
-        content (str | Unset): The card's body. Present only when include_content is true.
     """
 
     card_id: str
@@ -40,7 +39,6 @@ class CardPageItem:
     parent_card_id: None | str
     deleted_at: int | None
     child_count: int | Unset = UNSET
-    content: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,8 +64,6 @@ class CardPageItem:
 
         child_count = self.child_count
 
-        content = self.content
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -85,8 +81,6 @@ class CardPageItem:
         )
         if child_count is not UNSET:
             field_dict["child_count"] = child_count
-        if content is not UNSET:
-            field_dict["content"] = content
 
         return field_dict
 
@@ -123,9 +117,7 @@ class CardPageItem:
 
         child_count = d.pop("child_count", UNSET)
 
-        content = d.pop("content", UNSET)
-
-        card_page_item = cls(
+        card_view_item = cls(
             card_id=card_id,
             project_id=project_id,
             title=title,
@@ -136,11 +128,10 @@ class CardPageItem:
             parent_card_id=parent_card_id,
             deleted_at=deleted_at,
             child_count=child_count,
-            content=content,
         )
 
-        card_page_item.additional_properties = d
-        return card_page_item
+        card_view_item.additional_properties = d
+        return card_view_item
 
     @property
     def additional_keys(self) -> list[str]:

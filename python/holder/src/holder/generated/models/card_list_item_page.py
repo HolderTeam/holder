@@ -8,21 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_page_item import CardPageItem
+    from ..models.card_list_item import CardListItem
 
 
-T = TypeVar("T", bound="CardPage")
+T = TypeVar("T", bound="CardListItemPage")
 
 
 @_attrs_define
-class CardPage:
-    """
+class CardListItemPage:
+    """One page of a listing.
+
     Attributes:
-        items (list[CardPageItem]):
-        next_cursor (None | str): Continue with this cursor, or null when there are no more results.
+        items (list[CardListItem]): The page's items.
+        next_cursor (None | str): Pass back to get the next page; null on the last page.
     """
 
-    items: list[CardPageItem]
+    items: list[CardListItem]
     next_cursor: None | str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -48,13 +49,13 @@ class CardPage:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_page_item import CardPageItem
+        from ..models.card_list_item import CardListItem
 
         d = dict(src_dict)
         items = []
         _items = d.pop("items")
         for items_item_data in _items:
-            items_item = CardPageItem.from_dict(items_item_data)
+            items_item = CardListItem.from_dict(items_item_data)
 
             items.append(items_item)
 
@@ -65,13 +66,13 @@ class CardPage:
 
         next_cursor = _parse_next_cursor(d.pop("next_cursor"))
 
-        card_page = cls(
+        card_list_item_page = cls(
             items=items,
             next_cursor=next_cursor,
         )
 
-        card_page.additional_properties = d
-        return card_page
+        card_list_item_page.additional_properties = d
+        return card_list_item_page
 
     @property
     def additional_keys(self) -> list[str]:

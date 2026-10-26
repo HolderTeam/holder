@@ -4,7 +4,9 @@ Ported from RIG's json_codec.py (https://github.com/zeth/rig, src/rig/json_codec
 which read declarations reflected from C++; this reads the contract's IR. Each record gets a
 codec<T> with encode and decode. Decoding checks what the contract says about the value: required
 and omitted fields, null, text (UTF-8 with no U+0000, lengths in characters), integer ranges and
-finite numbers. A record accepts fields it does not know, as the contract's records do.
+finite numbers. It also rejects fields the record does not have, so that a caller who sends one,
+such as a card_id for a card Holder names, learns it was not used. A client reading results
+should still ignore fields it does not know, which later versions may add.
 """
 
 from __future__ import annotations
@@ -213,7 +215,10 @@ def record_lines(model: Model, instance: Instance) -> list[str]:
             lines.append(f'    if (value.{slot.name}) result["{slot.name}"] = codec<{base}>::encode(*value.{slot.name});')
     lines += ["    return result;", "}",
               f"inline {qualified} codec<{qualified}>::decode(const json& value) {{",
-              f'    if (!value.is_object()) throw std::invalid_argument("expected a {name} object");',
+              f'    if (!value.is_object()) throw std::invalid_argument("expected a {name} object");']
+    known = " && ".join(f'it.key() != "{slot.name}"' for slot in slots) or "true"
+    lines += ["    for (auto it = value.begin(); it != value.end(); ++it)",
+              f'        if ({known}) throw std::invalid_argument("{name} has no field " + it.key());',
               f"    {qualified} out;"]
     for slot in slots:
         label = slot.name

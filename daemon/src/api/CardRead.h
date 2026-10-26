@@ -10,13 +10,12 @@
 #include <vector>
 
 namespace holder::platform { class Db; }
-namespace holder::card { class CardStore; }
 
 namespace holder::api {
 
 struct RIG_OPEN_RECORD CardListResponse {
   bool ok RIG_BOOL_VALUE(true);
-  std::vector<CardListItem> data;
+  std::vector<CardViewItem> data;
 };
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardContextDataProject {
@@ -31,7 +30,7 @@ struct RIG_OPEN_RECORD CardContextBreadcrumb {
   std::optional<std::string> card_id RIG_FIELD_DESCRIPTION("Present on card breadcrumbs.") RIG_OMIT_EMPTY;
 };
 
-struct RIG_OPEN_RECORD CardContextCard : CardListItem {
+struct RIG_OPEN_RECORD CardContextCard : CardViewItem {
 };
 
 struct RIG_OPEN_RECORD CardContextData {
@@ -44,32 +43,6 @@ struct RIG_OPEN_RECORD CardContextData {
 struct RIG_OPEN_RECORD CardContextResponse {
   bool ok RIG_BOOL_VALUE(true);
   CardContextData data;
-};
-
-struct RIG_OPEN_RECORD CardTagOccurrence {
-  std::string tag;
-  long long byte_start RIG_FIELD_DESCRIPTION("Inclusive byte offset of the leading # in content.");
-  long long byte_end RIG_FIELD_DESCRIPTION("Exclusive byte offset after the tag name.");
-};
-
-struct RIG_OPEN_RECORD CardData {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  double sort_key;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::string> parent_card_id RIG_NULLABLE;
-  std::optional<long long> deleted_at RIG_NULLABLE;
-  std::string content;
-  std::vector<std::string> tags RIG_FIELD_DESCRIPTION("The card's normalized tags.");
-  std::vector<CardTagOccurrence> tag_occurrences RIG_FIELD_DESCRIPTION("Each tag written in content, in order.");
-};
-
-struct RIG_OPEN_RECORD CardGetResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardData data;
 };
 
 struct CardReadNotFound : std::runtime_error {
@@ -101,15 +74,5 @@ CardContextResponse get_cards_context(
     std::optional<std::string> parent_card_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("Optional parent card id. Omit for project root level."),
     std::string order RIG_QUERY RIG_STRING_VALUES("tree_default", "updated_desc", "title_asc") RIG_DEFAULT("tree_default") RIG_PARAMETER_DESCRIPTION("Ordering for the returned level cards."),
     bool count RIG_QUERY RIG_DEFAULT(false) RIG_PARAMETER_DESCRIPTION("Include count fields (child_count) in context cards."));
-
-RIG_ROUTE(GET, "/cards/{card_id}")
-RIG_SUMMARY("Fetch a card")
-RIG_DESCRIPTION("A card in the trash is not found.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", CardReadNotFound)
-RIG_ERROR_RESPONSE(501, ErrorResponse, "The daemon has no card store", CardStoreUnavailable)
-CardGetResponse get_card(holder::platform::Db& db RIG_CONTEXT,
-                         holder::card::CardStore* card_store RIG_CONTEXT,
-                         std::string card_id);
 
 } // namespace holder::api

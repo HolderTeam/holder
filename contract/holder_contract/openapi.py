@@ -9,10 +9,12 @@ daemon's document, which these paths are merged into.
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any
 
 from .generate import Instance, Model, Unsupported
+from .http_routes import _more_specific, _segments_overlap, route_segments
 
 OPENAPI_VERSION = "3.2.0"
 SCALARS = {
@@ -38,6 +40,8 @@ ERROR_SCHEMAS = {
     },
 }
 ERROR_RESPONSE = {"$ref": "#/components/schemas/ErrorResponse"}
+# What a document with bearer security answers without a valid token, as the daemon's other routes do.
+UNAUTHORIZED = {"description": "Unauthorized", "content": {"application/json": {"schema": ERROR_RESPONSE}}}
 
 
 def schema_name(instance: Instance) -> str:
@@ -106,6 +110,9 @@ class Converter:
         result: dict[str, Any] = {"type": "object", "properties": properties}
         if required:
             result["required"] = required
+        if instance in self.model.inputs and instance not in self.model.outputs:
+            # Requests are checked for fields the record does not have; results may gain fields.
+            result["additionalProperties"] = False
         if "base" in declaration:
             base = Instance(declaration["base"])
             self.record(base)
@@ -150,9 +157,14 @@ class Converter:
             result["requestBody"] = {"required": True,
                                      "content": {"application/json": {"schema": self.schema(body["type"])}}}
         data = self.schema(op["returns"])
-        envelope = {"type": "object",
-                    "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": data},
-                    "required": ["ok", "data"]}
+        envelope: dict[str, Any] = {"type": "object",
+                                    "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": data},
+                                    "required": ["ok", "data"]}
+        if "$ref" in data:
+            # Named for its result, as CardResponse, so that clients generated from it have a name for it.
+            name = data["$ref"].rsplit("/", 1)[1] + "Response"
+            self.components[name] = envelope
+            envelope = {"$ref": f"#/components/schemas/{name}"}
         responses = {str(binding["status"]): {"description": "Success",
                                               "content": {"application/json": {"schema": envelope}}}}
         descriptions: dict[int, list[str]] = {400: ["Invalid argument."]}
@@ -207,8 +219,48 @@ def ordered(document: dict[str, Any]) -> dict[str, Any]:
             paths[path][method] = operation
     result = _in_order(document, ("openapi", "info", "servers", "security", "paths", "components"))
     result["paths"] = paths
-    result["components"] = {"schemas": dict(sorted(document["components"]["schemas"].items()))}
+    components = document["components"]
+    result["components"] = {**({"securitySchemes": components["securitySchemes"]} if "securitySchemes" in components
+                               else {}),
+                            "schemas": dict(sorted(components["schemas"].items()))}
     return result
+
+
+def merge(daemon: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
+    """The daemon's document with the contract's paths and schemas added.
+
+    The daemon's document is RIG's, for the routes not yet moved to the contract, and has the
+    API's metadata and security; the contract's operations get the same 401 as the daemon's.
+    A route in both, or a schema of the same name with another shape, is an error. The daemon tries
+    RIG's routes first, so a RIG route that would take a request meant for one of the contract's,
+    without being more specific than it, is an error too.
+    """
+    for path, methods in contract["paths"].items():
+        for rig_path, rig_methods in daemon["paths"].items():
+            if rig_path == path:
+                continue
+            shared = set(methods) & set(rig_methods)
+            ours, theirs = route_segments(path), route_segments(rig_path)
+            if shared and _segments_overlap(ours, theirs) and not _more_specific(theirs, ours):
+                method = min(shared).upper()
+                raise ValueError(f"the daemon's {method} {rig_path} would take requests for the contract's "
+                                 f"{method} {path}")
+    out = copy.deepcopy(daemon)
+    for path, methods in contract["paths"].items():
+        target = out["paths"].setdefault(path, {})
+        for method, operation in methods.items():
+            if method in target:
+                raise ValueError(f"{method.upper()} {path} is both a daemon route and a contract operation")
+            operation = copy.deepcopy(operation)
+            if out.get("security"):
+                operation["responses"]["401"] = copy.deepcopy(UNAUTHORIZED)
+            target[method] = operation
+    schemas = out["components"].setdefault("schemas", {})
+    for name, schema in contract["components"]["schemas"].items():
+        if name in schemas and schemas[name] != schema:
+            raise ValueError(f"the schema {name} is declared by the daemon and by the contract, with different shapes")
+        schemas[name] = copy.deepcopy(schema)
+    return ordered(out)
 
 
 def dumps(document: dict[str, Any], output_format: str = "json") -> str:

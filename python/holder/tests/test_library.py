@@ -154,14 +154,14 @@ def test_card_create_hierarchy_defaults_and_content(scope):
             if parent is not None:
                 expected["parent_card_id"] = parent
             assert json.loads(request.content) == expected
-            return created({"card_id": "c-0001", "rel_path": "c/1.md"})
+            # The created card, in full.
+            data = card_payload(1, content=True)
+            data.update(parent_card_id=parent, content="", sort_key=1024)
+            return created(data)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
-            return ok(card_payload(content=True))
-        data = card_payload(1, content=True)
-        data.update(parent_card_id=parent, content="", sort_key=1024)
-        return ok(data)
+        assert request.url.path == "/cards/c-0000"
+        return ok(card_payload(content=True))
 
     with holder_for(respond) as h:
         project = h.projects.get("p-0")
@@ -178,7 +178,8 @@ def test_card_create_hierarchy_defaults_and_content(scope):
         assert card.content == ""
         assert card.parent_card_id == parent
         assert card.sort_key == 1024
-        assert requests[-1].url.path == "/cards/c-0001"
+        # The create's response is the card; nothing is fetched after it.
+        assert requests[-1].method == "POST"
 
 
 @pytest.mark.parametrize("operation", ["project_create", "card_create", "rename"])
@@ -199,7 +200,8 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
             if operation == "project_create":
                 return created(project_payload())
             if operation == "card_create":
-                return created({"card_id": "c-0000", "rel_path": "c/0.md"})
+                # A response that is not a card, so reading it fails after the write.
+                return created({"card_id": "c-0000"})
             return ok({"project_id": "p-0"})
         if writes:
             return failure(404)
@@ -211,6 +213,9 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
         "validation": APIError,
         "hydrate": NotFoundError,
     }[error]
+    if (operation, error) == ("card_create", "hydrate"):
+        # A card's create returns the card, so a bad response fails as a protocol error.
+        exception = ProtocolError
     with Holder(transport=httpx.MockTransport(respond)) as h:
         with pytest.raises(exception):
             if operation == "project_create":

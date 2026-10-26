@@ -5,15 +5,15 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_create_request import CardCreateRequest
-from ...models.card_create_response import CardCreateResponse
+from ...models.card_response import CardResponse
 from ...models.error_response import ErrorResponse
+from ...models.new_card import NewCard
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: CardCreateRequest,
+    body: NewCard,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -32,9 +32,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardCreateResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 201:
-        response_201 = CardCreateResponse.from_dict(response.json())
+        response_201 = CardResponse.from_dict(response.json())
 
         return response_201
 
@@ -48,6 +48,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
+
     if response.status_code == 409:
         response_409 = ErrorResponse.from_dict(response.json())
 
@@ -57,11 +62,6 @@ def _parse_response(
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -76,7 +76,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardCreateResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -88,20 +88,21 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: CardCreateRequest,
-) -> Response[CardCreateResponse | ErrorResponse]:
-    """Create a card
+    body: NewCard,
+) -> Response[CardResponse | ErrorResponse]:
+    """Create a card.
+
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        body (CardCreateRequest): Holder generates the card ID, so card_id, like any other
-            unlisted property, is rejected.
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardCreateResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -118,20 +119,21 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: CardCreateRequest,
-) -> CardCreateResponse | ErrorResponse | None:
-    """Create a card
+    body: NewCard,
+) -> CardResponse | ErrorResponse | None:
+    """Create a card.
+
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        body (CardCreateRequest): Holder generates the card ID, so card_id, like any other
-            unlisted property, is rejected.
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardCreateResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -143,20 +145,21 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: CardCreateRequest,
-) -> Response[CardCreateResponse | ErrorResponse]:
-    """Create a card
+    body: NewCard,
+) -> Response[CardResponse | ErrorResponse]:
+    """Create a card.
+
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        body (CardCreateRequest): Holder generates the card ID, so card_id, like any other
-            unlisted property, is rejected.
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardCreateResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -171,20 +174,21 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: CardCreateRequest,
-) -> CardCreateResponse | ErrorResponse | None:
-    """Create a card
+    body: NewCard,
+) -> CardResponse | ErrorResponse | None:
+    """Create a card.
+
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        body (CardCreateRequest): Holder generates the card ID, so card_id, like any other
-            unlisted property, is rejected.
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardCreateResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (

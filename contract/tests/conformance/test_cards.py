@@ -1,18 +1,25 @@
-"""Conformance tests for the Card slice: core, through the generated C API, against the contract.
+"""Conformance tests for the Card slice: core through the generated C API, and the daemon over
+HTTP, against the contract.
 
 Hypothesis drives a model of a project with the contract's operations, drawing arguments from the
 strategies in holder_contract.values, and checks every result two ways: it conforms to the
-operation's declared result type, and it is what the model expects. Each run starts on a new data
-directory. The tests talk to core through Core.call and a few set-up helpers, so the same machine
-can later run over HTTP against the daemon.
+operation's declared result type, and it is what the model expects. The machine talks to Holder
+through a transport's call method and a few set-up helpers, and runs once per transport:
 
-They need a shared libholder built from the same commit: set HOLDER_LIBRARY to its path, for
-example core/build/libholder.so from cmake -DHOLDER_CORE_BUILD_SHARED=ON. Without it they are
-skipped. HOLDER_CONFORMANCE_EXAMPLES sets how many runs Hypothesis makes (default 25).
+- through the C API, with HOLDER_LIBRARY set to a shared libholder built from the same commit (for
+  example core/build/libholder.so from cmake -DHOLDER_CORE_BUILD_SHARED=ON). Each run starts on a
+  new data directory.
+- over HTTP, with HOLDER_DAEMON set to a holderd built from the same commit. One daemon on
+  temporary directories serves every run, each in a new project.
+
+A transport without its variable is skipped. HOLDER_CONFORMANCE_EXAMPLES sets how many runs
+Hypothesis makes for each (default 25).
 """
 
 from __future__ import annotations
 
+import atexit
+import itertools
 import os
 import re
 import shutil
@@ -28,11 +35,27 @@ from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, pr
 from holder_capi import Core, OperationError, Unrepresentable
 from holder_contract.extract import extract
 from holder_contract.values import Values
+from holder_http import Daemon, Http
 
 CONTRACT = Path(__file__).resolve().parents[2]
 IR = extract(CONTRACT, "interface")
 LIBRARY = os.environ.get("HOLDER_LIBRARY")
-pytestmark = pytest.mark.skipif(not LIBRARY, reason="set HOLDER_LIBRARY to a shared libholder to run these")
+DAEMON = os.environ.get("HOLDER_DAEMON")
+needs_library = pytest.mark.skipif(not LIBRARY, reason="set HOLDER_LIBRARY to a shared libholder to run these")
+needs_daemon = pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")
+_daemon: Daemon | None = None
+# A project's directory comes from its name, and the HTTP runs share a daemon, so each run's is new.
+_runs = itertools.count()
+
+
+def shared_daemon() -> Daemon:
+    """The one holderd every HTTP run uses, started on first use and stopped at exit."""
+    global _daemon
+    if _daemon is None:
+        _daemon = Daemon(DAEMON)
+        atexit.register(_daemon.close)
+    return _daemon
+
 
 # Rules the contract states in words rather than types.
 TAG = re.compile(r"[A-Za-z][A-Za-z0-9_/-]*")
@@ -53,21 +76,26 @@ def valid_tag(tag: str) -> bool:
 
 
 class Cards(RuleBasedStateMachine):
+    """The model and its rules; a subclass gives the transport."""
+
     def __init__(self):
         super().__init__()
-        self.data_dir = Path(tempfile.mkdtemp(prefix="holder-conformance-"))
-        self.core = Core(IR, LIBRARY, self.data_dir)
-        self.project = self.core.create_project("Conformance")
+        self.core = self.open()
+        self.project = self.core.create_project(f"Conformance {next(_runs)}")
         self.cards: dict[str, dict] = {}  # every card created, by ID, as the model expects it
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
 
+    def open(self):
+        raise NotImplementedError
+
     def teardown(self):
         self.core.close()
-        shutil.rmtree(self.data_dir, ignore_errors=True)
 
     # ---- the model ----------------------------------------------------------------------------
 
+    # Cards and cursors are sampled in the order they were made, never sorted by ID: IDs differ
+    # from run to run, and a replayed run must draw the same choices.
     def live(self) -> list[dict]:
         return [c for c in self.cards.values() if c["card_id"] not in self.deleted]
 
@@ -78,13 +106,21 @@ class Cards(RuleBasedStateMachine):
 
         overrides = {"ProjectId": mostly(st.just(self.project), "ProjectId")}
         if self.cards:
-            overrides["CardId"] = mostly(st.sampled_from(sorted(self.cards)), "CardId")
+            overrides["CardId"] = mostly(st.sampled_from(list(self.cards)), "CardId")
         return Values(IR, overrides=overrides)
 
     def expect(self, operation: str, kinds: set[str], arguments: dict):
-        """Call operation; it must fail with one of kinds, or succeed when kinds is empty."""
+        """Call operation; it must fail with one of kinds, or succeed when kinds is empty.
+
+        Nothing is checked when the transport cannot send the arguments, such as a cursor too long
+        for a URL; that happens only for arguments the contract rejects anyway.
+        """
         try:
             result = self.core.call(operation, **arguments)
+        except Unrepresentable:
+            event(f"{operation}: not sent")
+            assert kinds, f"{operation} could not send arguments the contract accepts"
+            return None
         except OperationError as error:
             event(f"{operation}: {error.kind}")
             assert error.kind in kinds, f"unexpected {error}"
@@ -105,7 +141,7 @@ class Cards(RuleBasedStateMachine):
         for _ in range(count):
             card = data.draw(self.values().record("NewCard"))
             card["project_id"] = self.project
-            live = sorted(c["card_id"] for c in self.live())
+            live = [c["card_id"] for c in self.live()]
             card["parent_card_id"] = data.draw(st.none() | st.sampled_from(live)) if live else None
             self.create(card, data)
 
@@ -164,7 +200,7 @@ class Cards(RuleBasedStateMachine):
         if known_tags and data.draw(st.booleans()):
             arguments["tag"] = data.draw(st.sampled_from(known_tags + [t.upper() for t in known_tags]))
         if self.cursors and data.draw(st.booleans()):
-            arguments["cursor"] = data.draw(st.sampled_from(sorted(self.cursors)))
+            arguments["cursor"] = data.draw(st.sampled_from(list(self.cursors)))
         self.check_page(arguments)
 
     @rule(data=st.data(), limit=st.integers(1, 4), order=st.sampled_from(sorted(ORDER_KEYS)))
@@ -183,7 +219,7 @@ class Cards(RuleBasedStateMachine):
     @precondition(lambda self: self.live())
     @rule(data=st.data())
     def delete_subtree(self, data):
-        card_id = data.draw(st.sampled_from(sorted(c["card_id"] for c in self.live())))
+        card_id = data.draw(st.sampled_from([c["card_id"] for c in self.live()]))
         self.core.delete_subtree(card_id)
         pending = [card_id]
         while pending:
@@ -257,24 +293,63 @@ class Cards(RuleBasedStateMachine):
         return page
 
 
-@pytest.mark.parametrize("text", [b"\xff", b"\xc0\x80", b"\xed\xa0\x80", b"\xf4\x90\x80\x80", b"a\xe2\x82"],
-                         ids=["invalid byte", "overlong", "surrogate", "above U+10FFFF", "truncated"])
-def test_text_that_is_not_utf8_is_rejected(tmp_path, text):
+class CardsThroughTheCApi(Cards):
+    def open(self):
+        self.data_dir = Path(tempfile.mkdtemp(prefix="holder-conformance-"))
+        return Core(IR, LIBRARY, self.data_dir)
+
+    def teardown(self):
+        super().teardown()
+        shutil.rmtree(self.data_dir, ignore_errors=True)
+
+
+class CardsOverHttp(Cards):
+    def open(self):
+        return Http(IR, shared_daemon())
+
+
+NOT_UTF8 = pytest.mark.parametrize(
+    "text", [b"\xff", b"\xc0\x80", b"\xed\xa0\x80", b"\xf4\x90\x80\x80", b"a\xe2\x82"],
+    ids=["invalid byte", "overlong", "surrogate", "above U+10FFFF", "truncated"])
+
+
+def rejects_text_that_is_not_utf8(transport, project, operations):
+    for operation, arguments in operations:
+        with pytest.raises(OperationError) as error:
+            transport.call(operation, **arguments)
+        assert error.value.kind == "InvalidArgument", operation
+        assert "must be UTF-8" in error.value.message
+
+
+@needs_library
+@NOT_UTF8
+def test_text_that_is_not_utf8_is_rejected_through_the_c_api(tmp_path, text):
     core = Core(IR, LIBRARY, tmp_path)
     try:
         project = core.create_project("UTF-8")
-        for operation, arguments in [("get_card", {"card_id": text}),
-                                     ("create_card", {"card": {"project_id": project, "title": text}}),
-                                     ("list_cards", {"project_id": project, "tag": text})]:
-            with pytest.raises(OperationError) as error:
-                core.call(operation, **arguments)
-            assert error.value.kind == "InvalidArgument", operation
-            assert "must be UTF-8" in error.value.message
+        rejects_text_that_is_not_utf8(core, project, [
+            ("get_card", {"card_id": text}),
+            ("create_card", {"card": {"project_id": project, "title": text}}),
+            ("list_cards", {"project_id": project, "tag": text})])
     finally:
         core.close()
 
 
-Cards.TestCase.settings = settings(max_examples=int(os.environ.get("HOLDER_CONFORMANCE_EXAMPLES", "25")),
-                                   stateful_step_count=15, deadline=None,
-                                   suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
-TestCards = Cards.TestCase
+@needs_daemon
+@NOT_UTF8
+def test_text_that_is_not_utf8_is_rejected_over_http(text):
+    # A JSON body is text, so only the path and the query can carry bytes that are not UTF-8.
+    http = Http(IR, shared_daemon())
+    project = http.create_project(f"UTF-8 {next(_runs)}")
+    rejects_text_that_is_not_utf8(http, project, [
+        ("get_card", {"card_id": text}),
+        ("list_cards", {"project_id": project, "tag": text})])
+
+
+SETTINGS = settings(max_examples=int(os.environ.get("HOLDER_CONFORMANCE_EXAMPLES", "25")),
+                    stateful_step_count=15, deadline=None,
+                    suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
+CardsThroughTheCApi.TestCase.settings = SETTINGS
+CardsOverHttp.TestCase.settings = SETTINGS
+TestCardsThroughTheCApi = needs_library(CardsThroughTheCApi.TestCase)
+TestCardsOverHttp = needs_daemon(CardsOverHttp.TestCase)

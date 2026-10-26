@@ -111,8 +111,10 @@ TEST_CASE(
   for (const auto& limit : {"0", "5001", "bad", "2junk", "-1", "99999999999999999"})
     CHECK(call({{"limit", limit}}).first == http::status::bad_request);
   for (const auto& bad :
-       Params{{"cursor", "bad"}, {"order", "bad"}, {"parent", "bad"}, {"tag", "#work"}})
+       Params{{"cursor", "bad"}, {"order", "bad"}, {"parent", "\xff"}, {"tag", "#work"}})
     CHECK(call({bad}).first == http::status::bad_request);
+  // The contract takes any card ID as a parent; one that names no card has no children.
+  CHECK(call({{"parent", "bad"}}).second["data"]["items"].empty());
   CHECK(call({}, "/projects/missing/cards").first == http::status::not_found);
   CHECK(call({}, "/projects/p/cards", http::verb::post).first == http::status::method_not_allowed);
 
@@ -333,7 +335,6 @@ TEST_CASE("Project card collection pages can include card content", "[card-pages
       http::status::bad_request
   );
   CHECK(call({{"limit", "1001"}}, &store).first == http::status::ok);
-  CHECK(call({{"include_content", "true"}}, nullptr).first == http::status::not_implemented);
 }
 
 TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-pages][repair]") {

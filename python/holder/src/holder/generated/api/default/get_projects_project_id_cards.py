@@ -1,13 +1,12 @@
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import quote
-from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_page_response import CardPageResponse
+from ...models.card_list_item_page_response import CardListItemPageResponse
 from ...models.error_response import ErrorResponse
 from ...models.get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
 from ...models.get_projects_project_id_cards_parent_type_0 import (
@@ -19,8 +18,8 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     project_id: str,
     *,
+    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    parent: GetProjectsProjectIdCardsParentType0 | Unset | UUID = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
@@ -31,17 +30,16 @@ def _get_kwargs(
 
     params: dict[str, Any] = {}
 
-    params["tag"] = tag
-
     json_parent: str | Unset
     if isinstance(parent, Unset):
         json_parent = UNSET
     elif isinstance(parent, GetProjectsProjectIdCardsParentType0):
         json_parent = parent.value
     else:
-        json_parent = str(parent)
-
+        json_parent = parent
     params["parent"] = json_parent
+
+    params["tag"] = tag
 
     json_order: str | Unset = UNSET
     if not isinstance(order, Unset):
@@ -72,9 +70,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardPageResponse | ErrorResponse | None:
+) -> CardListItemPageResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardPageResponse.from_dict(response.json())
+        response_200 = CardListItemPageResponse.from_dict(response.json())
 
         return response_200
 
@@ -93,15 +91,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -116,7 +114,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardPageResponse | ErrorResponse]:
+) -> Response[CardListItemPageResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -129,23 +127,23 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    parent: GetProjectsProjectIdCardsParentType0 | Unset | UUID = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
     cursor: str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
-) -> Response[CardPageResponse | ErrorResponse]:
-    """Page through a project's live cards
+) -> Response[CardListItemPageResponse | ErrorResponse]:
+    """Page through a project's live cards.
 
-     Filters combine. Each page reads current data; iteration is not a snapshot.
+     Filters combine. Each page reads current data; iterating is not a snapshot.
 
     Args:
         project_id (str):
+        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
         tag (str | Unset):
-        parent (GetProjectsProjectIdCardsParentType0 | Unset | UUID):
         order (GetProjectsProjectIdCardsOrder | Unset):  Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
         limit (int | Unset):  Default: 200.
@@ -158,13 +156,13 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPageResponse | ErrorResponse]
+        Response[CardListItemPageResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        tag=tag,
         parent=parent,
+        tag=tag,
         order=order,
         limit=limit,
         cursor=cursor,
@@ -183,23 +181,23 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    parent: GetProjectsProjectIdCardsParentType0 | Unset | UUID = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
     cursor: str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
-) -> CardPageResponse | ErrorResponse | None:
-    """Page through a project's live cards
+) -> CardListItemPageResponse | ErrorResponse | None:
+    """Page through a project's live cards.
 
-     Filters combine. Each page reads current data; iteration is not a snapshot.
+     Filters combine. Each page reads current data; iterating is not a snapshot.
 
     Args:
         project_id (str):
+        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
         tag (str | Unset):
-        parent (GetProjectsProjectIdCardsParentType0 | Unset | UUID):
         order (GetProjectsProjectIdCardsOrder | Unset):  Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
         limit (int | Unset):  Default: 200.
@@ -212,14 +210,14 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPageResponse | ErrorResponse
+        CardListItemPageResponse | ErrorResponse
     """
 
     return sync_detailed(
         project_id=project_id,
         client=client,
-        tag=tag,
         parent=parent,
+        tag=tag,
         order=order,
         limit=limit,
         cursor=cursor,
@@ -232,23 +230,23 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    parent: GetProjectsProjectIdCardsParentType0 | Unset | UUID = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
     cursor: str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
-) -> Response[CardPageResponse | ErrorResponse]:
-    """Page through a project's live cards
+) -> Response[CardListItemPageResponse | ErrorResponse]:
+    """Page through a project's live cards.
 
-     Filters combine. Each page reads current data; iteration is not a snapshot.
+     Filters combine. Each page reads current data; iterating is not a snapshot.
 
     Args:
         project_id (str):
+        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
         tag (str | Unset):
-        parent (GetProjectsProjectIdCardsParentType0 | Unset | UUID):
         order (GetProjectsProjectIdCardsOrder | Unset):  Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
         limit (int | Unset):  Default: 200.
@@ -261,13 +259,13 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPageResponse | ErrorResponse]
+        Response[CardListItemPageResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        tag=tag,
         parent=parent,
+        tag=tag,
         order=order,
         limit=limit,
         cursor=cursor,
@@ -284,23 +282,23 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
+    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    parent: GetProjectsProjectIdCardsParentType0 | Unset | UUID = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
     cursor: str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
-) -> CardPageResponse | ErrorResponse | None:
-    """Page through a project's live cards
+) -> CardListItemPageResponse | ErrorResponse | None:
+    """Page through a project's live cards.
 
-     Filters combine. Each page reads current data; iteration is not a snapshot.
+     Filters combine. Each page reads current data; iterating is not a snapshot.
 
     Args:
         project_id (str):
+        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
         tag (str | Unset):
-        parent (GetProjectsProjectIdCardsParentType0 | Unset | UUID):
         order (GetProjectsProjectIdCardsOrder | Unset):  Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
         limit (int | Unset):  Default: 200.
@@ -313,15 +311,15 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPageResponse | ErrorResponse
+        CardListItemPageResponse | ErrorResponse
     """
 
     return (
         await asyncio_detailed(
             project_id=project_id,
             client=client,
-            tag=tag,
             parent=parent,
+            tag=tag,
             order=order,
             limit=limit,
             cursor=cursor,

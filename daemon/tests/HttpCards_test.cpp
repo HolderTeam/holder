@@ -1216,8 +1216,8 @@ TEST_CASE("HTTP card create rejects caller-supplied card_id", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(rejected["ok"] == false);
-  REQUIRE(rejected["error"]["code"] == "bad_request");
-  REQUIRE(rejected["error"]["message"] == "unexpected CardCreateRequest field");
+  REQUIRE(rejected["error"]["code"] == "invalid_argument");
+  REQUIRE(rejected["error"]["message"] == "NewCard has no field card_id");
   holder::card::CardRepo card_repo(db);
   REQUIRE_FALSE(card_repo.get(supplied_id).has_value());
 
@@ -1262,7 +1262,8 @@ TEST_CASE("HTTP card endpoints reject missing fields", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(bad_create["ok"] == false);
-  REQUIRE(bad_create["error"]["code"] == "bad_request");
+  // The contract's routes name an invalid argument as the contract does.
+  REQUIRE(bad_create["error"]["code"] == "invalid_argument");
 
   const auto bad_patch = http_json_request(
       bound.bind,
@@ -1379,7 +1380,7 @@ TEST_CASE("HTTP card endpoints handle bad JSON and missing cards", "[http]") {
   REQUIRE(res.result() == http::status::bad_request);
   const auto error = nlohmann::json::parse(res.body());
   REQUIRE(error["ok"] == false);
-  REQUIRE(error["error"]["code"] == "bad_request");
+  REQUIRE(error["error"]["code"] == "invalid_argument");
   REQUIRE(error["error"]["message"].is_string());
 
   const auto missing = http_json_request(

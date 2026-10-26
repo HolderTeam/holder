@@ -1,12 +1,9 @@
 #include "api/CardWrite.h"
 
 #include "api/support/Time.h"
-#include "card/CardPaths.h"
 #include "card/CardPlacementError.h"
 #include "card/CardStore.h"
-#include "identity/Uuid.h"
 #include "card/TagExtractor.h"
-#include "project/ProjectRepo.h"
 
 #include <utility>
 
@@ -105,30 +102,6 @@ CardTagMutationResponse tag_result(std::string card_id, const std::string& tag,
 }
 
 } // namespace
-
-CardCreateResponse post_cards(holder::platform::Db& db,
-                              holder::card::CardStore* card_store,
-                              CardCreateRequest request) {
-  auto& store = require_card_store(card_store);
-  const auto project = holder::project::ProjectRepo(db).get(request.project_id);
-  if (!project) throw std::invalid_argument("Project not found.");
-
-  holder::model::Card card;
-  card.project_id = std::move(request.project_id);
-  card.card_id = holder::identity::generate_id(project->id_scheme);
-  card.title = std::move(request.title);
-  card.created_at = request.created_at.value_or(0);
-  if (card.created_at <= 0) card.created_at = support::now_epoch_seconds();
-  card.updated_at = request.updated_at.value_or(0);
-  if (card.updated_at <= 0) card.updated_at = card.created_at;
-  if (request.parent_card_id) card.parent_card_id = std::move(*request.parent_card_id);
-  card.rel_path = holder::core::card_rel_path(card.card_id);
-  if (request.rel_path && *request.rel_path && **request.rel_path != card.rel_path)
-    throw std::invalid_argument("rel_path must be " + card.rel_path + ".");
-
-  write_card([&] { store.create(card, request.content, request.sort_key); });
-  return {true, {std::move(card.card_id), std::move(card.rel_path)}};
-}
 
 CardPatchResponse patch_cards_card_id(holder::card::CardStore* card_store,
                                       std::string card_id,

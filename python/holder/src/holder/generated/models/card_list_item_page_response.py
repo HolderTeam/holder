@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_data import CardData
+    from ..models.card_list_item_page import CardListItemPage
 
 
-T = TypeVar("T", bound="CardGetResponse")
+T = TypeVar("T", bound="CardListItemPageResponse")
 
 
 @_attrs_define
-class CardGetResponse:
+class CardListItemPageResponse:
     """
     Attributes:
         ok (bool):
-        data (CardData):
+        data (CardListItemPage): One page of a listing.
     """
 
     ok: bool
-    data: CardData
+    data: CardListItemPage
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,20 +44,20 @@ class CardGetResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_data import CardData
+        from ..models.card_list_item_page import CardListItemPage
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardData.from_dict(d.pop("data"))
+        data = CardListItemPage.from_dict(d.pop("data"))
 
-        card_get_response = cls(
+        card_list_item_page_response = cls(
             ok=ok,
             data=data,
         )
 
-        card_get_response.additional_properties = d
-        return card_get_response
+        card_list_item_page_response.additional_properties = d
+        return card_list_item_page_response
 
     @property
     def additional_keys(self) -> list[str]:
