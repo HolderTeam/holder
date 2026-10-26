@@ -181,10 +181,8 @@ Card create_card(holder_context& context, const NewCard& request) {
   card.project_id = request.project_id;
   card.title = request.title;
   card.parent_card_id = request.parent_card_id;
-  card.created_at = request.created_at.value_or(0);
-  if (card.created_at <= 0) card.created_at = now_epoch_seconds();
-  card.updated_at = request.updated_at.value_or(0);
-  if (card.updated_at <= 0) card.updated_at = card.created_at;
+  card.created_at = request.created_at.value_or(now_epoch_seconds());
+  card.updated_at = request.updated_at.value_or(card.created_at);
   card.rel_path = holder::core::card_rel_path(card.card_id);
 
   auto store = card_store(context);

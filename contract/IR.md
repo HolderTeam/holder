@@ -56,6 +56,8 @@ Every `type` is an object with a `kind`:
 | `stream` | `items` | `Stream[T]`, only as a result |
 | `bytes` | | `Bytes`, only as a result |
 
-A type may also carry constraints: `min_length`, `max_length`, `pattern`, `ge`, `le`, `gt` and `lt`.
+A type may also carry constraints: `min_length`, `max_length`, `pattern`, `ge`, `le`, `gt` and `lt`. Lengths count characters.
+
+Every `string` is Unicode text without U+0000, and every `float64` is finite; neither rule is written in the IR.
 
 Omission is not a type. It belongs to a record's field, as `omittable`.

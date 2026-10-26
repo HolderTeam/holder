@@ -16,7 +16,8 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
   - An operation with no result has no `out_` parameter.
 - **Error codes:** `HOLDER_ERROR_INVALID_ARGUMENT` (1) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (2) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (3). Each error kind in the contract gets its own code from 100, in the contract's order, such as `HOLDER_ERROR_NOT_FOUND`.
 - **Memory:** results live in the `holder_arena` the caller passes, until `holder_arena_free`. Nothing in a result needs freeing on its own.
-- **Strings** are NUL-terminated UTF-8.
+- **Strings** are NUL-terminated UTF-8. The glue rejects text that is not well-formed UTF-8, and length constraints count characters, not bytes.
+- **Numbers:** the glue rejects a `double` that is NaN or infinite.
 - **Nullable and optional values:**
   - A nullable or absent string is `NULL`.
   - A nullable, absent or defaulted number in a record is a pointer, `NULL` when absent.
@@ -29,7 +30,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
   - A choice of literals is an enum. Its zero member is `…_DEFAULT` when the parameter has a default, and the other members start at 1.
   - A choice between literals and a string, such as `"roots"` or a card ID, is a `{kind, value}` struct whose zero kind means null.
   - Every enum ends with `…_MAX_ENUM = 0x7FFFFFFF`, so any `int` is a valid value of the type and the glue can reject a bad one without undefined behaviour.
-- **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_card_create card = {0};` then set what you need.
+- **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_new_card card = {0};` then set what you need.
 - **Generic records** are generated for each use: `Page[CardListItem]` becomes `holder_card_list_item_page`.
 
-Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, host interfaces, error kinds with fields, maps, free-form JSON, secrets, streams, bytes, and fields that are both nullable and omittable. Each is added when the first contract declaration needs it.
+Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, host interfaces, error kinds with fields, maps, free-form JSON, secrets, streams, bytes, fields that are both nullable and omittable, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.

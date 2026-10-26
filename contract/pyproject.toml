@@ -9,3 +9,7 @@ pythonpath = ["."]
 target-version = "py312"
 line-length = 120
 extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint.isort]
+# holder_capi is the conformance tests' own module, imported from their directory.
+known-first-party = ["holder_contract", "holder_capi", "interface"]

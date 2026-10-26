@@ -122,9 +122,9 @@ typedef enum holder_list_cards_order {
 /* Page through a project's live cards.
  * Filters combine. Each page reads current data; iterating is not a snapshot.
  * parent: Omit for every level; roots selects root cards; a card ID selects its children. The zero value is null.
- * tag: Only cards with this tag, matched without case and without the leading #. May be NULL.
+ * tag: Only cards with this tag, matched without case and without the leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is not a tag. May be NULL.
  * order: updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.
- * limit: NULL for 200.
+ * limit: At most 1000 when include_content is true. NULL for 200.
  * cursor: The previous page's next_cursor. Keep the project, filters and order unchanged. May be NULL.
  * include_content: Include each card's body.
  * include_child_count: Include each card's count of live children.

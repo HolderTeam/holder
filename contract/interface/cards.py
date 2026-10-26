@@ -122,11 +122,13 @@ def list_cards(
     parent: Annotated[Literal["roots"] | CardId | None, Field(
         description="Omit for every level; roots selects root cards; a card ID selects its children.")] = None,
     tag: Annotated[Annotated[str, Field(min_length=1)] | None, Field(
-        description="Only cards with this tag, matched without case and without the leading #.")] = None,
+        description="Only cards with this tag, matched without case and without the leading #. A tag starts with "
+                    "an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is "
+                    "not a tag.")] = None,
     order: Annotated[Literal["card_id_asc", "updated_desc", "sort_key_asc"], Field(
         description="updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.")]
     = "card_id_asc",
-    limit: Annotated[Int32, Field(ge=1, le=5000)] = 200,
+    limit: Annotated[Int32, Field(ge=1, le=5000, description="At most 1000 when include_content is true.")] = 200,
     cursor: Annotated[Annotated[str, Field(min_length=1, max_length=8192)] | None, Field(
         description="The previous page's next_cursor. Keep the project, filters and order unchanged.")] = None,
     include_content: Annotated[bool, Field(description="Include each card's body.")] = False,

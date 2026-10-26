@@ -39,6 +39,16 @@ def test_unsupported_parts_of_the_contract_stop_generation():
         generate(extract(TESTS / "fixtures", "sample"))
 
 
+@pytest.mark.parametrize("constraint, message", [({"pattern": "[a-z]+"}, "patterns"),
+                                                 ({"kind": "float64", "ge": 0}, "bounds on a float64")])
+def test_constraints_the_glue_cannot_check_stop_generation(constraint, message):
+    ir = holder_ir()
+    get_card = next(op for op in ir["operations"] if op["name"] == "get_card")
+    get_card["parameters"][0]["type"] = {"kind": "string", **constraint}
+    with pytest.raises(Unsupported, match=message):
+        generate(ir)
+
+
 @pytest.mark.parametrize("name, expected", [("CardListItem", "card_list_item"), ("Card", "card"),
                                             ("NotFound", "not_found")])
 def test_snake_case(name, expected):
