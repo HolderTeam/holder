@@ -1,0 +1,315 @@
+name: Daemon / Jobs
+
+on:
+  workflow_call:
+    inputs:
+      core_build_type:
+        type: string
+        default: RelWithDebInfo
+      core_packages:
+        type: string
+        default: source
+      shared_sdk_commit:
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      daemon: ${{ steps.select.outputs.daemon }}
+    env:
+      SCOPED: ${{ github.event_name == 'pull_request' }}
+      SHARED_SDK: ${{ inputs.shared_sdk_commit }}
+    steps:
+      - if: env.SCOPED == 'true'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        name: Select jobs from the changed paths
+        run: |
+          if [[ -n "$SHARED_SDK" || "$SCOPED" != true ]]; then
+            echo "daemon=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request merge commit's parents are the base and the pull request head.
+          changed=$(git diff --name-only HEAD^1...HEAD^2)
+          printf '%s\n' "$changed"
+          # The daemon uses core's C++ classes, never its C API, and core's tests run in Core / CI,
+          # so changes only to those don't select the daemon jobs. Keep in step with the paths.
+          changed=$(grep -vE '^core/(include/holder/holder\.h$|src/capi/|tests/)' <<< "$changed" || true)
+          if grep -qE '^(daemon/|cli/|common/|api/|core/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+            echo "daemon=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "daemon=false" >> "$GITHUB_OUTPUT"
+          fi
+  resolve:
+    needs: changes
+    if: needs.changes.outputs.daemon == 'true'
+    runs-on: ubuntu-24.04
+    outputs:
+      daemon_commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate SDK configuration
+        env:
+          BUILD_TYPE: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+        run: |
+          case "$BUILD_TYPE" in
+            RelWithDebInfo|Release) ;;
+            *) echo "Unsupported SDK configuration: $BUILD_TYPE" >&2; exit 1 ;;
+          esac
+      - id: source
+        name: Record daemon source revision
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  checks:
+    # Fast checks that need no build: no paths across the core boundary, and make.sh's core selection.
+    needs: changes
+    if: needs.changes.outputs.daemon == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check the core boundary
+        run: python3 .github/scripts/check-core-boundary.py
+      - name: Test make.sh's core selection
+        working-directory: daemon
+        run: python3 -m unittest scripts/test_make.py -v
+  rig-contract:
+    # api/openapi.yaml and the daemon's generated dispatcher and JSON codec (daemon/src/api/generated)
+    # must be exactly what RIG generates from the declarations in daemon/src/api.
+    # Reflection needs a GCC 16 release (parameter annotations arrived after Ubuntu 26.04's g++-16
+    # snapshot), so this runs in Fedora; the daemon's own builds do not need it.
+    needs: core-sdk
+    runs-on: ubuntu-24.04
+    container: fedora:45
+    steps:
+      - name: Install GCC 16 and Python
+        run: dnf install -y gcc-c++ make diffutils git json-devel python3 python-unversioned-command
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: sdk
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ needs.core-sdk.outputs.commit }}
+          build-type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+      - name: Install RIG
+        run: |
+          python3 -m venv "$RUNNER_TEMP/rig"
+          "$RUNNER_TEMP/rig/bin/pip" install -r api/rig/requirements.txt
+      - name: Check the RIG contract and generated code
+        env:
+          CORE_SDK: ${{ steps.sdk.outputs.sdk }}
+        run: >-
+          make -C api/rig check RIG="$RUNNER_TEMP/rig/bin/rig" CORE_INCLUDE="$CORE_SDK/include"
+  core-sdk:
+    # The daemon builds against core from this same commit, through core's installed SDK.
+    needs: resolve
+    # Core / SDK deletes this branch's older vcpkg binary caches.
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/core-sdk.yml
+    with:
+      provided_commit: ${{ inputs.shared_sdk_commit || '' }}
+      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  linux:
+    needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/daemon-linux-backend.yml
+    with:
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
+      daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
+      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  macos:
+    needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/daemon-macos-backend.yml
+    with:
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
+      daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
+      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  windows:
+    needs: [resolve, core-sdk]
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/daemon-windows-backend.yml
+    with:
+      core_commit: ${{ needs.core-sdk.outputs.commit }}
+      daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
+      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
+  publish-linux-daemon:
+    # Publishes main's tested Linux daemon to HolderTeam/holder-sdk, named after the hash of every
+    # tree it was built from (linux-daemon-cache-key.sh), so Python / Check and others take it
+    # instead of building the daemon; keeps the newest 32 such releases. Only main may use the
+    # holder-sdk-publish environment, which holds the publishing app's key.
+    needs: linux
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: holder-sdk-publish
+    concurrency:
+      group: holder-sdk-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: key
+        name: Compute the daemon build's key
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh RelWithDebInfo)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: holder-daemon-linux-x86_64
+          path: out/linux-daemon
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish the Linux daemon
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: .github/scripts/publish-daemon-build.sh out/linux-daemon "${{ steps.key.outputs.key }}"
+
+      - name: Keep the newest 32 daemon releases
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: .github/scripts/prune-sdk-releases.sh daemon- 32
+
+  ubuntu-packages:
+    # Maintainers can label a PR when Launchpad is unavailable. The required result check
+    # records the skipped package build; all non-package builds still have to pass.
+    if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
+    needs: [resolve, core-sdk]
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
+        # backend build); main and manual runs build for both.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    env:
+      # The package is built from daemon/ copied out on its own, as the Debian source package is,
+      # so a file the build reads from beside daemon/ shows up here instead of on Launchpad.
+      EXPORTED_DAEMON: /tmp/export/daemon
+      # By default libholder packages are built here from core/ in this commit, the same core the
+      # other jobs use, so a daemon change needing new core does not wait on Launchpad. The ppa
+      # choice builds against the published Launchpad packages instead, as users install them.
+      CORE_PACKAGES: ${{ inputs.core_packages || 'source' }}
+    steps:
+      - name: Install packaging tools and configure package source
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates software-properties-common git devscripts equivs debhelper cmake ninja-build
+          # The PPA also provides daemon build dependencies that Ubuntu does not, such as libcaste-dev.
+          add-apt-repository -y ppa:holderteam/holder
+          if [ "$CORE_PACKAGES" = source ]; then
+            # Only the core packages built below may satisfy libholder.
+            printf 'Package: libholder0 libholder-dev\nPin: release o=LP-PPA-holderteam-holder\nPin-Priority: -1\n' \
+              > /etc/apt/preferences.d/no-ppa-libholder
+          fi
+          apt-get update
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.daemon_commit }}
+          persist-credentials: false
+      - name: Core packages for core/ in this commit, from holder-sdk or built
+        if: env.CORE_PACKAGES == 'source'
+        uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ matrix.series }}
+      - name: Export daemon/ on its own, as the Debian source package sees it
+        run: |
+          mkdir -p "$(dirname "${EXPORTED_DAEMON}")"
+          cp -a daemon "${EXPORTED_DAEMON}"
+          daemon/packaging/linux/prepare-source-tree.sh "${GITHUB_WORKSPACE}" "${EXPORTED_DAEMON}"
+      - name: Build daemon against the installed core packages
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: ${{ env.EXPORTED_DAEMON }}
+        run: |
+          cp -a packaging/linux/debian debian
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc -j2
+      - name: Verify shared core linkage and package dependency
+        shell: bash
+        working-directory: ${{ env.EXPORTED_DAEMON }}
+        run: |
+          ldd build/holderd | grep 'libholder.so.0'
+          ldd build/holderctl | grep 'libholder.so.0'
+          package=$(find .. -maxdepth 1 -name 'holder-daemon_*.deb' -print -quit)
+          # holderd uses core's C++ headers, so it must require libholder0 of the same upstream version.
+          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
+          depends=$(dpkg-deb -f "$package" Depends)
+          echo "$depends"
+          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
+          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
+          test ! -d build/holder-core
+          dpkg -i "$package"
+          holderd --version
+          holderctl --help
+          mkdir -p out/ubuntu-packages
+          cp "$package" out/ubuntu-packages/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: holder-daemon-${{ matrix.series }}-packages
+          path: ${{ env.EXPORTED_DAEMON }}/out/ubuntu-packages/*.deb
+          if-no-files-found: error
+  result:
+    name: Daemon CI result
+    # The required check. It runs even when jobs fail or are skipped, and passes only when every
+    # selected job succeeded and no job ran that was not selected.
+    if: always()
+    needs: [changes, checks, resolve, core-sdk, linux, macos, windows, ubuntu-packages]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check job results
+        env:
+          SELECTED: ${{ needs.changes.outputs.daemon }}
+          RESULTS: ${{ toJSON(needs) }}
+          SKIP_LAUNCHPAD: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages') }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          if [[ "$SKIP_LAUNCHPAD" == true && "$SELECTED" == true ]]; then
+            echo '::warning::Ubuntu package build skipped by ci:skip-launchpad-packages label'
+            echo 'Ubuntu package build skipped by the `ci:skip-launchpad-packages` PR label.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          jq -e --arg selected "$SELECTED" --arg skip "$SKIP_LAUNCHPAD" '
+            .changes.result == "success" and
+            (if $selected == "true" then
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
+               (if $skip == "true" then
+                  .["ubuntu-packages"].result == "skipped"
+                else
+                  (.["ubuntu-packages"].result | IN("success", "skipped"))
+                end)
+             else
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
+             end)' <<< "$RESULTS" > /dev/null

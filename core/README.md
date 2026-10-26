@@ -349,3 +349,13 @@ GitHub Linux SDK archive. Check Launchpad binary build/publication results
 before relying on an uploaded package.
 
 Non-C++ consumers, such as a future C# frontend, should use the C API in `include/holder/holder.h` rather than binding to the C++ headers.
+
+### CI SDK handoff
+
+The automatic `Daemon / CI` entrypoint coordinates Core, Daemon, Kit and Python
+checks. Core's platform tests run in parallel with SDK production. One SDK per
+required platform/configuration is shared through verified artifacts in that
+run; Python's live checks use only the Linux selection. Core's own manual
+workflow remains available for standalone tests and compiler-cache measurements.
+See the [shared SDK CI design](../.github/docs/shared-sdk-ci.md) for the dependency
+graph, failure policy and standalone release entrypoints.

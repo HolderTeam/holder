@@ -12,6 +12,11 @@ on:
       - .github/workflows/core-ci.yml
       - .github/workflows/core-sdk.yml
       - .github/actions/core-sdk/**
+  workflow_call:
+    inputs:
+      external_sdk:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       measure_cache:
@@ -44,8 +49,9 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          EXTERNAL_SDK: ${{ inputs.external_sdk }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ "$EXTERNAL_SDK" == true || "$EVENT" != pull_request ]]; then
             echo "core=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -357,7 +363,7 @@ jobs:
     # Core's SDK for this commit, cached by core/'s tree. Saved from main, it is the latest core
     # that consumers and pull requests not changing core take instead of building core again.
     needs: changes
-    if: needs.changes.outputs.core == 'true'
+    if: needs.changes.outputs.core == 'true' && !inputs.external_sdk
     permissions:
       actions: write
       contents: read
@@ -406,70 +412,9 @@ jobs:
           retention-days: 7
 
   publish-sdk:
-    # Publishes main's core SDKs to HolderTeam/holder-sdk as the prerelease core-<tree> once core's
-    # tests and SDKs have passed, so pull requests and people building on Holder can take them
-    # instead of building core, and keeps the newest 32 such releases. Only main may use the
-    # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
-    # run this job.
     needs: [linux, macos, windows, sdk, ubuntu-packages]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    environment: holder-sdk-publish
-    concurrency:
-      group: holder-sdk-publish
-      cancel-in-progress: false
-    defaults:
-      run:
-        working-directory: .
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - id: tree
-        name: Identify core/'s tree
-        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: core-sdk-*-RelWithDebInfo
-          path: out/core-sdk-assets
-          merge-multiple: true
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: core-selection
-          path: out
-
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: core-debs-*
-          path: out/core-debs
-          merge-multiple: true
-
-      - id: token
-        name: Get a token for holder-sdk
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
-          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
-          owner: HolderTeam
-          repositories: holder-sdk
-          permission-contents: write
-
-      - name: Publish core-<tree>
-        env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
-          SDK_PACKAGES: out/core-debs
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: >-
-          .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
-          "${{ steps.tree.outputs.tree }}"
-
-      - name: Keep the newest 32 core-<tree> releases
-        env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
-        run: .github/scripts/prune-sdk-releases.sh core- 32
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.external_sdk
+    uses: ./.github/workflows/core-sdk-publish.yml
 
   result:
     name: Core CI result
@@ -486,12 +431,14 @@ jobs:
         env:
           SELECTED: ${{ needs.changes.outputs.core }}
           RESULTS: ${{ toJSON(needs) }}
+          EXTERNAL_SDK: ${{ inputs.external_sdk }}
         run: |
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
-          jq -e --arg selected "$SELECTED" '
+          jq -e --arg selected "$SELECTED" --arg external "$EXTERNAL_SDK" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .macos, .windows, .sdk] | all(.result == "success"))
+               ([.linux, .macos, .windows] | all(.result == "success")) and
+               .sdk.result == (if $external == "true" then "skipped" else "success" end)
              else
                ([.linux, .macos, .windows, .sdk] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

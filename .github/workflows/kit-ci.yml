@@ -17,6 +17,14 @@ on:
       - .github/actions/core-ubuntu-packages/**
       - .github/scripts/fetch-core-debs.sh
       - .github/scripts/check-core-boundary.py
+  workflow_call:
+    inputs:
+      shared_sdk_commit:
+        type: string
+        default: ''
+      shared_sdk_selection:
+        type: string
+        default: core-selection
   workflow_dispatch:
 
 permissions:
@@ -44,8 +52,9 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          SHARED_SDK: ${{ inputs.shared_sdk_commit }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ -n "$SHARED_SDK" || "$EVENT" != pull_request ]]; then
             echo "kit=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -82,6 +91,8 @@ jobs:
       actions: write
       contents: read
     uses: ./.github/workflows/core-sdk.yml
+    with:
+      provided_commit: ${{ inputs.shared_sdk_commit || '' }}
 
   linux:
     needs: [changes, core-sdk]
@@ -374,7 +385,7 @@ jobs:
   ubuntu-packages:
     # python3-holder-kit as Launchpad builds it: from python/kit/ copied out on its own, against
     # libholder packages for core/ in this commit (from holder-sdk, or built here).
-    needs: changes
+    needs: [changes, core-sdk]
     if: needs.changes.outputs.kit == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
     strategy:
       fail-fast: false

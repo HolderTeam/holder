@@ -6,6 +6,9 @@ inputs:
   commit:
     description: The commit Core / SDK reported, which the SDK must record
     required: true
+  selection-artifact:
+    description: Selection artifact override; otherwise uses HOLDER_CORE_SELECTION_ARTIFACT or core-selection
+    default: ''
   build-type:
     description: RelWithDebInfo for development; Release for shipping
     default: RelWithDebInfo
@@ -18,7 +21,7 @@ runs:
   steps:
     - uses: actions/download-artifact@v4
       with:
-        name: core-selection
+        name: ${{ inputs.selection-artifact || env.HOLDER_CORE_SELECTION_ARTIFACT || 'core-selection' }}
         path: out
     - uses: actions/download-artifact@v4
       with:

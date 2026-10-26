@@ -11,6 +11,14 @@ on:
       - 'api/openapi.yaml'
       - '.github/workflows/python-check.yml'
       - '.github/scripts/fetch-daemon-build.sh'
+  workflow_call:
+    inputs:
+      shared_sdk_commit:
+        type: string
+        default: ''
+      shared_sdk_selection:
+        type: string
+        default: core-selection
   workflow_dispatch:
 
 permissions:
@@ -31,8 +39,9 @@ jobs:
         name: Select jobs from the changed paths
         env:
           EVENT: ${{ github.event_name }}
+          SHARED_SDK: ${{ inputs.shared_sdk_commit }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
+          if [[ -n "$SHARED_SDK" || "$EVENT" != pull_request ]]; then
             echo "python=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -74,6 +83,8 @@ jobs:
       contents: read
     uses: ./.github/workflows/core-sdk.yml
     with:
+      provided_commit: ${{ inputs.shared_sdk_commit || '' }}
+      selection_artifact: ${{ inputs.shared_sdk_selection || 'core-selection' }}
       platforms: '["linux"]'
   live:
     # Live tests against a holderd built from this tree. Daemon CI caches that build and, on main,
@@ -83,6 +94,7 @@ jobs:
     if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-24.04
     env:
+      HOLDER_CORE_SELECTION_ARTIFACT: ${{ inputs.shared_sdk_selection || 'core-selection' }}
       BUILD_TYPE: RelWithDebInfo
       STAGE: ${{ github.workspace }}/daemon/out/artifacts/linux-backend
     steps:

@@ -1,0 +1,68 @@
+name: Core / Publish tested SDK
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: holder-sdk-publish
+    concurrency:
+      group: holder-sdk-publish
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: tree
+        name: Identify core/'s tree
+        run: echo "tree=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-sdk-*-RelWithDebInfo
+          path: out/core-sdk-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: core-selection
+          path: out
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-debs-*
+          path: out/core-debs
+          merge-multiple: true
+
+      - id: token
+        name: Get a token for holder-sdk
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HOLDER_SDK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOLDER_SDK_APP_PRIVATE_KEY }}
+          owner: HolderTeam
+          repositories: holder-sdk
+          permission-contents: write
+
+      - name: Publish core-<tree>
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SDK_PACKAGES: out/core-debs
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          .github/scripts/publish-core-sdk.sh out/core-sdk-assets out/core-selection.json
+          "${{ steps.tree.outputs.tree }}"
+
+      - name: Keep the newest 32 core-<tree> releases
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: .github/scripts/prune-sdk-releases.sh core- 32
+

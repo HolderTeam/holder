@@ -10,6 +10,14 @@ name: Core / SDK
 on:
   workflow_call:
     inputs:
+      provided_commit:
+        description: Consume this run's existing SDK selection instead of producing archives
+        type: string
+        default: ''
+      selection_artifact:
+        description: Unique selection artifact for this producer or consumer
+        type: string
+        default: core-selection
       build_type:
         description: RelWithDebInfo for development; Release for shipping
         type: string
@@ -25,7 +33,7 @@ on:
     outputs:
       commit:
         description: The calling commit, which the core selection records (each SDK records the commit that built it)
-        value: ${{ jobs.index.outputs.commit }}
+        value: ${{ jobs.index.outputs.commit || jobs.provided.outputs.commit }}
 
 permissions:
   contents: read
@@ -36,6 +44,7 @@ defaults:
 
 jobs:
   sdk:
+    if: inputs.provided_commit == ''
     # actions: write deletes this branch's older vcpkg binary caches; callers must grant it.
     permissions:
       actions: write
@@ -250,6 +259,7 @@ jobs:
           retention-days: 7
 
   index:
+    if: inputs.provided_commit == ''
     needs: sdk
     runs-on: ubuntu-24.04
     outputs:
@@ -258,9 +268,23 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - id: pattern
+        name: Select only this producer's platform archives
+        shell: bash
+        env:
+          PLATFORMS: ${{ inputs.platforms }}
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          platforms = json.loads(os.environ['PLATFORMS'])
+          platform = platforms[0] if len(platforms) == 1 else '*'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"pattern=core-sdk-{platform}-{os.environ['BUILD_TYPE']}\n")
+          PYCODE
       - uses: actions/download-artifact@v8
         with:
-          pattern: core-sdk-*-${{ inputs.build_type }}
+          pattern: ${{ steps.pattern.outputs.pattern }}
           path: core/out/core-sdk-assets
           merge-multiple: true
       - id: index
@@ -270,7 +294,41 @@ jobs:
           --commit "$(git rev-parse HEAD)" --tree "$(git rev-parse HEAD:core)"
       - uses: actions/upload-artifact@v7
         with:
-          name: core-selection
+          name: ${{ inputs.selection_artifact }}
           path: core/out/core-selection.json
           if-no-files-found: error
           retention-days: 7
+
+  provided:
+    if: inputs.provided_commit != ''
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.selection_artifact }}
+          path: out
+      - name: Verify shared SDK identity and configurations
+        env:
+          PROVIDED_COMMIT: ${{ inputs.provided_commit }}
+          BUILD_TYPE: ${{ inputs.build_type }}
+          PLATFORMS: ${{ inputs.platforms }}
+        run: >-
+          python3 .github/scripts/verify-shared-sdk.py
+          --commit "$PROVIDED_COMMIT" --build-type "$BUILD_TYPE" --platforms "$PLATFORMS"
+      - name: Verify the Linux archive through the normal fetch path
+        if: contains(fromJSON(inputs.platforms), 'linux')
+        uses: ./.github/actions/core-sdk
+        with:
+          commit: ${{ inputs.provided_commit }}
+          build-type: ${{ inputs.build_type }}
+          selection-artifact: ${{ inputs.selection_artifact }}
+      - id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
