@@ -43,12 +43,15 @@ Holder's own clients (the desktop app, `holderctl`, the Python client) are clien
 other: they use only what this contract documents, never undocumented behaviour or the daemon's
 or core's internals. Third-party clients rely on the same document.
 
-- **Breaking changes need a new `API_VERSION`.** Clients accept a range of `API_VERSION`s, so a
-  change that would break an existing client must move `API_VERSION` out of the range they accept:
-  the next minor version while the major version is 0 (0.1 to 0.2), and the next major version from
-  1.0. The `API / Contract` workflow checks every pull request that changes this directory with
-  [oasdiff](https://github.com/oasdiff/oasdiff) and fails on a breaking change without that bump.
-  `API_VERSION` never goes down.
+- **Until Holder 1.0, `API_VERSION` stays at 0.1.** Holder promises no stable API before 1.0, and
+  the contract changes knowingly as it moves to [`contract/`](../contract/). A pull request that
+  breaks the contract updates Holder's own clients in the same pull request and is labelled
+  `api: unreleased change`, which the `API / Contract` workflow accepts in place of a bump.
+- **From Holder 1.0, breaking changes need a new `API_VERSION`.** Clients accept a range of
+  `API_VERSION`s, so a change that would break an existing client must move `API_VERSION` out of
+  the range they accept: the next major version. The `API / Contract` workflow checks every pull
+  request that changes this directory with [oasdiff](https://github.com/oasdiff/oasdiff) and fails
+  on a breaking change without that bump or the label. `API_VERSION` never goes down.
 - **Changes to something not yet released** (for example an endpoint added since the last release)
   break no one. A maintainer can accept them without a bump by labelling the pull request
   `api: unreleased change`.
