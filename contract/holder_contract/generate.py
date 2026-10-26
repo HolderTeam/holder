@@ -3,8 +3,8 @@
 Three files come out:
 
 - holder_api.h: the C declarations every consumer of core's C API sees.
-- holder_api.hpp: the C++ declarations core implements, one function per operation.
-- holder_api_glue.cpp: the C entry points. Each checks its arguments against the contract, calls
+- Contract.h: the C++ declarations core implements, one function per operation, in holder::contract.
+- ContractGlue.cpp: the C entry points. Each checks its arguments against the contract, calls
   core's C++ function, converts the result into the caller's arena, and turns error kinds into
   status codes.
 
@@ -19,10 +19,9 @@ from dataclasses import dataclass
 from typing import Any
 
 FIRST_ERROR_CODE = 100
-BASE_CODES = {"HOLDER_OK": 0, "HOLDER_ERROR_INVALID_ARGUMENT": 1, "HOLDER_ERROR_RUNTIME": 2,
-              "HOLDER_ERROR_ALLOCATION": 3}
 SCALARS_C = {"int32": "int32_t", "int64": "int64_t", "float64": "double", "bool": "bool"}
-SCALARS_CPP = {"int32": "std::int32_t", "int64": "std::int64_t", "float64": "double", "bool": "bool"}
+# C++ uses core's own spelling of a 64-bit integer; the glue converts to int64_t at the C boundary.
+SCALARS_CPP = {"int32": "std::int32_t", "int64": "long long", "float64": "double", "bool": "bool"}
 
 
 class Unsupported(Exception):
@@ -305,14 +304,13 @@ def header_lines(ir: dict[str, Any], what: str, style: str) -> list[str]:
 
 
 def generate_c_header(model: Model) -> str:
-    out = ["/*", *header_lines(model.ir, "The C declarations for the contract's operations. Results live in the "
-                                         "holder_arena the caller passes, until holder_arena_free.", "c"), " */",
+    out = ["/*", *header_lines(model.ir, "The C declarations for the contract's operations, included by holder/holder.h, "
+                                         "which declares holder_context, holder_error and the base status codes. "
+                                         "Results live in the holder_arena the caller passes, until holder_arena_free.",
+                               "c"), " */",
            "#ifndef HOLDER_API_H", "#define HOLDER_API_H", "", "#include <stdbool.h>", "#include <stddef.h>",
            "#include <stdint.h>", "", "#ifdef __cplusplus", 'extern "C" {', "#endif", "",
-           "typedef struct holder_context holder_context;", "typedef struct holder_error holder_error;",
-           "typedef struct holder_arena holder_arena;", "", "#ifndef HOLDER_OK"]
-    out += [f"#define {name} {value}" for name, value in BASE_CODES.items()]
-    out += ["#endif", ""]
+           "typedef struct holder_arena holder_arena;", ""]
     for error in model.errors:
         out += comment(error["doc"])
         out.append(f"#define HOLDER_ERROR_{snake(error['name']).upper()} {model.codes[error['name']]}")
@@ -407,7 +405,7 @@ def generate_cpp_header(model: Model) -> str:
                                    "implementation fails to link.", "cpp"),
            "#pragma once", "", "#include <cstdint>", "#include <optional>", "#include <stdexcept>",
            "#include <string>", "#include <variant>", "#include <vector>", "", "struct holder_context;",
-           "struct holder_error;", "", "namespace holder::api {", "",
+           "struct holder_error;", "", "namespace holder::contract {", "",
            "/// Base of the error kinds operations throw. Anything else thrown is an unexpected failure.",
            "struct Error : std::runtime_error {", "  using std::runtime_error::runtime_error;", "};", "",
            "/// Thrown for an argument the contract's checks cannot catch.",
@@ -428,15 +426,25 @@ def generate_cpp_header(model: Model) -> str:
             out.append(f"  {cpp_type(model, slot, {p: p for p in params})} {slot.name};"
                        + (f"  ///< {slot.doc}" if slot.doc else ""))
         out += ["};", ""]
+    # Records as C++ structs, each after the record it extends, which C++ inherits rather than flattens.
+    names: list[str] = []
     for instance in unique(model.inputs + model.outputs):
         if instance.arguments:
             continue
-        record = model.records[instance.record]
+        chain, name = [], instance.record
+        while name:
+            chain.insert(0, name)
+            name = model.records[name].get("base")
+        names += [n for n in chain if n not in names]
+    for name in names:
+        record = model.records[name]
         out += comment(record["doc"], style="cpp")
-        out.append(f"struct {instance.record} {{")
-        for slot in model.slots(instance):
-            default = f" = {cpp_literal(slot.default)}" if slot.has_default and slot.default is not None else ""
-            out.append(f"  {cpp_type(model, slot)} {slot.name}{default};" + (f"  ///< {slot.doc}" if slot.doc else ""))
+        out.append(f"struct {name}" + (f" : {record['base']}" if "base" in record else "") + " {")
+        for field in record["fields"]:
+            slot = model.slot(field["name"], field["type"], field.get("doc"), omittable=field.get("omittable", False),
+                              default=field.get("default"), has_default="default" in field)
+            out.append(f"  {cpp_type(model, slot)} {slot.name}{cpp_initializer(model, slot)};"
+                       + (f"  ///< {slot.doc}" if slot.doc else ""))
         out += ["};", ""]
     for op in model.operations:
         params = [c_param(model, op, p) for p in op["parameters"]]
@@ -460,8 +468,17 @@ def generate_cpp_header(model: Model) -> str:
             "/// Core supplies this: sets *out_error (when not null) to a new holder_error with message, and",
             "/// returns code.",
             "int fail(holder_error** out_error, int code, const std::string& message);", "",
-            "}  // namespace detail", "", "}  // namespace holder::api", ""]
+            "}  // namespace detail", "", "}  // namespace holder::contract", ""]
     return "\n".join(out)
+
+
+def cpp_initializer(model: Model, slot: Slot) -> str:
+    """A field's default: the contract's, or {} for a number, so a new record holds no garbage."""
+    if slot.has_default and slot.default is not None:
+        return f" = {cpp_literal(slot.default)}"
+    if model.resolve(slot.type)["kind"] in SCALARS_CPP and not (slot.nullable or slot.optional):
+        return "{}"
+    return ""
 
 
 def cpp_literal(value: Any) -> str:
@@ -475,7 +492,7 @@ def cpp_literal(value: Any) -> str:
 # ---- glue -------------------------------------------------------------------------------------
 
 GLUE_SUPPORT = r"""
-namespace api = holder::api;
+namespace contract = holder::contract;
 
 struct holder_arena {
   std::vector<std::unique_ptr<std::byte[]>> blocks;
@@ -499,11 +516,11 @@ const char* copy(holder_arena* arena, const std::string& text) {
   return out;
 }
 
-template <class T>
-const T* copy_value(holder_arena* arena, const std::optional<T>& value) {
+template <class C, class T>
+const C* copy_value(holder_arena* arena, const std::optional<T>& value) {
   if (!value) return nullptr;
-  T* out = make<T>(arena);
-  *out = *value;
+  C* out = make<C>(arena);
+  *out = static_cast<C>(*value);
   return out;
 }
 
@@ -550,20 +567,20 @@ T in_range(T value, const char* name, T minimum, T maximum) {
 template <class Body>
 int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
+  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
   try {
     body();
     return HOLDER_OK;
   } catch (const ArgumentError& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
-  } catch (const api::InvalidArgument& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+  } catch (const contract::InvalidArgument& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
 @@ERROR_CATCHES@@  } catch (const std::bad_alloc&) {
-    return api::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+    return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
+    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
   } catch (...) {
-    return api::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
+    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
   }
 }
 """
@@ -579,7 +596,7 @@ def to_c_value(model: Model, slot: Slot, source: str) -> str:
     if t["kind"] == "string":
         return f"copy_text(arena, {source})" if optional else f"copy(arena, {source})"
     if t["kind"] in SCALARS_C:
-        return f"copy_value(arena, {source})" if optional else source
+        return f"copy_value<{SCALARS_C[t['kind']]}>(arena, {source})" if optional else source
     if t["kind"] == "list":
         items = model.resolve(t["items"])
         if optional:
@@ -628,36 +645,36 @@ def scalar_check(t: dict[str, Any], label: str) -> str:
 
 def generate_glue(model: Model) -> str:
     catches = "".join(
-        f"  }} catch (const api::{e['name']}& e) {{\n"
-        f"    return api::detail::fail(out_error, HOLDER_ERROR_{snake(e['name']).upper()}, e.what());\n"
+        f"  }} catch (const contract::{e['name']}& e) {{\n"
+        f"    return contract::detail::fail(out_error, HOLDER_ERROR_{snake(e['name']).upper()}, e.what());\n"
         for e in model.errors)
     out = [*header_lines(model.ir, "The C entry points: argument checks, conversions and error codes.", "cpp"),
-           '#include "holder_api.h"', '#include "holder_api.hpp"', "", "#include <cstddef>", "#include <cstdint>",
+           '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cstddef>", "#include <cstdint>",
            "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <string>",
            "#include <utility>", "#include <vector>",
            GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
     outputs = unique(model.outputs)
     for instance in outputs:
-        out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('api::')}& value);")
+        out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value);")
         if instance in model.listed:
             out.append(f"{instance.c_name}_list to_c_list(holder_arena* arena, "
-                       f"const std::vector<{instance.qualified('api::')}>& values);")
+                       f"const std::vector<{instance.qualified('contract::')}>& values);")
     out.append("")
     for instance in outputs:
-        out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('api::')}& value) {{")
+        out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value) {{")
         out.append(f"  {instance.c_name} out{{}};")
         for slot in model.slots(instance):
             out.append(f"  out.{slot.name} = {to_c_value(model, slot, 'value.' + slot.name)};")
         out += ["  return out;", "}", ""]
         if instance in model.listed:
             out += [(f"{instance.c_name}_list to_c_list(holder_arena* arena, "
-                     f"const std::vector<{instance.qualified('api::')}>& values) {{"),
+                     f"const std::vector<{instance.qualified('contract::')}>& values) {{"),
                     f"  auto* items = make<{instance.c_name}>(arena, values.size());",
                     "  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);",
                     "  return {items, values.size()};", "}", ""]
     for instance in unique(model.inputs):
-        out.append(f"{instance.qualified('api::')} from_c(const {instance.c_name}& value) {{")
-        out.append(f"  {instance.qualified('api::')} out;")
+        out.append(f"{instance.qualified('contract::')} from_c(const {instance.c_name}& value) {{")
+        out.append(f"  {instance.qualified('contract::')} out;")
         for slot in model.slots(instance):
             label = f"{snake(instance.record)}.{slot.name}"
             out.append(f"  out.{slot.name} = {from_c_value(model, slot, 'value.' + slot.name, label)};")
@@ -686,7 +703,7 @@ def glue_operation(model: Model, op: dict[str, Any]) -> list[str]:
     for param in params:
         lines += glue_param(model, op, param)
         call_args.append(f"{param.slot.name}_value")
-    call = f"api::{op['name']}(" + ", ".join(call_args) + ")"
+    call = f"contract::{op['name']}(" + ", ".join(call_args) + ")"
     if result:
         lines += [f"    auto* out = make<{result[0]}>(arena);", f"    *out = to_c(arena, {call});",
                   f"    *{result[1]} = out;"]
@@ -701,21 +718,21 @@ def glue_param(model: Model, op: dict[str, Any], param: Param) -> list[str]:
     prefix = f"holder_{op['name']}_{name}".upper()
     type_name = camel(op["name"]) + camel(name)
     if t["kind"] == "literal":
-        lines = [f"    api::{type_name} {name}_value;", f"    switch ({name}) {{"]
+        lines = [f"    contract::{type_name} {name}_value;", f"    switch ({name}) {{"]
         if slot.has_default:
-            lines.append(f"    case {prefix}_DEFAULT: {name}_value = api::{type_name}::{camel(str(slot.default))}; break;")
+            lines.append(f"    case {prefix}_DEFAULT: {name}_value = contract::{type_name}::{camel(str(slot.default))}; break;")
         for value in t["values"]:
-            lines.append(f"    case {prefix}_{literal_member(value)}: {name}_value = api::{type_name}::{camel(str(value))}; break;")
+            lines.append(f"    case {prefix}_{literal_member(value)}: {name}_value = contract::{type_name}::{camel(str(value))}; break;")
         lines += [f'    default: throw ArgumentError("{name} is not a {prefix.lower()} value");', "    }"]
         return lines
     if t["kind"] == "union":
         value = next(model.resolve(a) for a in t["alternatives"] if a["kind"] != "literal")
         value_name = snake(value.get("alias", "value"))
         low, high = limits(value)
-        lines = [f"    std::optional<api::{type_name}> {name}_value;", f"    switch ({name}.kind) {{",
+        lines = [f"    std::optional<contract::{type_name}> {name}_value;", f"    switch ({name}.kind) {{",
                  f"    case {prefix}_NONE: break;"]
         for lit in [v for a in t["alternatives"] if a["kind"] == "literal" for v in a["values"]]:
-            lines.append(f"    case {prefix}_{literal_member(lit)}: {name}_value = api::{type_name}{camel(str(lit))}{{}}; break;")
+            lines.append(f"    case {prefix}_{literal_member(lit)}: {name}_value = contract::{type_name}{camel(str(lit))}{{}}; break;")
         lines += [(f"    case {prefix}_{value_name.upper()}: {name}_value = "
                    f'text({name}.{value_name}, "{name}.{value_name}", {low}, {high}); break;'),
                   f'    default: throw ArgumentError("{name}.kind is not a {prefix.lower()}_kind value");', "    }"]
@@ -729,8 +746,12 @@ def glue_param(model: Model, op: dict[str, Any], param: Param) -> list[str]:
     return [f"    const auto {name}_value = {from_c_value(model, slot, name, name)};"]
 
 
+CORE_PATHS = {"holder_api.h": "core/include/holder/holder_api.h", "Contract.h": "core/src/api/Contract.h",
+              "ContractGlue.cpp": "core/src/api/ContractGlue.cpp"}
+
+
 def generate(ir: dict[str, Any]) -> dict[str, str]:
     """The generated files, by name."""
     model = Model(ir)
-    return {"holder_api.h": generate_c_header(model), "holder_api.hpp": generate_cpp_header(model),
-            "holder_api_glue.cpp": generate_glue(model)}
+    return {"holder_api.h": generate_c_header(model), "Contract.h": generate_cpp_header(model),
+            "ContractGlue.cpp": generate_glue(model)}

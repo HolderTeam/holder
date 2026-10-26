@@ -1,9 +1,10 @@
 # The contract's tooling. Needs Python 3.12 or later with requirements.txt installed.
 PYTHON ?= python3
 
-.PHONY: check lint test ir golden
+.PHONY: check lint test ir update
 
-# Everything CI runs: lint, the tooling's tests, and a check of the contract itself.
+# Everything CI runs: lint, the tooling's tests, and a check of the contract itself, which fails
+# when core's generated files are out of date.
 check: lint test
 	$(PYTHON) -m holder_contract check
 
@@ -16,6 +17,6 @@ test:
 ir:
 	$(PYTHON) -m holder_contract ir --output build/ir.json
 
-# After an intended change to the generated C API: review the difference in tests/golden/.
-golden:
-	$(PYTHON) -m holder_contract generate --output tests/golden
+# After changing the contract or the generator: writes core's C API files, for review and commit.
+update:
+	$(PYTHON) -m holder_contract update

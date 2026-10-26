@@ -1,6 +1,6 @@
 create: status 0, c1 Thesis, content 'Intro #draft', tags 1, first at 6, updated_at == created_at: 1
 create child: status 0, parent c1, sort_key 2.5, content ''
-create with an empty title: status 1, card_create.title must not be empty
+create with an empty title: status 1, new_card.title must not be empty
 create under a missing parent: status 100, parent not found: missing
 get: status 0, Thesis, deleted_at NULL
 get a missing card: status 100, card not found: c9

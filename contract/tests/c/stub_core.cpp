@@ -1,13 +1,13 @@
 // A stand-in for core: the three Card operations over an in-memory map, enough to compile and run
 // the generated C API end to end. Core's real implementation replaces this.
-#include "holder_api.hpp"
+#include "Contract.h"
 
 #include <algorithm>
 #include <map>
 #include <string>
 
 struct holder_context {
-  std::map<std::string, holder::api::Card> cards;
+  std::map<std::string, holder::contract::Card> cards;
   int next_id = 1;
 };
 
@@ -15,7 +15,7 @@ struct holder_error {
   std::string message;
 };
 
-namespace holder::api {
+namespace holder::contract {
 
 int detail::fail(holder_error** out_error, int code, const std::string& message) {
   if (out_error != nullptr) *out_error = new holder_error{message};
@@ -38,8 +38,7 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
     if (parent && std::holds_alternative<ListCardsParentRoots>(*parent) && card.parent_card_id) continue;
     if (parent && std::holds_alternative<std::string>(*parent) && card.parent_card_id != std::get<std::string>(*parent)) continue;
     if (tag && std::find(card.tags.begin(), card.tags.end(), *tag) == card.tags.end()) continue;
-    CardListItem item{card.card_id, card.project_id, card.title, card.rel_path, card.parent_card_id,
-                      card.sort_key, card.created_at, card.updated_at, card.deleted_at, std::nullopt, std::nullopt};
+    CardListItem item{card, std::nullopt, std::nullopt};
     if (include_content) item.content = card.content;
     if (include_child_count) {
       item.child_count = static_cast<std::int32_t>(std::count_if(context.cards.begin(), context.cards.end(),
@@ -56,7 +55,7 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
   return page;
 }
 
-Card create_card(holder_context& context, const CardCreate& request) {
+Card create_card(holder_context& context, const NewCard& request) {
   if (request.project_id != "p1") throw NotFound("project not found: " + request.project_id);
   if (request.parent_card_id && !context.cards.contains(*request.parent_card_id))
     throw NotFound("parent not found: " + *request.parent_card_id);
@@ -72,14 +71,14 @@ Card create_card(holder_context& context, const CardCreate& request) {
   card.content = request.content;
   if (card.content.find("#draft") != std::string::npos) {
     card.tags = {"draft"};
-    auto at = static_cast<std::int64_t>(card.content.find("#draft"));
+    auto at = static_cast<long long>(card.content.find("#draft"));
     card.tag_occurrences = {{"draft", at, at + 6}};
   }
   context.cards[card.card_id] = card;
   return card;
 }
 
-}  // namespace holder::api
+}  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }
 extern "C" void stub_context_free(holder_context* context) { delete context; }

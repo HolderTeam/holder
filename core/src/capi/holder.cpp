@@ -1,5 +1,8 @@
 #include "holder/holder.h"
 
+#include "api/Contract.h"
+#include "capi/Context.h"
+
 #include "card/CardPlacementResolver.h"
 #include "card/CardReferenceResolver.h"
 #include "card/CardRepo.h"
@@ -61,17 +64,6 @@
 #include <utility>
 #include <vector>
 
-struct holder_context {
-  std::filesystem::path data_dir;
-  std::filesystem::path db_path;
-  holder::platform::Db db;
-  holder::index::FtsIndexer fts{db};
-  std::shared_ptr<holder::git::GitCredentialProvider> credential_provider; // nullable
-};
-
-struct holder_error {
-  std::string message;
-};
 
 namespace {
 
@@ -1188,6 +1180,12 @@ int resolve_pull_conflicts(
 }
 
 } // namespace
+
+// The generated glue (src/api/ContractGlue.cpp) reports errors through the same holder_error as
+// the rest of the C API.
+int holder::contract::detail::fail(holder_error** out_error, int code, const std::string& message) {
+  return set_error(out_error, code, message);
+}
 
 int holder_context_open(
     const char* data_dir,

@@ -14,7 +14,7 @@
 struct holder_context;
 struct holder_error;
 
-namespace holder::api {
+namespace holder::contract {
 
 /// Base of the error kinds operations throw. Anything else thrown is an unexpected failure.
 struct Error : std::runtime_error {
@@ -39,50 +39,45 @@ struct Page {
 };
 
 /// A card to create.
-struct CardCreate {
+struct NewCard {
   std::string project_id;  ///< The project to create it in.
   std::string title;  ///< The card's title.
   std::string content = "";  ///< The card's body.
   std::optional<std::string> parent_card_id;  ///< The card's parent; null or omitted for a root card.
   std::optional<double> sort_key;  ///< The card's place among its siblings; omit to let Holder choose.
-  std::optional<std::int64_t> created_at;  ///< When the card was created, for imports; omit for now.
-  std::optional<std::int64_t> updated_at;  ///< When the card was last changed, for imports; omit to use created_at.
+  std::optional<long long> created_at;  ///< When the card was created, for imports; omit for now.
+  std::optional<long long> updated_at;  ///< When the card was last changed, for imports; omit to use created_at.
 };
 
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
-  std::int64_t byte_start;  ///< Inclusive byte offset of the leading # in the content.
-  std::int64_t byte_end;  ///< Exclusive byte offset after the tag's name.
+  long long byte_start{};  ///< Inclusive byte offset of the leading # in the content.
+  long long byte_end{};  ///< Exclusive byte offset after the tag's name.
 };
 
-/// A card, with its content and tags.
-struct Card {
+/// Everything about a card except its content.
+struct CardMetadata {
   std::string card_id;  ///< The card's ID.
   std::string project_id;  ///< The project the card belongs to.
   std::string title;  ///< The card's title.
   std::string rel_path;  ///< The card's file, relative to the project's root.
   std::optional<std::string> parent_card_id;  ///< The card's parent; null for a root card.
-  double sort_key;  ///< The card's place among its siblings; lower comes first.
-  std::int64_t created_at;  ///< When the card was created.
-  std::int64_t updated_at;  ///< When the card was last changed.
-  std::optional<std::int64_t> deleted_at;  ///< When the card was moved to the trash; null when it is not in the trash.
+  double sort_key{};  ///< The card's place among its siblings; lower comes first.
+  long long created_at{};  ///< When the card was created.
+  long long updated_at{};  ///< When the card was last changed.
+  std::optional<long long> deleted_at;  ///< When the card was moved to the trash; null when it is not in the trash.
+};
+
+/// A card, with its content and tags.
+struct Card : CardMetadata {
   std::string content;  ///< The card's body.
   std::vector<std::string> tags;  ///< The card's normalized tags.
   std::vector<TagOccurrence> tag_occurrences;  ///< Each tag written in the content, in order.
 };
 
 /// A card in a listing.
-struct CardListItem {
-  std::string card_id;  ///< The card's ID.
-  std::string project_id;  ///< The project the card belongs to.
-  std::string title;  ///< The card's title.
-  std::string rel_path;  ///< The card's file, relative to the project's root.
-  std::optional<std::string> parent_card_id;  ///< The card's parent; null for a root card.
-  double sort_key;  ///< The card's place among its siblings; lower comes first.
-  std::int64_t created_at;  ///< When the card was created.
-  std::int64_t updated_at;  ///< When the card was last changed.
-  std::optional<std::int64_t> deleted_at;  ///< When the card was moved to the trash; null when it is not in the trash.
+struct CardListItem : CardMetadata {
   std::optional<std::int32_t> child_count;  ///< The card's live children; present when asked for.
   std::optional<std::string> content;  ///< The card's body; present when asked for.
 };
@@ -110,7 +105,7 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
 /// Create a card.
 /// Fails with NotFound when the project or the parent does not exist.
 /// @throws NotFound
-Card create_card(holder_context& context, const CardCreate& card);
+Card create_card(holder_context& context, const NewCard& card);
 
 namespace detail {
 
@@ -120,4 +115,4 @@ int fail(holder_error** out_error, int code, const std::string& message);
 
 }  // namespace detail
 
-}  // namespace holder::api
+}  // namespace holder::contract

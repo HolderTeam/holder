@@ -127,6 +127,8 @@ else()
 endif()
 
 set(HOLDER_CORE_SOURCES
+  src/api/Cards.cpp
+  src/api/ContractGlue.cpp
   src/capi/holder.cpp
   src/capi/version.cpp
   src/ai/AiMessageFrontMatter.cpp
