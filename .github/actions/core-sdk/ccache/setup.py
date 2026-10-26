@@ -15,6 +15,14 @@ def main():
     compiler = Path(compiler).resolve()
     identity = hashlib.sha256()
     identity.update(compiler.read_bytes())
+    # Apple /usr/bin/c++ can be a stable shim for a changing Xcode toolchain.
+    version = subprocess.run(
+        [str(compiler), "/Bv" if os.name == "nt" else "--version"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    ).stdout
+    identity.update(version)
     for value in (
         str(compiler),
         str(workspace),
