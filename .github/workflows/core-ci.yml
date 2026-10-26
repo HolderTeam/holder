@@ -11,7 +11,13 @@ on:
       - core/**
       - .github/workflows/core-ci.yml
       - .github/workflows/core-sdk.yml
+      - .github/actions/core-sdk/**
   workflow_dispatch:
+    inputs:
+      measure_cache:
+        description: Measure cold and warm clean builds with one changed core source file
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,13 +52,16 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(core/|\.github/workflows/core-(ci|sdk)\.yml$)' <<< "$changed"; then
+          if grep -qE '^(core/|\.github/workflows/core-(ci|sdk)\.yml$|\.github/actions/core-sdk/)' <<< "$changed"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
           else
             echo "core=false" >> "$GITHUB_OUTPUT"
           fi
 
   linux:
+    permissions:
+      actions: write
+      contents: read
     needs: changes
     if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-24.04
@@ -102,11 +111,24 @@ jobs:
           path: core/.apt-cache/debs
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/core-ci.yml') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: RelWithDebInfo
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHOLDER_CORE_BUILD_SHARED=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build build --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py build
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
@@ -124,7 +146,7 @@ jobs:
           ctest --test-dir out/consumer-shared --output-on-failure
 
       - name: Test the SDK tooling
-        run: python3 -m unittest discover -s tests -p test_core_sdk.py -v
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v
 
       - name: Coverage
         run: ./make.sh coverage
@@ -137,7 +159,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
   macos:
+    permissions:
+      actions: write
+      contents: read
     needs: changes
     if: needs.changes.outputs.core == 'true'
     runs-on: macos-15
@@ -169,6 +201,14 @@ jobs:
             md4c \
             openssl@3
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: RelWithDebInfo
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
         run: |
           brew_prefix="$(brew --prefix)"
@@ -180,10 +220,16 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_PREFIX_PATH="${brew_prefix};${openssl_prefix}" \
-            -DOPENSSL_ROOT_DIR="${openssl_prefix}"
+            -DOPENSSL_ROOT_DIR="${openssl_prefix}" \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build build --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py build
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
@@ -196,6 +242,13 @@ jobs:
           cmake -S tests/installed-consumer -B out/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/core/out/install/macos;$(brew --prefix);$(brew --prefix openssl@3)"
           cmake --build out/consumer --parallel
           ctest --test-dir out/consumer --output-on-failure
+
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
 
   windows:
     needs: changes
@@ -235,11 +288,29 @@ jobs:
           & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
           New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
+      - name: Restore core compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: tests
+          build-type: Debug
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
       - name: Configure
-        run: cmake --preset windows-vcpkg-debug
+        # /Z7 embeds debug information in objects, which ccache can cache; /Zi cannot.
+        run: >-
+          cmake --preset windows-vcpkg-debug
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: Build
+        if: ${{ !inputs.measure_cache }}
         run: cmake --build out/build/windows-vcpkg-debug --parallel
+
+      - name: Measure cold and warm compiler cache
+        if: inputs.measure_cache
+        run: python scripts/benchmark-compiler-cache.py out/build/windows-vcpkg-debug
 
       - name: Run tests
         run: ctest --test-dir out/build/windows-vcpkg-debug --output-on-failure
@@ -275,6 +346,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir out/consumer --output-on-failure
 
+      - name: Save core compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
+          measure: ${{ inputs.measure_cache && 'true' || 'false' }}
+
   sdk:
     # Core's SDK for this commit, cached by core/'s tree. Saved from main, it is the latest core
     # that consumers and pull requests not changing core take instead of building core again.
@@ -284,6 +362,8 @@ jobs:
       actions: write
       contents: read
     uses: ./.github/workflows/core-sdk.yml
+    with:
+      measure_cache: ${{ inputs.measure_cache || false }}
 
   ubuntu-packages:
     # Core's libholder0 and libholder-dev packages for both Ubuntu series, built on main for
