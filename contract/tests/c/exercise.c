@@ -1,12 +1,10 @@
 /* Calls the generated C API the way a consumer would, printing what comes back. */
-#include "holder_api.h"
+#include "holder/holder.h"
 
 #include <stdio.h>
 
 holder_context* stub_context_new(void);
 void stub_context_free(holder_context* context);
-const char* holder_error_message(const holder_error* error);
-void holder_error_destroy(holder_error* error);
 
 /* Prints a failed call's status and message, then frees the error. */
 static void report(const char* what, int status, holder_error** error) {
@@ -21,7 +19,7 @@ int main(void) {
     holder_error* error = NULL;
     const holder_card* card = NULL;
 
-    holder_card_create root = {0};
+    holder_new_card root = {0};
     root.project_id = "p1";
     root.title = "Thesis";
     root.content = "Intro #draft";
@@ -30,7 +28,7 @@ int main(void) {
            card->card_id, card->title, card->content, card->tags.count,
            (long long)card->tag_occurrences.items[0].byte_start, card->updated_at == card->created_at);
 
-    holder_card_create child = {0};
+    holder_new_card child = {0};
     child.project_id = "p1";
     child.title = "Chapter 1";
     child.parent_card_id = card->card_id;
@@ -40,12 +38,12 @@ int main(void) {
     printf("create child: status %d, parent %s, sort_key %.1f, content '%s'\n", status, card->parent_card_id,
            card->sort_key, card->content);
 
-    holder_card_create untitled = {0};
+    holder_new_card untitled = {0};
     untitled.project_id = "p1";
     untitled.title = "";
     status = holder_create_card(context, &untitled, arena, &card, &error);
     report("create with an empty title", status, &error);
-    holder_card_create orphan = {0};
+    holder_new_card orphan = {0};
     orphan.project_id = "p1";
     orphan.title = "Orphan";
     orphan.parent_card_id = "missing";

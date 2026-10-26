@@ -2,7 +2,7 @@
  * Generated from contract/interface/cards.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
- * The C declarations for the contract's operations. Results live in the holder_arena the caller passes, until holder_arena_free.
+ * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
  */
 #ifndef HOLDER_API_H
 #define HOLDER_API_H
@@ -15,16 +15,7 @@
 extern "C" {
 #endif
 
-typedef struct holder_context holder_context;
-typedef struct holder_error holder_error;
 typedef struct holder_arena holder_arena;
-
-#ifndef HOLDER_OK
-#define HOLDER_OK 0
-#define HOLDER_ERROR_INVALID_ARGUMENT 1
-#define HOLDER_ERROR_RUNTIME 2
-#define HOLDER_ERROR_ALLOCATION 3
-#endif
 
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 100
@@ -38,7 +29,7 @@ typedef struct holder_string_list {
 } holder_string_list;
 
 /* A card to create. */
-typedef struct holder_card_create {
+typedef struct holder_new_card {
     const char* project_id; /* The project to create it in. */
     const char* title; /* The card's title. */
     const char* content; /* The card's body. NULL for the default, "". */
@@ -46,7 +37,7 @@ typedef struct holder_card_create {
     const double* sort_key; /* The card's place among its siblings; omit to let Holder choose. NULL when absent. */
     const int64_t* created_at; /* When the card was created, for imports; omit for now. NULL when absent. */
     const int64_t* updated_at; /* When the card was last changed, for imports; omit to use created_at. NULL when absent. */
-} holder_card_create;
+} holder_new_card;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -145,7 +136,7 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
  * Fails with NotFound when the project or the parent does not exist.
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
-int holder_create_card(holder_context* context, const holder_card_create* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 #ifdef __cplusplus
 }

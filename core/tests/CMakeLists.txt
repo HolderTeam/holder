@@ -39,6 +39,7 @@ add_executable(holder_core_tests
   AiThreadManifest_test.cpp
   AssetStorage_test.cpp
   CApi_test.cpp
+  CApiCards_test.cpp
   CardFrontMatter_test.cpp
   CardPaths_test.cpp
   CardPlacementResolver_test.cpp

@@ -1,8 +1,8 @@
 """The C generator on Holder's contract.
 
-tests/golden/ holds the expected output. After an intended change, rewrite it with
-    python -m holder_contract generate --output tests/golden
-and review the difference. tests/c/ compiles that output with a stand-in for core and runs it.
+Core holds the generated files (see holder_contract.generate.CORE_PATHS). After an intended change
+to the contract or the generator, rewrite them with make -C contract update and review the
+difference. tests/c/ compiles the output with a stand-in for core and runs it.
 """
 
 import shutil
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from holder_contract.extract import extract
-from holder_contract.generate import Unsupported, camel, generate, snake
+from holder_contract.generate import CORE_PATHS, Unsupported, camel, generate, snake
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -24,9 +24,9 @@ def holder_ir():
     return extract(CONTRACT, "interface")
 
 
-def test_generated_files_match_the_golden_copies():
+def test_cores_generated_files_are_up_to_date():
     for name, text in generate(holder_ir()).items():
-        assert text == (TESTS / "golden" / name).read_text(encoding="utf-8"), name
+        assert text == (CONTRACT.parent / CORE_PATHS[name]).read_text(encoding="utf-8"), CORE_PATHS[name]
 
 
 def test_every_generated_file_names_its_source():
@@ -51,15 +51,19 @@ def test_camel_case():
 
 @pytest.mark.skipif(not (shutil.which("gcc") and shutil.which("g++")), reason="needs gcc and g++")
 def test_generated_code_compiles_and_runs(tmp_path):
+    # Laid out as in core: holder.h (the real one) includes the generated holder_api.h.
+    (tmp_path / "holder").mkdir()
+    shutil.copy(CONTRACT.parent / "core/include/holder/holder.h", tmp_path / "holder" / "holder.h")
     for name, text in generate(holder_ir()).items():
-        (tmp_path / name).write_text(text, encoding="utf-8")
+        (tmp_path / ("holder" if name == "holder_api.h" else ".") / name).write_text(text, encoding="utf-8")
 
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
-    run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-x", "c", "holder_api.h")
-    run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-x", "c++", "holder_api.h")
-    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "holder_api_glue.cpp", "-o", "glue.o")
+    (tmp_path / "include.c").write_text('#include "holder/holder.h"\n')
+    run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")
+    run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-I.", "-x", "c++", "include.c")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractGlue.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "exercise.c"), "-o", "exercise.o")
     run("g++", *SANITIZE, "glue.o", "stub.o", "exercise.o", "-o", "exercise")

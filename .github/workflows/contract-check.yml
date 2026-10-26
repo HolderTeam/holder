@@ -1,8 +1,8 @@
 name: Contract / Check
 
-# The contract's tooling (contract/): lint, its tests, and a check that the contract follows its
-# rules. Nothing in contract/ ships; .github/scripts/check-contract-boundary.py, run by
-# Repository / Checks, keeps it that way.
+# The contract's tooling (contract/): lint, its tests, a check that the contract follows its rules,
+# and a check that core's generated C API files match it. Nothing in contract/ ships;
+# .github/scripts/check-contract-boundary.py, run by Repository / Checks, keeps it that way.
 
 on:
   # Pull requests always start this workflow so that its required result check is reported;
@@ -12,6 +12,10 @@ on:
     branches: [main]
     paths:
       - 'contract/**'
+      - 'core/include/holder/holder.h'
+      - 'core/include/holder/holder_api.h'
+      - 'core/src/api/Contract.h'
+      - 'core/src/api/ContractGlue.cpp'
       - '.github/workflows/contract-check.yml'
   workflow_dispatch:
 
@@ -41,7 +45,9 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(contract/|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
+          # Core's generated files are checked too: editing one by hand, or holder.h, which the check
+          # reads for name collisions, must run the contract check.
+          if grep -qE '^(contract/|core/include/holder/holder(_api)?\.h$|core/src/api/Contract(\.h|Glue\.cpp)$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
             echo "contract=true" >> "$GITHUB_OUTPUT"
           else
             echo "contract=false" >> "$GITHUB_OUTPUT"

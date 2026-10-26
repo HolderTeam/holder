@@ -2,8 +2,8 @@
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
-#include "holder_api.h"
-#include "holder_api.hpp"
+#include "Contract.h"
+#include "holder/holder.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-namespace api = holder::api;
+namespace contract = holder::contract;
 
 struct holder_arena {
   std::vector<std::unique_ptr<std::byte[]>> blocks;
@@ -39,11 +39,11 @@ const char* copy(holder_arena* arena, const std::string& text) {
   return out;
 }
 
-template <class T>
-const T* copy_value(holder_arena* arena, const std::optional<T>& value) {
+template <class C, class T>
+const C* copy_value(holder_arena* arena, const std::optional<T>& value) {
   if (!value) return nullptr;
-  T* out = make<T>(arena);
-  *out = *value;
+  C* out = make<C>(arena);
+  *out = static_cast<C>(*value);
   return out;
 }
 
@@ -90,33 +90,33 @@ T in_range(T value, const char* name, T minimum, T maximum) {
 template <class Body>
 int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
+  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
   try {
     body();
     return HOLDER_OK;
   } catch (const ArgumentError& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
-  } catch (const api::InvalidArgument& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
-  } catch (const api::NotFound& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_NOT_FOUND, e.what());
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+  } catch (const contract::InvalidArgument& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
+  } catch (const contract::NotFound& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_NOT_FOUND, e.what());
   } catch (const std::bad_alloc&) {
-    return api::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
+    return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
-    return api::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
+    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
   } catch (...) {
-    return api::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
+    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
   }
 }
 
-holder_tag_occurrence to_c(holder_arena* arena, const api::TagOccurrence& value);
-holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<api::TagOccurrence>& values);
-holder_card to_c(holder_arena* arena, const api::Card& value);
-holder_card_list_item to_c(holder_arena* arena, const api::CardListItem& value);
-holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<api::CardListItem>& values);
-holder_card_list_item_page to_c(holder_arena* arena, const api::Page<api::CardListItem>& value);
+holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
+holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
+holder_card to_c(holder_arena* arena, const contract::Card& value);
+holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value);
+holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::CardListItem>& values);
+holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
 
-holder_tag_occurrence to_c(holder_arena* arena, const api::TagOccurrence& value) {
+holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
   out.tag = copy(arena, value.tag);
   out.byte_start = value.byte_start;
@@ -124,13 +124,13 @@ holder_tag_occurrence to_c(holder_arena* arena, const api::TagOccurrence& value)
   return out;
 }
 
-holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<api::TagOccurrence>& values) {
+holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values) {
   auto* items = make<holder_tag_occurrence>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
 }
 
-holder_card to_c(holder_arena* arena, const api::Card& value) {
+holder_card to_c(holder_arena* arena, const contract::Card& value) {
   holder_card out{};
   out.card_id = copy(arena, value.card_id);
   out.project_id = copy(arena, value.project_id);
@@ -140,14 +140,14 @@ holder_card to_c(holder_arena* arena, const api::Card& value) {
   out.sort_key = value.sort_key;
   out.created_at = value.created_at;
   out.updated_at = value.updated_at;
-  out.deleted_at = copy_value(arena, value.deleted_at);
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
   out.content = copy(arena, value.content);
   out.tags = copy_strings(arena, value.tags);
   out.tag_occurrences = to_c_list(arena, value.tag_occurrences);
   return out;
 }
 
-holder_card_list_item to_c(holder_arena* arena, const api::CardListItem& value) {
+holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value) {
   holder_card_list_item out{};
   out.card_id = copy(arena, value.card_id);
   out.project_id = copy(arena, value.project_id);
@@ -157,34 +157,34 @@ holder_card_list_item to_c(holder_arena* arena, const api::CardListItem& value) 
   out.sort_key = value.sort_key;
   out.created_at = value.created_at;
   out.updated_at = value.updated_at;
-  out.deleted_at = copy_value(arena, value.deleted_at);
-  out.child_count = copy_value(arena, value.child_count);
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  out.child_count = copy_value<int32_t>(arena, value.child_count);
   out.content = copy_text(arena, value.content);
   return out;
 }
 
-holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<api::CardListItem>& values) {
+holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::CardListItem>& values) {
   auto* items = make<holder_card_list_item>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
 }
 
-holder_card_list_item_page to_c(holder_arena* arena, const api::Page<api::CardListItem>& value) {
+holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value) {
   holder_card_list_item_page out{};
   out.items = to_c_list(arena, value.items);
   out.next_cursor = copy_text(arena, value.next_cursor);
   return out;
 }
 
-api::CardCreate from_c(const holder_card_create& value) {
-  api::CardCreate out;
-  out.project_id = text(value.project_id, "card_create.project_id", 1, SIZE_MAX);
-  out.title = text(value.title, "card_create.title", 1, SIZE_MAX);
-  out.content = optional_text(value.content, "card_create.content", 0, SIZE_MAX).value_or("");
-  out.parent_card_id = optional_text(value.parent_card_id, "card_create.parent_card_id", 1, SIZE_MAX);
+contract::NewCard from_c(const holder_new_card& value) {
+  contract::NewCard out;
+  out.project_id = text(value.project_id, "new_card.project_id", 1, SIZE_MAX);
+  out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
+  out.content = optional_text(value.content, "new_card.content", 0, SIZE_MAX).value_or("");
+  out.parent_card_id = optional_text(value.parent_card_id, "new_card.parent_card_id", 1, SIZE_MAX);
   out.sort_key = (value.sort_key ? std::optional<double>(*value.sort_key) : std::nullopt);
-  out.created_at = (value.created_at ? std::optional<std::int64_t>(*value.created_at) : std::nullopt);
-  out.updated_at = (value.updated_at ? std::optional<std::int64_t>(*value.updated_at) : std::nullopt);
+  out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
   return out;
 }
 
@@ -202,7 +202,7 @@ int holder_get_card(holder_context* context, const char* card_id, holder_arena* 
     *out_card = nullptr;
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, api::get_card(*context, card_id_value));
+    *out = to_c(arena, contract::get_card(*context, card_id_value));
     *out_card = out;
   });
 }
@@ -213,20 +213,20 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
     require(out_page != nullptr, "out_page must not be null");
     *out_page = nullptr;
     const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
-    std::optional<api::ListCardsParent> parent_value;
+    std::optional<contract::ListCardsParent> parent_value;
     switch (parent.kind) {
     case HOLDER_LIST_CARDS_PARENT_NONE: break;
-    case HOLDER_LIST_CARDS_PARENT_ROOTS: parent_value = api::ListCardsParentRoots{}; break;
+    case HOLDER_LIST_CARDS_PARENT_ROOTS: parent_value = contract::ListCardsParentRoots{}; break;
     case HOLDER_LIST_CARDS_PARENT_CARD_ID: parent_value = text(parent.card_id, "parent.card_id", 1, SIZE_MAX); break;
     default: throw ArgumentError("parent.kind is not a holder_list_cards_parent_kind value");
     }
     const auto tag_value = optional_text(tag, "tag", 1, SIZE_MAX);
-    api::ListCardsOrder order_value;
+    contract::ListCardsOrder order_value;
     switch (order) {
-    case HOLDER_LIST_CARDS_ORDER_DEFAULT: order_value = api::ListCardsOrder::CardIdAsc; break;
-    case HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC: order_value = api::ListCardsOrder::CardIdAsc; break;
-    case HOLDER_LIST_CARDS_ORDER_UPDATED_DESC: order_value = api::ListCardsOrder::UpdatedDesc; break;
-    case HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC: order_value = api::ListCardsOrder::SortKeyAsc; break;
+    case HOLDER_LIST_CARDS_ORDER_DEFAULT: order_value = contract::ListCardsOrder::CardIdAsc; break;
+    case HOLDER_LIST_CARDS_ORDER_CARD_ID_ASC: order_value = contract::ListCardsOrder::CardIdAsc; break;
+    case HOLDER_LIST_CARDS_ORDER_UPDATED_DESC: order_value = contract::ListCardsOrder::UpdatedDesc; break;
+    case HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC: order_value = contract::ListCardsOrder::SortKeyAsc; break;
     default: throw ArgumentError("order is not a holder_list_cards_order value");
     }
     const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, 5000) : std::int32_t{200});
@@ -234,12 +234,12 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
     const auto include_content_value = include_content;
     const auto include_child_count_value = include_child_count;
     auto* out = make<holder_card_list_item_page>(arena);
-    *out = to_c(arena, api::list_cards(*context, project_id_value, parent_value, tag_value, order_value, limit_value, cursor_value, include_content_value, include_child_count_value));
+    *out = to_c(arena, contract::list_cards(*context, project_id_value, parent_value, tag_value, order_value, limit_value, cursor_value, include_content_value, include_child_count_value));
     *out_page = out;
   });
 }
 
-int holder_create_card(holder_context* context, const holder_card_create* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
@@ -247,7 +247,7 @@ int holder_create_card(holder_context* context, const holder_card_create* card, 
     require(card != nullptr, "card must not be null");
     const auto card_value = from_c(*card);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, api::create_card(*context, card_value));
+    *out = to_c(arena, contract::create_card(*context, card_value));
     *out_card = out;
   });
 }

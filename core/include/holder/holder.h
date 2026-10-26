@@ -1281,3 +1281,6 @@ int holder_recovery_token_import_global(
 #ifdef __cplusplus
 }
 #endif
+
+// The contract's operations, generated from contract/ (see contract/C_API.md).
+#include "holder_api.h"

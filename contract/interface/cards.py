@@ -89,7 +89,7 @@ class Page[T](Record):
     """Pass back to get the next page; null on the last page."""
 
 
-class CardCreate(Record):
+class NewCard(Record):
     """A card to create."""
 
     project_id: ProjectId
@@ -139,7 +139,7 @@ def list_cards(
 
 
 @operation(errors=[NotFound])
-def create_card(card: CardCreate) -> Card:
+def create_card(card: NewCard) -> Card:
     """Create a card.
 
     Fails with NotFound when the project or the parent does not exist.
