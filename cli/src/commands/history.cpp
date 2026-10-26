@@ -122,7 +122,7 @@ nlohmann::json history_api_request(
                                   method,
                                   target,
                                   std::chrono::seconds(30), // LCOV_EXCL_LINE
-                                  nlohmann::json::object()
+                                  std::make_optional<nlohmann::json>(nlohmann::json::object())
                               );
   if (response.status == boost::beast::http::status::ok && response.payload.value("ok", false)) {
     return response.payload;

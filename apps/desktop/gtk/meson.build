@@ -3907,7 +3907,13 @@ app_test_exe = executable(
   install: false,
 )
 
-test('holder-gtk-app-tests', app_test_exe)
+# Startup fixtures exercise local icon themes, independently of the session's
+# desktop portals (which may reject GLib's short-lived test subprocesses).
+app_test_env = environment()
+if gtk_dep.version().version_compare('>=4.18')
+  app_test_env.set('GDK_DEBUG', 'no-portals')
+endif
+test('holder-gtk-app-tests', app_test_exe, env: app_test_env)
 
 print_service_test_exe = executable(
   'holder-gtk-print-service-tests',

@@ -425,11 +425,11 @@ std::string resolve_card_reference(
       boost::beast::http::verb::post,
       "/card-references/resolve",
       std::chrono::seconds(10), // LCOV_EXCL_LINE
-      nlohmann::json{
+      std::make_optional<nlohmann::json>(nlohmann::json{
           {"project_id", project_id},
           {"reference", reference},
           {"scope", card_reference_scope_name(scope)},
-      }
+      })
   );
 
   if (response.status != boost::beast::http::status::ok || !response.payload.value("ok", false)) {

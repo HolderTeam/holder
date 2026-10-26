@@ -80,6 +80,9 @@ sudo apt install -y \
   libsecret-1-dev \
   lcov
 
+# Ubuntu 26.04 also needs the compiled Boost.Process library:
+sudo apt install -y libboost-process-dev
+
 ./make.sh
 ```
 
