@@ -303,7 +303,7 @@ private void test_stream_failed_without_error_uses_default_message() {
     bool saw_default_failed = false;
     bool saw_done_model_message = false;
     controller.append_output_requested.connect((role, text) => {
-        if (text == "Run failed.") {
+        if (text == "AI run failed: Run failed.") {
             saw_default_failed = true;
         }
         if (text.contains("Completed with")) {
@@ -900,8 +900,70 @@ private void test_constructor_uses_default_scheduler_when_null() {
     assert(!errored);
 }
 
+private void assert_unsuccessful_stream(bool failed, bool empty_error = false) {
+    var api = new AiRunFakeApi();
+    api.emit_failed = failed && !empty_error;
+    api.emit_failed_empty = empty_error;
+    api.omit_terminal = !failed;
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+    bool recovered = false;
+    int failures = 0;
+    int successes = 0;
+    int errors = 0;
+    string error_message = "";
+    string status = "";
+    controller.status_changed.connect((text) => { status = text; });
+    controller.set_send_enabled_requested.connect((enabled) => { recovered = enabled; });
+    controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+        if (kind == "result.ai.run_failed") failures++;
+        if (kind == "result.ai.run_complete") successes++;
+    });
+    controller.error_reported.connect((title, details) => {
+        errors++;
+        error_message = details;
+    });
+    controller.on_send_clicked("prompt");
+    assert(wait_for_condition(() => recovered));
+    assert(failures == 1);
+    assert(successes == 0);
+    assert(errors == 1);
+    assert(status == "AI run failed");
+    assert(error_message == (failed ? (empty_error ? "Run failed." : "bad prompt")
+        : "AI run interrupted: the stream closed before the run finished."));
+    assert(ctx.reload_threads_calls == 0);
+
+    // A subsequent successful run must not inherit the preceding outcome.
+    api.emit_failed = false;
+    api.emit_failed_empty = false;
+    api.omit_terminal = false;
+    recovered = false;
+    controller.on_send_clicked("retry");
+    assert(wait_for_condition(() => recovered));
+    assert(successes == 1);
+    assert(failures == 1);
+}
+
+private void test_failed_stream_reports_failure() {
+    assert_unsuccessful_stream(true);
+}
+
+private void test_failed_stream_without_error_reports_failure() {
+    assert_unsuccessful_stream(true, true);
+}
+
+private void test_interrupted_stream_reports_failure() {
+    assert_unsuccessful_stream(false);
+}
+
 int main(string[] args) {
     Test.init(ref args);
+    Test.add_func("/ai_run/failed_stream_reports_failure", test_failed_stream_reports_failure);
+    Test.add_func("/ai_run/failed_stream_without_error_reports_failure", test_failed_stream_without_error_reports_failure);
+    Test.add_func("/ai_run/interrupted_stream_reports_failure", test_interrupted_stream_reports_failure);
 
     Test.add_func(
         "/ai_run/send_with_existing_thread_streams_and_completes",

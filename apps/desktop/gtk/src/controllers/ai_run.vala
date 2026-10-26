@@ -245,6 +245,8 @@ public class AiRunController : Object {
         ai_run_in_flight = true;
         set_send_enabled_requested(false);
         status_changed("Running AI...");
+        bool received_done = false;
+        string? failure_message = null;
         try {
             var context_card_id = current_card != null ? current_card.card_id : null;
             var context_card_title = current_card != null ? current_card.title : null;
@@ -257,11 +259,23 @@ public class AiRunController : Object {
                 context_card_title,
                 context_card_body,
                 (event_name, data) => {
+                    if (event_name == "failed") {
+                        var message = json_string_member_or_empty(data, "error");
+                        failure_message = message.length > 0 ? message : "Run failed.";
+                    } else if (event_name == "done") {
+                        received_done = true;
+                    }
                     handle_ai_run_event(event_name, data);
                 },
                 selected_runner_id,
                 selected_model_name
             );
+            if (failure_message != null) {
+                throw new IOError.FAILED(failure_message);
+            }
+            if (!received_done) {
+                throw new IOError.FAILED("AI run interrupted: the stream closed before the run finished.");
+            }
             append_output_chunk_requested("\n");
             activity_requested(
                 "result.ai.run_complete",
@@ -274,6 +288,7 @@ public class AiRunController : Object {
             refresh_selected_thread_output.begin();
             status_changed("AI run complete");
         } catch (Error e) {
+            status_changed("AI run failed");
             append_output_requested("System", "AI run failed: %s".printf(e.message));
             activity_requested(
                 "result.ai.run_failed",
@@ -353,8 +368,6 @@ public class AiRunController : Object {
                 append_output_requested("System", detail);
                 break;
             case "failed":
-                var failed = json_string_member_or_empty(data, "error");
-                append_output_requested("System", failed.length > 0 ? failed : "Run failed.");
                 break;
             case "done":
                 var model_done = describe_run_target(data);

@@ -18,6 +18,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_progress_empty = false;
     public bool emit_fallback = false;
     public bool emit_fallback_empty = false;
+    public bool omit_terminal = false;
     public bool emit_failed = false;
     public bool emit_failed_empty = false;
     public bool done_without_model = false;
@@ -377,6 +378,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         }
         if (emit_failed_empty) {
             on_event("failed", new Json.Object());
+        }
+
+        if (omit_terminal || emit_failed || emit_failed_empty) {
+            return;
         }
 
         var done_obj = new Json.Object();
