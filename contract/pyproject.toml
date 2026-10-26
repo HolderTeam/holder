@@ -1,0 +1,11 @@
+# Settings for the contract's tooling. There is deliberately no [project] table: the contract and
+# its tooling are never built or published, and nothing that ships may depend on them.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["tests/fixtures"]

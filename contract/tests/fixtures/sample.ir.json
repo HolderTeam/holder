@@ -1,0 +1,597 @@
+{
+  "ir_version": 1,
+  "aliases": [
+    {
+      "name": "CardId",
+      "source": "sample/cards.py",
+      "doc": "A card's ID.",
+      "type": {
+        "kind": "string",
+        "min_length": 1
+      }
+    },
+    {
+      "name": "RunEvent",
+      "source": "sample/cards.py",
+      "doc": "One event of an AI run.",
+      "type": {
+        "kind": "union",
+        "alternatives": [
+          {
+            "kind": "named",
+            "name": "RunStarted"
+          },
+          {
+            "kind": "named",
+            "name": "RunChunk"
+          }
+        ],
+        "discriminator": "type"
+      }
+    }
+  ],
+  "enums": [
+    {
+      "name": "Role",
+      "source": "sample/cards.py",
+      "doc": "Who wrote a message.",
+      "values": [
+        {
+          "name": "USER",
+          "value": "user"
+        },
+        {
+          "name": "ASSISTANT",
+          "value": "assistant"
+        }
+      ]
+    }
+  ],
+  "records": [
+    {
+      "name": "TagOccurrence",
+      "source": "sample/cards.py",
+      "doc": "A tag written in a card's content.",
+      "fields": [
+        {
+          "name": "tag",
+          "doc": "The normalized tag.",
+          "type": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "byte_start",
+          "doc": "Inclusive byte offset of the leading # in content.",
+          "type": {
+            "kind": "int32"
+          }
+        },
+        {
+          "name": "byte_end",
+          "doc": "Exclusive byte offset after the tag name.",
+          "type": {
+            "kind": "int32"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Card",
+      "source": "sample/cards.py",
+      "doc": "A card in a project.",
+      "fields": [
+        {
+          "name": "card_id",
+          "doc": "The card's ID.",
+          "type": {
+            "kind": "named",
+            "name": "CardId"
+          }
+        },
+        {
+          "name": "title",
+          "doc": "The card's title.",
+          "type": {
+            "kind": "string",
+            "min_length": 1
+          }
+        },
+        {
+          "name": "parent_card_id",
+          "doc": "Null for a root card.",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "named",
+              "name": "CardId"
+            }
+          }
+        },
+        {
+          "name": "deleted_at",
+          "doc": "When the card was moved to the trash; null when it is not in the trash.",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "int64",
+              "format": "unix-seconds"
+            }
+          }
+        },
+        {
+          "name": "tags",
+          "doc": "The card's normalized tags.",
+          "type": {
+            "kind": "list",
+            "items": {
+              "kind": "string"
+            }
+          }
+        },
+        {
+          "name": "tag_occurrences",
+          "doc": "Each tag written in content, in order.",
+          "type": {
+            "kind": "list",
+            "items": {
+              "kind": "named",
+              "name": "TagOccurrence"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CardListItem",
+      "source": "sample/cards.py",
+      "doc": "A card in a listing.",
+      "base": "Card",
+      "fields": [
+        {
+          "name": "child_count",
+          "doc": "Live children, present when requested.",
+          "type": {
+            "kind": "int32"
+          },
+          "omittable": true
+        }
+      ]
+    },
+    {
+      "name": "Page",
+      "source": "sample/cards.py",
+      "doc": "One page of a listing.",
+      "type_parameters": [
+        "T"
+      ],
+      "fields": [
+        {
+          "name": "items",
+          "doc": "The page's items.",
+          "type": {
+            "kind": "list",
+            "items": {
+              "kind": "parameter",
+              "name": "T"
+            }
+          }
+        },
+        {
+          "name": "next_cursor",
+          "doc": "Pass back to get the next page; null on the last page.",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "string"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MessagePatch",
+      "source": "sample/cards.py",
+      "doc": "Changes to an AI message. Omitted fields are left unchanged.",
+      "fields": [
+        {
+          "name": "role",
+          "doc": "Omit to leave it unchanged.",
+          "type": {
+            "kind": "named",
+            "name": "Role"
+          },
+          "omittable": true
+        },
+        {
+          "name": "provider",
+          "doc": "Omit to leave it unchanged; null clears it.",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "string"
+            }
+          },
+          "omittable": true
+        },
+        {
+          "name": "meta",
+          "doc": "Free-form details; replaces the stored value.",
+          "type": {
+            "kind": "json"
+          },
+          "omittable": true
+        }
+      ]
+    },
+    {
+      "name": "LocationBinding",
+      "source": "sample/cards.py",
+      "doc": "Private credentials binding a storage location to this device.",
+      "fields": [
+        {
+          "name": "values",
+          "doc": "Sent by clients, never returned.",
+          "type": {
+            "kind": "map",
+            "values": {
+              "kind": "secret"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RunStarted",
+      "source": "sample/cards.py",
+      "doc": "The run has started.",
+      "fields": [
+        {
+          "name": "type",
+          "doc": "The event's type.",
+          "type": {
+            "kind": "literal",
+            "values": [
+              "run_started"
+            ]
+          }
+        },
+        {
+          "name": "run_id",
+          "doc": "The run's ID.",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RunChunk",
+      "source": "sample/cards.py",
+      "doc": "Part of the answer.",
+      "fields": [
+        {
+          "name": "type",
+          "doc": "The event's type.",
+          "type": {
+            "kind": "literal",
+            "values": [
+              "chunk"
+            ]
+          }
+        },
+        {
+          "name": "text",
+          "doc": "The text of this part.",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "name": "NotFound",
+      "source": "sample/cards.py",
+      "doc": "The thing asked for does not exist, or is in the trash.",
+      "fields": []
+    },
+    {
+      "name": "Conflict",
+      "source": "sample/cards.py",
+      "doc": "The thing changed since the caller last read it.",
+      "fields": [
+        {
+          "name": "current_updated_at",
+          "doc": "When it was last changed.",
+          "type": {
+            "kind": "int64",
+            "format": "unix-seconds"
+          }
+        }
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "KeyringProvider",
+      "source": "sample/cards.py",
+      "doc": "Stores secrets where the platform has no keyring of its own.",
+      "methods": [
+        {
+          "name": "lookup",
+          "summary": "Return the secret, or null if none is stored.",
+          "description": null,
+          "parameters": [
+            {
+              "name": "service",
+              "type": {
+                "kind": "string"
+              }
+            },
+            {
+              "name": "account",
+              "type": {
+                "kind": "string"
+              }
+            }
+          ],
+          "returns": {
+            "kind": "nullable",
+            "value": {
+              "kind": "secret"
+            }
+          }
+        },
+        {
+          "name": "store",
+          "summary": "Store a secret, replacing any stored before.",
+          "description": null,
+          "parameters": [
+            {
+              "name": "service",
+              "type": {
+                "kind": "string"
+              }
+            },
+            {
+              "name": "account",
+              "type": {
+                "kind": "string"
+              }
+            },
+            {
+              "name": "secret",
+              "type": {
+                "kind": "secret"
+              }
+            }
+          ],
+          "returns": {
+            "kind": "none"
+          }
+        }
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "name": "get_card",
+      "source": "sample/cards.py",
+      "summary": "Fetch a card.",
+      "description": "A card in the trash is not found.",
+      "parameters": [
+        {
+          "name": "card_id",
+          "type": {
+            "kind": "named",
+            "name": "CardId"
+          }
+        }
+      ],
+      "returns": {
+        "kind": "named",
+        "name": "Card"
+      },
+      "errors": [
+        "NotFound"
+      ],
+      "daemon_only": false
+    },
+    {
+      "name": "list_cards",
+      "source": "sample/cards.py",
+      "summary": "List a project's cards, one page at a time.",
+      "description": null,
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": {
+            "kind": "string",
+            "min_length": 1
+          },
+          "doc": "The project to list."
+        },
+        {
+          "name": "parent",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "union",
+              "alternatives": [
+                {
+                  "kind": "literal",
+                  "values": [
+                    "roots"
+                  ]
+                },
+                {
+                  "kind": "named",
+                  "name": "CardId"
+                }
+              ]
+            }
+          },
+          "default": null
+        },
+        {
+          "name": "limit",
+          "type": {
+            "kind": "int32",
+            "ge": 1,
+            "le": 5000
+          },
+          "default": 200
+        },
+        {
+          "name": "cursor",
+          "type": {
+            "kind": "nullable",
+            "value": {
+              "kind": "string"
+            }
+          },
+          "default": null
+        }
+      ],
+      "returns": {
+        "kind": "named",
+        "name": "Page",
+        "arguments": [
+          {
+            "kind": "named",
+            "name": "CardListItem"
+          }
+        ]
+      },
+      "errors": [],
+      "daemon_only": false
+    },
+    {
+      "name": "update_message",
+      "source": "sample/cards.py",
+      "summary": "Change an AI message.",
+      "description": null,
+      "parameters": [
+        {
+          "name": "message_id",
+          "type": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "patch",
+          "type": {
+            "kind": "named",
+            "name": "MessagePatch"
+          }
+        }
+      ],
+      "returns": {
+        "kind": "none"
+      },
+      "errors": [
+        "NotFound",
+        "Conflict"
+      ],
+      "daemon_only": false
+    },
+    {
+      "name": "get_asset_content",
+      "source": "sample/cards.py",
+      "summary": "Read an asset's bytes.",
+      "description": null,
+      "parameters": [
+        {
+          "name": "asset_id",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ],
+      "returns": {
+        "kind": "bytes"
+      },
+      "errors": [
+        "NotFound"
+      ],
+      "daemon_only": false
+    },
+    {
+      "name": "run_ai",
+      "source": "sample/cards.py",
+      "summary": "Start an AI run and stream its events.",
+      "description": null,
+      "parameters": [
+        {
+          "name": "prompt",
+          "type": {
+            "kind": "string",
+            "min_length": 1
+          }
+        }
+      ],
+      "returns": {
+        "kind": "stream",
+        "items": {
+          "kind": "named",
+          "name": "RunEvent"
+        }
+      },
+      "errors": [],
+      "daemon_only": true
+    }
+  ],
+  "http": [
+    {
+      "operation": "get_card",
+      "method": "GET",
+      "path": "/cards/{card_id}",
+      "path_parameters": [
+        "card_id"
+      ],
+      "query": []
+    },
+    {
+      "operation": "list_cards",
+      "method": "GET",
+      "path": "/projects/{project_id}/cards",
+      "path_parameters": [
+        "project_id"
+      ],
+      "query": [
+        "parent",
+        "limit",
+        "cursor"
+      ]
+    },
+    {
+      "operation": "update_message",
+      "method": "PATCH",
+      "path": "/ai/messages/{message_id}",
+      "path_parameters": [
+        "message_id"
+      ],
+      "query": [],
+      "body": "patch"
+    },
+    {
+      "operation": "get_asset_content",
+      "method": "GET",
+      "path": "/assets/{asset_id}/content",
+      "path_parameters": [
+        "asset_id"
+      ],
+      "query": []
+    },
+    {
+      "operation": "run_ai",
+      "method": "POST",
+      "path": "/ai/runs",
+      "path_parameters": [],
+      "query": [],
+      "body": "prompt"
+    }
+  ]
+}
