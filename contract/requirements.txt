@@ -1,0 +1,5 @@
+# The contract's tooling, for development and CI only. Pydantic is pinned exactly because its
+# version decides how the contract is read, and so the IR and everything generated from it.
+pydantic==2.14.1
+pytest>=8,<10
+ruff==0.16.10
