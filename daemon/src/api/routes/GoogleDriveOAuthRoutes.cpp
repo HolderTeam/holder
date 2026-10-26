@@ -1,6 +1,5 @@
 #include "api/routes/GoogleDriveOAuthRoutes.h"
 
-#include "api/support/HttpQuery.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/Time.h"
 #include "resource/LocationBindingStore.h"

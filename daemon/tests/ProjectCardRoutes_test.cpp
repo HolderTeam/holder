@@ -1,5 +1,4 @@
 #include "api/GeneratedRoutes.h"
-#include "api/support/HttpQuery.h"
 #include "card/CardRepo.h"
 #include "card/TagRepo.h"
 #include "http_test_helpers.h"
@@ -254,14 +253,44 @@ TEST_CASE(
   CHECK(broken.second["error"]["code"] == "hierarchy_invalid");
 }
 
-TEST_CASE("Project query values decode once and match complete parameter names", "[http-query]") {
-  using holder::api::support::decoded_query_param_value;
-  CHECK(
-      decoded_query_param_value("name=Collection+integration", "name") == "Collection integration"
-  );
-  CHECK(decoded_query_param_value("name=caf%C3%A9%20%26%2B", "name") == "café &+");
-  CHECK(decoded_query_param_value("name=%252B", "name") == "%2B");
-  CHECK(decoded_query_param_value("other_name=wrong&name=right", "name") == "right");
+TEST_CASE("Generated dispatch decodes query names and values once", "[http-query]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  const std::pair<std::string, std::string> cases[] = {
+      {"project_id=space+project", "space project"},
+      {"project_id=space%20project", "space project"},
+      {"project_id=literal%2Bplus", "literal+plus"},
+      {"project_id=caf%C3%A9%20%26%2B", "café &+"},
+      {"project_id=%252B", "%2B"},
+      {"project%5Fid=literal%2Bplus", "literal+plus"},
+      {"other_project_id=wrong&project_id=literal%2Bplus", "literal+plus"},
+  };
+  for (const auto& id : {"space project", "literal+plus", "café &+", "%2B"}) {
+    holder::test::create_project(db, id, (dir / id).string());
+  }
+  for (const auto& [query, expected] : cases) {
+    INFO(query);
+    // This non-search endpoint receives its decoded project ID from generated dispatch.
+    const auto [status, payload] = route_project_cards(db, nullptr, "/cards/context?" + query);
+    REQUIRE(status == http::status::ok);
+    CHECK(payload["data"]["project"]["project_id"] == expected);
+  }
+}
+
+TEST_CASE("Generated dispatch rejects malformed escapes and duplicate query names", "[http-query]") {
+  const auto dir = holder::test::make_temp_dir();
+  auto db = holder::test::open_db_with_schema(dir / "holder.db");
+  holder::test::create_project(db, "p", (dir / "repo").string());
+  for (const auto& query : {
+           "project_id=%", "project_id=%2", "project_id=%GG", "project_id=%2G",
+           "project%GGid=p", "project_id=p&project_id=p", "project_id=p&project%5Fid=p",
+           "project_id=p&unused=%GG"}) {
+    INFO(query);
+    const auto [status, payload] = route_project_cards(
+        db, nullptr, std::string("/cards/context?") + query);
+    REQUIRE(status == http::status::bad_request);
+    CHECK(payload["error"]["code"] == "bad_request");
+  }
 }
 
 TEST_CASE("Project card collection pages can include card content", "[card-pages]") {
