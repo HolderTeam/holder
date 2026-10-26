@@ -1,0 +1,14 @@
+create: status 0, c1 Thesis, content 'Intro #draft', tags 1, first at 6, updated_at == created_at: 1
+create child: status 0, parent c1, sort_key 2.5, content ''
+create with an empty title: status 1, card_create.title must not be empty
+create under a missing parent: status 100, parent not found: missing
+get: status 0, Thesis, deleted_at NULL
+get a missing card: status 100, card not found: c9
+get with an empty ID: status 1, card_id must not be empty
+list all: status 0, 2 cards, content absent, child_count absent, next_cursor NULL
+list roots with content and counts: status 0, 1 card, 'Intro #draft', 1 child
+list children of c1, one per page: status 0, Chapter 1
+list with limit 9000: status 1, limit must be from 1 to 5000
+list with an unknown order: status 1, order is not a holder_list_cards_order value
+list children of a NULL card: status 1, parent.card_id must not be null
+list a missing project: status 100, project not found: p9
