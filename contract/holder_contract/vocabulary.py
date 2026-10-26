@@ -89,24 +89,45 @@ class HttpBinding:
     method: str
     path: str
     query: tuple[str, ...]
+    status: int
+    line: int
+
+
+@dataclass(frozen=True)
+class HttpErrorBinding:
+    error: Any
+    status: int
     line: int
 
 
 @dataclass
 class _Bindings:
     by_module: dict[str, list[HttpBinding]] = field(default_factory=dict)
+    errors_by_module: dict[str, list[HttpErrorBinding]] = field(default_factory=dict)
 
 
 BINDINGS = _Bindings()
 
 
-def http(target: Callable[..., Any], method: str, path: str, *, query: list[str] | tuple[str, ...] = ()) -> None:
+def http(target: Callable[..., Any], method: str, path: str, *, query: list[str] | tuple[str, ...] = (),
+         status: int = 200) -> None:
     """Bind an operation to an HTTP method and path. Core ignores this; the daemon serves it.
 
     Parameters named in the path come from the path, those listed in query from the query string,
-    and at most one remaining parameter is the request body.
+    and at most one remaining parameter is the request body. status is the success status.
     """
     caller = inspect.currentframe().f_back
     module = caller.f_globals["__name__"]
     BINDINGS.by_module.setdefault(module, []).append(
-        HttpBinding(target, method, path, tuple(query), caller.f_lineno))
+        HttpBinding(target, method, path, tuple(query), status, caller.f_lineno))
+
+
+def http_error(error: type[HolderError], status: int) -> None:
+    """Give an error kind its HTTP status. Core ignores this; the daemon answers with it.
+
+    Every error kind an HTTP-bound operation may fail with needs one. An invalid argument is 400 and
+    an unexpected failure 500, without a declaration.
+    """
+    caller = inspect.currentframe().f_back
+    module = caller.f_globals["__name__"]
+    BINDINGS.errors_by_module.setdefault(module, []).append(HttpErrorBinding(error, status, caller.f_lineno))

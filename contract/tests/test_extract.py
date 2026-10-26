@@ -56,3 +56,10 @@ def test_http_bindings_place_each_parameter():
     assert bindings["list_cards"]["query"] == ["parent", "limit", "cursor"]
     assert "body" not in bindings["list_cards"]
     assert bindings["update_message"]["body"] == "patch"
+    assert bindings["list_cards"]["status"] == 200
+    assert bindings["run_ai"]["status"] == 201
+
+
+def test_error_kinds_have_http_statuses():
+    assert extract(FIXTURES, "sample")["http_errors"] == [{"error": "NotFound", "status": 404},
+                                                          {"error": "Conflict", "status": 409}]

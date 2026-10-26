@@ -15,7 +15,7 @@ from typing import Annotated, Literal, Protocol
 from pydantic import BaseModel, field_validator
 
 from holder_contract import (MISSING, Field, HolderError, Int32, Record, Stream, host_interface,
-                             http, operation)
+                             http, http_error, operation)
 """
 _counter = itertools.count()
 
@@ -179,10 +179,38 @@ def put_thing(thing_id: str, name: str, colour: str) -> None:
     ('http(put_thing, "PUT", "/things/{thing_id}")', "name, colour are left for the body"),
     ('http(get_thing, "GET", "/things/{thing_id}", query=["size"])', "query parameter size is not a parameter"),
     ('http(get_thing, "FETCH", "/things/{thing_id}")', "the method must be one of"),
+    ('http(get_thing, "GET", "/things/{thing_id}", status=204)', "the status must be a 2xx with a body"),
+    ('http(get_thing, "GET", "/things/{thing_id}", status=404)', "the status must be a 2xx with a body"),
 ])
 def test_http_bindings_are_checked(tmp_path, binding, message):
     found = problems(tmp_path, OPERATIONS + binding + "\n")
     assert message in found
+
+
+ERRORS = '''
+class Missing(HolderError):
+    """Not there."""
+
+@operation(errors=[Missing])
+def find_thing(thing_id: str) -> None:
+    """Find a thing."""
+'''
+
+
+@pytest.mark.parametrize("bindings, message", [
+    ('http(find_thing, "GET", "/things/{thing_id}")\n',
+     "find_thing is bound to HTTP, so its error kind Missing needs an http_error() status"),
+    ('http_error(Missing, 200)\n', "the status must be a 4xx or 5xx"),
+    ('http_error(Missing, 404)\nhttp_error(Missing, 410)\n', "the error kind already has a status"),
+    ('http_error(ValueError, 400)\n', "ValueError is not an error kind declared in the contract"),
+])
+def test_http_error_statuses_are_checked(tmp_path, bindings, message):
+    assert message in problems(tmp_path, ERRORS + bindings)
+
+
+def test_error_kinds_with_statuses_bind_cleanly(tmp_path):
+    binding = 'http_error(Missing, 404)\nhttp(find_thing, "GET", "/things/{thing_id}")\n'
+    assert problems(tmp_path, ERRORS + binding) == ""
 
 
 def test_an_operation_is_bound_once(tmp_path):
