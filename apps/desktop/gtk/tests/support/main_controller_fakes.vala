@@ -776,7 +776,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return results;
     }
 
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
         if (fail_ai_capabilities) {
             throw new IOError.FAILED("ai capabilities failed");
         }

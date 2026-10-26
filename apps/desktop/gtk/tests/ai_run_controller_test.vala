@@ -203,6 +203,7 @@ private void test_refresh_status_emits_render_status() {
 
     controller.refresh_status.begin();
     assert(wait_for_condition(() => rendered));
+    assert(api.last_capabilities_runner_id == null);
     assert(controller.get_last_rendered_runners().size == 1);
     assert(controller.get_last_rendered_runners()[0].runner_id == "manual-a");
     assert(controller.get_last_rendered_runners()[0].runtime.models.size == 1);

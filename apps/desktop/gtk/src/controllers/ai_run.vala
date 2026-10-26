@@ -57,9 +57,8 @@ public class AiRunController : Object {
             return;
         }
 
-        var project_id = main_controller.selected_project_id();
         try {
-            var capabilities = yield api.get_ai_capabilities(project_id);
+            var capabilities = yield api.get_ai_capabilities();
             var status = yield api.get_ai_status();
             last_rendered_runners = yield api.list_ai_runners();
             render_status_requested(capabilities, status);

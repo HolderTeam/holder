@@ -983,7 +983,7 @@ private void test_get_ai_capabilities_parses_nested_data() {
 
     bool done = false;
     HolderLinux.AiCapabilitiesInfo? info = null;
-    client.get_ai_capabilities.begin("p1", (obj, res) => {
+    client.get_ai_capabilities.begin("manual-a", (obj, res) => {
         try {
             info = client.get_ai_capabilities.end(res);
         } catch (Error e) {
@@ -999,7 +999,7 @@ private void test_get_ai_capabilities_parses_nested_data() {
     assert(info.caste_name == "user");
     assert(info.models.size == 2);
     assert(info.recommended_install.size == 1);
-    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("runner_id=manual-a"));
 }
 
 private void test_get_ai_status_parses_pull_jobs() {
@@ -2107,7 +2107,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
                         try { client.list_ai_threads.end(r5); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
                         client.list_ai_provider_catalog.begin((o6, r6) => {
                             try { client.list_ai_provider_catalog.end(r6); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
-                            client.get_ai_capabilities.begin("p1", (o7, r7) => {
+                            client.get_ai_capabilities.begin("manual-a", (o7, r7) => {
                                 try { client.get_ai_capabilities.end(r7); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
                                 done = true;
                             });
@@ -2175,7 +2175,7 @@ private void test_create_ai_thread_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
-private void test_ai_capabilities_optional_fields_and_no_project_query() {
+private void test_ai_capabilities_optional_fields_and_no_runner_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
@@ -2200,7 +2200,7 @@ private void test_ai_capabilities_optional_fields_and_no_project_query() {
     assert(info.caste_name == "");
     assert(info.models.size == 0);
     assert(info.recommended_install.size == 0);
-    assert(!transport.last_uri.contains("project_id="));
+    assert(transport.last_uri == "http://127.0.0.1:8080/ai/capabilities");
 }
 
 private void test_ai_capabilities_missing_caste_and_null_string_fields() {
@@ -2213,7 +2213,7 @@ private void test_ai_capabilities_missing_caste_and_null_string_fields() {
 
     bool done = false;
     HolderLinux.AiCapabilitiesInfo? info = null;
-    client.get_ai_capabilities.begin("p1", (obj, res) => {
+    client.get_ai_capabilities.begin("manual-a", (obj, res) => {
         try {
             info = client.get_ai_capabilities.end(res);
         } catch (Error e) {
@@ -2981,8 +2981,8 @@ int main(string[] args) {
                   test_start_runner_pull_missing_data_is_protocol_error_and_missing_job_returns_empty);
     Test.add_func("/api_client/create_ai_thread_missing_data_is_protocol_error",
                   test_create_ai_thread_missing_data_is_protocol_error);
-    Test.add_func("/api_client/ai_capabilities_optional_fields_and_no_project_query",
-                  test_ai_capabilities_optional_fields_and_no_project_query);
+    Test.add_func("/api_client/ai_capabilities_optional_fields_and_no_runner_query",
+                  test_ai_capabilities_optional_fields_and_no_runner_query);
     Test.add_func("/api_client/ai_capabilities_missing_caste_and_null_string_fields",
                   test_ai_capabilities_missing_caste_and_null_string_fields);
     Test.add_func("/api_client/ai_status_missing_pull_fields_uses_defaults",

@@ -182,7 +182,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                                                            int limit = 30) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async HolderLinux.AiStatusInfo get_ai_status() throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
