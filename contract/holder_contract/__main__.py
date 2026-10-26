@@ -1,4 +1,4 @@
-"""python -m holder_contract: check the contract, write its IR, or generate core's C API from it."""
+"""python -m holder_contract: check the contract, write its IR, or generate code from it."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+from .daemon import generate_daemon
 from .extract import ContractError, extract
 from .generate import CORE_PATHS, Unsupported, generate
 
@@ -16,7 +17,8 @@ REPOSITORY = CONTRACT.parent
 COMMANDS = {
     "check": "report every problem in the contract, and fail if core's generated files are out of date",
     "ir": "write the contract's IR as JSON",
-    "generate": "write the generated C API into --output, a directory",
+    "generate": "write every generated file into --output, a directory: core's C API, and the daemon's routes, "
+                "their JSON codec and their OpenAPI paths",
     "update": "write the generated C API into core",
 }
 
@@ -82,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "generate":
         if not args.output:
             parser.error("generate needs --output, a directory")
+        try:
+            files = {**files, **generate_daemon(ir)}
+        except Unsupported as error:
+            print(f"The daemon's generators do not support this yet: {error}", file=sys.stderr)
+            return 1
         targets = {name: args.output / name for name in files}
     else:
         targets = {name: REPOSITORY / path for name, path in CORE_PATHS.items()}

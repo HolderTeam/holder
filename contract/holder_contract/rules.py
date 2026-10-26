@@ -112,7 +112,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
                 problem(node, f"{node.name}: an operation takes no decorator besides @operation")
             if not _declaration_body(node.body):
                 problem(node, f"{node.name}: an operation's body may hold only its docstring and `...`")
-        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and _decorator_name(node.value) == "http":
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and _decorator_name(node.value) in ("http", "http_error"):
             continue
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             problem(node, "contract files hold no assignments; name a type with a `type` statement")

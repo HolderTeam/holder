@@ -551,7 +551,8 @@
       "path_parameters": [
         "card_id"
       ],
-      "query": []
+      "query": [],
+      "status": 200
     },
     {
       "operation": "list_cards",
@@ -564,7 +565,8 @@
         "parent",
         "limit",
         "cursor"
-      ]
+      ],
+      "status": 200
     },
     {
       "operation": "update_message",
@@ -574,6 +576,7 @@
         "message_id"
       ],
       "query": [],
+      "status": 200,
       "body": "patch"
     },
     {
@@ -583,7 +586,8 @@
       "path_parameters": [
         "asset_id"
       ],
-      "query": []
+      "query": [],
+      "status": 200
     },
     {
       "operation": "run_ai",
@@ -591,7 +595,18 @@
       "path": "/ai/runs",
       "path_parameters": [],
       "query": [],
+      "status": 201,
       "body": "prompt"
+    }
+  ],
+  "http_errors": [
+    {
+      "error": "NotFound",
+      "status": 404
+    },
+    {
+      "error": "Conflict",
+      "status": 409
     }
   ]
 }

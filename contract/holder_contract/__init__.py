@@ -16,6 +16,7 @@ from .vocabulary import (
     Timestamp,
     host_interface,
     http,
+    http_error,
     operation,
 )
 
@@ -34,5 +35,6 @@ __all__ = [
     "Timestamp",
     "host_interface",
     "http",
+    "http_error",
     "operation",
 ]

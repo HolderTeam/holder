@@ -11,7 +11,8 @@
   "errors": [],
   "interfaces": [],
   "operations": [],
-  "http": []
+  "http": [],
+  "http_errors": []
 }
 ```
 
@@ -33,7 +34,8 @@ Declarations appear in the order of their modules' paths, then in source order. 
 - **Interface**: `name`, `source`, `doc`, and `methods`, each a signature.
 - **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`.
 - **Signature**: `name`, `summary`, `description`, `parameters` and `returns`. Each parameter has a `name` and `type`, and may have a `doc` and a `default`.
-- **HTTP binding**: `operation`, `method`, `path`, `path_parameters` and `query`, plus `body` when one parameter is left for the request body.
+- **HTTP binding**: `operation`, `method`, `path`, `path_parameters`, `query` and `status` (the success status), plus `body` when one parameter is left for the request body.
+- **HTTP error status** (in `http_errors`): an error kind's `error` name and its `status`.
 
 ## Types
 

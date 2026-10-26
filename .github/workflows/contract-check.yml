@@ -1,7 +1,8 @@
 name: Contract / Check
 
-# The contract's tooling (contract/): lint, its tests, a check that the contract follows its rules,
-# and a check that core's generated C API files match it. Nothing in contract/ ships;
+# The contract's tooling (contract/): lint, its tests (including compiling and running the generated
+# C API and HTTP routes), a check that the contract follows its rules, and a check that core's
+# generated C API files match it. Nothing in contract/ ships;
 # .github/scripts/check-contract-boundary.py, run by Repository / Checks, keeps it that way.
 
 on:
@@ -71,6 +72,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -r requirements.txt
+      # The compile-and-run tests of the daemon's routes need nlohmann/json, as the daemon does.
+      - run: sudo apt-get install -y --no-install-recommends nlohmann-json3-dev
       - run: make check PYTHON=python
   result:
     name: Contract check result

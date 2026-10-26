@@ -79,7 +79,8 @@ class _Builder:
         self.declared = declared
         self.problems: list[Problem] = []
         self.ir: dict[str, Any] = {"ir_version": IR_VERSION, "aliases": [], "enums": [], "records": [],
-                                   "errors": [], "interfaces": [], "operations": [], "http": []}
+                                   "errors": [], "interfaces": [], "operations": [], "http": [],
+                                   "http_errors": []}
         self.where = ("", 0)
         self.names: dict[str, tuple[str, int]] = {}
 
@@ -95,6 +96,10 @@ class _Builder:
             for binding in BINDINGS.by_module.get(module_name, []):
                 self.where = (self.declared[module_name][0], binding.line)
                 self.bind(binding)
+            for binding in BINDINGS.errors_by_module.get(module_name, []):
+                self.where = (self.declared[module_name][0], binding.line)
+                self.bind_error(binding)
+        self.check_error_statuses()
         if self.problems:
             raise ContractError(self.problems)
         return self.ir
@@ -275,11 +280,37 @@ class _Builder:
                 self.problem(f"http({name}): the operation is already bound")
             if (existing["method"], existing["path"]) == (binding.method, binding.path):
                 self.problem(f"http({name}): {binding.method} {binding.path} is already bound to {existing['operation']}")
+        if not (isinstance(binding.status, int) and 200 <= binding.status <= 299 and binding.status != 204):
+            self.problem(f"http({name}): the status must be a 2xx with a body, not {binding.status!r}")
         entry = {"operation": name, "method": binding.method, "path": binding.path,
-                 "path_parameters": in_path, "query": list(binding.query)}
+                 "path_parameters": in_path, "query": list(binding.query), "status": binding.status}
         if body:
             entry["body"] = body[0]
         self.ir["http"].append(entry)
+
+    def bind_error(self, binding) -> None:
+        error = binding.error
+        name = getattr(error, "__name__", repr(error))
+        declared = {e["name"] for e in self.ir["errors"]}
+        if not (isinstance(error, type) and name in declared and self.in_contract(error)):
+            self.problem(f"http_error(): {name} is not an error kind declared in the contract")
+            return
+        if not (isinstance(binding.status, int) and 400 <= binding.status <= 599):
+            self.problem(f"http_error({name}): the status must be a 4xx or 5xx, not {binding.status!r}")
+        if any(e["error"] == name for e in self.ir["http_errors"]):
+            self.problem(f"http_error({name}): the error kind already has a status")
+        self.ir["http_errors"].append({"error": name, "status": binding.status})
+
+    def check_error_statuses(self) -> None:
+        """Every error kind an HTTP-bound operation may fail with needs a status."""
+        statuses = {e["error"] for e in self.ir["http_errors"]}
+        operations = {op["name"]: op for op in self.ir["operations"]}
+        for binding in self.ir["http"]:
+            for error in operations[binding["operation"]]["errors"]:
+                if error not in statuses:
+                    self.problem(f"{binding['operation']} is bound to HTTP, so its error kind {error} "
+                                 "needs an http_error() status")
+                    statuses.add(error)
 
     # ---- types -------------------------------------------------------------------------------
 

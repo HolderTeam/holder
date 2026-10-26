@@ -6,7 +6,7 @@ These files describe every record, operation, error and event that core, the dae
 
 The files look like a FastAPI app, but they are declarations, not a server. An operation is a function with a typed signature and a docstring, and no body; nothing ever calls it.
 
-The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing and creating cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`.
+The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing and creating cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`. The daemon's generators write its HTTP routes, their JSON codec and their OpenAPI paths, described in [HTTP.md](HTTP.md).
 
 ## Layout
 
@@ -14,9 +14,9 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 - `holder_contract/` is the tooling:
   - the vocabulary contract files import (`vocabulary.py`) and the rules they must follow (`rules.py`);
   - the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md));
-  - the generators (`generate.py`, for core's C API);
+  - the generators: `generate.py` for core's C API, and `http_routes.py`, `json_codec.py` and `openapi.py` for the daemon (`daemon.py` runs them);
   - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
-- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generator's output by compiling and running it against a stand-in for core (`tests/c/`); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
+- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests core against the contract: Hypothesis calls the operations through the generated C API of a shared `libholder`, with arguments from the strategies, and checks each result against its declared type and against a model of what it should be. Core CI runs them on Linux.
 
 None of this is built, packaged or published. `pyproject.toml` holds only tool settings, and CI fails if anything outside this directory imports `holder_contract` or depends on it ([.github/scripts/check-contract-boundary.py](../.github/scripts/check-contract-boundary.py)). The generated Python client has its own models, even where they look like the contract's records.
@@ -52,7 +52,7 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so python3 -m pytest contract/tests/con
 
 from typing import Annotated
 
-from holder_contract import Field, HolderError, Record, Timestamp, http, operation
+from holder_contract import Field, HolderError, Record, Timestamp, http, http_error, operation
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID."""
@@ -81,6 +81,7 @@ def get_card(card_id: CardId) -> Card:
     """
 
 
+http_error(NotFound, 404)
 http(get_card, "GET", "/cards/{card_id}")
 ```
 
@@ -93,7 +94,7 @@ A file may contain only:
 - **host interfaces**: `typing.Protocol` classes marked `@host_interface`, for callbacks core makes into the host, such as a keyring provider;
 - **operations**: functions marked `@operation`, whose body is only a docstring or `...`;
 - **named types**: `type` statements, never plain assignments, so generators keep the name;
-- **HTTP bindings**: `http(operation, method, path, query=[...])` calls, which core ignores.
+- **HTTP bindings**: `http(operation, method, path, query=[...], status=...)` and `http_error(kind, status)` calls, which core ignores ([HTTP.md](HTTP.md)).
 
 Anything else, such as a validator, a `model_config`, a helper function or an assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
 
