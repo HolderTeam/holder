@@ -6,13 +6,13 @@ These files describe every record, operation, error and event that core, the dae
 
 The files look like a FastAPI app, but they are declarations, not a server. An operation is a function with a typed signature and a docstring, and no body; nothing ever calls it.
 
-The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today this directory holds the vocabulary and the extractor ([#288](https://github.com/HolderTeam/holder/issues/288)); the first declarations and generators arrive with the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)).
+The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing and creating cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md); wiring that output into core comes next.
 
 ## Layout
 
 - `interface/` is the contract: one module per area of Holder's interface.
-- `holder_contract/` is the tooling: the vocabulary contract files import (`vocabulary.py`), the rules they must follow (`rules.py`), and the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md)). The generators will live here too.
-- `tests/` tests the tooling against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary.
+- `holder_contract/` is the tooling: the vocabulary contract files import (`vocabulary.py`), the rules they must follow (`rules.py`), the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md)), and the generators (`generate.py`, for core's C API).
+- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary, and the generator's output (`tests/golden/`) by compiling and running it (`tests/c/`).
 
 None of this is built, packaged or published. `pyproject.toml` holds only tool settings, and CI fails if anything outside this directory imports `holder_contract` or depends on it ([.github/scripts/check-contract-boundary.py](../.github/scripts/check-contract-boundary.py)). The generated Python client has its own models, even where they look like the contract's records.
 
@@ -24,6 +24,7 @@ Python 3.12 or later, with the pinned tools:
 python3 -m pip install -r contract/requirements.txt
 make -C contract check    # lint, test, and check the contract
 make -C contract ir       # write the IR to contract/build/ir.json
+make -C contract golden   # regenerate tests/golden/ after an intended change to the generated code
 ```
 
 `python -m holder_contract check` reports every problem in the contract at once, each with its file and line.
