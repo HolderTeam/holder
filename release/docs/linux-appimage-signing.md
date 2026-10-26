@@ -6,15 +6,30 @@ candidate. It deliberately does not create or update a GitHub release.
 
 ## Trust boundary
 
-The workflow lives in `holder`, separate from Holder's source and
-component build repositories, so ordinary changes to those cannot also change
-the signing policy. Staging lives in this same repository, so the protection
-here is the environment rather than repository separation: configure the fixed
-`linux-release-signing` GitHub environment with required reviewers and restrict
-its deployment branches to `main`. The signing job cannot read that
-environment's secrets until a reviewer approves the job. The signing and
-promotion paths are listed in `.github/CODEOWNERS`, ready to be enforced by a
-branch ruleset when the project has more than one maintainer.
+Holder's source, component builds, staging, signing, and promotion all live in
+this monorepo. A source change can also change the workflows, verification
+scripts, or public-key policy.
+
+Both release workflows are manually dispatched. The signing job uses the fixed
+`linux-release-signing` environment and has `actions: read`, `contents: read`,
+`attestations: write`, and `id-token: write`. It can sign and attest a release
+candidate but has no repository contents write permission to publish a release.
+The separate promotion job has `actions: read` and `contents: write`; it verifies
+the signed candidate before uploading release assets and does not use a GitHub
+environment approval gate.
+
+The GitHub configuration checked on 26 October 2026 restricts the signing
+environment to the `main` branch and requires approval from `zeth` before its
+environment secrets become available to the job. Self-review is allowed, and
+administrators may bypass environment protection. This is an approval gate for
+access to signing material, not a requirement for independent review of changes
+to signing policy.
+
+[`.github/CODEOWNERS`](../../.github/CODEOWNERS) assigns the release directory,
+signing and promotion workflows, and CODEOWNERS itself to `zeth`. The active
+`main` ruleset requires pull requests and status checks, but requires neither
+code-owner review nor approving reviews. CODEOWNERS identifies ownership;
+enforcing owner approval would require a future ruleset change.
 
 The workflow:
 
@@ -38,8 +53,8 @@ change.
 
 ## Required GitHub configuration
 
-Create an environment named exactly `linux-release-signing` in
-`HolderTeam/holder` and add:
+The environment named exactly `linux-release-signing` in
+`HolderTeam/holder` must contain:
 
 - Environment secret `HOLDER_GPG_SIGNING_KEY_B64`: a base64 encoding of the
   exported private signing subkeys.
@@ -51,9 +66,10 @@ The expected public identity is anchored by
 fingerprint from that reviewed file rather than trusting a mutable GitHub
 variable.
 
-Configure required reviewers and restrict deployment branches to `main`. Keep
-the private key and passphrase at environment scope, not as ordinary repository
-secrets.
+Keep the required reviewer and `main` deployment-branch restriction described
+above. Keep the private key and passphrase at environment scope, not as ordinary
+repository secrets. Recheck the environment and branch rules when changing the
+release process; the configuration snapshot above is not enforced by this document.
 
 Cross-repository artifact downloads may also require the existing repository or
 organisation secret `HOLDER_CI_ARTIFACT_TOKEN`. It needs only Actions read access
@@ -117,4 +133,6 @@ release-facing files:
 The default tag is `holder-v<version>`, matching the macOS release tag. An override is accepted only when it still
 identifies the exact same version. The workflow uses an existing draft for that
 tag or creates one with placeholder notes. It refuses to alter a published
-release and never edits an existing draft's title or description.
+release unless `allow_published_prerelease` is explicitly enabled and the
+existing release is a prerelease. It never edits an existing release's title or
+description.
