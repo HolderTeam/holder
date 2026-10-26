@@ -332,8 +332,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
     }
 
     // AI
-    public async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientAiEndpoints.get_ai_capabilities(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.get_ai_capabilities(this, runner_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
     public async AiStatusInfo get_ai_status() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact

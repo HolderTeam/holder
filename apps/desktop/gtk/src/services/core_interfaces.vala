@@ -65,7 +65,7 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                                        string query_text,
                                                                        int limit = 30) throws Error;
-    public abstract async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error;
+    public abstract async AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error;
     public abstract async AiStatusInfo get_ai_status() throws Error;
     public abstract async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error;
     public abstract async Gee.ArrayList<AiRunnerInfo> list_ai_runners() throws Error;

@@ -2,11 +2,11 @@ namespace HolderLinux {
 
 public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
     public static async AiCapabilitiesInfo get_ai_capabilities(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
-                                                               string? project_id = null) throws Error {
+                                                               string? runner_id = null) throws Error {
         HashTable<string, string>? query = null;
-        if (project_id != null && project_id.length > 0) {
+        if (runner_id != null && runner_id.length > 0) {
             query = new HashTable<string, string>(str_hash, str_equal); // LCOV_EXCL_BR_LINE: allocator edge artifact
-            query.insert("project_id", project_id);
+            query.insert("runner_id", runner_id);
         }
         var root = yield client.request_json("GET", "/ai/capabilities", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
         return ApiParsersAi.parse_ai_capabilities(root); // LCOV_EXCL_BR_LINE: return edge artifact

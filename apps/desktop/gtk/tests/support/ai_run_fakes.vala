@@ -9,6 +9,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public string? last_run_model = null;
     public int start_pull_calls = 0;
     public string last_pull_model = "";
+    public string? last_capabilities_runner_id = "unset";
     public bool fail_capabilities = false;
     public bool fail_status = false;
     public bool fail_pull = false;
@@ -145,7 +146,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                                                            int limit = 30) throws Error {
         return new Gee.ArrayList<HolderLinux.SearchCardResult>();
     }
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? runner_id = null) throws Error {
+        last_capabilities_runner_id = runner_id;
         if (fail_capabilities) {
             throw new IOError.FAILED("capabilities failed");
         }
