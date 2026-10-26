@@ -187,3 +187,5 @@ class ProvenanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+# Failure probe selects every consumer so dependency skipping is visible.

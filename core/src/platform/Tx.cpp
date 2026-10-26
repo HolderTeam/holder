@@ -24,3 +24,5 @@ void Tx::commit() {
 }
 
 } // namespace holder::platform
+
+#error Intentional shared SDK failure probe; never merge this branch.
