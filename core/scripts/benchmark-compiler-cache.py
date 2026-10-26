@@ -7,6 +7,7 @@ The temporary, behavior-neutral source edit is restored even if the build fails.
 import argparse
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -45,9 +46,10 @@ def main():
     root = Path(__file__).resolve().parents[1]
     commands = json.loads((args.build / "compile_commands.json").read_text())
     if os.name == "nt" and not any(
-        "/Z7" in entry.get("command", "") for entry in commands
+        re.search(r"(?:^|\s)[/-]Z7(?:\s|$)", entry.get("command", ""))
+        for entry in commands
     ):
-        raise RuntimeError("Expected MSVC /Z7 in the actual compile commands")
+        raise RuntimeError(f"Expected MSVC /Z7 in compile commands: {commands[0]}")
     sources = {Path(entry["file"]).resolve() for entry in commands}
     source = min(
         (path for path in sources if path.is_relative_to(root / "src")),
