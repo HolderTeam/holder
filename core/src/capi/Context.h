@@ -11,11 +11,37 @@
 #include <memory>
 #include <string>
 
+namespace holder::git { class GitOps; }
+
+// The services operations run with. holder_context_open makes a context that owns its database
+// and indexer; a host with its own, such as a daemon worker, makes one on them instead, and they
+// must outlive it.
 struct holder_context {
+  holder_context()
+      : owned_db(std::make_unique<holder::platform::Db>()),
+        owned_fts(std::make_unique<holder::index::FtsIndexer>(*owned_db)),
+        db(*owned_db),
+        fts(*owned_fts) {}
+
+  holder_context(holder::platform::Db& host_db, holder::index::FtsIndexer& host_fts,
+                 holder::git::GitOps* host_git = nullptr)
+      : db(host_db), fts(host_fts), git(host_git) {}
+
+  holder_context(const holder_context&) = delete;
+  holder_context& operator=(const holder_context&) = delete;
+
   std::filesystem::path data_dir;
   std::filesystem::path db_path;
-  holder::platform::Db db;
-  holder::index::FtsIndexer fts{db};
+
+ private:
+  std::unique_ptr<holder::platform::Db> owned_db;
+  std::unique_ptr<holder::index::FtsIndexer> owned_fts;
+
+ public:
+  holder::platform::Db& db;
+  holder::index::FtsIndexer& fts;
+  // Git work for cards; null for core's own. A daemon passes the one its workers share.
+  holder::git::GitOps* git = nullptr;
   std::shared_ptr<holder::git::GitCredentialProvider> credential_provider; // nullable
 };
 

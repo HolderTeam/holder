@@ -2,17 +2,15 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Float64, HolderError, Int32, Int64, Record, Timestamp, operation
+from holder_contract import MISSING, Field, Float64, Int32, Int64, Record, Timestamp, operation
+
+from .errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 
 type ProjectId = Annotated[str, Field(min_length=1)]
 """A project's ID."""
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID."""
-
-
-class NotFound(HolderError):
-    """The thing asked for does not exist, or is in the trash."""
 
 
 class CardSummary(Record):
@@ -108,7 +106,7 @@ class NewCard(Record):
     """When the card was last changed, for imports; omit to use created_at."""
 
 
-@operation(errors=[NotFound])
+@operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
 def get_card(card_id: CardId) -> Card:
     """Fetch a card.
 
@@ -116,7 +114,7 @@ def get_card(card_id: CardId) -> Card:
     """
 
 
-@operation(errors=[NotFound])
+@operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
 def list_cards(
     project_id: ProjectId,
     parent: Annotated[Literal["roots"] | CardId | None, Field(
@@ -140,7 +138,7 @@ def list_cards(
     """
 
 
-@operation(errors=[NotFound])
+@operation(errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
 def create_card(card: NewCard) -> Card:
     """Create a card.
 

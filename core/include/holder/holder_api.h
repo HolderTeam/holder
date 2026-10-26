@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/cards.py by holder_contract.
+ * Generated from contract/interface/cards.py, contract/interface/errors.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -19,6 +19,14 @@ typedef struct holder_arena holder_arena;
 
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 100
+/* What would be created already exists, such as a card with the same ID or file. */
+#define HOLDER_ERROR_CONFLICT 101
+/* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
+#define HOLDER_ERROR_KEYRING_UNAVAILABLE 102
+/* An encrypted project's key is not on this device; the project's recovery token restores it. */
+#define HOLDER_ERROR_KEY_MISSING 103
+/* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
+#define HOLDER_ERROR_DATA_CORRUPTED 104
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -95,7 +103,7 @@ typedef struct holder_card_list_item_page {
 
 /* Fetch a card.
  * A card in the trash is not found.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_get_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
@@ -128,13 +136,13 @@ typedef enum holder_list_cards_order {
  * cursor: The previous page's next_cursor. Keep the project, filters and order unchanged. May be NULL.
  * include_content: Include each card's body.
  * include_child_count: Include each card's count of live children.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_list_cards(holder_context* context, const char* project_id, holder_list_cards_parent parent, const char* tag, holder_list_cards_order order, const int32_t* limit, const char* cursor, bool include_content, bool include_child_count, holder_arena* arena, const holder_card_list_item_page** out_page, holder_error** out_error);
 
 /* Create a card.
  * Fails with NotFound when the project or the parent does not exist.
- * Errors: HOLDER_ERROR_NOT_FOUND.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 

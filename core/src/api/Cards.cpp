@@ -2,6 +2,8 @@
 // arguments first; these do the work.
 #include "api/Contract.h"
 
+#include "api/CoreErrors.h"
+
 #include "capi/Context.h"
 #include "card/CardPaths.h"
 #include "card/CardPlacementError.h"
@@ -32,7 +34,7 @@ long long now_epoch_seconds() {
 }
 
 holder::card::CardStore card_store(holder_context& context) {
-  return holder::card::CardStore(context.db, &context.fts);
+  return holder::card::CardStore(context.db, &context.fts, nullptr, context.git);
 }
 
 Card full_card(holder_context& context, holder::card::CardStore& store, const holder::model::Card& card) {
@@ -102,18 +104,17 @@ const char* order_name(ListCardsOrder order) {
   return "card_id_asc";
 }
 
-} // namespace
-
-Card get_card(holder_context& context, std::string card_id) {
+Card find_card(holder_context& context, const std::string& card_id) {
   auto store = card_store(context);
   const auto card = store.get(card_id);
   if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
   return full_card(context, store, *card);
 }
 
-Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
-                              std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
-                              std::optional<std::string> cursor, bool include_content, bool include_child_count) {
+Page<CardListItem> list_page(holder_context& context, const std::string& project_id,
+                             std::optional<ListCardsParent> parent, std::optional<std::string> tag,
+                             ListCardsOrder order, std::int32_t limit, std::optional<std::string> cursor,
+                             bool include_content, bool include_child_count) {
   holder::card::CardPageQuery query;
   std::string normalized_tag;
   if (tag) {
@@ -172,7 +173,7 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
   return out;
 }
 
-Card create_card(holder_context& context, const NewCard& request) {
+Card create(holder_context& context, const NewCard& request) {
   const auto project = holder::project::ProjectRepo(context.db).get(request.project_id);
   if (!project) throw NotFound("project not found: " + request.project_id);
 
@@ -196,6 +197,25 @@ Card create_card(holder_context& context, const NewCard& request) {
   const auto created = store.get(card.card_id);
   if (!created) throw Error("the created card cannot be read back: " + card.card_id);
   return full_card(context, store, *created);
+}
+
+} // namespace
+
+Card get_card(holder_context& context, std::string card_id) {
+  return with_contract_errors([&] { return find_card(context, card_id); });
+}
+
+Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
+                              std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
+                              std::optional<std::string> cursor, bool include_content, bool include_child_count) {
+  return with_contract_errors([&] {
+    return list_page(context, project_id, std::move(parent), std::move(tag), order, limit, std::move(cursor),
+                     include_content, include_child_count);
+  });
+}
+
+Card create_card(holder_context& context, const NewCard& request) {
+  return with_contract_errors([&] { return create(context, request); });
 }
 
 } // namespace holder::contract

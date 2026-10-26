@@ -1,4 +1,4 @@
-// Generated from contract/interface/cards.py by holder_contract.
+// Generated from contract/interface/cards.py, contract/interface/errors.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -28,6 +28,26 @@ struct InvalidArgument : Error {
 
 /// The thing asked for does not exist, or is in the trash.
 struct NotFound : Error {
+  using Error::Error;
+};
+
+/// What would be created already exists, such as a card with the same ID or file.
+struct Conflict : Error {
+  using Error::Error;
+};
+
+/// The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.
+struct KeyringUnavailable : Error {
+  using Error::Error;
+};
+
+/// An encrypted project's key is not on this device; the project's recovery token restores it.
+struct KeyMissing : Error {
+  using Error::Error;
+};
+
+/// A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext.
+struct DataCorrupted : Error {
   using Error::Error;
 };
 
@@ -84,7 +104,7 @@ struct CardListItem : CardMetadata {
 
 /// Fetch a card.
 /// A card in the trash is not found.
-/// @throws NotFound
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 Card get_card(holder_context& context, std::string card_id);
 
 struct ListCardsParentRoots {};
@@ -100,12 +120,12 @@ enum class ListCardsOrder { CardIdAsc, UpdatedDesc, SortKeyAsc };
 /// @param cursor The previous page's next_cursor. Keep the project, filters and order unchanged.
 /// @param include_content Include each card's body.
 /// @param include_child_count Include each card's count of live children.
-/// @throws NotFound
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent, std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit, std::optional<std::string> cursor, bool include_content, bool include_child_count);
 
 /// Create a card.
 /// Fails with NotFound when the project or the parent does not exist.
-/// @throws NotFound
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
 Card create_card(holder_context& context, const NewCard& card);
 
 namespace detail {
