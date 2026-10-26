@@ -2,4 +2,7 @@
 # version decides how the contract is read, and so the IR and everything generated from it.
 pydantic==2.14.1
 pytest>=8,<10
+# For the strategies (holder_contract.values) and the conformance tests, which call core through cffi.
+hypothesis>=6.170,<7
+cffi>=2,<3
 ruff==0.16.10

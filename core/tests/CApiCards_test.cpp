@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include <fstream>
+#include <limits>
 #include <set>
 #include <string>
 
@@ -119,6 +120,43 @@ TEST_CASE("holder_create_card honours the optional fields", "[capi][contract]") 
   REQUIRE(out->created_at == created_at);
   REQUIRE(out->updated_at == updated_at);
   REQUIRE(std::string(out->content).empty());
+}
+
+TEST_CASE("holder_create_card keeps timestamps at or before the epoch", "[capi][contract]") {
+  Fixture f;
+  holder_new_card card{};
+  card.project_id = f.project_id.c_str();
+  card.title = "Old";
+  const int64_t epoch = 0;
+  const int64_t before = -86400;
+  card.created_at = &before;
+  card.updated_at = &epoch;
+  const holder_card* out = nullptr;
+  REQUIRE(holder_create_card(f.context, &card, f.arena, &out, &f.error) == HOLDER_OK);
+  REQUIRE(out->created_at == before);
+  REQUIRE(out->updated_at == epoch);
+}
+
+TEST_CASE("holder_create_card rejects numbers that are not finite and text that is not UTF-8", "[capi][contract]") {
+  Fixture f;
+  holder_new_card card{};
+  card.project_id = f.project_id.c_str();
+  card.title = "Fine";
+  const holder_card* out = nullptr;
+  for (const double bad : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+    card.sort_key = &bad;
+    REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) ==
+            HOLDER_ERROR_INVALID_ARGUMENT);
+  }
+  card.sort_key = nullptr;
+  for (const char* bad : {"\xff", "\xc0\x80", "\xed\xa0\x80", "a\xe2\x82"}) {
+    card.title = bad;
+    REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) ==
+            HOLDER_ERROR_INVALID_ARGUMENT);
+  }
+  card.title = "caf\xc3\xa9 \xf0\x9f\x93\x9d";
+  REQUIRE(holder_create_card(f.context, &card, f.arena, &out, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(out->title) == card.title);
 }
 
 TEST_CASE("holder_create_card reports missing projects, missing parents and bad arguments", "[capi][contract]") {

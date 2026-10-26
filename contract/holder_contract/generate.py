@@ -179,6 +179,8 @@ class Model:
             raise Unsupported(f"{name}: a field both nullable and omittable (a partial update)")
         if ref["kind"] in ("map", "json", "secret", "stream", "bytes", "none"):
             raise Unsupported(f"{name}: {ref['kind']}")
+        if "pattern" in ref:
+            raise Unsupported(f"{name}: patterns, which the glue would not check")
         return Slot(name, ref, doc, nullable, omittable or has_default, default, has_default)
 
 
@@ -542,12 +544,46 @@ void require(bool ok, const std::string& message) {
   if (!ok) throw ArgumentError(message);
 }
 
+// The number of characters in text, or nothing when it is not well-formed UTF-8: no overlong
+// forms, surrogates or code points above U+10FFFF.
+std::optional<std::size_t> utf8_length(const std::string& text) {
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < text.size(); ++count) {
+    const auto lead = static_cast<unsigned char>(text[i]);
+    std::size_t size = 1;
+    char32_t point = lead;
+    if (lead >= 0xC2 && lead <= 0xDF) {
+      size = 2, point = lead & 0x1F;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+      size = 3, point = lead & 0x0F;
+    } else if (lead >= 0xF0 && lead <= 0xF4) {
+      size = 4, point = lead & 0x07;
+    } else if (lead >= 0x80) {
+      return std::nullopt;
+    }
+    if (text.size() - i < size) return std::nullopt;
+    for (std::size_t k = 1; k < size; ++k) {
+      const auto next = static_cast<unsigned char>(text[i + k]);
+      if ((next & 0xC0) != 0x80) return std::nullopt;
+      point = (point << 6) | (next & 0x3F);
+    }
+    if ((size == 3 && (point < 0x800 || (point >= 0xD800 && point <= 0xDFFF))) ||
+        (size == 4 && (point < 0x10000 || point > 0x10FFFF)))
+      return std::nullopt;
+    i += size;
+  }
+  return count;
+}
+
+// Lengths count characters, as the contract does.
 std::string text(const char* value, const char* name, std::size_t min_length, std::size_t max_length) {
   require(value != nullptr, std::string(name) + " must not be null");
   std::string out(value);
-  require(out.size() >= min_length, std::string(name) + (min_length == 1 ? " must not be empty"
-                                                                         : " must be at least " + std::to_string(min_length) + " bytes"));
-  require(out.size() <= max_length, std::string(name) + " must be at most " + std::to_string(max_length) + " bytes");
+  const auto length = utf8_length(out);
+  require(length.has_value(), std::string(name) + " must be UTF-8");
+  require(*length >= min_length, std::string(name) + (min_length == 1 ? " must not be empty"
+                                                                       : " must be at least " + std::to_string(min_length) + " characters"));
+  require(*length <= max_length, std::string(name) + " must be at most " + std::to_string(max_length) + " characters");
   return out;
 }
 
@@ -561,6 +597,11 @@ template <class T>
 T in_range(T value, const char* name, T minimum, T maximum) {
   require(value >= minimum && value <= maximum, std::string(name) + " must be from " + std::to_string(minimum) +
                                                     " to " + std::to_string(maximum));
+  return value;
+}
+
+double finite(double value, const char* name) {
+  require(std::isfinite(value), std::string(name) + " must be a finite number");
   return value;
 }
 
@@ -640,6 +681,10 @@ def scalar_check(t: dict[str, Any], label: str) -> str:
         low = t.get("ge", f"std::numeric_limits<{cpp}>::min()")
         high = t.get("le", f"std::numeric_limits<{cpp}>::max()")
         return f'in_range<{cpp}>({{}}, "{label}", {low}, {high})'
+    if t["kind"] == "float64":
+        if any(k in t for k in ("ge", "le", "gt", "lt")):
+            raise Unsupported(f"{label}: bounds on a float64")
+        return f'finite({{}}, "{label}")'
     return "{}"
 
 
@@ -649,8 +694,8 @@ def generate_glue(model: Model) -> str:
         f"    return contract::detail::fail(out_error, HOLDER_ERROR_{snake(e['name']).upper()}, e.what());\n"
         for e in model.errors)
     out = [*header_lines(model.ir, "The C entry points: argument checks, conversions and error codes.", "cpp"),
-           '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cstddef>", "#include <cstdint>",
-           "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <string>",
+           '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
+           "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <optional>", "#include <string>",
            "#include <utility>", "#include <vector>",
            GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
     outputs = unique(model.outputs)

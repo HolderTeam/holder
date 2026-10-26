@@ -25,7 +25,8 @@ class Record(BaseModel):
 # Native types. A bare int or float has no size in C, so the extractor rejects it.
 type Int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
 type Int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
-type Float64 = float
+type Float64 = Annotated[float, Field(allow_inf_nan=False)]
+"""A finite number: JSON has no NaN or infinity."""
 type Timestamp = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
 """Seconds since the Unix epoch."""
 

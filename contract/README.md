@@ -11,8 +11,13 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 ## Layout
 
 - `interface/` is the contract: one module per area of Holder's interface.
-- `holder_contract/` is the tooling: the vocabulary contract files import (`vocabulary.py`), the rules they must follow (`rules.py`), the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md)), and the generators (`generate.py`, for core's C API).
-- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary, and the generator's output by compiling and running it against a stand-in for core (`tests/c/`). Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
+- `holder_contract/` is the tooling:
+  - the vocabulary contract files import (`vocabulary.py`) and the rules they must follow (`rules.py`);
+  - the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md));
+  - the generators (`generate.py`, for core's C API);
+  - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
+- `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generator's output by compiling and running it against a stand-in for core (`tests/c/`); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
+- `tests/conformance/` tests core against the contract: Hypothesis calls the operations through the generated C API of a shared `libholder`, with arguments from the strategies, and checks each result against its declared type and against a model of what it should be. Core CI runs them on Linux.
 
 None of this is built, packaged or published. `pyproject.toml` holds only tool settings, and CI fails if anything outside this directory imports `holder_contract` or depends on it ([.github/scripts/check-contract-boundary.py](../.github/scripts/check-contract-boundary.py)). The generated Python client has its own models, even where they look like the contract's records.
 
@@ -30,6 +35,15 @@ make -C contract update   # after changing the contract or the generator: rewrit
 `check` fails when core's generated files differ from what the contract produces, or when a generated name is already used in the hand-written part of `holder.h`. Commit the contract change and the regenerated files together.
 
 `python -m holder_contract check` reports every problem in the contract at once, each with its file and line.
+
+The conformance tests are skipped unless `HOLDER_LIBRARY` names a shared `libholder` built from the same commit:
+
+```sh
+cmake -S core -B core/build -DHOLDER_CORE_BUILD_SHARED=ON && cmake --build core/build
+HOLDER_LIBRARY=$PWD/core/build/libholder.so python3 -m pytest contract/tests/conformance
+```
+
+`HOLDER_CONFORMANCE_EXAMPLES` sets how many runs Hypothesis makes; the default is 25, and CI uses 100. A new operation needs rules in a conformance test, so that the model says what it should do.
 
 ## Writing the contract
 
@@ -85,7 +99,8 @@ Anything else, such as a validator, a `model_config`, a helper function or an as
 
 The rest of the vocabulary:
 
-- **Sizes:** `Int32`, `Int64`, `Float64` and `Timestamp` (seconds since the Unix epoch). A bare `int` or `float` has no size in C and is rejected.
+- **Sizes:** `Int32`, `Int64`, `Float64` and `Timestamp` (seconds since the Unix epoch). A bare `int` or `float` has no size in C and is rejected. A `Float64` is finite, since JSON has no NaN or infinity.
+- **Text:** a `str` is Unicode text without U+0000, so it is valid UTF-8 and fits in a C string. Lengths count characters.
 - **Null and omitted:** `T | None` may be null. On a record's field, `T | MISSING = MISSING` may be omitted. Together, as in a partial update, they mean "omit to keep, null clears".
 - **Other types:** `str`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`, unions (discriminated with `Field(discriminator=...)`), `JsonValue` for free-form JSON, `SecretStr` for secrets, and generic records such as `class Page[T](Record)`.
 - **Results only:** `Stream[T]` for an operation whose result is a sequence of items, and `Bytes` for one that returns a byte stream.
