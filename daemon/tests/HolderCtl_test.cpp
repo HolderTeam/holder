@@ -1751,7 +1751,7 @@ TEST_CASE("holderctl tags query and mutate live card tags", "[holderctl][tags]")
 }
 
 TEST_CASE(
-    "holderctl milestones and calendar expose the existing daemon API",
+    "holderctl milestones and calendar work on milestones with labelled dates",
     "[holderctl][milestones][calendar]"
 ) {
   const auto xdg_root = prepare_xdg_tree();
@@ -1839,48 +1839,70 @@ TEST_CASE(
   REQUIRE(run_command(bin + " milestones 'Release Card' > \"" + empty_path.string() + "\"") == 0);
   REQUIRE(read_text(empty_path) == "No milestones.\n");
 
-  const auto all_day_path = xdg_root / "milestone-all-day.json";
+  const auto days_path = xdg_root / "milestone-days.json";
   REQUIRE(
       run_command(
           bin +
           " milestone add 'Release Card' 2026-06-01 --end 2026-06-03 --kind release "
-          "--description 'Release train' --all-day --json > \"" +
-          all_day_path.string() + "\""
+          "--description 'Release train' --json > \"" +
+          days_path.string() + "\""
       ) == 0
   );
-  const auto all_day = nlohmann::json::parse(read_text(all_day_path));
-  REQUIRE(all_day["ok"] == true);
-  REQUIRE(all_day["data"]["card_id"] == card_id);
-  REQUIRE(all_day["data"]["start_at"] == 1780272000);
-  REQUIRE(all_day["data"]["end_at"] == 1780444800);
-  REQUIRE(all_day["data"]["all_day"] == true);
-  REQUIRE(all_day["data"]["kind"] == "release");
-  REQUIRE(all_day["data"]["description"] == "Release train");
-  const auto all_day_id = all_day["data"]["milestone_id"].get<std::string>();
-  REQUIRE(all_day_id.size() == 36);
+  const auto days = nlohmann::json::parse(read_text(days_path));
+  REQUIRE(days["ok"] == true);
+  REQUIRE(days["data"]["project_id"] == "milestone-project");
+  REQUIRE(days["data"]["card_id"] == card_id);
+  REQUIRE(
+      days["data"]["dates"] ==
+      nlohmann::json::parse(R"([{"role": "start", "date": "2026-06-01"}, {"role": "end", "date": "2026-06-03"}])")
+  );
+  REQUIRE(days["data"]["kind"] == "release");
+  REQUIRE(days["data"]["description"] == "Release train");
+  const auto days_id = days["data"]["milestone_id"].get<std::string>();
+  REQUIRE(days_id.size() == 36);
 
+  // An instant keeps its own offset; a fraction of a second is dropped. Output is in local time.
   const auto timed_path = xdg_root / "milestone-timed.out";
   REQUIRE(
       run_command(
           bin +
-          " milestone add 'Release Card' 2026-06-02T12:30:00+02:30 "
-          "--end 2026-06-02T11:00:00Z --kind meeting > \"" +
+          " milestone add 'Release Card' 2026-06-02T12:30:00.25+02:30 "
+          "--date due=2026-06-02T11:00:00z --kind meeting > \"" +
           timed_path.string() + "\""
       ) == 0
   );
   const auto timed_output = read_text(timed_path);
-  REQUIRE(timed_output.find("2026-06-02T10:00:00+00:00") != std::string::npos);
-  REQUIRE(timed_output.find("2026-06-02T11:00:00+00:00") != std::string::npos);
+  REQUIRE(timed_output.find("start 2026-06-02T10:00:00+00:00, due 2026-06-02T11:00:00+00:00") !=
+          std::string::npos);
+
+  // An undated milestone.
+  REQUIRE(run_command(bin + " milestone add 'Release Card' --kind someday >/dev/null") == 0);
 
   const auto list_path = xdg_root / "milestones.json";
   REQUIRE(
       run_command(bin + " milestones 'Release Card' --json > \"" + list_path.string() + "\"") == 0
   );
   const auto listed = nlohmann::json::parse(read_text(list_path));
-  REQUIRE(listed["data"].size() == 2);
-  REQUIRE(listed.dump().find(all_day_id) != std::string::npos);
-  const auto timed_id = listed["data"][1]["milestone_id"].get<std::string>();
+  REQUIRE(listed["data"].size() == 3);
+  REQUIRE(listed.dump().find(days_id) != std::string::npos);
+  std::string timed_id;
+  for (const auto& milestone : listed["data"]) {
+    if (milestone["kind"] == "meeting") timed_id = milestone["milestone_id"].get<std::string>();
+    if (milestone["kind"] == "someday") REQUIRE(milestone["dates"].empty());
+  }
   REQUIRE(timed_id.size() == 36);
+  REQUIRE(
+      listed.dump().find(R"({"datetime":"2026-06-02T12:30:00+02:30","role":"start"})") != std::string::npos
+  );
+  REQUIRE(listed.dump().find(R"({"datetime":"2026-06-02T11:00:00Z","role":"due"})") != std::string::npos);
+
+  const auto human_list_path = xdg_root / "milestones.out";
+  REQUIRE(run_command(bin + " milestones 'Release Card' > \"" + human_list_path.string() + "\"") == 0);
+  const auto human_list = read_text(human_list_path);
+  REQUIRE(human_list.find("MILESTONE_ID\tDATES\tKIND\tDESCRIPTION\n") == 0);
+  REQUIRE(human_list.find(days_id + "\tstart 2026-06-01, end 2026-06-03\trelease\tRelease train\n") !=
+          std::string::npos);
+  REQUIRE(human_list.find("\t-\tsomeday\t\n") != std::string::npos);
 
   const auto edit_partial_path = xdg_root / "milestone-edit-partial.json";
   REQUIRE(
@@ -1891,57 +1913,25 @@ TEST_CASE(
   );
   const auto partial = nlohmann::json::parse(read_text(edit_partial_path));
   REQUIRE(partial["data"]["milestone_id"] == timed_id);
-  REQUIRE(partial["data"]["card_id"] == card_id);
-  REQUIRE(partial["data"]["start_at"] == 1780394400);
-  REQUIRE(partial["data"]["end_at"] == 1780398000);
-  REQUIRE(partial["data"]["all_day"] == false);
+  REQUIRE(partial["data"]["dates"].size() == 2);
   REQUIRE(partial["data"]["kind"] == "appointment");
   REQUIRE(partial["data"]["description"].is_null());
 
-  const auto inferred_path = xdg_root / "milestone-edit-inferred.json";
+  // New dates replace them all, in the order given.
+  const auto edit_dates_path = xdg_root / "milestone-edit-dates.out";
   REQUIRE(
       run_command(
           bin + " milestone edit 'Release Card' " + timed_id +
-          " --start 2026-06-02T10:00:00Z --end 2026-06-02T11:00:00Z --timed --json > \"" +
-          inferred_path.string() + "\""
-      ) == 0
-  );
-  REQUIRE(nlohmann::json::parse(read_text(inferred_path))["data"]["all_day"] == false);
-  REQUIRE(
-      run_command(
-          bin + " milestone edit 'Release Card' " + timed_id +
-          " --start 2026-06-02 --end 2026-06-03 --json > \"" + inferred_path.string() + "\""
-      ) == 0
-  );
-  REQUIRE(nlohmann::json::parse(read_text(inferred_path))["data"]["all_day"] == true);
-
-  const auto edit_all_day_path = xdg_root / "milestone-edit-all-day.out";
-  REQUIRE(
-      run_command(
-          bin + " milestone edit 'Release Card' " + timed_id +
-          " --start 2026-06-02 --end 2026-06-03 --all-day --clear-kind "
+          " --start 2026-06-02 --date review=2026-06-04 --end 2026-06-03 --clear-kind "
           "--description 'All day work' > \"" +
-          edit_all_day_path.string() + "\""
+          edit_dates_path.string() + "\""
       ) == 0
   );
-  const auto edit_all_day = read_text(edit_all_day_path);
-  REQUIRE(edit_all_day.find("Updated milestone " + timed_id) != std::string::npos);
-  REQUIRE(edit_all_day.find("2026-06-02 – 2026-06-03") != std::string::npos);
-
-  const auto after_edit_path = xdg_root / "milestones-after-edit.json";
   REQUIRE(
-      run_command(
-          bin + " milestones 'Release Card' --json > \"" + after_edit_path.string() + "\""
-      ) == 0
+      read_text(edit_dates_path).find(
+          "Updated milestone " + timed_id + " on aaaaaaaa: start 2026-06-02, review 2026-06-04, end 2026-06-03."
+      ) != std::string::npos
   );
-  const auto after_edit = nlohmann::json::parse(read_text(after_edit_path));
-  REQUIRE(after_edit["data"].size() == 2);
-  REQUIRE(after_edit["data"][1]["milestone_id"] == timed_id);
-  REQUIRE(after_edit["data"][1]["start_at"] == 1780358400);
-  REQUIRE(after_edit["data"][1]["end_at"] == 1780444800);
-  REQUIRE(after_edit["data"][1]["all_day"] == true);
-  REQUIRE(after_edit["data"][1]["kind"].is_null());
-  REQUIRE(after_edit["data"][1]["description"] == "All day work");
 
   db.exec("UPDATE cards SET updated_at=1780398000 WHERE card_id="
           "'aaaaaaaa-1111-4111-8111-111111111111';");
@@ -1956,15 +1946,14 @@ TEST_CASE(
   );
   const auto calendar = nlohmann::json::parse(read_text(calendar_path));
   REQUIRE(calendar["ok"] == true);
-  REQUIRE(calendar["data"]["project_id"] == "milestone-project");
-  REQUIRE(calendar["data"]["from"] == 1780272000);
-  REQUIRE(calendar["data"]["to"] == 1780531199);
   REQUIRE(calendar["data"]["milestones"].size() == 2);
+  REQUIRE(calendar["data"]["milestones"][0]["card_title"] == "Release Card");
   REQUIRE(calendar["data"]["created_cards"].size() == 2);
   REQUIRE(calendar["data"]["updated_cards"].size() == 2);
   REQUIRE(calendar.dump().find(card_id) != std::string::npos);
   REQUIRE(calendar.dump().find(other_id) == std::string::npos);
 
+  // One event for each date in the window: the review day falls outside it.
   const auto calendar_human_path = xdg_root / "calendar.out";
   REQUIRE(
       run_command(
@@ -1973,8 +1962,10 @@ TEST_CASE(
       ) == 0
   );
   const auto calendar_human = read_text(calendar_human_path);
-  REQUIRE(calendar_human.find("\tmilestone\t" + all_day_id + "\t") != std::string::npos);
-  REQUIRE(calendar_human.find("\tmilestone\t" + timed_id + "\t") != std::string::npos);
+  REQUIRE(calendar_human.find("2026-06-01\tmilestone-start\t" + days_id + "\t") != std::string::npos);
+  REQUIRE(calendar_human.find("2026-06-03\tmilestone-end\t" + days_id + "\t") != std::string::npos);
+  REQUIRE(calendar_human.find("2026-06-02\tmilestone-start\t" + timed_id + "\t") != std::string::npos);
+  REQUIRE(calendar_human.find("milestone-review") == std::string::npos);
   REQUIRE(calendar_human.find("\tcard-created\t-\t") != std::string::npos);
   REQUIRE(calendar_human.find("\tcard-updated\t-\t") != std::string::npos);
 
@@ -1982,14 +1973,13 @@ TEST_CASE(
   REQUIRE(
       run_command(
           bin + " milestone edit 'Release Card' " + timed_id +
-          " --clear-end --clear-description --json > \"" + cleared_path.string() + "\""
+          " --clear-dates --clear-description --json > \"" + cleared_path.string() + "\""
       ) == 0
   );
   const auto cleared = nlohmann::json::parse(read_text(cleared_path));
   REQUIRE(cleared["data"]["milestone_id"] == timed_id);
-  REQUIRE(cleared["data"]["end_at"].is_null());
+  REQUIRE(cleared["data"]["dates"].empty());
   REQUIRE(cleared["data"]["description"].is_null());
-  REQUIRE(cleared["data"]["all_day"] == true);
 
   const auto invalid_path = xdg_root / "milestone-invalid.json";
   REQUIRE(
@@ -2004,12 +1994,23 @@ TEST_CASE(
   const auto naive_path = xdg_root / "milestone-naive.json";
   REQUIRE(
       run_command(
-          bin + " milestone add 'Release Card' 2026-06-01T12:00:00 --json >/dev/null 2> \"" +
+          bin + " milestone add 'Release Card' --date due=2026-06-01T12:00:00 --json >/dev/null 2> \"" +
           naive_path.string() + "\""
       ) == 1
   );
   const auto naive = nlohmann::json::parse(read_text(naive_path));
   REQUIRE(naive["error"]["code"] == "invalid_milestone_time");
+
+  // The daemon checks that a day is real.
+  const auto unreal_path = xdg_root / "milestone-unreal.json";
+  REQUIRE(
+      run_command(
+          bin + " milestone add 'Release Card' 2026-02-30 --json >/dev/null 2> \"" + unreal_path.string() +
+          "\""
+      ) == 1
+  );
+  const auto unreal = nlohmann::json::parse(read_text(unreal_path));
+  REQUIRE((unreal["error"]["code"] == "invalid_milestone_time" || unreal["error"]["code"] == "invalid_argument"));
 
   const auto range_path = xdg_root / "calendar-invalid.json";
   REQUIRE(
@@ -2021,16 +2022,14 @@ TEST_CASE(
   const auto invalid_range = nlohmann::json::parse(read_text(range_path));
   REQUIRE(invalid_range["error"]["code"] == "invalid_calendar_range");
 
-  const auto edit_mixed_path = xdg_root / "milestone-edit-mixed.json";
+  REQUIRE(run_command(bin + " milestone edit 'Release Card' " + timed_id + " --json >/dev/null 2>&1") == 1);
   REQUIRE(
       run_command(
           bin + " milestone edit 'Release Card' " + timed_id +
-          " --start 2026-06-02 --end 2026-06-03T12:00:00Z --json >/dev/null 2> \"" +
-          edit_mixed_path.string() + "\""
+          " --start 2026-06-02 --clear-dates >/dev/null 2>&1"
       ) == 1
   );
-  const auto edit_mixed = nlohmann::json::parse(read_text(edit_mixed_path));
-  REQUIRE(edit_mixed["error"]["code"] == "invalid_milestone_time");
+  REQUIRE(run_command(bin + " milestone add 'Release Card' --date =2026-06-02 >/dev/null 2>&1") == 1);
 
   const auto missing_edit_path = xdg_root / "milestone-edit-missing.json";
   REQUIRE(
@@ -2053,26 +2052,26 @@ TEST_CASE(
   );
   REQUIRE(read_text(title_path).find("Unknown milestone option: --title") != std::string::npos);
 
+  // Removing returns the milestones that remain, and removing again changes nothing.
   const auto remove_path = xdg_root / "milestone-remove.json";
   REQUIRE(
       run_command(
-          bin + " milestone remove 'Release Card' " + all_day_id + " --json > \"" +
+          bin + " milestone remove 'Release Card' " + days_id + " --json > \"" +
           remove_path.string() + "\""
       ) == 0
   );
   const auto removed = nlohmann::json::parse(read_text(remove_path));
-  REQUIRE(removed["data"]["milestone_id"] == all_day_id);
-  REQUIRE(removed["data"]["removed"] == true);
+  REQUIRE(removed["data"].size() == 2);
+  REQUIRE(removed.dump().find(days_id) == std::string::npos);
 
   const auto repeat_path = xdg_root / "milestone-remove-repeat.out";
   REQUIRE(
       run_command(
-          bin + " milestone remove 'Release Card' " + all_day_id + " > \"" + repeat_path.string() +
+          bin + " milestone remove 'Release Card' " + days_id + " > \"" + repeat_path.string() +
           "\""
       ) == 0
   );
-  REQUIRE(read_text(repeat_path).find(all_day_id) != std::string::npos);
-  REQUIRE(read_text(repeat_path).find("was not present") != std::string::npos);
+  REQUIRE(read_text(repeat_path) == "Milestone " + days_id + " is not on aaaaaaaa.\n");
 
   const auto ambiguous_path = xdg_root / "milestone-card-ambiguous.json";
   REQUIRE(
@@ -4272,8 +4271,8 @@ TEST_CASE("holderctl rejects invalid milestone calendar and storage arguments", 
         "milestone",
         "milestone edit card id",
         "milestone remove card id --kind due",
-        "milestone add card 2026-01-01 --timed",
-        "milestone edit card id --all-day --timed",
+        "milestone add card 2026-01-01 --clear-dates",
+        "milestone edit card id --kind due --clear-kind",
         "calendar --from --json",
         "calendar --unknown",
         "calendar extra",
@@ -4303,12 +4302,12 @@ TEST_CASE("holderctl rejects invalid milestone calendar and storage arguments", 
         "resource location delete",
         "resource location add-s3 name https://storage.invalid region bucket access --prefix",
         "resource location add-s3 name https://storage.invalid region bucket access --unknown",
-        "milestone add card 2026-01-02 --end 2026-01-01",
-        "milestone add card 2026-01-01 --end 2026-01-02T12:00:00Z",
-        "milestone add card 2026-01-01T12:00:00Z --all-day",
+        "milestone add card 2026-01-01 2026-01-02",
+        "milestone add card --date due",
+        "milestone add card --date =2026-01-01",
+        "milestone add card --date due=2026-01-01T12:00:00",
         "milestone add card invalid-date",
-        "milestone edit card id --end 2026-01-02 --timed",
-        "milestone edit card id --start 2026-01-02T12:00:00Z --all-day",
+        "milestone edit card id --start 2026-01-02 --clear-dates",
         "database",
         "database rebuild extra --dry-run",
         "database rebuild --unknown"}) {
@@ -4544,8 +4543,7 @@ TEST_CASE(
   const auto empty = Json::array();
   const Json milestone = {
       {"milestone_id", "due"},
-      {"start_at", 1780315200},
-      {"end_at", 1780318800},
+      {"dates", Json::array({{{"role", "due"}, {"datetime", "2026-06-01T12:00:00Z"}}})},
       {"kind", "due"},
       {"description", "Delivery"}
   };
@@ -4566,13 +4564,14 @@ TEST_CASE(
             {{"from", {{"exists", false}}}, {"to", {{"oid", "abcdef01"}}}, {"lines", empty}},
             "(card did not exist)"},
            {"milestones card", Json::array({milestone}), "Delivery"},
-           {"milestone remove card due", {{"removed", true}}, "Removed milestone"},
+           {"milestone remove card due", empty, "is not on card-one"},
            {"calendar",
             {{"milestones", empty}, {"created_cards", empty}, {"updated_cards", empty}},
             "No calendar events."},
            {"history", Json::object(), "Failed to inspect history", 1},
            {"milestones card", Json::array({Json::object()}), "Failed to list milestones", 1},
-           {"milestone remove card due", "invalid", "Failed to update milestone", 1},
+           // holderctl reports that the milestone is gone, whatever the daemon's answer holds.
+           {"milestone remove card due", "invalid", "is not on card-one", 0},
            {"calendar", Json::object(), "Failed to read calendar", 1},
            {"tags", Json::array({42}), "Failed to list tags", 1},
            {"backlinks card", Json::array({42}), "Failed", 1},

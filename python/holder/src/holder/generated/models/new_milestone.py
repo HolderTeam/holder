@@ -9,22 +9,23 @@ from typing_extensions import Self
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.milestone_date_value import MilestoneDateValue
+    from ..models.milestone_date import MilestoneDate
 
 
-T = TypeVar("T", bound="MilestoneWithDatesCreateRequest")
+T = TypeVar("T", bound="NewMilestone")
 
 
 @_attrs_define
-class MilestoneWithDatesCreateRequest:
-    """
+class NewMilestone:
+    """A milestone to put on a card.
+
     Attributes:
-        dates (list[MilestoneDateValue]): May be empty for an undated milestone.
-        kind (None | str | Unset):
-        description (None | str | Unset):
+        dates (list[MilestoneDate]): The milestone's dates, in order; empty for a milestone without a date.
+        kind (None | str | Unset): What kind of milestone it is; null or omitted for none.
+        description (None | str | Unset): A note on the milestone; null or omitted for none.
     """
 
-    dates: list[MilestoneDateValue]
+    dates: list[MilestoneDate]
     kind: None | str | Unset = UNSET
     description: None | str | Unset = UNSET
 
@@ -62,13 +63,13 @@ class MilestoneWithDatesCreateRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.milestone_date_value import MilestoneDateValue
+        from ..models.milestone_date import MilestoneDate
 
         d = dict(src_dict)
         dates = []
         _dates = d.pop("dates")
         for dates_item_data in _dates:
-            dates_item = MilestoneDateValue.from_dict(dates_item_data)
+            dates_item = MilestoneDate.from_dict(dates_item_data)
 
             dates.append(dates_item)
 
@@ -90,10 +91,10 @@ class MilestoneWithDatesCreateRequest:
 
         description = _parse_description(d.pop("description", UNSET))
 
-        milestone_with_dates_create_request = cls(
+        new_milestone = cls(
             dates=dates,
             kind=kind,
             description=description,
         )
 
-        return milestone_with_dates_create_request
+        return new_milestone

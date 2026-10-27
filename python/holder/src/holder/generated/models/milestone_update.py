@@ -9,24 +9,23 @@ from typing_extensions import Self
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.milestone_date_value import MilestoneDateValue
+    from ..models.milestone_date import MilestoneDate
 
 
-T = TypeVar("T", bound="MilestoneWithDatesUpdateRequest")
+T = TypeVar("T", bound="MilestoneUpdate")
 
 
 @_attrs_define
-class MilestoneWithDatesUpdateRequest:
-    """Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields
-    remain unchanged.
+class MilestoneUpdate:
+    """A change to a milestone. Each field left out keeps its value.
 
-        Attributes:
-            dates (list[MilestoneDateValue] | Unset):
-            kind (None | str | Unset):
-            description (None | str | Unset):
+    Attributes:
+        dates (list[MilestoneDate] | Unset): The milestone's new dates, replacing all of them; empty for none.
+        kind (None | str | Unset): What kind of milestone it is; null for none.
+        description (None | str | Unset): A note on the milestone; null for none.
     """
 
-    dates: list[MilestoneDateValue] | Unset = UNSET
+    dates: list[MilestoneDate] | Unset = UNSET
     kind: None | str | Unset = UNSET
     description: None | str | Unset = UNSET
 
@@ -64,15 +63,15 @@ class MilestoneWithDatesUpdateRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.milestone_date_value import MilestoneDateValue
+        from ..models.milestone_date import MilestoneDate
 
         d = dict(src_dict)
         _dates = d.pop("dates", UNSET)
-        dates: list[MilestoneDateValue] | Unset = UNSET
+        dates: list[MilestoneDate] | Unset = UNSET
         if _dates is not UNSET:
             dates = []
             for dates_item_data in _dates:
-                dates_item = MilestoneDateValue.from_dict(dates_item_data)
+                dates_item = MilestoneDate.from_dict(dates_item_data)
 
                 dates.append(dates_item)
 
@@ -94,10 +93,10 @@ class MilestoneWithDatesUpdateRequest:
 
         description = _parse_description(d.pop("description", UNSET))
 
-        milestone_with_dates_update_request = cls(
+        milestone_update = cls(
             dates=dates,
             kind=kind,
             description=description,
         )
 
-        return milestone_with_dates_update_request
+        return milestone_update

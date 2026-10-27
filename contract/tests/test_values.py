@@ -20,10 +20,11 @@ SAMPLE = extract(CONTRACT / "tests" / "fixtures", "sample")
 def pydantic_type(name: str):
     import interface.cards
     import interface.links
+    import interface.milestones
 
     if name == "Page":
         return interface.cards.Page[interface.cards.CardListItem]
-    for module in (interface.cards, interface.links):
+    for module in (interface.cards, interface.links, interface.milestones):
         if hasattr(module, name):
             return getattr(module, name)
     raise AttributeError(name)

@@ -85,7 +85,6 @@ add_executable(holder_daemon_tests
   LocalModelRouting_test.cpp
   ThreadCompaction_test.cpp
   HttpCards_test.cpp
-  HttpMilestones_test.cpp
   CardReferenceRoutes_test.cpp
   CardRoutes_test.cpp
   ProjectCardRoutes_test.cpp
@@ -160,11 +159,8 @@ add_executable(holder_daemon_tests
   ../src/api/AiStatus.cpp
   ../src/api/AiThreadRead.cpp
   ../src/api/AiThreadWrite.cpp
-  ../src/api/Calendar.cpp
-  ../src/api/CardMilestones.cpp
   ../src/api/CardRead.cpp
   ../src/api/CardResources.cpp
-  ../src/api/MilestoneWrite.cpp
   ../src/api/ProjectGit.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/RecoveryToken.cpp
@@ -172,7 +168,6 @@ add_executable(holder_daemon_tests
   ../src/api/AssetImportWrite.cpp
   ../src/api/ProjectCreate.cpp
   ../src/api/ProjectDelete.cpp
-  ../src/api/MilestonesWithDates.cpp
   ../src/api/ProjectCards.cpp
   ../src/api/ProjectUpdate.cpp
   ../src/api/ProviderCredentials.cpp

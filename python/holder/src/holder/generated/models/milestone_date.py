@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from collections.abc import Mapping
 from typing import Any, TypeVar
 
@@ -9,30 +8,27 @@ from typing_extensions import Self
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="MilestoneDateValue")
+T = TypeVar("T", bound="MilestoneDate")
 
 
 @_attrs_define
-class MilestoneDateValue:
-    """Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order
-    is preserved.
+class MilestoneDate:
+    """One of a milestone's dates: a role and exactly one of a day or an instant.
 
-        Attributes:
-            role (str):
-            date (datetime.date | Unset): Calendar day with no timezone; YYYY-MM-DD.
-            datetime_ (str | Unset): RFC 3339 timestamp with seconds and an explicit Z or numeric offset.
+    Attributes:
+        role (str):
+        date (str | Unset):
+        datetime_ (str | Unset):
     """
 
     role: str
-    date: datetime.date | Unset = UNSET
+    date: str | Unset = UNSET
     datetime_: str | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         role = self.role
 
-        date: str | Unset = UNSET
-        if not isinstance(self.date, Unset):
-            date = self.date.isoformat()
+        date = self.date
 
         datetime_ = self.datetime_
 
@@ -55,19 +51,14 @@ class MilestoneDateValue:
         d = dict(src_dict)
         role = d.pop("role")
 
-        _date = d.pop("date", UNSET)
-        date: datetime.date | Unset
-        if isinstance(_date, Unset):
-            date = UNSET
-        else:
-            date = datetime.date.fromisoformat(_date)
+        date = d.pop("date", UNSET)
 
         datetime_ = d.pop("datetime", UNSET)
 
-        milestone_date_value = cls(
+        milestone_date = cls(
             role=role,
             date=date,
             datetime_=datetime_,
         )
 
-        return milestone_date_value
+        return milestone_date

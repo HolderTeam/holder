@@ -285,40 +285,6 @@ struct RIG_OPEN_RECORD CardHistorySnapshotResponse {
   CardHistorySnapshotResponseData data;
 };
 
-struct RIG_DESCRIPTION("Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved.") MilestoneDateValue {
-  std::string role RIG_MIN_LENGTH(1);
-  std::optional<std::string> date RIG_FIELD_DESCRIPTION("Calendar day with no timezone; YYYY-MM-DD.") RIG_FORMAT("date") RIG_OMIT_EMPTY;
-  std::optional<std::string> datetime RIG_FIELD_DESCRIPTION("RFC 3339 timestamp with seconds and an explicit Z or numeric offset.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD MilestoneWithDates {
-  std::string milestone_id RIG_FORMAT("uuid");
-  std::string card_id;
-  std::vector<MilestoneDateValue> dates;
-  std::optional<std::string> kind RIG_NULLABLE;
-  std::optional<std::string> description RIG_NULLABLE;
-  long long created_at;
-  long long updated_at;
-};
-
-struct RIG_OPEN_RECORD MilestoneWithDatesListResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<MilestoneWithDates> data;
-};
-
-struct RIG_OPEN_RECORD Milestone {
-  std::string milestone_id RIG_FIELD_DESCRIPTION("Canonical milestone identifier; this is not a card ID and is never abbreviated.") RIG_FORMAT("uuid");
-  std::string card_id;
-  long long start_at RIG_FIELD_DESCRIPTION("Unix epoch seconds. For an all-day milestone, this encodes the originating local date at local midnight.");
-  std::optional<long long> end_at RIG_FIELD_DESCRIPTION("Inclusive milestone end in Unix epoch seconds. For an all-day milestone, this encodes the inclusive ending local date at local midnight.") RIG_NULLABLE;
-  bool all_day RIG_FIELD_DESCRIPTION("When true, start_at and end_at carry local calendar-date semantics and clients should render dates rather than ordinary timed instants.");
-  std::optional<std::string> kind RIG_NULLABLE;
-  std::optional<std::string> description RIG_NULLABLE;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::string> card_title RIG_FIELD_DESCRIPTION("Included in project calendar responses.") RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;
   std::string project_id;

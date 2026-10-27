@@ -8,31 +8,29 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.milestone_with_dates import MilestoneWithDates
+    from ..models.calendar import Calendar
 
 
-T = TypeVar("T", bound="MilestoneWithDatesListResponse")
+T = TypeVar("T", bound="CalendarResponse")
 
 
 @_attrs_define
-class MilestoneWithDatesListResponse:
+class CalendarResponse:
     """
     Attributes:
         ok (bool):
-        data (list[MilestoneWithDates]):
+        data (Calendar): What happens in a project over a window of time: its milestones, and the cards made and
+            changed.
     """
 
     ok: bool
-    data: list[MilestoneWithDates]
+    data: Calendar
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
 
-        data = []
-        for data_item_data in self.data:
-            data_item = data_item_data.to_dict()
-            data.append(data_item)
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -47,25 +45,20 @@ class MilestoneWithDatesListResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.milestone_with_dates import MilestoneWithDates
+        from ..models.calendar import Calendar
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = []
-        _data = d.pop("data")
-        for data_item_data in _data:
-            data_item = MilestoneWithDates.from_dict(data_item_data)
+        data = Calendar.from_dict(d.pop("data"))
 
-            data.append(data_item)
-
-        milestone_with_dates_list_response = cls(
+        calendar_response = cls(
             ok=ok,
             data=data,
         )
 
-        milestone_with_dates_list_response.additional_properties = d
-        return milestone_with_dates_list_response
+        calendar_response.additional_properties = d
+        return calendar_response
 
     @property
     def additional_keys(self) -> list[str]:

@@ -1214,11 +1214,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string project_id,
+                                                                           string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.Milestone>.wrap(milestones.to_array());
     }
 
-    public async HolderLinux.Milestone add_card_milestone(string card_id,
+    public async HolderLinux.Milestone add_card_milestone(string project_id,
+                                                          string card_id,
                                                           int64 start_at,
                                                           int64? end_at,
                                                           bool all_day,
@@ -1232,13 +1234,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return milestone;
     }
 
-    public async HolderLinux.Milestone update_card_milestone(string card_id,
-                                                             string milestone_id,
+    public async HolderLinux.Milestone update_card_milestone(HolderLinux.Milestone milestone,
                                                              int64 start_at,
                                                              int64? end_at,
                                                              bool all_day,
                                                              string? kind,
                                                              string? description) throws Error {
+        var card_id = milestone.card_id;
+        var milestone_id = milestone.milestone_id;
         update_card_milestone_calls++;
         last_milestone_card_id = card_id;
         last_milestone_id = milestone_id;
@@ -1268,7 +1271,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         throw new IOError.NOT_FOUND("milestone not found");
     }
 
-    public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
+    public async void remove_card_milestone(string project_id,
+                                            string card_id,
+                                            string milestone_id) throws Error {
         remove_card_milestone_calls++;
         if (fail_remove_card_milestone) {
             throw new IOError.FAILED("remove down");
@@ -1276,10 +1281,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         for (var i = 0; i < milestones.size; i++) {
             if (milestones[i].card_id == card_id && milestones[i].milestone_id == milestone_id) {
                 milestones.remove_at(i);
-                return true;
+                return;
             }
         }
-        return false;
     }
 }
 

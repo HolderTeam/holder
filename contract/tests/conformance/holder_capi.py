@@ -171,13 +171,17 @@ class Core:
         if kind == "named":
             if value is ... or value is None:
                 return self.ffi.NULL
-            instance = self.model.instance(t, {})
-            record = self.ffi.new(f"{instance.c_name}*")
-            for field in self.model.slots(instance):
-                setattr(record, field.name, self.field(field, value.get(field.name, ...), keep))
-            keep.append(record)
-            return record
+            return self.record(self.model.instance(t, {}), value, keep)
         raise Unrepresentable(f"{slot.name}: {kind}")
+
+    def record(self, instance: Instance, value: dict[str, Any], keep, into=None):
+        """A record's C struct, filled in place when into is given."""
+        record = into if into is not None else self.ffi.new(f"{instance.c_name}*")
+        for field in self.model.slots(instance):
+            setattr(record, field.name, self.field(field, value.get(field.name, ...), keep))
+        if into is None:
+            keep.append(record)
+        return record
 
     def field(self, slot, value, keep):
         kind = slot.type["kind"]
@@ -209,6 +213,18 @@ class Core:
             if value is ... or value is None:
                 raise Unrepresentable(f"no value for {slot.name}")
             return value
+        if kind == "list" and self.model.resolve(slot.type["items"])["kind"] == "named":
+            if value is ... or value is None:
+                if slot.optional and value is ...:
+                    return self.ffi.NULL
+                raise Unrepresentable(f"no value for {slot.name}")
+            item = self.model.instance(self.model.resolve(slot.type["items"]), {})
+            items = self.ffi.new(f"{item.c_name}[]", max(len(value), 1))
+            for i, element in enumerate(value):
+                self.record(item, element, keep, into=items[i])
+            listed = self.ffi.new(f"{item.c_name}_list*", {"items": items, "count": len(value)})
+            keep += [items, listed]
+            return listed if slot.optional else listed[0]
         raise Unrepresentable(f"{slot.name}: {kind} in an input record")
 
     def from_c(self, instance: Instance, struct) -> dict[str, Any]:

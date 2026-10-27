@@ -30,3 +30,8 @@ list tags of a missing project: status 100, project not found: p2
 add a link: status 0, c1 p1/4/r1 cites 'a note'
 add a link to an unknown type: status 1, new_link.target_type is not a holder_new_link_target_type value
 remove a link: status 0, 0 left
+add a milestone: status 0, m3 c1 start=2026-10-16 due=2026-10-17T09:30:00+01:00 release
+add a milestone whose dates are missing: status 1, new_milestone.dates.items must not be null
+clear a milestone's dates and kind: status 0, 0 dates, kind (null)
+calendar: status 0, m3 on Thesis, revised
+remove a milestone: status 0, 0 left

@@ -2,43 +2,47 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
-from uuid import UUID
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.milestone_date_value import MilestoneDateValue
+    from ..models.milestone_date import MilestoneDate
 
 
-T = TypeVar("T", bound="MilestoneWithDates")
+T = TypeVar("T", bound="CalendarMilestone")
 
 
 @_attrs_define
-class MilestoneWithDates:
-    """
+class CalendarMilestone:
+    """A milestone on a calendar, with the title of its card.
+
     Attributes:
-        milestone_id (UUID):
+        milestone_id (str):
+        project_id (str):
         card_id (str):
-        dates (list[MilestoneDateValue]):
-        kind (None | str):
-        description (None | str):
-        created_at (int):
-        updated_at (int):
+        dates (list[MilestoneDate]): The milestone's dates, in the order they were given.
+        kind (None | str): What kind of milestone it is; null when it has none.
+        description (None | str): A note on the milestone; null when it has none.
+        created_at (int): When the milestone was made.
+        updated_at (int): When the milestone was last changed.
+        card_title (str): The title of the card the milestone is on.
     """
 
-    milestone_id: UUID
+    milestone_id: str
+    project_id: str
     card_id: str
-    dates: list[MilestoneDateValue]
+    dates: list[MilestoneDate]
     kind: None | str
     description: None | str
     created_at: int
     updated_at: int
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+    card_title: str
 
     def to_dict(self) -> dict[str, Any]:
-        milestone_id = str(self.milestone_id)
+        milestone_id = self.milestone_id
+
+        project_id = self.project_id
 
         card_id = self.card_id
 
@@ -57,17 +61,21 @@ class MilestoneWithDates:
 
         updated_at = self.updated_at
 
+        card_title = self.card_title
+
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "milestone_id": milestone_id,
+                "project_id": project_id,
                 "card_id": card_id,
                 "dates": dates,
                 "kind": kind,
                 "description": description,
                 "created_at": created_at,
                 "updated_at": updated_at,
+                "card_title": card_title,
             }
         )
 
@@ -75,17 +83,19 @@ class MilestoneWithDates:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.milestone_date_value import MilestoneDateValue
+        from ..models.milestone_date import MilestoneDate
 
         d = dict(src_dict)
-        milestone_id = UUID(d.pop("milestone_id"))
+        milestone_id = d.pop("milestone_id")
+
+        project_id = d.pop("project_id")
 
         card_id = d.pop("card_id")
 
         dates = []
         _dates = d.pop("dates")
         for dates_item_data in _dates:
-            dates_item = MilestoneDateValue.from_dict(dates_item_data)
+            dates_item = MilestoneDate.from_dict(dates_item_data)
 
             dates.append(dates_item)
 
@@ -107,31 +117,18 @@ class MilestoneWithDates:
 
         updated_at = d.pop("updated_at")
 
-        milestone_with_dates = cls(
+        card_title = d.pop("card_title")
+
+        calendar_milestone = cls(
             milestone_id=milestone_id,
+            project_id=project_id,
             card_id=card_id,
             dates=dates,
             kind=kind,
             description=description,
             created_at=created_at,
             updated_at=updated_at,
+            card_title=card_title,
         )
 
-        milestone_with_dates.additional_properties = d
-        return milestone_with_dates
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return calendar_milestone

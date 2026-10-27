@@ -183,21 +183,24 @@ public interface IMilestoneApi : Object {
     public abstract async ProjectCalendar get_project_calendar(string project_id,
                                                                int64 from_epoch,
                                                                int64 to_epoch) throws Error;
-    public abstract async Gee.ArrayList<Milestone> list_card_milestones(string card_id) throws Error;
-    public abstract async Milestone add_card_milestone(string card_id,
+    public abstract async Gee.ArrayList<Milestone> list_card_milestones(string project_id,
+                                                                        string card_id) throws Error;
+    public abstract async Milestone add_card_milestone(string project_id,
+                                                       string card_id,
                                                        int64 start_at,
                                                        int64? end_at,
                                                        bool all_day,
                                                        string? kind,
                                                        string? description) throws Error;
-    public abstract async Milestone update_card_milestone(string card_id,
-                                                          string milestone_id,
+    // Changes the milestone's start and end, keeping its other dates.
+    public abstract async Milestone update_card_milestone(Milestone milestone,
                                                           int64 start_at,
                                                           int64? end_at,
                                                           bool all_day,
                                                           string? kind,
                                                           string? description) throws Error;
-    public abstract async bool remove_card_milestone(string card_id,
+    public abstract async void remove_card_milestone(string project_id,
+                                                     string card_id,
                                                      string milestone_id) throws Error;
 }
 

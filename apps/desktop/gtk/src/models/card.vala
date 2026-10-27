@@ -152,8 +152,13 @@ public class CardMoveResult : Object {
     }
 }
 
+// A milestone as the calendar shows it: its start, and its end if it has one. Holder's
+// milestones have any number of labelled dates; dates_json keeps them all, as the API gave
+// them, so that an edit here changes only the start and end.
 public class Milestone : Object {
     public string milestone_id { get; construct; }
+    public string project_id { get; set; default = ""; }
+    public string? dates_json;
     public string card_id { get; construct; }
     public int64 start_at { get; construct; }
     public int64? end_at;

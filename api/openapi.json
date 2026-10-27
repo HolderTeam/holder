@@ -3475,95 +3475,6 @@
         }
       }
     },
-    "/calendar": {
-      "get": {
-        "summary": "List project milestones and card activity in a time range",
-        "description": "This legacy calendar view selects milestone start values and card activity by epoch timestamps; both from and to are inclusive. Calendar-day values use UTC midnight in this view. Undated milestones are omitted. Date parsing and timezone conversion are client concerns because this endpoint accepts epoch seconds.",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "from",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "description": "Inclusive lower bound in Unix epoch seconds."
-          },
-          {
-            "name": "to",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "description": "Inclusive upper bound in Unix epoch seconds."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Calendar activity in the requested inclusive epoch-second range.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectCalendarResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/card-references/resolve": {
       "post": {
         "summary": "Resolve a card reference within a project and deletion scope",
@@ -3862,737 +3773,6 @@
           },
           "500": {
             "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cards/{card_id}/milestones": {
-      "get": {
-        "summary": "List milestones attached to a card",
-        "description": "This compatibility timestamp view omits undated milestones and milestones with repeated start or end roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for the complete model.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneListResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Add a milestone to a card",
-        "description": "Creates a scheduled timestamp milestone. Milestones carry optional kind and description fields and have no independent title.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MilestoneCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request, end_at before start_at, or a privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cards/{card_id}/milestones-with-dates": {
-      "get": {
-        "summary": "List all milestones on a live card with their labelled dates",
-        "description": "Includes undated milestones and repeated roles. Dates remain in stored order. The existing /cards/{card_id}/milestones route remains a scheduled timestamp view.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "All milestones on the card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneWithDatesListResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Add a milestone with labelled dates to a live card",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MilestoneWithDatesCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created milestone",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneWithDatesResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request, invalid milestone dates, or a privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cards/{card_id}/milestones-with-dates/{milestone_id}": {
-      "patch": {
-        "summary": "Update a milestone's labelled dates and metadata",
-        "description": "Supplying dates replaces the complete ordered array. Milestone identity and creation time remain unchanged.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "milestone_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MilestoneWithDatesUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated milestone",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneWithDatesResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed or empty update, invalid milestone dates, or a privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card or milestone not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Remove a milestone from a live card",
-        "description": "Equivalent to deleting the same milestone through the scheduled timestamp route. Removing a milestone that is already absent succeeds with removed false.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "milestone_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Removal result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneRemoveResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cards/{card_id}/milestones/{milestone_id}": {
-      "patch": {
-        "summary": "Partially update a milestone on a live card",
-        "description": "Updates only supplied fields while preserving milestone identity and creation metadata.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "milestone_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Canonical milestone identifier; it is not a card reference and is never abbreviated."
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MilestoneUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated milestone",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed or empty update, an end before the start, a milestone without the timestamp view (use the labelled dates route), or a privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card or milestone not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Remove a milestone from a card",
-        "description": "Removing a milestone that is already absent succeeds with removed false.",
-        "parameters": [
-          {
-            "name": "card_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "milestone_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Removal result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MilestoneRemoveResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A privacy error writing an encrypted card",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Live card not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -6949,6 +6129,118 @@
         }
       }
     },
+    "/projects/{project_id}/calendar": {
+      "get": {
+        "summary": "What happens in a project over a window of time.",
+        "description": "The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day\nhas no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in\nthe instants. Cards are made and changed at instants. Either range is empty when its start is after its end.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "first_instant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "format": "int64",
+              "title": "First Instant"
+            }
+          },
+          {
+            "name": "last_instant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "format": "int64",
+              "title": "Last Instant"
+            }
+          },
+          {
+            "name": "first_day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Day",
+              "description": "The day first_instant falls on where the caller is."
+            },
+            "description": "The day first_instant falls on where the caller is."
+          },
+          {
+            "name": "last_day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Day",
+              "description": "The day last_instant falls on where the caller is."
+            },
+            "description": "The day last_instant falls on where the caller is."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/cards": {
       "get": {
         "summary": "Page through a project's live cards.",
@@ -8012,6 +7304,402 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LinkListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/cards/{card_id}/milestones": {
+      "get": {
+        "summary": "List a card's milestones.",
+        "description": "By when they were made, then by ID. A card in the trash or in another project is not found.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Put a milestone on a card.",
+        "description": "The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in another project\nis not found.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMilestone"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/cards/{card_id}/milestones/{milestone_id}": {
+      "patch": {
+        "summary": "Change a milestone.",
+        "description": "Each field left out keeps its value, and an update that changes nothing writes nothing. Each date must be a real\nday or instant. A card in the trash or in another project is not found, and neither is a milestone that is not\non the card.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          },
+          {
+            "name": "milestone_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MilestoneId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MilestoneUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Take a milestone off a card.",
+        "description": "Returns the card's remaining milestones, as list_card_milestones lists them. A card without the milestone is\nleft as it is. A card in the trash or in another project is not found.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          },
+          {
+            "name": "milestone_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MilestoneId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneListResponse"
                 }
               }
             }
@@ -9570,72 +9258,67 @@
         }
       }
     },
-    "/projects/{project_id}/milestones-with-dates": {
+    "/projects/{project_id}/milestones/days": {
       "get": {
-        "summary": "Query project milestones by a labelled date role",
-        "description": "Returns each matching milestone once with its complete ordered dates array. Calendar days and instants are queried separately; both range bounds are inclusive. Milestones on trashed cards are excluded. Roles are free-form, and this endpoint does not infer outstanding or completion state.",
+        "summary": "List a project's milestones with a day in a range.",
+        "description": "The range holds first_day, last_day and the days between; it is empty when first_day is after last_day. A\nmilestone is listed once, by its first day in the range and then by ID. Milestones on cards in the trash are\nleft out.",
         "parameters": [
           {
             "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "first_day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Day"
+            }
+          },
+          {
+            "name": "last_day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Day"
             }
           },
           {
             "name": "role",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "value_type",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "date",
-                "datetime"
-              ]
-            }
-          },
-          {
-            "name": "from",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MilestoneRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only dates with this role; omit for any.",
+              "title": "Role"
             },
-            "description": "YYYY-MM-DD when value_type=date; Unix epoch seconds when value_type=datetime."
-          },
-          {
-            "name": "to",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Inclusive upper bound in the same form as from."
+            "description": "Only dates with this role; omit for any."
           }
         ],
         "responses": {
           "200": {
-            "description": "Matching milestones",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MilestoneWithDatesListResponse"
+                  "$ref": "#/components/schemas/MilestoneListResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid role or range",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9655,7 +9338,7 @@
             }
           },
           "404": {
-            "description": "Project not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9665,7 +9348,117 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/milestones/instants": {
+      "get": {
+        "summary": "List a project's milestones with an instant in a range.",
+        "description": "The range holds first_instant, last_instant and the instants between; it is empty when first_instant is after\nlast_instant. A milestone is listed once, by its first instant in the range and then by ID. Milestones on cards\nin the trash are left out.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "first_instant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "format": "int64",
+              "title": "First Instant"
+            }
+          },
+          {
+            "name": "last_instant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "format": "int64",
+              "title": "Last Instant"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MilestoneRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only dates with this role; omit for any.",
+              "title": "Role"
+            },
+            "description": "Only dates with this role; omit for any."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MilestoneListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13283,30 +13076,142 @@
           "ok"
         ]
       },
-      "CalendarCardActivity": {
-        "type": "object",
+      "Calendar": {
         "properties": {
-          "card_id": {
-            "type": "string"
+          "milestones": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarMilestone"
+            },
+            "type": "array",
+            "title": "Milestones",
+            "description": "The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by\nwhen they were made and then by ID."
           },
-          "title": {
-            "type": "string"
+          "created_cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardMetadata"
+            },
+            "type": "array",
+            "title": "Created Cards",
+            "description": "The live cards made in the window, by when they were made and then by ID."
+          },
+          "updated_cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardMetadata"
+            },
+            "type": "array",
+            "title": "Updated Cards",
+            "description": "The live cards last changed in the window, other than by being made, by when and then by ID."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "milestones",
+          "created_cards",
+          "updated_cards"
+        ],
+        "title": "Calendar",
+        "description": "What happens in a project over a window of time: its milestones, and the cards made and changed."
+      },
+      "CalendarMilestone": {
+        "properties": {
+          "milestone_id": {
+            "$ref": "#/components/schemas/MilestoneId",
+            "description": "The milestone's ID."
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project of the card the milestone is on."
+          },
+          "card_id": {
+            "$ref": "#/components/schemas/CardId",
+            "description": "The card the milestone is on."
+          },
+          "dates": {
+            "items": {
+              "$ref": "#/components/schemas/MilestoneDate"
+            },
+            "type": "array",
+            "title": "Dates",
+            "description": "The milestone's dates, in the order they were given."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What kind of milestone it is; null when it has none."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note on the milestone; null when it has none."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the milestone was made."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the milestone was last changed."
+          },
+          "card_title": {
+            "type": "string",
+            "title": "Card Title",
+            "description": "The title of the card the milestone is on."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
+          "milestone_id",
+          "project_id",
           "card_id",
-          "title",
+          "dates",
+          "kind",
+          "description",
           "created_at",
-          "updated_at"
-        ]
+          "updated_at",
+          "card_title"
+        ],
+        "title": "CalendarMilestone",
+        "description": "A milestone on a calendar, with the title of its card."
+      },
+      "CalendarResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Calendar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "CalendarResponse"
       },
       "Card": {
         "properties": {
@@ -14233,6 +14138,91 @@
           "data"
         ]
       },
+      "CardMetadata": {
+        "properties": {
+          "card_id": {
+            "$ref": "#/components/schemas/CardId",
+            "description": "The card's ID."
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project the card belongs to."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The card's title."
+          },
+          "rel_path": {
+            "type": "string",
+            "title": "Rel Path",
+            "description": "The card's file, relative to the project's root."
+          },
+          "parent_card_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The card's parent; null for a root card."
+          },
+          "sort_key": {
+            "type": "number",
+            "format": "double",
+            "title": "Sort Key",
+            "description": "The card's place among its siblings; lower comes first."
+          },
+          "created_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the card was created."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the card was last changed."
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At",
+            "description": "When the card was moved to the trash; null when it is not in the trash."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "project_id",
+          "title",
+          "rel_path",
+          "parent_card_id",
+          "sort_key",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "title": "CardMetadata",
+        "description": "Everything about a card except its content."
+      },
       "CardMove": {
         "properties": {
           "intent": {
@@ -14616,6 +14606,16 @@
           "deleted",
           "git_revision"
         ]
+      },
+      "DateTime": {
+        "type": "string",
+        "maxLength": 25,
+        "minLength": 20
+      },
+      "Day": {
+        "type": "string",
+        "maxLength": 10,
+        "minLength": 10
       },
       "Error": {
         "type": "object",
@@ -15141,386 +15141,193 @@
         ]
       },
       "Milestone": {
-        "type": "object",
         "properties": {
           "milestone_id": {
-            "type": "string",
-            "description": "Canonical milestone identifier; this is not a card ID and is never abbreviated.",
-            "format": "uuid"
+            "$ref": "#/components/schemas/MilestoneId",
+            "description": "The milestone's ID."
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project of the card the milestone is on."
           },
           "card_id": {
-            "type": "string"
-          },
-          "start_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Unix epoch seconds. For an all-day milestone, this encodes the originating local date at local midnight."
-          },
-          "end_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Inclusive milestone end in Unix epoch seconds. For an all-day milestone, this encodes the inclusive ending local date at local midnight."
-          },
-          "all_day": {
-            "type": "boolean",
-            "description": "When true, start_at and end_at carry local calendar-date semantics and clients should render dates rather than ordinary timed instants."
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "updated_at": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "card_title": {
-            "type": "string",
-            "description": "Included in project calendar responses."
-          }
-        },
-        "required": [
-          "milestone_id",
-          "card_id",
-          "start_at",
-          "end_at",
-          "all_day",
-          "kind",
-          "description",
-          "created_at",
-          "updated_at"
-        ]
-      },
-      "MilestoneCreateRequest": {
-        "type": "object",
-        "properties": {
-          "start_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Unix epoch seconds. For all_day=true, encode the local calendar date at local midnight."
-          },
-          "end_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Inclusive milestone end. For all_day=true, encode the inclusive ending local date at local midnight."
-          },
-          "all_day": {
-            "type": "boolean",
-            "description": "Marks start_at and end_at as local calendar dates rather than timed instants.",
-            "default": false
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "start_at"
-        ]
-      },
-      "MilestoneDateValue": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "type": "string",
-            "minLength": 1
-          },
-          "date": {
-            "type": "string",
-            "description": "Calendar day with no timezone; YYYY-MM-DD.",
-            "format": "date"
-          },
-          "datetime": {
-            "type": "string",
-            "description": "RFC 3339 timestamp with seconds and an explicit Z or numeric offset."
-          }
-        },
-        "required": [
-          "role"
-        ],
-        "additionalProperties": false,
-        "description": "Exactly one of date or datetime must be present. Roles are free-form and may repeat within a milestone. Array order is preserved."
-      },
-      "MilestoneListResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Milestone"
-            }
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "MilestoneRemoveResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/MilestoneRemoveResult"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "MilestoneRemoveResult": {
-        "type": "object",
-        "properties": {
-          "card_id": {
-            "type": "string"
-          },
-          "milestone_id": {
-            "type": "string",
-            "description": "Canonical milestone identifier supplied in the request.",
-            "format": "uuid"
-          },
-          "removed": {
-            "type": "boolean",
-            "description": "True when the milestone existed and was removed; false when it was already absent."
-          }
-        },
-        "required": [
-          "card_id",
-          "milestone_id",
-          "removed"
-        ]
-      },
-      "MilestoneResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/Milestone"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "MilestoneUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "start_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Unix epoch seconds. When changing an all-day milestone, encode the local calendar date at local midnight."
-          },
-          "end_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Inclusive milestone end, or null to clear it. The resulting end must not precede start_at."
-          },
-          "all_day": {
-            "type": "boolean",
-            "description": "Whether start_at and end_at carry local calendar-date semantics rather than timed-instant semantics."
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "minProperties": 1,
-        "additionalProperties": false,
-        "description": "Partial milestone update. Omitted properties remain unchanged; null clears a nullable property."
-      },
-      "MilestoneWithDates": {
-        "type": "object",
-        "properties": {
-          "milestone_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "card_id": {
-            "type": "string"
+            "$ref": "#/components/schemas/CardId",
+            "description": "The card the milestone is on."
           },
           "dates": {
-            "type": "array",
             "items": {
-              "$ref": "#/components/schemas/MilestoneDateValue"
-            }
+              "$ref": "#/components/schemas/MilestoneDate"
+            },
+            "type": "array",
+            "title": "Dates",
+            "description": "The milestone's dates, in the order they were given."
           },
           "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What kind of milestone it is; null when it has none."
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note on the milestone; null when it has none."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the milestone was made."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the milestone was last changed."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "milestone_id",
+          "project_id",
           "card_id",
           "dates",
           "kind",
           "description",
           "created_at",
           "updated_at"
-        ]
-      },
-      "MilestoneWithDatesCreateRequest": {
-        "type": "object",
-        "properties": {
-          "dates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MilestoneDateValue"
-            },
-            "description": "May be empty for an undated milestone."
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "dates"
         ],
-        "additionalProperties": false
+        "title": "Milestone",
+        "description": "A milestone on a card: its dates, which may repeat a role or be none, and what it is."
       },
-      "MilestoneWithDatesListResponse": {
+      "MilestoneDate": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/MilestoneRole",
+            "description": "What the date is for."
+          },
+          "date": {
+            "$ref": "#/components/schemas/Day",
+            "description": "The calendar day; present when the date is a day."
+          },
+          "datetime": {
+            "$ref": "#/components/schemas/DateTime",
+            "description": "The instant; present when the date is an instant."
+          }
+        },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "MilestoneDate",
+        "description": "One of a milestone's dates: a role and exactly one of a day or an instant."
+      },
+      "MilestoneId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "MilestoneListResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
-            "type": "array",
             "items": {
-              "$ref": "#/components/schemas/MilestoneWithDates"
-            }
+              "$ref": "#/components/schemas/Milestone"
+            },
+            "type": "array",
+            "title": "Data"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "MilestoneListResponse"
       },
-      "MilestoneWithDatesResponse": {
-        "type": "object",
+      "MilestoneResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
-            "$ref": "#/components/schemas/MilestoneWithDates"
+            "$ref": "#/components/schemas/Milestone"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "MilestoneResponse"
       },
-      "MilestoneWithDatesUpdateRequest": {
-        "type": "object",
+      "MilestoneRole": {
+        "type": "string",
+        "minLength": 1
+      },
+      "MilestoneText": {
+        "type": "string",
+        "minLength": 1
+      },
+      "MilestoneUpdate": {
         "properties": {
           "dates": {
-            "type": "array",
             "items": {
-              "$ref": "#/components/schemas/MilestoneDateValue"
-            }
+              "$ref": "#/components/schemas/MilestoneDate"
+            },
+            "type": "array",
+            "title": "Dates",
+            "description": "The milestone's new dates, replacing all of them; empty for none."
           },
           "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What kind of milestone it is; null for none."
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note on the milestone; null for none."
           }
         },
-        "minProperties": 1,
         "additionalProperties": false,
-        "description": "Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields remain unchanged."
+        "type": "object",
+        "title": "MilestoneUpdate",
+        "description": "A change to a milestone. Each field left out keeps its value."
       },
       "NewCard": {
         "properties": {
@@ -15627,6 +15434,47 @@
         "title": "NewLink",
         "description": "A link to make from a card. Its source is the card it is made from."
       },
+      "NewMilestone": {
+        "properties": {
+          "dates": {
+            "items": {
+              "$ref": "#/components/schemas/MilestoneDate"
+            },
+            "type": "array",
+            "title": "Dates",
+            "description": "The milestone's dates, in order; empty for a milestone without a date."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What kind of milestone it is; null or omitted for none."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MilestoneText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note on the milestone; null or omitted for none."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dates"
+        ],
+        "title": "NewMilestone",
+        "description": "A milestone to put on a card."
+      },
       "Project": {
         "type": "object",
         "properties": {
@@ -15694,65 +15542,6 @@
           "created_at",
           "updated_at",
           "sync"
-        ]
-      },
-      "ProjectCalendarResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "project_id": {
-                "type": "string"
-              },
-              "from": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Inclusive lower bound in Unix epoch seconds."
-              },
-              "to": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Inclusive upper bound in Unix epoch seconds."
-              },
-              "milestones": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Milestone"
-                }
-              },
-              "created_cards": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/CalendarCardActivity"
-                }
-              },
-              "updated_cards": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/CalendarCardActivity"
-                }
-              }
-            },
-            "required": [
-              "project_id",
-              "from",
-              "to",
-              "milestones",
-              "created_cards",
-              "updated_cards"
-            ]
-          }
-        },
-        "required": [
-          "ok",
-          "data"
         ]
       },
       "ProjectCreateRequest": {

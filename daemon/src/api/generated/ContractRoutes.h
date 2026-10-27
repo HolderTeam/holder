@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
@@ -233,6 +233,139 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(400, "invalid_argument", error.what(), "list_project_tags");
         } catch (const std::exception& error) {
             return failure(500, "internal_error", error.what(), "list_project_tags");
+        }
+    }
+    static const std::regex route_20("^/projects/([^/]+)/calendar$");
+    if (method == "GET" && std::regex_match(route_path, match, route_20)) {
+        std::string project_id{};
+        long long first_instant{};
+        long long last_instant{};
+        std::string first_day{};
+        std::string last_day{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_first_instant = query_values.find("first_instant");
+            if (query_first_instant != query_values.end()) {
+                const auto& text = query_first_instant->second;
+                first_instant = decode_integer<long long>(text, "first_instant");
+            } else {
+                throw std::invalid_argument("the query parameter first_instant is required");
+            }
+            const auto query_last_instant = query_values.find("last_instant");
+            if (query_last_instant != query_values.end()) {
+                const auto& text = query_last_instant->second;
+                last_instant = decode_integer<long long>(text, "last_instant");
+            } else {
+                throw std::invalid_argument("the query parameter last_instant is required");
+            }
+            const auto query_first_day = query_values.find("first_day");
+            if (query_first_day != query_values.end()) {
+                const auto& text = query_first_day->second;
+                first_day = contract_json::check_text(text, "first_day", 10, 10);
+            } else {
+                throw std::invalid_argument("the query parameter first_day is required");
+            }
+            const auto query_last_day = query_values.find("last_day");
+            if (query_last_day != query_values.end()) {
+                const auto& text = query_last_day->second;
+                last_day = contract_json::check_text(text, "last_day", 10, 10);
+            } else {
+                throw std::invalid_argument("the query parameter last_day is required");
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_calendar");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::get_calendar(context, std::move(project_id), std::move(first_instant), std::move(last_instant), std::move(first_day), std::move(last_day))), "get_calendar");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "get_calendar");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_calendar");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "get_calendar");
+        }
+    }
+    static const std::regex route_18("^/projects/([^/]+)/milestones/days$");
+    if (method == "GET" && std::regex_match(route_path, match, route_18)) {
+        std::string project_id{};
+        std::string first_day{};
+        std::string last_day{};
+        std::optional<std::string> role{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_first_day = query_values.find("first_day");
+            if (query_first_day != query_values.end()) {
+                const auto& text = query_first_day->second;
+                first_day = contract_json::check_text(text, "first_day", 10, 10);
+            } else {
+                throw std::invalid_argument("the query parameter first_day is required");
+            }
+            const auto query_last_day = query_values.find("last_day");
+            if (query_last_day != query_values.end()) {
+                const auto& text = query_last_day->second;
+                last_day = contract_json::check_text(text, "last_day", 10, 10);
+            } else {
+                throw std::invalid_argument("the query parameter last_day is required");
+            }
+            const auto query_role = query_values.find("role");
+            if (query_role != query_values.end()) {
+                const auto& text = query_role->second;
+                role = contract_json::check_text(text, "role", 1, std::numeric_limits<std::size_t>::max());
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_milestones_by_day");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_milestones_by_day(context, std::move(project_id), std::move(first_day), std::move(last_day), std::move(role))), "list_milestones_by_day");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "list_milestones_by_day");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_milestones_by_day");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_milestones_by_day");
+        }
+    }
+    static const std::regex route_19("^/projects/([^/]+)/milestones/instants$");
+    if (method == "GET" && std::regex_match(route_path, match, route_19)) {
+        std::string project_id{};
+        long long first_instant{};
+        long long last_instant{};
+        std::optional<std::string> role{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_first_instant = query_values.find("first_instant");
+            if (query_first_instant != query_values.end()) {
+                const auto& text = query_first_instant->second;
+                first_instant = decode_integer<long long>(text, "first_instant");
+            } else {
+                throw std::invalid_argument("the query parameter first_instant is required");
+            }
+            const auto query_last_instant = query_values.find("last_instant");
+            if (query_last_instant != query_values.end()) {
+                const auto& text = query_last_instant->second;
+                last_instant = decode_integer<long long>(text, "last_instant");
+            } else {
+                throw std::invalid_argument("the query parameter last_instant is required");
+            }
+            const auto query_role = query_values.find("role");
+            if (query_role != query_values.end()) {
+                const auto& text = query_role->second;
+                role = contract_json::check_text(text, "role", 1, std::numeric_limits<std::size_t>::max());
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_milestones_by_instant");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_milestones_by_instant(context, std::move(project_id), std::move(first_instant), std::move(last_instant), std::move(role))), "list_milestones_by_instant");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "list_milestones_by_instant");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_milestones_by_instant");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_milestones_by_instant");
         }
     }
     static const std::regex route_0("^/projects/([^/]+)/cards/([^/]+)$");
@@ -544,6 +677,54 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "remove_card_link");
         }
     }
+    static const std::regex route_14("^/projects/([^/]+)/cards/([^/]+)/milestones$");
+    if (method == "GET" && std::regex_match(route_path, match, route_14)) {
+        std::string project_id{};
+        std::string card_id{};
+        try {
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_milestones");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_card_milestones(context, std::move(project_id), std::move(card_id))), "list_card_milestones");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "list_card_milestones");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_milestones");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_card_milestones");
+        }
+    }
+    static const std::regex route_15("^/projects/([^/]+)/cards/([^/]+)/milestones$");
+    if (method == "POST" && std::regex_match(route_path, match, route_15)) {
+        std::string project_id{};
+        std::string card_id{};
+        holder::contract::NewMilestone milestone{};
+        try {
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            milestone = contract_json::decode<holder::contract::NewMilestone>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "add_card_milestone");
+        }
+        try {
+            return success(201, contract_json::encode(holder::contract::add_card_milestone(context, std::move(project_id), std::move(card_id), std::move(milestone))), "add_card_milestone");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "add_card_milestone");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "add_card_milestone");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "add_card_milestone");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "add_card_milestone");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "add_card_milestone");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "add_card_milestone");
+        }
+    }
     static const std::regex route_7("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
     if (method == "PUT" && std::regex_match(route_path, match, route_7)) {
         std::string project_id{};
@@ -602,6 +783,64 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "remove_card_tag");
         }
     }
+    static const std::regex route_16("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
+    if (method == "PATCH" && std::regex_match(route_path, match, route_16)) {
+        std::string project_id{};
+        std::string card_id{};
+        std::string milestone_id{};
+        holder::contract::MilestoneUpdate update{};
+        try {
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            milestone_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
+            update = contract_json::decode<holder::contract::MilestoneUpdate>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_card_milestone");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::update_card_milestone(context, std::move(project_id), std::move(card_id), std::move(milestone_id), std::move(update))), "update_card_milestone");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "update_card_milestone");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "update_card_milestone");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "update_card_milestone");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "update_card_milestone");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_card_milestone");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "update_card_milestone");
+        }
+    }
+    static const std::regex route_17("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_17)) {
+        std::string project_id{};
+        std::string card_id{};
+        std::string milestone_id{};
+        try {
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            milestone_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "remove_card_milestone");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::remove_card_milestone(context, std::move(project_id), std::move(card_id), std::move(milestone_id))), "remove_card_milestone");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "remove_card_milestone");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "remove_card_milestone");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "remove_card_milestone");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "remove_card_milestone");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "remove_card_milestone");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "remove_card_milestone");
+        }
+    }
     return std::nullopt;
 }
 
@@ -613,18 +852,28 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     if (std::regex_match(route_path, path_0)) methods.insert({"GET", "POST"});
     static const std::regex path_1("^/projects/([^/]+)/tags$");
     if (std::regex_match(route_path, path_1)) methods.insert({"GET"});
-    static const std::regex path_2("^/projects/([^/]+)/cards/([^/]+)$");
-    if (std::regex_match(route_path, path_2)) methods.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_3("^/projects/([^/]+)/cards/([^/]+)/restore$");
-    if (std::regex_match(route_path, path_3)) methods.insert({"POST"});
-    static const std::regex path_4("^/projects/([^/]+)/cards/([^/]+)/move$");
-    if (std::regex_match(route_path, path_4)) methods.insert({"POST"});
-    static const std::regex path_5("^/projects/([^/]+)/cards/([^/]+)/links$");
-    if (std::regex_match(route_path, path_5)) methods.insert({"DELETE", "GET", "POST"});
-    static const std::regex path_6("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
-    if (std::regex_match(route_path, path_6)) methods.insert({"GET"});
-    static const std::regex path_7("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
-    if (std::regex_match(route_path, path_7)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_2("^/projects/([^/]+)/calendar$");
+    if (std::regex_match(route_path, path_2)) methods.insert({"GET"});
+    static const std::regex path_3("^/projects/([^/]+)/milestones/days$");
+    if (std::regex_match(route_path, path_3)) methods.insert({"GET"});
+    static const std::regex path_4("^/projects/([^/]+)/milestones/instants$");
+    if (std::regex_match(route_path, path_4)) methods.insert({"GET"});
+    static const std::regex path_5("^/projects/([^/]+)/cards/([^/]+)$");
+    if (std::regex_match(route_path, path_5)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_6("^/projects/([^/]+)/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_6)) methods.insert({"POST"});
+    static const std::regex path_7("^/projects/([^/]+)/cards/([^/]+)/move$");
+    if (std::regex_match(route_path, path_7)) methods.insert({"POST"});
+    static const std::regex path_8("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (std::regex_match(route_path, path_8)) methods.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_9("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_9)) methods.insert({"GET"});
+    static const std::regex path_10("^/projects/([^/]+)/cards/([^/]+)/milestones$");
+    if (std::regex_match(route_path, path_10)) methods.insert({"GET", "POST"});
+    static const std::regex path_11("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
+    if (std::regex_match(route_path, path_11)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_12("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
+    if (std::regex_match(route_path, path_12)) methods.insert({"DELETE", "PATCH"});
     return methods;
 }
 }  // namespace contract_http

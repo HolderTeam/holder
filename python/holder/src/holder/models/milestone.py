@@ -6,23 +6,19 @@ from dataclasses import dataclass, field, fields
 from datetime import date, datetime, timedelta
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Self
-from uuid import UUID
 
 from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
 from ..generated.api.default import (
-    delete_cards_card_id_milestones_with_dates_milestone_id,
-    get_cards_card_id_milestones_with_dates,
-    get_projects_project_id_milestones_with_dates,
-    patch_cards_card_id_milestones_with_dates_milestone_id,
-    post_cards_card_id_milestones_with_dates,
+    delete_projects_project_id_cards_card_id_milestones_milestone_id,
+    get_projects_project_id_cards_card_id_milestones,
+    get_projects_project_id_milestones_days,
+    get_projects_project_id_milestones_instants,
+    patch_projects_project_id_cards_card_id_milestones_milestone_id,
+    post_projects_project_id_cards_card_id_milestones,
 )
-from ..generated.models import (
-    GetProjectsProjectIdMilestonesWithDatesValueType,
-    MilestoneDateValue,
-    MilestoneWithDatesCreateRequest,
-    MilestoneWithDatesUpdateRequest,
-)
+from ..generated.models import MilestoneDate as MilestoneDateValue
+from ..generated.models import MilestoneUpdate, NewMilestone
 from ..generated.types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -54,7 +50,7 @@ class MilestoneDate:
             return MilestoneDateValue(
                 role=self.role, datetime_=self.value.isoformat(timespec="seconds")
             )
-        return MilestoneDateValue(role=self.role, date=self.value)
+        return MilestoneDateValue(role=self.role, date=self.value.isoformat())
 
     @classmethod
     def _from(cls, row: MilestoneDateValue) -> Self:
@@ -63,7 +59,10 @@ class MilestoneDate:
         if has_date == has_datetime:
             raise ProtocolError("Milestone date must have exactly one value")
         if has_date:
-            value = row.date
+            try:
+                value = date.fromisoformat(row.date)
+            except (TypeError, ValueError):
+                raise ProtocolError("Invalid milestone date") from None
         else:
             try:
                 value = datetime.fromisoformat(row.datetime_)
@@ -100,25 +99,20 @@ class CardMilestoneCollection(Collection["Milestone"]):
     def _clone(self, query: dict[str, Any]) -> Self:
         return type(self)(self._card)
 
-    def _check_scope(self) -> None:
-        # The route identifies cards globally; retain this Card's project scope.
-        current = self._card._project.cards.get(self._card.id)
-        if current.project_id != self._card.project_id:
-            raise NotFoundError(404, "not_found", "Card not found in this project")
-
     def _fetch_page(self) -> tuple[list[Milestone], None]:
-        self._check_scope()
         rows = self._holder._call(
-            get_cards_card_id_milestones_with_dates, self._card.id
+            get_projects_project_id_cards_card_id_milestones,
+            self._card.project_id,
+            self._card.id,
         )
         return [
             Milestone._from(self._card._project, self, row, card_id=self._card.id)
             for row in rows
         ], None
 
-    def get(self, milestone_id: UUID | str) -> Milestone:
+    def get(self, milestone_id: str) -> Milestone:
         """Fetch by stable ID independently of this collection's cache."""
-        identity = _uuid(milestone_id)
+        identity = _identity(milestone_id)
         for milestone in self.all():
             if milestone.id == identity:
                 return milestone
@@ -135,13 +129,11 @@ class CardMilestoneCollection(Collection["Milestone"]):
         encoded = _dates(dates)
         _optional_text("kind", kind)
         _optional_text("description", description)
-        self._check_scope()
         row = self._holder._call(
-            post_cards_card_id_milestones_with_dates,
+            post_projects_project_id_cards_card_id_milestones,
+            self._card.project_id,
             self._card.id,
-            body=MilestoneWithDatesCreateRequest(
-                dates=encoded, kind=kind, description=description
-            ),
+            body=NewMilestone(dates=encoded, kind=kind, description=description),
             write=True,
         )
         self.refresh()
@@ -155,103 +147,79 @@ class ProjectMilestones:
         self._project = project
 
     def between(
-        self, start: date | datetime, end: date | datetime, *, role: str
+        self, start: date | datetime, end: date | datetime, *, role: str | None = None
     ) -> ProjectMilestoneResults:
-        """Find milestones with a matching role and date in an inclusive range.
+        """Find milestones with a date in an inclusive range, of the role if given.
 
-        Calendar days and offset instants are separate searches. Results are
-        lazy, cached until refresh(), and omit milestones on trashed cards.
+        Calendar days and offset instants are separate searches. A range whose
+        start is after its end is empty. Results are lazy, cached until
+        refresh(), and omit milestones on trashed cards.
         """
-        if not isinstance(role, str) or not role:
-            raise ValueError("role must be a nonempty string")
+        if role is not None and (not isinstance(role, str) or not role):
+            raise ValueError("role must be a nonempty string or None")
         if isinstance(start, datetime) and isinstance(end, datetime):
             for value in (start, end):
                 offset = value.utcoffset()
                 if offset is None:
                     raise ValueError("datetime bounds must have explicit UTC offsets")
-                if value.microsecond or offset % timedelta(minutes=1):
-                    raise ValueError(
-                        "datetime bounds must use whole seconds and minute offsets"
-                    )
-            if start > end:
-                raise ValueError("start must not be after end")
-            value_type = GetProjectsProjectIdMilestonesWithDatesValueType.DATETIME
-            from_value, to_value = (
-                str(int(start.timestamp())),
-                str(int(end.timestamp())),
+                if value.microsecond:
+                    raise ValueError("datetime bounds must use whole seconds")
+            return ProjectMilestoneResults(
+                self._project,
+                get_projects_project_id_milestones_instants,
+                {
+                    "first_instant": int(start.timestamp()),
+                    "last_instant": int(end.timestamp()),
+                    "role": UNSET if role is None else role,
+                },
             )
-        elif (
+        if (
             isinstance(start, date)
             and not isinstance(start, datetime)
             and isinstance(end, date)
             and not isinstance(end, datetime)
         ):
-            if start > end:
-                raise ValueError("start must not be after end")
-            value_type = GetProjectsProjectIdMilestonesWithDatesValueType.DATE
-            from_value, to_value = start.isoformat(), end.isoformat()
-        else:
-            raise TypeError("start and end must both be dates or aware datetimes")
-        return ProjectMilestoneResults(
-            self._project, role, value_type, from_value, to_value
-        )
+            return ProjectMilestoneResults(
+                self._project,
+                get_projects_project_id_milestones_days,
+                {
+                    "first_day": start.isoformat(),
+                    "last_day": end.isoformat(),
+                    "role": UNSET if role is None else role,
+                },
+            )
+        raise TypeError("start and end must both be dates or aware datetimes")
 
 
 class ProjectMilestoneResults(Collection["Milestone"]):
     """A cached project query; each result is the ordinary Milestone type."""
 
-    def __init__(
-        self,
-        project: Project,
-        role: str,
-        value_type: GetProjectsProjectIdMilestonesWithDatesValueType,
-        from_value: str,
-        to_value: str,
-    ) -> None:
+    def __init__(self, project: Project, route: Any, params: dict[str, Any]) -> None:
         self._project = project
-        self._role = role
-        self._value_type = value_type
-        self._from_value = from_value
-        self._to_value = to_value
+        self._route = route
+        self._params = params
         super().__init__(project._holder)
 
     def _clone(self, query: dict[str, Any]) -> Self:
-        return type(self)(
-            self._project,
-            self._role,
-            self._value_type,
-            self._from_value,
-            self._to_value,
-        )
+        return type(self)(self._project, self._route, self._params)
 
     def _fetch_page(self) -> tuple[list[Milestone], None]:
-        rows = self._holder._call(
-            get_projects_project_id_milestones_with_dates,
-            self._project.id,
-            role=self._role,
-            value_type=self._value_type,
-            from_=self._from_value,
-            to=self._to_value,
-        )
+        rows = self._holder._call(self._route, self._project.id, **self._params)
         return [Milestone._from(self._project, self, row) for row in rows], None
 
 
-def _uuid(value: UUID | str) -> UUID:
-    if isinstance(value, UUID):
-        return value
-    if not isinstance(value, str):
-        raise TypeError("milestone_id must be a UUID or UUID string")
-    try:
-        return UUID(value)
-    except ValueError:
-        raise ValueError("milestone_id must be a UUID") from None
+def _identity(value: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("milestone_id must be a nonempty string")
+    return value
 
 
 @dataclass(frozen=True, eq=False)
 class Milestone:
     """A card milestone; no completion state is inferred from its date roles."""
 
-    id: UUID
+    id: str
+    project_id: str
     card_id: str
     dates: tuple[MilestoneDate, ...]
     kind: str | None
@@ -279,10 +247,14 @@ class Milestone:
             not isinstance(row.card_id, str)
             or not row.card_id
             or (card_id is not None and row.card_id != card_id)
+            or row.project_id != project.id
         ):
             raise ProtocolError("Milestone belongs to another card")
+        if not isinstance(row.milestone_id, str) or not row.milestone_id:
+            raise ProtocolError("Invalid milestone ID")
         return cls(
             id=row.milestone_id,
+            project_id=row.project_id,
             card_id=row.card_id,
             dates=tuple(MilestoneDate._from(value) for value in row.dates),
             kind=row.kind,
@@ -315,14 +287,12 @@ class Milestone:
         encoded = UNSET if isinstance(dates, Unset) else _dates(dates)
         _optional_text("kind", kind)
         _optional_text("description", description)
-        self._project.cards.get(self.card_id)
         row = self._project._holder._call(
-            patch_cards_card_id_milestones_with_dates_milestone_id,
+            patch_projects_project_id_cards_card_id_milestones_milestone_id,
+            self.project_id,
             self.card_id,
             self.id,
-            body=MilestoneWithDatesUpdateRequest(
-                dates=encoded, kind=kind, description=description
-            ),
+            body=MilestoneUpdate(dates=encoded, kind=kind, description=description),
             write=True,
         )
         self._listing.refresh()
@@ -331,16 +301,15 @@ class Milestone:
         )
         return self
 
-    def remove(self) -> bool:
-        """Remove this milestone; return False if it was already absent."""
-        self._project.cards.get(self.card_id)
-        result = self._project._holder._call(
-            delete_cards_card_id_milestones_with_dates_milestone_id,
+    def remove(self) -> None:
+        """Remove this milestone; removing one already gone changes nothing."""
+        remaining = self._project._holder._call(
+            delete_projects_project_id_cards_card_id_milestones_milestone_id,
+            self.project_id,
             self.card_id,
             self.id,
             write=True,
         )
-        if result.card_id != self.card_id or result.milestone_id != self.id:
-            raise ProtocolError("Milestone removal returned another identity")
+        if any(row.milestone_id == self.id for row in remaining):
+            raise ProtocolError("Milestone removal left the milestone in place")
         self._listing.refresh()
-        return result.removed

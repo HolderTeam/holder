@@ -264,31 +264,27 @@ def test_full_card_milestones_against_daemon(daemon):
         assert {item.id for item in milestones} == {undated.id, dated.id}
 
         # The calendar day stays June 2; the offset instant is June 1 in UTC.
-        days = raw.get(
-            f"/projects/{project.id}/milestones-with-dates",
-            params={
-                "role": "deadline",
-                "value_type": "date",
-                "from": "2026-06-02",
-                "to": "2026-06-02",
-            },
+        days = project.milestones.between(
+            date(2026, 6, 2), date(2026, 6, 2), role="deadline"
         )
-        assert days.status_code == 200
-        assert [item["milestone_id"] for item in days.json()["data"]] == [str(dated.id)]
+        assert [item.id for item in days] == [dated.id]
+        utc = datetime(2026, 6, 1, 22, 0, tzinfo=UTC)
+        instants = project.milestones.between(utc, utc)
+        assert [item.id for item in instants] == [dated.id]
         epoch = int(occurred.astimezone(UTC).timestamp())
-        instants = raw.get(
-            f"/projects/{project.id}/milestones-with-dates",
+        calendar = raw.get(
+            f"/projects/{project.id}/calendar",
             params={
-                "role": "occurred",
-                "value_type": "datetime",
-                "from": epoch,
-                "to": epoch,
+                "first_instant": epoch,
+                "last_instant": epoch,
+                "first_day": "2026-06-03",
+                "last_day": "2026-06-03",
             },
         )
-        assert instants.status_code == 200
-        assert [item["milestone_id"] for item in instants.json()["data"]] == [
-            str(dated.id)
-        ]
+        assert calendar.status_code == 200
+        assert [
+            item["milestone_id"] for item in calendar.json()["data"]["milestones"]
+        ] == [dated.id]
 
         assert dated.update(description=None) is dated
         assert dated.description is None
@@ -296,7 +292,7 @@ def test_full_card_milestones_against_daemon(daemon):
         assert dated.update(dates=[]) is dated
         assert dated.dates == ()
         assert milestones.get(dated.id).dates == ()
-        assert undated.remove() is True
+        assert undated.remove() is None
         assert {item.id for item in milestones} == {dated.id}
 
 

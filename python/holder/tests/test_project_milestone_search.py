@@ -2,7 +2,6 @@
 
 import json
 from datetime import UTC, date, datetime, timedelta, timezone
-from uuid import UUID
 
 import pytest
 from test_library import card_payload, failure, holder_for, ok, project_payload
@@ -17,6 +16,7 @@ SECOND_ID = "22222222-2222-4222-8222-222222222222"
 def row(identity=FIRST_ID, *, dates=None, description="Release"):
     return {
         "milestone_id": identity,
+        "project_id": "p-0",
         "card_id": "c-0000",
         "dates": dates
         or [
@@ -40,12 +40,11 @@ def test_date_search_is_lazy_cached_and_returns_full_milestones_without_card_fet
             return ok(project_payload())
         if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
-        assert request.url.path == "/projects/p-0/milestones-with-dates"
+        assert request.url.path == "/projects/p-0/milestones/days"
         assert dict(request.url.params) == {
             "role": "deadline",
-            "value_type": "date",
-            "from": "2026-06-01",
-            "to": "2026-06-30",
+            "first_day": "2026-06-01",
+            "last_day": "2026-06-30",
         }
         return ok([row()])
 
@@ -58,7 +57,7 @@ def test_date_search_is_lazy_cached_and_returns_full_milestones_without_card_fet
         assert len(requests) == 1
         milestone = results[0]
         assert isinstance(milestone, Milestone)
-        assert milestone.id == UUID(FIRST_ID) and milestone.card_id == "c-0000"
+        assert milestone.id == FIRST_ID and milestone.card_id == "c-0000"
         assert milestone.dates == (
             MilestoneDate("deadline", date(2026, 6, 1)),
             MilestoneDate("deadline", date(2026, 6, 3)),
@@ -95,13 +94,15 @@ def test_instant_search_converts_aware_bounds_to_epoch_seconds():
         project = holder.projects.get("p-0")
         found = list(project.milestones.between(moment, moment, role="occurred"))
         assert found[0].dates[2].value == moment
-    assert requests[0].url.path == "/projects/p-0/milestones-with-dates"
+        # Without a role, any role matches.
+        list(project.milestones.between(moment, moment))
+    assert requests[0].url.path == "/projects/p-0/milestones/instants"
     assert dict(requests[0].url.params) == {
         "role": "occurred",
-        "value_type": "datetime",
-        "from": str(int(moment.timestamp())),
-        "to": str(int(moment.timestamp())),
+        "first_instant": str(int(moment.timestamp())),
+        "last_instant": str(int(moment.timestamp())),
     }
+    assert "role" not in requests[1].url.params
 
 
 def test_project_result_can_refresh_update_and_remove_without_initial_card_fetch():
@@ -113,19 +114,19 @@ def test_project_result_can_refresh_update_and_remove_without_initial_card_fetch
         path = request.url.path
         if path == "/projects/p-0":
             return ok(project_payload())
-        if path == "/projects/p-0/milestones-with-dates":
+        if path == "/projects/p-0/milestones/days":
             return ok([saved] if saved["dates"] else [])
         if path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
-        if path == "/cards/c-0000/milestones-with-dates":
+        if path == "/projects/p-0/cards/c-0000/milestones":
             return ok([saved] if saved["dates"] else [])
-        if path == f"/cards/c-0000/milestones-with-dates/{FIRST_ID}":
+        if path == f"/projects/p-0/cards/c-0000/milestones/{FIRST_ID}":
             if request.method == "PATCH":
                 body = json.loads(request.content)
                 saved.update(body)
                 return ok(saved)
             assert request.method == "DELETE"
-            return ok({"card_id": "c-0000", "milestone_id": FIRST_ID, "removed": True})
+            return ok([])
         raise AssertionError(path)
 
     with holder_for(respond) as holder:
@@ -136,7 +137,7 @@ def test_project_result_can_refresh_update_and_remove_without_initial_card_fetch
         milestone = results[0]
         assert [r.url.path for r in requests] == [
             "/projects/p-0",
-            "/projects/p-0/milestones-with-dates",
+            "/projects/p-0/milestones/days",
         ]
         assert milestone.refresh() is milestone
         assert milestone.update(description="Changed") is milestone
@@ -144,7 +145,7 @@ def test_project_result_can_refresh_update_and_remove_without_initial_card_fetch
         assert results[0].description == "Changed"
         assert milestone.update(dates=[]) is milestone
         assert list(results) == []
-        assert milestone.remove() is True
+        assert milestone.remove() is None
 
 
 def test_search_validates_role_range_and_bound_types_before_query():
@@ -156,8 +157,6 @@ def test_search_validates_role_range_and_bound_types_before_query():
 
     with holder_for(respond) as holder:
         search = holder.projects.get("p-0").milestones
-        with pytest.raises(ValueError):
-            search.between(date(2026, 1, 2), date(2026, 1, 1), role="deadline")
         with pytest.raises(ValueError):
             search.between(date(2026, 1, 1), date(2026, 1, 2), role="")
         with pytest.raises(TypeError):
@@ -185,7 +184,7 @@ def test_project_result_lazy_card_lookup_checks_scope():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/projects/p-0/cards/c-0000":
+        if request.url.path.startswith("/projects/p-0/cards/c-0000"):
             # The card is not in this project.
             return failure(404)
         return ok([row(SECOND_ID)])

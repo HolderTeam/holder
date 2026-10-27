@@ -26,6 +26,7 @@ import re
 import shutil
 import tempfile
 import time
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -61,10 +62,43 @@ ORDER_KEYS = {
     "sort_key_asc": (lambda c: (c["sort_key"], c["card_id"]), False),
 }
 METADATA = [f["name"] for f in next(r for r in IR["records"] if r["name"] == "CardMetadata")["fields"]]
+DATETIME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|([+-])([0-9]{2}):([0-9]{2}))")
+ROLE_POOL = ["start", "end", "due"]
+EPOCH = date(1970, 1, 1).toordinal()
 
 
 def valid_tag(tag: str) -> bool:
     return bool(TAG.fullmatch(tag)) and not HEX_COLOUR.fullmatch(tag)
+
+
+def calendar_day(text: str) -> date | None:
+    """The day a Day names, or None when it names none: YYYY-MM-DD, from year 1."""
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", text):
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def epoch_of(text: str) -> int | None:
+    """The epoch second a DateTime names, or None when it names none."""
+    match = DATETIME.fullmatch(text)
+    day = calendar_day(match[1]) if match else None
+    if day is None:
+        return None
+    hour, minute, second = int(match[2]), int(match[3]), int(match[4])
+    offset = 0 if match[5] == "Z" else (int(match[7]) * 60 + int(match[8])) * (1 if match[6] == "+" else -1)
+    if hour > 23 or minute > 59 or second > 59 or (match[5] != "Z" and (int(match[7]) > 23 or int(match[8]) > 59)):
+        return None
+    return (day.toordinal() - EPOCH) * 86400 + hour * 3600 + minute * 60 + second - offset * 60
+
+
+def valid_milestone_date(value: dict) -> bool:
+    """Exactly one of a real day or a real instant."""
+    if ("date" in value) == ("datetime" in value):
+        return False
+    return calendar_day(value["date"]) is not None if "date" in value else epoch_of(value["datetime"]) is not None
 
 
 class Cards(RuleBasedStateMachine):
@@ -79,6 +113,7 @@ class Cards(RuleBasedStateMachine):
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
         self.links: dict[str, list[dict]] = {}  # each card's links, by its ID
+        self.milestones: dict[str, list[dict]] = {}  # each card's milestones, by its ID, in the order made
 
     def open(self):
         raise NotImplementedError
@@ -110,6 +145,26 @@ class Cards(RuleBasedStateMachine):
         overrides = {"ProjectId": mostly(st.sampled_from(self.projects), "ProjectId")}
         if self.cards:
             overrides["CardId"] = mostly(st.sampled_from(list(self.cards)), "CardId")
+        milestone_ids = [m["milestone_id"] for made in self.milestones.values() for m in made]
+        if milestone_ids:
+            overrides["MilestoneId"] = mostly(st.sampled_from(milestone_ids), "MilestoneId")
+        # Days and instants are nearly always real ones: the contract states their form in words.
+        def nearly_always(valid: st.SearchStrategy, name: str) -> st.SearchStrategy:
+            return st.one_of(*[valid] * 7, Values(IR).valid({"kind": "named", "name": name}))
+
+        days = st.one_of(st.dates(min_value=date(1, 1, 1)),
+                         st.dates(min_value=date(2026, 8, 1), max_value=date(2027, 12, 31))).map(date.isoformat)
+        offsets = st.one_of(st.just("Z"), st.builds(
+            lambda sign, minutes: f"{sign}{minutes // 60:02d}:{minutes % 60:02d}", st.sampled_from("+-"),
+            st.integers(0, 23 * 60 + 59)))
+        instants = st.builds(lambda day, seconds, offset: f"{day}T{seconds // 3600:02d}:{seconds // 60 % 60:02d}:"
+                             f"{seconds % 60:02d}{offset}", days, st.integers(0, 86399), offsets)
+        overrides["Day"] = nearly_always(days, "Day")
+        overrides["DateTime"] = nearly_always(instants, "DateTime")
+        role = st.one_of(st.sampled_from(ROLE_POOL), Values(IR).valid({"kind": "named", "name": "MilestoneRole"}))
+        one = st.one_of(st.builds(lambda r, d: {"role": r, "date": d}, role, days),
+                        st.builds(lambda r, d: {"role": r, "datetime": d}, role, instants))
+        overrides["MilestoneDate"] = nearly_always(one, "MilestoneDate")
         return Values(IR, overrides=overrides)
 
     def expect(self, operation: str, kinds: set[str], arguments: dict):
@@ -140,13 +195,16 @@ class Cards(RuleBasedStateMachine):
 
     @initialize(data=st.data(), count=st.integers(0, 8))
     def some_cards(self, data, count):
-        """Start with a few cards in a hierarchy, so that listings have something to page through."""
+        """Start with a few cards in a hierarchy, so that listings have something to page through, and some
+        milestones on them, so that there are some to change."""
         for _ in range(count):
             card = data.draw(self.values().record("NewCard"))
             project = data.draw(st.sampled_from(self.projects))
             live = [c["card_id"] for c in self.live(project)]
             card["parent_card_id"] = data.draw(st.none() | st.sampled_from(live)) if live else None
             self.create(project, card, data)
+        for card in data.draw(st.lists(st.sampled_from(self.live()), max_size=4)) if self.live() else []:
+            self.add_milestone(card["card_id"], card["project_id"], data.draw(self.values().record("NewMilestone")))
 
     @rule(data=st.data())
     def create_card(self, data):
@@ -566,6 +624,192 @@ class Cards(RuleBasedStateMachine):
             return -link["created_at"], link["source_project_id"], link["source_id"], link["kind"]
 
         assert links == sorted(expected, key=order)
+
+    # ---- milestones -------------------------------------------------------------------------------
+
+    @staticmethod
+    def made_order(milestones: list[dict]) -> list[dict]:
+        return sorted(milestones, key=lambda m: (m["created_at"], m["milestone_id"]))
+
+    def live_milestones(self, project: str) -> list[dict]:
+        """The milestones on the project's live cards."""
+        return [m for card in self.live(project) for m in self.milestones.get(card["card_id"], [])]
+
+    def a_milestone(self, data) -> tuple[str, str, str]:
+        """A card, a project to ask for it in and a milestone ID: mostly a milestone the model knows, on its card
+        in its project, and otherwise any of each."""
+        known = [(card_id, self.cards[card_id]["project_id"], m["milestone_id"])
+                 for card_id, made in self.milestones.items() for m in made]
+        if known and data.draw(st.integers(0, 3)):
+            return data.draw(st.sampled_from(known))
+        card_id, project = self.a_card(data)
+        return card_id, project, data.draw(self.values().valid({"kind": "named", "name": "MilestoneId"}))
+
+    @rule(data=st.data())
+    def add_card_milestone(self, data):
+        card_id, project = self.a_card(data)
+        self.add_milestone(card_id, project, data.draw(self.values().record("NewMilestone")))
+
+    def add_milestone(self, card_id: str, project: str, milestone: dict) -> None:
+        kinds = set()
+        if not all(valid_milestone_date(d) for d in milestone["dates"]):
+            kinds.add("InvalidArgument")
+        elif not self.is_live(card_id, project):
+            kinds.add("NotFound")
+        before = int(time.time())
+        made = self.expect("add_card_milestone", kinds, {"project_id": project, "card_id": card_id,
+                                                         "milestone": milestone})
+        after = int(time.time())
+        if made is None:
+            return
+        self.conforms("add_card_milestone", made)
+        expected = {"project_id": project, "card_id": card_id, "dates": milestone["dates"],
+                    "kind": milestone.get("kind"), "description": milestone.get("description")}
+        assert {k: made[k] for k in expected} == expected
+        assert before <= made["created_at"] == made["updated_at"] <= after
+        assert all(made["milestone_id"] != m["milestone_id"] for ms in self.milestones.values() for m in ms)
+        self.milestones.setdefault(card_id, []).append(made)
+        self.refresh(card_id, "updated_at")
+        assert before <= self.cards[card_id]["updated_at"] <= after
+
+    @rule(data=st.data())
+    def list_card_milestones(self, data):
+        card_id, project = self.a_card(data)
+        milestones = self.expect("list_card_milestones", set() if self.is_live(card_id, project) else {"NotFound"},
+                                 {"project_id": project, "card_id": card_id})
+        if milestones is None:
+            return
+        self.conforms("list_card_milestones", milestones)
+        assert milestones == self.made_order(self.milestones.get(card_id, []))
+
+    @rule(data=st.data())
+    def update_card_milestone(self, data):
+        card_id, project, milestone_id = self.a_milestone(data)
+        update = data.draw(self.values().record("MilestoneUpdate"))
+        own = self.milestones.get(card_id, [])
+        old = next((m for m in own if m["milestone_id"] == milestone_id), None)
+        kinds = set()
+        if not all(valid_milestone_date(d) for d in update.get("dates", [])):
+            kinds.add("InvalidArgument")
+        elif not self.is_live(card_id, project) or old is None:
+            kinds.add("NotFound")
+        before = int(time.time())
+        updated = self.expect("update_card_milestone", kinds, {"project_id": project, "card_id": card_id,
+                                                               "milestone_id": milestone_id, "update": update})
+        after = int(time.time())
+        if updated is None:
+            return
+        self.conforms("update_card_milestone", updated)
+        expected = {**old, **{k: update[k] for k in ("dates", "kind", "description") if k in update}}
+        if all(expected[k] == old[k] for k in ("dates", "kind", "description")):
+            # An update that changes nothing writes nothing.
+            assert updated == old
+        else:
+            assert before <= updated["updated_at"] <= after
+            assert updated == {**expected, "updated_at": updated["updated_at"]}
+            self.refresh(card_id, "updated_at")
+        own[own.index(old)] = updated
+
+    @rule(data=st.data())
+    def remove_card_milestone(self, data):
+        card_id, project, milestone_id = self.a_milestone(data)
+        remaining = self.expect("remove_card_milestone", set() if self.is_live(card_id, project) else {"NotFound"},
+                                {"project_id": project, "card_id": card_id, "milestone_id": milestone_id})
+        if remaining is None:
+            return
+        self.conforms("remove_card_milestone", remaining)
+        own = self.milestones.get(card_id, [])
+        if any(m["milestone_id"] == milestone_id for m in own):
+            self.refresh(card_id, "updated_at")
+        self.milestones[card_id] = [m for m in own if m["milestone_id"] != milestone_id]
+        assert remaining == self.made_order(self.milestones[card_id])
+
+    def matching(self, project: str, role: str | None, match) -> list[dict]:
+        """The live milestones with a date of the role that match says is in a range, by the first such date and
+        then by ID."""
+        found = []
+        for milestone in self.live_milestones(project):
+            keys = [key for d in milestone["dates"] if role in (None, d["role"]) and (key := match(d)) is not None]
+            if keys:
+                found.append((min(keys), milestone["milestone_id"], milestone))
+        return [m for *_, m in sorted(found, key=lambda f: f[:2])]
+
+    @rule(data=st.data())
+    def list_milestones_by_day(self, data):
+        arguments = data.draw(self.values().arguments("list_milestones_by_day"))
+        if data.draw(st.booleans()):
+            arguments["role"] = data.draw(st.sampled_from(ROLE_POOL))
+        first, last = arguments["first_day"], arguments["last_day"]
+        kinds = set()
+        if calendar_day(first) is None or calendar_day(last) is None:
+            kinds.add("InvalidArgument")
+        elif arguments["project_id"] not in self.projects:
+            kinds.add("NotFound")
+        milestones = self.expect("list_milestones_by_day", kinds, arguments)
+        if milestones is None:
+            return
+        self.conforms("list_milestones_by_day", milestones)
+        assert milestones == self.matching(arguments["project_id"], arguments.get("role"),
+                                           lambda d: d["date"] if first <= d.get("date", "") <= last else None)
+
+    def instants(self, data) -> tuple[int, int]:
+        """A range of instants, mostly around the dates the model's milestones and cards have."""
+        stamp = st.integers(-(2**63), 2**63 - 1)
+        # From 2026-08-01 to 2028-01-01 UTC: fixed, so that a replayed run draws the same.
+        around = st.integers(1785542400, 1830297600)
+        return data.draw(st.one_of(around, around, stamp)), data.draw(st.one_of(around, around, stamp))
+
+    @rule(data=st.data())
+    def list_milestones_by_instant(self, data):
+        arguments = data.draw(self.values().arguments("list_milestones_by_instant"))
+        arguments["first_instant"], arguments["last_instant"] = self.instants(data)
+        if data.draw(st.booleans()):
+            arguments["role"] = data.draw(st.sampled_from(ROLE_POOL))
+        first, last = arguments["first_instant"], arguments["last_instant"]
+        milestones = self.expect("list_milestones_by_instant",
+                                 set() if arguments["project_id"] in self.projects else {"NotFound"}, arguments)
+        if milestones is None:
+            return
+        self.conforms("list_milestones_by_instant", milestones)
+
+        def match(d):
+            at = epoch_of(d["datetime"]) if "datetime" in d else None
+            return at if at is not None and first <= at <= last else None
+
+        assert milestones == self.matching(arguments["project_id"], arguments.get("role"), match)
+
+    @rule(data=st.data())
+    def get_calendar(self, data):
+        arguments = data.draw(self.values().arguments("get_calendar"))
+        arguments["first_instant"], arguments["last_instant"] = self.instants(data)
+        first, last = arguments["first_instant"], arguments["last_instant"]
+        first_day, last_day = arguments["first_day"], arguments["last_day"]
+        project = arguments["project_id"]
+        kinds = set()
+        if calendar_day(first_day) is None or calendar_day(last_day) is None:
+            kinds.add("InvalidArgument")
+        elif project not in self.projects:
+            kinds.add("NotFound")
+        calendar = self.expect("get_calendar", kinds, arguments)
+        if calendar is None:
+            return
+        self.conforms("get_calendar", calendar)
+
+        def in_window(d):
+            if "date" in d:
+                return first_day <= d["date"] <= last_day
+            return first <= epoch_of(d["datetime"]) <= last
+
+        expected = [{**m, "card_title": self.cards[m["card_id"]]["title"]}
+                    for m in self.made_order(self.live_milestones(project)) if any(map(in_window, m["dates"]))]
+        assert calendar["milestones"] == expected
+        cards = self.live(project)
+        assert calendar["created_cards"] == [
+            {name: c[name] for name in METADATA}
+            for c in sorted(cards, key=lambda c: (c["created_at"], c["card_id"])) if first <= c["created_at"] <= last]
+        assert calendar["updated_cards"] == [
+            {name: c[name] for name in METADATA} for c in sorted(cards, key=lambda c: (c["updated_at"], c["card_id"]))
+            if c["updated_at"] != c["created_at"] and first <= c["updated_at"] <= last]
 
     # ---- tags -------------------------------------------------------------------------------------
 

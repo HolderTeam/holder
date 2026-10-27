@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -109,6 +109,32 @@ typedef struct holder_new_link {
     const int64_t* created_at; /* When the link was made, for imports; omit for now. A link that already exists keeps its own. NULL when absent. */
 } holder_new_link;
 
+/* One of a milestone's dates: a role and exactly one of a day or an instant. */
+typedef struct holder_milestone_date {
+    const char* role; /* What the date is for. */
+    const char* date; /* The calendar day; present when the date is a day. NULL when absent. */
+    const char* datetime; /* The instant; present when the date is an instant. NULL when absent. */
+} holder_milestone_date;
+
+typedef struct holder_milestone_date_list {
+    const holder_milestone_date* items;
+    size_t count;
+} holder_milestone_date_list;
+
+/* A milestone to put on a card. */
+typedef struct holder_new_milestone {
+    holder_milestone_date_list dates; /* The milestone's dates, in order; empty for a milestone without a date. */
+    const char* kind; /* What kind of milestone it is; null or omitted for none. May be NULL. */
+    const char* description; /* A note on the milestone; null or omitted for none. May be NULL. */
+} holder_new_milestone;
+
+/* A change to a milestone. Each field left out keeps its value. */
+typedef struct holder_milestone_update {
+    const holder_milestone_date_list* dates; /* The milestone's new dates, replacing all of them; empty for none. NULL when absent. */
+    holder_string_change kind; /* What kind of milestone it is; null for none. Zero keeps it. */
+    holder_string_change description; /* A note on the milestone; null for none. Zero keeps it. */
+} holder_milestone_update;
+
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
     const char* tag; /* The normalized tag. */
@@ -209,6 +235,66 @@ typedef struct holder_link_list {
     const holder_link* items;
     size_t count;
 } holder_link_list;
+
+/* A milestone on a card: its dates, which may repeat a role or be none, and what it is. */
+typedef struct holder_milestone {
+    const char* milestone_id; /* The milestone's ID. */
+    const char* project_id; /* The project of the card the milestone is on. */
+    const char* card_id; /* The card the milestone is on. */
+    holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
+    const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
+    const char* description; /* A note on the milestone; null when it has none. May be NULL. */
+    int64_t created_at; /* When the milestone was made. */
+    int64_t updated_at; /* When the milestone was last changed. */
+} holder_milestone;
+
+typedef struct holder_milestone_list {
+    const holder_milestone* items;
+    size_t count;
+} holder_milestone_list;
+
+/* A milestone on a calendar, with the title of its card. */
+typedef struct holder_calendar_milestone {
+    const char* milestone_id; /* The milestone's ID. */
+    const char* project_id; /* The project of the card the milestone is on. */
+    const char* card_id; /* The card the milestone is on. */
+    holder_milestone_date_list dates; /* The milestone's dates, in the order they were given. */
+    const char* kind; /* What kind of milestone it is; null when it has none. May be NULL. */
+    const char* description; /* A note on the milestone; null when it has none. May be NULL. */
+    int64_t created_at; /* When the milestone was made. */
+    int64_t updated_at; /* When the milestone was last changed. */
+    const char* card_title; /* The title of the card the milestone is on. */
+} holder_calendar_milestone;
+
+typedef struct holder_calendar_milestone_list {
+    const holder_calendar_milestone* items;
+    size_t count;
+} holder_calendar_milestone_list;
+
+/* Everything about a card except its content. */
+typedef struct holder_card_metadata {
+    const char* card_id; /* The card's ID. */
+    const char* project_id; /* The project the card belongs to. */
+    const char* title; /* The card's title. */
+    const char* rel_path; /* The card's file, relative to the project's root. */
+    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
+    double sort_key; /* The card's place among its siblings; lower comes first. */
+    int64_t created_at; /* When the card was created. */
+    int64_t updated_at; /* When the card was last changed. */
+    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
+} holder_card_metadata;
+
+typedef struct holder_card_metadata_list {
+    const holder_card_metadata* items;
+    size_t count;
+} holder_card_metadata_list;
+
+/* What happens in a project over a window of time: its milestones, and the cards made and changed. */
+typedef struct holder_calendar {
+    holder_calendar_milestone_list milestones; /* The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by when they were made and then by ID. */
+    holder_card_metadata_list created_cards; /* The live cards made in the window, by when they were made and then by ID. */
+    holder_card_metadata_list updated_cards; /* The live cards last changed in the window, other than by being made, by when and then by ID. */
+} holder_calendar;
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
@@ -370,6 +456,62 @@ typedef enum holder_remove_card_link_target_type {
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_remove_card_link(holder_context* context, const char* project_id, const char* card_id, holder_remove_card_link_target_type target_type, const char* target_id, const char* kind, const char* target_project_id, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+
+/* List a card's milestones.
+ * By when they were made, then by ID. A card in the trash or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_card_milestones(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+
+/* Put a milestone on a card.
+ * The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in another project
+ * is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_add_card_milestone(holder_context* context, const char* project_id, const char* card_id, const holder_new_milestone* milestone, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error);
+
+/* Change a milestone.
+ * Each field left out keeps its value, and an update that changes nothing writes nothing. Each date must be a real
+ * day or instant. A card in the trash or in another project is not found, and neither is a milestone that is not
+ * on the card.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_update_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, const holder_milestone_update* update, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error);
+
+/* Take a milestone off a card.
+ * Returns the card's remaining milestones, as list_card_milestones lists them. A card without the milestone is
+ * left as it is. A card in the trash or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_remove_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+
+/* List a project's milestones with a day in a range.
+ * The range holds first_day, last_day and the days between; it is empty when first_day is after last_day. A
+ * milestone is listed once, by its first day in the range and then by ID. Milestones on cards in the trash are
+ * left out.
+ * role: Only dates with this role; omit for any. May be NULL.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_milestones_by_day(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+
+/* List a project's milestones with an instant in a range.
+ * The range holds first_instant, last_instant and the instants between; it is empty when first_instant is after
+ * last_instant. A milestone is listed once, by its first instant in the range and then by ID. Milestones on cards
+ * in the trash are left out.
+ * role: Only dates with this role; omit for any. May be NULL.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_milestones_by_instant(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error);
+
+/* What happens in a project over a window of time.
+ * The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
+ * has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
+ * the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
+ * first_day: The day first_instant falls on where the caller is.
+ * last_day: The day last_instant falls on where the caller is.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
 
 #ifdef __cplusplus
 }

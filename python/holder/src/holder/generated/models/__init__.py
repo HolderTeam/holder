@@ -93,7 +93,9 @@ from .asset_import_request import AssetImportRequest
 from .asset_placement import AssetPlacement
 from .asset_placement_encoding import AssetPlacementEncoding
 from .bye_response import ByeResponse
-from .calendar_card_activity import CalendarCardActivity
+from .calendar import Calendar
+from .calendar_milestone import CalendarMilestone
+from .calendar_response import CalendarResponse
 from .card import Card
 from .card_breadcrumb import CardBreadcrumb
 from .card_breadcrumb_kind import CardBreadcrumbKind
@@ -128,6 +130,7 @@ from .card_list_item import CardListItem
 from .card_list_item_page import CardListItemPage
 from .card_list_item_page_response import CardListItemPageResponse
 from .card_list_response import CardListResponse
+from .card_metadata import CardMetadata
 from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
 from .card_reference_candidate import CardReferenceCandidate
@@ -187,9 +190,6 @@ from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
 from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKind
-from .get_projects_project_id_milestones_with_dates_value_type import (
-    GetProjectsProjectIdMilestonesWithDatesValueType,
-)
 from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
 from .google_drive_authorize_response_data import GoogleDriveAuthorizeResponseData
 from .health_data import HealthData
@@ -212,20 +212,13 @@ from .location_binding_request_values import LocationBindingRequestValues
 from .location_test_response import LocationTestResponse
 from .location_test_response_data import LocationTestResponseData
 from .milestone import Milestone
-from .milestone_create_request import MilestoneCreateRequest
-from .milestone_date_value import MilestoneDateValue
+from .milestone_date import MilestoneDate
 from .milestone_list_response import MilestoneListResponse
-from .milestone_remove_response import MilestoneRemoveResponse
-from .milestone_remove_result import MilestoneRemoveResult
 from .milestone_response import MilestoneResponse
-from .milestone_update_request import MilestoneUpdateRequest
-from .milestone_with_dates import MilestoneWithDates
-from .milestone_with_dates_create_request import MilestoneWithDatesCreateRequest
-from .milestone_with_dates_list_response import MilestoneWithDatesListResponse
-from .milestone_with_dates_response import MilestoneWithDatesResponse
-from .milestone_with_dates_update_request import MilestoneWithDatesUpdateRequest
+from .milestone_update import MilestoneUpdate
 from .new_card import NewCard
 from .new_link import NewLink
+from .new_milestone import NewMilestone
 from .patch_locations_location_id_body import PatchLocationsLocationIdBody
 from .patch_locations_location_id_body_configuration import (
     PatchLocationsLocationIdBodyConfiguration,
@@ -233,8 +226,6 @@ from .patch_locations_location_id_body_configuration import (
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
 from .post_cards_card_id_resources_body import PostCardsCardIdResourcesBody
 from .project import Project
-from .project_calendar_response import ProjectCalendarResponse
-from .project_calendar_response_data import ProjectCalendarResponseData
 from .project_create_request import ProjectCreateRequest
 from .project_create_request_privacy_mode import ProjectCreateRequestPrivacyMode
 from .project_create_response import ProjectCreateResponse
@@ -447,7 +438,9 @@ __all__ = (
     "AssetPlacement",
     "AssetPlacementEncoding",
     "ByeResponse",
-    "CalendarCardActivity",
+    "Calendar",
+    "CalendarMilestone",
+    "CalendarResponse",
     "Card",
     "CardBreadcrumb",
     "CardBreadcrumbKind",
@@ -482,6 +475,7 @@ __all__ = (
     "CardListItemPage",
     "CardListItemPageResponse",
     "CardListResponse",
+    "CardMetadata",
     "CardMove",
     "CardMoveIntent",
     "CardReferenceCandidate",
@@ -529,7 +523,6 @@ __all__ = (
     "GetProjectsProjectIdCardsOrder",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
-    "GetProjectsProjectIdMilestonesWithDatesValueType",
     "GoogleDriveAuthorizeResponse",
     "GoogleDriveAuthorizeResponseData",
     "HealthData",
@@ -552,27 +545,18 @@ __all__ = (
     "LocationTestResponse",
     "LocationTestResponseData",
     "Milestone",
-    "MilestoneCreateRequest",
-    "MilestoneDateValue",
+    "MilestoneDate",
     "MilestoneListResponse",
-    "MilestoneRemoveResponse",
-    "MilestoneRemoveResult",
     "MilestoneResponse",
-    "MilestoneUpdateRequest",
-    "MilestoneWithDates",
-    "MilestoneWithDatesCreateRequest",
-    "MilestoneWithDatesListResponse",
-    "MilestoneWithDatesResponse",
-    "MilestoneWithDatesUpdateRequest",
+    "MilestoneUpdate",
     "NewCard",
     "NewLink",
+    "NewMilestone",
     "PatchLocationsLocationIdBody",
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",
     "PostCardsCardIdResourcesBody",
     "Project",
-    "ProjectCalendarResponse",
-    "ProjectCalendarResponseData",
     "ProjectCreateRequest",
     "ProjectCreateRequestPrivacyMode",
     "ProjectCreateResponse",

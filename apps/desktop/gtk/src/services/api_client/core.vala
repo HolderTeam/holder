@@ -107,43 +107,38 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
-    public async Gee.ArrayList<Milestone> list_card_milestones(string card_id) throws Error {
-        return yield ApiClientCardsEndpoints.list_card_milestones(this, card_id);
+    public async Gee.ArrayList<Milestone> list_card_milestones(string project_id,
+                                                               string card_id) throws Error {
+        return yield ApiClientCardsEndpoints.list_card_milestones(this, project_id, card_id);
     }
 
-    public async Milestone add_card_milestone(string card_id,
+    public async Milestone add_card_milestone(string project_id,
+                                              string card_id,
                                               int64 start_at,
                                               int64? end_at,
                                               bool all_day,
                                               string? kind,
                                               string? description) throws Error {
         return yield ApiClientCardsEndpoints.add_card_milestone(
-            this, card_id, start_at, end_at, all_day, kind, description
+            this, project_id, card_id, start_at, end_at, all_day, kind, description
         );
     }
 
-    public async Milestone update_card_milestone(string card_id,
-                                                 string milestone_id,
+    public async Milestone update_card_milestone(Milestone milestone,
                                                  int64 start_at,
                                                  int64? end_at,
                                                  bool all_day,
                                                  string? kind,
                                                  string? description) throws Error {
         return yield ApiClientCardsEndpoints.update_card_milestone(
-            this,
-            card_id,
-            milestone_id,
-            start_at,
-            end_at,
-            all_day,
-            kind,
-            description
+            this, milestone, start_at, end_at, all_day, kind, description
         );
     }
 
-    public async bool remove_card_milestone(string card_id,
+    public async void remove_card_milestone(string project_id,
+                                            string card_id,
                                             string milestone_id) throws Error {
-        return yield ApiClientCardsEndpoints.remove_card_milestone(this, card_id, milestone_id);
+        yield ApiClientCardsEndpoints.remove_card_milestone(this, project_id, card_id, milestone_id);
     }
 
     public async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error {

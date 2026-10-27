@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -267,6 +267,26 @@ template <> struct codec<holder::contract::Link> {
     static json encode(const holder::contract::Link& value);
     static holder::contract::Link decode(const json& value);
 };
+template <> struct codec<holder::contract::MilestoneDate> {
+    static json encode(const holder::contract::MilestoneDate& value);
+    static holder::contract::MilestoneDate decode(const json& value);
+};
+template <> struct codec<holder::contract::Milestone> {
+    static json encode(const holder::contract::Milestone& value);
+    static holder::contract::Milestone decode(const json& value);
+};
+template <> struct codec<holder::contract::CalendarMilestone> {
+    static json encode(const holder::contract::CalendarMilestone& value);
+    static holder::contract::CalendarMilestone decode(const json& value);
+};
+template <> struct codec<holder::contract::CardMetadata> {
+    static json encode(const holder::contract::CardMetadata& value);
+    static holder::contract::CardMetadata decode(const json& value);
+};
+template <> struct codec<holder::contract::Calendar> {
+    static json encode(const holder::contract::Calendar& value);
+    static holder::contract::Calendar decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -282,6 +302,14 @@ template <> struct codec<holder::contract::CardMove> {
 template <> struct codec<holder::contract::NewLink> {
     static json encode(const holder::contract::NewLink& value);
     static holder::contract::NewLink decode(const json& value);
+};
+template <> struct codec<holder::contract::NewMilestone> {
+    static json encode(const holder::contract::NewMilestone& value);
+    static holder::contract::NewMilestone decode(const json& value);
+};
+template <> struct codec<holder::contract::MilestoneUpdate> {
+    static json encode(const holder::contract::MilestoneUpdate& value);
+    static holder::contract::MilestoneUpdate decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -617,6 +645,278 @@ inline holder::contract::Link codec<holder::contract::Link>::decode(const json& 
     return out;
 }
 
+inline json codec<holder::contract::MilestoneDate>::encode(const holder::contract::MilestoneDate& value) {
+    json result = json::object();
+    result["role"] = codec<std::string>::encode(value.role);
+    if (value.date) result["date"] = codec<std::string>::encode(*value.date);
+    if (value.datetime) result["datetime"] = codec<std::string>::encode(*value.datetime);
+    return result;
+}
+inline holder::contract::MilestoneDate codec<holder::contract::MilestoneDate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a MilestoneDate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "role" && it.key() != "date" && it.key() != "datetime") throw std::invalid_argument("MilestoneDate has no field " + it.key());
+    holder::contract::MilestoneDate out;
+    if (value.contains("role") && !value.at("role").is_null()) {
+        const auto& item = value.at("role");
+        out.role = check_text(decode_field<std::string>(item, "role"), "role", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("role is required and must not be null");
+    }
+    if (value.contains("date") && !value.at("date").is_null()) {
+        const auto& item = value.at("date");
+        out.date = check_text(decode_field<std::string>(item, "date"), "date", 10, 10);
+    } else if (value.contains("date")) {
+        throw std::invalid_argument("date must not be null");
+    }
+    if (value.contains("datetime") && !value.at("datetime").is_null()) {
+        const auto& item = value.at("datetime");
+        out.datetime = check_text(decode_field<std::string>(item, "datetime"), "datetime", 20, 25);
+    } else if (value.contains("datetime")) {
+        throw std::invalid_argument("datetime must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::Milestone>::encode(const holder::contract::Milestone& value) {
+    json result = json::object();
+    result["milestone_id"] = codec<std::string>::encode(value.milestone_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["dates"] = codec<std::vector<holder::contract::MilestoneDate>>::encode(value.dates);
+    result["kind"] = value.kind ? codec<std::string>::encode(*value.kind) : json(nullptr);
+    result["description"] = value.description ? codec<std::string>::encode(*value.description) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::Milestone codec<holder::contract::Milestone>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Milestone object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "milestone_id" && it.key() != "project_id" && it.key() != "card_id" && it.key() != "dates" && it.key() != "kind" && it.key() != "description" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("Milestone has no field " + it.key());
+    holder::contract::Milestone out;
+    if (value.contains("milestone_id") && !value.at("milestone_id").is_null()) {
+        const auto& item = value.at("milestone_id");
+        out.milestone_id = check_text(decode_field<std::string>(item, "milestone_id"), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("milestone_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("dates") && !value.at("dates").is_null()) {
+        const auto& item = value.at("dates");
+        out.dates = decode_field<std::vector<holder::contract::MilestoneDate>>(item, "dates");
+    } else {
+        throw std::invalid_argument("dates is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("description") && !value.at("description").is_null()) {
+        const auto& item = value.at("description");
+        out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CalendarMilestone>::encode(const holder::contract::CalendarMilestone& value) {
+    json result = json::object();
+    result["milestone_id"] = codec<std::string>::encode(value.milestone_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["dates"] = codec<std::vector<holder::contract::MilestoneDate>>::encode(value.dates);
+    result["kind"] = value.kind ? codec<std::string>::encode(*value.kind) : json(nullptr);
+    result["description"] = value.description ? codec<std::string>::encode(*value.description) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["card_title"] = codec<std::string>::encode(value.card_title);
+    return result;
+}
+inline holder::contract::CalendarMilestone codec<holder::contract::CalendarMilestone>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CalendarMilestone object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "milestone_id" && it.key() != "project_id" && it.key() != "card_id" && it.key() != "dates" && it.key() != "kind" && it.key() != "description" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "card_title") throw std::invalid_argument("CalendarMilestone has no field " + it.key());
+    holder::contract::CalendarMilestone out;
+    if (value.contains("milestone_id") && !value.at("milestone_id").is_null()) {
+        const auto& item = value.at("milestone_id");
+        out.milestone_id = check_text(decode_field<std::string>(item, "milestone_id"), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("milestone_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("dates") && !value.at("dates").is_null()) {
+        const auto& item = value.at("dates");
+        out.dates = decode_field<std::vector<holder::contract::MilestoneDate>>(item, "dates");
+    } else {
+        throw std::invalid_argument("dates is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("description") && !value.at("description").is_null()) {
+        const auto& item = value.at("description");
+        out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("card_title") && !value.at("card_title").is_null()) {
+        const auto& item = value.at("card_title");
+        out.card_title = check_text(decode_field<std::string>(item, "card_title"), "card_title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_title is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardMetadata>::encode(const holder::contract::CardMetadata& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["rel_path"] = codec<std::string>::encode(value.rel_path);
+    result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
+    result["sort_key"] = codec<double>::encode(value.sort_key);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardMetadata codec<holder::contract::CardMetadata>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardMetadata object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at") throw std::invalid_argument("CardMetadata has no field " + it.key());
+    holder::contract::CardMetadata out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("rel_path") && !value.at("rel_path").is_null()) {
+        const auto& item = value.at("rel_path");
+        out.rel_path = check_text(decode_field<std::string>(item, "rel_path"), "rel_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("rel_path is required and must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("sort_key") && !value.at("sort_key").is_null()) {
+        const auto& item = value.at("sort_key");
+        out.sort_key = decode_field<double>(item, "sort_key");
+    } else {
+        throw std::invalid_argument("sort_key is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+        const auto& item = value.at("deleted_at");
+        out.deleted_at = decode_field<long long>(item, "deleted_at");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::Calendar>::encode(const holder::contract::Calendar& value) {
+    json result = json::object();
+    result["milestones"] = codec<std::vector<holder::contract::CalendarMilestone>>::encode(value.milestones);
+    result["created_cards"] = codec<std::vector<holder::contract::CardMetadata>>::encode(value.created_cards);
+    result["updated_cards"] = codec<std::vector<holder::contract::CardMetadata>>::encode(value.updated_cards);
+    return result;
+}
+inline holder::contract::Calendar codec<holder::contract::Calendar>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Calendar object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "milestones" && it.key() != "created_cards" && it.key() != "updated_cards") throw std::invalid_argument("Calendar has no field " + it.key());
+    holder::contract::Calendar out;
+    if (value.contains("milestones") && !value.at("milestones").is_null()) {
+        const auto& item = value.at("milestones");
+        out.milestones = decode_field<std::vector<holder::contract::CalendarMilestone>>(item, "milestones");
+    } else {
+        throw std::invalid_argument("milestones is required and must not be null");
+    }
+    if (value.contains("created_cards") && !value.at("created_cards").is_null()) {
+        const auto& item = value.at("created_cards");
+        out.created_cards = decode_field<std::vector<holder::contract::CardMetadata>>(item, "created_cards");
+    } else {
+        throw std::invalid_argument("created_cards is required and must not be null");
+    }
+    if (value.contains("updated_cards") && !value.at("updated_cards").is_null()) {
+        const auto& item = value.at("updated_cards");
+        out.updated_cards = decode_field<std::vector<holder::contract::CardMetadata>>(item, "updated_cards");
+    } else {
+        throw std::invalid_argument("updated_cards is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
     result["title"] = codec<std::string>::encode(value.title);
@@ -797,6 +1097,68 @@ inline holder::contract::NewLink codec<holder::contract::NewLink>::decode(const 
         out.created_at = decode_field<long long>(item, "created_at");
     } else if (value.contains("created_at")) {
         throw std::invalid_argument("created_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::NewMilestone>::encode(const holder::contract::NewMilestone& value) {
+    json result = json::object();
+    result["dates"] = codec<std::vector<holder::contract::MilestoneDate>>::encode(value.dates);
+    result["kind"] = value.kind ? codec<std::string>::encode(*value.kind) : json(nullptr);
+    result["description"] = value.description ? codec<std::string>::encode(*value.description) : json(nullptr);
+    return result;
+}
+inline holder::contract::NewMilestone codec<holder::contract::NewMilestone>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a NewMilestone object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("NewMilestone has no field " + it.key());
+    holder::contract::NewMilestone out;
+    if (value.contains("dates") && !value.at("dates").is_null()) {
+        const auto& item = value.at("dates");
+        out.dates = decode_field<std::vector<holder::contract::MilestoneDate>>(item, "dates");
+    } else {
+        throw std::invalid_argument("dates is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("description") && !value.at("description").is_null()) {
+        const auto& item = value.at("description");
+        out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::MilestoneUpdate>::encode(const holder::contract::MilestoneUpdate& value) {
+    json result = json::object();
+    if (value.dates) result["dates"] = codec<std::vector<holder::contract::MilestoneDate>>::encode(*value.dates);
+    if (value.kind) result["kind"] = *value.kind ? codec<std::string>::encode(**value.kind) : json(nullptr);
+    if (value.description) result["description"] = *value.description ? codec<std::string>::encode(**value.description) : json(nullptr);
+    return result;
+}
+inline holder::contract::MilestoneUpdate codec<holder::contract::MilestoneUpdate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a MilestoneUpdate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("MilestoneUpdate has no field " + it.key());
+    holder::contract::MilestoneUpdate out;
+    if (value.contains("dates") && !value.at("dates").is_null()) {
+        const auto& item = value.at("dates");
+        out.dates = decode_field<std::vector<holder::contract::MilestoneDate>>(item, "dates");
+    } else if (value.contains("dates")) {
+        throw std::invalid_argument("dates must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("kind")) {
+        out.kind.emplace();
+    }
+    if (value.contains("description") && !value.at("description").is_null()) {
+        const auto& item = value.at("description");
+        out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("description")) {
+        out.description.emplace();
     }
     return out;
 }

@@ -293,18 +293,18 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_in_range(
 
 std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
     const std::string& project_id,
-    const std::string& role,
+    const std::optional<std::string>& role,
     long long from,
     long long to
 ) const {
-  if (role.empty()) throw std::invalid_argument("milestone date role must not be empty");
+  if (role && role->empty()) throw std::invalid_argument("milestone date role must not be empty");
   static constexpr const char* SQL =
       "SELECT m.milestone_id, m.project_id, m.card_id, m.kind, m.description, "
       "m.created_at, m.updated_at "
       "FROM milestones m "
       "JOIN milestone_dates d ON d.milestone_id = m.milestone_id "
       "JOIN cards c ON c.card_id = m.card_id "
-      "WHERE m.project_id = ? AND d.role = ? AND c.deleted_at IS NULL "
+      "WHERE m.project_id = ? AND (?2 IS NULL OR d.role = ?2) AND c.deleted_at IS NULL "
       "AND d.at_epoch >= ? AND d.at_epoch <= ? "
       "GROUP BY m.milestone_id ORDER BY MIN(d.at_epoch) ASC, m.milestone_id ASC;";
   sqlite3_stmt* stmt = nullptr;
@@ -312,7 +312,10 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
     throw_sqlite(db_.handle(), "prepare list milestones in range failed");
   }
   bind_text(stmt, 1, project_id);
-  bind_text(stmt, 2, role);
+  if (role)
+    bind_text(stmt, 2, *role);
+  else
+    sqlite3_bind_null(stmt, 2);
   bind_int64(stmt, 3, from);
   bind_int64(stmt, 4, to);
 
@@ -335,11 +338,11 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_instants_in_range(
 
 std::vector<holder::model::Milestone> MilestoneRepo::list_days_in_range(
     const std::string& project_id,
-    const std::string& role,
+    const std::optional<std::string>& role,
     const std::string& from,
     const std::string& to
 ) const {
-  if (role.empty()) throw std::invalid_argument("milestone date role must not be empty");
+  if (role && role->empty()) throw std::invalid_argument("milestone date role must not be empty");
   if (from.size() != 10 || to.size() != 10)
     throw std::invalid_argument("milestone day range must use YYYY-MM-DD");
   holder::model::milestone_calendar_day(from);
@@ -350,14 +353,17 @@ std::vector<holder::model::Milestone> MilestoneRepo::list_days_in_range(
       "FROM milestones m "
       "JOIN milestone_dates d ON d.milestone_id = m.milestone_id "
       "JOIN cards c ON c.card_id = m.card_id "
-      "WHERE m.project_id = ? AND d.role = ? AND c.deleted_at IS NULL "
+      "WHERE m.project_id = ? AND (?2 IS NULL OR d.role = ?2) AND c.deleted_at IS NULL "
       "AND d.date_value >= ? AND d.date_value <= ? "
       "GROUP BY m.milestone_id ORDER BY MIN(d.date_value) ASC, m.milestone_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK)
     throw_sqlite(db_.handle(), "prepare list milestone days failed");
   bind_text(stmt, 1, project_id);
-  bind_text(stmt, 2, role);
+  if (role)
+    bind_text(stmt, 2, *role);
+  else
+    sqlite3_bind_null(stmt, 2);
   bind_text(stmt, 3, from);
   bind_text(stmt, 4, to);
   std::vector<holder::model::Milestone> out;

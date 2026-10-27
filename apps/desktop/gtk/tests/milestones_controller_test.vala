@@ -15,7 +15,6 @@ private class FixedClock : Object, HolderLinux.IClock {
 private class FakeMilestoneApi : Object, HolderLinux.IMilestoneApi {
     public HolderLinux.ProjectCalendar calendar = new HolderLinux.ProjectCalendar("p1", 0, 1, {}, {}, {});
     public Error? error = null;
-    public bool remove_result = true;
     public CallHook? during_call = null;
 
     public int calendar_calls { get; set; default = 0; }
@@ -59,11 +58,13 @@ private class FakeMilestoneApi : Object, HolderLinux.IMilestoneApi {
         return calendar;
     }
 
-    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string project_id,
+                                                                           string card_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
 
-    public async HolderLinux.Milestone add_card_milestone(string card_id,
+    public async HolderLinux.Milestone add_card_milestone(string project_id,
+                                                          string card_id,
                                                           int64 start_at,
                                                           int64? end_at,
                                                           bool all_day,
@@ -77,30 +78,33 @@ private class FakeMilestoneApi : Object, HolderLinux.IMilestoneApi {
         return new HolderLinux.Milestone("m-new", card_id, start_at, end_at, all_day, kind, description, 1, 1);
     }
 
-    public async HolderLinux.Milestone update_card_milestone(string card_id,
-                                                             string milestone_id,
+    public async HolderLinux.Milestone update_card_milestone(HolderLinux.Milestone milestone,
                                                              int64 start_at,
                                                              int64? end_at,
                                                              bool all_day,
                                                              string? kind,
                                                              string? description) throws Error {
         update_calls++;
-        last_milestone_id = milestone_id;
-        record(card_id, start_at, end_at, all_day, kind, description);
+        last_milestone_id = milestone.milestone_id;
+        record(milestone.card_id, start_at, end_at, all_day, kind, description);
         if (error != null) {
             throw error;
         }
-        return new HolderLinux.Milestone(milestone_id, card_id, start_at, end_at, all_day, kind, description, 1, 1);
+        return new HolderLinux.Milestone(
+            milestone.milestone_id, milestone.card_id, start_at, end_at, all_day, kind, description, 1, 1
+        );
     }
 
-    public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
+    public async void remove_card_milestone(string project_id,
+                                            string card_id,
+                                            string milestone_id) throws Error {
         remove_calls++;
+        last_project_id = project_id;
         last_card_id = card_id;
         last_milestone_id = milestone_id;
         if (error != null) {
             throw error;
         }
-        return remove_result;
     }
 }
 
@@ -109,7 +113,9 @@ private HolderLinux.MilestonesController make_controller(FixedClock clock, TimeZ
 }
 
 private HolderLinux.Milestone existing() {
-    return new HolderLinux.Milestone("m1", "c1", 100, null, true, null, null, 1, 1);
+    var milestone = new HolderLinux.Milestone("m1", "c1", 100, null, true, null, null, 1, 1);
+    milestone.project_id = "p1";
+    return milestone;
 }
 
 private HolderLinux.MilestonesRefreshResult run_refresh(HolderLinux.MilestonesController controller,
@@ -131,7 +137,7 @@ private HolderLinux.MilestoneMutationResult run_add(HolderLinux.MilestonesContro
                                                     HolderLinux.IMilestoneApi? api) {
     HolderLinux.MilestoneMutationResult? result = null;
     var loop = new MainLoop();
-    controller.add_flow.begin(api, "c1", 5, 9, false, "Exam", "Room 4", (obj, res) => {
+    controller.add_flow.begin(api, "p1", "c1", 5, 9, false, "Exam", "Room 4", (obj, res) => {
         result = controller.add_flow.end(res);
         loop.quit();
     });
@@ -298,12 +304,7 @@ private void test_remove_flow() {
     var removed = run_remove(controller, api);
     assert(removed.succeeded && removed.needs_refresh);
     assert(removed.toast_message == "Milestone removed.");
-    assert(api.last_card_id == "c1" && api.last_milestone_id == "m1");
-
-    api.remove_result = false;
-    var already = run_remove(controller, api);
-    assert(already.succeeded && already.needs_refresh);
-    assert(already.toast_message == "Milestone was already removed.");
+    assert(api.last_project_id == "p1" && api.last_card_id == "c1" && api.last_milestone_id == "m1");
 
     api.error = new IOError.FAILED("nope");
     var failed = run_remove(controller, api);
@@ -312,7 +313,7 @@ private void test_remove_flow() {
 
     var silent = run_remove(controller, null);
     assert(!silent.succeeded && silent.toast_message == null && silent.error_title == null);
-    assert(api.remove_calls == 3);
+    assert(api.remove_calls == 2);
 }
 
 public static int main(string[] args) {

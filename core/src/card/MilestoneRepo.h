@@ -3,6 +3,7 @@
 #include "model/Milestone.h"
 #include "platform/Db.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -35,17 +36,17 @@ class MilestoneRepo {
       long long to
   ) const;
 
-  // Query any free-form role. Day values and instants are deliberately separate ranges.
-  // Both exclude milestones on trashed cards.
+  // Query one free-form role, or any role when it is nullopt. Day values and instants are
+  // deliberately separate ranges. Both exclude milestones on trashed cards.
   std::vector<holder::model::Milestone> list_days_in_range(
       const std::string& project_id,
-      const std::string& role,
+      const std::optional<std::string>& role,
       const std::string& from,
       const std::string& to
   ) const;
   std::vector<holder::model::Milestone> list_instants_in_range(
       const std::string& project_id,
-      const std::string& role,
+      const std::optional<std::string>& role,
       long long from,
       long long to
   ) const;
