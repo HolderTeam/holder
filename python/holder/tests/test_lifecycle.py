@@ -27,7 +27,7 @@ def lifecycle_handler(requests, writes):
                         "cycle_card_ids": ["c-0009"],
                     }
                 )
-            return ok({"card_id": "c-0000"})
+            return ok(card_payload(content=True))
         if request.url.path.startswith("/projects/"):
             return ok(project_payload())
         return ok(card_payload(content=True))

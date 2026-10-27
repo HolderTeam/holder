@@ -131,10 +131,8 @@ from .card_list_item import CardListItem
 from .card_list_item_page import CardListItemPage
 from .card_list_item_page_response import CardListItemPageResponse
 from .card_list_response import CardListResponse
+from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
-from .card_move_request import CardMoveRequest
-from .card_move_response import CardMoveResponse
-from .card_move_result import CardMoveResult
 from .card_patch_response import CardPatchResponse
 from .card_patch_response_data import CardPatchResponseData
 from .card_reference_candidate import CardReferenceCandidate
@@ -149,7 +147,7 @@ from .card_tag_mutation_request import CardTagMutationRequest
 from .card_tag_mutation_response import CardTagMutationResponse
 from .card_tag_mutation_result import CardTagMutationResult
 from .card_tag_mutation_result_outcome import CardTagMutationResultOutcome
-from .card_update_request import CardUpdateRequest
+from .card_update import CardUpdate
 from .card_view_item import CardViewItem
 from .caste_info import CasteInfo
 from .caste_info_name import CasteInfoName
@@ -490,10 +488,8 @@ __all__ = (
     "CardListItemPage",
     "CardListItemPageResponse",
     "CardListResponse",
+    "CardMove",
     "CardMoveIntent",
-    "CardMoveRequest",
-    "CardMoveResponse",
-    "CardMoveResult",
     "CardPatchResponse",
     "CardPatchResponseData",
     "CardReferenceCandidate",
@@ -508,7 +504,7 @@ __all__ = (
     "CardTagMutationResponse",
     "CardTagMutationResult",
     "CardTagMutationResultOutcome",
-    "CardUpdateRequest",
+    "CardUpdate",
     "CardViewItem",
     "CasteInfo",
     "CasteInfoName",

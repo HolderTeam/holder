@@ -19,7 +19,7 @@ typedef struct holder_arena holder_arena;
 
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 100
-/* What would be created already exists, such as a card with the same ID or file. */
+/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash. */
 #define HOLDER_ERROR_CONFLICT 101
 /* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
 #define HOLDER_ERROR_KEYRING_UNAVAILABLE 102
@@ -27,6 +27,8 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_KEY_MISSING 103
 /* A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. */
 #define HOLDER_ERROR_DATA_CORRUPTED 104
+/* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
+#define HOLDER_ERROR_INVALID_MOVE 105
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -35,6 +37,19 @@ typedef struct holder_string_list {
     const char* const* items;
     size_t count;
 } holder_string_list;
+
+/* What a partial update does to a field. */
+typedef enum holder_change {
+    HOLDER_KEEP = 0, /* Leave it as it is. */
+    HOLDER_SET = 1, /* Set it to value. */
+    HOLDER_CLEAR = 2, /* Make it null. */
+    HOLDER_CHANGE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_change;
+
+typedef struct holder_string_change {
+    holder_change change;
+    const char* value; /* Read when change is HOLDER_SET. */
+} holder_string_change;
 
 /* A card to create. */
 typedef struct holder_new_card {
@@ -46,6 +61,35 @@ typedef struct holder_new_card {
     const int64_t* created_at; /* When the card was created, for imports; omit for now. NULL when absent. */
     const int64_t* updated_at; /* When the card was last changed, for imports; omit to use created_at. NULL when absent. */
 } holder_new_card;
+
+/* Changes to a card. Each field left out keeps its value. */
+typedef struct holder_card_update {
+    const char* title; /* The card's new title. NULL when absent. */
+    const char* content; /* The card's new body. NULL when absent. */
+    holder_string_change parent_card_id; /* The card's new parent; null makes it a root card. Zero keeps it. */
+    const double* sort_key; /* The card's new place among its siblings. NULL when absent. */
+    const int64_t* updated_at; /* When the card was changed, for imports; omit for now. NULL when absent. */
+} holder_card_update;
+
+/* into makes the card target_card_id's last child; before and after place it beside target_card_id, as its sibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or last of its siblings; up_level makes it its grandparent's last child. */
+typedef enum holder_card_move_intent {
+    HOLDER_CARD_MOVE_INTENT_INTO = 1,
+    HOLDER_CARD_MOVE_INTENT_BEFORE = 2,
+    HOLDER_CARD_MOVE_INTENT_AFTER = 3,
+    HOLDER_CARD_MOVE_INTENT_LEFT = 4,
+    HOLDER_CARD_MOVE_INTENT_RIGHT = 5,
+    HOLDER_CARD_MOVE_INTENT_TO_START = 6,
+    HOLDER_CARD_MOVE_INTENT_TO_END = 7,
+    HOLDER_CARD_MOVE_INTENT_UP_LEVEL = 8,
+    HOLDER_CARD_MOVE_INTENT_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_card_move_intent;
+
+/* Where to move a card, relative to another card or among its siblings. */
+typedef struct holder_card_move {
+    holder_card_move_intent intent; /* into makes the card target_card_id's last child; before and after place it beside target_card_id, as its sibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or last of its siblings; up_level makes it its grandparent's last child. */
+    const char* target_card_id; /* The card to move into, before or after; required for those intents, and ignored by the others. NULL when absent. */
+    holder_string_change parent_card_id; /* For left, right, to_start and to_end: the parent among whose children to place it, null for the root cards; omit for its current parent. Ignored by the other intents. Zero keeps it. */
+} holder_card_move;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -145,6 +189,48 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Change a card.
+ * Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and
+ * content are written first, then the parent and place, each as its own change in the project's history. A card
+ * in the trash is not found, and neither is a new parent that does not exist or is in the trash; a parent under
+ * the card itself is an InvalidMove.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_update_card(holder_context* context, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+typedef enum holder_trash_card_children {
+    HOLDER_TRASH_CARD_CHILDREN_DEFAULT = 0, /* promote */
+    HOLDER_TRASH_CARD_CHILDREN_PROMOTE = 1,
+    HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE = 2,
+    HOLDER_TRASH_CARD_CHILDREN_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_trash_card_children;
+
+/* Move a card to the trash.
+ * The card and every card that changes with it are written as one change in the project's history. A card already
+ * in the trash is not found. Returns the card as it is in the trash.
+ * children: promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_trash_card(holder_context* context, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Restore a card from the trash.
+ * Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its
+ * nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;
+ * descendants trashed with it stay in the trash, and come back under it when restored. A card that is not in the
+ * trash is a Conflict.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_restore_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Move a card in its project's hierarchy.
+ * When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same
+ * change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
+ * trash is not found, and neither is a target or parent that does not exist, is in the trash or is in another
+ * project. A move that changes nothing writes nothing.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_move_card(holder_context* context, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 #ifdef __cplusplus
 }

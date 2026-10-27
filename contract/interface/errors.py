@@ -1,6 +1,6 @@
 """The error kinds operations fail with, besides an invalid argument.
 
-Each names a condition the caller can act on, not how a transport reports it; http.py gives each
+Each names a condition the caller can act on, not how a transport reports it; app.py gives each
 its HTTP status.
 """
 
@@ -12,7 +12,7 @@ class NotFound(HolderError):
 
 
 class Conflict(HolderError):
-    """What would be created already exists, such as a card with the same ID or file."""
+    """The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash."""
 
 
 class KeyringUnavailable(HolderError):
@@ -25,3 +25,7 @@ class KeyMissing(HolderError):
 
 class DataCorrupted(HolderError):
     """A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext."""
+
+
+class InvalidMove(HolderError):
+    """A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top."""

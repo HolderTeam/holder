@@ -1,6 +1,6 @@
 """Cards: the notes a project holds, arranged in a hierarchy."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from holder_contract import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
 
@@ -102,3 +102,32 @@ class NewCard(Record):
     """When the card was created, for imports; omit for now."""
     updated_at: Timestamp | MISSING = MISSING
     """When the card was last changed, for imports; omit to use created_at."""
+
+
+class CardUpdate(Record):
+    """Changes to a card. Each field left out keeps its value."""
+
+    title: Annotated[str, Field(min_length=1)] | MISSING = MISSING
+    """The card's new title."""
+    content: str | MISSING = MISSING
+    """The card's new body."""
+    parent_card_id: CardId | None | MISSING = MISSING
+    """The card's new parent; null makes it a root card."""
+    sort_key: Float64 | MISSING = MISSING
+    """The card's new place among its siblings."""
+    updated_at: Timestamp | MISSING = MISSING
+    """When the card was changed, for imports; omit for now."""
+
+
+class CardMove(Record):
+    """Where to move a card, relative to another card or among its siblings."""
+
+    intent: Literal["into", "before", "after", "left", "right", "to_start", "to_end", "up_level"]
+    """into makes the card target_card_id's last child; before and after place it beside target_card_id, as its
+    sibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or
+    last of its siblings; up_level makes it its grandparent's last child."""
+    target_card_id: CardId | MISSING = MISSING
+    """The card to move into, before or after; required for those intents, and ignored by the others."""
+    parent_card_id: CardId | None | MISSING = MISSING
+    """For left, right, to_start and to_end: the parent among whose children to place it, null for the root
+    cards; omit for its current parent. Ignored by the other intents."""

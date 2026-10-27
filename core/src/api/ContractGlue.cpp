@@ -149,12 +149,25 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_KEY_MISSING, e.what());
   } catch (const contract::DataCorrupted& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_DATA_CORRUPTED, e.what());
+  } catch (const contract::InvalidMove& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_MOVE, e.what());
   } catch (const std::bad_alloc&) {
     return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
   } catch (...) {
     return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
+  }
+}
+
+// A partial update's text field: kept, set to its value, or cleared.
+contract::Change<std::string> changed_text(const holder_string_change& value, const char* name,
+                                           std::size_t min_length, std::size_t max_length) {
+  switch (value.change) {
+  case HOLDER_KEEP: return std::nullopt;
+  case HOLDER_SET: return text(value.value, (std::string(name) + ".value").c_str(), min_length, max_length);
+  case HOLDER_CLEAR: return std::optional<std::string>{};
+  default: throw ArgumentError(std::string(name) + ".change is not a holder_change value");
   }
 }
 
@@ -237,6 +250,34 @@ contract::NewCard from_c(const holder_new_card& value) {
   return out;
 }
 
+contract::CardUpdate from_c(const holder_card_update& value) {
+  contract::CardUpdate out;
+  out.title = optional_text(value.title, "card_update.title", 1, SIZE_MAX);
+  out.content = optional_text(value.content, "card_update.content", 0, SIZE_MAX);
+  out.parent_card_id = changed_text(value.parent_card_id, "card_update.parent_card_id", 1, SIZE_MAX);
+  out.sort_key = (value.sort_key ? std::optional<double>(finite(*value.sort_key, "card_update.sort_key")) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
+  return out;
+}
+
+contract::CardMove from_c(const holder_card_move& value) {
+  contract::CardMove out;
+  switch (value.intent) {
+  case HOLDER_CARD_MOVE_INTENT_INTO: out.intent = contract::CardMoveIntent::Into; break;
+  case HOLDER_CARD_MOVE_INTENT_BEFORE: out.intent = contract::CardMoveIntent::Before; break;
+  case HOLDER_CARD_MOVE_INTENT_AFTER: out.intent = contract::CardMoveIntent::After; break;
+  case HOLDER_CARD_MOVE_INTENT_LEFT: out.intent = contract::CardMoveIntent::Left; break;
+  case HOLDER_CARD_MOVE_INTENT_RIGHT: out.intent = contract::CardMoveIntent::Right; break;
+  case HOLDER_CARD_MOVE_INTENT_TO_START: out.intent = contract::CardMoveIntent::ToStart; break;
+  case HOLDER_CARD_MOVE_INTENT_TO_END: out.intent = contract::CardMoveIntent::ToEnd; break;
+  case HOLDER_CARD_MOVE_INTENT_UP_LEVEL: out.intent = contract::CardMoveIntent::UpLevel; break;
+  default: throw ArgumentError("card_move.intent is not a holder_card_move_intent value");
+  }
+  out.target_card_id = optional_text(value.target_card_id, "card_move.target_card_id", 1, SIZE_MAX);
+  out.parent_card_id = changed_text(value.parent_card_id, "card_move.parent_card_id", 1, SIZE_MAX);
+  return out;
+}
+
 }  // namespace
 
 extern "C" {
@@ -297,6 +338,65 @@ int holder_create_card(holder_context* context, const holder_new_card* card, hol
     const auto card_value = from_c(*card);
     auto* out = make<holder_card>(arena);
     *out = to_c(arena, contract::create_card(*context, card_value));
+    *out_card = out;
+  });
+}
+
+int holder_update_card(holder_context* context, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    require(update != nullptr, "update must not be null");
+    const auto update_value = from_c(*update);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::update_card(*context, card_id_value, update_value));
+    *out_card = out;
+  });
+}
+
+int holder_trash_card(holder_context* context, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    contract::TrashCardChildren children_value;
+    switch (children) {
+    case HOLDER_TRASH_CARD_CHILDREN_DEFAULT: children_value = contract::TrashCardChildren::Promote; break;
+    case HOLDER_TRASH_CARD_CHILDREN_PROMOTE: children_value = contract::TrashCardChildren::Promote; break;
+    case HOLDER_TRASH_CARD_CHILDREN_TRASH_SUBTREE: children_value = contract::TrashCardChildren::TrashSubtree; break;
+    default: throw ArgumentError("children is not a holder_trash_card_children value");
+    }
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::trash_card(*context, card_id_value, children_value));
+    *out_card = out;
+  });
+}
+
+int holder_restore_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::restore_card(*context, card_id_value));
+    *out_card = out;
+  });
+}
+
+int holder_move_card(holder_context* context, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    require(move != nullptr, "move must not be null");
+    const auto move_value = from_c(*move);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::move_card(*context, card_id_value, move_value));
     *out_card = out;
   });
 }

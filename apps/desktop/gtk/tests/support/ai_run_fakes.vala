@@ -412,11 +412,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                            int64 updated_at) throws Error {}
     public async void delete_card(string card_id, bool trash_subtree = false) throws Error {}
     public async HolderLinux.CardMoveResult move_card(string card_id,
-                                                       string project_id,
                                                        string intent,
                                                        string? target_card_id = null,
                                                        string? parent_card_id = null) throws Error {
-        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0);
     }
 }
 

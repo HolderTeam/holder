@@ -3825,7 +3825,7 @@
             }
           },
           "409": {
-            "description": "What would be created already exists, such as a card with the same ID or file. An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash. An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4047,15 +4047,15 @@
         }
       },
       "patch": {
-        "summary": "Update card content and/or title",
-        "description": "Content and title are written first, then parent_card_id and sort_key, each as its own commit.",
+        "summary": "Change a card.",
+        "description": "Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and\ncontent are written first, then the parent and place, each as its own change in the project's history. A card\nin the trash is not found, and neither is a new parent that does not exist or is in the trash; a parent under\nthe card itself is an InvalidMove.",
         "parameters": [
           {
             "name": "card_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/CardId"
             }
           }
         ],
@@ -4064,24 +4064,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CardUpdateRequest"
+                "$ref": "#/components/schemas/CardUpdate"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardPatchResponse"
+                  "$ref": "#/components/schemas/CardResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Malformed or empty update, title without content, an unknown parent, moving a card in Trash, or a privacy error writing an encrypted card",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4101,7 +4101,17 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4111,17 +4121,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4131,7 +4131,7 @@
             }
           },
           "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4143,15 +4143,15 @@
         }
       },
       "delete": {
-        "summary": "Move card to trash",
-        "description": "The card and every changed card are written in one commit. With children=promote (the default), the card's immediate live children take its place among its siblings (or the project's top level) in their existing order, keeping their own descendants; children already in Trash stay there. With children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent there, including live cards beneath descendants that were already trashed, which keep their own trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.",
+        "summary": "Move a card to the trash.",
+        "description": "The card and every card that changes with it are written as one change in the project's history. A card already\nin the trash is not found. Returns the card as it is in the trash.",
         "parameters": [
           {
             "name": "card_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/CardId"
             }
           },
           {
@@ -4159,29 +4159,31 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
               "enum": [
                 "promote",
                 "trash_subtree"
               ],
-              "default": "promote"
+              "type": "string",
+              "description": "promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it.",
+              "default": "promote",
+              "title": "Children"
             },
-            "description": "What happens to the card's live children. Any other value is rejected before anything changes."
+            "description": "promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardPatchResponse"
+                  "$ref": "#/components/schemas/CardResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid children value, the card is already in Trash, or a privacy error writing an encrypted card",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4201,7 +4203,17 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4211,17 +4223,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4231,7 +4233,7 @@
             }
           },
           "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5343,15 +5345,15 @@
     },
     "/cards/{card_id}/move": {
       "post": {
-        "summary": "Move/reparent/reorder a card using card move intent",
-        "description": "Placement is resolved and written under the project lock. When the card's new neighbours leave no room between their sort keys (tied keys, or a gap used up by repeated moves), nearby siblings are re-spaced in the same commit, keeping their order. The response describes only the moved card, so a client holding other cards' sort_key values should refresh the listing.",
+        "summary": "Move a card in its project's hierarchy.",
+        "description": "When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same\nchange, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the\ntrash is not found, and neither is a target or parent that does not exist, is in the trash or is in another\nproject. A move that changes nothing writes nothing.",
         "parameters": [
           {
             "name": "card_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/CardId"
             }
           }
         ],
@@ -5360,24 +5362,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CardMoveRequest"
+                "$ref": "#/components/schemas/CardMove"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Move applied",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardMoveResponse"
+                  "$ref": "#/components/schemas/CardResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Malformed request, target_card_id missing for into/before/after (missing_target_card_id), or a privacy error writing an encrypted card",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5397,7 +5399,7 @@
             }
           },
           "404": {
-            "description": "Live card (not_found), or target or parent card (target_not_found), not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5406,8 +5408,8 @@
               }
             }
           },
-          "422": {
-            "description": "Invalid move: cross_project_move_forbidden, move_would_create_cycle, invalid_target, or invalid_move_intent for up_level at the top level",
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5417,17 +5419,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5437,7 +5429,7 @@
             }
           },
           "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5694,31 +5686,31 @@
     },
     "/cards/{card_id}/restore": {
       "post": {
-        "summary": "Restore a card from trash",
-        "description": "Restores this card only. It returns to its saved parent when that parent is live and reachable, otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if restored afterwards.",
+        "summary": "Restore a card from the trash.",
+        "description": "Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its\nnearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;\ndescendants trashed with it stay in the trash, and come back under it when restored. A card that is not in the\ntrash is a Conflict.",
         "parameters": [
           {
             "name": "card_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/CardId"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardPatchResponse"
+                  "$ref": "#/components/schemas/CardResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "The card is not in Trash, or a privacy error writing an encrypted card",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5738,7 +5730,17 @@
             }
           },
           "404": {
-            "description": "Card not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash. An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5748,17 +5750,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "The daemon has no card store",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5768,7 +5760,7 @@
             }
           },
           "503": {
-            "description": "The keyring needed to write an encrypted card is unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14169,101 +14161,46 @@
           "data"
         ]
       },
-      "CardMoveIntent": {
-        "type": "string",
-        "enum": [
-          "into",
-          "before",
-          "after",
-          "left",
-          "right",
-          "to_start",
-          "to_end",
-          "up_level"
-        ]
-      },
-      "CardMoveRequest": {
-        "type": "object",
+      "CardMove": {
         "properties": {
-          "project_id": {
-            "type": "string"
-          },
           "intent": {
-            "$ref": "#/components/schemas/CardMoveIntent"
+            "type": "string",
+            "enum": [
+              "into",
+              "before",
+              "after",
+              "left",
+              "right",
+              "to_start",
+              "to_end",
+              "up_level"
+            ],
+            "title": "Intent",
+            "description": "into makes the card target_card_id's last child; before and after place it beside target_card_id, as its\nsibling; left and right swap it with its previous or next sibling; to_start and to_end make it the first or\nlast of its siblings; up_level makes it its grandparent's last child."
           },
           "target_card_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Required for intents into/before/after."
+            "$ref": "#/components/schemas/CardId",
+            "description": "The card to move into, before or after; required for those intents, and ignored by the others."
           },
           "parent_card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Destination parent scope for intents to_start/to_end/left/right. If omitted, source card's current parent scope is used. An explicit null is the project's top level."
+            "description": "For left, right, to_start and to_end: the parent among whose children to place it, null for the root\ncards; omit for its current parent. Ignored by the other intents."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
-          "project_id",
           "intent"
         ],
-        "additionalProperties": false,
-        "description": "Unlisted properties are rejected."
-      },
-      "CardMoveResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/CardMoveResult"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "CardMoveResult": {
-        "type": "object",
-        "properties": {
-          "card_id": {
-            "type": "string"
-          },
-          "parent_card_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sort_key": {
-            "type": "number",
-            "format": "double"
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "moved_into_title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "card_id",
-          "parent_card_id",
-          "sort_key",
-          "revision"
-        ]
+        "title": "CardMove",
+        "description": "Where to move a card, relative to another card or among its siblings."
       },
       "CardPatchResponse": {
         "type": "object",
@@ -14485,39 +14422,49 @@
           "changed"
         ]
       },
-      "CardUpdateRequest": {
-        "type": "object",
+      "CardUpdate": {
         "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Title",
+            "description": "The card's new title."
+          },
           "content": {
             "type": "string",
-            "description": "Required when title is supplied."
-          },
-          "updated_at": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Null keeps the current title."
+            "title": "Content",
+            "description": "The card's new body."
           },
           "parent_card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Null moves the card to the project's top level."
+            "description": "The card's new parent; null makes it a root card."
           },
           "sort_key": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "title": "Sort Key",
+            "description": "The card's new place among its siblings."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the card was changed, for imports; omit for now."
           }
         },
-        "required": [
-          "updated_at"
-        ]
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CardUpdate",
+        "description": "Changes to a card. Each field left out keeps its value."
       },
       "CardViewItem": {
         "type": "object",

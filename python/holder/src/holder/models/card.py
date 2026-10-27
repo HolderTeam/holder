@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import time
 from dataclasses import dataclass, field, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, Self
@@ -22,11 +21,11 @@ from ..generated.api.default import (
     post_cards_card_id_restore,
 )
 from ..generated.models import (
+    CardMove,
     CardMoveIntent,
-    CardMoveRequest,
     CardReferenceResolveRequest,
     CardReferenceResolveRequestScope,
-    CardUpdateRequest,
+    CardUpdate,
     DeleteCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
     NewCard,
@@ -382,13 +381,9 @@ class Card:
             raise TypeError("title must be a string or None")
         if not isinstance(content, (str, Unset)):
             raise TypeError("content must be a string")
-        # Verify membership and obtain fresh content before any write.
-        current = self._project.cards.get(self.id)
-        if isinstance(content, Unset):
-            content = current.content
-        body = CardUpdateRequest(
-            updated_at=int(time.time()), title=title, content=content
-        )
+        # Verify membership before any write. What is left out, or a None title, is kept.
+        self._project.cards.get(self.id)
+        body = CardUpdate(title=UNSET if title is None else title, content=content)
         self._project._holder._call(patch_cards_card_id, self.id, body=body, write=True)
         return self.refresh()
 
@@ -421,17 +416,9 @@ class Card:
         intent, target = supplied[0]
         if intent is CardMoveIntent.INTO and target is None:
             # An explicit null parent is the project's top level.
-            body = CardMoveRequest(
-                project_id=self._project.id,
-                intent=CardMoveIntent.TO_END,
-                parent_card_id=None,
-            )
+            body = CardMove(intent=CardMoveIntent.TO_END, parent_card_id=None)
         elif isinstance(target, Card):
-            body = CardMoveRequest(
-                project_id=self._project.id,
-                intent=intent,
-                target_card_id=target.id,
-            )
+            body = CardMove(intent=intent, target_card_id=target.id)
         else:
             raise TypeError("The move target must be a Card")
         self._project._holder._call(

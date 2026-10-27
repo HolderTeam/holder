@@ -6,7 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_patch_response import CardPatchResponse
+from ...models.card_response import CardResponse
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
@@ -27,9 +27,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardPatchResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardPatchResponse.from_dict(response.json())
+        response_200 = CardResponse.from_dict(response.json())
 
         return response_200
 
@@ -48,15 +48,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -71,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardPatchResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -84,13 +84,16 @@ def sync_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Restore a card from trash
+) -> Response[CardResponse | ErrorResponse]:
+    """Restore a card from the trash.
 
-     Restores this card only. It returns to its saved parent when that parent is live and reachable,
-    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
-    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
-    restored afterwards.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
+    not in the
+    trash is a Conflict.
 
     Args:
         card_id (str):
@@ -100,7 +103,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -118,13 +121,16 @@ def sync(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Restore a card from trash
+) -> CardResponse | ErrorResponse | None:
+    """Restore a card from the trash.
 
-     Restores this card only. It returns to its saved parent when that parent is live and reachable,
-    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
-    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
-    restored afterwards.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
+    not in the
+    trash is a Conflict.
 
     Args:
         card_id (str):
@@ -134,7 +140,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -147,13 +153,16 @@ async def asyncio_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Restore a card from trash
+) -> Response[CardResponse | ErrorResponse]:
+    """Restore a card from the trash.
 
-     Restores this card only. It returns to its saved parent when that parent is live and reachable,
-    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
-    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
-    restored afterwards.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
+    not in the
+    trash is a Conflict.
 
     Args:
         card_id (str):
@@ -163,7 +172,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -179,13 +188,16 @@ async def asyncio(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Restore a card from trash
+) -> CardResponse | ErrorResponse | None:
+    """Restore a card from the trash.
 
-     Restores this card only. It returns to its saved parent when that parent is live and reachable,
-    otherwise to its nearest live, reachable ancestor or the project's top level. Children promoted when
-    it was trashed stay where they are; descendants trashed with it stay in Trash, and reattach to it if
-    restored afterwards.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
+    not in the
+    trash is a Conflict.
 
     Args:
         card_id (str):
@@ -195,7 +207,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (

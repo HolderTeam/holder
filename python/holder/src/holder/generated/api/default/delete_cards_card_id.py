@@ -6,7 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_patch_response import CardPatchResponse
+from ...models.card_response import CardResponse
 from ...models.delete_cards_card_id_children import DeleteCardsCardIdChildren
 from ...models.error_response import ErrorResponse
 from ...types import UNSET, Response, Unset
@@ -41,9 +41,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardPatchResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardPatchResponse.from_dict(response.json())
+        response_200 = CardResponse.from_dict(response.json())
 
         return response_200
 
@@ -62,15 +62,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -85,7 +85,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardPatchResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -99,26 +99,25 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Move card to trash
+) -> Response[CardResponse | ErrorResponse]:
+    """Move a card to the trash.
 
-     The card and every changed card are written in one commit. With children=promote (the default), the
-    card's immediate live children take its place among its siblings (or the project's top level) in
-    their existing order, keeping their own descendants; children already in Trash stay there. With
-    children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent
-    there, including live cards beneath descendants that were already trashed, which keep their own
-    trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash is not found. Returns the card as it is in the trash.
 
     Args:
         card_id (str):
-        children (DeleteCardsCardIdChildren | Unset):  Default: DeleteCardsCardIdChildren.PROMOTE.
+        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
+            its place among its siblings, keeping their own descendants; trash_subtree moves every
+            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -138,26 +137,25 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Move card to trash
+) -> CardResponse | ErrorResponse | None:
+    """Move a card to the trash.
 
-     The card and every changed card are written in one commit. With children=promote (the default), the
-    card's immediate live children take its place among its siblings (or the project's top level) in
-    their existing order, keeping their own descendants; children already in Trash stay there. With
-    children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent
-    there, including live cards beneath descendants that were already trashed, which keep their own
-    trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash is not found. Returns the card as it is in the trash.
 
     Args:
         card_id (str):
-        children (DeleteCardsCardIdChildren | Unset):  Default: DeleteCardsCardIdChildren.PROMOTE.
+        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
+            its place among its siblings, keeping their own descendants; trash_subtree moves every
+            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -172,26 +170,25 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Move card to trash
+) -> Response[CardResponse | ErrorResponse]:
+    """Move a card to the trash.
 
-     The card and every changed card are written in one commit. With children=promote (the default), the
-    card's immediate live children take its place among its siblings (or the project's top level) in
-    their existing order, keeping their own descendants; children already in Trash stay there. With
-    children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent
-    there, including live cards beneath descendants that were already trashed, which keep their own
-    trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash is not found. Returns the card as it is in the trash.
 
     Args:
         card_id (str):
-        children (DeleteCardsCardIdChildren | Unset):  Default: DeleteCardsCardIdChildren.PROMOTE.
+        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
+            its place among its siblings, keeping their own descendants; trash_subtree moves every
+            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -209,26 +206,25 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Move card to trash
+) -> CardResponse | ErrorResponse | None:
+    """Move a card to the trash.
 
-     The card and every changed card are written in one commit. With children=promote (the default), the
-    card's immediate live children take its place among its siblings (or the project's top level) in
-    their existing order, keeping their own descendants; children already in Trash stay there. With
-    children=trash_subtree, every live descendant goes to Trash with the card and keeps its parent
-    there, including live cards beneath descendants that were already trashed, which keep their own
-    trash time. Restoring is always single-card: see POST /cards/{card_id}/restore.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash is not found. Returns the card as it is in the trash.
 
     Args:
         card_id (str):
-        children (DeleteCardsCardIdChildren | Unset):  Default: DeleteCardsCardIdChildren.PROMOTE.
+        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
+            its place among its siblings, keeping their own descendants; trash_subtree moves every
+            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (

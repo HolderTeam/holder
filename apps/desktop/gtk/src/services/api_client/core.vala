@@ -183,12 +183,11 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
     }
 
     public async CardMoveResult move_card(string card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-                                          string project_id,
                                           string intent,
                                           string? target_card_id = null,
                                           string? parent_card_id = null) throws Error {
         return yield ApiClientCardsEndpoints.move_card( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, card_id, project_id, intent, target_card_id, parent_card_id
+            this, card_id, intent, target_card_id, parent_card_id
         );
     }
 

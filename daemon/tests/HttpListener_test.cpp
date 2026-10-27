@@ -257,9 +257,9 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       token,
       http::verb::patch,
       "/cards/save-test",
-      // Without a card store the save is refused at once; only its lane matters here.
-      nlohmann::json{{"updated_at", 1}, {"content", "x"}},
-      http::status::not_implemented
+      // The card does not exist, so the save fails at once; only its lane matters here.
+      nlohmann::json{{"content", "x"}},
+      http::status::not_found
   );
   const auto save_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - save_started
@@ -1359,9 +1359,9 @@ TEST_CASE(
       token,
       http::verb::patch,
       "/cards/save-priority",
-      // Without a card store the save is refused at once; only its lane matters here.
-      nlohmann::json{{"updated_at", 1}, {"content", "x"}},
-      http::status::not_implemented
+      // The card does not exist, so the save fails at once; only its lane matters here.
+      nlohmann::json{{"content", "x"}},
+      http::status::not_found
   );
   const auto save_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - save_started

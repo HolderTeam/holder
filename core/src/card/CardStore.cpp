@@ -86,12 +86,14 @@ std::optional<std::string> read_card_content_locked(
     const holder::model::Project& project,
     const holder::model::Card& card
 ) {
-  const std::string expected = holder::core::card_rel_path(card.card_id);
-  if (card.rel_path != expected) {
+  // A card in the trash keeps its file in the trash directory.
+  const std::string live_path = holder::core::card_rel_path(card.card_id);
+  const std::string trash_path = holder::core::card_trash_rel_path(card.card_id);
+  if (card.rel_path != live_path && card.rel_path != trash_path) {
     throw std::runtime_error("card rel_path does not match card_id");
   }
 
-  const auto full_path = git.repo_dir() / card.rel_path;
+  const auto full_path = git.repo_dir() / (card.deleted_at ? trash_path : live_path);
   if (!fs.exists(full_path)) {
     return std::nullopt;
   }

@@ -144,7 +144,9 @@ def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemo
     assert responses["404"]["description"] == "The thing asked for does not exist, or is in the trash."
     # Error kinds that share a status share its response.
     assert responses["409"]["description"] == (
-        "What would be created already exists, such as a card with the same ID or file. "
+        "The request conflicts with what exists: what would be created already exists, such as a card with the "
+        "same ID or file, or the thing to change is not in the state the request needs, such as restoring a card "
+        "that is not in the trash. "
         "An encrypted project's key is not on this device; the project's recovery token restores it.")
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
     # The same error schemas as RIG's document, so that the two merge.
@@ -233,9 +235,9 @@ def daemon_document(paths):
 
 
 def test_merge_adds_the_contracts_routes_beside_the_daemons():
-    merged = merge(daemon_document({"/cards/{card_id}": {"patch": {"responses": {"200": {}}}},
+    merged = merge(daemon_document({"/cards/{card_id}": {"put": {"responses": {"200": {}}}},
                                     "/cards/context": {"get": {"responses": {"200": {}}}}}), openapi())
-    assert list(merged["paths"]["/cards/{card_id}"]) == ["get", "patch"]
+    assert list(merged["paths"]["/cards/{card_id}"]) == ["get", "put", "patch", "delete"]
     assert merged["paths"]["/cards/{card_id}"]["get"]["responses"]["401"]["description"] == "Unauthorized"
     assert merged["components"]["securitySchemes"] == {"bearer": {"type": "http"}}
     assert "CardListItemPage" in merged["components"]["schemas"]

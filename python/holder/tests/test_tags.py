@@ -215,7 +215,7 @@ def test_content_update_invalidates_cached_tags():
     def respond(request):
         if request.method == "PATCH":
             names.clear()
-            return ok({"card_id": "c-0000"})
+            return ok(card_payload(content=True))
         if request.url.path.startswith("/cards/"):
             return ok(tagged_card(list(names)))
         return ok(project_payload())

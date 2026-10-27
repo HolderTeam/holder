@@ -2,8 +2,8 @@
 
 Daemon starts a disposable holderd on temporary directories; Http calls the contract's operations
 on it through their routes in interface/app.py, taking and returning values as
-holder_contract.values describes them, as holder_capi.Core does through the C API. A few routes
-the contract does not have yet set up a project and trash cards.
+holder_contract.values describes them, as holder_capi.Core does through the C API. A route the
+contract does not have yet sets up a project.
 
 Http checks every response from a contract route against what the route declares, before reading
 it: a status the route declares, and a body that its Pydantic model accepts, strictly: the route's
@@ -157,9 +157,6 @@ class Http:
     def create_project(self, name: str) -> str:
         body = json.dumps({"name": name, "privacy_mode": "plain"}).encode()
         return self.expect(*self.daemon.request("POST", "/projects", body))["project_id"]
-
-    def delete_subtree(self, card_id: str) -> None:
-        self.expect(*self.daemon.request("DELETE", f"/cards/{text(card_id)}?children=trash_subtree"))
 
     def call(self, operation: str, **arguments: Any) -> Any:
         """Call an operation; raises OperationError with the error kind's name when it fails."""

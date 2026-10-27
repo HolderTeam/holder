@@ -383,7 +383,7 @@ def test_scoped_navigation_queries_membership_and_refresh():
         assert card.content == "current body"
 
 
-def test_update_fetches_fresh_body_and_refreshes_after_write():
+def test_update_sends_only_what_changes_and_refreshes_after_write():
     requests = []
     title = "Original"
 
@@ -395,11 +395,10 @@ def test_update_fetches_fresh_body_and_refreshes_after_write():
         ):
             return ok(project_payload())
         if request.method == "PATCH":
-            body = json.loads(request.content)
-            assert body["content"] == "current body"
-            assert isinstance(body["updated_at"], int) and body["updated_at"] > 2
-            title = body["title"]
-            return ok({"card_id": "c-0000"})
+            # The daemon keeps what is left out, so the content is not sent back.
+            assert json.loads(request.content) == {"title": "Better"}
+            title = "Better"
+            return ok({**card_payload(content=True), "title": title})
         return ok({**card_payload(content=True), "title": title})
 
     with holder_for(respond) as h:
@@ -423,7 +422,7 @@ def test_content_only_update_preserves_omitted_title():
         if request.method == "PATCH":
             assert json.loads(request.content)["content"] == "replacement"
             assert "title" not in json.loads(request.content)
-            return ok({"card_id": "c-0000"})
+            return ok(card_payload(content=True))
         return ok(card_payload(content=True))
 
     with holder_for(respond) as h:
@@ -645,8 +644,9 @@ def test_title_update_preserves_body_changed_since_card_was_loaded():
         ):
             return ok(project_payload())
         if request.method == "PATCH":
-            assert json.loads(request.content)["content"] == "new body"
-            return ok({"card_id": "c-0000"})
+            # Only the title is sent, so a body changed elsewhere is not overwritten.
+            assert "content" not in json.loads(request.content)
+            return ok({**card_payload(content=True), "content": current_body})
         return ok({**card_payload(content=True), "content": current_body})
 
     with holder_for(respond) as h:

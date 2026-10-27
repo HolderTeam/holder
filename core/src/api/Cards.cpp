@@ -7,10 +7,10 @@
 #include "capi/Context.h"
 #include "card/CardPaths.h"
 #include "card/CardPlacementError.h"
+#include "card/CardPlacementResolver.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/TagExtractor.h"
-#include "card/TagRepo.h"
 #include "identity/Uuid.h"
 #include "project/ProjectRepo.h"
 
@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <limits>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -40,12 +41,15 @@ holder::card::CardStore card_store(holder_context& context) {
 Card full_card(holder_context& context, holder::card::CardStore& store, const holder::model::Card& card) {
   auto content = store.get_content(card);
   if (!content) throw NotFound("card content missing: " + card.card_id);
-  Card out{card, std::move(*content), holder::card::TagRepo(context.db).list_tags_for_card(card.project_id, card.card_id),
-           {}};
+  // Tags are read from the content, so a card in the trash, which the tag index leaves out, has them too.
+  Card out{card, std::move(*content), {}, {}};
+  std::set<std::string> tags;
   for (const auto& occurrence : holder::core::extract_tag_occurrences(out.content)) {
     out.tag_occurrences.push_back({occurrence.tag, static_cast<long long>(occurrence.byte_start),
                                    static_cast<long long>(occurrence.byte_end)});
+    tags.insert(occurrence.tag);
   }
+  out.tags.assign(tags.begin(), tags.end());
   return out;
 }
 
@@ -199,6 +203,154 @@ Card create(holder_context& context, const NewCard& request) {
   return full_card(context, store, *created);
 }
 
+// A live card, with nothing read but its metadata.
+holder::model::Card live_card(holder::card::CardStore& store, const std::string& card_id) {
+  auto card = store.get(card_id);
+  if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
+  return std::move(*card);
+}
+
+// Whether parent is the card itself or one of its descendants: a parent the card cannot go under.
+bool under_itself(holder::card::CardStore& store, const std::string& card_id, std::optional<std::string> parent) {
+  std::set<std::string> seen;
+  while (parent && seen.insert(*parent).second) {
+    if (*parent == card_id) return true;
+    const auto card = store.get(*parent);
+    if (!card) return false;
+    parent = card->parent_card_id;
+  }
+  return false;
+}
+
+// Checks a new parent before anything is written: live, in the card's project, and not under it.
+void check_parent(holder::card::CardStore& store, const holder::model::Card& card,
+                  const std::optional<std::string>& parent) {
+  if (!parent) return;
+  const auto found = store.get(*parent);
+  if (!found || found->deleted_at || found->project_id != card.project_id)
+    throw NotFound("parent card not found: " + *parent);
+  if (under_itself(store, card.card_id, parent))
+    throw InvalidMove("a card cannot go under itself or one of its descendants");
+}
+
+// The card as a write left it.
+Card read_back(holder_context& context, holder::card::CardStore& store, const std::string& card_id) {
+  const auto card = store.get(card_id);
+  if (!card) throw Error("the card cannot be read back: " + card_id);
+  return full_card(context, store, *card);
+}
+
+// A placement core refuses, as the contract's error kinds. The card's own project is always the
+// one asked for, so a card in another project is one that is not found.
+[[noreturn]] void placement_failed(const holder::card::CardPlacementError& error) {
+  using Code = holder::card::CardPlacementErrorCode;
+  switch (error.code()) {
+  case Code::CardNotFound: throw NotFound("card not found");
+  case Code::CrossProjectMoveForbidden:
+  case Code::TargetNotFound: throw NotFound("the target or parent card is not found");
+  case Code::MoveWouldCreateCycle: throw InvalidMove("a card cannot go under itself or one of its descendants");
+  case Code::InvalidTarget: throw InvalidMove("the target cannot be the card's sibling");
+  case Code::AlreadyAtProjectRoot: throw InvalidMove("the card is already at the top level");
+  case Code::MissingTargetCardId: throw InvalidArgument("target_card_id is required for into, before and after");
+  case Code::InvalidMoveIntent: break;
+  }
+  throw InvalidArgument(error.what());
+}
+
+Card update(holder_context& context, const std::string& card_id, const CardUpdate& update) {
+  auto store = card_store(context);
+  const auto card = live_card(store, card_id);
+  // A field set to its current value changes nothing, and nothing is written for it.
+  std::optional<std::string> content;
+  if (update.title || update.content) {
+    content = store.get_content(card);
+    if (!content) throw NotFound("card content missing: " + card_id);
+  }
+  const bool retitle = update.title && *update.title != card.title;
+  const bool rewrite = retitle || (update.content && *update.content != *content);
+  const bool reparent = update.parent_card_id && *update.parent_card_id != card.parent_card_id;
+  const bool resort = update.sort_key && *update.sort_key != card.sort_key;
+  // Every check comes first, since the content and the placement are written separately.
+  if (reparent) check_parent(store, card, *update.parent_card_id);
+  const auto updated_at = update.updated_at.value_or(now_epoch_seconds());
+  try {
+    if (rewrite) {
+      // The title is written in the card's file, so a new title rewrites the file with its content.
+      store.update_content(card_id, update.content.value_or(*content), retitle ? update.title : std::nullopt,
+                           updated_at);
+    }
+    if (reparent || resort) {
+      store.move(card_id, reparent, reparent ? *update.parent_card_id : std::nullopt, update.sort_key, updated_at);
+    }
+  } catch (const holder::card::CardPlacementError& error) {
+    placement_failed(error);
+  }
+  return read_back(context, store, card_id);
+}
+
+Card trash(holder_context& context, const std::string& card_id, TrashCardChildren children) {
+  auto store = card_store(context);
+  live_card(store, card_id);
+  store.trash(card_id, now_epoch_seconds(),
+              children == TrashCardChildren::TrashSubtree ? holder::card::TrashChildren::TrashSubtree
+                                                          : holder::card::TrashChildren::Promote);
+  return read_back(context, store, card_id);
+}
+
+Card restore(holder_context& context, const std::string& card_id) {
+  auto store = card_store(context);
+  const auto card = store.get(card_id);
+  if (!card) throw NotFound("card not found: " + card_id);
+  if (!card->deleted_at) throw Conflict("the card is not in the trash: " + card_id);
+  store.restore(card_id, now_epoch_seconds());
+  return read_back(context, store, card_id);
+}
+
+holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
+  using Intent = holder::card::CardPlacementIntent;
+  switch (intent) {
+  case CardMoveIntent::Into: return Intent::Into;
+  case CardMoveIntent::Before: return Intent::Before;
+  case CardMoveIntent::After: return Intent::After;
+  case CardMoveIntent::Left: return Intent::Left;
+  case CardMoveIntent::Right: return Intent::Right;
+  case CardMoveIntent::ToStart: return Intent::ToStart;
+  case CardMoveIntent::ToEnd: return Intent::ToEnd;
+  case CardMoveIntent::UpLevel: break;
+  }
+  return Intent::UpLevel;
+}
+
+Card move(holder_context& context, const std::string& card_id, const CardMove& move) {
+  auto store = card_store(context);
+  const auto card = live_card(store, card_id);
+  holder::card::CardPlacementRequest placement;
+  placement.intent = placement_intent(move.intent);
+  placement.target_card_id = move.target_card_id;
+  // An omitted parent keeps the card's own; null is the top level.
+  placement.has_parent_card_id = move.parent_card_id.has_value();
+  placement.parent_card_id = move.parent_card_id.value_or(std::nullopt);
+  // The parent the card would have. The resolver catches a cycle only for into.
+  std::optional<std::string> parent;
+  if (move.intent == CardMoveIntent::Into) {
+    parent = move.target_card_id;
+  } else if (move.intent == CardMoveIntent::Before || move.intent == CardMoveIntent::After) {
+    if (move.target_card_id) {
+      if (const auto target = store.get(*move.target_card_id)) parent = target->parent_card_id;
+    }
+  } else if (move.intent != CardMoveIntent::UpLevel) {
+    parent = placement.parent_card_id;
+  }
+  if (under_itself(store, card_id, parent))
+    throw InvalidMove("a card cannot go under itself or one of its descendants");
+  try {
+    store.move_to(card.project_id, card_id, placement, now_epoch_seconds());
+  } catch (const holder::card::CardPlacementError& error) {
+    placement_failed(error);
+  }
+  return read_back(context, store, card_id);
+}
+
 } // namespace
 
 Card get_card(holder_context& context, std::string card_id) {
@@ -216,6 +368,22 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
 
 Card create_card(holder_context& context, const NewCard& request) {
   return with_contract_errors([&] { return create(context, request); });
+}
+
+Card update_card(holder_context& context, std::string card_id, const CardUpdate& update) {
+  return with_contract_errors([&] { return holder::contract::update(context, card_id, update); });
+}
+
+Card trash_card(holder_context& context, std::string card_id, TrashCardChildren children) {
+  return with_contract_errors([&] { return trash(context, card_id, children); });
+}
+
+Card restore_card(holder_context& context, std::string card_id) {
+  return with_contract_errors([&] { return restore(context, card_id); });
+}
+
+Card move_card(holder_context& context, std::string card_id, const CardMove& move) {
+  return with_contract_errors([&] { return holder::contract::move(context, card_id, move); });
 }
 
 } // namespace holder::contract

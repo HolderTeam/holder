@@ -92,18 +92,22 @@ internal class CardsController : Object {
         }
     }
 
+    // The title of a card in the loaded project, or null when it is not loaded.
+    private string? loaded_card_title(string card_id) {
+        for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
+            var card = owner.card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                return card.title;
+            }
+        }
+        return null;
+    }
+
     private string default_title_for_parent(string? parent_card_id) {
         if (parent_card_id == null || parent_card_id.strip().length == 0) {
             return "Untitled";
         }
-        string? parent_title = null;
-        for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
-            var card = owner.card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == parent_card_id) {
-                parent_title = card.title;
-                break;
-            }
-        }
+        var parent_title = loaded_card_title(parent_card_id);
         if (parent_title == null || parent_title.strip().length == 0) {
             return "Untitled";
         }
@@ -149,15 +153,10 @@ internal class CardsController : Object {
         }
 
         try {
-            var moved = yield owner.api.move_card(
-                card_id,
-                selected.project_id,
-                intent,
-                target_card_id,
-                parent_card_id
-            );
-            if (intent == "into" && moved.moved_into_title.length > 0) {
-                owner.toast_requested("Moved card into %s".printf(moved.moved_into_title));
+            yield owner.api.move_card(card_id, intent, target_card_id, parent_card_id);
+            var target_title = target_card_id != null ? loaded_card_title(target_card_id) : null;
+            if (intent == "into" && target_title != null && target_title.strip().length > 0) {
+                owner.toast_requested("Moved card into %s".printf(target_title));
             }
             owner.emit_activity(
                 "result.card.move",

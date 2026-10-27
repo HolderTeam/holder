@@ -155,6 +155,35 @@ template <typename T> struct codec<std::vector<T>> {
     }
 };
 
+template <> struct codec<holder::contract::CardMoveIntent> {
+    static json encode(holder::contract::CardMoveIntent value) {
+        switch (value) {
+        case holder::contract::CardMoveIntent::Into: return "into";
+        case holder::contract::CardMoveIntent::Before: return "before";
+        case holder::contract::CardMoveIntent::After: return "after";
+        case holder::contract::CardMoveIntent::Left: return "left";
+        case holder::contract::CardMoveIntent::Right: return "right";
+        case holder::contract::CardMoveIntent::ToStart: return "to_start";
+        case holder::contract::CardMoveIntent::ToEnd: return "to_end";
+        case holder::contract::CardMoveIntent::UpLevel: return "up_level";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::CardMoveIntent decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "into") return holder::contract::CardMoveIntent::Into;
+        if (text == "before") return holder::contract::CardMoveIntent::Before;
+        if (text == "after") return holder::contract::CardMoveIntent::After;
+        if (text == "left") return holder::contract::CardMoveIntent::Left;
+        if (text == "right") return holder::contract::CardMoveIntent::Right;
+        if (text == "to_start") return holder::contract::CardMoveIntent::ToStart;
+        if (text == "to_end") return holder::contract::CardMoveIntent::ToEnd;
+        if (text == "up_level") return holder::contract::CardMoveIntent::UpLevel;
+        throw std::invalid_argument("must be one of into, before, after, left, right, to_start, to_end, up_level");
+    }
+};
+
 template <> struct codec<holder::contract::TagOccurrence> {
     static json encode(const holder::contract::TagOccurrence& value);
     static holder::contract::TagOccurrence decode(const json& value);
@@ -174,6 +203,14 @@ template <> struct codec<holder::contract::Page<holder::contract::CardListItem>>
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
+};
+template <> struct codec<holder::contract::CardUpdate> {
+    static json encode(const holder::contract::CardUpdate& value);
+    static holder::contract::CardUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::CardMove> {
+    static json encode(const holder::contract::CardMove& value);
+    static holder::contract::CardMove decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -465,6 +502,86 @@ inline holder::contract::NewCard codec<holder::contract::NewCard>::decode(const 
         out.updated_at = decode_field<long long>(item, "updated_at");
     } else if (value.contains("updated_at")) {
         throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardUpdate>::encode(const holder::contract::CardUpdate& value) {
+    json result = json::object();
+    if (value.title) result["title"] = codec<std::string>::encode(*value.title);
+    if (value.content) result["content"] = codec<std::string>::encode(*value.content);
+    if (value.parent_card_id) result["parent_card_id"] = *value.parent_card_id ? codec<std::string>::encode(**value.parent_card_id) : json(nullptr);
+    if (value.sort_key) result["sort_key"] = codec<double>::encode(*value.sort_key);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::CardUpdate codec<holder::contract::CardUpdate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardUpdate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "title" && it.key() != "content" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "updated_at") throw std::invalid_argument("CardUpdate has no field " + it.key());
+    holder::contract::CardUpdate out;
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("title")) {
+        throw std::invalid_argument("title must not be null");
+    }
+    if (value.contains("content") && !value.at("content").is_null()) {
+        const auto& item = value.at("content");
+        out.content = check_text(decode_field<std::string>(item, "content"), "content", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("content")) {
+        throw std::invalid_argument("content must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("parent_card_id")) {
+        out.parent_card_id.emplace();
+    }
+    if (value.contains("sort_key") && !value.at("sort_key").is_null()) {
+        const auto& item = value.at("sort_key");
+        out.sort_key = decode_field<double>(item, "sort_key");
+    } else if (value.contains("sort_key")) {
+        throw std::invalid_argument("sort_key must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardMove>::encode(const holder::contract::CardMove& value) {
+    json result = json::object();
+    result["intent"] = codec<holder::contract::CardMoveIntent>::encode(value.intent);
+    if (value.target_card_id) result["target_card_id"] = codec<std::string>::encode(*value.target_card_id);
+    if (value.parent_card_id) result["parent_card_id"] = *value.parent_card_id ? codec<std::string>::encode(**value.parent_card_id) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardMove codec<holder::contract::CardMove>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardMove object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "intent" && it.key() != "target_card_id" && it.key() != "parent_card_id") throw std::invalid_argument("CardMove has no field " + it.key());
+    holder::contract::CardMove out;
+    if (value.contains("intent") && !value.at("intent").is_null()) {
+        const auto& item = value.at("intent");
+        out.intent = decode_field<holder::contract::CardMoveIntent>(item, "intent");
+    } else {
+        throw std::invalid_argument("intent is required and must not be null");
+    }
+    if (value.contains("target_card_id") && !value.at("target_card_id").is_null()) {
+        const auto& item = value.at("target_card_id");
+        out.target_card_id = check_text(decode_field<std::string>(item, "target_card_id"), "target_card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("target_card_id")) {
+        throw std::invalid_argument("target_card_id must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("parent_card_id")) {
+        out.parent_card_id.emplace();
     }
     return out;
 }

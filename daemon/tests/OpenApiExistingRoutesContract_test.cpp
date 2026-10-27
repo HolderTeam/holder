@@ -78,14 +78,15 @@ TEST_CASE("OpenAPI contracts card item mutations on the card path", "[openapi][c
     REQUIRE(parameter.IsDefined());
     CHECK(parameter["in"].as<std::string>() == "path");
     CHECK(parameter["required"].as<bool>());
-    require_json_response_ref(operation, "200", "CardPatchResponse");
+    // The contract's update_card and trash_card answer with the card.
+    require_json_response_ref(operation, "200", "CardResponse");
     for (const auto* status : {"401", "404"}) {
       require_json_response_ref(operation, status, "ErrorResponse");
     }
   }
   CHECK(
       card["patch"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-      ) == "#/components/schemas/CardUpdateRequest"
+      ) == "#/components/schemas/CardUpdate"
   );
   const auto backlinks = document["paths"]["/ai/messages/{message_id}/backlinks"];
   CHECK_FALSE(backlinks["patch"].IsDefined());

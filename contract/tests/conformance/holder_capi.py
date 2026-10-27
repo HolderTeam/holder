@@ -30,7 +30,6 @@ int holder_context_open(const char* data_dir, const char* schema_sql, holder_con
 void holder_context_destroy(holder_context* context);
 int holder_project_create(holder_context* context, const char* name, const char* root_path,
                           const char* privacy_mode, char** out_json, holder_error** out_error);
-int holder_card_delete_subtree(holder_context* context, const char* card_id, holder_error** out_error);
 void holder_string_free(char* value);
 const char* holder_error_message(const holder_error* error);
 void holder_error_destroy(holder_error* error);
@@ -96,9 +95,6 @@ class Core:
         text = self.ffi.string(out[0]).decode()
         self.lib.holder_string_free(out[0])
         return re.search(r'"project_id"\s*:\s*"([^"]+)"', text).group(1)
-
-    def delete_subtree(self, card_id: str) -> None:
-        self.check(self.lib.holder_card_delete_subtree(self.context, card_id.encode(), self.error_slot()))
 
     # ---- contract operations ------------------------------------------------------------------
 

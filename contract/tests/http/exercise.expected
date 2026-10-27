@@ -20,6 +20,26 @@ POST /cards {"project_id": "p1", "title": "Whole", "created_at": 691.0, "updated
   201 create_card {"data":{"card_id":"c3","content":"","created_at":691,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c3.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Whole","updated_at":700},"ok":true}
 POST /cards {"project_id": "p1", "title": "Least", "created_at": -9223372036854775808.0}
   201 create_card {"data":{"card_id":"c4","content":"","created_at":-9223372036854775808,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c4.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Least","updated_at":-9223372036854775808},"ok":true}
+PATCH /cards/c1 {"title": "Thesis, revised", "parent_card_id": "c2"}
+  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":"c2","project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+PATCH /cards/c1 {"parent_card_id": null}
+  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+PATCH /cards/c1 {"title": ""}
+  400 update_card {"error":{"code":"invalid_argument","message":"title must not be empty"},"ok":false}
+POST /cards/c1/move {"intent": "into", "target_card_id": "c1"}
+  422 move_card {"error":{"code":"invalid_move","message":"a card cannot go under itself"},"ok":false}
+POST /cards/c1/move {"intent": "sideways"}
+  400 move_card {"error":{"code":"invalid_argument","message":"intent must be one of into, before, after, left, right, to_start, to_end, up_level"},"ok":false}
+POST /cards/c1/move {"intent": "to_end", "project_id": "p1"}
+  400 move_card {"error":{"code":"invalid_argument","message":"CardMove has no field project_id"},"ok":false}
+DELETE /cards/c1?children=trash_subtree
+  200 trash_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":1793000200,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+DELETE /cards/c1?children=everything
+  400 trash_card {"error":{"code":"invalid_argument","message":"children must be one of promote, trash_subtree"},"ok":false}
+POST /cards/c1/restore
+  200 restore_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+POST /cards/c1/restore
+  409 restore_card {"error":{"code":"conflict","message":"the card is not in the trash: c1"},"ok":false}
 GET /cards/c9
   404 get_card {"error":{"code":"not_found","message":"card not found: c9"},"ok":false}
 GET /projects/p2/cards
@@ -72,8 +92,8 @@ GET /projects/p1/cards?tag=%ff
   400 list_cards {"error":{"code":"invalid_argument","message":"tag must be UTF-8"},"ok":false}
 GET /cards/%zz
   400 get_card {"error":{"code":"invalid_argument","message":"invalid percent escape in URL parameter"},"ok":false}
-DELETE /cards/c1
-  not dispatched; allowed: GET
+PUT /cards/c1
+  not dispatched; allowed: DELETE GET PATCH
 GET /cards
   not dispatched; allowed: POST
 GET /nowhere

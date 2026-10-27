@@ -162,9 +162,10 @@ TEST_CASE(
   const auto grandchild = f.bytes(grandchild_id);
   const auto before_head = f.head();
   f.store.trash(parent_id, 10);
+  // The children's sort keys tie, so they keep their order by card ID, whatever their titles.
   REQUIRE(
       f.order(ancestor) ==
-      std::vector<std::string>{before_id, child_a_id, child_b_id, child_z_id, after_id}
+      std::vector<std::string>{before_id, child_z_id, child_a_id, child_b_id, after_id}
   );
   REQUIRE(f.cards.get(child_a_id)->parent_card_id == ancestor);
   REQUIRE(f.cards.get(grandchild_id)->parent_card_id == child_a_id);
@@ -183,7 +184,7 @@ TEST_CASE(
   f.rebuild();
   REQUIRE(
       f.order(ancestor) ==
-      std::vector<std::string>{before_id, child_a_id, child_b_id, child_z_id, after_id}
+      std::vector<std::string>{before_id, child_z_id, child_a_id, child_b_id, after_id}
   );
   f.store.restore(parent_id, 11);
   REQUIRE(f.cards.get(child_a_id)->parent_card_id == ancestor);

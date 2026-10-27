@@ -210,7 +210,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
     public int64 last_move_updated_at = 0;
-    public string last_move_project_id = "";
     public string last_move_intent = "";
     public string? last_move_target_card_id = null;
     public bool fail_health = false;
@@ -240,7 +239,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public bool fail_delete_resource = false;
     public uint list_card_links_delay_ms = 0;
     public bool include_card2 = false;
-    public string next_move_into_title = "";
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
     public bool include_home_project = false;
@@ -1166,7 +1164,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     }
 
     public async HolderLinux.CardMoveResult move_card(string card_id,
-                                                       string project_id,
                                                        string intent,
                                                        string? target_card_id = null,
                                                        string? parent_card_id = null) throws Error {
@@ -1174,12 +1171,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
             throw new IOError.FAILED("move by intent failed");
         }
         update_card_position_calls++;
-        last_move_project_id = project_id;
         last_move_intent = intent;
         last_move_target_card_id = target_card_id;
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
-        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, next_move_into_title);
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0);
     }
 
     public async HolderLinux.ProjectCalendar get_project_calendar(string project_id,

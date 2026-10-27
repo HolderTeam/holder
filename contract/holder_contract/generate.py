@@ -204,6 +204,8 @@ class Model:
             raise Unsupported(f"{name}: {ref['kind']}")
         if "pattern" in ref:
             raise Unsupported(f"{name}: patterns, which the glue would not check")
+        # A field's or parameter's doc ends up in a one-line comment.
+        doc = " ".join(doc.split()) if doc else doc
         return Slot(name, ref, doc, nullable, omittable or has_default, default, has_default, nullable and omittable)
 
     def changes(self) -> bool:

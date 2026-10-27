@@ -130,8 +130,6 @@ def test_a_partial_update_is_a_change_in_c_and_cpp():
     assert "    HOLDER_CARD_CHANGE_INTENT_INTO = 1," in files["holder_api.h"]
     assert "    holder_card_change_intent intent; /* How to place it. */" in files["holder_api.h"]
     assert "enum class CardChangeIntent { Into, ToEnd };" in files["Contract.h"]
-    # Holder's contract has none yet, so nothing changes for it.
-    assert "holder_change" not in generate(holder_ir())["holder_api.h"]
 
 
 def test_a_partial_update_of_anything_but_text_stops_generation():

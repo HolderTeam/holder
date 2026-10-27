@@ -117,7 +117,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
             )
         writes.append(request)
         if request.url.path == "/cards/c-0000/restore":
-            return ok({"card_id": "c-0000"})
+            return ok(card_payload(content=True))
         if request.url.path == "/ai/messages/m-1/restore":
             return ok({"message_id": "m-1"})
         return ok({})

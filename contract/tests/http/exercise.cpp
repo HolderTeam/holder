@@ -42,6 +42,17 @@ int main() {
   // An integer written with a fraction or an exponent, down to int64's least.
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Whole", "created_at": 691.0, "updated_at": 7e2})");
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Least", "created_at": -9223372036854775808.0})");
+  // The card lifecycle.
+  send(*context, "PATCH", "/cards/c1", R"({"title": "Thesis, revised", "parent_card_id": "c2"})");
+  send(*context, "PATCH", "/cards/c1", R"({"parent_card_id": null})");
+  send(*context, "PATCH", "/cards/c1", R"({"title": ""})");
+  send(*context, "POST", "/cards/c1/move", R"({"intent": "into", "target_card_id": "c1"})");
+  send(*context, "POST", "/cards/c1/move", R"({"intent": "sideways"})");
+  send(*context, "POST", "/cards/c1/move", R"({"intent": "to_end", "project_id": "p1"})");
+  send(*context, "DELETE", "/cards/c1?children=trash_subtree");
+  send(*context, "DELETE", "/cards/c1?children=everything");
+  send(*context, "POST", "/cards/c1/restore");
+  send(*context, "POST", "/cards/c1/restore");
   // Not found.
   send(*context, "GET", "/cards/c9");
   send(*context, "GET", "/projects/p2/cards");
@@ -71,7 +82,7 @@ int main() {
   send(*context, "GET", "/projects/p1/cards?tag=%ff");
   send(*context, "GET", "/cards/%zz");
   // Not the contract's.
-  send(*context, "DELETE", "/cards/c1");
+  send(*context, "PUT", "/cards/c1");
   send(*context, "GET", "/cards");
   send(*context, "GET", "/nowhere");
   stub_context_free(context);
