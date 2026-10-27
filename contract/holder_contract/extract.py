@@ -80,6 +80,22 @@ def extract(root: Path, package: str) -> dict[str, Any]:
     return _Builder(modules, declared, app, app_path.relative_to(root).as_posix()).build()
 
 
+def load_contract(root: Path, package: str) -> Contract | None:
+    """The Contract the package's app.py makes, for FastAPI's document of its routes; None without one.
+
+    Call it after extract(), which checks the package and reports any problem in it.
+    """
+    root = Path(root).resolve()
+    if not (root / package / APP_FILE).exists():
+        return None
+    sys.path.insert(0, str(root))
+    try:
+        app = importlib.import_module(f"{package}.{Path(APP_FILE).stem}")
+    finally:
+        sys.path.remove(str(root))
+    return next(v for v in vars(app).values() if isinstance(v, Contract))
+
+
 def _doc(obj: Any) -> str | None:
     text = obj.__dict__.get("__doc__") if isinstance(obj, type) else getattr(obj, "__doc__", None)
     return inspect.cleandoc(text) if text else None

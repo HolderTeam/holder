@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
-from .extract import ContractError, extract
+from .extract import ContractError, extract, load_contract
 from .generate import CORE_PATHS, Unsupported, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -33,12 +33,12 @@ def collisions(files: dict[str, str]) -> list[str]:
     return sorted(generated & existing)
 
 
-def repository_files(ir: dict, files: dict[str, str]) -> dict[str, str]:
+def repository_files(ir: dict, contract, files: dict[str, str]) -> dict[str, str]:
     """Every generated file the repository holds, by its path in the repository."""
-    daemon = generate_daemon(ir)
+    daemon = generate_daemon(ir, contract)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
-            **{OPENAPI_PATHS[name]: text for name, text in api_documents(ir, REPOSITORY).items()}}
+            **{OPENAPI_PATHS[name]: text for name, text in api_documents(contract, REPOSITORY).items()}}
 
 
 def stale_files(files: dict[str, str]) -> list[str]:
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.command in ("check", "update"):
         try:
-            files = repository_files(ir, files)
+            files = repository_files(ir, load_contract(args.root, args.package), files)
         except (Unsupported, ValueError) as error:
             print(f"The daemon's files cannot be generated: {error}", file=sys.stderr)
             return 1
@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.output:
             parser.error("generate needs --output, a directory")
         try:
-            files = {**files, **generate_daemon(ir)}
+            files = {**files, **generate_daemon(ir, load_contract(args.root, args.package))}
         except Unsupported as error:
             print(f"The daemon's generators do not support this yet: {error}", file=sys.stderr)
             return 1

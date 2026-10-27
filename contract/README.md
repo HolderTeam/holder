@@ -14,7 +14,8 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 - `holder_contract/` is the tooling:
   - the vocabulary contract files import (`vocabulary.py`) and the rules they must follow (`rules.py`);
   - the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md));
-  - the generators: `generate.py` for core's C API, and `http_routes.py`, `json_codec.py` and `openapi.py` for the daemon (`daemon.py` runs them);
+  - the routes' helper, `routes.py`, which `app.py` declares the operations with;
+  - the generators: `generate.py` for core's C API, `http_routes.py` and `json_codec.py` for the daemon, and `openapi.py`, which takes FastAPI's document of the routes (`daemon.py` runs them);
   - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.

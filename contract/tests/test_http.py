@@ -4,7 +4,6 @@ The route rules are ported with RIG's generators, as are their tests. tests/http
 dispatcher against the stand-in core in tests/c/ and sends it requests.
 """
 
-import copy
 import json
 import re
 import shutil
@@ -14,10 +13,10 @@ from pathlib import Path
 import pytest
 
 from holder_contract.daemon import generate_daemon
-from holder_contract.extract import extract
+from holder_contract.extract import extract, load_contract
 from holder_contract.generate import Model, Unsupported, generate
 from holder_contract.http_routes import generate_routes, route_pattern, validate_routes
-from holder_contract.openapi import convert, dumps, merge
+from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, merge, named_by_title
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -28,6 +27,11 @@ NLOHMANN = [Path(p) for p in ("/usr/include/nlohmann/json.hpp", "/usr/local/incl
 
 def holder_ir():
     return extract(CONTRACT, "interface")
+
+
+def holder_contract():
+    holder_ir()  # checks the contract first
+    return load_contract(CONTRACT, "interface")
 
 
 def binding(method, path):
@@ -80,14 +84,14 @@ def test_a_literal_segment_is_tried_before_a_parameter():
 
 
 def test_every_generated_file_names_its_source():
-    for name, text in generate_daemon(holder_ir()).items():
+    for name, text in generate_daemon(holder_ir(), holder_contract()).items():
         if name.endswith(".h"):
             assert "Generated from contract/interface/app.py, contract/interface/cards.py" in text.splitlines()[0], name
 
 
 def test_unsupported_parts_of_the_contract_stop_generation():
     with pytest.raises(Unsupported):
-        generate_daemon(extract(TESTS / "fixtures", "sample"))
+        generate_daemon(extract(TESTS / "fixtures", "sample"), load_contract(TESTS / "fixtures", "sample"))
 
 
 def test_a_body_that_is_not_a_record_stops_generation():
@@ -104,67 +108,75 @@ def test_a_body_that_is_not_a_record_stops_generation():
 
 
 def openapi():
-    return convert(Model(holder_ir()))
+    return document(holder_contract())
 
 
-def test_paths_take_their_parameters_from_the_binding():
+def test_fastapis_validation_responses_and_operation_ids_are_left_out():
+    result = openapi()
+    for methods in result["paths"].values():
+        for operation in methods.values():
+            assert "422" not in operation["responses"]
+            assert "operationId" not in operation
+    assert not {"HTTPValidationError", "ValidationError"} & set(result["components"]["schemas"])
+
+
+def test_parameters_come_from_fastapis_analysis_of_the_routes():
     operation = openapi()["paths"]["/projects/{project_id}/cards"]["get"]
     parameters = {p["name"]: p for p in operation["parameters"]}
     assert parameters["project_id"] == {"name": "project_id", "in": "path", "required": True,
-                                        "schema": {"type": "string", "minLength": 1}}
+                                        "schema": {"$ref": "#/components/schemas/ProjectId"}}
     assert parameters["limit"]["required"] is False
-    assert parameters["limit"]["schema"] == {"type": "integer", "format": "int32", "minimum": 1, "maximum": 5000,
-                                             "default": 200}
+    limit = parameters["limit"]["schema"]
+    assert (limit["format"], limit["minimum"], limit["maximum"], limit["default"]) == ("int32", 1, 5000, 200)
     assert parameters["order"]["schema"]["enum"] == ["card_id_asc", "updated_desc", "sort_key_asc"]
-    assert parameters["parent"]["schema"] == {"oneOf": [{"type": "string", "enum": ["roots"]},
-                                                        {"type": "string", "minLength": 1}]}
+    assert {"const": "roots", "type": "string"} in parameters["parent"]["schema"]["anyOf"]
     assert operation["summary"] == "Page through a project's live cards."
 
 
-def test_success_is_enveloped_with_the_bindings_status():
-    responses = openapi()["paths"]["/cards"]["post"]["responses"]
+def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemons_body():
+    result = openapi()
+    responses = result["paths"]["/cards"]["post"]["responses"]
     assert list(responses) == ["201", "400", "404", "409", "500", "503"]
     assert responses["201"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/CardResponse"}
-    assert openapi()["components"]["schemas"]["CardResponse"] == {
-        "type": "object",
-        "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": {"$ref": "#/components/schemas/Card"}},
-        "required": ["ok", "data"]}
+    envelope = result["components"]["schemas"]["CardResponse"]
+    assert envelope["properties"]["data"] == {"$ref": "#/components/schemas/Card"}
+    assert envelope["required"] == ["ok", "data"]
     assert responses["404"]["description"] == "The thing asked for does not exist, or is in the trash."
     # Error kinds that share a status share its response.
     assert responses["409"]["description"] == (
         "What would be created already exists, such as a card with the same ID or file. "
         "An encrypted project's key is not on this device; the project's recovery token restores it.")
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
+    # The same error schemas as RIG's document, so that the two merge.
+    assert {k: result["components"]["schemas"][k] for k in ERROR_SCHEMAS} == ERROR_SCHEMAS
 
 
-def test_records_list_their_bases_fields_and_keep_null_and_omitted_apart():
+def test_records_are_closed_and_list_their_bases_fields():
     schemas = openapi()["components"]["schemas"]
     item = schemas["CardListItem"]
-    # The base's fields as well as its own: a closed record cannot be an allOf of closed schemas.
     assert "allOf" not in item and item["additionalProperties"] is False
     assert list(item["properties"])[:2] == ["card_id", "project_id"]
-    assert item["properties"]["child_count"] == {
-        "type": "integer", "format": "int32", "description": "The card's live children; present when asked for."}
     assert "child_count" not in item["required"] and "card_id" in item["required"]
-    assert item["properties"]["parent_card_id"]["type"] == ["string", "null"]
-    assert "parent_card_id" in item["required"]
-    new_card = schemas["NewCard"]
-    assert new_card["required"] == ["project_id", "title"]
-    assert new_card["properties"]["content"]["default"] == ""
+    assert {"type": "null"} in item["properties"]["parent_card_id"]["anyOf"]
+    assert schemas["NewCard"]["required"] == ["project_id", "title"]
+    assert schemas["NewCard"]["properties"]["content"]["default"] == ""
 
 
-def test_a_generic_record_is_named_for_its_arguments():
+def test_a_generic_records_use_is_named_for_its_arguments():
     schemas = openapi()["components"]["schemas"]
-    assert schemas["CardListItemPage"]["properties"]["items"] == {
-        "type": "array", "items": {"$ref": "#/components/schemas/CardListItem"}, "description": "The page's items."}
+    assert {"CardListItemPage", "CardListItemPageResponse", "CardResponse"} <= set(schemas)
+    assert not any("_" in name for name in schemas)
+    assert schemas["CardListItemPage"]["properties"]["items"]["items"] == {"$ref": "#/components/schemas/CardListItem"}
 
 
-def test_documents_are_ordered_independently_of_declarations():
-    ir = holder_ir()
-    reordered = copy.deepcopy(ir)
-    reordered["http"].reverse()
-    reordered["records"].reverse()
-    assert json.dumps(convert(Model(reordered))) == json.dumps(convert(Model(ir)))
+def test_schemas_that_would_share_a_name_are_refused():
+    clash = {"paths": {}, "components": {"schemas": {"A_B_": {"title": "AB"}, "AB": {"title": "AB"}}}}
+    with pytest.raises(ValueError, match="schemas would share the names AB"):
+        named_by_title(clash)
+
+
+def test_the_document_is_the_same_on_every_run():
+    assert json.dumps(openapi()) == json.dumps(openapi())
 
 
 def test_yaml_and_json_describe_the_same_document():
@@ -182,7 +194,7 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     # Laid out as the daemon includes them, with core's C++ declarations from generate.py.
     (tmp_path / "api" / "generated").mkdir(parents=True)
     (tmp_path / "api" / "Contract.h").write_text(generate(holder_ir())["Contract.h"], encoding="utf-8")
-    for name, text in generate_daemon(holder_ir()).items():
+    for name, text in generate_daemon(holder_ir(), holder_contract()).items():
         (tmp_path / "api" / "generated" / name).write_text(text, encoding="utf-8")
 
     def run(*command):

@@ -18,8 +18,8 @@ class Card:
     """A card, with its content and tags.
 
     Attributes:
-        card_id (str): The card's ID.
-        project_id (str): The project the card belongs to.
+        card_id (str):
+        project_id (str):
         title (str): The card's title.
         rel_path (str): The card's file, relative to the project's root.
         parent_card_id (None | str): The card's parent; null for a root card.

@@ -48,7 +48,7 @@ class Envelope[T](BaseModel):
         return "".join(getattr(p, "__name__", str(p)) for p in params) + "Response"
 
 
-class ErrorBody(BaseModel):
+class Error(BaseModel):
     """What went wrong."""
 
     code: str
@@ -59,7 +59,7 @@ class ErrorResponse(BaseModel):
     """A failure, as the daemon answers it."""
 
     ok: Literal[False]
-    error: ErrorBody
+    error: Error
 
 
 class OctetStream(StreamingResponse):
@@ -111,6 +111,7 @@ class Contract:
                 options = {"response_class": OctetStream, "response_model": None}
             else:
                 options = {"response_model": Envelope[returns]}
+            options["responses"] = self.error_responses(errors)
             self.router.add_api_route(path, function, methods=[method], status_code=status,
                                       summary=summary.strip() or None, description=description.strip() or None,
                                       operation_id=function.__name__, **options)
@@ -118,6 +119,16 @@ class Contract:
             return function
 
         return register
+
+    def error_responses(self, errors: list[type[HolderError]]) -> dict[int | str, dict[str, Any]]:
+        """A route's failures: an invalid argument, each of its error kinds by status, and the rest."""
+        descriptions: dict[int, list[str]] = {400: ["Invalid argument."]}
+        for error in errors:
+            if error in self.statuses:  # the extractor reports a kind without one
+                descriptions.setdefault(self.statuses[error], []).append(inspect.getdoc(error) or error.__name__)
+        descriptions.setdefault(500, []).append("Unexpected failure.")
+        return {status: {"model": ErrorResponse, "description": " ".join(texts)}
+                for status, texts in sorted(descriptions.items())}
 
     def core_operation(self, *, errors: list[type[HolderError]] = ()) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare an operation only core's C API has; the daemon does not serve it."""

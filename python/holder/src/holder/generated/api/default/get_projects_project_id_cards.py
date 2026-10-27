@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote
 
 import httpx
@@ -9,37 +9,37 @@ from ...client import AuthenticatedClient, Client
 from ...models.card_list_item_page_response import CardListItemPageResponse
 from ...models.error_response import ErrorResponse
 from ...models.get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
-from ...models.get_projects_project_id_cards_parent_type_0 import (
-    GetProjectsProjectIdCardsParentType0,
-)
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
-    tag: str | Unset = UNSET,
+    parent: Literal["roots"] | None | str | Unset = UNSET,
+    tag: None | str | Unset = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    json_parent: str | Unset
+    json_parent: Literal["roots"] | None | str | Unset
     if isinstance(parent, Unset):
         json_parent = UNSET
-    elif isinstance(parent, GetProjectsProjectIdCardsParentType0):
-        json_parent = parent.value
     else:
         json_parent = parent
     params["parent"] = json_parent
 
-    params["tag"] = tag
+    json_tag: None | str | Unset
+    if isinstance(tag, Unset):
+        json_tag = UNSET
+    else:
+        json_tag = tag
+    params["tag"] = json_tag
 
     json_order: str | Unset = UNSET
     if not isinstance(order, Unset):
@@ -49,7 +49,12 @@ def _get_kwargs(
 
     params["limit"] = limit
 
-    params["cursor"] = cursor
+    json_cursor: None | str | Unset
+    if isinstance(cursor, Unset):
+        json_cursor = UNSET
+    else:
+        json_cursor = cursor
+    params["cursor"] = json_cursor
 
     params["include_content"] = include_content
 
@@ -127,12 +132,12 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
-    tag: str | Unset = UNSET,
+    parent: Literal["roots"] | None | str | Unset = UNSET,
+    tag: None | str | Unset = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
 ) -> Response[CardListItemPageResponse | ErrorResponse]:
@@ -142,14 +147,20 @@ def sync_detailed(
 
     Args:
         project_id (str):
-        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
-        tag (str | Unset):
-        order (GetProjectsProjectIdCardsOrder | Unset):  Default:
+        parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
+            cards; a card ID selects its children.
+        tag (None | str | Unset): Only cards with this tag, matched without case and without the
+            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
+            and -; a hex colour such as fff is not a tag.
+        order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
+            card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
-        limit (int | Unset):  Default: 200.
-        cursor (str | Unset):
-        include_content (bool | Unset):  Default: False.
-        include_child_count (bool | Unset):  Default: False.
+        limit (int | Unset): At most 1000 when include_content is true. Default: 200.
+        cursor (None | str | Unset): The previous page's next_cursor. Keep the project, filters
+            and order unchanged.
+        include_content (bool | Unset): Include each card's body. Default: False.
+        include_child_count (bool | Unset): Include each card's count of live children. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -181,12 +192,12 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
-    tag: str | Unset = UNSET,
+    parent: Literal["roots"] | None | str | Unset = UNSET,
+    tag: None | str | Unset = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
 ) -> CardListItemPageResponse | ErrorResponse | None:
@@ -196,14 +207,20 @@ def sync(
 
     Args:
         project_id (str):
-        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
-        tag (str | Unset):
-        order (GetProjectsProjectIdCardsOrder | Unset):  Default:
+        parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
+            cards; a card ID selects its children.
+        tag (None | str | Unset): Only cards with this tag, matched without case and without the
+            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
+            and -; a hex colour such as fff is not a tag.
+        order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
+            card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
-        limit (int | Unset):  Default: 200.
-        cursor (str | Unset):
-        include_content (bool | Unset):  Default: False.
-        include_child_count (bool | Unset):  Default: False.
+        limit (int | Unset): At most 1000 when include_content is true. Default: 200.
+        cursor (None | str | Unset): The previous page's next_cursor. Keep the project, filters
+            and order unchanged.
+        include_content (bool | Unset): Include each card's body. Default: False.
+        include_child_count (bool | Unset): Include each card's count of live children. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -230,12 +247,12 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
-    tag: str | Unset = UNSET,
+    parent: Literal["roots"] | None | str | Unset = UNSET,
+    tag: None | str | Unset = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
 ) -> Response[CardListItemPageResponse | ErrorResponse]:
@@ -245,14 +262,20 @@ async def asyncio_detailed(
 
     Args:
         project_id (str):
-        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
-        tag (str | Unset):
-        order (GetProjectsProjectIdCardsOrder | Unset):  Default:
+        parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
+            cards; a card ID selects its children.
+        tag (None | str | Unset): Only cards with this tag, matched without case and without the
+            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
+            and -; a hex colour such as fff is not a tag.
+        order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
+            card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
-        limit (int | Unset):  Default: 200.
-        cursor (str | Unset):
-        include_content (bool | Unset):  Default: False.
-        include_child_count (bool | Unset):  Default: False.
+        limit (int | Unset): At most 1000 when include_content is true. Default: 200.
+        cursor (None | str | Unset): The previous page's next_cursor. Keep the project, filters
+            and order unchanged.
+        include_content (bool | Unset): Include each card's body. Default: False.
+        include_child_count (bool | Unset): Include each card's count of live children. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -282,12 +305,12 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    parent: GetProjectsProjectIdCardsParentType0 | str | Unset = UNSET,
-    tag: str | Unset = UNSET,
+    parent: Literal["roots"] | None | str | Unset = UNSET,
+    tag: None | str | Unset = UNSET,
     order: GetProjectsProjectIdCardsOrder
     | Unset = GetProjectsProjectIdCardsOrder.CARD_ID_ASC,
     limit: int | Unset = 200,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
     include_content: bool | Unset = False,
     include_child_count: bool | Unset = False,
 ) -> CardListItemPageResponse | ErrorResponse | None:
@@ -297,14 +320,20 @@ async def asyncio(
 
     Args:
         project_id (str):
-        parent (GetProjectsProjectIdCardsParentType0 | str | Unset):
-        tag (str | Unset):
-        order (GetProjectsProjectIdCardsOrder | Unset):  Default:
+        parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
+            cards; a card ID selects its children.
+        tag (None | str | Unset): Only cards with this tag, matched without case and without the
+            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
+            and -; a hex colour such as fff is not a tag.
+        order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
+            card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
-        limit (int | Unset):  Default: 200.
-        cursor (str | Unset):
-        include_content (bool | Unset):  Default: False.
-        include_child_count (bool | Unset):  Default: False.
+        limit (int | Unset): At most 1000 when include_content is true. Default: 200.
+        cursor (None | str | Unset): The previous page's next_cursor. Keep the project, filters
+            and order unchanged.
+        include_content (bool | Unset): Include each card's body. Default: False.
+        include_child_count (bool | Unset): Include each card's count of live children. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
