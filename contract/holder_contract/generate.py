@@ -769,6 +769,14 @@ def from_c_value(model: Model, slot: Slot, source: str, label: str) -> str:
                 return f"({source} ? {inner} : {cpp}{{{cpp_literal(slot.default)}}})"
             return f"({source} ? std::optional<{cpp}>({inner}) : std::nullopt)"
         return check.format(source)
+    if t["kind"] == "list":
+        items = model.resolve(t["items"])
+        if items["kind"] != "named":
+            raise Unsupported(f"{label}: lists of {items['kind']} as inputs")
+        if optional:
+            cpp = f"std::vector<{model.instance(items, {}).qualified('contract::')}>"
+            return f'({source} ? std::optional<{cpp}>(from_c_list(*{source}, "{label}")) : std::nullopt)'
+        return f'from_c_list({source}, "{label}")'
     raise Unsupported(f"{label}: {t['kind']} inputs")
 
 
@@ -843,6 +851,14 @@ def generate_glue(model: Model) -> str:
                 continue
             out.append(f"  out.{slot.name} = {from_c_value(model, slot, 'value.' + slot.name, label)};")
         out += ["  return out;", "}", ""]
+        if instance in model.listed:
+            out += [(f"std::vector<{instance.qualified('contract::')}> from_c_list("
+                     f"const {instance.c_name}_list& values, const char* name) {{"),
+                    '  require(values.items != nullptr || values.count == 0, std::string(name) + ".items must not be null");',
+                    f"  std::vector<{instance.qualified('contract::')}> out;",
+                    "  out.reserve(values.count);",
+                    "  for (std::size_t i = 0; i < values.count; ++i) out.push_back(from_c(values.items[i]));",
+                    "  return out;", "}", ""]
     out += ["}  // namespace", "", 'extern "C" {', "",
             "holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }",
             "void holder_arena_free(holder_arena* arena) { delete arena; }", ""]
