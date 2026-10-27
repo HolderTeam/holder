@@ -193,8 +193,9 @@ private void test_parse_card_context_errors() {
 private void test_parse_card_links_and_link_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
-        "{\"from_card_id\":\"a\",\"to_card_id\":\"b\",\"to_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":9}," +
-        "{\"from_card_id\":\"x\",\"to_card_id\":\"y\"}" +
+        "{\"source_project_id\":\"p1\",\"source_id\":\"a\",\"target_project_id\":\"p2\",\"target_id\":\"b\"," +
+        "\"target_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":9}," +
+        "{\"source_id\":\"x\",\"target_id\":\"y\",\"label\":null}" +
         "]}"
     );
 
@@ -212,6 +213,8 @@ private void test_parse_card_links_and_link_defaults() {
     assert(links[0].kind == "ref");
     assert(links[0].label == "L");
     assert(links[0].created_at == 9);
+    assert(links[0].source_project_id == "p1");
+    assert(links[0].target_project_id == "p2");
 
     assert(links[1].from_card_id == "x");
     assert(links[1].to_card_id == "y");

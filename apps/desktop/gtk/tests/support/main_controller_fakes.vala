@@ -581,7 +581,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return tagged_cards;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         if (fail_list_card_links) {
             throw new IOError.FAILED("list card links failed");
         }
@@ -611,7 +611,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return card_links;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         if (fail_list_card_backlinks) {
             throw new IOError.FAILED("list card backlinks failed");
         }
@@ -732,7 +732,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_id = resource_id;
     }
 
-    public async HolderLinux.CardLink create_card_link(string from_card_id,
+    public async HolderLinux.CardLink create_card_link(string project_id,
+                                                       string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",
                                                        string? label = null,
@@ -749,10 +750,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
     }
 
-    public async void delete_card_link(string from_card_id,
+    public async void delete_card_link(string project_id,
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {
         if (fail_delete_card_link) {
             throw new IOError.FAILED("delete card link failed");
         }

@@ -275,8 +275,8 @@ public class ConnectionsController : Object {
             );
         }
         try {
-            var outgoing = yield api.list_card_links(selected_card.card_id);
-            var backlinks = yield api.list_card_backlinks(selected_card.card_id);
+            var outgoing = yield api.list_card_links(selected_card.project_id, selected_card.card_id);
+            var backlinks = yield api.list_card_backlinks(selected_card.project_id, selected_card.card_id);
             return new ConnectionsGraphLoadResult(true, outgoing, backlinks);
         } catch (Error e) {
             return new ConnectionsGraphLoadResult(
@@ -687,11 +687,15 @@ public class ConnectionsController : Object {
         }
         try {
             var kind_changed = old_link.kind != new_kind;
+            var project_id = old_link.source_project_id;
             if (kind_changed) {
-                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
-                yield api.delete_card_link(old_link.from_card_id, old_link.to_card_id, old_link.kind, old_link.to_type);
+                yield api.create_card_link(project_id, old_link.from_card_id, old_link.to_card_id, new_kind, new_label,
+                                           old_link.to_type);
+                yield api.delete_card_link(project_id, old_link.from_card_id, old_link.to_card_id, old_link.kind,
+                                           old_link.to_type, old_link.target_project_id);
             } else {
-                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+                yield api.create_card_link(project_id, old_link.from_card_id, old_link.to_card_id, new_kind, new_label,
+                                           old_link.to_type);
             }
             if (remember_kind) {
                 remember_custom_link_kind(settings, new_kind);
@@ -713,7 +717,8 @@ public class ConnectionsController : Object {
             return new ConnectionsMutationResult(false, true);
         }
         try {
-            yield api.delete_card_link(link.from_card_id, link.to_card_id, link.kind, link.to_type);
+            yield api.delete_card_link(link.source_project_id, link.from_card_id, link.to_card_id, link.kind, link.to_type,
+                                       link.target_project_id);
             return new ConnectionsMutationResult(true, false, "Graph link deleted.", "", "", true);
         } catch (Error e) {
             return new ConnectionsMutationResult(

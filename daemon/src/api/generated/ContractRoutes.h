@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
@@ -386,6 +386,164 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "move_card");
         }
     }
+    static const std::regex route_10("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (method == "GET" && std::regex_match(route_path, match, route_10)) {
+        std::string project_id{};
+        std::string card_id{};
+        bool include_deleted{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_include_deleted = query_values.find("include_deleted");
+            if (query_include_deleted != query_values.end()) {
+                const auto& text = query_include_deleted->second;
+                include_deleted = decode_bool(text, "include_deleted");
+            } else {
+                include_deleted = false;
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_links");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_card_links(context, std::move(project_id), std::move(card_id), std::move(include_deleted))), "list_card_links");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "list_card_links");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_links");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_card_links");
+        }
+    }
+    static const std::regex route_11("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
+    if (method == "GET" && std::regex_match(route_path, match, route_11)) {
+        std::string project_id{};
+        std::string card_id{};
+        holder::contract::ListCardBacklinksScope scope{};
+        bool include_deleted{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_scope = query_values.find("scope");
+            if (query_scope != query_values.end()) {
+                const auto& text = query_scope->second;
+                if (text == "local") scope = holder::contract::ListCardBacklinksScope::Local;
+                else if (text == "external") scope = holder::contract::ListCardBacklinksScope::External;
+                else if (text == "all_available") scope = holder::contract::ListCardBacklinksScope::AllAvailable;
+                else throw std::invalid_argument("scope must be one of local, external, all_available");
+            } else {
+                scope = holder::contract::ListCardBacklinksScope::Local;
+            }
+            const auto query_include_deleted = query_values.find("include_deleted");
+            if (query_include_deleted != query_values.end()) {
+                const auto& text = query_include_deleted->second;
+                include_deleted = decode_bool(text, "include_deleted");
+            } else {
+                include_deleted = false;
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_backlinks");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_card_backlinks(context, std::move(project_id), std::move(card_id), std::move(scope), std::move(include_deleted))), "list_card_backlinks");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "list_card_backlinks");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_card_backlinks");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_card_backlinks");
+        }
+    }
+    static const std::regex route_12("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (method == "POST" && std::regex_match(route_path, match, route_12)) {
+        std::string project_id{};
+        std::string card_id{};
+        holder::contract::NewLink link{};
+        try {
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            link = contract_json::decode<holder::contract::NewLink>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "add_card_link");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::add_card_link(context, std::move(project_id), std::move(card_id), std::move(link))), "add_card_link");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "add_card_link");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "add_card_link");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "add_card_link");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "add_card_link");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "add_card_link");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "add_card_link");
+        }
+    }
+    static const std::regex route_13("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_13)) {
+        std::string project_id{};
+        std::string card_id{};
+        holder::contract::RemoveCardLinkTargetType target_type{};
+        std::string target_id{};
+        std::string kind{};
+        std::optional<std::string> target_project_id{};
+        try {
+            const auto query_values = decode_query(query_string);
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_target_type = query_values.find("target_type");
+            if (query_target_type != query_values.end()) {
+                const auto& text = query_target_type->second;
+                if (text == "card") target_type = holder::contract::RemoveCardLinkTargetType::Card;
+                else if (text == "ai_message") target_type = holder::contract::RemoveCardLinkTargetType::AiMessage;
+                else if (text == "ai_thread") target_type = holder::contract::RemoveCardLinkTargetType::AiThread;
+                else if (text == "resource") target_type = holder::contract::RemoveCardLinkTargetType::Resource;
+                else throw std::invalid_argument("target_type must be one of card, ai_message, ai_thread, resource");
+            } else {
+                throw std::invalid_argument("the query parameter target_type is required");
+            }
+            const auto query_target_id = query_values.find("target_id");
+            if (query_target_id != query_values.end()) {
+                const auto& text = query_target_id->second;
+                target_id = contract_json::check_text(text, "target_id", 1, std::numeric_limits<std::size_t>::max());
+            } else {
+                throw std::invalid_argument("the query parameter target_id is required");
+            }
+            const auto query_kind = query_values.find("kind");
+            if (query_kind != query_values.end()) {
+                const auto& text = query_kind->second;
+                kind = contract_json::check_text(text, "kind", 1, std::numeric_limits<std::size_t>::max());
+            } else {
+                kind = "ref";
+            }
+            const auto query_target_project_id = query_values.find("target_project_id");
+            if (query_target_project_id != query_values.end()) {
+                const auto& text = query_target_project_id->second;
+                target_project_id = contract_json::check_text(text, "target_project_id", 1, std::numeric_limits<std::size_t>::max());
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "remove_card_link");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::remove_card_link(context, std::move(project_id), std::move(card_id), std::move(target_type), std::move(target_id), std::move(kind), std::move(target_project_id))), "remove_card_link");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "remove_card_link");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "remove_card_link");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "remove_card_link");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "remove_card_link");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "remove_card_link");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "remove_card_link");
+        }
+    }
     static const std::regex route_7("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
     if (method == "PUT" && std::regex_match(route_path, match, route_7)) {
         std::string project_id{};
@@ -461,8 +619,12 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     if (std::regex_match(route_path, path_3)) methods.insert({"POST"});
     static const std::regex path_4("^/projects/([^/]+)/cards/([^/]+)/move$");
     if (std::regex_match(route_path, path_4)) methods.insert({"POST"});
-    static const std::regex path_5("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
-    if (std::regex_match(route_path, path_5)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_5("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (std::regex_match(route_path, path_5)) methods.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_6("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_6)) methods.insert({"GET"});
+    static const std::regex path_7("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
+    if (std::regex_match(route_path, path_7)) methods.insert({"DELETE", "PUT"});
     return methods;
 }
 }  // namespace contract_http

@@ -58,6 +58,20 @@ GET /projects/p1/tags
   200 list_project_tags {"data":[{"card_count":1,"tag":"a/b"},{"card_count":1,"tag":"draft"},{"card_count":1,"tag":"idea"}],"ok":true}
 GET /projects/p2/tags
   404 list_project_tags {"error":{"code":"not_found","message":"project not found: p2"},"ok":false}
+POST /projects/p1/cards/c1/links {"target_type": "card", "target_id": "c2", "target_project_id": "p9", "label": null}
+  200 add_card_link {"data":{"created_at":1793000300,"kind":"ref","label":null,"source_id":"c1","source_project_id":"p1","source_type":"card","target_id":"c2","target_project_id":"p9","target_type":"card"},"ok":true}
+POST /projects/p1/cards/c1/links {"target_type": "page", "target_id": "c2"}
+  400 add_card_link {"error":{"code":"invalid_argument","message":"target_type must be one of card, ai_message, ai_thread, resource"},"ok":false}
+POST /projects/p1/cards/c1/links {"target_type": "card", "target_id": "c2", "kind": ""}
+  400 add_card_link {"error":{"code":"invalid_argument","message":"kind must not be empty"},"ok":false}
+GET /projects/p1/cards/c1/links?include_deleted=true
+  200 list_card_links {"data":[{"created_at":1793000300,"kind":"ref","label":null,"source_id":"c1","source_project_id":"p1","source_type":"card","target_id":"c2","target_project_id":"p9","target_type":"card"}],"ok":true}
+GET /projects/p1/cards/c1/backlinks?scope=everywhere
+  400 list_card_backlinks {"error":{"code":"invalid_argument","message":"scope must be one of local, external, all_available"},"ok":false}
+DELETE /projects/p1/cards/c1/links?target_type=card&target_id=c2&target_project_id=p9
+  200 remove_card_link {"data":[],"ok":true}
+DELETE /projects/p1/cards/c1/links?target_id=c2
+  400 remove_card_link {"error":{"code":"invalid_argument","message":"the query parameter target_type is required"},"ok":false}
 GET /projects/p1/cards/c9
   404 get_card {"error":{"code":"not_found","message":"card not found: c9"},"ok":false}
 GET /projects/p2/cards/c1

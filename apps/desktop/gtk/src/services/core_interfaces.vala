@@ -31,8 +31,8 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
                                                                          string tag) throws Error;
-    public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
-    public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
+    public abstract async Gee.ArrayList<CardLink> list_card_links(string project_id, string card_id) throws Error;
+    public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;
     public abstract async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
                                                                      string type = "all") throws Error;
@@ -53,15 +53,18 @@ public interface IHolderApi : Object {
                                                int64 updated_at,
                                                Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
     public abstract async void delete_resource(string resource_id) throws Error;
-    public abstract async CardLink create_card_link(string from_card_id,
+    public abstract async CardLink create_card_link(string project_id,
+                                                    string from_card_id,
                                                     string to_card_id,
                                                     string kind = "ref",
                                                     string? label = null,
                                                     string to_type = "card") throws Error;
-    public abstract async void delete_card_link(string from_card_id,
+    public abstract async void delete_card_link(string project_id,
+                                                string from_card_id,
                                                 string to_card_id,
                                                 string kind,
-                                                string to_type = "card") throws Error;
+                                                string to_type = "card",
+                                                string? target_project_id = null) throws Error;
     public abstract async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                                        string query_text,
                                                                        int limit = 30) throws Error;

@@ -8,22 +8,24 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_patch_response_data import CardPatchResponseData
+    from ..models.link import Link
 
 
-T = TypeVar("T", bound="CardPatchResponse")
+T = TypeVar("T", bound="LinkResponse")
 
 
 @_attrs_define
-class CardPatchResponse:
+class LinkResponse:
     """
     Attributes:
         ok (bool):
-        data (CardPatchResponseData):
+        data (Link): A link from a card, or from an AI message, to something in a project. A link names both of its ends
+            in full:
+            each end's project, type and ID.
     """
 
     ok: bool
-    data: CardPatchResponseData
+    data: Link
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,22 +46,20 @@ class CardPatchResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_patch_response_data import (
-            CardPatchResponseData,
-        )
+        from ..models.link import Link
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardPatchResponseData.from_dict(d.pop("data"))
+        data = Link.from_dict(d.pop("data"))
 
-        card_patch_response = cls(
+        link_response = cls(
             ok=ok,
             data=data,
         )
 
-        card_patch_response.additional_properties = d
-        return card_patch_response
+        link_response.additional_properties = d
+        return link_response
 
     @property
     def additional_keys(self) -> list[str]:

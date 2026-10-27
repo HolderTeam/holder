@@ -3,9 +3,8 @@
 import json
 from dataclasses import FrozenInstanceError
 
-import httpx
 import pytest
-from test_library import card_payload, created, holder_for, ok, project_payload
+from test_library import card_payload, holder_for, ok, project_payload
 
 from holder import CardLink
 from holder.exceptions import ClosedError
@@ -14,27 +13,26 @@ from holder.exceptions import ClosedError
 def link_row(
     *,
     target_id="target-1",
-    target_project=None,
+    target_project="p-0",
     target_type="card",
     label=None,
-    source_project=None,
+    source_project="p-0",
+    source_type="card",
 ):
-    row = {
-        "from_card_id": "c-0000",
-        "to_card_id": target_id,
-        "to_type": target_type,
+    return {
+        "source_project_id": source_project,
+        "source_type": source_type,
+        "source_id": "c-0000",
+        "target_project_id": target_project,
+        "target_type": target_type,
+        "target_id": target_id,
         "kind": "ref",
         "label": label,
         "created_at": 123,
     }
-    if target_project is not None:
-        row["target_project_id"] = target_project
-    if source_project is not None:
-        row["source_project_id"] = source_project
-    return row
 
 
-def test_qualified_link_values_and_backlink_coverage():
+def test_qualified_link_values_and_backlink_scopes():
     requests = []
 
     def respond(request):
@@ -43,23 +41,14 @@ def test_qualified_link_values_and_backlink_coverage():
             return ok(card_payload(content=True))
         if request.url.path.endswith("/backlinks"):
             scope = request.url.params["scope"]
-            assert request.url.params["include_deleted"] == "0"
-            rows = [link_row(source_project="p-1", target_project="p-0")]
+            assert request.url.params["include_deleted"] == "false"
+            rows = [link_row(source_project="p-1", source_type="ai_message")]
             if scope == "local":
                 rows = [link_row()]
-            return httpx.Response(
-                200,
-                json={
-                    "ok": True,
-                    "data": rows,
-                    "scope": scope,
-                    "coverage": "target_project"
-                    if scope == "local"
-                    else "available_projects",
-                },
-            )
+            return ok(rows)
         if request.url.path.endswith("/links"):
-            assert request.url.params["include_deleted"] == "0"
+            assert request.url.path == "/projects/p-0/cards/c-0000/links"
+            assert request.url.params["include_deleted"] == "false"
             return ok(
                 [
                     link_row(target_project="unavailable-project", label="Outside"),
@@ -82,6 +71,7 @@ def test_qualified_link_values_and_backlink_coverage():
             ("resource", "p-0"),
         ]
         assert links[0].source_project_id == "p-0"
+        assert links[0].source_type == "card"
         assert links[0].source_id == "c-0000"
         assert links[0].target_id == "target-1"
         assert links[0].label == "Outside"
@@ -89,18 +79,17 @@ def test_qualified_link_values_and_backlink_coverage():
         with pytest.raises(FrozenInstanceError):
             links[0].label = "Changed"
         assert outgoing[0] is links[0]
-        assert card.backlinks.coverage == "target_project"
         assert card.backlinks.scope == "local"
         assert card.backlinks[0].source_project_id == "p-0"
         external = card.backlinks.filter(scope="external")
-        assert external.coverage == "available_projects"
         assert external[0].source_project_id == "p-1"
+        assert external[0].source_type == "ai_message"
         assert external[0].target_project_id == "p-0"
         both = card.backlinks.filter(scope="all_available")
         assert both.scope == "all_available"
-        assert both.coverage == "available_projects"
         assert both[0].source_project_id == "p-1"
-        assert len(requests) == 10  # No target card was fetched.
+        # No target card was fetched.
+        assert not any("target-1" in request.url.path for request in requests)
     with pytest.raises(ClosedError):
         list(card.links.refresh())
 
@@ -113,21 +102,25 @@ def test_link_mutations_send_exact_qualified_selector_and_refresh():
         if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/links"):
+            assert request.url.path == "/projects/p-0/cards/c-0000/links"
             if request.method == "GET":
                 return ok(list(rows))
-            body = json.loads(request.content)
-            writes.append((request.method, body))
             if request.method == "POST":
+                body = json.loads(request.content)
+                writes.append((request.method, body))
                 row = link_row(
-                    target_id=body["to_card_id"],
-                    target_project=body.get("target_project_id"),
-                    target_type=body["to_type"],
+                    target_id=body["target_id"],
+                    target_project=body.get("target_project_id", "p-0"),
+                    target_type=body["target_type"],
                     label=body["label"],
                 )
                 rows[:] = [row]
-                return created(row)
+                return ok(row)
+            # Removing names the one link in the query, with no body.
+            assert request.content == b""
+            writes.append((request.method, dict(request.url.params)))
             rows.clear()
-            return ok({"card_id": "c-0000"})
+            return ok([])
         return ok(project_payload())
 
     with holder_for(respond) as h:
@@ -142,9 +135,9 @@ def test_link_mutations_send_exact_qualified_selector_and_refresh():
         assert writes[0] == (
             "POST",
             {
-                "to_card_id": "target-1",
+                "target_type": "card",
+                "target_id": "target-1",
                 "target_project_id": "p-1",
-                "to_type": "card",
                 "kind": "ref",
                 "label": "Related",
             },
@@ -153,15 +146,16 @@ def test_link_mutations_send_exact_qualified_selector_and_refresh():
         assert writes[1] == (
             "DELETE",
             {
-                "to_card_id": "target-1",
-                "target_project_id": "p-1",
-                "to_type": "card",
+                "target_type": "card",
+                "target_id": "target-1",
                 "kind": "ref",
+                "target_project_id": "p-1",
             },
         )
         assert list(card.links) == []
+        # Without a target project, the target is in the card's own.
         card.links.remove("target-1")
-        assert writes[2][1]["target_project_id"] == "p-0"
+        assert "target_project_id" not in writes[2][1]
         typed = card.links.add("message-1", to_type="ai_message", kind="mentions")
         assert typed.target_type == "ai_message"
         assert writes[3][1]["kind"] == "mentions"
@@ -180,15 +174,7 @@ def test_link_queries_refresh_after_external_change_and_no_delete_all_method():
         if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/backlinks"):
-            return httpx.Response(
-                200,
-                json={
-                    "ok": True,
-                    "data": list(rows),
-                    "scope": "local",
-                    "coverage": "target_project",
-                },
-            )
+            return ok(list(rows))
         if request.url.path.endswith("/links"):
             return ok(list(rows))
         return ok(project_payload())

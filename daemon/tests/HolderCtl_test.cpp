@@ -2771,7 +2771,7 @@ TEST_CASE("holderctl links backlinks and link expose card links", "[holderctl]")
   const auto links_json = nlohmann::json::parse(read_text(links_json_out));
   REQUIRE(links_json["ok"] == true);
   REQUIRE(links_json["data"].is_array());
-  REQUIRE(links_json["data"][0]["to_card_id"] == "target-card");
+  REQUIRE(links_json["data"][0]["target_id"] == "target-card");
 
   const auto backlinks_json_out = xdg_root / "backlinks.json";
   REQUIRE(
@@ -2782,7 +2782,7 @@ TEST_CASE("holderctl links backlinks and link expose card links", "[holderctl]")
   );
   const auto backlinks_json = nlohmann::json::parse(read_text(backlinks_json_out));
   REQUIRE(backlinks_json["ok"] == true);
-  REQUIRE(backlinks_json["data"][0]["from_card_id"] == "source-card");
+  REQUIRE(backlinks_json["data"][0]["source_id"] == "source-card");
 
   const auto link_json_out = xdg_root / "link.json";
   REQUIRE(
@@ -2792,8 +2792,8 @@ TEST_CASE("holderctl links backlinks and link expose card links", "[holderctl]")
   );
   const auto link_json = nlohmann::json::parse(read_text(link_json_out));
   REQUIRE(link_json["ok"] == true);
-  REQUIRE(link_json["data"]["from_card_id"] == "source-card");
-  REQUIRE(link_json["data"]["to_card_id"] == "target-card");
+  REQUIRE(link_json["data"]["source_id"] == "source-card");
+  REQUIRE(link_json["data"]["target_id"] == "target-card");
 
   REQUIRE(
       run_command(bin + " link 'Other Source Card' 'Other Target Card' >/dev/null 2>/dev/null") == 1
@@ -2802,13 +2802,19 @@ TEST_CASE("holderctl links backlinks and link expose card links", "[holderctl]")
   REQUIRE(run_command(bin + " links 'Other Source Card' >/dev/null 2>/dev/null") == 1);
   REQUIRE(run_command(bin + " backlinks 'Other Target Card' >/dev/null 2>/dev/null") == 1);
 
-  REQUIRE(run_command(bin + " trash 'Source Card' >/dev/null") == 0);
-  REQUIRE(run_command(bin + " links 'Source Card' >/dev/null 2>/dev/null") == 1);
-  REQUIRE(run_command(bin + " links --include-deleted 'Source Card' >/dev/null") == 0);
-
+  // A link to a card in the trash is listed only when asked for.
   REQUIRE(run_command(bin + " trash 'Target Card' >/dev/null") == 0);
+  const auto hidden_out = xdg_root / "links-hidden.out";
+  REQUIRE(run_command(bin + " links 'Source Card' > \"" + hidden_out.string() + "\"") == 0);
+  REQUIRE(read_text(hidden_out) == "No links.\n");
+  const auto shown_out = xdg_root / "links-shown.out";
+  REQUIRE(
+      run_command(bin + " links --include-deleted 'Source Card' > \"" + shown_out.string() + "\"") == 0
+  );
+  REQUIRE(read_text(shown_out).find("target-card") != std::string::npos);
+  // A card in the trash is not found, so its own links and backlinks are not listed.
   REQUIRE(run_command(bin + " backlinks 'Target Card' >/dev/null 2>/dev/null") == 1);
-  REQUIRE(run_command(bin + " backlinks --include-deleted 'Target Card' >/dev/null") == 0);
+  REQUIRE(run_command(bin + " backlinks --include-deleted 'Target Card' >/dev/null 2>/dev/null") == 1);
 
   server.stop();
   server_thread.join();
@@ -4570,7 +4576,8 @@ TEST_CASE(
            {"calendar", Json::object(), "Failed to read calendar", 1},
            {"tags", Json::array({42}), "Failed to list tags", 1},
            {"backlinks card", Json::array({42}), "Failed", 1},
-           {"link card other", "invalid", "HTTP 200", 1},
+           // holderctl reports the cards it linked, whatever the daemon's answer holds.
+           {"link card other", "invalid", "Linked card", 0},
            {"restore card", "invalid", "Restored card: card-one", 0}
        }) {
     CAPTURE(item.args);

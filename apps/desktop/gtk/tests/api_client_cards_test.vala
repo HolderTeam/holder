@@ -67,22 +67,22 @@ private void test_links_create_delete_and_list() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c1\",\"to_card_id\":\"c2\",\"to_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":1}]}"
+        "{\"ok\":true,\"data\":[{\"source_project_id\":\"p1\",\"source_id\":\"c1\",\"target_project_id\":\"p1\",\"target_id\":\"c2\",\"target_type\":\"card\",\"kind\":\"ref\",\"label\":\"L\",\"created_at\":1}]}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c2\",\"to_card_id\":\"c1\",\"to_type\":\"card\",\"kind\":\"ref\",\"label\":\"B\",\"created_at\":2}]}"
+        "{\"ok\":true,\"data\":[{\"source_project_id\":\"p1\",\"source_id\":\"c2\",\"target_project_id\":\"p1\",\"target_id\":\"c1\",\"target_type\":\"card\",\"kind\":\"ref\",\"label\":\"B\",\"created_at\":2}]}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"from_card_id\":\"c1\",\"to_card_id\":\"r1\",\"to_type\":\"resource\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":3}}"
+        "{\"ok\":true,\"data\":{\"source_project_id\":\"p1\",\"source_id\":\"c1\",\"target_project_id\":\"p1\",\"target_id\":\"r1\",\"target_type\":\"resource\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":3}}"
     );
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     var client = make_client(transport);
 
     bool done_links = false;
     Gee.ArrayList<HolderLinux.CardLink>? links = null;
-    client.list_card_links.begin("c1", (obj, res) => {
+    client.list_card_links.begin("p1", "c1", (obj, res) => {
         try { links = client.list_card_links.end(res); } catch (Error e) { links = null; }
         done_links = true;
     });
@@ -93,7 +93,7 @@ private void test_links_create_delete_and_list() {
 
     bool done_back = false;
     Gee.ArrayList<HolderLinux.CardLink>? backlinks = null;
-    client.list_card_backlinks.begin("c1", (obj, res) => {
+    client.list_card_backlinks.begin("p1", "c1", (obj, res) => {
         try { backlinks = client.list_card_backlinks.end(res); } catch (Error e) { backlinks = null; }
         done_back = true;
     });
@@ -104,7 +104,7 @@ private void test_links_create_delete_and_list() {
 
     bool done_create = false;
     HolderLinux.CardLink? created = null;
-    client.create_card_link.begin("c1", "r1", "depends_on", " critical ", "resource", (obj, res) => {
+    client.create_card_link.begin("p1", "c1", "r1", "depends_on", " critical ", "resource", (obj, res) => {
         try { created = client.create_card_link.end(res); } catch (Error e) { created = null; }
         done_create = true;
     });
@@ -114,11 +114,11 @@ private void test_links_create_delete_and_list() {
     assert(created.kind == "depends_on");
     assert(created.label == "critical");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.contains("/cards/c1/links"));
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/links"));
 
     bool done_delete = false;
     bool ok_delete = false;
-    client.delete_card_link.begin("c1", "r1", " depends_on ", "resource", (obj, res) => {
+    client.delete_card_link.begin("p1", "c1", "r1", " depends_on ", "resource", null, (obj, res) => {
         try { client.delete_card_link.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
         done_delete = true;
     });
@@ -135,7 +135,7 @@ private void test_create_link_missing_data_and_move_missing_data_are_protocol_er
 
     bool done_link = false;
     bool got_link_protocol = false;
-    client.create_card_link.begin("c1", "c2", "ref", null, "card", (obj, res) => {
+    client.create_card_link.begin("p1", "c1", "c2", "ref", null, "card", (obj, res) => {
         try { client.create_card_link.end(res); } catch (Error e) { got_link_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         done_link = true;
     });

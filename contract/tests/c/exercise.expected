@@ -27,3 +27,6 @@ add a tag with its #: status 1, not a tag: #idea
 remove a tag in the prose: status 101, the card carries #idea only in its prose
 list tags: status 0, 2 tags, first draft on 1
 list tags of a missing project: status 100, project not found: p2
+add a link: status 0, c1 p1/4/r1 cites 'a note'
+add a link to an unknown type: status 1, new_link.target_type is not a holder_new_link_target_type value
+remove a link: status 0, 0 left

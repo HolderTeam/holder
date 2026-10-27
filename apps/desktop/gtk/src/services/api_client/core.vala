@@ -194,29 +194,34 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
-    public async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientCardsEndpoints.list_card_links(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async Gee.ArrayList<CardLink> list_card_links(string project_id, string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientCardsEndpoints.list_card_links(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientCardsEndpoints.list_card_backlinks(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async Gee.ArrayList<CardLink> list_card_backlinks(string project_id, string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientCardsEndpoints.list_card_backlinks(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async CardLink create_card_link(string from_card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async CardLink create_card_link(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                           string from_card_id,
                                            string to_card_id,
                                            string kind = "ref",
                                            string? label = null,
                                            string to_type = "card") throws Error {
         return yield ApiClientCardsEndpoints.create_card_link( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, from_card_id, to_card_id, kind, label, to_type
+            this, project_id, from_card_id, to_card_id, kind, label, to_type
         );
     }
 
-    public async void delete_card_link(string from_card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void delete_card_link(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {
-        yield ApiClientCardsEndpoints.delete_card_link(this, from_card_id, to_card_id, kind, to_type); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {
+        yield ApiClientCardsEndpoints.delete_card_link( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+            this, project_id, from_card_id, to_card_id, kind, to_type, target_project_id
+        );
     }
 
     // Resources

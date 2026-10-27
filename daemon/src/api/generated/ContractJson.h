@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -155,6 +155,44 @@ template <typename T> struct codec<std::vector<T>> {
     }
 };
 
+template <> struct codec<holder::contract::LinkSourceType> {
+    static json encode(holder::contract::LinkSourceType value) {
+        switch (value) {
+        case holder::contract::LinkSourceType::Card: return "card";
+        case holder::contract::LinkSourceType::AiMessage: return "ai_message";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::LinkSourceType decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::LinkSourceType::Card;
+        if (text == "ai_message") return holder::contract::LinkSourceType::AiMessage;
+        throw std::invalid_argument("must be one of card, ai_message");
+    }
+};
+
+template <> struct codec<holder::contract::LinkTargetType> {
+    static json encode(holder::contract::LinkTargetType value) {
+        switch (value) {
+        case holder::contract::LinkTargetType::Card: return "card";
+        case holder::contract::LinkTargetType::AiMessage: return "ai_message";
+        case holder::contract::LinkTargetType::AiThread: return "ai_thread";
+        case holder::contract::LinkTargetType::Resource: return "resource";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::LinkTargetType decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::LinkTargetType::Card;
+        if (text == "ai_message") return holder::contract::LinkTargetType::AiMessage;
+        if (text == "ai_thread") return holder::contract::LinkTargetType::AiThread;
+        if (text == "resource") return holder::contract::LinkTargetType::Resource;
+        throw std::invalid_argument("must be one of card, ai_message, ai_thread, resource");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -184,6 +222,27 @@ template <> struct codec<holder::contract::CardMoveIntent> {
     }
 };
 
+template <> struct codec<holder::contract::NewLinkTargetType> {
+    static json encode(holder::contract::NewLinkTargetType value) {
+        switch (value) {
+        case holder::contract::NewLinkTargetType::Card: return "card";
+        case holder::contract::NewLinkTargetType::AiMessage: return "ai_message";
+        case holder::contract::NewLinkTargetType::AiThread: return "ai_thread";
+        case holder::contract::NewLinkTargetType::Resource: return "resource";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::NewLinkTargetType decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::NewLinkTargetType::Card;
+        if (text == "ai_message") return holder::contract::NewLinkTargetType::AiMessage;
+        if (text == "ai_thread") return holder::contract::NewLinkTargetType::AiThread;
+        if (text == "resource") return holder::contract::NewLinkTargetType::Resource;
+        throw std::invalid_argument("must be one of card, ai_message, ai_thread, resource");
+    }
+};
+
 template <> struct codec<holder::contract::TagOccurrence> {
     static json encode(const holder::contract::TagOccurrence& value);
     static holder::contract::TagOccurrence decode(const json& value);
@@ -204,6 +263,10 @@ template <> struct codec<holder::contract::TagCount> {
     static json encode(const holder::contract::TagCount& value);
     static holder::contract::TagCount decode(const json& value);
 };
+template <> struct codec<holder::contract::Link> {
+    static json encode(const holder::contract::Link& value);
+    static holder::contract::Link decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -215,6 +278,10 @@ template <> struct codec<holder::contract::CardUpdate> {
 template <> struct codec<holder::contract::CardMove> {
     static json encode(const holder::contract::CardMove& value);
     static holder::contract::CardMove decode(const json& value);
+};
+template <> struct codec<holder::contract::NewLink> {
+    static json encode(const holder::contract::NewLink& value);
+    static holder::contract::NewLink decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -477,6 +544,79 @@ inline holder::contract::TagCount codec<holder::contract::TagCount>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::Link>::encode(const holder::contract::Link& value) {
+    json result = json::object();
+    result["source_project_id"] = codec<std::string>::encode(value.source_project_id);
+    result["source_type"] = codec<holder::contract::LinkSourceType>::encode(value.source_type);
+    result["source_id"] = codec<std::string>::encode(value.source_id);
+    result["target_project_id"] = codec<std::string>::encode(value.target_project_id);
+    result["target_type"] = codec<holder::contract::LinkTargetType>::encode(value.target_type);
+    result["target_id"] = codec<std::string>::encode(value.target_id);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["label"] = value.label ? codec<std::string>::encode(*value.label) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    return result;
+}
+inline holder::contract::Link codec<holder::contract::Link>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Link object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "source_project_id" && it.key() != "source_type" && it.key() != "source_id" && it.key() != "target_project_id" && it.key() != "target_type" && it.key() != "target_id" && it.key() != "kind" && it.key() != "label" && it.key() != "created_at") throw std::invalid_argument("Link has no field " + it.key());
+    holder::contract::Link out;
+    if (value.contains("source_project_id") && !value.at("source_project_id").is_null()) {
+        const auto& item = value.at("source_project_id");
+        out.source_project_id = check_text(decode_field<std::string>(item, "source_project_id"), "source_project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("source_project_id is required and must not be null");
+    }
+    if (value.contains("source_type") && !value.at("source_type").is_null()) {
+        const auto& item = value.at("source_type");
+        out.source_type = decode_field<holder::contract::LinkSourceType>(item, "source_type");
+    } else {
+        throw std::invalid_argument("source_type is required and must not be null");
+    }
+    if (value.contains("source_id") && !value.at("source_id").is_null()) {
+        const auto& item = value.at("source_id");
+        out.source_id = check_text(decode_field<std::string>(item, "source_id"), "source_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("source_id is required and must not be null");
+    }
+    if (value.contains("target_project_id") && !value.at("target_project_id").is_null()) {
+        const auto& item = value.at("target_project_id");
+        out.target_project_id = check_text(decode_field<std::string>(item, "target_project_id"), "target_project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("target_project_id is required and must not be null");
+    }
+    if (value.contains("target_type") && !value.at("target_type").is_null()) {
+        const auto& item = value.at("target_type");
+        out.target_type = decode_field<holder::contract::LinkTargetType>(item, "target_type");
+    } else {
+        throw std::invalid_argument("target_type is required and must not be null");
+    }
+    if (value.contains("target_id") && !value.at("target_id").is_null()) {
+        const auto& item = value.at("target_id");
+        out.target_id = check_text(decode_field<std::string>(item, "target_id"), "target_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("target_id is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
     result["title"] = codec<std::string>::encode(value.title);
@@ -605,6 +745,58 @@ inline holder::contract::CardMove codec<holder::contract::CardMove>::decode(cons
         out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
     } else if (value.contains("parent_card_id")) {
         out.parent_card_id.emplace();
+    }
+    return out;
+}
+
+inline json codec<holder::contract::NewLink>::encode(const holder::contract::NewLink& value) {
+    json result = json::object();
+    result["target_type"] = codec<holder::contract::NewLinkTargetType>::encode(value.target_type);
+    result["target_id"] = codec<std::string>::encode(value.target_id);
+    if (value.target_project_id) result["target_project_id"] = codec<std::string>::encode(*value.target_project_id);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["label"] = value.label ? codec<std::string>::encode(*value.label) : json(nullptr);
+    if (value.created_at) result["created_at"] = codec<long long>::encode(*value.created_at);
+    return result;
+}
+inline holder::contract::NewLink codec<holder::contract::NewLink>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a NewLink object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "target_type" && it.key() != "target_id" && it.key() != "target_project_id" && it.key() != "kind" && it.key() != "label" && it.key() != "created_at") throw std::invalid_argument("NewLink has no field " + it.key());
+    holder::contract::NewLink out;
+    if (value.contains("target_type") && !value.at("target_type").is_null()) {
+        const auto& item = value.at("target_type");
+        out.target_type = decode_field<holder::contract::NewLinkTargetType>(item, "target_type");
+    } else {
+        throw std::invalid_argument("target_type is required and must not be null");
+    }
+    if (value.contains("target_id") && !value.at("target_id").is_null()) {
+        const auto& item = value.at("target_id");
+        out.target_id = check_text(decode_field<std::string>(item, "target_id"), "target_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("target_id is required and must not be null");
+    }
+    if (value.contains("target_project_id") && !value.at("target_project_id").is_null()) {
+        const auto& item = value.at("target_project_id");
+        out.target_project_id = check_text(decode_field<std::string>(item, "target_project_id"), "target_project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("target_project_id")) {
+        throw std::invalid_argument("target_project_id must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("kind")) {
+        throw std::invalid_argument("kind must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else if (value.contains("created_at")) {
+        throw std::invalid_argument("created_at must not be null");
     }
     return out;
 }

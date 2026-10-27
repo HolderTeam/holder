@@ -1,5 +1,5 @@
 // The contract's Card operations through the generated C API (holder_api.h), against a real data
-// directory: holder_get_card, holder_list_cards and holder_create_card.
+// directory: cards, their tags and their links.
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
 #else
@@ -343,4 +343,146 @@ TEST_CASE("holder_list_project_tags counts live cards, most used first", "[capi]
 
   REQUIRE(f.failed(holder_list_project_tags(f.context, "no-such-project", f.arena, &tags, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
+}
+
+namespace {
+
+std::string new_project(Fixture& f, const char* name) {
+  char* json = nullptr;
+  REQUIRE(holder_project_create(f.context, name, nullptr, nullptr, &json, &f.error) == HOLDER_OK);
+  auto id = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  return id;
+}
+
+holder_new_link card_link(const char* target, const char* kind = "ref", const char* project = nullptr) {
+  holder_new_link link{};
+  link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
+  link.target_id = target;
+  link.kind = kind;
+  link.target_project_id = project;
+  return link;
+}
+
+} // namespace
+
+TEST_CASE("holder_add_card_link makes one link per target and kind, and keeps when it was made", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const std::string from = f.create("From")->card_id;
+  const std::string to = f.create("To")->card_id;
+  const holder_link* link = nullptr;
+
+  auto request = card_link(to.c_str());
+  request.label = "first";
+  const int64_t when = 1700000000;
+  request.created_at = &when;
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &request, f.arena, &link, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(link->source_project_id) == f.project_id);
+  REQUIRE(link->source_type == HOLDER_LINK_SOURCE_TYPE_CARD);
+  REQUIRE(std::string(link->source_id) == from);
+  REQUIRE(std::string(link->target_project_id) == f.project_id);
+  REQUIRE(link->target_type == HOLDER_LINK_TARGET_TYPE_CARD);
+  REQUIRE(std::string(link->target_id) == to);
+  REQUIRE(std::string(link->kind) == "ref");
+  REQUIRE(std::string(link->label) == "first");
+  REQUIRE(link->created_at == when);
+
+  // Making it again sets its label and keeps when it was made.
+  request.label = "second";
+  request.created_at = nullptr;
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &request, f.arena, &link, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(link->label) == "second");
+  REQUIRE(link->created_at == when);
+  auto other_kind = card_link(to.c_str(), "depends_on");
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &other_kind, f.arena, &link, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(link->label == nullptr);
+
+  const holder_link_list* links = nullptr;
+  REQUIRE(holder_list_card_links(f.context, project, from.c_str(), false, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 2);
+
+  // A link to a card in the trash is listed only when asked for.
+  REQUIRE(holder_card_delete(f.context, to.c_str(), &f.error) == HOLDER_OK);
+  REQUIRE(holder_list_card_links(f.context, project, from.c_str(), false, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 0);
+  REQUIRE(holder_list_card_links(f.context, project, from.c_str(), true, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 2);
+
+  // Nor can one be made to it, or to a card or thread that does not exist.
+  auto trashed = card_link(to.c_str(), "see_also");
+  REQUIRE(f.failed(holder_add_card_link(f.context, project, from.c_str(), &trashed, f.arena, &link, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  auto missing = card_link("no-such-card");
+  REQUIRE(f.failed(holder_add_card_link(f.context, project, from.c_str(), &missing, f.arena, &link, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  missing.target_type = HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD;
+  REQUIRE(f.failed(holder_add_card_link(f.context, project, from.c_str(), &missing, f.arena, &link, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  // Nor from a card in another project.
+  auto fine = card_link(from.c_str());
+  REQUIRE(f.failed(holder_add_card_link(f.context, "no-such-project", from.c_str(), &fine, f.arena, &link,
+                                        &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("Links to cards in other projects, and the backlinks they make", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const auto other = new_project(f, "Other");
+  const std::string from = f.create("From")->card_id;
+  const std::string local = f.create("Local")->card_id;
+  holder_new_card there{};
+  there.title = "There";
+  const holder_card* created = nullptr;
+  REQUIRE(holder_create_card(f.context, other.c_str(), &there, f.arena, &created, &f.error) == HOLDER_OK);
+  const std::string remote = created->card_id;
+  const holder_link* link = nullptr;
+
+  auto to_remote = card_link(remote.c_str(), "ref", other.c_str());
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &to_remote, f.arena, &link, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(link->target_project_id) == other);
+  // A card in another project need not be on this device.
+  auto unresolved = card_link("elsewhere", "ref", "unknown-project");
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &unresolved, f.arena, &link, &f.error) ==
+          HOLDER_OK);
+  // Only a card can be in another project.
+  auto thread = card_link("t1", "ref", other.c_str());
+  thread.target_type = HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD;
+  REQUIRE(f.failed(holder_add_card_link(f.context, project, from.c_str(), &thread, f.arena, &link, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+  auto to_local = card_link(local.c_str());
+  REQUIRE(holder_add_card_link(f.context, project, from.c_str(), &to_local, f.arena, &link, &f.error) == HOLDER_OK);
+
+  const holder_link_list* links = nullptr;
+  REQUIRE(holder_list_card_backlinks(f.context, project, local.c_str(), HOLDER_LIST_CARD_BACKLINKS_SCOPE_DEFAULT,
+                                     false, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 1);
+  REQUIRE(std::string(links->items[0].source_id) == from);
+  REQUIRE(links->items[0].source_type == HOLDER_LINK_SOURCE_TYPE_CARD);
+  REQUIRE(holder_list_card_backlinks(f.context, other.c_str(), remote.c_str(),
+                                     HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL, false, f.arena, &links,
+                                     &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 0);
+  REQUIRE(holder_list_card_backlinks(f.context, other.c_str(), remote.c_str(),
+                                     HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL, false, f.arena, &links,
+                                     &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 1);
+  REQUIRE(std::string(links->items[0].source_project_id) == f.project_id);
+  REQUIRE(std::string(links->items[0].target_project_id) == other);
+
+  // Removing names one link exactly, and removing it again changes nothing.
+  for (int i = 0; i < 2; ++i) {
+    REQUIRE(holder_remove_card_link(f.context, project, from.c_str(), HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD,
+                                    remote.c_str(), "ref", other.c_str(), f.arena, &links, &f.error) == HOLDER_OK);
+    REQUIRE(links->count == 2);
+  }
+  // Without its project, the target is in the card's own.
+  REQUIRE(holder_remove_card_link(f.context, project, from.c_str(), HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD,
+                                  local.c_str(), nullptr, nullptr, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 1);
+  REQUIRE(std::string(links->items[0].target_id) == "elsewhere");
+  REQUIRE(f.failed(holder_remove_card_link(f.context, other.c_str(), from.c_str(),
+                                           HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD, local.c_str(), nullptr,
+                                           nullptr, f.arena, &links, &f.error)) == HOLDER_ERROR_NOT_FOUND);
 }

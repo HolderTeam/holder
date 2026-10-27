@@ -210,7 +210,7 @@ def test_qualified_card_links_and_available_backlinks_against_daemon(daemon):
         assert {row.source_project_id for row in target.backlinks} == {first.id}
         external = target.backlinks.filter(scope="external")
         assert {row.source_project_id for row in external} == {second.id}
-        assert external.coverage == "available_projects"
+        assert all(row.source_type == "card" for row in external)
         both = target.backlinks.filter(scope="all_available")
         assert {row.source_project_id for row in both} == {first.id, second.id}
 
@@ -227,7 +227,6 @@ def test_qualified_card_links_and_available_backlinks_against_daemon(daemon):
         root.rename(unavailable_root)
         try:
             assert list(external.refresh()) == []
-            assert external.coverage == "available_projects"
             assert any(
                 row.target_project_id == "unregistered-project"
                 for row in source.links.refresh()

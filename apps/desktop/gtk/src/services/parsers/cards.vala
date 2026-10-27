@@ -377,12 +377,14 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
 
     public static CardLink parse_card_link(Json.Object item) { // LCOV_EXCL_BR_LINE: declaration branch artifact
         return new CardLink( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
-            item.get_string_member("from_card_id"),
-            item.get_string_member("to_card_id"),
-            item.has_member("to_type") ? ApiParsersCommon.string_member_or_empty(item, "to_type") : "card",
+            item.get_string_member("source_id"),
+            item.get_string_member("target_id"),
+            item.has_member("target_type") ? ApiParsersCommon.string_member_or_empty(item, "target_type") : "card",
             item.has_member("kind") ? ApiParsersCommon.string_member_or_empty(item, "kind") : "ref",
-            item.has_member("label") ? ApiParsersCommon.string_member_or_empty(item, "label") : null,
-            item.has_member("created_at") ? item.get_int_member("created_at") : 0
+            ApiParsersCommon.nullable_string_member_or_null(item, "label"),
+            item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+            ApiParsersCommon.string_member_or_empty(item, "source_project_id"),
+            ApiParsersCommon.string_member_or_empty(item, "target_project_id")
         );
     }
 

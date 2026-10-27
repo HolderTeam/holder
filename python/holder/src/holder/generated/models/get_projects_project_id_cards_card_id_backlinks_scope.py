@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class CardBacklinkListResponseScope(StrEnum):
+class GetProjectsProjectIdCardsCardIdBacklinksScope(StrEnum):
     ALL_AVAILABLE = "all_available"
     EXTERNAL = "external"
     LOCAL = "local"
