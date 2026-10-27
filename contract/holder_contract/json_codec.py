@@ -160,6 +160,26 @@ template <typename T> struct codec<std::vector<T>> {
         return result;
     }
 };
+// A map is a JSON object; JSON names its keys, so each is text and appears once.
+template <typename T> struct codec<std::map<std::string, T>> {
+    static json encode(const std::map<std::string, T>& value) {
+        json result = json::object();
+        for (const auto& [key, item] : value) result[key] = codec<T>::encode(item);
+        return result;
+    }
+    static std::map<std::string, T> decode(const json& value) {
+        if (!value.is_object()) throw std::invalid_argument("must be an object");
+        std::map<std::string, T> result;
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            try {
+                result.emplace(it.key(), codec<T>::decode(it.value()));
+            } catch (const std::invalid_argument& error) {
+                throw std::invalid_argument("has " + it.key() + ", which " + error.what());
+            }
+        }
+        return result;
+    }
+};
 """
 
 
@@ -174,6 +194,8 @@ def cpp_base(model: Model, ref: dict) -> str:
         return SCALARS_CPP[ref["kind"]]
     if ref["kind"] == "list":
         return f"std::vector<{cpp_base(model, ref['items'])}>"
+    if ref["kind"] == "map":
+        return f"std::map<std::string, {cpp_base(model, ref['values'])}>"
     if ref["kind"] == "named":
         return model.instance(ref, {}).qualified("holder::contract::")
     raise Unsupported(f"{ref['kind']} in JSON")
@@ -195,6 +217,12 @@ def field_decoder(model: Model, slot: Slot, label: str) -> str:
         return f'check_range<{cpp}>({value}, "{label}", {t.get("ge", low)}, {t.get("le", high)})'
     if kind == "float64" and any(k in t for k in ("ge", "le", "gt", "lt")):
         raise Unsupported(f"{label}: bounds on a float64")
+    if kind == "map":
+        # Each key and each value is checked as text.
+        return (f'[&] {{ auto entries = {value}; for (const auto& [key, values] : entries) {{ '
+                f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
+                f'for (const auto& text : values) '
+                f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
     if kind == "list":
         items = model.resolve(t["items"])
         if any(k in items for k in ("min_length", "max_length", "ge", "le", "pattern")):
@@ -287,6 +315,7 @@ def generate_codec(model: Model, api_header: str) -> str:
              "#include <cstddef>",
              "#include <cstdint>",
              "#include <limits>",
+             "#include <map>",
              "#include <optional>",
              "#include <stdexcept>",
              "#include <string>",
