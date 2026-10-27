@@ -172,7 +172,7 @@ class Model:
                          omittable=field.get("omittable", False), default=field.get("default"),
                          has_default="default" in field)
         if slot.type["kind"] == "literal":
-            if slot.nullable or slot.optional:
+            if slot.nullable or (slot.optional and not slot.has_default):
                 raise Unsupported(f"{record}.{slot.name}: an optional choice of literals in a record")
             if not all(isinstance(v, str) for v in slot.type["values"]):
                 raise Unsupported(f"{record}.{slot.name}: a choice of integers in a record")
@@ -279,6 +279,8 @@ def c_field_note(slot: Slot) -> str:
         notes.append("May be NULL.")
     elif slot.optional and not slot.has_default:
         notes.append("NULL when absent.")
+    elif slot.has_default and slot.type["kind"] == "literal":
+        notes.append(f"Zero for the default, {format_default(slot.default)}.")
     elif slot.has_default:
         notes.append(f"NULL for the default, {format_default(slot.default)}.")
     return " ".join(notes)
@@ -312,6 +314,13 @@ def c_param(model: Model, op: dict[str, Any], parameter: dict[str, Any]) -> Para
             note = "May be NULL." if slot.nullable else f"NULL for {format_default(slot.default)}."
             return Param(slot, f"const {SCALARS_C[t['kind']]}* {name}", note, [])
         return Param(slot, f"{SCALARS_C[t['kind']]} {name}", "", [])
+    if t["kind"] == "literal" and slot.nullable:
+        members = [f"    {upper}_NONE = 0, /* null */"]
+        for i, value in enumerate(t["values"], 1):
+            members.append(f"    {upper}_{literal_member(value)} = {i},")
+        members.append(f"    {upper}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */")
+        lines = ["typedef enum " + prefix + " {", *members, "} " + prefix + ";"]
+        return Param(slot, f"{prefix} {name}", "The zero value is null.", lines)
     if t["kind"] == "literal" and not slot.nullable:
         members = []
         if slot.has_default:
@@ -406,6 +415,8 @@ def generate_c_header(model: Model) -> str:
             declared.add(name)
             out += comment(slot.doc)
             out.append(f"typedef enum {name} {{")
+            if slot.has_default:
+                out.append(f"    {name.upper()}_DEFAULT = 0, /* {format_default(slot.default)} */")
             out += [f"    {name.upper()}_{literal_member(v)} = {i}," for i, v in enumerate(slot.type["values"], 1)]
             out += [f"    {name.upper()}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */",
                     f"}} {name};", ""]
@@ -482,7 +493,8 @@ def cpp_param(model: Model, op: dict[str, Any], param: Param) -> tuple[str, list
     type_name = camel(op["name"]) + camel(slot.name)
     if t["kind"] == "literal":
         members = ", ".join(camel(str(v)) for v in t["values"])
-        return f"{type_name} {slot.name}", [f"enum class {type_name} {{ {members} }};"]
+        held = f"std::optional<{type_name}>" if slot.nullable else type_name
+        return f"{held} {slot.name}", [f"enum class {type_name} {{ {members} }};"]
     if t["kind"] == "union":
         lines, alternatives = [], []
         for value in [v for a in t["alternatives"] if a["kind"] == "literal" for v in a["values"]]:
@@ -578,6 +590,8 @@ def generate_cpp_header(model: Model) -> str:
 
 def cpp_initializer(model: Model, slot: Slot) -> str:
     """A field's default: the contract's, or {} for a number, so a new record holds no garbage."""
+    if slot.has_default and slot.type["kind"] == "literal":
+        return f" = {slot.type['enum']}::{camel(str(slot.default))}"
     if slot.has_default and slot.default is not None:
         return f" = {cpp_literal(slot.default)}"
     if model.resolve(slot.type)["kind"] in SCALARS_CPP and not (slot.nullable or slot.optional):
@@ -883,6 +897,8 @@ def generate_glue(model: Model) -> str:
             if slot.type["kind"] == "literal":
                 enum = c_enum_name(slot)
                 out.append(f"  switch (value.{slot.name}) {{")
+                if slot.has_default:
+                    out.append(f"  case {enum.upper()}_DEFAULT: break;")
                 out += [f"  case {enum.upper()}_{literal_member(v)}: out.{slot.name} = "
                         f"contract::{slot.type['enum']}::{camel(v)}; break;" for v in slot.type["values"]]
                 out += [f'  default: throw ArgumentError("{label} is not a {enum} value");', "  }"]
@@ -963,6 +979,13 @@ def glue_param(model: Model, op: dict[str, Any], param: Param) -> list[str]:
     slot, t, name = param.slot, param.slot.type, param.slot.name
     prefix = f"holder_{op['name']}_{name}".upper()
     type_name = camel(op["name"]) + camel(name)
+    if t["kind"] == "literal" and slot.nullable:
+        lines = [f"    std::optional<contract::{type_name}> {name}_value;", f"    switch ({name}) {{",
+                 f"    case {prefix}_NONE: break;"]
+        for value in t["values"]:
+            lines.append(f"    case {prefix}_{literal_member(value)}: {name}_value = contract::{type_name}::{camel(str(value))}; break;")
+        lines += [f'    default: throw ArgumentError("{name} is not a {prefix.lower()} value");', "    }"]
+        return lines
     if t["kind"] == "literal":
         lines = [f"    contract::{type_name} {name}_value;", f"    switch ({name}) {{"]
         if slot.has_default:

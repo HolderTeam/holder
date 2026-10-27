@@ -157,6 +157,8 @@ class Core:
                 raise Unrepresentable(f"null for {slot.name}")
             return value
         if kind == "literal":
+            if slot.nullable and value in (..., None):
+                return getattr(self.lib, f"{upper}_NONE")
             if value is ...:
                 return getattr(self.lib, f"{upper}_DEFAULT")
             if value in t["values"]:
@@ -209,6 +211,8 @@ class Core:
         if kind == "string":
             return self.text(value, keep)
         if kind == "literal":
+            if value is ... and slot.has_default:
+                return getattr(self.lib, f"holder_{snake(slot.type['enum'])}_DEFAULT".upper())
             if value is ... or value is None:
                 raise Unrepresentable(f"no value for {slot.name}")
             if value not in slot.type["values"]:
