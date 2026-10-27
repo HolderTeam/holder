@@ -449,7 +449,6 @@ inline holder::contract::Page<holder::contract::CardListItem> codec<holder::cont
 
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
     result["title"] = codec<std::string>::encode(value.title);
     result["content"] = codec<std::string>::encode(value.content);
     result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
@@ -461,14 +460,8 @@ inline json codec<holder::contract::NewCard>::encode(const holder::contract::New
 inline holder::contract::NewCard codec<holder::contract::NewCard>::decode(const json& value) {
     if (!value.is_object()) throw std::invalid_argument("expected a NewCard object");
     for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "project_id" && it.key() != "title" && it.key() != "content" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("NewCard has no field " + it.key());
+        if (it.key() != "title" && it.key() != "content" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("NewCard has no field " + it.key());
     holder::contract::NewCard out;
-    if (value.contains("project_id") && !value.at("project_id").is_null()) {
-        const auto& item = value.at("project_id");
-        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("project_id is required and must not be null");
-    }
     if (value.contains("title") && !value.at("title").is_null()) {
         const auto& item = value.at("title");
         out.title = check_text(decode_field<std::string>(item, "title"), "title", 1, std::numeric_limits<std::size_t>::max());

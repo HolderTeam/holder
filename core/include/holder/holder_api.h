@@ -53,7 +53,6 @@ typedef struct holder_string_change {
 
 /* A card to create. */
 typedef struct holder_new_card {
-    const char* project_id; /* The project to create it in. */
     const char* title; /* The card's title. */
     const char* content; /* The card's body. NULL for the default, "". */
     const char* parent_card_id; /* The card's parent; null or omitted for a root card. May be NULL. */
@@ -146,10 +145,10 @@ typedef struct holder_card_list_item_page {
 } holder_card_list_item_page;
 
 /* Fetch a card.
- * A card in the trash is not found.
+ * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_get_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 typedef enum holder_list_cards_parent_kind {
     HOLDER_LIST_CARDS_PARENT_NONE = 0,
@@ -188,16 +187,16 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
  * Fails with NotFound when the project or the parent does not exist.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_create_card(holder_context* context, const char* project_id, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 /* Change a card.
  * Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and
  * content are written first, then the parent and place, each as its own change in the project's history. A card
- * in the trash is not found, and neither is a new parent that does not exist or is in the trash; a parent under
- * the card itself is an InvalidMove.
+ * in the trash or in another project is not found, and neither is a new parent that does not exist or is in the
+ * trash; a parent under the card itself is an InvalidMove.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_update_card(holder_context* context, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_update_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 typedef enum holder_trash_card_children {
     HOLDER_TRASH_CARD_CHILDREN_DEFAULT = 0, /* promote */
@@ -208,29 +207,29 @@ typedef enum holder_trash_card_children {
 
 /* Move a card to the trash.
  * The card and every card that changes with it are written as one change in the project's history. A card already
- * in the trash is not found. Returns the card as it is in the trash.
+ * in the trash, or in another project, is not found. Returns the card as it is in the trash.
  * children: promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_trash_card(holder_context* context, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_trash_card(holder_context* context, const char* project_id, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 /* Restore a card from the trash.
  * Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its
  * nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;
- * descendants trashed with it stay in the trash, and come back under it when restored. A card that is not in the
- * trash is a Conflict.
+ * descendants trashed with it stay in the trash, and come back under it when restored. A card in another
+ * project is not found, and one that is not in the trash is a Conflict.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_restore_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_restore_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 /* Move a card in its project's hierarchy.
  * When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same
  * change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
- * trash is not found, and neither is a target or parent that does not exist, is in the trash or is in another
- * project. A move that changes nothing writes nothing.
+ * trash or in another project is not found, and neither is a target or parent that does not exist or is in the
+ * trash. A move that changes nothing writes nothing.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_move_card(holder_context* context, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+int holder_move_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
 
 #ifdef __cplusplus
 }

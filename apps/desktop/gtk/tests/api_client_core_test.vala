@@ -281,7 +281,7 @@ private void test_core_trash_mutation_methods_delegate() {
 
     bool done_restore = false;
     bool restore_ok = false;
-    client.restore_trash_item.begin("card", "c1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "card", "c1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             restore_ok = true;

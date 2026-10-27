@@ -270,6 +270,7 @@ private void test_restore_hard_delete_and_empty_actions() {
     var api = new MainControllerFakeApi();
     var controller = new HolderLinux.TrashController();
     controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
 
     string last_toast = "";
     controller.toast_requested.connect((message) => {
@@ -285,6 +286,7 @@ private void test_restore_hard_delete_and_empty_actions() {
     });
     assert(wait_for_condition(() => restore_done));
     assert(api.restore_trash_calls == 1);
+    assert(api.last_restore_project_id == "p1");
     assert(api.last_restore_item_type == "card");
     assert(api.last_restore_item_id == "c1");
     assert(last_toast == "Item restored.");
@@ -349,13 +351,14 @@ private void test_action_failures_emit_errors() {
     api.fail_empty_trash = true;
     var controller = new HolderLinux.TrashController();
     controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
     var item = new HolderLinux.TrashItem("card", "c1", "Card 1", 1700000000);
 
     bool got_restore_error = false;
     bool got_hard_delete_error = false;
     bool got_empty_error = false;
     controller.error_reported.connect((title, details) => {
-        if (title == "Failed to restore item") {
+        if (title == "Failed to restore item" && details == "restore trash failed") {
             got_restore_error = true;
         }
         if (title == "Failed to permanently delete item") {

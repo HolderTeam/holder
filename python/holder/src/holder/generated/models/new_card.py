@@ -16,7 +16,6 @@ class NewCard:
     """A card to create.
 
     Attributes:
-        project_id (str):
         title (str): The card's title.
         content (str | Unset): The card's body. Default: ''.
         parent_card_id (None | str | Unset): The card's parent; null or omitted for a root card.
@@ -25,7 +24,6 @@ class NewCard:
         updated_at (int | Unset): When the card was last changed, for imports; omit to use created_at.
     """
 
-    project_id: str
     title: str
     content: str | Unset = ""
     parent_card_id: None | str | Unset = UNSET
@@ -34,8 +32,6 @@ class NewCard:
     updated_at: int | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
-        project_id = self.project_id
-
         title = self.title
 
         content = self.content
@@ -56,7 +52,6 @@ class NewCard:
 
         field_dict.update(
             {
-                "project_id": project_id,
                 "title": title,
             }
         )
@@ -76,8 +71,6 @@ class NewCard:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        project_id = d.pop("project_id")
-
         title = d.pop("title")
 
         content = d.pop("content", UNSET)
@@ -98,7 +91,6 @@ class NewCard:
         updated_at = d.pop("updated_at", UNSET)
 
         new_card = cls(
-            project_id=project_id,
             title=title,
             content=content,
             parent_card_id=parent_card_id,

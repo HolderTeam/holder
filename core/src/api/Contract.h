@@ -69,7 +69,6 @@ struct Page {
 
 /// A card to create.
 struct NewCard {
-  std::string project_id;  ///< The project to create it in.
   std::string title;  ///< The card's title.
   std::string content = "";  ///< The card's body.
   std::optional<std::string> parent_card_id;  ///< The card's parent; null or omitted for a root card.
@@ -131,9 +130,9 @@ struct CardListItem : CardMetadata {
 };
 
 /// Fetch a card.
-/// A card in the trash is not found.
+/// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
-Card get_card(holder_context& context, std::string card_id);
+Card get_card(holder_context& context, std::string project_id, std::string card_id);
 
 struct ListCardsParentRoots {};
 using ListCardsParent = std::variant<ListCardsParentRoots, std::string>;
@@ -154,40 +153,40 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
 /// Create a card.
 /// Fails with NotFound when the project or the parent does not exist.
 /// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
-Card create_card(holder_context& context, const NewCard& card);
+Card create_card(holder_context& context, std::string project_id, const NewCard& card);
 
 /// Change a card.
 /// Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and
 /// content are written first, then the parent and place, each as its own change in the project's history. A card
-/// in the trash is not found, and neither is a new parent that does not exist or is in the trash; a parent under
-/// the card itself is an InvalidMove.
+/// in the trash or in another project is not found, and neither is a new parent that does not exist or is in the
+/// trash; a parent under the card itself is an InvalidMove.
 /// @throws NotFound, InvalidMove, KeyringUnavailable, KeyMissing, DataCorrupted
-Card update_card(holder_context& context, std::string card_id, const CardUpdate& update);
+Card update_card(holder_context& context, std::string project_id, std::string card_id, const CardUpdate& update);
 
 enum class TrashCardChildren { Promote, TrashSubtree };
 
 /// Move a card to the trash.
 /// The card and every card that changes with it are written as one change in the project's history. A card already
-/// in the trash is not found. Returns the card as it is in the trash.
+/// in the trash, or in another project, is not found. Returns the card as it is in the trash.
 /// @param children promote moves the card's live children into its place among its siblings, keeping their own descendants; trash_subtree moves every live descendant to the trash with it.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
-Card trash_card(holder_context& context, std::string card_id, TrashCardChildren children);
+Card trash_card(holder_context& context, std::string project_id, std::string card_id, TrashCardChildren children);
 
 /// Restore a card from the trash.
 /// Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its
 /// nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;
-/// descendants trashed with it stay in the trash, and come back under it when restored. A card that is not in the
-/// trash is a Conflict.
+/// descendants trashed with it stay in the trash, and come back under it when restored. A card in another
+/// project is not found, and one that is not in the trash is a Conflict.
 /// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
-Card restore_card(holder_context& context, std::string card_id);
+Card restore_card(holder_context& context, std::string project_id, std::string card_id);
 
 /// Move a card in its project's hierarchy.
 /// When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same
 /// change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
-/// trash is not found, and neither is a target or parent that does not exist, is in the trash or is in another
-/// project. A move that changes nothing writes nothing.
+/// trash or in another project is not found, and neither is a target or parent that does not exist or is in the
+/// trash. A move that changes nothing writes nothing.
 /// @throws NotFound, InvalidMove, KeyringUnavailable, KeyMissing, DataCorrupted
-Card move_card(holder_context& context, std::string card_id, const CardMove& move);
+Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move);
 
 namespace detail {
 

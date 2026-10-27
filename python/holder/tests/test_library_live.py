@@ -87,9 +87,8 @@ def create_project(raw, name):
 
 def create_card(raw, project_id, index, parent=None):
     response = raw.post(
-        "/cards",
+        f"/projects/{project_id}/cards",
         json={
-            "project_id": project_id,
             "title": f"Card {index}",
             "content": f"body {index}\n#research",
             "parent_card_id": parent,
@@ -351,10 +350,16 @@ def test_card_moves_against_daemon(daemon):
             with pytest.raises(NotFoundError):
                 card.move(**kwargs)
         assert card.refresh().parent_card_id is None
-        assert raw.delete(f"/cards/{target.id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{target.project_id}/cards/{target.id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             card.move(after=target)
-        assert raw.delete(f"/cards/{card.id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{card.project_id}/cards/{card.id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             card.move(parent=parent)
 
@@ -416,7 +421,9 @@ def test_card_search_against_daemon(daemon):
             title="Foreign", content="research notes from another project"
         )
         project.cards.create(title="Unrelated", content="Nothing matching here")
-        assert raw.delete(f"/cards/{cards[1].id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{project.id}/cards/{cards[1].id}").status_code == 200
+        )
         results = project.cards.search('"research notes"')
         rows = list(results)
         expected = {c.id for c in cards} - {cards[1].id}
@@ -434,7 +441,10 @@ def test_card_search_against_daemon(daemon):
             list(project.cards.search('"'))
         assert malformed.value.status == 400
         first.card.update(content="Changed to unrelated content")
-        assert raw.delete(f"/cards/{rows[1].card_id}").status_code == 200
+        assert (
+            raw.delete(f"/projects/{project.id}/cards/{rows[1].card_id}").status_code
+            == 200
+        )
         with pytest.raises(NotFoundError):
             _ = rows[1].card
         assert len(list(results)) == 101  # Already evaluated search stays cached.
@@ -466,7 +476,7 @@ def test_project_scoped_collections_against_daemon(daemon):
     ids = [create_card(raw, project_id, i) for i in range(205)]
     child = create_card(raw, project_id, 205, ids[0])
     foreign = create_card(raw, other_project, 1)
-    assert raw.delete(f"/cards/{ids[1]}").status_code == 200
+    assert raw.delete(f"/projects/{project_id}/cards/{ids[1]}").status_code == 200
     with Holder(url=url, token=token) as h:
         project = h.projects.filter(name="Collection integration")[0]
         assert project.id == project_id

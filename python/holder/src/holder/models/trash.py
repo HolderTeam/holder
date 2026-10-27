@@ -13,7 +13,7 @@ from ..generated.api.default import (
     delete_trash,
     get_trash,
     post_ai_messages_message_id_restore,
-    post_cards_card_id_restore,
+    post_projects_project_id_cards_card_id_restore,
 )
 from ..generated.models import (
     DeleteProjectsProjectIdTrashTypeIdType as TrashType,
@@ -81,7 +81,12 @@ class TrashItem:
         A cached Trash listing needs refresh() to reflect the change.
         """
         if self.type == "card":
-            self._project._holder._call(post_cards_card_id_restore, self.id, write=True)
+            self._project._holder._call(
+                post_projects_project_id_cards_card_id_restore,
+                self._project.id,
+                self.id,
+                write=True,
+            )
             return self._project.cards.get(self.id)
         self._project._holder._call(
             post_ai_messages_message_id_restore, self.id, write=True
@@ -135,4 +140,6 @@ class TrashCollection(Collection[TrashItem]):
         revisions remain in Git history. Refresh cached listings afterwards.
         """
         query = {key: DeleteTrashType(value) for key, value in self._query.items()}
-        self._holder._call(delete_trash, project_id=self._project.id, write=True, **query)
+        self._holder._call(
+            delete_trash, project_id=self._project.id, write=True, **query
+        )

@@ -48,12 +48,11 @@ struct Fixture {
 
   const holder_card* create(const char* title, const char* content = nullptr, const char* parent = nullptr) {
     holder_new_card card{};
-    card.project_id = project_id.c_str();
     card.title = title;
     card.content = content;
     card.parent_card_id = parent;
     const holder_card* out = nullptr;
-    REQUIRE(holder_create_card(context, &card, arena, &out, &error) == HOLDER_OK);
+    REQUIRE(holder_create_card(context, project_id.c_str(), &card, arena, &out, &error) == HOLDER_OK);
     return out;
   }
 
@@ -95,7 +94,7 @@ TEST_CASE("holder_create_card returns the full card, with its tags", "[capi][con
   REQUIRE(card->tag_occurrences.items[0].byte_end == 12);
 
   const holder_card* fetched = nullptr;
-  REQUIRE(holder_get_card(f.context, card->card_id, f.arena, &fetched, &f.error) == HOLDER_OK);
+  REQUIRE(holder_get_card(f.context, f.project_id.c_str(), card->card_id, f.arena, &fetched, &f.error) == HOLDER_OK);
   REQUIRE(std::string(fetched->card_id) == card->card_id);
   REQUIRE(std::string(fetched->content) == "Intro #draft");
 }
@@ -104,7 +103,6 @@ TEST_CASE("holder_create_card honours the optional fields", "[capi][contract]") 
   Fixture f;
   const auto* parent = f.create("Parent");
   holder_new_card card{};
-  card.project_id = f.project_id.c_str();
   card.title = "Imported";
   card.parent_card_id = parent->card_id;
   const double sort_key = 7.5;
@@ -114,7 +112,7 @@ TEST_CASE("holder_create_card honours the optional fields", "[capi][contract]") 
   card.created_at = &created_at;
   card.updated_at = &updated_at;
   const holder_card* out = nullptr;
-  REQUIRE(holder_create_card(f.context, &card, f.arena, &out, &f.error) == HOLDER_OK);
+  REQUIRE(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error) == HOLDER_OK);
   REQUIRE(std::string(out->parent_card_id) == parent->card_id);
   REQUIRE(out->sort_key == 7.5);
   REQUIRE(out->created_at == created_at);
@@ -125,14 +123,13 @@ TEST_CASE("holder_create_card honours the optional fields", "[capi][contract]") 
 TEST_CASE("holder_create_card keeps timestamps at or before the epoch", "[capi][contract]") {
   Fixture f;
   holder_new_card card{};
-  card.project_id = f.project_id.c_str();
   card.title = "Old";
   const int64_t epoch = 0;
   const int64_t before = -86400;
   card.created_at = &before;
   card.updated_at = &epoch;
   const holder_card* out = nullptr;
-  REQUIRE(holder_create_card(f.context, &card, f.arena, &out, &f.error) == HOLDER_OK);
+  REQUIRE(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error) == HOLDER_OK);
   REQUIRE(out->created_at == before);
   REQUIRE(out->updated_at == epoch);
 }
@@ -140,56 +137,69 @@ TEST_CASE("holder_create_card keeps timestamps at or before the epoch", "[capi][
 TEST_CASE("holder_create_card rejects numbers that are not finite and text that is not UTF-8", "[capi][contract]") {
   Fixture f;
   holder_new_card card{};
-  card.project_id = f.project_id.c_str();
   card.title = "Fine";
   const holder_card* out = nullptr;
   for (const double bad : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
     card.sort_key = &bad;
-    REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) ==
+    REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error)) ==
             HOLDER_ERROR_INVALID_ARGUMENT);
   }
   card.sort_key = nullptr;
   for (const char* bad : {"\xff", "\xc0\x80", "\xed\xa0\x80", "a\xe2\x82"}) {
     card.title = bad;
-    REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) ==
+    REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error)) ==
             HOLDER_ERROR_INVALID_ARGUMENT);
   }
   card.title = "caf\xc3\xa9 \xf0\x9f\x93\x9d";
-  REQUIRE(holder_create_card(f.context, &card, f.arena, &out, &f.error) == HOLDER_OK);
+  REQUIRE(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error) == HOLDER_OK);
   REQUIRE(std::string(out->title) == card.title);
 }
 
 TEST_CASE("holder_create_card reports missing projects, missing parents and bad arguments", "[capi][contract]") {
   Fixture f;
   holder_new_card card{};
-  card.project_id = "no-such-project";
   card.title = "Lost";
   const holder_card* out = nullptr;
-  REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_create_card(f.context, "no-such-project", &card, f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
   REQUIRE(out == nullptr);
 
-  card.project_id = f.project_id.c_str();
   card.parent_card_id = "no-such-card";
-  REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
 
   card.parent_card_id = nullptr;
   card.title = "";
-  REQUIRE(f.failed(holder_create_card(f.context, &card, f.arena, &out, &f.error)) ==
+  REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), &card, f.arena, &out, &f.error)) ==
           HOLDER_ERROR_INVALID_ARGUMENT);
-  REQUIRE(f.failed(holder_create_card(f.context, nullptr, f.arena, &out, &f.error)) ==
+  REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), nullptr, f.arena, &out, &f.error)) ==
           HOLDER_ERROR_INVALID_ARGUMENT);
   card.title = "Fine";
-  REQUIRE(f.failed(holder_create_card(f.context, &card, nullptr, &out, &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_create_card(f.context, f.project_id.c_str(), &card, nullptr, &out, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
 }
 
-TEST_CASE("holder_get_card does not find trashed or unknown cards", "[capi][contract]") {
+TEST_CASE("holder_get_card does not find trashed or unknown cards, or cards in another project", "[capi][contract]") {
   Fixture f;
   const auto* card = f.create("Binned");
   REQUIRE(holder_card_delete(f.context, card->card_id, &f.error) == HOLDER_OK);
   const holder_card* out = nullptr;
-  REQUIRE(f.failed(holder_get_card(f.context, card->card_id, f.arena, &out, &f.error)) == HOLDER_ERROR_NOT_FOUND);
-  REQUIRE(f.failed(holder_get_card(f.context, "no-such-card", f.arena, &out, &f.error)) == HOLDER_ERROR_NOT_FOUND);
-  REQUIRE(f.failed(holder_get_card(f.context, "", f.arena, &out, &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), card->card_id, f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), "no-such-card", f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_get_card(f.context, f.project_id.c_str(), "", f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+
+  const auto* live = f.create("Elsewhere");
+  char* json = nullptr;
+  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
+  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  REQUIRE(f.failed(holder_get_card(f.context, other.c_str(), live->card_id, f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_get_card(f.context, "no-such-project", live->card_id, f.arena, &out, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
 }
 
 TEST_CASE("holder_list_cards filters by level and adds content and counts on request", "[capi][contract]") {

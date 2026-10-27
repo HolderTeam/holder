@@ -69,15 +69,14 @@ def test_disjoint_routes_and_other_methods_are_accepted():
 
 def test_a_literal_segment_is_tried_before_a_parameter():
     ir = holder_ir()
-    ir["http"].insert(0, {**ir["http"][0], "operation": "list_cards", "path": "/cards/{card_id}",
-                          "path_parameters": ["card_id"]})
-    ir["http"][0]["operation"] = "get_card"
-    get_card = next(b for b in ir["http"][1:] if b["operation"] == "get_card")
-    get_card["path"] = "/cards/latest"
-    get_card["path_parameters"] = []
+    get_card = next(b for b in ir["http"] if b["operation"] == "get_card")
+    ir["http"].insert(0, dict(get_card))
+    get_card["path"] = "/projects/{project_id}/cards/latest"
+    get_card["path_parameters"] = ["project_id"]
     get_card["query"] = ["card_id"]
     routes = generate_routes(Model(ir), "codec.h")
-    assert routes.index('regex route_1("^/cards/latest$")') < routes.index('regex route_0("^/cards/([^/]+)$")')
+    assert (routes.index('regex route_1("^/projects/([^/]+)/cards/latest$")')
+            < routes.index('regex route_0("^/projects/([^/]+)/cards/([^/]+)$")'))
 
 
 # ---- generated files ---------------------------------------------------------------------------
@@ -98,7 +97,7 @@ def test_a_body_that_is_not_a_record_stops_generation():
     ir = holder_ir()
     create = next(b for b in ir["http"] if b["operation"] == "create_card")
     create_op = next(op for op in ir["operations"] if op["name"] == "create_card")
-    create_op["parameters"][0]["type"] = {"kind": "string"}
+    next(p for p in create_op["parameters"] if p["name"] == "card")["type"] = {"kind": "string"}
     with pytest.raises(Unsupported, match="a request body that is not a record"):
         generate_routes(Model(ir), "codec.h")
     assert create["body"] == "card"
@@ -135,7 +134,7 @@ def test_parameters_come_from_fastapis_analysis_of_the_routes():
 
 def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemons_body():
     result = openapi()
-    responses = result["paths"]["/cards"]["post"]["responses"]
+    responses = result["paths"]["/projects/{project_id}/cards"]["post"]["responses"]
     assert list(responses) == ["201", "400", "404", "409", "500", "503"]
     assert responses["201"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/CardResponse"}
     envelope = result["components"]["schemas"]["CardResponse"]
@@ -160,7 +159,7 @@ def test_records_are_closed_and_list_their_bases_fields():
     assert list(item["properties"])[:2] == ["card_id", "project_id"]
     assert "child_count" not in item["required"] and "card_id" in item["required"]
     assert {"type": "null"} in item["properties"]["parent_card_id"]["anyOf"]
-    assert schemas["NewCard"]["required"] == ["project_id", "title"]
+    assert schemas["NewCard"]["required"] == ["title"]
     assert schemas["NewCard"]["properties"]["content"]["default"] == ""
 
 
@@ -235,18 +234,21 @@ def daemon_document(paths):
 
 
 def test_merge_adds_the_contracts_routes_beside_the_daemons():
-    merged = merge(daemon_document({"/cards/{card_id}": {"put": {"responses": {"200": {}}}},
-                                    "/cards/context": {"get": {"responses": {"200": {}}}}}), openapi())
-    assert list(merged["paths"]["/cards/{card_id}"]) == ["get", "put", "patch", "delete"]
-    assert merged["paths"]["/cards/{card_id}"]["get"]["responses"]["401"]["description"] == "Unauthorized"
+    card = "/projects/{project_id}/cards/{card_id}"
+    merged = merge(daemon_document({card: {"put": {"responses": {"200": {}}}},
+                                    card + "/breadcrumbs": {"get": {"responses": {"200": {}}}}}), openapi())
+    assert list(merged["paths"][card]) == ["get", "put", "patch", "delete"]
+    assert merged["paths"][card]["get"]["responses"]["401"]["description"] == "Unauthorized"
     assert merged["components"]["securitySchemes"] == {"bearer": {"type": "http"}}
     assert "CardListItemPage" in merged["components"]["schemas"]
 
 
 @pytest.mark.parametrize("paths, message", [
-    ({"/cards": {"post": {"responses": {}}}}, "POST /cards is both a daemon route and a contract operation"),
-    ({"/{collection}/{id}": {"get": {"responses": {}}}},
-     "the daemon's GET /{collection}/{id} would take requests for the contract's GET /cards/{card_id}"),
+    ({"/projects/{project_id}/cards": {"post": {"responses": {}}}},
+     "POST /projects/{project_id}/cards is both a daemon route and a contract operation"),
+    ({"/projects/{project_id}/{collection}/{id}": {"get": {"responses": {}}}},
+     ("the daemon's GET /projects/{project_id}/{collection}/{id} would take requests for the contract's "
+      "GET /projects/{project_id}/cards/{card_id}")),
 ])
 def test_merge_rejects_routes_that_clash(paths, message):
     with pytest.raises(ValueError, match=re.escape(message)):

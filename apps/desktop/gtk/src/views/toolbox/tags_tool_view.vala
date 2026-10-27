@@ -227,7 +227,7 @@ public class TagsToolView : Object, IToolShellAdapter {
             CardDetail? detail = null;
             var card = selected_card();
             if (card != null) {
-                detail = yield current_api.get_card(card.card_id);
+                detail = yield current_api.get_card(card.project_id, card.card_id);
             }
             if (serial != refresh_serial) {
                 return;

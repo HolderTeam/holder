@@ -14,6 +14,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
   - Every operation is `int holder_<operation>(holder_context* context, <parameters>, holder_arena* arena, const <result>** out_<result>, holder_error** out_error)`.
   - It returns `HOLDER_OK` (0) or an error code, and sets `*out_error` as the rest of `holder.h` does (free it with `holder_error_destroy`).
   - An operation with no result has no `out_` parameter.
+  - An operation on a card takes the card's `project_id` before its `card_id`, and does not find a card in another project.
 - **Error codes:** `HOLDER_ERROR_INVALID_ARGUMENT` (1) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (2) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (3). Each error kind in the contract gets its own code from 100, in the contract's order, such as `HOLDER_ERROR_NOT_FOUND`.
 - **Memory:** results live in the `holder_arena` the caller passes, until `holder_arena_free`. Nothing in a result needs freeing on its own.
 - **Strings** are NUL-terminated UTF-8. The glue rejects text that is not well-formed UTF-8, and length constraints count characters, not bytes.

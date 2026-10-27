@@ -42,8 +42,8 @@ def test_lazy_search_pages_cache_clone_and_full_card_access():
         requests.append(request)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path.startswith("/cards/"):
-            assert request.url.path == "/cards/c-0000"
+        if request.url.path.startswith("/projects/p-0/cards/"):
+            assert request.url.path == "/projects/p-0/cards/c-0000"
             return ok(card_payload(content=True))
         assert request.url.path == "/search/cards"
         assert request.url.params["project_id"] == "p-0"
@@ -147,18 +147,15 @@ def test_search_errors_are_reported_on_iteration(error):
             next(iter(results))
 
 
-@pytest.mark.parametrize("foreign", [False, True])
-def test_result_card_access_checks_live_membership_and_deletion(foreign):
+def test_result_card_access_checks_live_membership():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
         if request.url.path == "/search/cards":
             return ok([search_payload()])
-        return (
-            ok(card_payload(project_id="p-1", content=True))
-            if foreign
-            else failure(404)
-        )
+        # The card is in the trash, or not in this project.
+        assert request.url.path == "/projects/p-0/cards/c-0000"
+        return failure(404)
 
     with holder_for(respond) as h:
         result = h.projects.get("p-0").cards.search("research")[0]

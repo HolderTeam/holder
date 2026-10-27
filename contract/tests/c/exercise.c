@@ -20,41 +20,39 @@ int main(void) {
     const holder_card* card = NULL;
 
     holder_new_card root = {0};
-    root.project_id = "p1";
     root.title = "Thesis";
     root.content = "Intro #draft";
-    int status = holder_create_card(context, &root, arena, &card, &error);
+    int status = holder_create_card(context, "p1", &root, arena, &card, &error);
     printf("create: status %d, %s %s, content '%s', tags %zu, first at %lld, updated_at == created_at: %d\n", status,
            card->card_id, card->title, card->content, card->tags.count,
            (long long)card->tag_occurrences.items[0].byte_start, card->updated_at == card->created_at);
 
     holder_new_card child = {0};
-    child.project_id = "p1";
     child.title = "Chapter 1";
     child.parent_card_id = card->card_id;
     double sort_key = 2.5;
     child.sort_key = &sort_key;
-    status = holder_create_card(context, &child, arena, &card, &error);
+    status = holder_create_card(context, "p1", &child, arena, &card, &error);
     printf("create child: status %d, parent %s, sort_key %.1f, content '%s'\n", status, card->parent_card_id,
            card->sort_key, card->content);
 
     holder_new_card untitled = {0};
-    untitled.project_id = "p1";
     untitled.title = "";
-    status = holder_create_card(context, &untitled, arena, &card, &error);
+    status = holder_create_card(context, "p1", &untitled, arena, &card, &error);
     report("create with an empty title", status, &error);
     holder_new_card orphan = {0};
-    orphan.project_id = "p1";
     orphan.title = "Orphan";
     orphan.parent_card_id = "missing";
-    status = holder_create_card(context, &orphan, arena, &card, &error);
+    status = holder_create_card(context, "p1", &orphan, arena, &card, &error);
     report("create under a missing parent", status, &error);
 
-    status = holder_get_card(context, "c1", arena, &card, &error);
+    status = holder_get_card(context, "p1", "c1", arena, &card, &error);
     printf("get: status %d, %s, deleted_at %s\n", status, card->title, card->deleted_at ? "set" : "NULL");
-    status = holder_get_card(context, "c9", arena, &card, &error);
+    status = holder_get_card(context, "p1", "c9", arena, &card, &error);
     report("get a missing card", status, &error);
-    status = holder_get_card(context, "", arena, &card, &error);
+    status = holder_get_card(context, "p2", "c1", arena, &card, &error);
+    report("get a card in another project", status, &error);
+    status = holder_get_card(context, "p1", "", arena, &card, &error);
     report("get with an empty ID", status, &error);
 
     const holder_card_list_item_page* page = NULL;
@@ -98,34 +96,34 @@ int main(void) {
     update.title = "Thesis, revised";
     update.parent_card_id.change = HOLDER_SET;
     update.parent_card_id.value = "c2";
-    status = holder_update_card(context, "c1", &update, arena, &card, &error);
+    status = holder_update_card(context, "p1", "c1", &update, arena, &card, &error);
     printf("update: status %d, %s, content '%s', parent %s\n", status, card->title, card->content,
            card->parent_card_id);
     holder_card_update clear = {0};
     clear.parent_card_id.change = HOLDER_CLEAR;
-    status = holder_update_card(context, "c1", &clear, arena, &card, &error);
+    status = holder_update_card(context, "p1", "c1", &clear, arena, &card, &error);
     printf("clear the parent: status %d, %s, parent %s\n", status, card->title,
            card->parent_card_id ? card->parent_card_id : "null");
     clear.parent_card_id.change = (holder_change)9;
-    status = holder_update_card(context, "c1", &clear, arena, &card, &error);
+    status = holder_update_card(context, "p1", "c1", &clear, arena, &card, &error);
     report("update with an unknown change", status, &error);
 
     holder_card_move move = {0};
     move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
     move.target_card_id = "c1";
-    status = holder_move_card(context, "c1", &move, arena, &card, &error);
+    status = holder_move_card(context, "p1", "c1", &move, arena, &card, &error);
     report("move a card into itself", status, &error);
     move.intent = (holder_card_move_intent)0;
-    status = holder_move_card(context, "c1", &move, arena, &card, &error);
+    status = holder_move_card(context, "p1", "c1", &move, arena, &card, &error);
     report("move with no intent", status, &error);
 
-    status = holder_trash_card(context, "c1", HOLDER_TRASH_CARD_CHILDREN_DEFAULT, arena, &card, &error);
+    status = holder_trash_card(context, "p1", "c1", HOLDER_TRASH_CARD_CHILDREN_DEFAULT, arena, &card, &error);
     printf("trash: status %d, deleted at %lld\n", status, (long long)*card->deleted_at);
-    status = holder_get_card(context, "c1", arena, &card, &error);
+    status = holder_get_card(context, "p1", "c1", arena, &card, &error);
     report("get a trashed card", status, &error);
-    status = holder_restore_card(context, "c1", arena, &card, &error);
+    status = holder_restore_card(context, "p1", "c1", arena, &card, &error);
     printf("restore: status %d, deleted_at %s\n", status, card->deleted_at ? "set" : "null");
-    status = holder_restore_card(context, "c1", arena, &card, &error);
+    status = holder_restore_card(context, "p1", "c1", arena, &card, &error);
     report("restore a live card", status, &error);
 
     holder_arena_free(arena);

@@ -24,7 +24,7 @@ from holder.generated.api.default import (
     get_openapi_yaml,
     get_ping,
     get_resources_resource_id_assets_asset_id_content,
-    patch_cards_card_id,
+    patch_projects_project_id_cards_card_id,
     post_bye,
     stream_changes,
 )
@@ -322,7 +322,7 @@ def test_card_query_and_error_envelope():
 def test_patch_preserves_omitted_and_explicit_null_fields():
     def respond(request):
         assert request.method == "PATCH"
-        assert request.url.raw_path == b"/cards/card%2Fone"
+        assert request.url.raw_path == b"/projects/project%2Fone/cards/card%2Fone"
         assert json.loads(request.content) == {"updated_at": 123, "parent_card_id": None}
         return httpx.Response(
             401, json={"ok": False, "error": {"code": "auth", "message": "auth"}}
@@ -336,7 +336,9 @@ def test_patch_preserves_omitted_and_explicit_null_fields():
             "transport": httpx.MockTransport(respond),
         },
     ) as client:
-        patch_cards_card_id.sync("card/one", client=client, body=body)
+        patch_projects_project_id_cards_card_id.sync(
+            "project/one", "card/one", client=client, body=body
+        )
 
 
 @pytest.mark.parametrize(

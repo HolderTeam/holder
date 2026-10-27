@@ -50,7 +50,6 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
   const std::string project_id = created_project["data"]["project_id"].get<std::string>();
 
   nlohmann::json card_body = {
-      {"project_id", project_id},
       {"title", "Card A"},
       {"content", "hello"}
   };
@@ -60,7 +59,7 @@ TEST_CASE("HTTP open flow lists projects then cards", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/" + project_id + "/cards",
       card_body,
       boost::beast::http::status::created
   );

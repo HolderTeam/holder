@@ -70,14 +70,16 @@ YAML::Node sse_event_data(const YAML::Node& operation, const std::string& name) 
 
 TEST_CASE("OpenAPI contracts card item mutations on the card path", "[openapi][cards]") {
   const auto document = load_openapi();
-  const auto card = document["paths"]["/cards/{card_id}"];
+  const auto card = document["paths"]["/projects/{project_id}/cards/{card_id}"];
   for (const auto* method : {"patch", "delete"}) {
     const auto operation = card[method];
     REQUIRE(operation.IsDefined());
-    const auto parameter = parameter_named(operation, "card_id");
-    REQUIRE(parameter.IsDefined());
-    CHECK(parameter["in"].as<std::string>() == "path");
-    CHECK(parameter["required"].as<bool>());
+    for (const auto* name : {"project_id", "card_id"}) {
+      const auto parameter = parameter_named(operation, name);
+      REQUIRE(parameter.IsDefined());
+      CHECK(parameter["in"].as<std::string>() == "path");
+      CHECK(parameter["required"].as<bool>());
+    }
     // The contract's update_card and trash_card answer with the card.
     require_json_response_ref(operation, "200", "CardResponse");
     for (const auto* status : {"401", "404"}) {

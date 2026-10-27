@@ -20,6 +20,7 @@
 #include <mutex>
 #include <random>
 #include <string>
+#include <string_view>
 
 namespace holder::api {
 namespace {
@@ -214,6 +215,17 @@ AsyncWriteResult async_write_response(
     );
   });
   return future.get();
+}
+
+// /cards and below, or a project's cards: /projects/{project_id}/cards and below.
+bool is_card_path(std::string_view path) {
+  constexpr std::string_view projects = "/projects/";
+  if (path.starts_with(projects)) {
+    const auto slash = path.find('/', projects.size());
+    if (slash == std::string_view::npos) return false;
+    path.remove_prefix(slash);
+  }
+  return path == "/cards" || path.starts_with("/cards/");
 }
 
 } // namespace
@@ -435,7 +447,7 @@ Session::RequestLane Session::classify_request_lane(const Request& req, const st
   // - foreground: everything else
   const auto method = req.method();
   const bool is_get_like = method == http::verb::get || method == http::verb::head;
-  const bool is_card_route = path == "/cards" || path.rfind("/cards/", 0) == 0;
+  const bool is_card_route = is_card_path(path);
   const bool is_ai_route = path == "/ai" || path.rfind("/ai/", 0) == 0;
   const bool is_history_route = path.find("/history/") != std::string::npos;
   const bool is_link_route = path.find("/links") != std::string::npos ||

@@ -86,7 +86,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
             return ok(project_payload())
         if request.url.path == "/trash":
             return ok(trashed_items())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path == "/ai/messages/m-1":
             return ok(
@@ -116,7 +116,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
                 }
             )
         writes.append(request)
-        if request.url.path == "/cards/c-0000/restore":
+        if request.url.path == "/projects/p-0/cards/c-0000/restore":
             return ok(card_payload(content=True))
         if request.url.path == "/ai/messages/m-1/restore":
             return ok({"message_id": "m-1"})
@@ -129,7 +129,7 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
         card_item.delete_permanently()
         message_item.delete_permanently()
     assert [(r.method, r.url.path) for r in writes] == [
-        ("POST", "/cards/c-0000/restore"),
+        ("POST", "/projects/p-0/cards/c-0000/restore"),
         ("POST", "/ai/messages/m-1/restore"),
         ("DELETE", "/projects/p-0/trash/card/c-0000"),
         ("DELETE", "/projects/p-0/trash/ai_message/m-1"),

@@ -62,8 +62,8 @@ TEST_CASE(
   };
   const auto card = request(
       http::verb::post,
-      "/cards",
-      {{"project_id", "proj-1"}, {"title", "Attachments"}, {"content", "Attachment card\n"}},
+      "/projects/proj-1/cards",
+      {{"title", "Attachments"}, {"content", "Attachment card\n"}},
       http::status::created
   );
   const auto card_id = card["data"]["card_id"].get<std::string>();
@@ -203,7 +203,7 @@ TEST_CASE(
   REQUIRE(request(http::verb::get, list_path)["data"].empty());
   REQUIRE(request(http::verb::get, "/cards/" + card_id + "/links")["data"].empty());
   REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
-  request(http::verb::delete_, "/cards/" + card_id);
+  request(http::verb::delete_, "/projects/proj-1/cards/" + card_id);
   REQUIRE(request(http::verb::get, list_path, {}, http::status::not_found)["ok"] == false);
   REQUIRE(request(http::verb::post, path, body, http::status::not_found)["ok"] == false);
 }

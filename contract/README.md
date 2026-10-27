@@ -87,16 +87,16 @@ from fastapi import Path
 
 from holder_contract import Contract
 
-from .cards import Card, CardId, NotFound
+from .cards import Card, CardId, NotFound, ProjectId
 
 contract = Contract(statuses={NotFound: 404})
 
 
-@contract.route("GET", "/cards/{card_id}", errors=[NotFound])
-def get_card(card_id: Annotated[CardId, Path()]) -> Card:
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
+def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
     """Fetch a card.
 
-    A card in the trash is not found.
+    A card in the trash or in another project is not found.
     """
 ```
 

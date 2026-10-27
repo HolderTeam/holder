@@ -43,7 +43,6 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   nlohmann::json create_body = {
-      {"project_id", "proj-1"},
       {"title", "First"},
       {"content", "hello"},
       {"created_at", 10},
@@ -55,7 +54,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/proj-1/cards",
       create_body,
       boost::beast::http::status::created
   );
@@ -64,7 +63,6 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
   const std::string first_id = created["data"]["card_id"].get<std::string>();
 
   nlohmann::json auto_body = {
-      {"project_id", "proj-1"},
       {"title", "Auto Card"},
       {"content", "auto"}
   };
@@ -74,7 +72,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/proj-1/cards",
       auto_body,
       boost::beast::http::status::created
   );
@@ -88,7 +86,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + auto_id,
+      "/projects/proj-1/cards/" + auto_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -100,7 +98,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -156,7 +154,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::patch,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       update_body,
       boost::beast::http::status::ok
   );
@@ -167,7 +165,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -181,7 +179,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::patch,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       move_body,
       boost::beast::http::status::ok
   );
@@ -192,7 +190,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -242,7 +240,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::patch,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       reparent_root_body,
       boost::beast::http::status::ok
   );
@@ -253,7 +251,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -276,7 +274,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -305,7 +303,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards/" + first_id + "/restore",
+      "/projects/proj-1/cards/" + first_id + "/restore",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -316,7 +314,7 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + first_id,
+      "/projects/proj-1/cards/" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -373,9 +371,8 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/proj-enc/cards",
       {
-          {"project_id", "proj-enc"},
           {"title", "Encrypted Card"},
           {"content", "this is secret plaintext"},
           {"created_at", 10},
@@ -391,7 +388,7 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/" + encrypted_card_id,
+      "/projects/proj-enc/cards/" + encrypted_card_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -570,7 +567,7 @@ TEST_CASE("HTTP cards view=recent listing", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/22222222-2222-4222-8222-222222222222",
+      "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -806,7 +803,7 @@ TEST_CASE("HTTP cards view=recent listing (alias coverage)", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/22222222-2222-4222-8222-222222222222",
+      "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -899,7 +896,6 @@ TEST_CASE("HTTP card create rejects caller-supplied card_id", "[http]") {
   const std::string supplied_id = "11111111-1111-4111-8111-111111111111";
   nlohmann::json create_body = {
       {"card_id", supplied_id},
-      {"project_id", "proj-1"},
       {"title", "First"},
       {"content", "hello"},
       {"created_at", 10},
@@ -911,7 +907,7 @@ TEST_CASE("HTTP card create rejects caller-supplied card_id", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/proj-1/cards",
       create_body,
       boost::beast::http::status::bad_request
   );
@@ -957,7 +953,7 @@ TEST_CASE("HTTP card endpoints reject missing fields", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
+      "/projects/proj-1/cards",
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
@@ -970,7 +966,7 @@ TEST_CASE("HTTP card endpoints reject missing fields", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::patch,
-      "/cards/abcd1234",
+      "/projects/proj-1/cards/abcd1234",
       nlohmann::json{{"title", ""}},
       boost::beast::http::status::bad_request
   );
@@ -1013,7 +1009,7 @@ TEST_CASE("HTTP card endpoints reject invalid token", "[http]") {
       bound.port,
       "badtoken",
       boost::beast::http::verb::get,
-      "/cards/abcd1234",
+      "/projects/proj-1/cards/abcd1234",
       nlohmann::json::object(),
       boost::beast::http::status::unauthorized
   );
@@ -1061,7 +1057,7 @@ TEST_CASE("HTTP card endpoints handle bad JSON and missing cards", "[http]") {
   tcp::socket socket(ioc);
   boost::asio::connect(socket, endpoints);
 
-  http::request<http::string_body> req{http::verb::post, "/cards", 11};
+  http::request<http::string_body> req{http::verb::post, "/projects/proj-1/cards", 11};
   req.set(http::field::host, bound.bind);
   req.set(http::field::user_agent, "holder-tests");
   req.set(http::field::authorization, "Bearer " + token);
@@ -1088,7 +1084,7 @@ TEST_CASE("HTTP card endpoints handle bad JSON and missing cards", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards/missing",
+      "/projects/proj-1/cards/missing",
       nlohmann::json::object(),
       boost::beast::http::status::not_found
   );

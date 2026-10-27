@@ -371,7 +371,7 @@ int command_card(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto response = http_json_request(
         connection,
         boost::beast::http::verb::get,
-        "/cards/" + url_encode_component(card_id),
+        card_api_path(current_project_id, card_id),
         std::chrono::seconds(10) // LCOV_EXCL_LINE
     );
 
@@ -381,11 +381,6 @@ int command_card(const holder::core::Paths& paths, int argc, char* argv[]) {
     }
 
     const auto& data = response.payload.at("data");
-    const auto card_project_id = json_string(data, "project_id");
-    if (card_project_id != current_project_id) {
-      throw std::runtime_error("Card is not in the current project: " + options.card_reference);
-    }
-
     if (options.json_output) {
       std::cout << response.payload.dump(2) << "\n";
       return 0;
@@ -418,7 +413,7 @@ int command_edit(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto fetched = card_api_request(
         paths,
         boost::beast::http::verb::get,
-        "/cards/" + url_encode_component(card_id)
+        card_api_path(current_project_id, card_id)
     );
     const auto& data = fetched.at("data");
     const auto editor = required_editor();
@@ -438,7 +433,7 @@ int command_edit(const holder::core::Paths& paths, int argc, char* argv[]) {
     (void)card_api_request(
         paths,
         boost::beast::http::verb::patch,
-        "/cards/" + url_encode_component(card_id),
+        card_api_path(current_project_id, card_id),
         card_update_body(edited_content)
     );
     remove_temp_file(temp_path);
@@ -466,10 +461,9 @@ int command_new(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto payload = card_api_request(
         paths,
         boost::beast::http::verb::post,
-        "/cards",
+        "/projects/" + url_encode_component(project_id) + "/cards",
         // LCOV_EXCL_START
-        {{"project_id", project_id},
-         {"title", title_from_content(content)},
+        {{"title", title_from_content(content)},
          {"content", content},
          {"created_at", now_epoch_seconds()},
          {"updated_at", now_epoch_seconds()}},
@@ -510,7 +504,7 @@ int command_append(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto fetched = card_api_request(
         paths,
         boost::beast::http::verb::get,
-        "/cards/" + url_encode_component(card_id)
+        card_api_path(current_project_id, card_id)
     );
     const auto& data = fetched.at("data");
     auto content = json_string(data, "content");
@@ -523,7 +517,7 @@ int command_append(const holder::core::Paths& paths, int argc, char* argv[]) {
     (void)card_api_request(
         paths,
         boost::beast::http::verb::patch,
-        "/cards/" + url_encode_component(card_id),
+        card_api_path(current_project_id, card_id),
         card_update_body(content)
     );
     std::cout << "Appended to card: " << display_card_id(card_id) << "\n";

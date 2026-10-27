@@ -61,7 +61,7 @@ def test_sibling_views_request_sort_key_order(scope, parent):
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         requests.append(request)
         return ok({"items": [card_payload(1)], "next_cursor": None})
@@ -107,7 +107,7 @@ def test_card_breadcrumbs_return_project_and_live_card_steps():
         requests.append(request)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         assert request.url.path == "/projects/p-0/cards/c-0000/breadcrumbs"
         return ok(
@@ -130,7 +130,7 @@ def test_breadcrumbs_reject_a_path_for_another_card():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         return ok(
             [

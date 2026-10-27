@@ -7,19 +7,38 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.card_response import CardResponse
+from ...models.delete_projects_project_id_cards_card_id_children import (
+    DeleteProjectsProjectIdCardsCardIdChildren,
+)
 from ...models.error_response import ErrorResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
+    *,
+    children: DeleteProjectsProjectIdCardsCardIdChildren
+    | Unset = DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE,
 ) -> dict[str, Any]:
 
+    params: dict[str, Any] = {}
+
+    json_children: str | Unset = UNSET
+    if not isinstance(children, Unset):
+        json_children = children.value
+
+    params["children"] = json_children
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/cards/{card_id}".format(
+        "method": "delete",
+        "url": "/projects/{project_id}/cards/{card_id}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -81,16 +100,26 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
+    children: DeleteProjectsProjectIdCardsCardIdChildren
+    | Unset = DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Fetch a card.
+    """Move a card to the trash.
 
-     A card in the trash is not found.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash, or in another project, is not found. Returns the card as it is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
+        children (DeleteProjectsProjectIdCardsCardIdChildren | Unset): promote moves the card's
+            live children into its place among its siblings, keeping their own descendants;
+            trash_subtree moves every live descendant to the trash with it. Default:
+            DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -101,7 +130,9 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
+        children=children,
     )
 
     response = client.get_httpx_client().request(
@@ -112,16 +143,26 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
+    children: DeleteProjectsProjectIdCardsCardIdChildren
+    | Unset = DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE,
 ) -> CardResponse | ErrorResponse | None:
-    """Fetch a card.
+    """Move a card to the trash.
 
-     A card in the trash is not found.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash, or in another project, is not found. Returns the card as it is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
+        children (DeleteProjectsProjectIdCardsCardIdChildren | Unset): promote moves the card's
+            live children into its place among its siblings, keeping their own descendants;
+            trash_subtree moves every live descendant to the trash with it. Default:
+            DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,22 +173,34 @@ def sync(
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         client=client,
+        children=children,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
+    children: DeleteProjectsProjectIdCardsCardIdChildren
+    | Unset = DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Fetch a card.
+    """Move a card to the trash.
 
-     A card in the trash is not found.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash, or in another project, is not found. Returns the card as it is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
+        children (DeleteProjectsProjectIdCardsCardIdChildren | Unset): promote moves the card's
+            live children into its place among its siblings, keeping their own descendants;
+            trash_subtree moves every live descendant to the trash with it. Default:
+            DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -158,7 +211,9 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
+        children=children,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -167,16 +222,26 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
+    children: DeleteProjectsProjectIdCardsCardIdChildren
+    | Unset = DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE,
 ) -> CardResponse | ErrorResponse | None:
-    """Fetch a card.
+    """Move a card to the trash.
 
-     A card in the trash is not found.
+     The card and every card that changes with it are written as one change in the project's history. A
+    card already
+    in the trash, or in another project, is not found. Returns the card as it is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
+        children (DeleteProjectsProjectIdCardsCardIdChildren | Unset): promote moves the card's
+            live children into its place among its siblings, keeping their own descendants;
+            trash_subtree moves every live descendant to the trash with it. Default:
+            DeleteProjectsProjectIdCardsCardIdChildren.PROMOTE.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -188,7 +253,9 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             client=client,
+            children=children,
         )
     ).parsed

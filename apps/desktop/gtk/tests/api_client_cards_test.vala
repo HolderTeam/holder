@@ -52,12 +52,13 @@ private void test_list_cards_and_context_and_get_card() {
 
     bool done_card = false;
     HolderLinux.CardDetail? card = null;
-    client.get_card.begin("c1", (obj, res) => {
+    client.get_card.begin("p1", "c1", (obj, res) => {
         try { card = client.get_card.end(res); } catch (Error e) { card = null; }
         done_card = true;
     });
     assert(wait_for_condition(() => done_card));
     assert(card != null);
+    assert(transport.last_uri.contains("/projects/p1/cards/c1"));
     assert(card.card_id == "c1");
     assert(card.content == "Hello");
 }
@@ -143,7 +144,7 @@ private void test_create_link_missing_data_and_move_missing_data_are_protocol_er
 
     bool done_move = false;
     bool got_move_protocol = false;
-    client.move_card.begin("c1", "before", "c2", null, (obj, res) => {
+    client.move_card.begin("p1", "c1", "before", "c2", null, (obj, res) => {
         try { client.move_card.end(res); } catch (Error e) { got_move_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         done_move = true;
     });
@@ -170,20 +171,22 @@ private void test_create_update_position_and_move_card_success() {
     });
     assert(wait_for_condition(() => done_create));
     assert(created == "c-new");
+    assert(transport.last_uri.contains("/projects/p1/cards"));
 
     bool done_update = false;
     bool ok_update = false;
-    client.update_card.begin("c1", "New Title", "New Body", 100, (obj, res) => {
+    client.update_card.begin("p1", "c1", "New Title", "New Body", 100, (obj, res) => {
         try { client.update_card.end(res); ok_update = true; } catch (Error e) { ok_update = false; }
         done_update = true;
     });
     assert(wait_for_condition(() => done_update));
     assert(ok_update);
     assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.contains("/projects/p1/cards/c1"));
 
     bool done_pos = false;
     bool ok_pos = false;
-    client.update_card_position.begin("c1", null, 1.25, 101, (obj, res) => {
+    client.update_card_position.begin("p1", "c1", null, 1.25, 101, (obj, res) => {
         try { client.update_card_position.end(res); ok_pos = true; } catch (Error e) { ok_pos = false; }
         done_pos = true;
     });
@@ -193,12 +196,13 @@ private void test_create_update_position_and_move_card_success() {
 
     bool done_move = false;
     HolderLinux.CardMoveResult? moved = null;
-    client.move_card.begin("c1", "to_start", null, null, (obj, res) => {
+    client.move_card.begin("p1", "c1", "to_start", null, null, (obj, res) => {
         try { moved = client.move_card.end(res); } catch (Error e) { moved = null; }
         done_move = true;
     });
     assert(wait_for_condition(() => done_move));
     assert(moved != null);
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/move"));
     assert(moved.card_id == "c1");
     assert(moved.sort_key == 10.5);
 }
@@ -210,7 +214,7 @@ private void test_delete_card_sends_delete_to_card_path() {
 
     bool done_delete = false;
     bool ok_delete = false;
-    client.delete_card.begin("c 1/2", false, (obj, res) => {
+    client.delete_card.begin("p 1", "c 1/2", false, (obj, res) => {
         try { client.delete_card.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
         done_delete = true;
     });
@@ -218,18 +222,18 @@ private void test_delete_card_sends_delete_to_card_path() {
     assert(wait_for_condition(() => done_delete));
     assert(ok_delete);
     assert(transport.last_method == "DELETE");
-    assert(transport.last_uri.contains("/cards/c%201%2F2"));
+    assert(transport.last_uri.contains("/projects/p%201/cards/c%201%2F2"));
     assert(!transport.last_uri.contains("children="));
 
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     done_delete = false;
-    client.delete_card.begin("c 1/2", true, (obj, res) => {
+    client.delete_card.begin("p 1", "c 1/2", true, (obj, res) => {
         try { client.delete_card.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
         done_delete = true;
     });
     assert(wait_for_condition(() => done_delete));
     assert(ok_delete);
-    assert(transport.last_uri.contains("/cards/c%201%2F2?children=trash_subtree"));
+    assert(transport.last_uri.contains("/projects/p%201/cards/c%201%2F2?children=trash_subtree"));
 }
 
 private void test_project_tags_and_cards_with_tag() {

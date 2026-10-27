@@ -59,7 +59,7 @@ int command_move(const holder::core::Paths& paths, int argc, char* argv[]) {
   const auto payload = card_api_request(
       paths,
       boost::beast::http::verb::post,
-      "/cards/" + url_encode_component(card_id) + "/move",
+      card_api_path(project_id, card_id) + "/move",
       body
   );
   if (json_output) {
@@ -73,7 +73,7 @@ int command_move(const holder::core::Paths& paths, int argc, char* argv[]) {
     // The move answers with the card; its new parent's title comes from the parent.
     const auto parent_id = json_string(data, "parent_card_id");
     const auto parent = card_api_request(
-        paths, boost::beast::http::verb::get, "/cards/" + url_encode_component(parent_id)
+        paths, boost::beast::http::verb::get, card_api_path(project_id, parent_id)
     );
     std::cout << "Moved card " << display_card_id(card_id) << " into "
               << json_string(parent.at("data"), "title") << "\n";

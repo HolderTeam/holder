@@ -34,7 +34,7 @@ def test_resolve_opens_one_live_card_and_ignores_collection_filters():
                     },
                 }
             )
-        assert request.url.path == "/cards/c-0001"
+        assert request.url.path == "/projects/p-0/cards/c-0001"
         return ok(card_payload(1, content=True))
 
     with holder_for(respond) as holder:
@@ -48,7 +48,7 @@ def test_resolve_opens_one_live_card_and_ignores_collection_filters():
     assert [request.url.path for request in requests] == [
         "/projects/p-0",
         "/card-references/resolve",
-        "/cards/c-0001",
+        "/projects/p-0/cards/c-0001",
     ]
 
 

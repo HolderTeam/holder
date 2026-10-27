@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class DeleteCardsCardIdChildren(StrEnum):
+class DeleteProjectsProjectIdCardsCardIdChildren(StrEnum):
     PROMOTE = "promote"
     TRASH_SUBTREE = "trash_subtree"
 

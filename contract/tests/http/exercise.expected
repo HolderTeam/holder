@@ -1,12 +1,12 @@
-POST /cards {"project_id": "p1", "title": "Thesis", "content": "Intro #draft"}
+POST /projects/p1/cards {"title": "Thesis", "content": "Intro #draft"}
   201 create_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
-POST /cards {"project_id": "p1", "title": "Child", "parent_card_id": "c1", "sort_key": 2.5, "created_at": -5}
+POST /projects/p1/cards {"title": "Child", "parent_card_id": "c1", "sort_key": 2.5, "created_at": -5}
   201 create_card {"data":{"card_id":"c2","content":"","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"tag_occurrences":[],"tags":[],"title":"Child","updated_at":-5},"ok":true}
-POST /cards {"project_id": "p1", "title": "Named", "card_id": "mine"}
+POST /projects/p1/cards {"title": "Named", "card_id": "mine"}
   400 create_card {"error":{"code":"invalid_argument","message":"NewCard has no field card_id"},"ok":false}
-GET /cards/c1
+GET /projects/p1/cards/c1
   200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
-GET /cards/c%31
+GET /projects/p1/cards/c%31
   200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
 GET /projects/p1/cards
   200 list_cards {"data":{"items":[{"card_id":"c1","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"title":"Thesis","updated_at":1793000000},{"card_id":"c2","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"title":"Child","updated_at":-5}],"next_cursor":null},"ok":true}
@@ -16,61 +16,67 @@ GET /projects/p1/cards?parent=c1&order=updated_desc&limit=1
   200 list_cards {"data":{"items":[{"card_id":"c2","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"title":"Child","updated_at":-5}],"next_cursor":null},"ok":true}
 GET /projects/p1/cards?limit=1&cursor=1
   200 list_cards {"data":{"items":[{"card_id":"c2","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"title":"Child","updated_at":-5}],"next_cursor":null},"ok":true}
-POST /cards {"project_id": "p1", "title": "Whole", "created_at": 691.0, "updated_at": 7e2}
+POST /projects/p1/cards {"title": "Whole", "created_at": 691.0, "updated_at": 7e2}
   201 create_card {"data":{"card_id":"c3","content":"","created_at":691,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c3.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Whole","updated_at":700},"ok":true}
-POST /cards {"project_id": "p1", "title": "Least", "created_at": -9223372036854775808.0}
+POST /projects/p1/cards {"title": "Least", "created_at": -9223372036854775808.0}
   201 create_card {"data":{"card_id":"c4","content":"","created_at":-9223372036854775808,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c4.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Least","updated_at":-9223372036854775808},"ok":true}
-PATCH /cards/c1 {"title": "Thesis, revised", "parent_card_id": "c2"}
+PATCH /projects/p1/cards/c1 {"title": "Thesis, revised", "parent_card_id": "c2"}
   200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":"c2","project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
-PATCH /cards/c1 {"parent_card_id": null}
+PATCH /projects/p1/cards/c1 {"parent_card_id": null}
   200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
-PATCH /cards/c1 {"title": ""}
+PATCH /projects/p1/cards/c1 {"title": ""}
   400 update_card {"error":{"code":"invalid_argument","message":"title must not be empty"},"ok":false}
-POST /cards/c1/move {"intent": "into", "target_card_id": "c1"}
+POST /projects/p1/cards/c1/move {"intent": "into", "target_card_id": "c1"}
   422 move_card {"error":{"code":"invalid_move","message":"a card cannot go under itself"},"ok":false}
-POST /cards/c1/move {"intent": "sideways"}
+POST /projects/p1/cards/c1/move {"intent": "sideways"}
   400 move_card {"error":{"code":"invalid_argument","message":"intent must be one of into, before, after, left, right, to_start, to_end, up_level"},"ok":false}
-POST /cards/c1/move {"intent": "to_end", "project_id": "p1"}
+POST /projects/p1/cards/c1/move {"intent": "to_end", "project_id": "p1"}
   400 move_card {"error":{"code":"invalid_argument","message":"CardMove has no field project_id"},"ok":false}
-DELETE /cards/c1?children=trash_subtree
+DELETE /projects/p1/cards/c1?children=trash_subtree
   200 trash_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":1793000200,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
-DELETE /cards/c1?children=everything
+DELETE /projects/p1/cards/c1?children=everything
   400 trash_card {"error":{"code":"invalid_argument","message":"children must be one of promote, trash_subtree"},"ok":false}
-POST /cards/c1/restore
+POST /projects/p1/cards/c1/restore
   200 restore_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
-POST /cards/c1/restore
+POST /projects/p1/cards/c1/restore
   409 restore_card {"error":{"code":"conflict","message":"the card is not in the trash: c1"},"ok":false}
-GET /cards/c9
+GET /projects/p1/cards/c9
   404 get_card {"error":{"code":"not_found","message":"card not found: c9"},"ok":false}
+GET /projects/p2/cards/c1
+  404 get_card {"error":{"code":"not_found","message":"card not found: c1"},"ok":false}
+PATCH /projects/p2/cards/c1 {"title": "Elsewhere"}
+  404 update_card {"error":{"code":"not_found","message":"card not found: c1"},"ok":false}
 GET /projects/p2/cards
   404 list_cards {"error":{"code":"not_found","message":"project not found: p2"},"ok":false}
-POST /cards {"project_id": "p2", "title": "Lost"}
+POST /projects/p2/cards {"title": "Lost"}
   404 create_card {"error":{"code":"not_found","message":"project not found: p2"},"ok":false}
-POST /cards
+POST /projects/p1/cards
   400 create_card {"error":{"code":"invalid_argument","message":"a request body is required"},"ok":false}
-POST /cards {not json
+POST /projects/p1/cards {not json
   400 create_card {"error":{"code":"invalid_argument","message":"the request body is not JSON, at byte 3"},"ok":false}
-POST /cards {"project_id": "p1"}
+POST /projects/p1/cards {}
   400 create_card {"error":{"code":"invalid_argument","message":"title is required and must not be null"},"ok":false}
-POST /cards {"project_id": "p1", "title": ""}
+POST /projects/p1/cards {"title": ""}
   400 create_card {"error":{"code":"invalid_argument","message":"title must not be empty"},"ok":false}
-POST /cards {"project_id": "p1", "title": null}
+POST /projects/p1/cards {"title": null}
   400 create_card {"error":{"code":"invalid_argument","message":"title is required and must not be null"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "sort_key": null}
+POST /projects/p1/cards {"title": "x", "sort_key": null}
   400 create_card {"error":{"code":"invalid_argument","message":"sort_key must not be null"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "sort_key": "high"}
+POST /projects/p1/cards {"title": "x", "sort_key": "high"}
   400 create_card {"error":{"code":"invalid_argument","message":"sort_key must be a number"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "sort_key": 1e999}
+POST /projects/p1/cards {"title": "x", "sort_key": 1e999}
   400 create_card {"error":{"code":"invalid_argument","message":"the request body is not JSON: [json.exception.out_of_range.406] number overflow parsing '1e999'"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "created_at": 1.5}
+POST /projects/p1/cards {"title": "x", "created_at": 1.5}
   400 create_card {"error":{"code":"invalid_argument","message":"created_at must be an integer"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "created_at": 9223372036854775808.0}
+POST /projects/p1/cards {"title": "x", "created_at": 9223372036854775808.0}
   400 create_card {"error":{"code":"invalid_argument","message":"created_at is out of range"},"ok":false}
-POST /cards {"project_id": "p1", "title": "x", "created_at": 9223372036854775808}
+POST /projects/p1/cards {"title": "x", "created_at": 9223372036854775808}
   400 create_card {"error":{"code":"invalid_argument","message":"created_at is out of range"},"ok":false}
-POST /cards {"project_id": "p1", "title": "a\u0000b"}
+POST /projects/p1/cards {"title": "a\u0000b"}
   400 create_card {"error":{"code":"invalid_argument","message":"title must not contain U+0000"},"ok":false}
-POST /cards ["project_id"]
+POST /projects/p1/cards {"project_id": "p1", "title": "x"}
+  400 create_card {"error":{"code":"invalid_argument","message":"NewCard has no field project_id"},"ok":false}
+POST /projects/p1/cards ["title"]
   400 create_card {"error":{"code":"invalid_argument","message":"expected a NewCard object"},"ok":false}
 GET /projects/p1/cards?limit=0
   400 list_cards {"error":{"code":"invalid_argument","message":"limit must be from 1 to 5000"},"ok":false}
@@ -90,11 +96,13 @@ GET /projects/p1/cards?limit=1&limit=2
   400 list_cards {"error":{"code":"invalid_argument","message":"duplicate query parameter"},"ok":false}
 GET /projects/p1/cards?tag=%ff
   400 list_cards {"error":{"code":"invalid_argument","message":"tag must be UTF-8"},"ok":false}
-GET /cards/%zz
+GET /projects/p1/cards/%zz
   400 get_card {"error":{"code":"invalid_argument","message":"invalid percent escape in URL parameter"},"ok":false}
-PUT /cards/c1
+PUT /projects/p1/cards/c1
   not dispatched; allowed: DELETE GET PATCH
+GET /cards/c1
+  not dispatched; allowed:
 GET /cards
-  not dispatched; allowed: POST
+  not dispatched; allowed:
 GET /nowhere
   not dispatched; allowed:

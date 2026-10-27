@@ -240,7 +240,6 @@ holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contra
 
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
-  out.project_id = text(value.project_id, "new_card.project_id", 1, SIZE_MAX);
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
   out.content = optional_text(value.content, "new_card.content", 0, SIZE_MAX).value_or("");
   out.parent_card_id = optional_text(value.parent_card_id, "new_card.parent_card_id", 1, SIZE_MAX);
@@ -285,14 +284,15 @@ extern "C" {
 holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }
 void holder_arena_free(holder_arena* arena) { delete arena; }
 
-int holder_get_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::get_card(*context, card_id_value));
+    *out = to_c(arena, contract::get_card(*context, project_id_value, card_id_value));
     *out_card = out;
   });
 }
@@ -329,38 +329,41 @@ int holder_list_cards(holder_context* context, const char* project_id, holder_li
   });
 }
 
-int holder_create_card(holder_context* context, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_create_card(holder_context* context, const char* project_id, const holder_new_card* card, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     require(card != nullptr, "card must not be null");
     const auto card_value = from_c(*card);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::create_card(*context, card_value));
+    *out = to_c(arena, contract::create_card(*context, project_id_value, card_value));
     *out_card = out;
   });
 }
 
-int holder_update_card(holder_context* context, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_update_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_update* update, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     require(update != nullptr, "update must not be null");
     const auto update_value = from_c(*update);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::update_card(*context, card_id_value, update_value));
+    *out = to_c(arena, contract::update_card(*context, project_id_value, card_id_value, update_value));
     *out_card = out;
   });
 }
 
-int holder_trash_card(holder_context* context, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_trash_card(holder_context* context, const char* project_id, const char* card_id, holder_trash_card_children children, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     contract::TrashCardChildren children_value;
     switch (children) {
@@ -370,33 +373,35 @@ int holder_trash_card(holder_context* context, const char* card_id, holder_trash
     default: throw ArgumentError("children is not a holder_trash_card_children value");
     }
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::trash_card(*context, card_id_value, children_value));
+    *out = to_c(arena, contract::trash_card(*context, project_id_value, card_id_value, children_value));
     *out_card = out;
   });
 }
 
-int holder_restore_card(holder_context* context, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_restore_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::restore_card(*context, card_id_value));
+    *out = to_c(arena, contract::restore_card(*context, project_id_value, card_id_value));
     *out_card = out;
   });
 }
 
-int holder_move_card(holder_context* context, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+int holder_move_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_card != nullptr, "out_card must not be null");
     *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
     const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
     require(move != nullptr, "move must not be null");
     const auto move_value = from_c(*move);
     auto* out = make<holder_card>(arena);
-    *out = to_c(arena, contract::move_card(*context, card_id_value, move_value));
+    *out = to_c(arena, contract::move_card(*context, project_id_value, card_id_value, move_value));
     *out_card = out;
   });
 }

@@ -2831,6 +2831,7 @@ private void test_move_card_by_intent_success_reloads_and_preserves_selection() 
 
     assert(api.update_card_position_calls == 1);
     assert(api.last_move_intent == "before");
+    assert(api.last_card_project_id == controller.get_current_project().project_id);
     assert(api.last_move_card_id == "c1");
     assert(api.last_move_target_card_id == "c2");
     assert(controller.selected_card_id() == "c1");
@@ -2991,6 +2992,7 @@ private void test_move_card_to_trash_success_emits_toast_and_signal() {
     assert(wait_for_condition(() => saw_status && saw_toast && saw_trashed));
 
     assert(api.delete_card_calls == 1);
+    assert(api.last_card_project_id == controller.get_current_project().project_id);
     assert(api.last_updated_card_id == "c1");
     assert(api.list_cards_calls > list_cards_before);
 }

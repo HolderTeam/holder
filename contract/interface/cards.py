@@ -8,7 +8,7 @@ type ProjectId = Annotated[str, Field(min_length=1)]
 """A project's ID."""
 
 type CardId = Annotated[str, Field(min_length=1)]
-"""A card's ID."""
+"""A card's ID, unique within its project. Copies of a project, such as a fork, keep their card IDs."""
 
 
 class CardSummary(Record):
@@ -88,8 +88,6 @@ class Page[T](Record):
 class NewCard(Record):
     """A card to create."""
 
-    project_id: ProjectId
-    """The project to create it in."""
     title: Annotated[str, Field(min_length=1)]
     """The card's title."""
     content: str = ""

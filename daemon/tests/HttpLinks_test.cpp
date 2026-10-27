@@ -102,7 +102,7 @@ TEST_CASE("HTTP card links create/list/delete", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/card-b",
+      "/projects/proj-1/cards/card-b",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -260,7 +260,7 @@ TEST_CASE("HTTP card links retain qualified targets and delete them exactly", "[
 
   http_json_request(
       bound.bind, bound.port, token, boost::beast::http::verb::delete_,
-      "/cards/loaded-id", nlohmann::json::object(), boost::beast::http::status::ok
+      "/projects/proj-2/cards/loaded-id", nlohmann::json::object(), boost::beast::http::status::ok
   );
   const auto after_target_trash = http_json_request(
       bound.bind, bound.port, token, boost::beast::http::verb::get,
@@ -488,7 +488,7 @@ TEST_CASE("HTTP card backlinks select local and available external sources", "[h
 
   request(
       boost::beast::http::verb::delete_,
-      "/cards/external-source",
+      "/projects/source-project/cards/external-source",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -497,7 +497,7 @@ TEST_CASE("HTTP card backlinks select local and available external sources", "[h
 
   request(
       boost::beast::http::verb::delete_,
-      "/cards/target-card",
+      "/projects/target-project/cards/target-card",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );

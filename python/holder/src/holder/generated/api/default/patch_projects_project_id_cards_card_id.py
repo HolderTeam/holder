@@ -6,22 +6,24 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_move import CardMove
 from ...models.card_response import CardResponse
+from ...models.card_update import CardUpdate
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
     *,
-    body: CardMove,
+    body: CardUpdate,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/cards/{card_id}/move".format(
+        "method": "patch",
+        "url": "/projects/{project_id}/cards/{card_id}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
         ),
     }
@@ -90,24 +92,26 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardMove,
+    body: CardUpdate,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Move a card in its project's hierarchy.
+    """Change a card.
 
-     When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in
-    the same
-    change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A
-    card in the
-    trash is not found, and neither is a target or parent that does not exist, is in the trash or is in
-    another
-    project. A move that changes nothing writes nothing.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash or in another project is not found, and neither is a new parent that does not exist or
+    is in the
+    trash; a parent under the card itself is an InvalidMove.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardMove): Where to move a card, relative to another card or among its siblings.
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -118,6 +122,7 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         body=body,
     )
@@ -130,24 +135,26 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardMove,
+    body: CardUpdate,
 ) -> CardResponse | ErrorResponse | None:
-    """Move a card in its project's hierarchy.
+    """Change a card.
 
-     When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in
-    the same
-    change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A
-    card in the
-    trash is not found, and neither is a target or parent that does not exist, is in the trash or is in
-    another
-    project. A move that changes nothing writes nothing.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash or in another project is not found, and neither is a new parent that does not exist or
+    is in the
+    trash; a parent under the card itself is an InvalidMove.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardMove): Where to move a card, relative to another card or among its siblings.
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -158,6 +165,7 @@ def sync(
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         client=client,
         body=body,
@@ -165,24 +173,26 @@ def sync(
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardMove,
+    body: CardUpdate,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Move a card in its project's hierarchy.
+    """Change a card.
 
-     When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in
-    the same
-    change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A
-    card in the
-    trash is not found, and neither is a target or parent that does not exist, is in the trash or is in
-    another
-    project. A move that changes nothing writes nothing.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash or in another project is not found, and neither is a new parent that does not exist or
+    is in the
+    trash; a parent under the card itself is an InvalidMove.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardMove): Where to move a card, relative to another card or among its siblings.
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -193,6 +203,7 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         body=body,
     )
@@ -203,24 +214,26 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardMove,
+    body: CardUpdate,
 ) -> CardResponse | ErrorResponse | None:
-    """Move a card in its project's hierarchy.
+    """Change a card.
 
-     When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in
-    the same
-    change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A
-    card in the
-    trash is not found, and neither is a target or parent that does not exist, is in the trash or is in
-    another
-    project. A move that changes nothing writes nothing.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash or in another project is not found, and neither is a new parent that does not exist or
+    is in the
+    trash; a parent under the card itself is an InvalidMove.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardMove): Where to move a card, relative to another card or among its siblings.
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -232,6 +245,7 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             client=client,
             body=body,

@@ -73,7 +73,8 @@ class Cards(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
         self.core = self.open()
-        self.project = self.core.create_project(f"Conformance {next(_runs)}")
+        # Two projects, so that a card is sometimes asked for in a project it is not in.
+        self.projects = [self.core.create_project(f"Conformance {next(_runs)}") for _ in range(2)]
         self.cards: dict[str, dict] = {}  # every card created, by ID, as the model expects it
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
@@ -88,15 +89,24 @@ class Cards(RuleBasedStateMachine):
 
     # Cards and cursors are sampled in the order they were made, never sorted by ID: IDs differ
     # from run to run, and a replayed run must draw the same choices.
-    def live(self) -> list[dict]:
-        return [c for c in self.cards.values() if c["card_id"] not in self.deleted]
+    def live(self, project: str | None = None) -> list[dict]:
+        """The live cards, of one project or of every project."""
+        return [c for c in self.cards.values()
+                if c["card_id"] not in self.deleted and project in (None, c["project_id"])]
+
+    def in_project(self, card_id: str | None, project: str) -> bool:
+        """Whether the card is in the project, live or in the trash."""
+        return card_id in self.cards and self.cards[card_id]["project_id"] == project
+
+    def is_live(self, card_id: str | None, project: str) -> bool:
+        return self.in_project(card_id, project) and card_id not in self.deleted
 
     def values(self) -> Values:
         """Strategies whose IDs are mostly of things that exist."""
         def mostly(known: st.SearchStrategy, name: str) -> st.SearchStrategy:
             return st.one_of(known, known, known, Values(IR).valid({"kind": "named", "name": name}))
 
-        overrides = {"ProjectId": mostly(st.just(self.project), "ProjectId")}
+        overrides = {"ProjectId": mostly(st.sampled_from(self.projects), "ProjectId")}
         if self.cards:
             overrides["CardId"] = mostly(st.sampled_from(list(self.cards)), "CardId")
         return Values(IR, overrides=overrides)
@@ -132,30 +142,30 @@ class Cards(RuleBasedStateMachine):
         """Start with a few cards in a hierarchy, so that listings have something to page through."""
         for _ in range(count):
             card = data.draw(self.values().record("NewCard"))
-            card["project_id"] = self.project
-            live = [c["card_id"] for c in self.live()]
+            project = data.draw(st.sampled_from(self.projects))
+            live = [c["card_id"] for c in self.live(project)]
             card["parent_card_id"] = data.draw(st.none() | st.sampled_from(live)) if live else None
-            self.create(card, data)
+            self.create(project, card, data)
 
     @rule(data=st.data())
     def create_card(self, data):
-        self.create(data.draw(self.values().record("NewCard")), data)
+        project = data.draw(self.values().valid({"kind": "named", "name": "ProjectId"}))
+        self.create(project, data.draw(self.values().record("NewCard")), data)
 
-    def create(self, card: dict, data) -> None:
+    def create(self, project: str, card: dict, data) -> None:
         if data.draw(st.booleans()):
             card["content"] = card.get("content", "") + " #" + data.draw(st.sampled_from(TAG_POOL))
         parent = card.get("parent_card_id")
         kinds = set()
-        if card["project_id"] != self.project or (parent is not None and (
-                parent not in self.cards or parent in self.deleted)):
+        if project not in self.projects or (parent is not None and not self.is_live(parent, project)):
             kinds.add("NotFound")
         before = int(time.time())
-        created = self.expect("create_card", kinds, {"card": card})
+        created = self.expect("create_card", kinds, {"project_id": project, "card": card})
         after = int(time.time())
         if created is None:
             return
         self.conforms("create_card", created)
-        assert created["project_id"] == self.project
+        assert created["project_id"] == project
         assert created["title"] == card["title"]
         assert created["content"] == card.get("content", "")
         assert created["parent_card_id"] == parent
@@ -182,9 +192,9 @@ class Cards(RuleBasedStateMachine):
 
     @rule(data=st.data())
     def get_card(self, data):
-        card_id = data.draw(self.values().valid({"kind": "named", "name": "CardId"}))
-        live = card_id in self.cards and card_id not in self.deleted
-        card = self.expect("get_card", set() if live else {"NotFound"}, {"card_id": card_id})
+        card_id, project = self.a_card(data)
+        live = self.is_live(card_id, project)
+        card = self.expect("get_card", set() if live else {"NotFound"}, {"project_id": project, "card_id": card_id})
         if card is not None:
             self.conforms("get_card", card)
             assert card == self.cards[card_id]
@@ -201,15 +211,16 @@ class Cards(RuleBasedStateMachine):
 
     @rule(data=st.data(), limit=st.integers(1, 4), order=st.sampled_from(sorted(ORDER_KEYS)))
     def page_through_every_card(self, data, limit, order):
+        project = data.draw(st.sampled_from(self.projects))
         cursor, seen = None, []
         for _ in range(len(self.cards) + 2):
-            page = self.check_page({"project_id": self.project, "order": order, "limit": limit,
+            page = self.check_page({"project_id": project, "order": order, "limit": limit,
                                     **({"cursor": cursor} if cursor else {})})
             seen += [item["card_id"] for item in page["items"]]
             cursor = page["next_cursor"]
             if cursor is None:
                 break
-        assert seen == [c["card_id"] for c in self.ordered(self.live(), order)]
+        assert seen == [c["card_id"] for c in self.ordered(self.live(project), order)]
         event(f"paged through {min(len(seen), 5)}{'+' if len(seen) >= 5 else ''} cards")
 
     # ---- the hierarchy ------------------------------------------------------------------------
@@ -232,35 +243,41 @@ class Cards(RuleBasedStateMachine):
             card_id = self.cards[card_id]["parent_card_id"]
         return True
 
-    def siblings(self, parent: str | None) -> list[str]:
-        """The live children of parent, or the live root cards, in their order."""
-        return [c["card_id"] for c in self.ordered([c for c in self.live() if c["parent_card_id"] == parent],
+    def siblings(self, parent: str | None, project: str) -> list[str]:
+        """The live children of parent, or the project's live root cards, in their order."""
+        return [c["card_id"] for c in self.ordered([c for c in self.live(project) if c["parent_card_id"] == parent],
                                                    "sort_key_asc")]
 
     def refresh(self, card_id: str, *fields: str) -> None:
         """Take fields a write may change from Holder; the invariant checks the others."""
-        current = self.core.call("get_card", card_id=card_id)
+        current = self.core.call("get_card", project_id=self.cards[card_id]["project_id"], card_id=card_id)
         for name in fields:
             self.cards[card_id][name] = current[name]
 
-    def a_card(self, data) -> str:
-        """A card's ID, mostly one the model knows, live or in the trash."""
-        return data.draw(self.values().valid({"kind": "named", "name": "CardId"}))
+    def a_card(self, data) -> tuple[str, str]:
+        """A card's ID, mostly one the model knows, live or in the trash, and a project to ask for it in: mostly
+        its own."""
+        values = self.values()
+        card_id = data.draw(values.valid({"kind": "named", "name": "CardId"}))
+        own = st.just(self.cards[card_id]["project_id"]) if card_id in self.cards else st.nothing()
+        project = data.draw(st.one_of(own, own, own, values.valid({"kind": "named", "name": "ProjectId"})))
+        if card_id in self.cards and project != self.cards[card_id]["project_id"]:
+            event("a card asked for in another project")
+        return card_id, project
 
     @rule(data=st.data())
     def update_card(self, data):
-        card_id = self.a_card(data)
+        card_id, project = self.a_card(data)
         update = data.draw(self.values().record("CardUpdate"))
         parent = update.get("parent_card_id", ...)
         kinds = set()
         new_parent = parent not in (..., None)
-        if card_id not in self.cards or card_id in self.deleted or (
-                new_parent and (parent not in self.cards or parent in self.deleted)):
+        if not self.is_live(card_id, project) or (new_parent and not self.is_live(parent, project)):
             kinds.add("NotFound")
         elif parent not in (..., None) and self.under(parent, card_id):
             kinds.add("InvalidMove")
         before = int(time.time())
-        updated = self.expect("update_card", kinds, {"card_id": card_id, "update": update})
+        updated = self.expect("update_card", kinds, {"project_id": project, "card_id": card_id, "update": update})
         after = int(time.time())
         if updated is None:
             return
@@ -285,10 +302,11 @@ class Cards(RuleBasedStateMachine):
 
     @rule(data=st.data(), children=st.sampled_from(["promote", "trash_subtree"]))
     def trash_card(self, data, children):
-        card_id = self.a_card(data)
-        live = card_id in self.cards and card_id not in self.deleted
+        card_id, project = self.a_card(data)
+        live = self.is_live(card_id, project)
         before = int(time.time())
-        trashed = self.expect("trash_card", set() if live else {"NotFound"}, {"card_id": card_id, "children": children})
+        trashed = self.expect("trash_card", set() if live else {"NotFound"},
+                              {"project_id": project, "card_id": card_id, "children": children})
         after = int(time.time())
         if trashed is None:
             return
@@ -297,7 +315,7 @@ class Cards(RuleBasedStateMachine):
         for name in ("title", "content", "parent_card_id", "project_id", "tags"):
             assert trashed[name] == self.cards[card_id][name], name
         children_ids = [c["card_id"] for c in self.live() if c["parent_card_id"] == card_id]
-        order = self.siblings(card_id)
+        order = self.siblings(card_id, project)
         self.cards[card_id] = trashed
         self.deleted.add(card_id)
         if children == "trash_subtree":
@@ -312,20 +330,20 @@ class Cards(RuleBasedStateMachine):
                 self.refresh(child, "parent_card_id")
                 assert self.cards[child]["parent_card_id"] == trashed["parent_card_id"]
             # Cards already there may be re-spaced to make room.
-            for sibling in self.siblings(trashed["parent_card_id"]):
+            for sibling in self.siblings(trashed["parent_card_id"], project):
                 self.refresh(sibling, "sort_key", "updated_at")
-            assert [c for c in self.siblings(trashed["parent_card_id"]) if c in children_ids] == order
+            assert [c for c in self.siblings(trashed["parent_card_id"], project) if c in children_ids] == order
 
     @rule(data=st.data())
     def restore_card(self, data):
-        card_id = self.a_card(data)
+        card_id, project = self.a_card(data)
         kinds = set()
-        if card_id not in self.cards:
+        if not self.in_project(card_id, project):
             kinds.add("NotFound")
         elif card_id not in self.deleted:
             kinds.add("Conflict")
         before = int(time.time())
-        restored = self.expect("restore_card", kinds, {"card_id": card_id})
+        restored = self.expect("restore_card", kinds, {"project_id": project, "card_id": card_id})
         after = int(time.time())
         if restored is None:
             return
@@ -342,24 +360,24 @@ class Cards(RuleBasedStateMachine):
         # It goes back to its place among its new siblings, by its old sort key.
         self.deleted.discard(card_id)
         self.cards[card_id] = {**self.cards[card_id], "parent_card_id": parent}
-        expected = self.siblings(parent)
+        expected = self.siblings(parent, project)
         self.cards[card_id] = restored
         # Siblings may be re-spaced to make room.
-        for sibling in self.siblings(parent):
+        for sibling in self.siblings(parent, project):
             if sibling != card_id:
                 self.refresh(sibling, "sort_key", "updated_at")
-        assert self.siblings(parent) == expected
+        assert self.siblings(parent, project) == expected
 
     @rule(data=st.data())
     def move_card(self, data):
-        card_id = self.a_card(data)
+        card_id, project = self.a_card(data)
         move = data.draw(self.values().record("CardMove"))
         intent, target = move["intent"], move.get("target_card_id")
         scoped = intent in ("left", "right", "to_start", "to_end")
-        live = card_id in self.cards and card_id not in self.deleted
+        live = self.is_live(card_id, project)
 
         def known(other):
-            return other in self.cards and other not in self.deleted
+            return self.is_live(other, project)
 
         kinds = set()
         parent = None
@@ -388,8 +406,8 @@ class Cards(RuleBasedStateMachine):
                 parent = self.cards[up]["parent_card_id"]
         expected = None
         if not kinds:
-            destination = [c for c in self.siblings(parent) if c != card_id]
-            current = self.siblings(self.cards[card_id]["parent_card_id"])
+            destination = [c for c in self.siblings(parent, project) if c != card_id]
+            current = self.siblings(self.cards[card_id]["parent_card_id"], project)
             if intent in ("into", "to_end", "up_level"):
                 expected = destination + [card_id]
             elif intent == "to_start":
@@ -404,7 +422,7 @@ class Cards(RuleBasedStateMachine):
                 j = i - 1 if intent == "left" else i + 1
                 if 0 <= j < len(expected):
                     expected[i], expected[j] = expected[j], expected[i]
-        moved = self.expect("move_card", kinds, {"card_id": card_id, "move": move})
+        moved = self.expect("move_card", kinds, {"project_id": project, "card_id": card_id, "move": move})
         if moved is None:
             return
         self.conforms("move_card", moved)
@@ -413,10 +431,10 @@ class Cards(RuleBasedStateMachine):
             assert moved[name] == self.cards[card_id][name], name
         self.cards[card_id] = moved
         # Siblings may be re-spaced to make room.
-        for sibling in self.siblings(parent):
+        for sibling in self.siblings(parent, project):
             if sibling != card_id:
                 self.refresh(sibling, "sort_key", "updated_at")
-        assert self.siblings(parent) == expected
+        assert self.siblings(parent, project) == expected
 
     @rule(data=st.data(), operation=st.sampled_from([op["name"] for op in IR["operations"]]))
     def invalid_arguments_are_rejected(self, data, operation):
@@ -433,7 +451,7 @@ class Cards(RuleBasedStateMachine):
     @invariant()
     def cards_are_where_the_model_says(self):
         for card in self.live():
-            assert self.core.call("get_card", card_id=card["card_id"]) == card
+            assert self.core.call("get_card", project_id=card["project_id"], card_id=card["card_id"]) == card
 
     # ---- list_cards ---------------------------------------------------------------------------
 
@@ -454,14 +472,14 @@ class Cards(RuleBasedStateMachine):
             kinds.add("InvalidArgument")
         if cursor is not None and (cursor not in self.cursors or self.cursors[cursor][0] != query):
             kinds.add("InvalidArgument")
-        if arguments["project_id"] != self.project:
+        if arguments["project_id"] not in self.projects:
             kinds.add("NotFound")
         page = self.expect("list_cards", kinds, arguments)
         if page is None:
             return None
         self.conforms("list_cards", page)
 
-        matching = [c for c in self.live()
+        matching = [c for c in self.live(arguments["project_id"])
                     if (tag is None or tag.lower() in c["tags"])
                     and (parent is None or c["parent_card_id"] == (None if parent == "roots" else parent))]
         matching = self.ordered(matching, order)
@@ -519,8 +537,8 @@ def test_text_that_is_not_utf8_is_rejected_through_the_c_api(tmp_path, text):
     try:
         project = core.create_project("UTF-8")
         rejects_text_that_is_not_utf8(core, project, [
-            ("get_card", {"card_id": text}),
-            ("create_card", {"card": {"project_id": project, "title": text}}),
+            ("get_card", {"project_id": project, "card_id": text}),
+            ("create_card", {"project_id": project, "card": {"title": text}}),
             ("list_cards", {"project_id": project, "tag": text})])
     finally:
         core.close()
@@ -533,7 +551,7 @@ def test_text_that_is_not_utf8_is_rejected_over_http(text):
     http = Http(IR, CONTRACT_APP, shared_daemon(DAEMON))
     project = http.create_project(f"UTF-8 {next(_runs)}")
     rejects_text_that_is_not_utf8(http, project, [
-        ("get_card", {"card_id": text}),
+        ("get_card", {"project_id": project, "card_id": text}),
         ("list_cards", {"project_id": project, "tag": text})])
 
 

@@ -62,7 +62,7 @@ public class AiNudgeController : Object {
         var updated_content = replace_card_title_line(card.content, title);
         var updated_at = owner.now_epoch_seconds();
         try {
-            yield api.update_card(card_id, title, updated_content, updated_at);
+            yield api.update_card(card.project_id, card_id, title, updated_content, updated_at);
             card.title = title;
             card.content = updated_content;
             card.updated_at = updated_at;

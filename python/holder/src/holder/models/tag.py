@@ -10,7 +10,7 @@ from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
 from ..generated.api.default import (
     delete_cards_card_id_tags,
-    get_cards_card_id,
+    get_projects_project_id_cards_card_id,
     get_projects_project_id_tags,
     post_cards_card_id_tags,
 )
@@ -56,9 +56,9 @@ class CardTagCollection(TagCollection):
         return type(self)(self._card)
 
     def _fetch_page(self) -> tuple[list[Tag], None]:
-        data = self._holder._call(get_cards_card_id, self._card.id)
-        if data.project_id != self._project.id:
-            raise NotFoundError(404, "not_found", "Card not found in this project")
+        data = self._holder._call(
+            get_projects_project_id_cards_card_id, self._project.id, self._card.id
+        )
         # The generated model does not check the array's item types.
         names = data.tags
         if not isinstance(names, list) or any(

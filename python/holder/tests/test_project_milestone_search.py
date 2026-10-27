@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
-from test_library import card_payload, holder_for, ok, project_payload
+from test_library import card_payload, failure, holder_for, ok, project_payload
 
 from holder import Milestone, MilestoneDate
 from holder.exceptions import NotFoundError
@@ -38,7 +38,7 @@ def test_date_search_is_lazy_cached_and_returns_full_milestones_without_card_fet
         requests.append(request)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         assert request.url.path == "/projects/p-0/milestones-with-dates"
         assert dict(request.url.params) == {
@@ -115,7 +115,7 @@ def test_project_result_can_refresh_update_and_remove_without_initial_card_fetch
             return ok(project_payload())
         if path == "/projects/p-0/milestones-with-dates":
             return ok([saved] if saved["dates"] else [])
-        if path == "/cards/c-0000":
+        if path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if path == "/cards/c-0000/milestones-with-dates":
             return ok([saved] if saved["dates"] else [])
@@ -185,8 +185,9 @@ def test_project_result_lazy_card_lookup_checks_scope():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
-            return ok(card_payload(project_id="p-1", content=True))
+        if request.url.path == "/projects/p-0/cards/c-0000":
+            # The card is not in this project.
+            return failure(404)
         return ok([row(SECOND_ID)])
 
     with holder_for(respond) as holder:

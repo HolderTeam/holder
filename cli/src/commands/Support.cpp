@@ -546,6 +546,11 @@ std::string display_card_id(const std::string& card_id) {
   return display_card_ids({card_id}).front();
 }
 
+std::string card_api_path(const std::string& project_id, const std::string& card_id) {
+  return "/projects/" + url_encode_component(project_id) + "/cards/" +
+         url_encode_component(card_id);
+}
+
 nlohmann::json card_api_request(
     const holder::core::Paths& paths,
     boost::beast::http::verb method,
