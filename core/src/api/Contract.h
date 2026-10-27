@@ -35,7 +35,7 @@ struct NotFound : Error {
   using Error::Error;
 };
 
-/// The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash.
+/// The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose.
 struct Conflict : Error {
   using Error::Error;
 };
@@ -129,6 +129,12 @@ struct CardListItem : CardMetadata {
   std::optional<std::string> content;  ///< The card's body; present when asked for.
 };
 
+/// A tag and how many of a project's live cards carry it.
+struct TagCount {
+  std::string tag;  ///< The tag, normalized: in lower case.
+  std::int32_t card_count{};  ///< The live cards in the project that carry the tag: at least one, or the tag is not listed.
+};
+
 /// Fetch a card.
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
@@ -141,7 +147,7 @@ enum class ListCardsOrder { CardIdAsc, UpdatedDesc, SortKeyAsc };
 /// Page through a project's live cards.
 /// Filters combine. Each page reads current data; iterating is not a snapshot.
 /// @param parent Omit for every level; roots selects root cards; a card ID selects its children.
-/// @param tag Only cards with this tag, matched without case and without the leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is not a tag.
+/// @param tag Only cards with this tag.
 /// @param order updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.
 /// @param limit At most 1000 when include_content is true.
 /// @param cursor The previous page's next_cursor. Keep the project, filters and order unchanged.
@@ -187,6 +193,26 @@ Card restore_card(holder_context& context, std::string project_id, std::string c
 /// trash. A move that changes nothing writes nothing.
 /// @throws NotFound, InvalidMove, KeyringUnavailable, KeyMissing, DataCorrupted
 Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move);
+
+/// Tag a card.
+/// The tag is added to the card's trailing tag line, which is made when the card has none. A card that already
+/// carries the tag, anywhere in its content, is left as it is. A card in the trash or in another project is not
+/// found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Card add_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag);
+
+/// Take a tag off a card.
+/// The tag is removed from the card's trailing tag line, and the line with it when it is left empty, so that the
+/// card no longer carries it. A card that does not carry the tag is left as it is. Holder does not rewrite prose,
+/// so a card that would still carry the tag in its prose is a Conflict, and is left as it is. A card in the trash
+/// or in another project is not found.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Card remove_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag);
+
+/// List a project's tags.
+/// Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
+/// @throws NotFound
+std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id);
 
 namespace detail {
 

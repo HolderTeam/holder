@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING, Any, Self
 from ..collections import Collection
 from ..exceptions import NotFoundError, ProtocolError
 from ..generated.api.default import (
-    delete_cards_card_id_tags,
+    delete_projects_project_id_cards_card_id_tags_tag,
     get_projects_project_id_cards_card_id,
     get_projects_project_id_tags,
-    post_cards_card_id_tags,
+    put_projects_project_id_cards_card_id_tags_tag,
 )
-from ..generated.models import CardTagMutationRequest
 
 if TYPE_CHECKING:
     from .card import Card, CardCollection
@@ -68,22 +67,25 @@ class CardTagCollection(TagCollection):
         return [Tag(name, self._project) for name in names], None
 
     def add(self, name: str) -> Self:
-        """Add a tag and refresh the card. Validation and normalization are server-side."""
-        return self._mutate(post_cards_card_id_tags, name)
+        """Add a tag and refresh the card. Validation and normalization are server-side.
+
+        A card that already carries the tag, anywhere in its content, is left as it is.
+        """
+        return self._mutate(put_projects_project_id_cards_card_id_tags_tag, name)
 
     def remove(self, name: str) -> Self:
-        """Remove a trailing-line tag; body mentions remain until content is edited."""
-        return self._mutate(delete_cards_card_id_tags, name)
+        """Remove a tag from the card's trailing tag line, and refresh the card.
+
+        A card that does not carry the tag is left as it is. Prose is never rewritten,
+        so a card that would still carry the tag in its prose raises an APIError
+        with status 409 until its content is edited.
+        """
+        return self._mutate(delete_projects_project_id_cards_card_id_tags_tag, name)
 
     def _mutate(self, endpoint: Any, name: str) -> Self:
         if not isinstance(name, str):
             raise TypeError("name must be a string")
-        self._holder._call(
-            endpoint,
-            self._card.id,
-            body=CardTagMutationRequest(project_id=self._project.id, tag=name),
-            write=True,
-        )
+        self._holder._call(endpoint, self._project.id, self._card.id, name, write=True)
         # Invalidate even if the following read fails. The write is never retried.
         self.refresh()
         self._card.refresh()

@@ -1,6 +1,5 @@
 """Tag collections use daemon data and project-scoped mutations."""
 
-import json
 from dataclasses import FrozenInstanceError
 
 import httpx
@@ -92,21 +91,15 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
     def respond(request):
         nonlocal content
         requests.append(request)
-        if request.url.path.endswith("/tags"):
-            assert request.method == ("POST" if method == "add" else "DELETE")
-            assert json.loads(request.content) == {
-                "project_id": "p-0",
-                "tag": "Research",
-            }
+        if "/tags/" in request.url.path:
+            assert request.method == ("PUT" if method == "add" else "DELETE")
+            # The tag goes as given, in the card's own path, with no body.
+            assert request.url.path == "/projects/p-0/cards/c-0000/tags/Research"
+            assert request.content == b""
             names[:] = ["research"]
             content = "Server content\n#research"
             return ok(
-                {
-                    "card_id": "c-0000",
-                    "tag": "research",
-                    "outcome": "added" if method == "add" else "removed",
-                    "changed": True,
-                }
+                {**tagged_card(list(names)), "content": content, "updated_at": 10}
             )
         if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(
@@ -126,7 +119,7 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
         assert [t.name for t in tags] == ["research"]
         with pytest.raises(RuntimeError):
             next(active)
-        assert sum(r.method in ("POST", "DELETE") for r in requests) == 1
+        assert sum(r.method in ("PUT", "DELETE") for r in requests) == 1
         with pytest.raises(TypeError):
             getattr(tags, method)(None)
     with pytest.raises(ClosedError):
@@ -162,29 +155,24 @@ def test_tag_read_of_a_card_no_longer_in_the_project_is_not_found():
 
 @pytest.mark.parametrize("method", ["add", "remove"])
 @pytest.mark.parametrize(
-    "error", ["auth", "transport", "invalid", "scope", "missing", "refresh"]
+    "error", ["auth", "transport", "invalid", "conflict", "missing", "refresh"]
 )
 def test_tag_writes_are_not_retried(monkeypatch, method, error):
     cli = mock_cli(monkeypatch)
     writes = []
 
     def respond(request):
-        if request.method in ("POST", "DELETE"):
+        if request.method in ("PUT", "DELETE"):
             writes.append(request)
             if error == "transport":
                 raise httpx.ReadError("Interrupted", request=request)
             if error != "refresh":
                 return failure(
-                    {"auth": 401, "invalid": 400, "scope": 422, "missing": 404}[error]
+                    {"auth": 401, "invalid": 400, "conflict": 409, "missing": 404}[
+                        error
+                    ]
                 )
-            return ok(
-                {
-                    "card_id": "c-0000",
-                    "tag": "research",
-                    "outcome": "added",
-                    "changed": True,
-                }
-            )
+            return ok(tagged_card(["research"]))
         if request.url.path.startswith("/projects/p-0/cards/"):
             return failure(404) if writes else ok(tagged_card(["draft"]))
         return ok(project_payload())
@@ -193,7 +181,7 @@ def test_tag_writes_are_not_retried(monkeypatch, method, error):
         "auth": AuthenticationError,
         "transport": ConnectionError,
         "invalid": APIError,
-        "scope": APIError,
+        "conflict": APIError,
         "missing": NotFoundError,
         "refresh": NotFoundError,
     }[error]

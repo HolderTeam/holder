@@ -194,18 +194,6 @@ template <> struct codec<holder::api::AiProviderCredentialDeleteResponse> {
     static json encode(const holder::api::AiProviderCredentialDeleteResponse& value);
     static holder::api::AiProviderCredentialDeleteResponse decode(const json& value);
 };
-template <> struct codec<holder::api::CardTagMutationResult> {
-    static json encode(const holder::api::CardTagMutationResult& value);
-    static holder::api::CardTagMutationResult decode(const json& value);
-};
-template <> struct codec<holder::api::CardTagMutationResponse> {
-    static json encode(const holder::api::CardTagMutationResponse& value);
-    static holder::api::CardTagMutationResponse decode(const json& value);
-};
-template <> struct codec<holder::api::CardTagMutationRequest> {
-    static json encode(const holder::api::CardTagMutationRequest& value);
-    static holder::api::CardTagMutationRequest decode(const json& value);
-};
 template <> struct codec<holder::api::CardLinkDeleteRequest> {
     static json encode(const holder::api::CardLinkDeleteRequest& value);
     static holder::api::CardLinkDeleteRequest decode(const json& value);
@@ -657,14 +645,6 @@ template <> struct codec<holder::api::CardHistoryRestoreResponse> {
 template <> struct codec<holder::api::StorageLocationListResponse> {
     static json encode(const holder::api::StorageLocationListResponse& value);
     static holder::api::StorageLocationListResponse decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectTag> {
-    static json encode(const holder::api::ProjectTag& value);
-    static holder::api::ProjectTag decode(const json& value);
-};
-template <> struct codec<holder::api::ProjectTagListResponse> {
-    static json encode(const holder::api::ProjectTagListResponse& value);
-    static holder::api::ProjectTagListResponse decode(const json& value);
 };
 template <> struct codec<holder::api::AiProviderSetting> {
     static json encode(const holder::api::AiProviderSetting& value);
@@ -1393,74 +1373,6 @@ inline holder::api::AiProviderCredentialDeleteResponse codec<holder::api::AiProv
     return holder::api::AiProviderCredentialDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderCredentialDeleteResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardTagMutationResult>::encode(const holder::api::CardTagMutationResult& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["tag"] = codec<std::string>::encode(value.tag);
-    if (value.outcome != "added" && value.outcome != "already_present" && value.outcome != "removed" && value.outcome != "not_present" && value.outcome != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
-    result["outcome"] = codec<std::string>::encode(value.outcome);
-    result["changed"] = codec<bool>::encode(value.changed);
-    return result;
-}
-inline holder::api::CardTagMutationResult codec<holder::api::CardTagMutationResult>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResult");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (!value.contains("outcome")) throw std::invalid_argument("missing outcome");
-    if (!value.contains("changed")) throw std::invalid_argument("missing changed");
-    if (value.at("outcome") != "added" && value.at("outcome") != "already_present" && value.at("outcome") != "removed" && value.at("outcome") != "not_present" && value.at("outcome") != "present_outside_editable_tag_line") throw std::invalid_argument("invalid outcome");
-    return holder::api::CardTagMutationResult{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("tag")),
-        codec<std::string>::decode(value.at("outcome")),
-        codec<bool>::decode(value.at("changed")),
-    };
-}
-
-inline json codec<holder::api::CardTagMutationResponse>::encode(const holder::api::CardTagMutationResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::CardTagMutationResult>::encode(value.data);
-    return result;
-}
-inline holder::api::CardTagMutationResponse codec<holder::api::CardTagMutationResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardTagMutationResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::CardTagMutationResult>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardTagMutationRequest>::encode(const holder::api::CardTagMutationRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["tag"] = codec<std::string>::encode(value.tag);
-    return result;
-}
-inline holder::api::CardTagMutationRequest codec<holder::api::CardTagMutationRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardTagMutationRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (value.contains("project_id") && value.at("project_id").is_string()) {
-        const auto length = value.at("project_id").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: project_id");
-    }
-    if (value.contains("tag") && value.at("tag").is_string()) {
-        const auto length = value.at("tag").get_ref<const std::string&>().size();
-        if (length < 1 || length > std::numeric_limits<std::size_t>::max())
-            throw std::invalid_argument("invalid length: tag");
-    }
-    return holder::api::CardTagMutationRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("tag")),
     };
 }
 
@@ -4272,40 +4184,6 @@ inline holder::api::StorageLocationListResponse codec<holder::api::StorageLocati
         codec<bool>::decode(value.at("ok")),
         codec<std::vector<holder::api::StorageLocation>>::decode(value.at("data")),
         codec<std::optional<std::string>>::decode(value.at("preferred_location_id")),
-    };
-}
-
-inline json codec<holder::api::ProjectTag>::encode(const holder::api::ProjectTag& value) {
-    json result = json::object();
-    result["tag"] = codec<std::string>::encode(value.tag);
-    result["card_count"] = codec<int>::encode(value.card_count);
-    return result;
-}
-inline holder::api::ProjectTag codec<holder::api::ProjectTag>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectTag");
-    if (!value.contains("tag")) throw std::invalid_argument("missing tag");
-    if (!value.contains("card_count")) throw std::invalid_argument("missing card_count");
-    return holder::api::ProjectTag{
-        codec<std::string>::decode(value.at("tag")),
-        codec<int>::decode(value.at("card_count")),
-    };
-}
-
-inline json codec<holder::api::ProjectTagListResponse>::encode(const holder::api::ProjectTagListResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::ProjectTag>>::encode(value.data);
-    return result;
-}
-inline holder::api::ProjectTagListResponse codec<holder::api::ProjectTagListResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected ProjectTagListResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::ProjectTagListResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::ProjectTag>>::decode(value.at("data")),
     };
 }
 

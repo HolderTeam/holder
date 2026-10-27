@@ -86,7 +86,7 @@ TEST_CASE("HTTP project tags use the generated route", "[http][tags]") {
       bound.bind, bound.port, token, boost::beast::http::verb::get,
       "/projects/bad%XX/tags");
   REQUIRE(malformed.status == boost::beast::http::status::bad_request);
-  REQUIRE(nlohmann::json::parse(malformed.body)["error"]["code"] == "bad_request");
+  REQUIRE(nlohmann::json::parse(malformed.body)["error"]["code"] == "invalid_argument");
 
   const auto legacy = holder::test::http_request_raw(
       bound.bind, bound.port, token, boost::beast::http::verb::get, "/projects");

@@ -328,9 +328,17 @@ def c_param(model: Model, op: dict[str, Any], parameter: dict[str, Any]) -> Para
 
 
 def c_out(model: Model, op: dict[str, Any]) -> tuple[str, str] | None:
+    """The result's C type and its out parameter's name; a list is a {items, count} struct."""
     ref = model.resolve(op["returns"])
     if ref["kind"] == "none":
         return None
+    if ref["kind"] == "list":
+        items = model.resolve(ref["items"])
+        if items["kind"] == "string":
+            return "holder_string_list", "out_strings"
+        if items["kind"] == "named":
+            return list_c_name(model, items), "out_" + snake(model.instance(items, {}).record) + "_list"
+        raise Unsupported(f"{op['name']}: lists of {items['kind']} as results")
     if ref["kind"] != "named":
         raise Unsupported(f"{op['name']}: {ref['kind']} results")
     instance = model.instance(ref, {})
@@ -848,7 +856,11 @@ def glue_operation(model: Model, op: dict[str, Any]) -> list[str]:
         call_args.append(f"{param.slot.name}_value")
     call = f"contract::{op['name']}(" + ", ".join(call_args) + ")"
     if result:
-        lines += [f"    auto* out = make<{result[0]}>(arena);", f"    *out = to_c(arena, {call});",
+        returns = model.resolve(op["returns"])
+        convert = "to_c"
+        if returns["kind"] == "list":
+            convert = "copy_strings" if model.resolve(returns["items"])["kind"] == "string" else "to_c_list"
+        lines += [f"    auto* out = make<{result[0]}>(arena);", f"    *out = {convert}(arena, {call});",
                   f"    *{result[1]} = out;"]
     else:
         lines.append(f"    {call};")

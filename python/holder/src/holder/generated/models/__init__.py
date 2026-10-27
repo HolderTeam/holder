@@ -143,10 +143,6 @@ from .card_reference_resolve_request import CardReferenceResolveRequest
 from .card_reference_resolve_request_scope import CardReferenceResolveRequestScope
 from .card_reference_resolve_response import CardReferenceResolveResponse
 from .card_response import CardResponse
-from .card_tag_mutation_request import CardTagMutationRequest
-from .card_tag_mutation_response import CardTagMutationResponse
-from .card_tag_mutation_result import CardTagMutationResult
-from .card_tag_mutation_result_outcome import CardTagMutationResultOutcome
 from .card_update import CardUpdate
 from .card_view_item import CardViewItem
 from .caste_info import CasteInfo
@@ -305,8 +301,6 @@ from .project_recovery_token_import_response_data import (
     ProjectRecoveryTokenImportResponseData,
 )
 from .project_sync import ProjectSync
-from .project_tag import ProjectTag
-from .project_tag_list_response import ProjectTagListResponse
 from .project_update_request import ProjectUpdateRequest
 from .project_update_request_privacy_mode import ProjectUpdateRequestPrivacyMode
 from .project_update_response import ProjectUpdateResponse
@@ -358,6 +352,8 @@ from .storage_location_request import StorageLocationRequest
 from .storage_location_request_configuration import StorageLocationRequestConfiguration
 from .storage_location_request_provider import StorageLocationRequestProvider
 from .storage_location_response import StorageLocationResponse
+from .tag_count import TagCount
+from .tag_count_list_response import TagCountListResponse
 from .tag_occurrence import TagOccurrence
 from .trash_delete_response import TrashDeleteResponse
 from .trash_delete_response_data import TrashDeleteResponseData
@@ -502,10 +498,6 @@ __all__ = (
     "CardReferenceResolveRequestScope",
     "CardReferenceResolveResponse",
     "CardResponse",
-    "CardTagMutationRequest",
-    "CardTagMutationResponse",
-    "CardTagMutationResult",
-    "CardTagMutationResultOutcome",
     "CardUpdate",
     "CardViewItem",
     "CasteInfo",
@@ -626,8 +618,6 @@ __all__ = (
     "ProjectRecoveryTokenImportResponse",
     "ProjectRecoveryTokenImportResponseData",
     "ProjectSync",
-    "ProjectTag",
-    "ProjectTagListResponse",
     "ProjectUpdateRequest",
     "ProjectUpdateRequestPrivacyMode",
     "ProjectUpdateResponse",
@@ -673,6 +663,8 @@ __all__ = (
     "StorageLocationRequestConfiguration",
     "StorageLocationRequestProvider",
     "StorageLocationResponse",
+    "TagCount",
+    "TagCountListResponse",
     "TagOccurrence",
     "TrashDeleteResponse",
     "TrashDeleteResponseData",

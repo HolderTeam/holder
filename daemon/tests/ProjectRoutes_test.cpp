@@ -575,7 +575,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   }
 }
 
-TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tags]") {
+TEST_CASE("The contract's route lists project tags with card counts", "[project-routes][tags]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
   holder::test::create_project(db, "proj-1", (dir / "repo").string());
@@ -614,7 +614,7 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   req = make_request(http::verb::get, "/projects/bad%XX/tags");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::bad_request);
-  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "invalid_argument");
 
   req = make_request(http::verb::get, "/projects");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -662,7 +662,7 @@ TEST_CASE("RIG route lists project tags with card counts", "[project-routes][tag
   req = make_request(http::verb::get, "/projects/proj-1/tags");
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::internal_server_error);
-  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "error");
+  REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "internal_error");
 }
 
 TEST_CASE("ProjectRoutes recovery import and encryption-check branches", "[project-routes]") {

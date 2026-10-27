@@ -5,6 +5,7 @@
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <optional>
@@ -82,9 +83,8 @@ nlohmann::json tag_mutation_request(
   const auto response = http_json_request(
       connection,
       method,
-      "/cards/" + url_encode_component(card_id) + "/tags",
-      std::chrono::seconds(30), // LCOV_EXCL_LINE
-      std::make_optional<nlohmann::json>(nlohmann::json{{"project_id", project_id}, {"tag", tag}})
+      card_api_path(project_id, card_id) + "/tags/" + url_encode_component(tag),
+      std::chrono::seconds(30) // LCOV_EXCL_LINE
   );
   if (response.status == boost::beast::http::status::ok && response.payload.value("ok", false)) {
     return response.payload;
@@ -102,25 +102,21 @@ nlohmann::json tag_mutation_request(
   throw CliError(code, message, std::move(details), message);
 }
 
-void print_tag_mutation(const nlohmann::json& data) {
-  const auto card_id = json_string(data, "card_id");
-  const auto tag = json_string(data, "tag");
-  const auto outcome = json_string(data, "outcome");
-  const auto shown_id = display_card_id(card_id);
-  if (outcome == "added") {
-    std::cout << "Added tag #" << tag << " to " << shown_id << ".\n";
-  } else if (outcome == "already_present") {
-    std::cout << "Tag #" << tag << " is already present on " << shown_id << ".\n";
-  } else if (outcome == "removed") {
-    std::cout << "Removed tag #" << tag << " from " << shown_id << ".\n";
-  } else if (outcome == "not_present") {
-    std::cout << "Tag #" << tag << " is not present on " << shown_id << ".\n";
-  } else if (outcome == "present_outside_editable_tag_line") {
-    std::cout << "Tag #" << tag << " was not removed from " << shown_id
-              << ": it appears outside the editable trailing tag line; edit the card text "
-                 "directly.\n";
-  } else {
+// The card answers either way: adding leaves the card carrying the tag, and removing leaves it
+// without. A tag the card carries only in its prose is a conflict, reported as an error.
+void print_tag_mutation(const nlohmann::json& card, const std::string& operation,
+                        const std::string& tag) {
+  const auto shown_id = display_card_id(json_string(card, "card_id"));
+  const auto normalized = lower_ascii(tag);
+  const auto tags = card.value("tags", nlohmann::json::array());
+  const bool carried = std::find(tags.begin(), tags.end(), normalized) != tags.end();
+  if (carried != (operation == "add")) {
     throw std::runtime_error("Invalid tag mutation response from daemon.");
+  }
+  if (operation == "add") {
+    std::cout << "Card " << shown_id << " has tag #" << normalized << ".\n";
+  } else {
+    std::cout << "Card " << shown_id << " does not have tag #" << normalized << ".\n";
   }
 }
 
@@ -191,13 +187,13 @@ int command_tag(const holder::core::Paths& paths, int argc, char* argv[]) {
   try {
     const auto card_id =
         resolve_card_reference(paths, project_id, options.card_reference, CardReferenceScope::Live);
-    const auto method = options.operation == "add" ? boost::beast::http::verb::post
+    const auto method = options.operation == "add" ? boost::beast::http::verb::put
                                                    : boost::beast::http::verb::delete_;
     const auto payload = tag_mutation_request(paths, method, card_id, project_id, options.tag);
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";
     } else {
-      print_tag_mutation(payload.at("data"));
+      print_tag_mutation(payload.at("data"), options.operation, options.tag);
     }
     return 0;
   } catch (const CliError&) {

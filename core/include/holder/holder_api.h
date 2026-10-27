@@ -19,7 +19,7 @@ typedef struct holder_arena holder_arena;
 
 /* The thing asked for does not exist, or is in the trash. */
 #define HOLDER_ERROR_NOT_FOUND 100
-/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash. */
+/* The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. */
 #define HOLDER_ERROR_CONFLICT 101
 /* The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none. */
 #define HOLDER_ERROR_KEYRING_UNAVAILABLE 102
@@ -144,6 +144,17 @@ typedef struct holder_card_list_item_page {
     const char* next_cursor; /* Pass back to get the next page; null on the last page. May be NULL. */
 } holder_card_list_item_page;
 
+/* A tag and how many of a project's live cards carry it. */
+typedef struct holder_tag_count {
+    const char* tag; /* The tag, normalized: in lower case. */
+    int32_t card_count; /* The live cards in the project that carry the tag: at least one, or the tag is not listed. */
+} holder_tag_count;
+
+typedef struct holder_tag_count_list {
+    const holder_tag_count* items;
+    size_t count;
+} holder_tag_count_list;
+
 /* Fetch a card.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
@@ -173,7 +184,7 @@ typedef enum holder_list_cards_order {
 /* Page through a project's live cards.
  * Filters combine. Each page reads current data; iterating is not a snapshot.
  * parent: Omit for every level; roots selects root cards; a card ID selects its children. The zero value is null.
- * tag: Only cards with this tag, matched without case and without the leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is not a tag. May be NULL.
+ * tag: Only cards with this tag. May be NULL.
  * order: updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.
  * limit: At most 1000 when include_content is true. NULL for 200.
  * cursor: The previous page's next_cursor. Keep the project, filters and order unchanged. May be NULL.
@@ -230,6 +241,29 @@ int holder_restore_card(holder_context* context, const char* project_id, const c
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_INVALID_MOVE, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_move_card(holder_context* context, const char* project_id, const char* card_id, const holder_card_move* move, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Tag a card.
+ * The tag is added to the card's trailing tag line, which is made when the card has none. A card that already
+ * carries the tag, anywhere in its content, is left as it is. A card in the trash or in another project is not
+ * found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_add_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Take a tag off a card.
+ * The tag is removed from the card's trailing tag line, and the line with it when it is left empty, so that the
+ * card no longer carries it. A card that does not carry the tag is left as it is. Holder does not rewrite prose,
+ * so a card that would still carry the tag in its prose is a Conflict, and is left as it is. A card in the trash
+ * or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_remove_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* List a project's tags.
+ * Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_project_tags(holder_context* context, const char* project_id, holder_arena* arena, const holder_tag_count_list** out_tag_count_list, holder_error** out_error);
 
 #ifdef __cplusplus
 }

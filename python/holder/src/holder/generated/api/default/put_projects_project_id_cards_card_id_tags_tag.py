@@ -6,39 +6,34 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_tag_mutation_request import CardTagMutationRequest
-from ...models.card_tag_mutation_response import CardTagMutationResponse
+from ...models.card_response import CardResponse
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
-    *,
-    body: CardTagMutationRequest,
+    tag: str,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "delete",
-        "url": "/cards/{card_id}/tags".format(
+        "method": "put",
+        "url": "/projects/{project_id}/cards/{card_id}/tags/{tag}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
+            tag=quote(str(tag), safe=""),
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardTagMutationResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardTagMutationResponse.from_dict(response.json())
+        response_200 = CardResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,20 +52,15 @@ def _parse_response(
 
         return response_404
 
-    if response.status_code == 422:
-        response_422 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
 
-        return response_422
+        return response_409
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -85,7 +75,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardTagMutationResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -95,28 +85,37 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
+    tag: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardTagMutationRequest,
-) -> Response[CardTagMutationResponse | ErrorResponse]:
-    """Remove a tag from a live card's editable trailing tag line
+) -> Response[CardResponse | ErrorResponse]:
+    """Tag a card.
+
+     The tag is added to the card's trailing tag line, which is made when the card has none. A card that
+    already
+    carries the tag, anywhere in its content, is left as it is. A card in the trash or in another
+    project is not
+    found.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardTagMutationRequest):
+        tag (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardTagMutationResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
-        body=body,
+        tag=tag,
     )
 
     response = client.get_httpx_client().request(
@@ -127,55 +126,73 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
+    tag: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardTagMutationRequest,
-) -> CardTagMutationResponse | ErrorResponse | None:
-    """Remove a tag from a live card's editable trailing tag line
+) -> CardResponse | ErrorResponse | None:
+    """Tag a card.
+
+     The tag is added to the card's trailing tag line, which is made when the card has none. A card that
+    already
+    carries the tag, anywhere in its content, is left as it is. A card in the trash or in another
+    project is not
+    found.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardTagMutationRequest):
+        tag (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardTagMutationResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
+        tag=tag,
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
+    tag: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardTagMutationRequest,
-) -> Response[CardTagMutationResponse | ErrorResponse]:
-    """Remove a tag from a live card's editable trailing tag line
+) -> Response[CardResponse | ErrorResponse]:
+    """Tag a card.
+
+     The tag is added to the card's trailing tag line, which is made when the card has none. A card that
+    already
+    carries the tag, anywhere in its content, is left as it is. A card in the trash or in another
+    project is not
+    found.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardTagMutationRequest):
+        tag (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardTagMutationResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
-        body=body,
+        tag=tag,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -184,29 +201,38 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
+    tag: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardTagMutationRequest,
-) -> CardTagMutationResponse | ErrorResponse | None:
-    """Remove a tag from a live card's editable trailing tag line
+) -> CardResponse | ErrorResponse | None:
+    """Tag a card.
+
+     The tag is added to the card's trailing tag line, which is made when the card has none. A card that
+    already
+    carries the tag, anywhere in its content, is left as it is. A card in the trash or in another
+    project is not
+    found.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardTagMutationRequest):
+        tag (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardTagMutationResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
+            tag=tag,
             client=client,
-            body=body,
         )
     ).parsed

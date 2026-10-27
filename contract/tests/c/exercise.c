@@ -126,6 +126,20 @@ int main(void) {
     status = holder_restore_card(context, "p1", "c1", arena, &card, &error);
     report("restore a live card", status, &error);
 
+    status = holder_add_card_tag(context, "p1", "c1", "idea", arena, &card, &error);
+    printf("add a tag: status %d, tags %zu, last '%s'\n", status, card->tags.count,
+           card->tags.items[card->tags.count - 1]);
+    status = holder_add_card_tag(context, "p1", "c1", "#idea", arena, &card, &error);
+    report("add a tag with its #", status, &error);
+    status = holder_remove_card_tag(context, "p1", "c1", "idea", arena, &card, &error);
+    report("remove a tag in the prose", status, &error);
+    const holder_tag_count_list* tags = NULL;
+    status = holder_list_project_tags(context, "p1", arena, &tags, &error);
+    printf("list tags: status %d, %zu tags, first %s on %d\n", status, tags->count, tags->items[0].tag,
+           tags->items[0].card_count);
+    status = holder_list_project_tags(context, "p2", arena, &tags, &error);
+    report("list tags of a missing project", status, &error);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

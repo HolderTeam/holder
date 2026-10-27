@@ -12,7 +12,7 @@ from fastapi import Body, Path, Query
 
 from holder_contract import Contract, Field, Int32
 
-from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Page, ProjectId
+from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Page, ProjectId, Tag, TagCount
 from .errors import Conflict, DataCorrupted, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
 
 contract = Contract(statuses={
@@ -45,10 +45,7 @@ def list_cards(
     project_id: Annotated[ProjectId, Path()],
     parent: Annotated[Literal["roots"] | CardId | None, Query(
         description="Omit for every level; roots selects root cards; a card ID selects its children.")] = None,
-    tag: Annotated[Annotated[str, Field(min_length=1)] | None, Query(
-        description="Only cards with this tag, matched without case and without the leading #. A tag starts with "
-                    "an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is "
-                    "not a tag.")] = None,
+    tag: Annotated[Tag | None, Query(description="Only cards with this tag.")] = None,
     order: Annotated[Literal["card_id_asc", "updated_desc", "sort_key_asc"], Query(
         description="updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.")]
     = "card_id_asc",
@@ -126,4 +123,41 @@ def move_card(
     change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
     trash or in another project is not found, and neither is a target or parent that does not exist or is in the
     trash. A move that changes nothing writes nothing.
+    """
+
+
+@contract.route("PUT", "/projects/{project_id}/cards/{card_id}/tags/{tag}", errors=[NotFound, *KEYS])
+def add_card_tag(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    tag: Annotated[Tag, Path()],
+) -> Card:
+    """Tag a card.
+
+    The tag is added to the card's trailing tag line, which is made when the card has none. A card that already
+    carries the tag, anywhere in its content, is left as it is. A card in the trash or in another project is not
+    found.
+    """
+
+
+@contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/tags/{tag}", errors=[NotFound, Conflict, *KEYS])
+def remove_card_tag(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    tag: Annotated[Tag, Path()],
+) -> Card:
+    """Take a tag off a card.
+
+    The tag is removed from the card's trailing tag line, and the line with it when it is left empty, so that the
+    card no longer carries it. A card that does not carry the tag is left as it is. Holder does not rewrite prose,
+    so a card that would still carry the tag in its prose is a Conflict, and is left as it is. A card in the trash
+    or in another project is not found.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/tags", errors=[NotFound])
+def list_project_tags(project_id: Annotated[ProjectId, Path()]) -> list[TagCount]:
+    """List a project's tags.
+
+    Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
     """

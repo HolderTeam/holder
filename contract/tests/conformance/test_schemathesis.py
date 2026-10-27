@@ -40,12 +40,12 @@ def stated_in_words(case) -> bool:
     """Whether the request uses a rule the contract states in words rather than in its schema.
 
     The daemon may reject such a request although the document allows it: a cursor is valid only
-    when the daemon handed it out, a tag has a form (see list_cards in interface/app.py), and a
-    page with content holds at most 1000 cards.
+    when the daemon handed it out, a tag has a form (see Tag in interface/cards.py), whether in the
+    query or the path, and a page with content holds at most 1000 cards.
     """
     query = case.query or {}
     limit = str(query.get("limit", 200))
-    return "cursor" in query or "tag" in query or (
+    return "cursor" in query or "tag" in query or "tag" in (case.path_parameters or {}) or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000)
 
 

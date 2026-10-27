@@ -1,6 +1,5 @@
 #pragma once
 
-#include "api/CardWrite.h"
 #include "api/HttpError.h"
 #include "api/RigAnnotations.h"
 #include "api/support/PrivacyErrors.h"
@@ -15,6 +14,15 @@ namespace holder::index { class FtsIndexer; }
 namespace holder::card { class CardStore; }
 
 namespace holder::api {
+
+struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardPatchResponseData {
+  std::string card_id;
+};
+
+struct RIG_OPEN_RECORD CardPatchResponse {
+  bool ok RIG_BOOL_VALUE(true);
+  CardPatchResponseData data;
+};
 
 struct RIG_OPEN_RECORD CardLinkDeleteRequest {
   std::optional<std::string> to_card_id RIG_OMIT_EMPTY;

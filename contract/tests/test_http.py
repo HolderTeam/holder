@@ -145,7 +145,7 @@ def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemo
     assert responses["409"]["description"] == (
         "The request conflicts with what exists: what would be created already exists, such as a card with the "
         "same ID or file, or the thing to change is not in the state the request needs, such as restoring a card "
-        "that is not in the trash. "
+        "that is not in the trash, or removing a tag that a card would still carry in its prose. "
         "An encrypted project's key is not on this device; the project's recovery token restores it.")
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
     # The same error schemas as RIG's document, so that the two merge.
@@ -161,6 +161,15 @@ def test_records_are_closed_and_list_their_bases_fields():
     assert {"type": "null"} in item["properties"]["parent_card_id"]["anyOf"]
     assert schemas["NewCard"]["required"] == ["title"]
     assert schemas["NewCard"]["properties"]["content"]["default"] == ""
+
+
+def test_a_list_results_envelope_is_named_for_its_items():
+    result = openapi()
+    responses = result["paths"]["/projects/{project_id}/tags"]["get"]["responses"]
+    assert responses["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/TagCountListResponse"}
+    data = result["components"]["schemas"]["TagCountListResponse"]["properties"]["data"]
+    assert (data["type"], data["items"]) == ("array", {"$ref": "#/components/schemas/TagCount"})
 
 
 def test_a_generic_records_use_is_named_for_its_arguments():

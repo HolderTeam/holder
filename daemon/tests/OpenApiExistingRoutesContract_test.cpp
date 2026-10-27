@@ -304,15 +304,13 @@ TEST_CASE(
   REQUIRE(project_id.IsDefined());
   CHECK(project_id["in"].as<std::string>() == "path");
   CHECK(project_id["required"].as<bool>());
-  require_json_response_ref(list_tags, "200", "ProjectTagListResponse");
+  require_json_response_ref(list_tags, "200", "TagCountListResponse");
   require_json_response_ref(list_tags, "404", "ErrorResponse");
 
+  CHECK(required_properties(schemas["TagCount"]) == std::vector<std::string>{"card_count", "tag"});
   CHECK(
-      required_properties(schemas["ProjectTag"]) == std::vector<std::string>{"card_count", "tag"}
-  );
-  CHECK(
-      schemas["ProjectTagListResponse"]["properties"]["data"]["items"]["$ref"].as<std::string>() ==
-      "#/components/schemas/ProjectTag"
+      schemas["TagCountListResponse"]["properties"]["data"]["items"]["$ref"].as<std::string>() ==
+      "#/components/schemas/TagCount"
   );
 
   const auto list_cards = document["paths"]["/cards"]["get"];
@@ -419,48 +417,26 @@ TEST_CASE(
 
 TEST_CASE("OpenAPI contracts live-card tag mutations", "[openapi][holderctl-tags][tags]") {
   const auto document = load_openapi();
-  const auto schemas = document["components"]["schemas"];
-  const auto path = document["paths"]["/cards/{card_id}/tags"];
+  const auto path = document["paths"]["/projects/{project_id}/cards/{card_id}/tags/{tag}"];
 
-  for (const auto& method : {"post", "delete"}) {
+  for (const auto& method : {"put", "delete"}) {
     const auto operation = path[method];
     REQUIRE(operation.IsDefined());
-    const auto card_id = parameter_named(operation, "card_id");
-    REQUIRE(card_id.IsDefined());
-    CHECK(card_id["in"].as<std::string>() == "path");
-    CHECK(card_id["required"].as<bool>());
-    CHECK(
-        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].as<std::string>(
-        ) == "#/components/schemas/CardTagMutationRequest"
-    );
-    require_json_response_ref(operation, "200", "CardTagMutationResponse");
-    for (const auto& status : {"400", "401", "404", "422"}) {
+    for (const auto* name : {"project_id", "card_id", "tag"}) {
+      const auto parameter = parameter_named(operation, name);
+      REQUIRE(parameter.IsDefined());
+      CHECK(parameter["in"].as<std::string>() == "path");
+      CHECK(parameter["required"].as<bool>());
+    }
+    CHECK_FALSE(operation["requestBody"].IsDefined());
+    // The contract's add_card_tag and remove_card_tag answer with the card.
+    require_json_response_ref(operation, "200", "CardResponse");
+    for (const auto& status : {"400", "401", "404"}) {
       require_json_response_ref(operation, status, "ErrorResponse");
     }
   }
-
-  CHECK(
-      required_properties(schemas["CardTagMutationRequest"]) ==
-      std::vector<std::string>{"project_id", "tag"}
-  );
-  CHECK(
-      required_properties(schemas["CardTagMutationResult"]) ==
-      std::vector<std::string>{"card_id", "changed", "outcome", "tag"}
-  );
-  const auto outcomes = schemas["CardTagMutationResult"]["properties"]["outcome"]["enum"];
-  std::vector<std::string> documented_outcomes;
-  for (const auto& outcome : outcomes)
-    documented_outcomes.push_back(outcome.as<std::string>());
-  std::sort(documented_outcomes.begin(), documented_outcomes.end());
-  std::vector<std::string> expected{
-      "added",
-      "already_present",
-      "not_present",
-      "present_outside_editable_tag_line",
-      "removed",
-  };
-  std::sort(expected.begin(), expected.end());
-  CHECK(documented_outcomes == expected);
+  // Removing a tag a card carries only in its prose is a conflict.
+  require_json_response_ref(path["delete"], "409", "ErrorResponse");
 }
 
 TEST_CASE(

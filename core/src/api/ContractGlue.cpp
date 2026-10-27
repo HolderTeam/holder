@@ -177,6 +177,8 @@ holder_card to_c(holder_arena* arena, const contract::Card& value);
 holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value);
 holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::CardListItem>& values);
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
+holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value);
+holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -236,6 +238,19 @@ holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contra
   out.items = to_c_list(arena, value.items);
   out.next_cursor = copy_text(arena, value.next_cursor);
   return out;
+}
+
+holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value) {
+  holder_tag_count out{};
+  out.tag = copy(arena, value.tag);
+  out.card_count = value.card_count;
+  return out;
+}
+
+holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values) {
+  auto* items = make<holder_tag_count>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
 }
 
 contract::NewCard from_c(const holder_new_card& value) {
@@ -403,6 +418,46 @@ int holder_move_card(holder_context* context, const char* project_id, const char
     auto* out = make<holder_card>(arena);
     *out = to_c(arena, contract::move_card(*context, project_id_value, card_id_value, move_value));
     *out_card = out;
+  });
+}
+
+int holder_add_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto tag_value = text(tag, "tag", 1, SIZE_MAX);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::add_card_tag(*context, project_id_value, card_id_value, tag_value));
+    *out_card = out;
+  });
+}
+
+int holder_remove_card_tag(holder_context* context, const char* project_id, const char* card_id, const char* tag, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card != nullptr, "out_card must not be null");
+    *out_card = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto tag_value = text(tag, "tag", 1, SIZE_MAX);
+    auto* out = make<holder_card>(arena);
+    *out = to_c(arena, contract::remove_card_tag(*context, project_id_value, card_id_value, tag_value));
+    *out_card = out;
+  });
+}
+
+int holder_list_project_tags(holder_context* context, const char* project_id, holder_arena* arena, const holder_tag_count_list** out_tag_count_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_tag_count_list != nullptr, "out_tag_count_list must not be null");
+    *out_tag_count_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_tag_count_list>(arena);
+    *out = to_c_list(arena, contract::list_project_tags(*context, project_id_value));
+    *out_tag_count_list = out;
   });
 }
 

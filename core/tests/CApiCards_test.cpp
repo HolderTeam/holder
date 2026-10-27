@@ -271,3 +271,76 @@ TEST_CASE("holder_list_cards rejects bad queries", "[capi][contract]") {
                                      nullptr, nullptr, false, false, f.arena, &page, &f.error)) ==
           HOLDER_ERROR_NOT_FOUND);
 }
+
+namespace {
+
+bool has_tag(const holder_card* card, const std::string& tag) {
+  for (std::size_t i = 0; i < card->tags.count; ++i)
+    if (card->tags.items[i] == tag) return true;
+  return false;
+}
+
+} // namespace
+
+TEST_CASE("holder_add_card_tag and holder_remove_card_tag edit only the trailing tag line", "[capi][contract]") {
+  Fixture f;
+  const std::string card_id = f.create("Notes", "About #prose here")->card_id;
+  const auto* project = f.project_id.c_str();
+  const holder_card* card = nullptr;
+
+  REQUIRE(holder_add_card_tag(f.context, project, card_id.c_str(), "Idea", f.arena, &card, &f.error) == HOLDER_OK);
+  REQUIRE(has_tag(card, "idea"));
+  REQUIRE(std::string(card->content).find("#idea") != std::string::npos);
+  const auto updated_at = card->updated_at;
+  const std::string content = card->content;
+
+  // A tag the card already carries, on its tag line or in its prose, leaves it as it is.
+  for (const char* tag : {"idea", "PROSE"}) {
+    REQUIRE(holder_add_card_tag(f.context, project, card_id.c_str(), tag, f.arena, &card, &f.error) == HOLDER_OK);
+    REQUIRE(card->content == content);
+    REQUIRE(card->updated_at == updated_at);
+  }
+
+  REQUIRE(holder_remove_card_tag(f.context, project, card_id.c_str(), "IDEA", f.arena, &card, &f.error) ==
+          HOLDER_OK);
+  REQUIRE_FALSE(has_tag(card, "idea"));
+  REQUIRE(holder_remove_card_tag(f.context, project, card_id.c_str(), "absent", f.arena, &card, &f.error) ==
+          HOLDER_OK);
+  // Holder does not rewrite prose, so a tag that would stay in it is a conflict, even when the tag
+  // line carries it too.
+  REQUIRE(f.failed(holder_remove_card_tag(f.context, project, card_id.c_str(), "prose", f.arena, &card,
+                                          &f.error)) == HOLDER_ERROR_CONFLICT);
+  const std::string both_id = f.create("Both", "About #twice\n\n#twice")->card_id;
+  REQUIRE(f.failed(holder_remove_card_tag(f.context, project, both_id.c_str(), "twice", f.arena, &card,
+                                          &f.error)) == HOLDER_ERROR_CONFLICT);
+  REQUIRE(holder_get_card(f.context, project, both_id.c_str(), f.arena, &card, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(card->content) == "About #twice\n\n#twice");
+
+  REQUIRE(f.failed(holder_add_card_tag(f.context, project, card_id.c_str(), "fff", f.arena, &card, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_add_card_tag(f.context, project, card_id.c_str(), "#idea", f.arena, &card, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_add_card_tag(f.context, "no-such-project", card_id.c_str(), "idea", f.arena, &card,
+                                       &f.error)) == HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_remove_card_tag(f.context, project, "no-such-card", "idea", f.arena, &card, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("holder_list_project_tags counts live cards, most used first", "[capi][contract]") {
+  Fixture f;
+  f.create("One", "#beta #alpha");
+  f.create("Two", "#beta");
+  const auto* trashed = f.create("Three", "#gamma #beta");
+  REQUIRE(holder_card_delete(f.context, trashed->card_id, &f.error) == HOLDER_OK);
+
+  const holder_tag_count_list* tags = nullptr;
+  REQUIRE(holder_list_project_tags(f.context, f.project_id.c_str(), f.arena, &tags, &f.error) == HOLDER_OK);
+  REQUIRE(tags->count == 2);
+  REQUIRE(std::string(tags->items[0].tag) == "beta");
+  REQUIRE(tags->items[0].card_count == 2);
+  REQUIRE(std::string(tags->items[1].tag) == "alpha");
+  REQUIRE(tags->items[1].card_count == 1);
+
+  REQUIRE(f.failed(holder_list_project_tags(f.context, "no-such-project", f.arena, &tags, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+}
