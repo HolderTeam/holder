@@ -182,8 +182,25 @@ class Core:
 
     def field(self, slot, value, keep):
         kind = slot.type["kind"]
+        if slot.change:
+            change = self.ffi.new("holder_string_change*")
+            if value is ...:
+                change.change = self.lib.HOLDER_KEEP
+            elif value is None:
+                change.change = self.lib.HOLDER_CLEAR
+            else:
+                change.change = self.lib.HOLDER_SET
+                change.value = self.text(value, keep)
+            keep.append(change)
+            return change[0]
         if kind == "string":
             return self.text(value, keep)
+        if kind == "literal":
+            if value is ... or value is None:
+                raise Unrepresentable(f"no value for {slot.name}")
+            if value not in slot.type["values"]:
+                return BAD_ENUM
+            return getattr(self.lib, f"holder_{snake(slot.type['enum'])}_{literal_member(value)}".upper())
         if kind in SCALARS_C and (slot.nullable or slot.optional):
             if value is ... or value is None:
                 return self.ffi.NULL
