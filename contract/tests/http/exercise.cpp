@@ -31,7 +31,8 @@ int main() {
   holder_context* context = stub_context_new();
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Thesis", "content": "Intro #draft"})");
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Child", "parent_card_id": "c1", "sort_key": 2.5,)"
-                                   R"( "created_at": -5, "unknown": true})");
+                                   R"( "created_at": -5})");
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Named", "card_id": "mine"})");
   send(*context, "GET", "/cards/c1");
   send(*context, "GET", "/cards/c%31");
   send(*context, "GET", "/projects/p1/cards");

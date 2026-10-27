@@ -22,6 +22,7 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <regex>
 #include <functional>
 #include <iterator>
 #include <tuple>
@@ -208,38 +209,6 @@ TEST_CASE("CardRoutes recent view validates limit param", "[card-routes]") {
   REQUIRE(payload["error"]["code"] == "bad_request");
 }
 
-TEST_CASE("CardRoutes post returns not_implemented without card_store", "[card-routes]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
-  const auto body = nlohmann::json{
-      {"project_id", "proj-1"},
-      {"title", "T"},
-      {"content", "C"},
-  };
-  auto req = make_request(http::verb::post, "/cards", body.dump());
-  http::response<http::string_body> res;
-  const auto uuid_v4 = []() {
-    return std::string("generated-id");
-  };
-  const auto param_get = [](const std::string&) {
-    return std::string();
-  };
-
-  const bool handled = route_card(
-      "/cards",
-      req,
-      res,
-      db,
-      nullptr,
-      nullptr,
-      uuid_v4,
-      param_get
-  );
-  REQUIRE(handled);
-  REQUIRE(res.result() == http::status::not_implemented);
-}
-
 TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "[card-routes]") {
   const auto dir = holder::test::make_temp_dir();
   auto db = holder::test::open_db_with_schema(dir / "holder.db");
@@ -313,9 +282,9 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   const auto [missing_status, missing_payload] = post(
       {{"project_id", "missing-project"}, {"title", "Missing"}, {"content", "content"}}
   );
-  REQUIRE(missing_status == http::status::bad_request);
-  REQUIRE(missing_payload["error"]["code"] == "bad_request");
-  REQUIRE(missing_payload["error"]["message"] == "Project not found.");
+  REQUIRE(missing_status == http::status::not_found);
+  REQUIRE(missing_payload["error"]["code"] == "not_found");
+  REQUIRE(missing_payload["error"]["message"] == "project not found: missing-project");
 
   holder::card::CardRepo card_repo(db);
   REQUIRE(card_repo.get(v4_id).has_value());
@@ -329,8 +298,8 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
        {"content", "content"}}
   );
   REQUIRE(rejected_status == http::status::bad_request);
-  REQUIRE(rejected_payload["error"]["code"] == "bad_request");
-  REQUIRE(rejected_payload["error"]["message"] == "unexpected CardCreateRequest field");
+  REQUIRE(rejected_payload["error"]["code"] == "invalid_argument");
+  REQUIRE(rejected_payload["error"]["message"] == "NewCard has no field card_id");
   REQUIRE_FALSE(card_repo.get(supplied_id).has_value());
 }
 
@@ -342,17 +311,16 @@ TEST_CASE("OpenAPI card create request does not expose card_id", "[openapi]") {
       std::istreambuf_iterator<char>()
   );
 
-  const auto request_begin = document.find("    CardCreateRequest:");
-  const auto response_begin = document.find("    CardCreateResponse:", request_begin);
+  // The contract's NewCard, up to the next schema: Holder generates the ID.
+  const auto request_begin = document.find("\n    NewCard:");
   REQUIRE(request_begin != std::string::npos);
-  REQUIRE(response_begin != std::string::npos);
-  const auto request_schema = document.substr(request_begin, response_begin - request_begin);
+  std::smatch next;
+  const std::string rest = document.substr(request_begin + 1);
+  REQUIRE(std::regex_search(rest.cbegin() + 1, rest.cend(), next, std::regex("\n    [A-Za-z]")));
+  const auto request_schema = rest.substr(0, static_cast<std::size_t>(next.position(0)) + 1);
   REQUIRE(request_schema.find("\n        card_id:") == std::string::npos);
-
-  const auto next_schema = document.find("    CardUpdateRequest:", response_begin);
-  REQUIRE(next_schema != std::string::npos);
-  const auto response_schema = document.substr(response_begin, next_schema - response_begin);
-  REQUIRE(response_schema.find("\n            card_id:") != std::string::npos);
+  REQUIRE(request_schema.find("\n        title:") != std::string::npos);
+  REQUIRE(request_schema.find("additionalProperties: false") != std::string::npos);
 }
 
 TEST_CASE("CardRoutes move intent edge branches", "[card-routes]") {
@@ -1187,13 +1155,13 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     }
   }
 
-  SECTION("post /cards validates required fields and optional rel_path/sort_key") {
-    auto [bad_status, bad_payload] =
-        call(http::verb::post, "/cards", {{"project_id", "proj-1"}, {"title", "missing content"}});
-    REQUIRE(bad_status == http::status::bad_request);
-    REQUIRE(bad_payload["error"]["code"] == "bad_request");
+  SECTION("post /cards takes the contract's NewCard and rejects fields it does not have") {
+    auto [plain_status, plain_payload] =
+        call(http::verb::post, "/cards", {{"project_id", "proj-1"}, {"title", "no content"}});
+    REQUIRE(plain_status == http::status::created);
+    REQUIRE(plain_payload["data"]["content"] == "");
 
-    auto [ok_status, ok_payload] = call(
+    auto [bad_status, bad_payload] = call(
         http::verb::post,
         "/cards",
         {{"project_id", "proj-1"},
@@ -1204,8 +1172,9 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
          {"sort_key", 555.0},
          {"rel_path", "cards/custom.md"}}
     );
-    REQUIRE(ok_status == http::status::bad_request);
-    REQUIRE(ok_payload["error"]["code"] == "bad_request");
+    REQUIRE(bad_status == http::status::bad_request);
+    REQUIRE(bad_payload["error"]["code"] == "invalid_argument");
+    REQUIRE(bad_payload["error"]["message"] == "NewCard has no field rel_path");
   }
 
   SECTION("move to_start and to_end no-op with no siblings") {
@@ -1369,22 +1338,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     REQUIRE(live_payload["error"]["message"] == "Card is not in Trash.");
   }
 
-  SECTION("item routes cover no-store, empty id, deleted and missing delete") {
-    auto req = make_request(http::verb::get, "/cards/11111111-1111-4111-8111-111111111111");
-    http::response<http::string_body> no_store_res;
-    const bool no_store_handled = route_card(
-        "/cards/11111111-1111-4111-8111-111111111111",
-        req,
-        no_store_res,
-        db,
-        nullptr,
-        &fts,
-        uuid_v4,
-        empty_param_get
-    );
-    REQUIRE(no_store_handled);
-    REQUIRE(no_store_res.result() == http::status::not_implemented);
-
+  SECTION("item routes cover empty id, deleted and missing delete") {
     // An empty card ID matches no route, so the router answers 404.
     auto empty_req = make_request(http::verb::get, "/cards/");
     http::response<http::string_body> empty_res;
@@ -2048,8 +2002,7 @@ TEST_CASE("CardRoutes card writes report their failures", "[card-routes]") {
   const nlohmann::json create = {{"project_id", "proj-1"}, {"title", "T"}, {"content", "c"}};
 
   for (const auto& [method, target, body] :
-       {std::tuple{http::verb::post, std::string("/cards"), create},
-        std::tuple{http::verb::patch, path, nlohmann::json{{"updated_at", 20}, {"content", "x"}}},
+       {std::tuple{http::verb::patch, path, nlohmann::json{{"updated_at", 20}, {"content", "x"}}},
         std::tuple{http::verb::delete_, path, nlohmann::json()}}) {
     const auto [no_store, payload] = call(method, target, body, nullptr);
     REQUIRE(no_store == http::status::not_implemented);
@@ -2062,8 +2015,8 @@ TEST_CASE("CardRoutes card writes report their failures", "[card-routes]") {
   auto bad_parent = create;
   bad_parent["parent_card_id"] = "missing";
   const auto [parent_status, parent_payload] = call(http::verb::post, "/cards", bad_parent, &card_store);
-  REQUIRE(parent_status == http::status::bad_request);
-  REQUIRE(parent_payload["error"]["message"] == "Parent card not found.");
+  REQUIRE(parent_status == http::status::not_found);
+  REQUIRE(parent_payload["error"]["message"] == "parent card not found: missing");
 
   REQUIRE(status(http::verb::patch, path, {{"updated_at", 20}}) == http::status::bad_request);
   REQUIRE(status(http::verb::patch, path, {{"updated_at", 20}, {"title", "T"}}) ==

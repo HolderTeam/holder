@@ -1,19 +1,22 @@
 # Generating the contract with RIG
 
 [RIG](https://github.com/zeth/rig) reflects C++ declarations with C++26 static
-reflection and generates interfaces from them. Holder declares every HTTP
-endpoint in C++ in `daemon/src/api/`, and RIG generates four files from those
-declarations:
+reflection and generates interfaces from them. The daemon's routes not yet in
+the contract (`contract/`, #290) are declared in C++ in `daemon/src/api/`, and
+RIG generates three files from those declarations:
 
-- `api/openapi.yaml`, the canonical contract, and `api/openapi.json`, the same
+- `api/rig/openapi.rig.json`, the OpenAPI document for those routes. `make -C
+  contract update` merges the contract's routes into it to write
+  `api/openapi.yaml`, the API's document, and `api/openapi.json`, the same
   document as JSON, which the daemon's build compiles in to serve at
   `GET /openapi.json`;
 - `daemon/src/api/generated/RuntimeRoutes.h`, the request dispatcher;
 - `daemon/src/api/generated/RuntimeJson.h`, the JSON encoding and decoding.
 
-All four are checked in. Ordinary daemon builds compile them as C++20 and need
+All three are checked in. Ordinary daemon builds compile them as C++20 and need
 neither RIG nor a reflection-capable compiler; `RigAnnotations.h` makes the
-annotations disappear in those builds.
+annotations disappear in those builds. As routes move to the contract, their
+declarations go from here, and once every route has moved, RIG goes too.
 
 ## Changing an endpoint
 
@@ -22,12 +25,14 @@ Edit its declaration, then regenerate from the repository root:
 ```sh
 pip install -r api/rig/requirements.txt
 make -C api/rig update
+make -C contract update   # merges the contract's routes into api/openapi.yaml and .json
 ```
 
 This needs GCC 16 (set `CXX` if it is not `g++`) and core's installed SDK, which
 the daemon's build installs under `core/out/install/local` (set `CORE_INCLUDE`
 to use another). `make -C api/rig check` regenerates into `api/rig/build/` and
-fails if any of the four files differs. `Daemon / CI` runs it in a Fedora 45
+fails if any of the three files differs; `make -C contract check` fails if the
+merged document is out of date. `Daemon / CI` runs it in a Fedora 45
 container, against the SDK built in the same run: Ubuntu 26.04's `g++-16` is a
 snapshot from before GCC 16 supported annotations on function parameters.
 
@@ -41,11 +46,16 @@ in the same pull request.
 function annotated with `RIG_ROUTE`, plus its summary, description, errors and
 constraints; its parameters and return type give the request and response.
 
-Every endpoint is defined in the daemon and served by the generated dispatcher,
-which decodes and validates the request, calls the function and maps its
-exceptions to the declared errors. `GeneratedRoutes.cpp` supplies the database
-and other context, and `Session.cpp` calls the dispatcher after authentication;
-a request it does not take is a 404. Schemas shared by several endpoints are in
+Every endpoint declared here is defined in the daemon and served by the
+generated dispatcher, which decodes and validates the request, calls the
+function and maps its exceptions to the declared errors. `GeneratedRoutes.cpp`
+supplies the database and other context, and `Session.cpp` calls it after
+authentication. `GeneratedRoutes.cpp` tries RIG's dispatcher first, then the
+contract's (`daemon/src/api/generated/ContractRoutes.h`, see
+`contract/HTTP.md`) for a request RIG has no route for or would answer with a
+405, and a 405 lists both dispatchers' methods. A request neither takes is a
+404. The contract's tooling rejects a RIG route that would take a request meant
+for one of the contract's. Schemas shared by several endpoints are in
 `Schemas.h`.
 
 - **JSON endpoints**, such as `ProjectTags.h`, return a value the dispatcher

@@ -1,38 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="CardCreateResponseData")
+if TYPE_CHECKING:
+    from ..models.card import Card
+
+
+T = TypeVar("T", bound="CardResponse")
 
 
 @_attrs_define
-class CardCreateResponseData:
+class CardResponse:
     """
     Attributes:
-        card_id (str):
-        rel_path (str):
+        ok (bool):
+        data (Card): A card, with its content and tags.
     """
 
-    card_id: str
-    rel_path: str
+    ok: bool
+    data: Card
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        card_id = self.card_id
+        ok = self.ok
 
-        rel_path = self.rel_path
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "card_id": card_id,
-                "rel_path": rel_path,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -40,18 +44,20 @@ class CardCreateResponseData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.card import Card
+
         d = dict(src_dict)
-        card_id = d.pop("card_id")
+        ok = d.pop("ok")
 
-        rel_path = d.pop("rel_path")
+        data = Card.from_dict(d.pop("data"))
 
-        card_create_response_data = cls(
-            card_id=card_id,
-            rel_path=rel_path,
+        card_response = cls(
+            ok=ok,
+            data=data,
         )
 
-        card_create_response_data.additional_properties = d
-        return card_create_response_data
+        card_response.additional_properties = d
+        return card_response
 
     @property
     def additional_keys(self) -> list[str]:

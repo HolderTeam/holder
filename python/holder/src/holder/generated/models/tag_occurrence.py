@@ -7,16 +7,17 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="CardTagOccurrence")
+T = TypeVar("T", bound="TagOccurrence")
 
 
 @_attrs_define
-class CardTagOccurrence:
-    """
+class TagOccurrence:
+    """A tag written in a card's content.
+
     Attributes:
-        tag (str):
-        byte_start (int): Inclusive byte offset of the leading # in content.
-        byte_end (int): Exclusive byte offset after the tag name.
+        tag (str): The normalized tag.
+        byte_start (int): Inclusive byte offset of the leading # in the content.
+        byte_end (int): Exclusive byte offset after the tag's name.
     """
 
     tag: str
@@ -52,14 +53,14 @@ class CardTagOccurrence:
 
         byte_end = d.pop("byte_end")
 
-        card_tag_occurrence = cls(
+        tag_occurrence = cls(
             tag=tag,
             byte_start=byte_start,
             byte_end=byte_end,
         )
 
-        card_tag_occurrence.additional_properties = d
-        return card_tag_occurrence
+        tag_occurrence.additional_properties = d
+        return tag_occurrence
 
     @property
     def additional_keys(self) -> list[str]:

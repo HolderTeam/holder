@@ -8,18 +8,19 @@ import re
 import sys
 from pathlib import Path
 
-from .daemon import generate_daemon
+from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
 from .extract import ContractError, extract
 from .generate import CORE_PATHS, Unsupported, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent
 COMMANDS = {
-    "check": "report every problem in the contract, and fail if core's generated files are out of date",
+    "check": "report every problem in the contract, and fail if a generated file in core, the daemon or api/ is "
+             "out of date",
     "ir": "write the contract's IR as JSON",
     "generate": "write every generated file into --output, a directory: core's C API, and the daemon's routes, "
                 "their JSON codec and their OpenAPI paths",
-    "update": "write the generated C API into core",
+    "update": "write the generated files into core, the daemon and api/",
 }
 
 
@@ -32,12 +33,20 @@ def collisions(files: dict[str, str]) -> list[str]:
     return sorted(generated & existing)
 
 
+def repository_files(ir: dict, files: dict[str, str]) -> dict[str, str]:
+    """Every generated file the repository holds, by its path in the repository."""
+    daemon = generate_daemon(ir)
+    return {**{CORE_PATHS[name]: text for name, text in files.items()},
+            **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
+            **{OPENAPI_PATHS[name]: text for name, text in api_documents(ir, REPOSITORY).items()}}
+
+
 def stale_files(files: dict[str, str]) -> list[str]:
     stale = []
-    for name, text in files.items():
-        path = REPOSITORY / CORE_PATHS[name]
-        if not path.exists() or path.read_text(encoding="utf-8") != text:
-            stale.append(CORE_PATHS[name])
+    for path, text in files.items():
+        target = REPOSITORY / path
+        if not target.exists() or target.read_text(encoding="utf-8") != text:
+            stale.append(path)
     return stale
 
 
@@ -76,6 +85,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Generated names already used in core/include/holder/holder.h: {', '.join(clashes)}. "
               "Rename the contract's declaration.", file=sys.stderr)
         return 1
+    if args.command in ("check", "update"):
+        try:
+            files = repository_files(ir, files)
+        except (Unsupported, ValueError) as error:
+            print(f"The daemon's files cannot be generated: {error}", file=sys.stderr)
+            return 1
     if args.command == "check":
         stale = stale_files(files)
         for path in stale:
@@ -91,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         targets = {name: args.output / name for name in files}
     else:
-        targets = {name: REPOSITORY / path for name, path in CORE_PATHS.items()}
+        targets = {path: REPOSITORY / path for path in files}
     for name, text in files.items():
         targets[name].parent.mkdir(parents=True, exist_ok=True)
         targets[name].write_text(text, encoding="utf-8")

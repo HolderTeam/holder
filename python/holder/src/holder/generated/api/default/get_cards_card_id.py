@@ -6,7 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_get_response import CardGetResponse
+from ...models.card_response import CardResponse
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
@@ -27,9 +27,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardGetResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardGetResponse.from_dict(response.json())
+        response_200 = CardResponse.from_dict(response.json())
 
         return response_200
 
@@ -48,15 +48,20 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
 
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
 
-        return response_501
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -66,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardGetResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -79,8 +84,8 @@ def sync_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardGetResponse | ErrorResponse]:
-    """Fetch a card
+) -> Response[CardResponse | ErrorResponse]:
+    """Fetch a card.
 
      A card in the trash is not found.
 
@@ -92,7 +97,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardGetResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -110,8 +115,8 @@ def sync(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardGetResponse | ErrorResponse | None:
-    """Fetch a card
+) -> CardResponse | ErrorResponse | None:
+    """Fetch a card.
 
      A card in the trash is not found.
 
@@ -123,7 +128,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardGetResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -136,8 +141,8 @@ async def asyncio_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardGetResponse | ErrorResponse]:
-    """Fetch a card
+) -> Response[CardResponse | ErrorResponse]:
+    """Fetch a card.
 
      A card in the trash is not found.
 
@@ -149,7 +154,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardGetResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -165,8 +170,8 @@ async def asyncio(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardGetResponse | ErrorResponse | None:
-    """Fetch a card
+) -> CardResponse | ErrorResponse | None:
+    """Fetch a card.
 
      A card in the trash is not found.
 
@@ -178,7 +183,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardGetResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (

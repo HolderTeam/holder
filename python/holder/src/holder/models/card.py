@@ -22,7 +22,6 @@ from ..generated.api.default import (
     post_cards_card_id_restore,
 )
 from ..generated.models import (
-    CardCreateRequest,
     CardMoveIntent,
     CardMoveRequest,
     CardReferenceResolveRequest,
@@ -30,6 +29,7 @@ from ..generated.models import (
     CardUpdateRequest,
     DeleteCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
+    NewCard,
 )
 from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
     GetProjectsProjectIdCardsParentType0 as CardParent,
@@ -80,8 +80,7 @@ class CardCollection(Collection["Card"]):
         """Create a root card, or a child when called on a children collection.
 
         Tag filters do not add tags to the content. Cached listings remain
-        unchanged until refreshed. The write is never retried; if the subsequent
-        fetch fails, the card may already exist.
+        unchanged until refreshed. The write is never retried.
         """
         if not isinstance(title, str):
             raise TypeError("title must be a string")
@@ -92,7 +91,7 @@ class CardCollection(Collection["Card"]):
             parent = UNSET
         data = self._holder._call(
             post_cards,
-            body=CardCreateRequest(
+            body=NewCard(
                 project_id=self._project.id,
                 title=title,
                 content=content,
@@ -100,7 +99,7 @@ class CardCollection(Collection["Card"]):
             ),
             write=True,
         )
-        return self.get(data.card_id)
+        return Card._from(self._project, data)
 
     def _clone(self, query: dict[str, Any]) -> Self:
         return type(self)(self._project, query, self._max_items)

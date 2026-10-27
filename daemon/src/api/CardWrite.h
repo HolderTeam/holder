@@ -9,31 +9,9 @@
 #include <stdexcept>
 #include <string>
 
-namespace holder::platform { class Db; }
 namespace holder::card { class CardStore; }
 
 namespace holder::api {
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardCreateResponseData {
-  std::string card_id;
-  std::string rel_path;
-};
-
-struct RIG_OPEN_RECORD CardCreateResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  CardCreateResponseData data;
-};
-
-struct RIG_DESCRIPTION("Holder generates the card ID, so card_id, like any other unlisted property, is rejected.") CardCreateRequest {
-  std::string project_id;
-  std::string title;
-  std::string content;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted or 0.") RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> parent_card_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<double> sort_key RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> rel_path RIG_FIELD_DESCRIPTION("Optional; when supplied it must be the path Holder derives from the generated card ID.") RIG_OMIT_EMPTY RIG_NULLABLE;
-};
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardPatchResponseData {
   std::string card_id;
@@ -117,18 +95,6 @@ struct CardMoveTargetNotFound : CodedError {
   explicit CardMoveTargetNotFound(const std::string& message)
       : CodedError("target_not_found", message) {}
 };
-
-RIG_ROUTE(POST, "/cards")
-RIG_SUMMARY("Create a card")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request, unknown project or parent card, or a privacy error writing an encrypted card", std::invalid_argument, support::PrivacyRejected)
-RIG_ERROR_RESPONSE(409, ErrorResponse, "A card with the generated ID or its file already exists", holder::model::ConflictError)
-RIG_ERROR_RESPONSE(501, ErrorResponse, "The daemon has no card store", CardStoreUnavailable)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "The keyring needed to write an encrypted card is unavailable", support::KeyringUnavailable)
-CardCreateResponse post_cards(holder::platform::Db& db RIG_CONTEXT,
-                              holder::card::CardStore* card_store RIG_CONTEXT,
-                              CardCreateRequest request);
 
 RIG_ROUTE(PATCH, "/cards/{card_id}")
 RIG_SUMMARY("Update card content and/or title")

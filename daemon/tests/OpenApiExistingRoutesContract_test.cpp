@@ -680,13 +680,13 @@ TEST_CASE(
   );
   for (const auto& param : operation["parameters"])
     CHECK(param["name"].as<std::string>() != "include_deleted");
-  require_json_response_ref(operation, "200", "CardPageResponse");
+  require_json_response_ref(operation, "200", "CardListItemPageResponse");
   const auto breadcrumbs =
       document["paths"]["/projects/{project_id}/cards/{card_id}/breadcrumbs"]["get"];
   require_json_response_ref(breadcrumbs, "200", "CardBreadcrumbsResponse");
   CHECK(breadcrumbs["responses"]["409"].IsDefined());
   CHECK(
-      required_properties(document["components"]["schemas"]["CardPage"]) ==
+      required_properties(document["components"]["schemas"]["CardListItemPage"]) ==
       std::vector<std::string>{"items", "next_cursor"}
   );
 }

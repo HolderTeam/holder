@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_list_item import CardListItem
+    from ..models.card_view_item import CardViewItem
 
 
 T = TypeVar("T", bound="CardListResponse")
@@ -19,11 +19,11 @@ class CardListResponse:
     """
     Attributes:
         ok (bool):
-        data (list[CardListItem]):
+        data (list[CardViewItem]):
     """
 
     ok: bool
-    data: list[CardListItem]
+    data: list[CardViewItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -47,7 +47,7 @@ class CardListResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_list_item import CardListItem
+        from ..models.card_view_item import CardViewItem
 
         d = dict(src_dict)
         ok = d.pop("ok")
@@ -55,7 +55,7 @@ class CardListResponse:
         data = []
         _data = d.pop("data")
         for data_item_data in _data:
-            data_item = CardListItem.from_dict(data_item_data)
+            data_item = CardViewItem.from_dict(data_item_data)
 
             data.append(data_item)
 

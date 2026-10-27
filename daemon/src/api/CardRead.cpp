@@ -1,8 +1,6 @@
 #include "api/CardRead.h"
 
 #include "card/CardRepo.h"
-#include "card/CardStore.h"
-#include "card/TagExtractor.h"
 #include "card/TagRepo.h"
 #include "project/ProjectRepo.h"
 
@@ -55,7 +53,7 @@ void sort_cards(std::vector<holder::model::Card>& cards, CardOrder order) {
   });
 }
 
-CardListItem list_item(const holder::model::Card& card, std::optional<int> child_count) {
+CardViewItem list_item(const holder::model::Card& card, std::optional<int> child_count) {
   return {
       card.card_id,
       card.project_id,
@@ -176,40 +174,9 @@ CardContextResponse get_cards_context(holder::platform::Db& db,
       children = found == live_children.end() ? 0 : found->second;
     }
     CardContextCard item;
-    static_cast<CardListItem&>(item) = list_item(card, children);
+    static_cast<CardViewItem&>(item) = list_item(card, children);
     data.cards.push_back(std::move(item));
   }
-  return response;
-}
-
-CardGetResponse get_card(holder::platform::Db& db,
-                         holder::card::CardStore* card_store,
-                         std::string card_id) {
-  if (card_store == nullptr) throw CardStoreUnavailable{};
-  const auto card = card_store->get(card_id);
-  if (!card || card->deleted_at) throw CardReadNotFound("Card not found.");
-  auto content = card_store->get_content(*card);
-  if (!content) throw CardReadNotFound("Card content missing.");
-  CardGetResponse response{true,
-                           {card->card_id,
-                            card->project_id,
-                            card->title,
-                            card->rel_path,
-                            card->sort_key,
-                            card->created_at,
-                            card->updated_at,
-                            card->parent_card_id,
-                            card->deleted_at,
-                            {},
-                            holder::card::TagRepo(db).list_tags_for_card(card->project_id,
-                                                                          card->card_id),
-                            {}}};
-  for (const auto& occurrence : holder::core::extract_tag_occurrences(*content)) {
-    response.data.tag_occurrences.push_back({occurrence.tag,
-                                             static_cast<long long>(occurrence.byte_start),
-                                             static_cast<long long>(occurrence.byte_end)});
-  }
-  response.data.content = std::move(*content);
   return response;
 }
 

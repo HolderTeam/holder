@@ -13,10 +13,12 @@ the full operation and keep database access with the worker that owns it.
 Investigate intermittent memory corruption, iterator invalidation and
 concurrency failures as defects.
 
-When changing an HTTP route, change its declaration in `src/api/` and run
-`make -C api/rig update`, which regenerates the canonical
-[`api/openapi.yaml`](../../api/openapi.yaml) and the generated dispatcher, then
-test the route in the same pull request. Follow
+When changing an HTTP route the contract serves (see
+[`contract/HTTP.md`](../../contract/HTTP.md)), change the contract and run
+`make -C contract update`. For any other route, change its declaration in
+`src/api/` and run `make -C api/rig update`, then `make -C contract update`,
+which merges both into the canonical [`api/openapi.yaml`](../../api/openapi.yaml).
+Test the route in the same pull request. Follow
 [Changing the contract](../../api/README.md#changing-the-contract) for version
 bumps and changes in meaning.
 

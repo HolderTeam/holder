@@ -6,6 +6,7 @@ dispatcher against the stand-in core in tests/c/ and sends it requests.
 
 import copy
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,7 +17,7 @@ from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract
 from holder_contract.generate import Model, Unsupported, generate
 from holder_contract.http_routes import generate_routes, route_pattern, validate_routes
-from holder_contract.openapi import convert, dumps
+from holder_contract.openapi import convert, dumps, merge
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -123,7 +124,8 @@ def test_paths_take_their_parameters_from_the_binding():
 def test_success_is_enveloped_with_the_bindings_status():
     responses = openapi()["paths"]["/cards"]["post"]["responses"]
     assert list(responses) == ["201", "400", "404", "409", "500", "503"]
-    assert responses["201"]["content"]["application/json"]["schema"] == {
+    assert responses["201"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/CardResponse"}
+    assert openapi()["components"]["schemas"]["CardResponse"] == {
         "type": "object",
         "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": {"$ref": "#/components/schemas/Card"}},
         "required": ["ok", "data"]}
@@ -199,3 +201,34 @@ def test_generate_command_writes_core_and_daemon_files(tmp_path):
     assert main(["generate", "--output", str(tmp_path)]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "Contract.h", "ContractGlue.cpp", "ContractJson.h", "ContractRoutes.h", "holder_api.h", "openapi.json"]
+
+
+def daemon_document(paths):
+    return {"openapi": "3.2.0", "info": {"title": "API", "version": "1"}, "security": [{"bearer": []}],
+            "paths": paths, "components": {"securitySchemes": {"bearer": {"type": "http"}}, "schemas": {}}}
+
+
+def test_merge_adds_the_contracts_routes_beside_the_daemons():
+    merged = merge(daemon_document({"/cards/{card_id}": {"patch": {"responses": {"200": {}}}},
+                                    "/cards/context": {"get": {"responses": {"200": {}}}}}), openapi())
+    assert list(merged["paths"]["/cards/{card_id}"]) == ["get", "patch"]
+    assert merged["paths"]["/cards/{card_id}"]["get"]["responses"]["401"]["description"] == "Unauthorized"
+    assert merged["components"]["securitySchemes"] == {"bearer": {"type": "http"}}
+    assert "CardListItemPage" in merged["components"]["schemas"]
+
+
+@pytest.mark.parametrize("paths, message", [
+    ({"/cards": {"post": {"responses": {}}}}, "POST /cards is both a daemon route and a contract operation"),
+    ({"/{collection}/{id}": {"get": {"responses": {}}}},
+     "the daemon's GET /{collection}/{id} would take requests for the contract's GET /cards/{card_id}"),
+])
+def test_merge_rejects_routes_that_clash(paths, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        merge(daemon_document(paths), openapi())
+
+
+def test_merge_rejects_a_schema_with_another_shape():
+    document = daemon_document({})
+    document["components"]["schemas"]["Card"] = {"type": "object"}
+    with pytest.raises(ValueError, match="the schema Card is declared by the daemon and by the contract"):
+        merge(document, openapi())
