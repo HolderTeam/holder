@@ -408,7 +408,6 @@ add_executable(holderd
   src/api/Calendar.cpp
   src/api/CardMilestones.cpp
   src/api/CardRead.cpp
-  src/api/CardLinks.cpp
   src/api/CardResources.cpp
   src/api/MilestoneWrite.cpp
   src/api/ProjectGit.cpp

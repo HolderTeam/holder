@@ -187,9 +187,8 @@ TEST_CASE(
   // An unrelated resource reference survives detach; delete removes both kinds globally.
   request(
       http::verb::post,
-      "/cards/" + card_id + "/links",
-      {{"to_card_id", resource_id}, {"to_type", "resource"}, {"kind", "ref"}},
-      http::status::created
+      "/projects/proj-1/cards/" + card_id + "/links",
+      {{"target_id", resource_id}, {"target_type", "resource"}, {"kind", "ref"}}
   );
   REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == true);
   REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
@@ -197,11 +196,11 @@ TEST_CASE(
   REQUIRE(
       request(http::verb::get, "/resources/" + resource_id)["data"]["resource_id"] == resource_id
   );
-  REQUIRE(request(http::verb::get, "/cards/" + card_id + "/links")["data"].size() == 1);
+  REQUIRE(request(http::verb::get, "/projects/proj-1/cards/" + card_id + "/links")["data"].size() == 1);
   request(http::verb::post, path, body);
   request(http::verb::delete_, "/resources/" + resource_id);
   REQUIRE(request(http::verb::get, list_path)["data"].empty());
-  REQUIRE(request(http::verb::get, "/cards/" + card_id + "/links")["data"].empty());
+  REQUIRE(request(http::verb::get, "/projects/proj-1/cards/" + card_id + "/links")["data"].empty());
   REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
   request(http::verb::delete_, "/projects/proj-1/cards/" + card_id);
   REQUIRE(request(http::verb::get, list_path, {}, http::status::not_found)["ok"] == false);

@@ -1,33 +1,45 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="CardPatchResponseData")
+if TYPE_CHECKING:
+    from ..models.link import Link
+
+
+T = TypeVar("T", bound="LinkListResponse")
 
 
 @_attrs_define
-class CardPatchResponseData:
+class LinkListResponse:
     """
     Attributes:
-        card_id (str):
+        ok (bool):
+        data (list[Link]):
     """
 
-    card_id: str
+    ok: bool
+    data: list[Link]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        card_id = self.card_id
+        ok = self.ok
+
+        data = []
+        for data_item_data in self.data:
+            data_item = data_item_data.to_dict()
+            data.append(data_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "card_id": card_id,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -35,15 +47,25 @@ class CardPatchResponseData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        card_id = d.pop("card_id")
+        from ..models.link import Link
 
-        card_patch_response_data = cls(
-            card_id=card_id,
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = []
+        _data = d.pop("data")
+        for data_item_data in _data:
+            data_item = Link.from_dict(data_item_data)
+
+            data.append(data_item)
+
+        link_list_response = cls(
+            ok=ok,
+            data=data,
         )
 
-        card_patch_response_data.additional_properties = d
-        return card_patch_response_data
+        link_list_response.additional_properties = d
+        return link_list_response
 
     @property
     def additional_keys(self) -> list[str]:

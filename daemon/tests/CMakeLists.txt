@@ -91,7 +91,6 @@ add_executable(holder_daemon_tests
   ProjectCardRoutes_test.cpp
   HistoryRoutes_test.cpp
   OpenApiExistingRoutesContract_test.cpp
-  HttpLinks_test.cpp
   HttpSearch_test.cpp
   SearchRoutes_test.cpp
   HttpSearchDisabled_test.cpp
@@ -164,7 +163,6 @@ add_executable(holder_daemon_tests
   ../src/api/Calendar.cpp
   ../src/api/CardMilestones.cpp
   ../src/api/CardRead.cpp
-  ../src/api/CardLinks.cpp
   ../src/api/CardResources.cpp
   ../src/api/MilestoneWrite.cpp
   ../src/api/ProjectGit.cpp

@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -90,6 +90,25 @@ typedef struct holder_card_move {
     holder_string_change parent_card_id; /* For left, right, to_start and to_end: the parent among whose children to place it, null for the root cards; omit for its current parent. Ignored by the other intents. Zero keeps it. */
 } holder_card_move;
 
+/* What the link points at. */
+typedef enum holder_new_link_target_type {
+    HOLDER_NEW_LINK_TARGET_TYPE_CARD = 1,
+    HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+    HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD = 3,
+    HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE = 4,
+    HOLDER_NEW_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_new_link_target_type;
+
+/* A link to make from a card. Its source is the card it is made from. */
+typedef struct holder_new_link {
+    holder_new_link_target_type target_type; /* What the link points at. */
+    const char* target_id; /* The ID of what the link points at. */
+    const char* target_project_id; /* The project of a card the link points at; omit for the card's own project. Only a card can be in another project, which need not be on this device. NULL when absent. */
+    const char* kind; /* What the link means. NULL for the default, ref. */
+    const char* label; /* A note on the link; null or omitted for none. May be NULL. */
+    const int64_t* created_at; /* When the link was made, for imports; omit for now. A link that already exists keeps its own. NULL when absent. */
+} holder_new_link;
+
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
     const char* tag; /* The normalized tag. */
@@ -154,6 +173,42 @@ typedef struct holder_tag_count_list {
     const holder_tag_count* items;
     size_t count;
 } holder_tag_count_list;
+
+/* What the link is from. */
+typedef enum holder_link_source_type {
+    HOLDER_LINK_SOURCE_TYPE_CARD = 1,
+    HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE = 2,
+    HOLDER_LINK_SOURCE_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_link_source_type;
+
+/* What the link points at. */
+typedef enum holder_link_target_type {
+    HOLDER_LINK_TARGET_TYPE_CARD = 1,
+    HOLDER_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+    HOLDER_LINK_TARGET_TYPE_AI_THREAD = 3,
+    HOLDER_LINK_TARGET_TYPE_RESOURCE = 4,
+    HOLDER_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_link_target_type;
+
+/* A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:
+ * each end's project, type and ID.
+ */
+typedef struct holder_link {
+    const char* source_project_id; /* The project of the card or AI message the link is from. */
+    holder_link_source_type source_type; /* What the link is from. */
+    const char* source_id; /* The ID of the card or AI message the link is from. */
+    const char* target_project_id; /* The project of what the link points at: the source's own project, or, for a card, another project, which need not be on this device. A link grants no access to its target. */
+    holder_link_target_type target_type; /* What the link points at. */
+    const char* target_id; /* The ID of what the link points at. */
+    const char* kind; /* What the link means. */
+    const char* label; /* A note on the link; null when it has none. May be NULL. */
+    int64_t created_at; /* When the link was made. */
+} holder_link;
+
+typedef struct holder_link_list {
+    const holder_link* items;
+    size_t count;
+} holder_link_list;
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
@@ -264,6 +319,57 @@ int holder_remove_card_tag(holder_context* context, const char* project_id, cons
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_list_project_tags(holder_context* context, const char* project_id, holder_arena* arena, const holder_tag_count_list** out_tag_count_list, holder_error** out_error);
+
+/* List a card's links.
+ * The links the card makes, newest first. A card in the trash or in another project is not found.
+ * include_deleted: Include links to targets in the trash. A link to a card in another project is listed whether or not that card can be found here.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_card_links(holder_context* context, const char* project_id, const char* card_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+
+typedef enum holder_list_card_backlinks_scope {
+    HOLDER_LIST_CARD_BACKLINKS_SCOPE_DEFAULT = 0, /* local */
+    HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL = 1,
+    HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL = 2,
+    HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE = 3,
+    HOLDER_LIST_CARD_BACKLINKS_SCOPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_list_card_backlinks_scope;
+
+/* List the links to a card.
+ * Links from cards and AI messages, newest first. External links come only from projects on this device, so
+ * they are never all there may be. A card in the trash or in another project is not found.
+ * scope: local lists links from the card's own project; external, links from the other projects on this device; all_available, both.
+ * include_deleted: Include links from cards and AI messages in the trash.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_card_backlinks(holder_context* context, const char* project_id, const char* card_id, holder_list_card_backlinks_scope scope, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+
+/* Link a card to something.
+ * A link is one target, of one type in one project, with one kind. Making a link that already exists sets its
+ * label and keeps when it was made. A target in the card's project must exist and not be in the trash; a card in
+ * another project may be one this device does not have. A card in the trash or in another project is not found,
+ * and neither is a target that does not exist or is in the trash.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_add_card_link(holder_context* context, const char* project_id, const char* card_id, const holder_new_link* link, holder_arena* arena, const holder_link** out_link, holder_error** out_error);
+
+typedef enum holder_remove_card_link_target_type {
+    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD = 1,
+    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE = 2,
+    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD = 3,
+    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE = 4,
+    HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_remove_card_link_target_type;
+
+/* Remove a link from a card.
+ * Removes the one link to that target, of that type in that project, with that kind, and returns the card's
+ * remaining links as list_card_links lists them by default. A card without that link is left as it is. A card in
+ * the trash or in another project is not found.
+ * kind: NULL for ref.
+ * target_project_id: Omit for the card's own project. May be NULL.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_remove_card_link(holder_context* context, const char* project_id, const char* card_id, holder_remove_card_link_target_type target_type, const char* target_id, const char* kind, const char* target_project_id, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
 
 #ifdef __cplusplus
 }

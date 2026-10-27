@@ -27,7 +27,7 @@ public class AssetPreviewController : Object {
             return;
         }
         try {
-            var links = yield api.list_card_links(card_id);
+            var links = yield api.list_card_links(project_id, card_id);
             var resources = yield api.list_resources(project_id);
             if (serial != refresh_serial) {
                 return;

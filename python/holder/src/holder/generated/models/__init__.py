@@ -95,9 +95,6 @@ from .asset_placement_encoding import AssetPlacementEncoding
 from .bye_response import ByeResponse
 from .calendar_card_activity import CalendarCardActivity
 from .card import Card
-from .card_backlink_list_response import CardBacklinkListResponse
-from .card_backlink_list_response_coverage import CardBacklinkListResponseCoverage
-from .card_backlink_list_response_scope import CardBacklinkListResponseScope
 from .card_breadcrumb import CardBreadcrumb
 from .card_breadcrumb_kind import CardBreadcrumbKind
 from .card_breadcrumbs_response import CardBreadcrumbsResponse
@@ -133,8 +130,6 @@ from .card_list_item_page_response import CardListItemPageResponse
 from .card_list_response import CardListResponse
 from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
-from .card_patch_response import CardPatchResponse
-from .card_patch_response_data import CardPatchResponseData
 from .card_reference_candidate import CardReferenceCandidate
 from .card_reference_resolve_data import CardReferenceResolveData
 from .card_reference_resolve_data_match_kind import CardReferenceResolveDataMatchKind
@@ -176,11 +171,6 @@ from .get_ai_messages_message_id_backlinks_include_deleted import (
 from .get_ai_messages_message_id_links_include_deleted import (
     GetAiMessagesMessageIdLinksIncludeDeleted,
 )
-from .get_cards_card_id_backlinks_include_deleted import (
-    GetCardsCardIdBacklinksIncludeDeleted,
-)
-from .get_cards_card_id_backlinks_scope import GetCardsCardIdBacklinksScope
-from .get_cards_card_id_links_include_deleted import GetCardsCardIdLinksIncludeDeleted
 from .get_cards_context_order import GetCardsContextOrder
 from .get_cards_include_deleted import GetCardsIncludeDeleted
 from .get_cards_order import GetCardsOrder
@@ -189,6 +179,9 @@ from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
 from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order import GetProjectsOrder
+from .get_projects_project_id_cards_card_id_backlinks_scope import (
+    GetProjectsProjectIdCardsCardIdBacklinksScope,
+)
 from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
 from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
@@ -206,6 +199,11 @@ from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
 from .hierarchy_repair_request import HierarchyRepairRequest
 from .hierarchy_repair_response import HierarchyRepairResponse
+from .link import Link
+from .link_list_response import LinkListResponse
+from .link_response import LinkResponse
+from .link_source_type import LinkSourceType
+from .link_target_type import LinkTargetType
 from .local_model import LocalModel
 from .location_action_response import LocationActionResponse
 from .location_action_response_data import LocationActionResponseData
@@ -227,6 +225,7 @@ from .milestone_with_dates_list_response import MilestoneWithDatesListResponse
 from .milestone_with_dates_response import MilestoneWithDatesResponse
 from .milestone_with_dates_update_request import MilestoneWithDatesUpdateRequest
 from .new_card import NewCard
+from .new_link import NewLink
 from .patch_locations_location_id_body import PatchLocationsLocationIdBody
 from .patch_locations_location_id_body_configuration import (
     PatchLocationsLocationIdBodyConfiguration,
@@ -450,9 +449,6 @@ __all__ = (
     "ByeResponse",
     "CalendarCardActivity",
     "Card",
-    "CardBacklinkListResponse",
-    "CardBacklinkListResponseCoverage",
-    "CardBacklinkListResponseScope",
     "CardBreadcrumb",
     "CardBreadcrumbKind",
     "CardBreadcrumbsResponse",
@@ -488,8 +484,6 @@ __all__ = (
     "CardListResponse",
     "CardMove",
     "CardMoveIntent",
-    "CardPatchResponse",
-    "CardPatchResponseData",
     "CardReferenceCandidate",
     "CardReferenceResolveData",
     "CardReferenceResolveDataMatchKind",
@@ -523,9 +517,6 @@ __all__ = (
     "GetAiMessagesIncludeDeleted",
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
-    "GetCardsCardIdBacklinksIncludeDeleted",
-    "GetCardsCardIdBacklinksScope",
-    "GetCardsCardIdLinksIncludeDeleted",
     "GetCardsContextOrder",
     "GetCardsIncludeDeleted",
     "GetCardsOrder",
@@ -534,6 +525,7 @@ __all__ = (
     "GetOpenapiJsonResponse200",
     "GetPingResponse200",
     "GetProjectsOrder",
+    "GetProjectsProjectIdCardsCardIdBacklinksScope",
     "GetProjectsProjectIdCardsOrder",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
@@ -547,6 +539,11 @@ __all__ = (
     "HierarchyRepairMove",
     "HierarchyRepairRequest",
     "HierarchyRepairResponse",
+    "Link",
+    "LinkListResponse",
+    "LinkResponse",
+    "LinkSourceType",
+    "LinkTargetType",
     "LocalModel",
     "LocationActionResponse",
     "LocationActionResponseData",
@@ -568,6 +565,7 @@ __all__ = (
     "MilestoneWithDatesResponse",
     "MilestoneWithDatesUpdateRequest",
     "NewCard",
+    "NewLink",
     "PatchLocationsLocationIdBody",
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",

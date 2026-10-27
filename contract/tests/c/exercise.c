@@ -140,6 +140,23 @@ int main(void) {
     status = holder_list_project_tags(context, "p2", arena, &tags, &error);
     report("list tags of a missing project", status, &error);
 
+    holder_new_link link = {0};
+    link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE;
+    link.target_id = "r1";
+    link.kind = "cites";
+    link.label = "a note";
+    const holder_link* made = NULL;
+    status = holder_add_card_link(context, "p1", "c1", &link, arena, &made, &error);
+    printf("add a link: status %d, %s %s/%d/%s %s '%s'\n", status, made->source_id, made->target_project_id,
+           (int)made->target_type, made->target_id, made->kind, made->label);
+    link.target_type = (holder_new_link_target_type)9;
+    status = holder_add_card_link(context, "p1", "c1", &link, arena, &made, &error);
+    report("add a link to an unknown type", status, &error);
+    const holder_link_list* links = NULL;
+    status = holder_remove_card_link(context, "p1", "c1", HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE, "r1", "cites",
+                                     NULL, arena, &links, &error);
+    printf("remove a link: status %d, %zu left\n", status, links->count);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

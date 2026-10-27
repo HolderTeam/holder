@@ -139,14 +139,21 @@ def test_a_partial_update_of_anything_but_text_stops_generation():
         generate(ir)
 
 
-def test_a_partial_update_or_a_choice_in_a_result_stops_generation():
+def test_a_partial_update_in_a_result_stops_generation():
     ir = with_partial_update(holder_ir())
     ir["operations"][-1]["returns"] = {"kind": "named", "name": "CardChange"}
-    with pytest.raises(Unsupported, match="CardChange.intent: a choice of literals in a result"):
-        generate(ir)
-    ir["records"][-1]["fields"].pop(0)
     with pytest.raises(Unsupported, match="CardChange.parent_card_id: a partial update in a result"):
         generate(ir)
+
+
+def test_a_choice_in_a_result_is_converted_to_its_c_enum():
+    ir = with_partial_update(holder_ir())
+    ir["records"][-1]["fields"].pop(1)
+    ir["operations"][-1]["returns"] = {"kind": "named", "name": "CardChange"}
+    glue = generate(ir)["ContractGlue.cpp"]
+    assert "holder_card_change_intent to_c_enum(contract::CardChangeIntent value) {" in glue
+    assert "  case contract::CardChangeIntent::ToEnd: return HOLDER_CARD_CHANGE_INTENT_TO_END;" in glue
+    assert "  out.intent = to_c_enum(value.intent);" in glue
 
 
 def test_an_optional_choice_in_a_record_stops_generation():

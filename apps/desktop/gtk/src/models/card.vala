@@ -31,6 +31,8 @@ public class CardSummary : Object {
     }
 }
 
+// A link, from a card or an AI message (from_card_id) to a card, AI message, AI thread or resource
+// (to_card_id, of to_type), each in its project.
 public class CardLink : Object {
     public string from_card_id { get; construct; }
     public string to_card_id { get; construct; }
@@ -38,20 +40,26 @@ public class CardLink : Object {
     public string kind { get; construct; }
     public string? label { get; construct; }
     public int64 created_at { get; construct; }
+    public string source_project_id { get; construct; }
+    public string target_project_id { get; construct; }
 
     public CardLink(string from_card_id,
                     string to_card_id,
                     string to_type,
                     string kind,
                     string? label,
-                    int64 created_at) {
+                    int64 created_at,
+                    string source_project_id = "",
+                    string target_project_id = "") {
         Object(
             from_card_id: from_card_id,
             to_card_id: to_card_id,
             to_type: to_type,
             kind: kind,
             label: label,
-            created_at: created_at
+            created_at: created_at,
+            source_project_id: source_project_id,
+            target_project_id: target_project_id
         );
     }
 }

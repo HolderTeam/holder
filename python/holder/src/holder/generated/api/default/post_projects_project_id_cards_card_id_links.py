@@ -6,28 +6,29 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_link_delete_request import CardLinkDeleteRequest
-from ...models.card_patch_response import CardPatchResponse
 from ...models.error_response import ErrorResponse
-from ...types import UNSET, Response, Unset
+from ...models.link_response import LinkResponse
+from ...models.new_link import NewLink
+from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
     *,
-    body: CardLinkDeleteRequest | Unset = UNSET,
+    body: NewLink,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "delete",
-        "url": "/cards/{card_id}/links".format(
+        "method": "post",
+        "url": "/projects/{project_id}/cards/{card_id}/links".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
         ),
     }
 
-    if not isinstance(body, Unset):
-        _kwargs["json"] = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -37,9 +38,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardPatchResponse | ErrorResponse | None:
+) -> ErrorResponse | LinkResponse | None:
     if response.status_code == 200:
-        response_200 = CardPatchResponse.from_dict(response.json())
+        response_200 = LinkResponse.from_dict(response.json())
 
         return response_200
 
@@ -58,15 +59,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -81,7 +82,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardPatchResponse | ErrorResponse]:
+) -> Response[ErrorResponse | LinkResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -91,31 +92,37 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardLinkDeleteRequest | Unset = UNSET,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Delete links from a card
+    body: NewLink,
+) -> Response[ErrorResponse | LinkResponse]:
+    """Link a card to something.
 
-     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
-    without target_project_id is rejected if more than one target project matches. Provide
-    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
-    to_card_id is omitted, deletes all outgoing links.
+     A link is one target, of one type in one project, with one kind. Making a link that already exists
+    sets its
+    label and keeps when it was made. A target in the card's project must exist and not be in the trash;
+    a card in
+    another project may be one this device does not have. A card in the trash or in another project is
+    not found,
+    and neither is a target that does not exist or is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (NewLink): A link to make from a card. Its source is the card it is made from.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[ErrorResponse | LinkResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         body=body,
     )
@@ -128,31 +135,37 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardLinkDeleteRequest | Unset = UNSET,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Delete links from a card
+    body: NewLink,
+) -> ErrorResponse | LinkResponse | None:
+    """Link a card to something.
 
-     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
-    without target_project_id is rejected if more than one target project matches. Provide
-    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
-    to_card_id is omitted, deletes all outgoing links.
+     A link is one target, of one type in one project, with one kind. Making a link that already exists
+    sets its
+    label and keeps when it was made. A target in the card's project must exist and not be in the trash;
+    a card in
+    another project may be one this device does not have. A card in the trash or in another project is
+    not found,
+    and neither is a target that does not exist or is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (NewLink): A link to make from a card. Its source is the card it is made from.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        ErrorResponse | LinkResponse
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         client=client,
         body=body,
@@ -160,31 +173,37 @@ def sync(
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardLinkDeleteRequest | Unset = UNSET,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Delete links from a card
+    body: NewLink,
+) -> Response[ErrorResponse | LinkResponse]:
+    """Link a card to something.
 
-     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
-    without target_project_id is rejected if more than one target project matches. Provide
-    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
-    to_card_id is omitted, deletes all outgoing links.
+     A link is one target, of one type in one project, with one kind. Making a link that already exists
+    sets its
+    label and keeps when it was made. A target in the card's project must exist and not be in the trash;
+    a card in
+    another project may be one this device does not have. A card in the trash or in another project is
+    not found,
+    and neither is a target that does not exist or is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (NewLink): A link to make from a card. Its source is the card it is made from.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[ErrorResponse | LinkResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         body=body,
     )
@@ -195,32 +214,38 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardLinkDeleteRequest | Unset = UNSET,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Delete links from a card
+    body: NewLink,
+) -> ErrorResponse | LinkResponse | None:
+    """Link a card to something.
 
-     Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified selector
-    without target_project_id is rejected if more than one target project matches. Provide
-    target_project_id together with to_card_id, to_type and kind to select one qualified target. If
-    to_card_id is omitted, deletes all outgoing links.
+     A link is one target, of one type in one project, with one kind. Making a link that already exists
+    sets its
+    label and keeps when it was made. A target in the card's project must exist and not be in the trash;
+    a card in
+    another project may be one this device does not have. A card in the trash or in another project is
+    not found,
+    and neither is a target that does not exist or is in the trash.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (NewLink): A link to make from a card. Its source is the card it is made from.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        ErrorResponse | LinkResponse
     """
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             client=client,
             body=body,

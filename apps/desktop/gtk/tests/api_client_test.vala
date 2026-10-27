@@ -577,17 +577,17 @@ private void test_list_card_links_and_backlinks_parse_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c1\",\"to_card_id\":\"c2\",\"to_type\":\"card\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":12}]}"
+        "{\"ok\":true,\"data\":[{\"source_project_id\":\"p1\",\"source_id\":\"c1\",\"target_project_id\":\"p1\",\"target_id\":\"c2\",\"target_type\":\"card\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":12}]}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c3\",\"to_card_id\":\"c1\",\"to_type\":\"card\",\"kind\":\"ref\",\"created_at\":13}]}"
+        "{\"ok\":true,\"data\":[{\"source_project_id\":\"p1\",\"source_id\":\"c3\",\"target_project_id\":\"p1\",\"target_id\":\"c1\",\"target_type\":\"card\",\"kind\":\"ref\",\"created_at\":13}]}"
     );
     var client = make_client(transport);
 
     bool done_links = false;
     Gee.ArrayList<HolderLinux.CardLink>? links = null;
-    client.list_card_links.begin("c1", (obj, res) => {
+    client.list_card_links.begin("p1", "c1", (obj, res) => {
         try {
             links = client.list_card_links.end(res);
         } catch (Error e) {
@@ -599,11 +599,11 @@ private void test_list_card_links_and_backlinks_parse_data() {
     assert(links != null && links.size == 1);
     assert(links[0].kind == "depends_on");
     assert(links[0].label == "critical");
-    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards/c1/links"));
 
     bool done_backlinks = false;
     Gee.ArrayList<HolderLinux.CardLink>? backlinks = null;
-    client.list_card_backlinks.begin("c1", (obj, res) => {
+    client.list_card_backlinks.begin("p1", "c1", (obj, res) => {
         try {
             backlinks = client.list_card_backlinks.end(res);
         } catch (Error e) {
@@ -614,7 +614,7 @@ private void test_list_card_links_and_backlinks_parse_data() {
     assert(wait_for_condition(() => done_backlinks));
     assert(backlinks != null && backlinks.size == 1);
     assert(backlinks[0].from_card_id == "c3");
-    assert(transport.last_uri.has_suffix("/cards/c1/backlinks"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards/c1/backlinks"));
 }
 
 private void test_list_card_links_missing_data_is_protocol_error() {
@@ -624,7 +624,7 @@ private void test_list_card_links_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.list_card_links.begin("c1", (obj, res) => {
+    client.list_card_links.begin("p1", "c1", (obj, res) => {
         try {
             client.list_card_links.end(res);
         } catch (Error e) {
@@ -641,13 +641,13 @@ private void test_create_card_link_posts_payload_and_parses_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         201,
-        "{\"ok\":true,\"data\":{\"from_card_id\":\"c1\",\"to_card_id\":\"c2\",\"to_type\":\"card\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":50}}"
+        "{\"ok\":true,\"data\":{\"source_project_id\":\"p1\",\"source_id\":\"c1\",\"target_project_id\":\"p1\",\"target_id\":\"c2\",\"target_type\":\"card\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":50}}"
     );
     var client = make_client(transport);
 
     bool done = false;
     HolderLinux.CardLink? created = null;
-    client.create_card_link.begin("c1", "c2", "depends_on", "critical", "card", (obj, res) => {
+    client.create_card_link.begin("p1", "c1", "c2", "depends_on", "critical", "card", (obj, res) => {
         try {
             created = client.create_card_link.end(res);
         } catch (Error e) {
@@ -663,7 +663,7 @@ private void test_create_card_link_posts_payload_and_parses_response() {
     assert(created.kind == "depends_on");
     assert(created.label == "critical");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards/c1/links"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -674,7 +674,7 @@ private void test_create_card_link_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.create_card_link.begin("c1", "c2", "ref", null, "card", (obj, res) => {
+    client.create_card_link.begin("p1", "c1", "c2", "ref", null, "card", (obj, res) => {
         try {
             client.create_card_link.end(res);
         } catch (Error e) {
@@ -691,13 +691,13 @@ private void test_create_card_link_with_non_card_to_type_succeeds() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         201,
-        "{\"ok\":true,\"data\":{\"from_card_id\":\"c1\",\"to_card_id\":\"r1\",\"to_type\":\"resource\",\"kind\":\"ref\",\"created_at\":50}}"
+        "{\"ok\":true,\"data\":{\"source_project_id\":\"p1\",\"source_id\":\"c1\",\"target_project_id\":\"p1\",\"target_id\":\"r1\",\"target_type\":\"resource\",\"kind\":\"ref\",\"created_at\":50}}"
     );
     var client = make_client(transport);
 
     bool done = false;
     HolderLinux.CardLink? created = null;
-    client.create_card_link.begin("c1", "r1", "ref", null, "resource", (obj, res) => {
+    client.create_card_link.begin("p1", "c1", "r1", "ref", null, "resource", (obj, res) => {
         try {
             created = client.create_card_link.end(res);
         } catch (Error e) {
@@ -711,18 +711,18 @@ private void test_create_card_link_with_non_card_to_type_succeeds() {
     assert(created.to_card_id == "r1");
     assert(created.to_type == "resource");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards/c1/links"));
     assert(transport.last_content_type == "application/json");
 }
 
-private void test_delete_card_link_sends_delete_payload() {
+private void test_delete_card_link_names_one_link_in_its_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     var client = make_client(transport);
 
     bool done = false;
     bool ok = false;
-    client.delete_card_link.begin("c1", "c2", "depends_on", "card", (obj, res) => {
+    client.delete_card_link.begin("p1", "c1", "c2", "depends_on", "card", null, (obj, res) => {
         try {
             client.delete_card_link.end(res);
             ok = true;
@@ -735,8 +735,21 @@ private void test_delete_card_link_sends_delete_payload() {
     assert(wait_for_condition(() => done));
     assert(ok);
     assert(transport.last_method == "DELETE");
-    assert(transport.last_uri.has_suffix("/cards/c1/links"));
-    assert(transport.last_content_type == "application/json");
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/links?"));
+    assert(transport.last_uri.contains("target_type=card"));
+    assert(transport.last_uri.contains("target_id=c2"));
+    assert(transport.last_uri.contains("kind=depends_on"));
+    // The card's own project is left out.
+    assert(!transport.last_uri.contains("target_project_id"));
+
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    done = false;
+    client.delete_card_link.begin("p1", "c1", "c2", "ref", "card", "p2", (obj, res) => {
+        try { client.delete_card_link.end(res); } catch (Error e) {}
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(transport.last_uri.contains("target_project_id=p2"));
 }
 
 private void test_search_cards_parses_results() {
@@ -2881,8 +2894,8 @@ int main(string[] args) {
                   test_create_card_link_missing_data_is_protocol_error);
     Test.add_func("/api_client/create_card_link_with_non_card_to_type_succeeds",
                   test_create_card_link_with_non_card_to_type_succeeds);
-    Test.add_func("/api_client/delete_card_link_sends_delete_payload",
-                  test_delete_card_link_sends_delete_payload);
+    Test.add_func("/api_client/delete_card_link_names_one_link_in_its_query",
+                  test_delete_card_link_names_one_link_in_its_query);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
     Test.add_func("/api_client/list_trash_items_parses_results_and_query",
                   test_list_trash_items_parses_results_and_query);

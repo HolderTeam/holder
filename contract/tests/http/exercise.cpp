@@ -63,6 +63,15 @@ int main() {
   send(*context, "PUT", "/projects/p1/cards/c1/tags/");
   send(*context, "GET", "/projects/p1/tags");
   send(*context, "GET", "/projects/p2/tags");
+  // Links.
+  send(*context, "POST", "/projects/p1/cards/c1/links",
+       R"({"target_type": "card", "target_id": "c2", "target_project_id": "p9", "label": null})");
+  send(*context, "POST", "/projects/p1/cards/c1/links", R"({"target_type": "page", "target_id": "c2"})");
+  send(*context, "POST", "/projects/p1/cards/c1/links", R"({"target_type": "card", "target_id": "c2", "kind": ""})");
+  send(*context, "GET", "/projects/p1/cards/c1/links?include_deleted=true");
+  send(*context, "GET", "/projects/p1/cards/c1/backlinks?scope=everywhere");
+  send(*context, "DELETE", "/projects/p1/cards/c1/links?target_type=card&target_id=c2&target_project_id=p9");
+  send(*context, "DELETE", "/projects/p1/cards/c1/links?target_id=c2");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

@@ -78,6 +78,7 @@ class Cards(RuleBasedStateMachine):
         self.cards: dict[str, dict] = {}  # every card created, by ID, as the model expects it
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
+        self.links: dict[str, list[dict]] = {}  # each card's links, by its ID
 
     def open(self):
         raise NotImplementedError
@@ -435,6 +436,136 @@ class Cards(RuleBasedStateMachine):
             if sibling != card_id:
                 self.refresh(sibling, "sort_key", "updated_at")
         assert self.siblings(parent, project) == expected
+
+    # ---- links ------------------------------------------------------------------------------------
+
+    @staticmethod
+    def link_identity(link: dict) -> tuple:
+        return link["target_type"], link["target_id"], link["kind"], link["target_project_id"]
+
+    def visible(self, link: dict) -> bool:
+        """Whether a link is listed without include_deleted: its target is not a card in the trash here."""
+        if link["target_type"] != "card" or link["target_project_id"] != link["source_project_id"]:
+            return True
+        return link["target_id"] in self.cards and link["target_id"] not in self.deleted
+
+    def links_of(self, card_id: str, include_deleted: bool) -> list[dict]:
+        return [link for link in self.links.get(card_id, []) if include_deleted or self.visible(link)]
+
+    @staticmethod
+    def newest_first(expected: list[dict], links: list[dict]) -> None:
+        """Links come newest first; those made in the same second may come in any order."""
+        assert [link["created_at"] for link in links] == sorted((link["created_at"] for link in links), reverse=True)
+        def key(link):
+            return link["created_at"], *Cards.link_identity(link)
+
+        assert sorted(links, key=key) == sorted(expected, key=key)
+
+    @rule(data=st.data())
+    def add_card_link(self, data):
+        card_id, project = self.a_card(data)
+        link = data.draw(self.values().record("NewLink"))
+        if data.draw(st.booleans()):
+            # Mostly a card the model knows, in its own project or another.
+            link = {**link, "target_type": "card", "target_id": data.draw(st.sampled_from(list(self.cards) or ["x"]))}
+            link.pop("target_project_id", None)
+            if link["target_id"] in self.cards and data.draw(st.booleans()):
+                link["target_project_id"] = self.cards[link["target_id"]]["project_id"]
+        target_project = link.get("target_project_id", project)
+        target_id = link["target_id"]
+        kinds = set()
+        if not self.is_live(card_id, project):
+            kinds.add("NotFound")
+        elif link["target_type"] != "card":
+            # Nothing but cards is made here, so any other target is missing, or can only be in the card's project.
+            kinds.add("InvalidArgument" if target_project != project else "NotFound")
+        elif target_project == project:
+            if not self.is_live(target_id, project):
+                kinds.add("NotFound")
+        elif self.in_project(target_id, target_project) and target_id in self.deleted:
+            kinds.add("NotFound")
+        before = int(time.time())
+        made = self.expect("add_card_link", kinds, {"project_id": project, "card_id": card_id, "link": link})
+        after = int(time.time())
+        if made is None:
+            return
+        self.conforms("add_card_link", made)
+        expected = {"source_project_id": project, "source_type": "card", "source_id": card_id,
+                    "target_project_id": target_project, "target_type": link["target_type"], "target_id": target_id,
+                    "kind": link.get("kind", "ref"), "label": link.get("label")}
+        assert {k: made[k] for k in expected} == expected
+        links = self.links.setdefault(card_id, [])
+        existing = next((old for old in links if self.link_identity(old) == self.link_identity(made)), None)
+        # A link is written in its card's file, which changes unless the link is there already, as it is.
+        if existing is None or existing["label"] != made["label"]:
+            self.refresh(card_id, "updated_at")
+            assert before <= self.cards[card_id]["updated_at"] <= after
+        if existing is not None:
+            # A link that already exists keeps when it was made.
+            assert made["created_at"] == existing["created_at"]
+            links.remove(existing)
+        elif "created_at" in link:
+            assert made["created_at"] == link["created_at"]
+        else:
+            assert before <= made["created_at"] <= after
+        links.append(made)
+
+    @rule(data=st.data(), include_deleted=st.booleans())
+    def list_card_links(self, data, include_deleted):
+        card_id, project = self.a_card(data)
+        links = self.expect("list_card_links", set() if self.is_live(card_id, project) else {"NotFound"},
+                            {"project_id": project, "card_id": card_id, "include_deleted": include_deleted})
+        if links is None:
+            return
+        self.conforms("list_card_links", links)
+        self.newest_first(self.links_of(card_id, include_deleted), links)
+
+    @rule(data=st.data())
+    def remove_card_link(self, data):
+        card_id, project = self.a_card(data)
+        known = self.links.get(card_id, [])
+        if known and data.draw(st.booleans()):
+            link = data.draw(st.sampled_from(known))
+            arguments = {"target_type": link["target_type"], "target_id": link["target_id"], "kind": link["kind"]}
+            if link["target_project_id"] != link["source_project_id"] or data.draw(st.booleans()):
+                arguments["target_project_id"] = link["target_project_id"]
+        else:
+            arguments = data.draw(self.values().arguments("remove_card_link"))
+            arguments.pop("project_id"), arguments.pop("card_id")
+        remaining = self.expect("remove_card_link", set() if self.is_live(card_id, project) else {"NotFound"},
+                                {"project_id": project, "card_id": card_id, **arguments})
+        if remaining is None:
+            return
+        self.conforms("remove_card_link", remaining)
+        gone = (arguments["target_type"], arguments["target_id"], arguments.get("kind", "ref"),
+                arguments.get("target_project_id", project))
+        if any(self.link_identity(link) == gone for link in known):
+            self.refresh(card_id, "updated_at")
+        self.links[card_id] = [link for link in known if self.link_identity(link) != gone]
+        self.newest_first(self.links_of(card_id, False), remaining)
+
+    @rule(data=st.data(), scope=st.sampled_from(["local", "external", "all_available"]), include_deleted=st.booleans())
+    def list_card_backlinks(self, data, scope, include_deleted):
+        card_id, project = self.a_card(data)
+        links = self.expect("list_card_backlinks", set() if self.is_live(card_id, project) else {"NotFound"},
+                            {"project_id": project, "card_id": card_id, "scope": scope,
+                             "include_deleted": include_deleted})
+        if links is None:
+            return
+        self.conforms("list_card_backlinks", links)
+        expected = []
+        for source, made in self.links.items():
+            local = self.cards[source]["project_id"] == project
+            if (local and scope == "external") or (not local and scope == "local"):
+                continue
+            if source in self.deleted and not include_deleted:
+                continue
+            expected += [link for link in made if link["target_type"] == "card" and link["target_id"] == card_id
+                         and link["target_project_id"] == project]
+        def order(link):
+            return -link["created_at"], link["source_project_id"], link["source_id"], link["kind"]
+
+        assert links == sorted(expected, key=order)
 
     # ---- tags -------------------------------------------------------------------------------------
 

@@ -6,22 +6,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self
 
 from ..collections import Collection
-from ..exceptions import NotFoundError, ProtocolError
+from ..exceptions import ProtocolError
 from ..generated.api.default import (
-    delete_cards_card_id_links,
-    get_cards_card_id_backlinks,
-    get_cards_card_id_links,
-    post_cards_card_id_links,
+    delete_projects_project_id_cards_card_id_links,
+    get_projects_project_id_cards_card_id_backlinks,
+    get_projects_project_id_cards_card_id_links,
+    post_projects_project_id_cards_card_id_links,
 )
-from ..generated.models import CardLinkCreateRequest, CardLinkDeleteRequest
-from ..generated.models.get_cards_card_id_backlinks_include_deleted import (
-    GetCardsCardIdBacklinksIncludeDeleted,
-)
-from ..generated.models.get_cards_card_id_backlinks_scope import (
-    GetCardsCardIdBacklinksScope,
-)
-from ..generated.models.get_cards_card_id_links_include_deleted import (
-    GetCardsCardIdLinksIncludeDeleted,
+from ..generated.models import LinkTargetType, NewLink
+from ..generated.models.get_projects_project_id_cards_card_id_backlinks_scope import (
+    GetProjectsProjectIdCardsCardIdBacklinksScope,
 )
 from ..generated.types import UNSET, Unset
 
@@ -31,10 +25,15 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class CardLink:
-    """A link identity and its metadata; the target need not be available locally."""
+    """A link's two ends, each a project, a type and an ID, and its metadata.
+
+    The target need not be available locally. A backlink's source is a card or
+    an AI message.
+    """
 
     source_id: str
     source_project_id: str
+    source_type: str
     target_id: str
     target_project_id: str
     target_type: str
@@ -43,7 +42,42 @@ class CardLink:
     created_at: int
 
     @classmethod
-    def _from(cls, row: Any, project_id: str) -> Self:
+    def _from(cls, row: Any) -> Self:
+        label = None if isinstance(row.label, Unset) else row.label
+        names = (
+            row.source_id,
+            row.source_project_id,
+            row.target_id,
+            row.target_project_id,
+            row.kind,
+        )
+        if (
+            not all(isinstance(value, str) and value for value in names)
+            or not isinstance(label, (str, type(None)))
+            or not isinstance(row.created_at, int)
+        ):
+            raise ProtocolError("Invalid card link response")
+        return cls(
+            source_id=row.source_id,
+            source_project_id=row.source_project_id,
+            source_type=row.source_type.value,
+            target_id=row.target_id,
+            target_project_id=row.target_project_id,
+            target_type=row.target_type.value,
+            kind=row.kind,
+            label=label,
+            created_at=row.created_at,
+        )
+
+    @classmethod
+    def _from_rig_message_route(
+        cls, row: Any, project_id: str, source_type: str
+    ) -> Self:
+        """A link as RIG's AI message routes answer, until they move to the contract.
+
+        Those routes leave out the project of a local end, and do not say what a
+        backlink's source is, so the caller says.
+        """
         source_project = row.source_project_id
         if isinstance(source_project, Unset):
             source_project = project_id
@@ -51,17 +85,11 @@ class CardLink:
         if isinstance(target_project, Unset):
             target_project = source_project
         label = None if isinstance(row.label, Unset) else row.label
+        names = (row.from_card_id, source_project, row.to_card_id, target_project)
         if (
-            not all(
-                isinstance(value, str) and value
-                for value in (
-                    row.from_card_id,
-                    source_project,
-                    row.to_card_id,
-                    target_project,
-                    row.to_type,
-                    row.kind,
-                )
+            not all(isinstance(value, str) and value for value in names)
+            or not all(
+                isinstance(value, str) and value for value in (row.to_type, row.kind)
             )
             or not isinstance(label, (str, type(None)))
             or not isinstance(row.created_at, int)
@@ -70,6 +98,7 @@ class CardLink:
         return cls(
             source_id=row.from_card_id,
             source_project_id=source_project,
+            source_type=source_type,
             target_id=row.to_card_id,
             target_project_id=target_project,
             target_type=row.to_type,
@@ -84,11 +113,6 @@ class _CardLinkCollection(Collection[CardLink]):
         self._card = card
         self._include_deleted = include_deleted
         super().__init__(card._project._holder)
-
-    def _check_scope(self) -> None:
-        current = self._card._project.cards.get(self._card.id)
-        if current.project_id != self._card.project_id:
-            raise NotFoundError(404, "not_found", "Card not found in this project")
 
     def including_deleted(self) -> Self:
         """Return a fresh query that includes deleted local targets or sources."""
@@ -105,15 +129,13 @@ class CardLinkCollection(_CardLinkCollection):
         )
 
     def _fetch_page(self) -> tuple[list[CardLink], None]:
-        self._check_scope()
         data = self._holder._call(
-            get_cards_card_id_links,
+            get_projects_project_id_cards_card_id_links,
+            self._card.project_id,
             self._card.id,
-            include_deleted=GetCardsCardIdLinksIncludeDeleted(
-                int(self._include_deleted)
-            ),
+            include_deleted=self._include_deleted,
         )
-        return [CardLink._from(row, self._card.project_id) for row in data], None
+        return [CardLink._from(row) for row in data], None
 
     def add(
         self,
@@ -128,21 +150,21 @@ class CardLinkCollection(_CardLinkCollection):
         _validate_identity(to_card_id, target_project_id, to_type, kind)
         if label is not None and not isinstance(label, str):
             raise TypeError("label must be a string or None")
-        self._check_scope()
         row = self._holder._call(
-            post_cards_card_id_links,
+            post_projects_project_id_cards_card_id_links,
+            self._card.project_id,
             self._card.id,
-            body=CardLinkCreateRequest(
-                to_card_id=to_card_id,
+            body=NewLink(
+                target_type=_target_type(to_type),
+                target_id=to_card_id,
                 target_project_id=target_project_id or UNSET,
-                to_type=to_type,
                 kind=kind,
                 label=label,
             ),
             write=True,
         )
         self.refresh()
-        return CardLink._from(row, self._card.project_id)
+        return CardLink._from(row)
 
     def remove(
         self,
@@ -152,22 +174,32 @@ class CardLinkCollection(_CardLinkCollection):
         to_type: str = "card",
         kind: str = "ref",
     ) -> Self:
-        """Remove exactly one qualified target/type/kind combination."""
+        """Remove exactly one qualified target/type/kind combination.
+
+        Removing a link the card does not have changes nothing.
+        """
         _validate_identity(to_card_id, target_project_id, to_type, kind)
-        self._check_scope()
         self._holder._call(
-            delete_cards_card_id_links,
+            delete_projects_project_id_cards_card_id_links,
+            self._card.project_id,
             self._card.id,
-            body=CardLinkDeleteRequest(
-                to_card_id=to_card_id,
-                target_project_id=target_project_id or self._card.project_id,
-                to_type=to_type,
-                kind=kind,
-            ),
+            target_type=_target_type(to_type),
+            target_id=to_card_id,
+            kind=kind,
+            target_project_id=target_project_id or UNSET,
             write=True,
         )
         self.refresh()
         return self
+
+
+def _target_type(to_type: str) -> LinkTargetType:
+    try:
+        return LinkTargetType(to_type)
+    except ValueError:
+        raise ValueError(
+            "to_type must be card, ai_message, ai_thread or resource"
+        ) from None
 
 
 def _validate_identity(
@@ -187,18 +219,21 @@ def _validate_identity(
 
 
 class CardBacklinkCollection(_CardLinkCollection):
-    """Backlinks from the chosen daemon-visible source projects."""
+    """Backlinks from the chosen daemon-visible source projects.
+
+    External backlinks come only from projects available to the daemon, so they
+    are never all there may be.
+    """
 
     def __init__(
         self, card: Card, *, scope: str = "local", include_deleted: bool = False
     ) -> None:
         try:
-            self._scope = GetCardsCardIdBacklinksScope(scope)
+            self._scope = GetProjectsProjectIdCardsCardIdBacklinksScope(scope)
         except ValueError:
             raise ValueError(
                 "scope must be local, external, or all_available"
             ) from None
-        self._coverage: str | None = None
         super().__init__(card, include_deleted=include_deleted)
 
     def _clone(self, query: dict[str, Any]) -> Self:
@@ -216,31 +251,12 @@ class CardBacklinkCollection(_CardLinkCollection):
     def scope(self) -> str:
         return self._scope.value
 
-    @property
-    def coverage(self) -> str:
-        """Target project or available projects, as reported by the daemon."""
-        if self._coverage is None:
-            list(self)
-        assert self._coverage is not None
-        return self._coverage
-
-    def refresh(self) -> Self:
-        super().refresh()
-        self._coverage = None
-        return self
-
     def _fetch_page(self) -> tuple[list[CardLink], None]:
-        self._check_scope()
         data = self._holder._call(
-            get_cards_card_id_backlinks,
+            get_projects_project_id_cards_card_id_backlinks,
+            self._card.project_id,
             self._card.id,
             scope=self._scope,
-            include_deleted=GetCardsCardIdBacklinksIncludeDeleted(
-                int(self._include_deleted)
-            ),
-            return_envelope=True,
+            include_deleted=self._include_deleted,
         )
-        if data.scope.value != self._scope.value:
-            raise ProtocolError("Backlink response has the wrong scope")
-        self._coverage = data.coverage.value
-        return [CardLink._from(row, self._card.project_id) for row in data.data], None
+        return [CardLink._from(row) for row in data], None

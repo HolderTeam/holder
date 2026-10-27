@@ -222,6 +222,9 @@ class Core:
                         out[slot.name] = None
                     continue
                 value = self.ffi.string(value).decode() if kind == "string" else value[0]
+            elif kind == "literal":
+                # C's members count from 1, in the contract's order.
+                value = slot.type["values"][value - 1]
             elif kind == "list":
                 value = self.from_c_list(slot.type["items"], value)
             elif kind == "named":

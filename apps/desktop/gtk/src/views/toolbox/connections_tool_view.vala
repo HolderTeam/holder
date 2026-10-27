@@ -536,6 +536,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the dialog always has a target and a kind selected, so resolve() returns a request
                 }
                 create_graph_link.begin(
+                    selected_card.project_id,
                     selected_card.card_id,
                     request.to_card_id,
                     request.kind,
@@ -547,7 +548,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         dialog.present(root);
     }
 
-    private async void create_graph_link(string from_card_id,
+    private async void create_graph_link(string project_id,
+                                         string from_card_id,
                                          string to_card_id,
                                          string kind,
                                          string? label,
@@ -556,7 +558,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             return;
         }
         try {
-            yield api.create_card_link(from_card_id, to_card_id, kind, label, "card");
+            yield api.create_card_link(project_id, from_card_id, to_card_id, kind, label, "card");
             if (remember_kind) {
                 controller.remember_custom_link_kind(settings, kind);
             }
@@ -664,7 +666,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     return;
                 }
                 try {
-                    var links = yield api.list_card_links(card.card_id);
+                    var links = yield api.list_card_links(card.project_id, card.card_id);
                     foreach (var link in links) {
                         if (link.to_type == "card" && project_card_ids.contains(link.to_card_id)) {
                             project_links.add(link);

@@ -114,10 +114,12 @@ void print_links_table(const nlohmann::json& links, bool backlinks) {
   std::vector<std::string> displayed_ids(links.size());
   std::vector<std::string> card_ids;
   std::vector<std::size_t> card_indices;
+  // A backlink shows where it is from, and a link where it points.
+  const std::string end = backlinks ? "source" : "target";
   for (std::size_t i = 0; i < links.size(); ++i) {
     const auto& link = links.at(i);
-    displayed_ids.at(i) = json_string(link, backlinks ? "from_card_id" : "to_card_id");
-    if (backlinks || json_string(link, "to_type") == "card") {
+    displayed_ids.at(i) = json_string(link, (end + "_id").c_str());
+    if (json_string(link, (end + "_type").c_str()) == "card") {
       card_ids.push_back(displayed_ids.at(i));
       card_indices.push_back(i);
     }
@@ -128,7 +130,7 @@ void print_links_table(const nlohmann::json& links, bool backlinks) {
   }
   for (std::size_t i = 0; i < links.size(); ++i) {
     const auto& link = links.at(i);
-    std::cout << displayed_ids.at(i) << "\t" << json_string(link, "to_type") << "\t"
+    std::cout << displayed_ids.at(i) << "\t" << json_string(link, (end + "_type").c_str()) << "\t"
               << json_string(link, "kind") << "\t" << json_string(link, "label") << "\t"
               << link.value("created_at", 0) << "\n";
   }
@@ -151,12 +153,12 @@ int command_links(const holder::core::Paths& paths, int argc, char* argv[]) {
         paths,
         current_project_id,
         options.card_id,
-        options.include_deleted ? CardReferenceScope::Either : CardReferenceScope::Live
+        CardReferenceScope::Live
     );
 
-    std::string target = "/cards/" + url_encode_component(card_id) + "/links";
+    std::string target = card_api_path(current_project_id, card_id) + "/links";
     if (options.include_deleted) {
-      target += "?include_deleted=1";
+      target += "?include_deleted=true";
     }
     const auto payload = card_api_request(paths, boost::beast::http::verb::get, target);
     if (options.json_output) {
@@ -187,12 +189,12 @@ int command_backlinks(const holder::core::Paths& paths, int argc, char* argv[]) 
         paths,
         current_project_id,
         options.card_id,
-        options.include_deleted ? CardReferenceScope::Either : CardReferenceScope::Live
+        CardReferenceScope::Live
     );
 
-    std::string target = "/cards/" + url_encode_component(card_id) + "/backlinks";
+    std::string target = card_api_path(current_project_id, card_id) + "/backlinks";
     if (options.include_deleted) {
-      target += "?include_deleted=1";
+      target += "?include_deleted=true";
     }
     const auto payload = card_api_request(paths, boost::beast::http::verb::get, target);
     if (options.json_output) {
@@ -229,10 +231,9 @@ int command_link(const holder::core::Paths& paths, int argc, char* argv[]) {
 
     // LCOV_EXCL_START
     nlohmann::json body = {
-        {"to_card_id", to_card_id},
-        {"to_type", "card"},
+        {"target_type", "card"},
+        {"target_id", to_card_id},
         {"kind", options.kind},
-        {"created_at", now_epoch_seconds()},
     };
     // LCOV_EXCL_STOP
     if (options.label.has_value()) {
@@ -242,9 +243,8 @@ int command_link(const holder::core::Paths& paths, int argc, char* argv[]) {
     const auto payload = card_api_request(
         paths,
         boost::beast::http::verb::post,
-        "/cards/" + url_encode_component(from_card_id) + "/links",
-        body,
-        boost::beast::http::status::created
+        card_api_path(current_project_id, from_card_id) + "/links",
+        body
     );
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";

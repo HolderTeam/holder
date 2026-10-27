@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -96,6 +96,19 @@ struct CardMove {
   Change<std::string> parent_card_id;  ///< For left, right, to_start and to_end: the parent among whose children to place it, null for the root cards; omit for its current parent. Ignored by the other intents.
 };
 
+/// What the link points at.
+enum class NewLinkTargetType { Card, AiMessage, AiThread, Resource };
+
+/// A link to make from a card. Its source is the card it is made from.
+struct NewLink {
+  NewLinkTargetType target_type;  ///< What the link points at.
+  std::string target_id;  ///< The ID of what the link points at.
+  std::optional<std::string> target_project_id;  ///< The project of a card the link points at; omit for the card's own project. Only a card can be in another project, which need not be on this device.
+  std::string kind = "ref";  ///< What the link means.
+  std::optional<std::string> label;  ///< A note on the link; null or omitted for none.
+  std::optional<long long> created_at;  ///< When the link was made, for imports; omit for now. A link that already exists keeps its own.
+};
+
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
@@ -133,6 +146,26 @@ struct CardListItem : CardMetadata {
 struct TagCount {
   std::string tag;  ///< The tag, normalized: in lower case.
   std::int32_t card_count{};  ///< The live cards in the project that carry the tag: at least one, or the tag is not listed.
+};
+
+/// What the link is from.
+enum class LinkSourceType { Card, AiMessage };
+
+/// What the link points at.
+enum class LinkTargetType { Card, AiMessage, AiThread, Resource };
+
+/// A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:
+/// each end's project, type and ID.
+struct Link {
+  std::string source_project_id;  ///< The project of the card or AI message the link is from.
+  LinkSourceType source_type;  ///< What the link is from.
+  std::string source_id;  ///< The ID of the card or AI message the link is from.
+  std::string target_project_id;  ///< The project of what the link points at: the source's own project, or, for a card, another project, which need not be on this device. A link grants no access to its target.
+  LinkTargetType target_type;  ///< What the link points at.
+  std::string target_id;  ///< The ID of what the link points at.
+  std::string kind;  ///< What the link means.
+  std::optional<std::string> label;  ///< A note on the link; null when it has none.
+  long long created_at{};  ///< When the link was made.
 };
 
 /// Fetch a card.
@@ -213,6 +246,40 @@ Card remove_card_tag(holder_context& context, std::string project_id, std::strin
 /// Each tag carried by a live card in the project, with how many carry it, by descending count and then by tag.
 /// @throws NotFound
 std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id);
+
+/// List a card's links.
+/// The links the card makes, newest first. A card in the trash or in another project is not found.
+/// @param include_deleted Include links to targets in the trash. A link to a card in another project is listed whether or not that card can be found here.
+/// @throws NotFound
+std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id, bool include_deleted);
+
+enum class ListCardBacklinksScope { Local, External, AllAvailable };
+
+/// List the links to a card.
+/// Links from cards and AI messages, newest first. External links come only from projects on this device, so
+/// they are never all there may be. A card in the trash or in another project is not found.
+/// @param scope local lists links from the card's own project; external, links from the other projects on this device; all_available, both.
+/// @param include_deleted Include links from cards and AI messages in the trash.
+/// @throws NotFound
+std::vector<Link> list_card_backlinks(holder_context& context, std::string project_id, std::string card_id, ListCardBacklinksScope scope, bool include_deleted);
+
+/// Link a card to something.
+/// A link is one target, of one type in one project, with one kind. Making a link that already exists sets its
+/// label and keeps when it was made. A target in the card's project must exist and not be in the trash; a card in
+/// another project may be one this device does not have. A card in the trash or in another project is not found,
+/// and neither is a target that does not exist or is in the trash.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Link add_card_link(holder_context& context, std::string project_id, std::string card_id, const NewLink& link);
+
+enum class RemoveCardLinkTargetType { Card, AiMessage, AiThread, Resource };
+
+/// Remove a link from a card.
+/// Removes the one link to that target, of that type in that project, with that kind, and returns the card's
+/// remaining links as list_card_links lists them by default. A card without that link is left as it is. A card in
+/// the trash or in another project is not found.
+/// @param target_project_id Omit for the card's own project.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+std::vector<Link> remove_card_link(holder_context& context, std::string project_id, std::string card_id, RemoveCardLinkTargetType target_type, std::string target_id, std::string kind, std::optional<std::string> target_project_id);
 
 namespace detail {
 

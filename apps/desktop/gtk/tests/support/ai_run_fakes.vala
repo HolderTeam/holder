@@ -98,10 +98,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                                                             string tag) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
     }
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
-    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
@@ -130,17 +130,20 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                       int64 updated_at,
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {}
     public async void delete_resource(string resource_id) throws Error {}
-    public async HolderLinux.CardLink create_card_link(string from_card_id,
+    public async HolderLinux.CardLink create_card_link(string project_id,
+                                                       string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",
                                                        string? label = null,
                                                        string to_type = "card") throws Error {
         return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
     }
-    public async void delete_card_link(string from_card_id,
+    public async void delete_card_link(string project_id,
+                                       string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {}
+                                       string to_type = "card",
+                                       string? target_project_id = null) throws Error {}
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,
                                                                            int limit = 30) throws Error {

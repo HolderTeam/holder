@@ -1944,201 +1944,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /cards/{card_id}/backlinks:
-    get:
-      summary: List backlinks to a card from selected available projects
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      - name: include_deleted
-        in: query
-        required: false
-        schema:
-          type: integer
-          enum: [0, 1]
-        description: Include backlinks from deleted sources.
-      - name: scope
-        in: query
-        required: false
-        schema:
-          type: string
-          enum: [local, external, all_available]
-          default: local
-        description: Local sources only (default), external available projects only, or both. External
-          results are best effort and exclude unavailable projects.
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardBacklinkListResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /cards/{card_id}/links:
-    get:
-      summary: List outgoing links for a card
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      - name: include_deleted
-        in: query
-        required: false
-        schema:
-          type: integer
-          enum: [0, 1]
-        description: Include links to deleted local targets. External card links remain listed even when
-          their targets are unavailable or trashed.
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardLinkListResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    post:
-      summary: Create or update a link from a card
-      description: Creating a link that already exists updates its label and keeps its creation time.
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/CardLinkCreateRequest'}
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardLinkCreateResponse'}
-        '400':
-          description: Malformed request, an invalid or unknown target, a source card in Trash, or a privacy
-            error writing an encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    delete:
-      summary: Delete links from a card
-      description: Provide to_card_id (and optional to_type/kind) to delete matching links. A fully specified
-        selector without target_project_id is rejected if more than one target project matches. Provide
-        target_project_id together with to_card_id, to_type and kind to select one qualified target. If
-        to_card_id is omitted, deletes all outgoing links.
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/CardLinkDeleteRequest'}
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardPatchResponse'}
-        '400':
-          description: Incomplete or ambiguous selector, a source card in Trash for a fully specified
-            selector, or a privacy error writing an encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /cards/{card_id}/milestones:
     get:
       summary: List milestones attached to a card
@@ -4060,6 +3865,66 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/cards/{card_id}/backlinks:
+    get:
+      summary: List the links to a card.
+      description: 'Links from cards and AI messages, newest first. External links come only from projects
+        on this device, so
+
+        they are never all there may be. A card in the trash or in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: scope
+        in: query
+        required: false
+        schema:
+          enum: [local, external, all_available]
+          type: string
+          description: local lists links from the card's own project; external, links from the other projects
+            on this device; all_available, both.
+          default: local
+          title: Scope
+        description: local lists links from the card's own project; external, links from the other projects
+          on this device; all_available, both.
+      - name: include_deleted
+        in: query
+        required: false
+        schema: {type: boolean, description: Include links from cards and AI messages in the trash., default: false,
+          title: Include Deleted}
+        description: Include links from cards and AI messages in the trash.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/cards/{card_id}/breadcrumbs:
     get:
       summary: Read a live card's project-to-card breadcrumb trail
@@ -4102,6 +3967,198 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
           description: Internal server error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/cards/{card_id}/links:
+    get:
+      summary: List a card's links.
+      description: The links the card makes, newest first. A card in the trash or in another project is
+        not found.
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: include_deleted
+        in: query
+        required: false
+        schema: {type: boolean, description: Include links to targets in the trash. A link to a card in
+            another project is listed whether or not that card can be found here., default: false, title: Include
+            Deleted}
+        description: Include links to targets in the trash. A link to a card in another project is listed
+          whether or not that card can be found here.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Link a card to something.
+      description: 'A link is one target, of one type in one project, with one kind. Making a link that
+        already exists sets its
+
+        label and keeps when it was made. A target in the card''s project must exist and not be in the
+        trash; a card in
+
+        another project may be one this device does not have. A card in the trash or in another project
+        is not found,
+
+        and neither is a target that does not exist or is in the trash.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewLink'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      summary: Remove a link from a card.
+      description: 'Removes the one link to that target, of that type in that project, with that kind,
+        and returns the card''s
+
+        remaining links as list_card_links lists them by default. A card without that link is left as
+        it is. A card in
+
+        the trash or in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: target_type
+        in: query
+        required: true
+        schema: {$ref: '#/components/schemas/LinkTargetType'}
+      - name: target_id
+        in: query
+        required: true
+        schema: {$ref: '#/components/schemas/LinkTargetId'}
+      - name: kind
+        in: query
+        required: false
+        schema: {$ref: '#/components/schemas/LinkKind', default: ref}
+      - name: target_project_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - {$ref: '#/components/schemas/ProjectId'}
+          - {type: 'null'}
+          description: Omit for the card's own project.
+          title: Target Project Id
+        description: Omit for the card's own project.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6656,24 +6713,6 @@ components:
         deleted_at, content, tags, tag_occurrences]
       title: Card
       description: A card, with its content and tags.
-    CardBacklinkListResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: array
-          items: {$ref: '#/components/schemas/CardLink'}
-        scope:
-          type: string
-          enum: [local, external, all_available]
-        coverage:
-          type: string
-          enum: [target_project, available_projects]
-          description: External backlinks cover only source projects available to this daemon request,
-            never all possible projects.
-      required: [ok, data, scope, coverage]
     CardBreadcrumb:
       type: object
       properties:
@@ -7025,18 +7064,6 @@ components:
       required: [intent]
       title: CardMove
       description: Where to move a card, relative to another card or among its siblings.
-    CardPatchResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            card_id: {type: string}
-          required: [card_id]
-      required: [ok, data]
     CardReferenceCandidate:
       type: object
       properties:
@@ -7286,6 +7313,64 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/HierarchyRepair'}
       required: [ok, data]
+    Link:
+      properties:
+        source_project_id: {$ref: '#/components/schemas/ProjectId', description: The project of the card
+            or AI message the link is from.}
+        source_type:
+          type: string
+          enum: [card, ai_message]
+          title: Source Type
+          description: What the link is from.
+        source_id: {type: string, minLength: 1, title: Source Id, description: The ID of the card or AI
+            message the link is from.}
+        target_project_id: {$ref: '#/components/schemas/ProjectId', description: 'The project of what
+            the link points at: the source''s own project, or, for a card, another project, which
+
+            need not be on this device. A link grants no access to its target.'}
+        target_type: {$ref: '#/components/schemas/LinkTargetType', description: What the link points at.}
+        target_id: {$ref: '#/components/schemas/LinkTargetId', description: The ID of what the link points
+            at.}
+        kind: {$ref: '#/components/schemas/LinkKind', description: What the link means.}
+        label:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Label
+          description: A note on the link; null when it has none.
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the link was made.}
+      additionalProperties: false
+      type: object
+      required: [source_project_id, source_type, source_id, target_project_id, target_type, target_id,
+        kind, label, created_at]
+      title: Link
+      description: 'A link from a card, or from an AI message, to something in a project. A link names
+        both of its ends in full:
+
+        each end''s project, type and ID.'
+    LinkKind: {type: string, minLength: 1}
+    LinkListResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data:
+          items: {$ref: '#/components/schemas/Link'}
+          type: array
+          title: Data
+      type: object
+      required: [ok, data]
+      title: LinkListResponse
+    LinkResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/Link'}
+      type: object
+      required: [ok, data]
+      title: LinkResponse
+    LinkTargetId: {type: string, minLength: 1}
+    LinkTargetType:
+      type: string
+      enum: [card, ai_message, ai_thread, resource]
     LocalModel:
       type: object
       properties:
@@ -7518,6 +7603,30 @@ components:
       required: [title]
       title: NewCard
       description: A card to create.
+    NewLink:
+      properties:
+        target_type: {$ref: '#/components/schemas/LinkTargetType', description: What the link points at.}
+        target_id: {$ref: '#/components/schemas/LinkTargetId', description: The ID of what the link points
+            at.}
+        target_project_id: {$ref: '#/components/schemas/ProjectId', description: 'The project of a card
+            the link points at; omit for the card''s own project. Only a card can be in another
+
+            project, which need not be on this device.'}
+        kind: {$ref: '#/components/schemas/LinkKind', description: What the link means., default: ref}
+        label:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Label
+          description: A note on the link; null or omitted for none.
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: 'When the link was made, for imports; omit for now. A link that
+            already exists keeps its own.'}
+      additionalProperties: false
+      type: object
+      required: [target_type, target_id]
+      title: NewLink
+      description: A link to make from a card. Its source is the card it is made from.
     Project:
       type: object
       properties:

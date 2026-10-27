@@ -411,7 +411,12 @@ class MessageLinkCollection(Collection[CardLink]):
                 int(self._include_deleted)
             ),
         )
-        return [CardLink._from(row, self._message._project.id) for row in rows], None
+        return [
+            CardLink._from_rig_message_route(
+                row, self._message._project.id, "ai_message"
+            )
+            for row in rows
+        ], None
 
     def add(
         self,
@@ -439,7 +444,9 @@ class MessageLinkCollection(Collection[CardLink]):
             write=True,
         )
         self.refresh()
-        return CardLink._from(row, self._message._project.id)
+        return CardLink._from_rig_message_route(
+            row, self._message._project.id, "ai_message"
+        )
 
     def remove(
         self,
@@ -475,7 +482,11 @@ class MessageBacklinkCollection(MessageLinkCollection):
                 int(self._include_deleted)
             ),
         )
-        return [CardLink._from(row, self._message._project.id) for row in rows], None
+        # RIG's route does not say what each source is; a card, until it moves.
+        return [
+            CardLink._from_rig_message_route(row, self._message._project.id, "card")
+            for row in rows
+        ], None
 
     def add(self, *args: Any, **kwargs: Any) -> CardLink:
         raise TypeError("Backlinks are read-only")

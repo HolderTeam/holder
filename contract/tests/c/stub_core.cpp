@@ -5,9 +5,11 @@
 #include <algorithm>
 #include <map>
 #include <string>
+#include <vector>
 
 struct holder_context {
   std::map<std::string, holder::contract::Card> cards;
+  std::vector<holder::contract::Link> links;
   int next_id = 1;
 };
 
@@ -155,6 +157,43 @@ std::vector<TagCount> list_project_tags(holder_context& context, std::string pro
   std::vector<TagCount> out;
   for (const auto& [tag, count] : counts) out.push_back({tag, count});
   return out;
+}
+// Links, from the card to whatever it names: the stand-in neither checks targets nor lists backlinks.
+std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id,
+                                  bool include_deleted) {
+  (void)include_deleted;
+  live_card(context, project_id, card_id);
+  std::vector<Link> out;
+  for (const auto& link : context.links)
+    if (link.source_id == card_id) out.push_back(link);
+  return out;
+}
+
+std::vector<Link> list_card_backlinks(holder_context& context, std::string project_id, std::string card_id,
+                                      ListCardBacklinksScope scope, bool include_deleted) {
+  (void)scope, (void)include_deleted;
+  live_card(context, project_id, card_id);
+  return {};
+}
+
+Link add_card_link(holder_context& context, std::string project_id, std::string card_id, const NewLink& request) {
+  live_card(context, project_id, card_id);
+  Link link{project_id, LinkSourceType::Card, card_id, request.target_project_id.value_or(project_id),
+            static_cast<LinkTargetType>(request.target_type), request.target_id, request.kind, request.label,
+            request.created_at.value_or(1793000300)};
+  context.links.push_back(link);
+  return link;
+}
+
+std::vector<Link> remove_card_link(holder_context& context, std::string project_id, std::string card_id,
+                                   RemoveCardLinkTargetType target_type, std::string target_id, std::string kind,
+                                   std::optional<std::string> target_project_id) {
+  std::erase_if(context.links, [&](const Link& link) {
+    return link.source_id == card_id && link.target_type == static_cast<LinkTargetType>(target_type) &&
+           link.target_id == target_id && link.kind == kind &&
+           link.target_project_id == target_project_id.value_or(project_id);
+  });
+  return list_card_links(context, project_id, card_id, false);
 }
 }  // namespace holder::contract
 

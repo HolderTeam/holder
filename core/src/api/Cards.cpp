@@ -2,6 +2,7 @@
 // arguments first; these do the work.
 #include "api/Contract.h"
 
+#include "api/CardAccess.h"
 #include "api/CoreErrors.h"
 
 #include "capi/Context.h"
@@ -31,15 +32,6 @@ namespace {
 // A content page reads every body under one project lock, so it is kept smaller.
 constexpr int MAX_CONTENT_PAGE = 1000;
 
-long long now_epoch_seconds() {
-  return std::chrono::duration_cast<std::chrono::seconds>(
-             std::chrono::system_clock::now().time_since_epoch())
-      .count();
-}
-
-holder::card::CardStore card_store(holder_context& context) {
-  return holder::card::CardStore(context.db, &context.fts, nullptr, context.git);
-}
 
 Card full_card(holder_context& context, holder::card::CardStore& store, const holder::model::Card& card) {
   auto content = store.get_content(card);
@@ -109,22 +101,6 @@ const char* order_name(ListCardsOrder order) {
   case ListCardsOrder::CardIdAsc: break;
   }
   return "card_id_asc";
-}
-
-// The card, live or in the trash, when it is in the project: a card in another project is not found.
-std::optional<holder::model::Card> card_in(holder::card::CardStore& store, const std::string& project_id,
-                                           const std::string& card_id) {
-  auto card = store.get(card_id);
-  if (!card || card->project_id != project_id) return std::nullopt;
-  return card;
-}
-
-// A live card in the project, with nothing read but its metadata.
-holder::model::Card live_card(holder::card::CardStore& store, const std::string& project_id,
-                              const std::string& card_id) {
-  auto card = card_in(store, project_id, card_id);
-  if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
-  return std::move(*card);
 }
 
 Card find_card(holder_context& context, const std::string& project_id, const std::string& card_id) {

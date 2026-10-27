@@ -137,7 +137,20 @@ TEST_CASE("The C API reports an encrypted project's missing key as HOLDER_ERROR_
             HOLDER_ERROR_KEY_MISSING);
     holder_error_destroy(error);
     error = nullptr;
+    // A link whose card cannot be written is not made: the index changes with the file or not at all.
+    holder_new_link link{};
+    link.target_type = HOLDER_NEW_LINK_TARGET_TYPE_CARD;
+    link.target_id = card_id.c_str();
+    const holder_link* made = nullptr;
+    REQUIRE(holder_add_card_link(context, project_id.c_str(), card_id.c_str(), &link, arena, &made, &error) ==
+            HOLDER_ERROR_KEY_MISSING);
+    holder_error_destroy(error);
+    error = nullptr;
   }
+  const holder_link_list* links = nullptr;
+  REQUIRE(holder_list_card_links(context, project_id.c_str(), card_id.c_str(), true, arena, &links, &error) ==
+          HOLDER_OK);
+  REQUIRE(links->count == 0);
   REQUIRE(holder_get_card(context, project_id.c_str(), card_id.c_str(), arena, &card, &error) == HOLDER_OK);
   REQUIRE(std::string(card->content) == "Secret body");
   holder_arena_free(arena);

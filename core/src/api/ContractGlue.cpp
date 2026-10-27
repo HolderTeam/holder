@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -13,6 +13,7 @@
 #include <memory>
 #include <new>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -171,6 +172,24 @@ contract::Change<std::string> changed_text(const holder_string_change& value, co
   }
 }
 
+holder_link_source_type to_c_enum(contract::LinkSourceType value) {
+  switch (value) {
+  case contract::LinkSourceType::Card: return HOLDER_LINK_SOURCE_TYPE_CARD;
+  case contract::LinkSourceType::AiMessage: return HOLDER_LINK_SOURCE_TYPE_AI_MESSAGE;
+  }
+  throw std::logic_error("not a contract::LinkSourceType value");
+}
+
+holder_link_target_type to_c_enum(contract::LinkTargetType value) {
+  switch (value) {
+  case contract::LinkTargetType::Card: return HOLDER_LINK_TARGET_TYPE_CARD;
+  case contract::LinkTargetType::AiMessage: return HOLDER_LINK_TARGET_TYPE_AI_MESSAGE;
+  case contract::LinkTargetType::AiThread: return HOLDER_LINK_TARGET_TYPE_AI_THREAD;
+  case contract::LinkTargetType::Resource: return HOLDER_LINK_TARGET_TYPE_RESOURCE;
+  }
+  throw std::logic_error("not a contract::LinkTargetType value");
+}
+
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -179,6 +198,8 @@ holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<cont
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
 holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value);
 holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values);
+holder_link to_c(holder_arena* arena, const contract::Link& value);
+holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link>& values);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -253,6 +274,26 @@ holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract:
   return {items, values.size()};
 }
 
+holder_link to_c(holder_arena* arena, const contract::Link& value) {
+  holder_link out{};
+  out.source_project_id = copy(arena, value.source_project_id);
+  out.source_type = to_c_enum(value.source_type);
+  out.source_id = copy(arena, value.source_id);
+  out.target_project_id = copy(arena, value.target_project_id);
+  out.target_type = to_c_enum(value.target_type);
+  out.target_id = copy(arena, value.target_id);
+  out.kind = copy(arena, value.kind);
+  out.label = copy_text(arena, value.label);
+  out.created_at = value.created_at;
+  return out;
+}
+
+holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link>& values) {
+  auto* items = make<holder_link>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -289,6 +330,23 @@ contract::CardMove from_c(const holder_card_move& value) {
   }
   out.target_card_id = optional_text(value.target_card_id, "card_move.target_card_id", 1, SIZE_MAX);
   out.parent_card_id = changed_text(value.parent_card_id, "card_move.parent_card_id", 1, SIZE_MAX);
+  return out;
+}
+
+contract::NewLink from_c(const holder_new_link& value) {
+  contract::NewLink out;
+  switch (value.target_type) {
+  case HOLDER_NEW_LINK_TARGET_TYPE_CARD: out.target_type = contract::NewLinkTargetType::Card; break;
+  case HOLDER_NEW_LINK_TARGET_TYPE_AI_MESSAGE: out.target_type = contract::NewLinkTargetType::AiMessage; break;
+  case HOLDER_NEW_LINK_TARGET_TYPE_AI_THREAD: out.target_type = contract::NewLinkTargetType::AiThread; break;
+  case HOLDER_NEW_LINK_TARGET_TYPE_RESOURCE: out.target_type = contract::NewLinkTargetType::Resource; break;
+  default: throw ArgumentError("new_link.target_type is not a holder_new_link_target_type value");
+  }
+  out.target_id = text(value.target_id, "new_link.target_id", 1, SIZE_MAX);
+  out.target_project_id = optional_text(value.target_project_id, "new_link.target_project_id", 1, SIZE_MAX);
+  out.kind = optional_text(value.kind, "new_link.kind", 1, SIZE_MAX).value_or("ref");
+  out.label = optional_text(value.label, "new_link.label", 0, SIZE_MAX);
+  out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
   return out;
 }
 
@@ -458,6 +516,81 @@ int holder_list_project_tags(holder_context* context, const char* project_id, ho
     auto* out = make<holder_tag_count_list>(arena);
     *out = to_c_list(arena, contract::list_project_tags(*context, project_id_value));
     *out_tag_count_list = out;
+  });
+}
+
+int holder_list_card_links(holder_context* context, const char* project_id, const char* card_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_list != nullptr, "out_link_list must not be null");
+    *out_link_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto include_deleted_value = include_deleted;
+    auto* out = make<holder_link_list>(arena);
+    *out = to_c_list(arena, contract::list_card_links(*context, project_id_value, card_id_value, include_deleted_value));
+    *out_link_list = out;
+  });
+}
+
+int holder_list_card_backlinks(holder_context* context, const char* project_id, const char* card_id, holder_list_card_backlinks_scope scope, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_list != nullptr, "out_link_list must not be null");
+    *out_link_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    contract::ListCardBacklinksScope scope_value;
+    switch (scope) {
+    case HOLDER_LIST_CARD_BACKLINKS_SCOPE_DEFAULT: scope_value = contract::ListCardBacklinksScope::Local; break;
+    case HOLDER_LIST_CARD_BACKLINKS_SCOPE_LOCAL: scope_value = contract::ListCardBacklinksScope::Local; break;
+    case HOLDER_LIST_CARD_BACKLINKS_SCOPE_EXTERNAL: scope_value = contract::ListCardBacklinksScope::External; break;
+    case HOLDER_LIST_CARD_BACKLINKS_SCOPE_ALL_AVAILABLE: scope_value = contract::ListCardBacklinksScope::AllAvailable; break;
+    default: throw ArgumentError("scope is not a holder_list_card_backlinks_scope value");
+    }
+    const auto include_deleted_value = include_deleted;
+    auto* out = make<holder_link_list>(arena);
+    *out = to_c_list(arena, contract::list_card_backlinks(*context, project_id_value, card_id_value, scope_value, include_deleted_value));
+    *out_link_list = out;
+  });
+}
+
+int holder_add_card_link(holder_context* context, const char* project_id, const char* card_id, const holder_new_link* link, holder_arena* arena, const holder_link** out_link, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link != nullptr, "out_link must not be null");
+    *out_link = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    require(link != nullptr, "link must not be null");
+    const auto link_value = from_c(*link);
+    auto* out = make<holder_link>(arena);
+    *out = to_c(arena, contract::add_card_link(*context, project_id_value, card_id_value, link_value));
+    *out_link = out;
+  });
+}
+
+int holder_remove_card_link(holder_context* context, const char* project_id, const char* card_id, holder_remove_card_link_target_type target_type, const char* target_id, const char* kind, const char* target_project_id, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_list != nullptr, "out_link_list must not be null");
+    *out_link_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    contract::RemoveCardLinkTargetType target_type_value;
+    switch (target_type) {
+    case HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD: target_type_value = contract::RemoveCardLinkTargetType::Card; break;
+    case HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_MESSAGE: target_type_value = contract::RemoveCardLinkTargetType::AiMessage; break;
+    case HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_AI_THREAD: target_type_value = contract::RemoveCardLinkTargetType::AiThread; break;
+    case HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_RESOURCE: target_type_value = contract::RemoveCardLinkTargetType::Resource; break;
+    default: throw ArgumentError("target_type is not a holder_remove_card_link_target_type value");
+    }
+    const auto target_id_value = text(target_id, "target_id", 1, SIZE_MAX);
+    const auto kind_value = optional_text(kind, "kind", 1, SIZE_MAX).value_or("ref");
+    const auto target_project_id_value = optional_text(target_project_id, "target_project_id", 1, SIZE_MAX);
+    auto* out = make<holder_link_list>(arena);
+    *out = to_c_list(arena, contract::remove_card_link(*context, project_id_value, card_id_value, target_type_value, target_id_value, kind_value, target_project_id_value));
+    *out_link_list = out;
   });
 }
 
