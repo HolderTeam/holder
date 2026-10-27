@@ -339,8 +339,16 @@ class Cards(RuleBasedStateMachine):
         assert before <= restored["updated_at"] <= after
         for name in ("title", "content", "project_id", "tags"):
             assert restored[name] == self.cards[card_id][name], name
+        # It goes back to its place among its new siblings, by its old sort key.
         self.deleted.discard(card_id)
+        self.cards[card_id] = {**self.cards[card_id], "parent_card_id": parent}
+        expected = self.siblings(parent)
         self.cards[card_id] = restored
+        # Siblings may be re-spaced to make room.
+        for sibling in self.siblings(parent):
+            if sibling != card_id:
+                self.refresh(sibling, "sort_key", "updated_at")
+        assert self.siblings(parent) == expected
 
     @rule(data=st.data())
     def move_card(self, data):
