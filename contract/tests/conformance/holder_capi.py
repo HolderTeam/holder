@@ -115,7 +115,10 @@ class Core:
             self.check(status)
             if not out:
                 return None
-            return self.from_c(self.model.instance(self.model.resolve(op["returns"]), {}), result[0][0])
+            returns = self.model.resolve(op["returns"])
+            if returns["kind"] == "list":
+                return self.from_c_list(returns["items"], result[0][0])
+            return self.from_c(self.model.instance(returns, {}), result[0][0])
         finally:
             self.lib.holder_arena_free(arena)
 
@@ -220,15 +223,17 @@ class Core:
                     continue
                 value = self.ffi.string(value).decode() if kind == "string" else value[0]
             elif kind == "list":
-                items = self.model.resolve(slot.type["items"])
-                if items["kind"] == "string":
-                    value = [self.ffi.string(value.items[i]).decode() for i in range(value.count)]
-                elif items["kind"] in SCALARS_C:
-                    value = [value.items[i] for i in range(value.count)]
-                else:
-                    item = self.model.instance(items, {})
-                    value = [self.from_c(item, value.items[i]) for i in range(value.count)]
+                value = self.from_c_list(slot.type["items"], value)
             elif kind == "named":
                 value = self.from_c(self.model.instance(slot.type, {}), value)
             out[slot.name] = bool(value) if kind == "bool" else value
         return out
+
+    def from_c_list(self, items: dict[str, Any], value) -> list[Any]:
+        items = self.model.resolve(items)
+        if items["kind"] == "string":
+            return [self.ffi.string(value.items[i]).decode() for i in range(value.count)]
+        if items["kind"] in SCALARS_C:
+            return [value.items[i] for i in range(value.count)]
+        item = self.model.instance(items, {})
+        return [self.from_c(item, value.items[i]) for i in range(value.count)]

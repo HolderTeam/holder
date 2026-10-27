@@ -27,7 +27,7 @@ import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Literal, get_type_hints
+from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import StreamingResponse
@@ -45,7 +45,14 @@ class Envelope[T](BaseModel):
 
     @classmethod
     def model_parametrized_name(cls, params: tuple[type[Any], ...]) -> str:
-        return "".join(getattr(p, "__name__", str(p)) for p in params) + "Response"
+        return "".join(_type_name(p) for p in params) + "Response"
+
+
+def _type_name(value: Any) -> str:
+    """A type's name in a schema's: a list of TagCount is TagCountList."""
+    if get_origin(value) is list:
+        return _type_name(get_args(value)[0]) + "List"
+    return getattr(value, "__name__", str(value))
 
 
 class Error(BaseModel):
