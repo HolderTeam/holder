@@ -1,31 +1,30 @@
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import quote
-from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.milestone_with_dates_response import MilestoneWithDatesResponse
-from ...models.milestone_with_dates_update_request import (
-    MilestoneWithDatesUpdateRequest,
-)
+from ...models.milestone_response import MilestoneResponse
+from ...models.milestone_update import MilestoneUpdate
 from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
-    milestone_id: UUID,
+    milestone_id: str,
     *,
-    body: MilestoneWithDatesUpdateRequest,
+    body: MilestoneUpdate,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
         "method": "patch",
-        "url": "/cards/{card_id}/milestones-with-dates/{milestone_id}".format(
+        "url": "/projects/{project_id}/cards/{card_id}/milestones/{milestone_id}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
             milestone_id=quote(str(milestone_id), safe=""),
         ),
@@ -41,9 +40,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | MilestoneWithDatesResponse | None:
+) -> ErrorResponse | MilestoneResponse | None:
     if response.status_code == 200:
-        response_200 = MilestoneWithDatesResponse.from_dict(response.json())
+        response_200 = MilestoneResponse.from_dict(response.json())
 
         return response_200
 
@@ -62,15 +61,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -85,7 +84,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | MilestoneWithDatesResponse]:
+) -> Response[ErrorResponse | MilestoneResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -95,32 +94,37 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
-    milestone_id: UUID,
+    milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneWithDatesUpdateRequest,
-) -> Response[ErrorResponse | MilestoneWithDatesResponse]:
-    """Update a milestone's labelled dates and metadata
+    body: MilestoneUpdate,
+) -> Response[ErrorResponse | MilestoneResponse]:
+    """Change a milestone.
 
-     Supplying dates replaces the complete ordered array. Milestone identity and creation time remain
-    unchanged.
+     Each field left out keeps its value, and an update that changes nothing writes nothing. Each date
+    must be a real
+    day or instant. A card in the trash or in another project is not found, and neither is a milestone
+    that is not
+    on the card.
 
     Args:
+        project_id (str):
         card_id (str):
-        milestone_id (UUID):
-        body (MilestoneWithDatesUpdateRequest): Partial update. Supplying dates replaces the
-            entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.
+        milestone_id (str):
+        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | MilestoneWithDatesResponse]
+        Response[ErrorResponse | MilestoneResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         milestone_id=milestone_id,
         body=body,
@@ -134,32 +138,37 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
-    milestone_id: UUID,
+    milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneWithDatesUpdateRequest,
-) -> ErrorResponse | MilestoneWithDatesResponse | None:
-    """Update a milestone's labelled dates and metadata
+    body: MilestoneUpdate,
+) -> ErrorResponse | MilestoneResponse | None:
+    """Change a milestone.
 
-     Supplying dates replaces the complete ordered array. Milestone identity and creation time remain
-    unchanged.
+     Each field left out keeps its value, and an update that changes nothing writes nothing. Each date
+    must be a real
+    day or instant. A card in the trash or in another project is not found, and neither is a milestone
+    that is not
+    on the card.
 
     Args:
+        project_id (str):
         card_id (str):
-        milestone_id (UUID):
-        body (MilestoneWithDatesUpdateRequest): Partial update. Supplying dates replaces the
-            entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.
+        milestone_id (str):
+        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | MilestoneWithDatesResponse
+        ErrorResponse | MilestoneResponse
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         milestone_id=milestone_id,
         client=client,
@@ -168,32 +177,37 @@ def sync(
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
-    milestone_id: UUID,
+    milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneWithDatesUpdateRequest,
-) -> Response[ErrorResponse | MilestoneWithDatesResponse]:
-    """Update a milestone's labelled dates and metadata
+    body: MilestoneUpdate,
+) -> Response[ErrorResponse | MilestoneResponse]:
+    """Change a milestone.
 
-     Supplying dates replaces the complete ordered array. Milestone identity and creation time remain
-    unchanged.
+     Each field left out keeps its value, and an update that changes nothing writes nothing. Each date
+    must be a real
+    day or instant. A card in the trash or in another project is not found, and neither is a milestone
+    that is not
+    on the card.
 
     Args:
+        project_id (str):
         card_id (str):
-        milestone_id (UUID):
-        body (MilestoneWithDatesUpdateRequest): Partial update. Supplying dates replaces the
-            entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.
+        milestone_id (str):
+        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | MilestoneWithDatesResponse]
+        Response[ErrorResponse | MilestoneResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
         milestone_id=milestone_id,
         body=body,
@@ -205,33 +219,38 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
-    milestone_id: UUID,
+    milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneWithDatesUpdateRequest,
-) -> ErrorResponse | MilestoneWithDatesResponse | None:
-    """Update a milestone's labelled dates and metadata
+    body: MilestoneUpdate,
+) -> ErrorResponse | MilestoneResponse | None:
+    """Change a milestone.
 
-     Supplying dates replaces the complete ordered array. Milestone identity and creation time remain
-    unchanged.
+     Each field left out keeps its value, and an update that changes nothing writes nothing. Each date
+    must be a real
+    day or instant. A card in the trash or in another project is not found, and neither is a milestone
+    that is not
+    on the card.
 
     Args:
+        project_id (str):
         card_id (str):
-        milestone_id (UUID):
-        body (MilestoneWithDatesUpdateRequest): Partial update. Supplying dates replaces the
-            entire ordered list; an empty array clears all dates. Omitted fields remain unchanged.
+        milestone_id (str):
+        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | MilestoneWithDatesResponse
+        ErrorResponse | MilestoneResponse
     """
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             milestone_id=milestone_id,
             client=client,

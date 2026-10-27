@@ -72,6 +72,24 @@ DELETE /projects/p1/cards/c1/links?target_type=card&target_id=c2&target_project_
   200 remove_card_link {"data":[],"ok":true}
 DELETE /projects/p1/cards/c1/links?target_id=c2
   400 remove_card_link {"error":{"code":"invalid_argument","message":"the query parameter target_type is required"},"ok":false}
+POST /projects/p1/cards/c1/milestones {"dates": [{"role": "start", "date": "2026-10-16"}, {"role": "due", "datetime": "2026-10-17T09:30:00Z"}]}
+  201 add_card_milestone {"data":{"card_id":"c1","created_at":1793000400,"dates":[{"date":"2026-10-16","role":"start"},{"datetime":"2026-10-17T09:30:00Z","role":"due"}],"description":null,"kind":null,"milestone_id":"m5","project_id":"p1","updated_at":1793000400},"ok":true}
+POST /projects/p1/cards/c1/milestones {"dates": [{"role": ""}]}
+  400 add_card_milestone {"error":{"code":"invalid_argument","message":"dates role must not be empty"},"ok":false}
+POST /projects/p1/cards/c1/milestones {"kind": "release"}
+  400 add_card_milestone {"error":{"code":"invalid_argument","message":"dates is required and must not be null"},"ok":false}
+GET /projects/p1/cards/c1/milestones
+  200 list_card_milestones {"data":[{"card_id":"c1","created_at":1793000400,"dates":[{"date":"2026-10-16","role":"start"},{"datetime":"2026-10-17T09:30:00Z","role":"due"}],"description":null,"kind":null,"milestone_id":"m5","project_id":"p1","updated_at":1793000400}],"ok":true}
+PATCH /projects/p1/cards/c1/milestones/m9 {"kind": null}
+  404 update_card_milestone {"error":{"code":"not_found","message":"milestone not found: m9"},"ok":false}
+DELETE /projects/p1/cards/c1/milestones/m9
+  200 remove_card_milestone {"data":[{"card_id":"c1","created_at":1793000400,"dates":[{"date":"2026-10-16","role":"start"},{"datetime":"2026-10-17T09:30:00Z","role":"due"}],"description":null,"kind":null,"milestone_id":"m5","project_id":"p1","updated_at":1793000400}],"ok":true}
+GET /projects/p1/milestones/days?first_day=2026-10-01&last_day=2026-10-31&role=start
+  200 list_milestones_by_day {"data":[],"ok":true}
+GET /projects/p1/milestones/instants?first_instant=0&last_instant=x
+  400 list_milestones_by_instant {"error":{"code":"invalid_argument","message":"last_instant must be an integer in range"},"ok":false}
+GET /projects/p1/calendar?first_instant=0&last_instant=1&first_day=2026-10-01
+  400 get_calendar {"error":{"code":"invalid_argument","message":"the query parameter last_day is required"},"ok":false}
 GET /projects/p1/cards/c9
   404 get_card {"error":{"code":"not_found","message":"card not found: c9"},"ok":false}
 GET /projects/p2/cards/c1

@@ -118,112 +118,149 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return true;
     }
 
+    // The window as instants, and as the local days they fall on for milestones on calendar days.
     public static async ProjectCalendar get_project_calendar(ApiClient client,
                                                              string project_id,
                                                              int64 from_epoch,
                                                              int64 to_epoch) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
-        query.insert("from", from_epoch.to_string());
-        query.insert("to", to_epoch.to_string());
-        var root = yield client.request_json("GET", "/calendar", null, query);
-        return ApiParsersCards.parse_project_calendar(root);
+        query.insert("first_instant", from_epoch.to_string());
+        query.insert("last_instant", to_epoch.to_string());
+        query.insert("first_day", new DateTime.from_unix_local(from_epoch).format("%Y-%m-%d"));
+        query.insert("last_day", new DateTime.from_unix_local(to_epoch).format("%Y-%m-%d"));
+        var root = yield client.request_json(
+            "GET", "/projects/%s/calendar".printf(Uri.escape_string(project_id)), null, query
+        );
+        return ApiParsersCards.parse_project_calendar(root, project_id, from_epoch, to_epoch);
+    }
+
+    private static string milestones_path(string project_id, string card_id) {
+        return "/projects/%s/cards/%s/milestones".printf(
+            Uri.escape_string(project_id), Uri.escape_string(card_id)
+        );
     }
 
     public static async Gee.ArrayList<Milestone> list_card_milestones(ApiClient client,
+                                                                      string project_id,
                                                                       string card_id) throws Error {
         var root = yield client.request_json(
-            "GET",
-            "/cards/%s/milestones".printf(Uri.escape_string(card_id)),
-            null,
-            null
+            "GET", milestones_path(project_id, card_id), null, null
         );
         return ApiParsersCards.parse_milestones_response(root);
     }
 
+    // A calendar day, as the local date of its midnight, or an instant in local time.
+    private static void add_date(Json.Builder body, string role, int64 at, bool all_day) {
+        var local = new DateTime.from_unix_local(at);
+        body.begin_object();
+        body.set_member_name("role"); body.add_string_value(role);
+        body.set_member_name(all_day ? "date" : "datetime");
+        body.add_string_value(local.format(all_day ? "%Y-%m-%d" : "%Y-%m-%dT%H:%M:%S%:z"));
+        body.end_object();
+    }
+
+    // The milestone's dates with its start and end replaced, keeping every other date in place.
+    private static void add_dates(Json.Builder body,
+                                  Json.Array? kept,
+                                  int64 start_at,
+                                  int64? end_at,
+                                  bool all_day) {
+        body.set_member_name("dates");
+        body.begin_array();
+        add_date(body, "start", start_at, all_day);
+        if (end_at != null) add_date(body, "end", (!) end_at, all_day);
+        if (kept != null) {
+            for (uint i = 0; i < ((!) kept).get_length(); i++) {
+                var date = ((!) kept).get_element(i);
+                var role = date.get_object().get_string_member("role");
+                if (role != "start" && role != "end") body.add_value(date.copy());
+            }
+        }
+        body.end_array();
+    }
+
+    private static void add_text(Json.Builder body, string name, string? value) {
+        body.set_member_name(name);
+        if (value == null || ((!) value).strip().length == 0) body.add_null_value();
+        else body.add_string_value(((!) value).strip());
+    }
+
+    // A milestone to add, or a change to one whose dates are kept: its start, its end if it has
+    // one, the kept dates other than a start or end, and its kind and description.
+    public static string milestone_body(Json.Array? kept,
+                                        int64 start_at,
+                                        int64? end_at,
+                                        bool all_day,
+                                        string? kind,
+                                        string? description) {
+        var body = new Json.Builder();
+        body.begin_object();
+        add_dates(body, kept, start_at, end_at, all_day);
+        add_text(body, "kind", kind);
+        add_text(body, "description", description);
+        body.end_object();
+        var generator = new Json.Generator();
+        generator.set_root(body.get_root());
+        return generator.to_data(null);
+    }
+
     public static async Milestone add_card_milestone(ApiClient client,
+                                                     string project_id,
                                                      string card_id,
                                                      int64 start_at,
                                                      int64? end_at,
                                                      bool all_day,
                                                      string? kind,
                                                      string? description) throws Error {
-        var body = new Json.Builder();
-        body.begin_object();
-        body.set_member_name("start_at"); body.add_int_value(start_at);
-        body.set_member_name("end_at");
-        if (end_at == null) body.add_null_value(); else body.add_int_value((!) end_at);
-        body.set_member_name("all_day"); body.add_boolean_value(all_day);
-        body.set_member_name("kind");
-        if (kind == null || kind.strip().length == 0) body.add_null_value();
-        else body.add_string_value(kind.strip());
-        body.set_member_name("description");
-        if (description == null || description.strip().length == 0) body.add_null_value();
-        else body.add_string_value(description.strip());
-        body.end_object();
         var root = yield client.request_json(
             "POST",
-            "/cards/%s/milestones".printf(Uri.escape_string(card_id)),
-            client.json_string_from_builder(body),
+            milestones_path(project_id, card_id),
+            milestone_body(null, start_at, end_at, all_day, kind, description),
             null
         );
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for milestone create response");
-        }
-        return ApiParsersCards.parse_milestone(root.get_object_member("data"));
+        return ApiParsersCards.parse_milestone_response(root);
     }
 
-    public static async bool remove_card_milestone(ApiClient client,
+    // Removing a milestone that is already gone changes nothing.
+    public static async void remove_card_milestone(ApiClient client,
+                                                   string project_id,
                                                    string card_id,
                                                    string milestone_id) throws Error {
         var root = yield client.request_json(
             "DELETE",
-            "/cards/%s/milestones/%s".printf(
-                Uri.escape_string(card_id), Uri.escape_string(milestone_id)
-            ),
+            "%s/%s".printf(milestones_path(project_id, card_id), Uri.escape_string(milestone_id)),
             null,
             null
         );
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for milestone delete response");
         }
-        var data = root.get_object_member("data");
-        return data.has_member("removed") && data.get_boolean_member("removed");
+    }
+
+    private static Json.Array? kept_dates(Milestone milestone) throws Error {
+        if (milestone.dates_json == null) return null;
+        var node = Json.from_string((!) milestone.dates_json);
+        if (node == null || ((!) node).get_node_type() != Json.NodeType.ARRAY) return null;
+        return ((!) node).get_array();
     }
 
     public static async Milestone update_card_milestone(ApiClient client,
-                                                        string card_id,
-                                                        string milestone_id,
+                                                        Milestone milestone,
                                                         int64 start_at,
                                                         int64? end_at,
                                                         bool all_day,
                                                         string? kind,
                                                         string? description) throws Error {
-        var body = new Json.Builder();
-        body.begin_object();
-        body.set_member_name("start_at"); body.add_int_value(start_at);
-        body.set_member_name("end_at");
-        if (end_at == null) body.add_null_value(); else body.add_int_value((!) end_at);
-        body.set_member_name("all_day"); body.add_boolean_value(all_day);
-        body.set_member_name("kind");
-        if (kind == null || kind.strip().length == 0) body.add_null_value();
-        else body.add_string_value(kind.strip());
-        body.set_member_name("description");
-        if (description == null || description.strip().length == 0) body.add_null_value();
-        else body.add_string_value(description.strip());
-        body.end_object();
         var root = yield client.request_json(
             "PATCH",
-            "/cards/%s/milestones/%s".printf(
-                Uri.escape_string(card_id), Uri.escape_string(milestone_id)
+            "%s/%s".printf(
+                milestones_path(milestone.project_id, milestone.card_id),
+                Uri.escape_string(milestone.milestone_id)
             ),
-            client.json_string_from_builder(body),
+            milestone_body(kept_dates(milestone), start_at, end_at, all_day, kind, description),
             null
         );
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for milestone update response");
-        }
-        return ApiParsersCards.parse_milestone(root.get_object_member("data"));
+        return ApiParsersCards.parse_milestone_response(root);
     }
 
     public static async Gee.ArrayList<TagCount> list_project_tags(ApiClient client,

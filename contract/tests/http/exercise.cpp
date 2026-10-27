@@ -72,6 +72,17 @@ int main() {
   send(*context, "GET", "/projects/p1/cards/c1/backlinks?scope=everywhere");
   send(*context, "DELETE", "/projects/p1/cards/c1/links?target_type=card&target_id=c2&target_project_id=p9");
   send(*context, "DELETE", "/projects/p1/cards/c1/links?target_id=c2");
+  // Milestones.
+  send(*context, "POST", "/projects/p1/cards/c1/milestones",
+       R"({"dates": [{"role": "start", "date": "2026-10-16"}, {"role": "due", "datetime": "2026-10-17T09:30:00Z"}]})");
+  send(*context, "POST", "/projects/p1/cards/c1/milestones", R"({"dates": [{"role": ""}]})");
+  send(*context, "POST", "/projects/p1/cards/c1/milestones", R"({"kind": "release"})");
+  send(*context, "GET", "/projects/p1/cards/c1/milestones");
+  send(*context, "PATCH", "/projects/p1/cards/c1/milestones/m9", R"({"kind": null})");
+  send(*context, "DELETE", "/projects/p1/cards/c1/milestones/m9");
+  send(*context, "GET", "/projects/p1/milestones/days?first_day=2026-10-01&last_day=2026-10-31&role=start");
+  send(*context, "GET", "/projects/p1/milestones/instants?first_instant=0&last_instant=x");
+  send(*context, "GET", "/projects/p1/calendar?first_instant=0&last_instant=1&first_day=2026-10-01");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

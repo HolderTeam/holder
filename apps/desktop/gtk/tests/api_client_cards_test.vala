@@ -2,6 +2,16 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private Json.Object parse_json_object(string payload) {
+    var parser = new Json.Parser();
+    try {
+        parser.load_from_data(payload, -1);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    return parser.get_root().get_object();
+}
+
 private HolderLinux.ApiClient make_client(FakeApiHttpTransport transport) {
     return new HolderLinux.ApiClient("http://127.0.0.1:8080", "token-123", transport);
 }
@@ -274,22 +284,21 @@ private void test_project_tags_and_cards_with_tag() {
 private void test_calendar_and_milestone_endpoints() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"from\":100,\"to\":500," +
-        "\"milestones\":[],\"created_cards\":[],\"updated_cards\":[]}}");
+        "{\"ok\":true,\"data\":{\"milestones\":[],\"created_cards\":[],\"updated_cards\":[]}}");
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":[{\"milestone_id\":\"m1\",\"card_id\":\"c1\"," +
-        "\"start_at\":200,\"end_at\":null,\"all_day\":true,\"kind\":null," +
+        "{\"ok\":true,\"data\":[{\"milestone_id\":\"m1\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"}],\"kind\":null," +
         "\"description\":null,\"created_at\":1,\"updated_at\":1}]}");
     transport.enqueue_read(201,
-        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"card_id\":\"c1\"," +
-        "\"start_at\":300,\"end_at\":360,\"all_day\":false,\"kind\":\"Service\"," +
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T00:05:00Z\"}," +
+        "{\"role\":\"end\",\"datetime\":\"1970-01-01T00:06:00Z\"}],\"kind\":\"Service\"," +
         "\"description\":\"Boiler\",\"created_at\":2,\"updated_at\":2}}");
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"card_id\":\"c1\"," +
-        "\"start_at\":320,\"end_at\":null,\"all_day\":true,\"kind\":null," +
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"1970-01-01\"}],\"kind\":null," +
         "\"description\":null,\"created_at\":2,\"updated_at\":3}}");
-    transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c1\",\"milestone_id\":\"m2\",\"removed\":true}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     var client = make_client(transport);
 
     bool calendar_done = false;
@@ -300,34 +309,42 @@ private void test_calendar_and_milestone_endpoints() {
     });
     assert(wait_for_condition(() => calendar_done));
     assert(calendar != null && calendar.project_id == "p1");
-    assert(transport.last_uri.contains("/calendar"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("from=100"));
-    assert(transport.last_uri.contains("to=500"));
+    assert(calendar.from_epoch == 100 && calendar.to_epoch == 500);
+    assert(transport.last_uri.contains("/projects/p1/calendar"));
+    assert(transport.last_uri.contains("first_instant=100"));
+    assert(transport.last_uri.contains("last_instant=500"));
+    // The window's days are where the app is.
+    assert(transport.last_uri.contains(
+        "first_day=" + new DateTime.from_unix_local(100).format("%Y-%m-%d")));
+    assert(transport.last_uri.contains(
+        "last_day=" + new DateTime.from_unix_local(500).format("%Y-%m-%d")));
 
     bool list_done = false;
     Gee.ArrayList<HolderLinux.Milestone>? milestones = null;
-    client.list_card_milestones.begin("c1", (obj, res) => {
+    client.list_card_milestones.begin("p1", "c1", (obj, res) => {
         try { milestones = client.list_card_milestones.end(res); } catch (Error e) { milestones = null; }
         list_done = true;
     });
     assert(wait_for_condition(() => list_done));
     assert(milestones != null && milestones.size == 1);
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/milestones"));
 
     bool add_done = false;
     HolderLinux.Milestone? added = null;
-    client.add_card_milestone.begin("c1", 300, 360, false, " Service ", " Boiler ", (obj, res) => {
+    client.add_card_milestone.begin("p1", "c1", 300, 360, false, " Service ", " Boiler ", (obj, res) => {
         try { added = client.add_card_milestone.end(res); } catch (Error e) { added = null; }
         add_done = true;
     });
     assert(wait_for_condition(() => add_done));
     assert(added != null && added.kind == "Service");
+    assert(added.start_at == 300 && added.end_at == 360);
     assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/milestones"));
 
     bool update_done = false;
     HolderLinux.Milestone? updated = null;
     client.update_card_milestone.begin(
-        "c1", "m2", 320, null, true, null, null,
+        (!) added, 320, null, true, null, null,
         (obj, res) => {
             try { updated = client.update_card_milestone.end(res); }
             catch (Error e) { updated = null; }
@@ -340,20 +357,50 @@ private void test_calendar_and_milestone_endpoints() {
     assert(updated.created_at == 2);
     assert(updated.updated_at == 3);
     assert(updated.end_at == null);
+    assert(updated.all_day);
     assert(updated.kind == null);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.contains("/cards/c1/milestones/m2"));
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/milestones/m2"));
 
     bool delete_done = false;
-    bool removed = false;
-    client.remove_card_milestone.begin("c1", "m2", (obj, res) => {
-        try { removed = client.remove_card_milestone.end(res); } catch (Error e) { removed = false; }
+    bool failed = true;
+    client.remove_card_milestone.begin("p1", "c1", "m2", (obj, res) => {
+        try { client.remove_card_milestone.end(res); failed = false; } catch (Error e) { failed = true; }
         delete_done = true;
     });
     assert(wait_for_condition(() => delete_done));
-    assert(removed);
+    assert(!failed);
     assert(transport.last_method == "DELETE");
-    assert(transport.last_uri.contains("/cards/c1/milestones/m2"));
+    assert(transport.last_uri.contains("/projects/p1/cards/c1/milestones/m2"));
+}
+
+// A change to a milestone's start and end keeps its other dates.
+private void test_milestone_body_keeps_other_dates() {
+    var kept = parse_json_object(
+        "{\"dates\":[{\"role\":\"start\",\"date\":\"2026-01-01\"},{\"role\":\"due\",\"date\":\"2026-02-01\"}," +
+        "{\"role\":\"end\",\"date\":\"2026-01-03\"},{\"role\":\"done\",\"datetime\":\"2026-02-02T10:00:00Z\"}]}"
+    ).get_array_member("dates");
+    var start = new DateTime.local(2026, 3, 1, 0, 0, 0).to_unix();
+    var body = parse_json_object(
+        HolderLinux.ApiClientCardsEndpoints.milestone_body(kept, start, null, true, " Exam ", "")
+    );
+    var dates = body.get_array_member("dates");
+    assert(dates.get_length() == 3);
+    assert(dates.get_object_element(0).get_string_member("role") == "start");
+    assert(dates.get_object_element(0).get_string_member("date") == "2026-03-01");
+    assert(dates.get_object_element(1).get_string_member("role") == "due");
+    assert(dates.get_object_element(2).get_string_member("datetime") == "2026-02-02T10:00:00Z");
+    assert(body.get_string_member("kind") == "Exam");
+    assert(body.get_member("description").get_node_type() == Json.NodeType.NULL);
+
+    // An instant is written in local time, with its offset.
+    var timed = parse_json_object(
+        HolderLinux.ApiClientCardsEndpoints.milestone_body(null, 300, 360, false, null, null)
+    ).get_array_member("dates");
+    assert(timed.get_length() == 2);
+    var start_value = new DateTime.from_iso8601(timed.get_object_element(0).get_string_member("datetime"), null);
+    assert(start_value != null && ((!) start_value).to_unix() == 300);
+    assert(timed.get_object_element(1).get_string_member("role") == "end");
 }
 
 private void test_card_history_endpoints() {
@@ -478,15 +525,23 @@ private void test_milestone_endpoints_report_missing_data_and_trim_update_text()
     transport.enqueue_read(200, "{\"ok\":true}");
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"milestone_id\":\"m3\",\"card_id\":\"c1\"," +
-        "\"start_at\":10,\"end_at\":null,\"all_day\":false,\"kind\":\"Service\"," +
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m3\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T00:00:10Z\"}],\"kind\":\"Service\"," +
         "\"description\":\"Boiler\",\"created_at\":1,\"updated_at\":2}}"
     );
+    // A milestone the calendar cannot show is not a valid answer to a change made here.
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m3\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[],\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":2}}"
+    );
     var client = make_client(transport);
+    var milestone = new HolderLinux.Milestone("m1", "c1", 10, null, false, null, null, 1, 1);
+    milestone.project_id = "p1";
 
     bool create_done = false;
     bool create_protocol = false;
-    client.add_card_milestone.begin("c1", 10, null, false, null, null, (obj, res) => {
+    client.add_card_milestone.begin("p1", "c1", 10, null, false, null, null, (obj, res) => {
         try { client.add_card_milestone.end(res); }
         catch (Error e) { create_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         create_done = true;
@@ -496,7 +551,7 @@ private void test_milestone_endpoints_report_missing_data_and_trim_update_text()
 
     bool remove_done = false;
     bool remove_protocol = false;
-    client.remove_card_milestone.begin("c1", "m1", (obj, res) => {
+    client.remove_card_milestone.begin("p1", "c1", "m1", (obj, res) => {
         try { client.remove_card_milestone.end(res); }
         catch (Error e) { remove_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         remove_done = true;
@@ -506,7 +561,7 @@ private void test_milestone_endpoints_report_missing_data_and_trim_update_text()
 
     bool update_done = false;
     bool update_protocol = false;
-    client.update_card_milestone.begin("c1", "m1", 10, null, false, null, null, (obj, res) => {
+    client.update_card_milestone.begin(milestone, 10, null, false, null, null, (obj, res) => {
         try { client.update_card_milestone.end(res); }
         catch (Error e) { update_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         update_done = true;
@@ -516,7 +571,7 @@ private void test_milestone_endpoints_report_missing_data_and_trim_update_text()
 
     bool trimmed_done = false;
     HolderLinux.Milestone? updated = null;
-    client.update_card_milestone.begin("c1", "m3", 10, null, false, " Service ", " Boiler ", (obj, res) => {
+    client.update_card_milestone.begin(milestone, 10, null, false, " Service ", " Boiler ", (obj, res) => {
         try { updated = client.update_card_milestone.end(res); }
         catch (Error e) { updated = null; }
         trimmed_done = true;
@@ -525,11 +580,22 @@ private void test_milestone_endpoints_report_missing_data_and_trim_update_text()
     assert(updated != null);
     assert(updated.milestone_id == "m3");
     assert(transport.last_method == "PATCH");
+
+    bool undated_done = false;
+    bool undated_protocol = false;
+    client.update_card_milestone.begin(milestone, 10, null, false, null, null, (obj, res) => {
+        try { client.update_card_milestone.end(res); }
+        catch (Error e) { undated_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
+        undated_done = true;
+    });
+    assert(wait_for_condition(() => undated_done));
+    assert(undated_protocol);
 }
 
 public static int main(string[] args) {
     Test.init(ref args);
 
+    Test.add_func("/api_client_cards/milestone_body_keeps_other_dates", test_milestone_body_keeps_other_dates);
     Test.add_func("/api_client_cards/list_cards_and_context_and_get_card",
                   test_list_cards_and_context_and_get_card);
     Test.add_func("/api_client_cards/links_create_delete_and_list",

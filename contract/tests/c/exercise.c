@@ -157,6 +157,40 @@ int main(void) {
                                      NULL, arena, &links, &error);
     printf("remove a link: status %d, %zu left\n", status, links->count);
 
+    holder_milestone_date dates[2] = {{0}};
+    dates[0].role = "start";
+    dates[0].date = "2026-10-16";
+    dates[1].role = "due";
+    dates[1].datetime = "2026-10-17T09:30:00+01:00";
+    holder_new_milestone new_milestone = {0};
+    new_milestone.dates.items = dates;
+    new_milestone.dates.count = 2;
+    new_milestone.kind = "release";
+    const holder_milestone* milestone = NULL;
+    status = holder_add_card_milestone(context, "p1", "c1", &new_milestone, arena, &milestone, &error);
+    printf("add a milestone: status %d, %s %s %s=%s %s=%s %s\n", status, milestone->milestone_id,
+           milestone->card_id, milestone->dates.items[0].role, milestone->dates.items[0].date,
+           milestone->dates.items[1].role, milestone->dates.items[1].datetime, milestone->kind);
+    const char* milestone_id = milestone->milestone_id;
+    new_milestone.dates.items = NULL;
+    status = holder_add_card_milestone(context, "p1", "c1", &new_milestone, arena, &milestone, &error);
+    report("add a milestone whose dates are missing", status, &error);
+    holder_milestone_date_list no_dates = {0};
+    holder_milestone_update milestone_update = {0};
+    milestone_update.dates = &no_dates;
+    milestone_update.kind.change = HOLDER_CLEAR;
+    status = holder_update_card_milestone(context, "p1", "c1", milestone_id, &milestone_update, arena,
+                                          &milestone, &error);
+    printf("clear a milestone's dates and kind: status %d, %zu dates, kind %s\n", status, milestone->dates.count,
+           milestone->kind ? milestone->kind : "(null)");
+    const holder_calendar* calendar = NULL;
+    status = holder_get_calendar(context, "p1", 0, 1, "2026-10-01", "2026-10-31", arena, &calendar, &error);
+    printf("calendar: status %d, %s on %s\n", status, calendar->milestones.items[0].milestone_id,
+           calendar->milestones.items[0].card_title);
+    const holder_milestone_list* milestones = NULL;
+    status = holder_remove_card_milestone(context, "p1", "c1", milestone_id, arena, &milestones, &error);
+    printf("remove a milestone: status %d, %zu left\n", status, milestones->count);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

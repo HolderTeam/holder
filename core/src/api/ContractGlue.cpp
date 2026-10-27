@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -200,6 +200,15 @@ holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value);
 holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values);
 holder_link to_c(holder_arena* arena, const contract::Link& value);
 holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link>& values);
+holder_milestone_date to_c(holder_arena* arena, const contract::MilestoneDate& value);
+holder_milestone_date_list to_c_list(holder_arena* arena, const std::vector<contract::MilestoneDate>& values);
+holder_milestone to_c(holder_arena* arena, const contract::Milestone& value);
+holder_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::Milestone>& values);
+holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMilestone& value);
+holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values);
+holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value);
+holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values);
+holder_calendar to_c(holder_arena* arena, const contract::Calendar& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -294,6 +303,87 @@ holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link
   return {items, values.size()};
 }
 
+holder_milestone_date to_c(holder_arena* arena, const contract::MilestoneDate& value) {
+  holder_milestone_date out{};
+  out.role = copy(arena, value.role);
+  out.date = copy_text(arena, value.date);
+  out.datetime = copy_text(arena, value.datetime);
+  return out;
+}
+
+holder_milestone_date_list to_c_list(holder_arena* arena, const std::vector<contract::MilestoneDate>& values) {
+  auto* items = make<holder_milestone_date>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_milestone to_c(holder_arena* arena, const contract::Milestone& value) {
+  holder_milestone out{};
+  out.milestone_id = copy(arena, value.milestone_id);
+  out.project_id = copy(arena, value.project_id);
+  out.card_id = copy(arena, value.card_id);
+  out.dates = to_c_list(arena, value.dates);
+  out.kind = copy_text(arena, value.kind);
+  out.description = copy_text(arena, value.description);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::Milestone>& values) {
+  auto* items = make<holder_milestone>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMilestone& value) {
+  holder_calendar_milestone out{};
+  out.milestone_id = copy(arena, value.milestone_id);
+  out.project_id = copy(arena, value.project_id);
+  out.card_id = copy(arena, value.card_id);
+  out.dates = to_c_list(arena, value.dates);
+  out.kind = copy_text(arena, value.kind);
+  out.description = copy_text(arena, value.description);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  out.card_title = copy(arena, value.card_title);
+  return out;
+}
+
+holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values) {
+  auto* items = make<holder_calendar_milestone>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value) {
+  holder_card_metadata out{};
+  out.card_id = copy(arena, value.card_id);
+  out.project_id = copy(arena, value.project_id);
+  out.title = copy(arena, value.title);
+  out.rel_path = copy(arena, value.rel_path);
+  out.parent_card_id = copy_text(arena, value.parent_card_id);
+  out.sort_key = value.sort_key;
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  return out;
+}
+
+holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values) {
+  auto* items = make<holder_card_metadata>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_calendar to_c(holder_arena* arena, const contract::Calendar& value) {
+  holder_calendar out{};
+  out.milestones = to_c_list(arena, value.milestones);
+  out.created_cards = to_c_list(arena, value.created_cards);
+  out.updated_cards = to_c_list(arena, value.updated_cards);
+  return out;
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -347,6 +437,38 @@ contract::NewLink from_c(const holder_new_link& value) {
   out.kind = optional_text(value.kind, "new_link.kind", 1, SIZE_MAX).value_or("ref");
   out.label = optional_text(value.label, "new_link.label", 0, SIZE_MAX);
   out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
+  return out;
+}
+
+contract::MilestoneDate from_c(const holder_milestone_date& value) {
+  contract::MilestoneDate out;
+  out.role = text(value.role, "milestone_date.role", 1, SIZE_MAX);
+  out.date = optional_text(value.date, "milestone_date.date", 10, 10);
+  out.datetime = optional_text(value.datetime, "milestone_date.datetime", 20, 25);
+  return out;
+}
+
+std::vector<contract::MilestoneDate> from_c_list(const holder_milestone_date_list& values, const char* name) {
+  require(values.items != nullptr || values.count == 0, std::string(name) + ".items must not be null");
+  std::vector<contract::MilestoneDate> out;
+  out.reserve(values.count);
+  for (std::size_t i = 0; i < values.count; ++i) out.push_back(from_c(values.items[i]));
+  return out;
+}
+
+contract::NewMilestone from_c(const holder_new_milestone& value) {
+  contract::NewMilestone out;
+  out.dates = from_c_list(value.dates, "new_milestone.dates");
+  out.kind = optional_text(value.kind, "new_milestone.kind", 1, SIZE_MAX);
+  out.description = optional_text(value.description, "new_milestone.description", 1, SIZE_MAX);
+  return out;
+}
+
+contract::MilestoneUpdate from_c(const holder_milestone_update& value) {
+  contract::MilestoneUpdate out;
+  out.dates = (value.dates ? std::optional<std::vector<contract::MilestoneDate>>(from_c_list(*value.dates, "milestone_update.dates")) : std::nullopt);
+  out.kind = changed_text(value.kind, "milestone_update.kind", 1, SIZE_MAX);
+  out.description = changed_text(value.description, "milestone_update.description", 1, SIZE_MAX);
   return out;
 }
 
@@ -591,6 +713,110 @@ int holder_remove_card_link(holder_context* context, const char* project_id, con
     auto* out = make<holder_link_list>(arena);
     *out = to_c_list(arena, contract::remove_card_link(*context, project_id_value, card_id_value, target_type_value, target_id_value, kind_value, target_project_id_value));
     *out_link_list = out;
+  });
+}
+
+int holder_list_card_milestones(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone_list != nullptr, "out_milestone_list must not be null");
+    *out_milestone_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_milestone_list>(arena);
+    *out = to_c_list(arena, contract::list_card_milestones(*context, project_id_value, card_id_value));
+    *out_milestone_list = out;
+  });
+}
+
+int holder_add_card_milestone(holder_context* context, const char* project_id, const char* card_id, const holder_new_milestone* milestone, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone != nullptr, "out_milestone must not be null");
+    *out_milestone = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    require(milestone != nullptr, "milestone must not be null");
+    const auto milestone_value = from_c(*milestone);
+    auto* out = make<holder_milestone>(arena);
+    *out = to_c(arena, contract::add_card_milestone(*context, project_id_value, card_id_value, milestone_value));
+    *out_milestone = out;
+  });
+}
+
+int holder_update_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, const holder_milestone_update* update, holder_arena* arena, const holder_milestone** out_milestone, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone != nullptr, "out_milestone must not be null");
+    *out_milestone = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto milestone_id_value = text(milestone_id, "milestone_id", 1, SIZE_MAX);
+    require(update != nullptr, "update must not be null");
+    const auto update_value = from_c(*update);
+    auto* out = make<holder_milestone>(arena);
+    *out = to_c(arena, contract::update_card_milestone(*context, project_id_value, card_id_value, milestone_id_value, update_value));
+    *out_milestone = out;
+  });
+}
+
+int holder_remove_card_milestone(holder_context* context, const char* project_id, const char* card_id, const char* milestone_id, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone_list != nullptr, "out_milestone_list must not be null");
+    *out_milestone_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto milestone_id_value = text(milestone_id, "milestone_id", 1, SIZE_MAX);
+    auto* out = make<holder_milestone_list>(arena);
+    *out = to_c_list(arena, contract::remove_card_milestone(*context, project_id_value, card_id_value, milestone_id_value));
+    *out_milestone_list = out;
+  });
+}
+
+int holder_list_milestones_by_day(holder_context* context, const char* project_id, const char* first_day, const char* last_day, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone_list != nullptr, "out_milestone_list must not be null");
+    *out_milestone_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto first_day_value = text(first_day, "first_day", 10, 10);
+    const auto last_day_value = text(last_day, "last_day", 10, 10);
+    const auto role_value = optional_text(role, "role", 1, SIZE_MAX);
+    auto* out = make<holder_milestone_list>(arena);
+    *out = to_c_list(arena, contract::list_milestones_by_day(*context, project_id_value, first_day_value, last_day_value, role_value));
+    *out_milestone_list = out;
+  });
+}
+
+int holder_list_milestones_by_instant(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* role, holder_arena* arena, const holder_milestone_list** out_milestone_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_milestone_list != nullptr, "out_milestone_list must not be null");
+    *out_milestone_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto first_instant_value = first_instant;
+    const auto last_instant_value = last_instant;
+    const auto role_value = optional_text(role, "role", 1, SIZE_MAX);
+    auto* out = make<holder_milestone_list>(arena);
+    *out = to_c_list(arena, contract::list_milestones_by_instant(*context, project_id_value, first_instant_value, last_instant_value, role_value));
+    *out_milestone_list = out;
+  });
+}
+
+int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_calendar != nullptr, "out_calendar must not be null");
+    *out_calendar = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto first_instant_value = first_instant;
+    const auto last_instant_value = last_instant;
+    const auto first_day_value = text(first_day, "first_day", 10, 10);
+    const auto last_day_value = text(last_day, "last_day", 10, 10);
+    auto* out = make<holder_calendar>(arena);
+    *out = to_c(arena, contract::get_calendar(*context, project_id_value, first_instant_value, last_instant_value, first_day_value, last_day_value));
+    *out_calendar = out;
   });
 }
 

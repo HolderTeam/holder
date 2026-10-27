@@ -157,8 +157,9 @@ every possible project. Each collection caches its results until `refresh()`.
 ## Track milestones on a card
 
 `card.milestones` includes every milestone on the live card, including undated
-ones. Each milestone has a stable `id`, optional `kind` and `description`, and
-an ordered tuple of labelled dates. Roles are free-form and can repeat.
+ones. Each milestone has a stable string `id`, optional `kind` and
+`description`, and an ordered tuple of labelled dates. Roles are free-form and
+can repeat.
 
 ```python
 from datetime import date, datetime, timedelta, timezone
@@ -179,7 +180,7 @@ event = card.milestones.create(
 )
 event.update(description=None)  # Clear only the description.
 event.update(dates=[])          # Clear all dates; keep the milestone.
-task.remove()
+task.remove()                   # Removing it again changes nothing.
 card.milestones.refresh()       # Reread changes made elsewhere.
 ```
 
@@ -189,16 +190,15 @@ timezone is not stored. Datetimes must have whole seconds and a minute-aligned
 offset. An update leaves omitted fields unchanged; `None` clears `kind` or
 `description`, and an empty `dates` list clears every date. Supplying dates
 replaces the full ordered list. No completion or outstanding state is inferred
-from any role. The older scheduled timestamp route and project calendar view
-do not represent all of these values, so this workflow uses the complete
-card-level date route.
+from any role.
 
 ## Search milestone dates across a project
 
-Use `project.milestones.between(start, end, role=...)` to find milestones on
-live cards whose labelled date has that role and falls within the inclusive
-range. Both bounds must be calendar dates or both must be timezone-aware
-datetimes. The two value types are searched separately.
+Use `project.milestones.between(start, end)` to find milestones on live cards
+with a labelled date within the inclusive range, and add `role=...` to match
+only dates with that role. Both bounds must be calendar dates or both must be
+timezone-aware datetimes. The two value types are searched separately. A range
+whose start is after its end finds nothing.
 
 ```python
 from datetime import date, datetime, timezone

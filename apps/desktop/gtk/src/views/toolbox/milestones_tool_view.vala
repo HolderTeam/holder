@@ -601,7 +601,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
             submit.set_sensitive(false);
             if (editing == null) {
                 add_milestone.begin(
-                    (!) card_id, draft.start_at, draft.end_at, draft.all_day,
+                    ((!) project).project_id, (!) card_id, draft.start_at, draft.end_at, draft.all_day,
                     draft.kind, draft.description,
                     (obj, result) => {
                         if (!add_milestone.end(result)) submit.set_sensitive(true);
@@ -626,14 +626,15 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         details_box.append(form_clamp);
     }
 
-    private async bool add_milestone(string card_id,
+    private async bool add_milestone(string project_id,
+                                     string card_id,
                                      int64 start_at,
                                      int64? end_at,
                                      bool all_day,
                                      string? kind,
                                      string? description) {
         return apply_mutation(yield controller.add_flow(
-            api as IMilestoneApi, card_id, start_at, end_at, all_day, kind, description
+            api as IMilestoneApi, project_id, card_id, start_at, end_at, all_day, kind, description
         ));
     }
 

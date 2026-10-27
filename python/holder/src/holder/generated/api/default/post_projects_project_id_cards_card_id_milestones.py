@@ -7,31 +7,42 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.milestone_list_response import MilestoneListResponse
+from ...models.milestone_response import MilestoneResponse
+from ...models.new_milestone import NewMilestone
 from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
+    *,
+    body: NewMilestone,
 ) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/cards/{card_id}/milestones".format(
+        "method": "post",
+        "url": "/projects/{project_id}/cards/{card_id}/milestones".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
         ),
     }
 
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | MilestoneListResponse | None:
-    if response.status_code == 200:
-        response_200 = MilestoneListResponse.from_dict(response.json())
+) -> ErrorResponse | MilestoneResponse | None:
+    if response.status_code == 201:
+        response_201 = MilestoneResponse.from_dict(response.json())
 
-        return response_200
+        return response_201
 
     if response.status_code == 400:
         response_400 = ErrorResponse.from_dict(response.json())
@@ -48,10 +59,20 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -61,7 +82,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | MilestoneListResponse]:
+) -> Response[ErrorResponse | MilestoneResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -71,29 +92,35 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | MilestoneListResponse]:
-    """List milestones attached to a card
+    body: NewMilestone,
+) -> Response[ErrorResponse | MilestoneResponse]:
+    """Put a milestone on a card.
 
-     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
-    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
-    the complete model.
+     The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in
+    another project
+    is not found.
 
     Args:
+        project_id (str):
         card_id (str):
+        body (NewMilestone): A milestone to put on a card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | MilestoneListResponse]
+        Response[ErrorResponse | MilestoneResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -104,57 +131,69 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | MilestoneListResponse | None:
-    """List milestones attached to a card
+    body: NewMilestone,
+) -> ErrorResponse | MilestoneResponse | None:
+    """Put a milestone on a card.
 
-     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
-    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
-    the complete model.
+     The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in
+    another project
+    is not found.
 
     Args:
+        project_id (str):
         card_id (str):
+        body (NewMilestone): A milestone to put on a card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | MilestoneListResponse
+        ErrorResponse | MilestoneResponse
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         client=client,
+        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | MilestoneListResponse]:
-    """List milestones attached to a card
+    body: NewMilestone,
+) -> Response[ErrorResponse | MilestoneResponse]:
+    """Put a milestone on a card.
 
-     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
-    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
-    the complete model.
+     The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in
+    another project
+    is not found.
 
     Args:
+        project_id (str):
         card_id (str):
+        body (NewMilestone): A milestone to put on a card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | MilestoneListResponse]
+        Response[ErrorResponse | MilestoneResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -163,30 +202,36 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | MilestoneListResponse | None:
-    """List milestones attached to a card
+    body: NewMilestone,
+) -> ErrorResponse | MilestoneResponse | None:
+    """Put a milestone on a card.
 
-     This compatibility timestamp view omits undated milestones and milestones with repeated start or end
-    roles. Calendar-day values project to UTC midnight. Use /cards/{card_id}/milestones-with-dates for
-    the complete model.
+     The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in
+    another project
+    is not found.
 
     Args:
+        project_id (str):
         card_id (str):
+        body (NewMilestone): A milestone to put on a card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | MilestoneListResponse
+        ErrorResponse | MilestoneResponse
     """
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             client=client,
+            body=body,
         )
     ).parsed

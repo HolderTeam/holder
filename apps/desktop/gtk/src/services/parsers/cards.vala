@@ -163,24 +163,64 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         );
     }
 
-    public static Milestone parse_milestone(Json.Object item) {
-        int64? end_at = null;
-        if (item.has_member("end_at") &&
-            item.get_member("end_at").get_node_type() != Json.NodeType.NULL) {
-            end_at = item.get_int_member("end_at");
+    // The epoch second a milestone date names: an instant as it is, and a calendar day at its
+    // local midnight, as the calendar shows it.
+    public static int64 milestone_date_epoch(Json.Object date) throws Error {
+        if (date.has_member("date")) {
+            var parts = date.get_string_member("date").split("-");
+            if (parts.length != 3) throw new ApiError.PROTOCOL("Invalid milestone date");
+            var local = new DateTime.local(
+                int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]), 0, 0, 0
+            );
+            if (local == null) throw new ApiError.PROTOCOL("Invalid milestone date");
+            return ((!) local).to_unix();
         }
-        return new Milestone(
+        var instant = new DateTime.from_iso8601(date.get_string_member("datetime"), null);
+        if (instant == null) throw new ApiError.PROTOCOL("Invalid milestone datetime");
+        return ((!) instant).to_unix();
+    }
+
+    // The one date with the role, or null when there is none or more than one.
+    private static Json.Object? only_date(Json.Array dates, string role) {
+        Json.Object? found = null;
+        for (uint i = 0; i < dates.get_length(); i++) {
+            var date = dates.get_object_element(i);
+            if (date.get_string_member("role") != role) continue;
+            if (found != null) return null;
+            found = date;
+        }
+        return found;
+    }
+
+    // A milestone with one start and at most one end, as the calendar shows it; null for any
+    // other, which the calendar does not show.
+    public static Milestone? parse_milestone(Json.Object item) throws Error {
+        var dates = item.get_array_member("dates");
+        var start = only_date(dates, "start");
+        if (start == null) return null;
+        var end = only_date(dates, "end");
+        for (uint i = 0; i < dates.get_length(); i++) {
+            if (end == null && dates.get_object_element(i).get_string_member("role") == "end") {
+                return null;
+            }
+        }
+        int64? end_at = null;
+        if (end != null) end_at = milestone_date_epoch((!) end);
+        var milestone = new Milestone(
             item.get_string_member("milestone_id"),
             item.get_string_member("card_id"),
-            item.get_int_member("start_at"),
+            milestone_date_epoch((!) start),
             end_at,
-            item.has_member("all_day") && item.get_boolean_member("all_day"),
+            ((!) start).has_member("date"),
             ApiParsersCommon.nullable_string_member_or_null(item, "kind"),
             ApiParsersCommon.nullable_string_member_or_null(item, "description"),
-            item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-            item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
+            item.get_int_member("created_at"),
+            item.get_int_member("updated_at"),
             ApiParsersCommon.nullable_string_member_or_null(item, "card_title")
         );
+        milestone.project_id = item.get_string_member("project_id");
+        milestone.dates_json = Json.to_string(item.get_member("dates"), false);
+        return milestone;
     }
 
     public static Gee.ArrayList<Milestone> parse_milestones_response(Json.Object root) throws Error {
@@ -192,25 +232,47 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         );
     }
 
-    public static ProjectCalendar parse_project_calendar(Json.Object root) throws Error {
+    public static Milestone parse_milestone_response(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestone response");
+        }
+        var milestone = parse_milestone(root.get_object_member("data"));
+        if (milestone == null) {
+            throw new ApiError.PROTOCOL("The milestone has no single start");
+        }
+        return (!) milestone;
+    }
+
+    // The calendar for a window, with the milestones that start in it.
+    public static ProjectCalendar parse_project_calendar(Json.Object root,
+                                                         string project_id,
+                                                         int64 from_epoch,
+                                                         int64 to_epoch) throws Error {
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for calendar response");
         }
         var data = root.get_object_member("data");
+        Milestone[] starting = {};
+        foreach (var milestone in parse_milestones_array(data.get_array_member("milestones"))) {
+            if (milestone.start_at >= from_epoch && milestone.start_at <= to_epoch) {
+                starting += milestone;
+            }
+        }
         return new ProjectCalendar(
-            data.get_string_member("project_id"),
-            data.get_int_member("from"),
-            data.get_int_member("to"),
-            parse_milestones_array(data.get_array_member("milestones")),
+            project_id,
+            from_epoch,
+            to_epoch,
+            starting,
             parse_calendar_card_array(data.get_array_member("created_cards")),
             parse_calendar_card_array(data.get_array_member("updated_cards"))
         );
     }
 
-    private static Milestone[] parse_milestones_array(Json.Array data) {
+    private static Milestone[] parse_milestones_array(Json.Array data) throws Error {
         Milestone[] result = {};
         for (uint i = 0; i < data.get_length(); i++) {
-            result += parse_milestone(data.get_object_element(i));
+            var milestone = parse_milestone(data.get_object_element(i));
+            if (milestone != null) result += (!) milestone;
         }
         return result;
     }

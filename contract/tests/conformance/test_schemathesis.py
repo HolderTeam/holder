@@ -41,12 +41,15 @@ def stated_in_words(case) -> bool:
 
     The daemon may reject such a request although the document allows it: a cursor is valid only
     when the daemon handed it out, a tag has a form (see Tag in interface/cards.py), whether in the
-    query or the path, and a page with content holds at most 1000 cards.
+    query or the path, a page with content holds at most 1000 cards, and a day and an instant have
+    forms, and a milestone's date holds exactly one of them (see interface/milestones.py).
     """
     query = case.query or {}
     limit = str(query.get("limit", 200))
+    body = case.body if isinstance(case.body, dict) else {}
     return "cursor" in query or "tag" in query or "tag" in (case.path_parameters or {}) or (
-        query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000)
+        query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
+        "first_day" in query or "last_day" in query or "dates" in body)
 
 
 @pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")

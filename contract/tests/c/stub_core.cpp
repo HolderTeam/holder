@@ -10,6 +10,7 @@
 struct holder_context {
   std::map<std::string, holder::contract::Card> cards;
   std::vector<holder::contract::Link> links;
+  std::vector<holder::contract::Milestone> milestones;
   int next_id = 1;
 };
 
@@ -194,6 +195,68 @@ std::vector<Link> remove_card_link(holder_context& context, std::string project_
            link.target_project_id == target_project_id.value_or(project_id);
   });
   return list_card_links(context, project_id, card_id, false);
+}
+// Milestones, kept in the order they were made: the stand-in neither checks dates nor searches by them.
+std::vector<Milestone> list_card_milestones(holder_context& context, std::string project_id, std::string card_id) {
+  live_card(context, project_id, card_id);
+  std::vector<Milestone> out;
+  for (const auto& milestone : context.milestones)
+    if (milestone.card_id == card_id) out.push_back(milestone);
+  return out;
+}
+
+Milestone add_card_milestone(holder_context& context, std::string project_id, std::string card_id,
+                             const NewMilestone& request) {
+  live_card(context, project_id, card_id);
+  Milestone milestone{"m" + std::to_string(context.next_id++), project_id, card_id, request.dates, request.kind,
+                      request.description, 1793000400, 1793000400};
+  context.milestones.push_back(milestone);
+  return milestone;
+}
+
+Milestone update_card_milestone(holder_context& context, std::string project_id, std::string card_id,
+                                std::string milestone_id, const MilestoneUpdate& update) {
+  live_card(context, project_id, card_id);
+  for (auto& milestone : context.milestones) {
+    if (milestone.milestone_id != milestone_id || milestone.card_id != card_id) continue;
+    if (update.dates) milestone.dates = *update.dates;
+    if (update.kind) milestone.kind = *update.kind;
+    if (update.description) milestone.description = *update.description;
+    return milestone;
+  }
+  throw NotFound("milestone not found: " + milestone_id);
+}
+
+std::vector<Milestone> remove_card_milestone(holder_context& context, std::string project_id, std::string card_id,
+                                             std::string milestone_id) {
+  live_card(context, project_id, card_id);
+  std::erase_if(context.milestones, [&](const Milestone& milestone) {
+    return milestone.milestone_id == milestone_id && milestone.card_id == card_id;
+  });
+  return list_card_milestones(context, project_id, card_id);
+}
+
+std::vector<Milestone> list_milestones_by_day(holder_context& context, std::string project_id, std::string first_day,
+                                              std::string last_day, std::optional<std::string> role) {
+  (void)context, (void)project_id, (void)first_day, (void)last_day, (void)role;
+  return {};
+}
+
+std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::string project_id,
+                                                  long long first_instant, long long last_instant,
+                                                  std::optional<std::string> role) {
+  (void)context, (void)project_id, (void)first_instant, (void)last_instant, (void)role;
+  return {};
+}
+
+Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant,
+                      long long last_instant, std::string first_day, std::string last_day) {
+  (void)first_instant, (void)last_instant, (void)first_day, (void)last_day;
+  Calendar out;
+  for (const auto& milestone : context.milestones)
+    if (milestone.project_id == project_id)
+      out.milestones.push_back({milestone, live_card(context, project_id, milestone.card_id).title});
+  return out;
 }
 }  // namespace holder::contract
 

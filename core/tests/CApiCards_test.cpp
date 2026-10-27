@@ -1,5 +1,5 @@
 // The contract's Card operations through the generated C API (holder_api.h), against a real data
-// directory: cards, their tags and their links.
+// directory: cards, their tags, their links and their milestones.
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
 #else
@@ -13,8 +13,11 @@
 
 #include <fstream>
 #include <limits>
+#include <map>
 #include <set>
 #include <string>
+#include <tuple>
+#include <vector>
 
 namespace {
 
@@ -485,4 +488,225 @@ TEST_CASE("Links to cards in other projects, and the backlinks they make", "[cap
   REQUIRE(f.failed(holder_remove_card_link(f.context, other.c_str(), from.c_str(),
                                            HOLDER_REMOVE_CARD_LINK_TARGET_TYPE_CARD, local.c_str(), nullptr,
                                            nullptr, f.arena, &links, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
+namespace {
+
+holder_milestone_date day(const char* role, const char* value) {
+  holder_milestone_date date{};
+  date.role = role;
+  date.date = value;
+  return date;
+}
+
+holder_milestone_date instant(const char* role, const char* value) {
+  holder_milestone_date date{};
+  date.role = role;
+  date.datetime = value;
+  return date;
+}
+
+std::vector<std::string> ids(const holder_milestone_list* list) {
+  std::vector<std::string> out;
+  for (std::size_t i = 0; i < list->count; ++i) out.emplace_back(list->items[i].milestone_id);
+  return out;
+}
+
+} // namespace
+
+TEST_CASE("Milestones on a card keep their dates as given and change one field at a time", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const auto* card = f.create("Launch");
+  const std::string card_id = card->card_id;
+  const holder_milestone* milestone = nullptr;
+
+  const holder_milestone_date dates[] = {day("start", "2026-10-16"), instant("due", "2026-10-17T09:30:00+01:00"),
+                                         day("start", "2026-10-18")};
+  holder_new_milestone request{};
+  request.dates = {dates, 3};
+  request.kind = "release";
+  REQUIRE(holder_add_card_milestone(f.context, project, card_id.c_str(), &request, f.arena, &milestone, &f.error) ==
+          HOLDER_OK);
+  const std::string milestone_id = milestone->milestone_id;
+  REQUIRE(std::string(milestone->project_id) == f.project_id);
+  REQUIRE(std::string(milestone->card_id) == card_id);
+  REQUIRE(milestone->dates.count == 3);
+  // A repeated role and an instant's own offset are kept.
+  REQUIRE(std::string(milestone->dates.items[1].datetime) == "2026-10-17T09:30:00+01:00");
+  REQUIRE(milestone->dates.items[1].date == nullptr);
+  REQUIRE(std::string(milestone->dates.items[2].date) == "2026-10-18");
+  REQUIRE(std::string(milestone->kind) == "release");
+  REQUIRE(milestone->description == nullptr);
+  const auto created_at = milestone->created_at;
+
+  // An undated milestone.
+  holder_new_milestone undated{};
+  REQUIRE(holder_add_card_milestone(f.context, project, card_id.c_str(), &undated, f.arena, &milestone, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(milestone->dates.count == 0);
+  const std::string undated_id = milestone->milestone_id;
+
+  const holder_milestone_list* list = nullptr;
+  REQUIRE(holder_list_card_milestones(f.context, project, card_id.c_str(), f.arena, &list, &f.error) == HOLDER_OK);
+  REQUIRE(list->count == 2);
+
+  // Only the description changes; then nothing does, and nothing is written.
+  holder_milestone_update update{};
+  update.description = {HOLDER_SET, "Ship it"};
+  REQUIRE(holder_update_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), &update, f.arena,
+                                       &milestone, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(milestone->description) == "Ship it");
+  REQUIRE(std::string(milestone->kind) == "release");
+  REQUIRE(milestone->dates.count == 3);
+  REQUIRE(milestone->created_at == created_at);
+  const auto updated_at = milestone->updated_at;
+  REQUIRE(holder_update_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), &update, f.arena,
+                                       &milestone, &f.error) == HOLDER_OK);
+  REQUIRE(milestone->updated_at == updated_at);
+
+  // New dates replace them all; null clears the kind.
+  const holder_milestone_date due[] = {day("due", "2026-11-01")};
+  const holder_milestone_date_list due_list{due, 1};
+  holder_milestone_update replace{};
+  replace.dates = &due_list;
+  replace.kind = {HOLDER_CLEAR, nullptr};
+  REQUIRE(holder_update_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), &replace, f.arena,
+                                       &milestone, &f.error) == HOLDER_OK);
+  REQUIRE(milestone->dates.count == 1);
+  REQUIRE(std::string(milestone->dates.items[0].role) == "due");
+  REQUIRE(milestone->kind == nullptr);
+  REQUIRE(std::string(milestone->description) == "Ship it");
+
+  // Removing returns what remains, and removing again changes nothing.
+  REQUIRE(holder_remove_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), f.arena, &list,
+                                       &f.error) == HOLDER_OK);
+  REQUIRE(ids(list) == std::vector<std::string>{undated_id});
+  REQUIRE(holder_remove_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), f.arena, &list,
+                                       &f.error) == HOLDER_OK);
+  REQUIRE(ids(list) == std::vector<std::string>{undated_id});
+  REQUIRE(f.failed(holder_update_card_milestone(f.context, project, card_id.c_str(), milestone_id.c_str(), &update,
+                                                f.arena, &milestone, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("Milestone dates must be real days and instants, and their cards live ones in the project",
+          "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const std::string card_id = f.create("Card")->card_id;
+  const holder_milestone* milestone = nullptr;
+  const auto add = [&](holder_milestone_date date) {
+    holder_new_milestone request{};
+    request.dates = {&date, 1};
+    return holder_add_card_milestone(f.context, project, card_id.c_str(), &request, f.arena, &milestone, &f.error);
+  };
+  for (const auto& bad : {day("due", "2026-02-30"), day("due", "0000-01-01"), day("due", "2026-1-01x"),
+                          instant("due", "2026-10-17T24:00:00Z"), instant("due", "2026-10-17 09:30:00Z"),
+                          instant("due", "2026-10-17T09:30:00.5Z")}) {
+    REQUIRE(f.failed(add(bad)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  }
+  holder_milestone_date both = day("due", "2026-10-17");
+  both.datetime = "2026-10-17T09:30:00Z";
+  REQUIRE(f.failed(add(both)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(add(holder_milestone_date{"due", nullptr, nullptr})) == HOLDER_ERROR_INVALID_ARGUMENT);
+  holder_new_milestone no_items{};
+  no_items.dates = {nullptr, 1};
+  REQUIRE(f.failed(holder_add_card_milestone(f.context, project, card_id.c_str(), &no_items, f.arena, &milestone,
+                                             &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(add(instant("due", "2026-10-17T09:30:00Z")) == HOLDER_OK);
+
+  // Not on a card in another project, or in the trash.
+  char* json = nullptr;
+  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
+  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  const holder_milestone_list* list = nullptr;
+  REQUIRE(f.failed(holder_list_card_milestones(f.context, other.c_str(), card_id.c_str(), f.arena, &list,
+                                               &f.error)) == HOLDER_ERROR_NOT_FOUND);
+  const holder_card* trashed = nullptr;
+  REQUIRE(holder_trash_card(f.context, project, card_id.c_str(), HOLDER_TRASH_CARD_CHILDREN_DEFAULT, f.arena,
+                            &trashed, &f.error) == HOLDER_OK);
+  REQUIRE(f.failed(add(day("due", "2026-10-17"))) == HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_list_card_milestones(f.context, project, card_id.c_str(), f.arena, &list, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("A project's milestones by day, by instant and on its calendar", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const std::string first = f.create("First")->card_id;
+  const std::string second = f.create("Second")->card_id;
+  const holder_milestone* milestone = nullptr;
+  const auto add = [&](const std::string& card_id, std::vector<holder_milestone_date> dates) {
+    holder_new_milestone request{};
+    request.dates = {dates.data(), dates.size()};
+    REQUIRE(holder_add_card_milestone(f.context, project, card_id.c_str(), &request, f.arena, &milestone,
+                                      &f.error) == HOLDER_OK);
+    return std::string(milestone->milestone_id);
+  };
+  const auto on_day = add(first, {day("start", "2026-10-16"), day("end", "2026-10-20")});
+  const auto at_instant = add(second, {instant("due", "2026-10-17T23:30:00-02:00")});
+  add(second, {day("start", "2027-01-01")});
+
+  const holder_milestone_list* list = nullptr;
+  REQUIRE(holder_list_milestones_by_day(f.context, project, "2026-10-01", "2026-10-31", nullptr, f.arena, &list,
+                                        &f.error) == HOLDER_OK);
+  REQUIRE(ids(list) == std::vector<std::string>{on_day});
+  REQUIRE(holder_list_milestones_by_day(f.context, project, "2026-10-18", "2026-10-31", "start", f.arena, &list,
+                                        &f.error) == HOLDER_OK);
+  REQUIRE(list->count == 0);
+  REQUIRE(holder_list_milestones_by_day(f.context, project, "2026-10-18", "2026-10-31", "end", f.arena, &list,
+                                        &f.error) == HOLDER_OK);
+  REQUIRE(ids(list) == std::vector<std::string>{on_day});
+  // A range whose start is after its end is empty.
+  REQUIRE(holder_list_milestones_by_day(f.context, project, "2026-10-31", "2026-10-01", nullptr, f.arena, &list,
+                                        &f.error) == HOLDER_OK);
+  REQUIRE(list->count == 0);
+  REQUIRE(f.failed(holder_list_milestones_by_day(f.context, project, "2026-02-30", "2026-10-31", nullptr, f.arena,
+                                                 &list, &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(f.failed(holder_list_milestones_by_day(f.context, "no-such-project", "2026-10-01", "2026-10-31", nullptr,
+                                                 f.arena, &list, &f.error)) == HOLDER_ERROR_NOT_FOUND);
+
+  // 2026-10-18T01:30:00Z.
+  const int64_t at = 1792287000;
+  REQUIRE(holder_list_milestones_by_instant(f.context, project, at, at, nullptr, f.arena, &list, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(ids(list) == std::vector<std::string>{at_instant});
+  REQUIRE(holder_list_milestones_by_instant(f.context, project, at, at, "start", f.arena, &list, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(list->count == 0);
+  REQUIRE(holder_list_milestones_by_instant(f.context, project, at + 1, at, nullptr, f.arena, &list, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(list->count == 0);
+
+  // A window of October where the caller is: its days, and its instants for card activity and timed milestones.
+  const holder_calendar* calendar = nullptr;
+  REQUIRE(holder_get_calendar(f.context, project, 0, std::numeric_limits<int64_t>::max(), "2026-10-01",
+                              "2026-10-31", f.arena, &calendar, &f.error) == HOLDER_OK);
+  std::map<std::string, std::string> titles;
+  for (std::size_t i = 0; i < calendar->milestones.count; ++i)
+    titles[calendar->milestones.items[i].milestone_id] = calendar->milestones.items[i].card_title;
+  REQUIRE(titles == std::map<std::string, std::string>{{on_day, "First"}, {at_instant, "Second"}});
+  REQUIRE(calendar->created_cards.count == 2);
+  const auto& made = calendar->created_cards.items;
+  REQUIRE(std::tuple(made[0].created_at, std::string(made[0].card_id)) <
+          std::tuple(made[1].created_at, std::string(made[1].card_id)));
+
+  // Only the days: the timed milestone and the cards fall outside the instants.
+  REQUIRE(holder_get_calendar(f.context, project, 0, 0, "2026-10-01", "2026-10-31", f.arena, &calendar, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(calendar->milestones.count == 1);
+  REQUIRE(calendar->created_cards.count == 0);
+  REQUIRE(calendar->updated_cards.count == 0);
+
+  // Milestones on a card in the trash are left out.
+  const holder_card* trashed = nullptr;
+  REQUIRE(holder_trash_card(f.context, project, first.c_str(), HOLDER_TRASH_CARD_CHILDREN_DEFAULT, f.arena, &trashed,
+                            &f.error) == HOLDER_OK);
+  REQUIRE(holder_get_calendar(f.context, project, 0, std::numeric_limits<int64_t>::max(), "2026-10-01",
+                              "2026-10-31", f.arena, &calendar, &f.error) == HOLDER_OK);
+  REQUIRE(calendar->milestones.count == 1);
+  REQUIRE(calendar->created_cards.count == 1);
+  REQUIRE(f.failed(holder_get_calendar(f.context, project, 0, 1, "2026-10-01", "October", f.arena, &calendar,
+                                       &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
 }

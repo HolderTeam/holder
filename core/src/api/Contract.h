@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -109,6 +109,27 @@ struct NewLink {
   std::optional<long long> created_at;  ///< When the link was made, for imports; omit for now. A link that already exists keeps its own.
 };
 
+/// One of a milestone's dates: a role and exactly one of a day or an instant.
+struct MilestoneDate {
+  std::string role;  ///< What the date is for.
+  std::optional<std::string> date;  ///< The calendar day; present when the date is a day.
+  std::optional<std::string> datetime;  ///< The instant; present when the date is an instant.
+};
+
+/// A milestone to put on a card.
+struct NewMilestone {
+  std::vector<MilestoneDate> dates;  ///< The milestone's dates, in order; empty for a milestone without a date.
+  std::optional<std::string> kind;  ///< What kind of milestone it is; null or omitted for none.
+  std::optional<std::string> description;  ///< A note on the milestone; null or omitted for none.
+};
+
+/// A change to a milestone. Each field left out keeps its value.
+struct MilestoneUpdate {
+  std::optional<std::vector<MilestoneDate>> dates;  ///< The milestone's new dates, replacing all of them; empty for none.
+  Change<std::string> kind;  ///< What kind of milestone it is; null for none.
+  Change<std::string> description;  ///< A note on the milestone; null for none.
+};
+
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
@@ -166,6 +187,30 @@ struct Link {
   std::string kind;  ///< What the link means.
   std::optional<std::string> label;  ///< A note on the link; null when it has none.
   long long created_at{};  ///< When the link was made.
+};
+
+/// A milestone on a card: its dates, which may repeat a role or be none, and what it is.
+struct Milestone {
+  std::string milestone_id;  ///< The milestone's ID.
+  std::string project_id;  ///< The project of the card the milestone is on.
+  std::string card_id;  ///< The card the milestone is on.
+  std::vector<MilestoneDate> dates;  ///< The milestone's dates, in the order they were given.
+  std::optional<std::string> kind;  ///< What kind of milestone it is; null when it has none.
+  std::optional<std::string> description;  ///< A note on the milestone; null when it has none.
+  long long created_at{};  ///< When the milestone was made.
+  long long updated_at{};  ///< When the milestone was last changed.
+};
+
+/// A milestone on a calendar, with the title of its card.
+struct CalendarMilestone : Milestone {
+  std::string card_title;  ///< The title of the card the milestone is on.
+};
+
+/// What happens in a project over a window of time: its milestones, and the cards made and changed.
+struct Calendar {
+  std::vector<CalendarMilestone> milestones;  ///< The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by when they were made and then by ID.
+  std::vector<CardMetadata> created_cards;  ///< The live cards made in the window, by when they were made and then by ID.
+  std::vector<CardMetadata> updated_cards;  ///< The live cards last changed in the window, other than by being made, by when and then by ID.
 };
 
 /// Fetch a card.
@@ -280,6 +325,55 @@ enum class RemoveCardLinkTargetType { Card, AiMessage, AiThread, Resource };
 /// @param target_project_id Omit for the card's own project.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 std::vector<Link> remove_card_link(holder_context& context, std::string project_id, std::string card_id, RemoveCardLinkTargetType target_type, std::string target_id, std::string kind, std::optional<std::string> target_project_id);
+
+/// List a card's milestones.
+/// By when they were made, then by ID. A card in the trash or in another project is not found.
+/// @throws NotFound
+std::vector<Milestone> list_card_milestones(holder_context& context, std::string project_id, std::string card_id);
+
+/// Put a milestone on a card.
+/// The milestone gets a new ID. Each date must be a real day or instant. A card in the trash or in another project
+/// is not found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Milestone add_card_milestone(holder_context& context, std::string project_id, std::string card_id, const NewMilestone& milestone);
+
+/// Change a milestone.
+/// Each field left out keeps its value, and an update that changes nothing writes nothing. Each date must be a real
+/// day or instant. A card in the trash or in another project is not found, and neither is a milestone that is not
+/// on the card.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Milestone update_card_milestone(holder_context& context, std::string project_id, std::string card_id, std::string milestone_id, const MilestoneUpdate& update);
+
+/// Take a milestone off a card.
+/// Returns the card's remaining milestones, as list_card_milestones lists them. A card without the milestone is
+/// left as it is. A card in the trash or in another project is not found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+std::vector<Milestone> remove_card_milestone(holder_context& context, std::string project_id, std::string card_id, std::string milestone_id);
+
+/// List a project's milestones with a day in a range.
+/// The range holds first_day, last_day and the days between; it is empty when first_day is after last_day. A
+/// milestone is listed once, by its first day in the range and then by ID. Milestones on cards in the trash are
+/// left out.
+/// @param role Only dates with this role; omit for any.
+/// @throws NotFound
+std::vector<Milestone> list_milestones_by_day(holder_context& context, std::string project_id, std::string first_day, std::string last_day, std::optional<std::string> role);
+
+/// List a project's milestones with an instant in a range.
+/// The range holds first_instant, last_instant and the instants between; it is empty when first_instant is after
+/// last_instant. A milestone is listed once, by its first instant in the range and then by ID. Milestones on cards
+/// in the trash are left out.
+/// @param role Only dates with this role; omit for any.
+/// @throws NotFound
+std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::optional<std::string> role);
+
+/// What happens in a project over a window of time.
+/// The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
+/// has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
+/// the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
+/// @param first_day The day first_instant falls on where the caller is.
+/// @param last_day The day last_instant falls on where the caller is.
+/// @throws NotFound
+Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::string first_day, std::string last_day);
 
 namespace detail {
 

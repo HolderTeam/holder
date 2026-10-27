@@ -274,19 +274,25 @@ private void test_parse_card_move_result_missing_fields_is_protocol_error() {
 }
 
 private void test_parse_project_calendar_and_milestones() {
+    // 200 and 220 are 1970-01-01T00:03:20Z and 00:03:40Z; m2 starts outside the window.
     var root = parse_json_object(
         "{\"data\":{" +
-        "\"project_id\":\"p1\",\"from\":100,\"to\":500," +
-        "\"milestones\":[{\"milestone_id\":\"m1\",\"card_id\":\"c1\"," +
-        "\"start_at\":200,\"end_at\":220,\"all_day\":false,\"kind\":\"Exam\"," +
-        "\"description\":\"Final\",\"created_at\":10,\"updated_at\":11," +
+        "\"milestones\":[{\"milestone_id\":\"m1\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T01:03:20+01:00\"}," +
+        "{\"role\":\"due\",\"date\":\"1970-01-02\"}," +
+        "{\"role\":\"end\",\"datetime\":\"1970-01-01T00:03:40Z\"}]," +
+        "\"kind\":\"Exam\",\"description\":\"Final\",\"created_at\":10,\"updated_at\":11," +
+        "\"card_title\":\"Revision\"}," +
+        "{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c1\"," +
+        "\"dates\":[{\"role\":\"start\",\"datetime\":\"1970-01-01T00:16:40Z\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":10,\"updated_at\":11," +
         "\"card_title\":\"Revision\"}]," +
         "\"created_cards\":[{\"card_id\":\"c2\",\"title\":\"Created\",\"created_at\":150,\"updated_at\":150}]," +
         "\"updated_cards\":[{\"card_id\":\"c3\",\"title\":\"Updated\",\"created_at\":120,\"updated_at\":250}]}}"
     );
     HolderLinux.ProjectCalendar parsed;
     try {
-        parsed = HolderLinux.ApiParsersCards.parse_project_calendar(root);
+        parsed = HolderLinux.ApiParsersCards.parse_project_calendar(root, "p1", 100, 500);
     } catch (Error e) {
         assert_not_reached();
     }
@@ -295,7 +301,11 @@ private void test_parse_project_calendar_and_milestones() {
     assert(parsed.to_epoch == 500);
     assert(parsed.milestones.length == 1);
     assert(parsed.milestones[0].milestone_id == "m1");
+    assert(parsed.milestones[0].project_id == "p1");
+    assert(parsed.milestones[0].start_at == 200);
     assert(parsed.milestones[0].end_at == 220);
+    assert(!parsed.milestones[0].all_day);
+    assert(parsed.milestones[0].dates_json.contains("\"due\""));
     assert(parsed.milestones[0].kind == "Exam");
     assert(parsed.milestones[0].card_title == "Revision");
     assert(parsed.created_cards.length == 1);
@@ -303,10 +313,21 @@ private void test_parse_project_calendar_and_milestones() {
     assert(parsed.updated_cards.length == 1);
     assert(parsed.updated_cards[0].updated_at == 250);
 
+    // A day starts at its local midnight. Milestones without one start, or with two ends, are
+    // not shown.
     var list_root = parse_json_object(
-        "{\"data\":[{\"milestone_id\":\"m2\",\"card_id\":\"c2\"," +
-        "\"start_at\":300,\"end_at\":null,\"all_day\":true,\"kind\":null," +
-        "\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
+        "{\"data\":[{\"milestone_id\":\"m2\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"}],\"kind\":null," +
+        "\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m3\",\"project_id\":\"p1\",\"card_id\":\"c2\",\"dates\":[]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m4\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"start\",\"date\":\"2026-06-02\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}," +
+        "{\"milestone_id\":\"m5\",\"project_id\":\"p1\",\"card_id\":\"c2\"," +
+        "\"dates\":[{\"role\":\"start\",\"date\":\"2026-06-01\"},{\"role\":\"end\",\"date\":\"2026-06-02\"}," +
+        "{\"role\":\"end\",\"date\":\"2026-06-03\"}]," +
+        "\"kind\":null,\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
     );
     Gee.ArrayList<HolderLinux.Milestone> listed;
     try {
@@ -315,7 +336,9 @@ private void test_parse_project_calendar_and_milestones() {
         assert_not_reached();
     }
     assert(listed.size == 1);
+    assert(listed[0].milestone_id == "m2");
     assert(listed[0].all_day);
+    assert(listed[0].start_at == new DateTime.local(2026, 6, 1, 0, 0, 0).to_unix());
     assert(listed[0].end_at == null);
     assert(listed[0].kind == null);
 }
@@ -464,7 +487,7 @@ private void test_parse_milestones_and_calendar_missing_data_are_protocol_errors
         milestones = e.message.contains("Missing data for milestones response");
     }
     try {
-        HolderLinux.ApiParsersCards.parse_project_calendar(parse_json_object("{\"ok\":true}"));
+        HolderLinux.ApiParsersCards.parse_project_calendar(parse_json_object("{\"ok\":true}"), "p1", 0, 1);
     } catch (Error e) {
         calendar = e.message.contains("Missing data for calendar response");
     }
