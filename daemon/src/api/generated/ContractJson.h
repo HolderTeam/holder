@@ -200,6 +200,10 @@ template <> struct codec<holder::contract::Page<holder::contract::CardListItem>>
     static json encode(const holder::contract::Page<holder::contract::CardListItem>& value);
     static holder::contract::Page<holder::contract::CardListItem> decode(const json& value);
 };
+template <> struct codec<holder::contract::TagCount> {
+    static json encode(const holder::contract::TagCount& value);
+    static holder::contract::TagCount decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -443,6 +447,32 @@ inline holder::contract::Page<holder::contract::CardListItem> codec<holder::cont
     if (value.contains("next_cursor") && !value.at("next_cursor").is_null()) {
         const auto& item = value.at("next_cursor");
         out.next_cursor = check_text(decode_field<std::string>(item, "next_cursor"), "next_cursor", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::TagCount>::encode(const holder::contract::TagCount& value) {
+    json result = json::object();
+    result["tag"] = codec<std::string>::encode(value.tag);
+    result["card_count"] = codec<std::int32_t>::encode(value.card_count);
+    return result;
+}
+inline holder::contract::TagCount codec<holder::contract::TagCount>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a TagCount object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "tag" && it.key() != "card_count") throw std::invalid_argument("TagCount has no field " + it.key());
+    holder::contract::TagCount out;
+    if (value.contains("tag") && !value.at("tag").is_null()) {
+        const auto& item = value.at("tag");
+        out.tag = check_text(decode_field<std::string>(item, "tag"), "tag", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("tag is required and must not be null");
+    }
+    if (value.contains("card_count") && !value.at("card_count").is_null()) {
+        const auto& item = value.at("card_count");
+        out.card_count = decode_field<std::int32_t>(item, "card_count");
+    } else {
+        throw std::invalid_argument("card_count is required and must not be null");
     }
     return out;
 }

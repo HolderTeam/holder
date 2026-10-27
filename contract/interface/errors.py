@@ -12,7 +12,7 @@ class NotFound(HolderError):
 
 
 class Conflict(HolderError):
-    """The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash."""
+    """The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose."""
 
 
 class KeyringUnavailable(HolderError):

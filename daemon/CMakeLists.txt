@@ -410,11 +410,9 @@ add_executable(holderd
   src/api/CardRead.cpp
   src/api/CardLinks.cpp
   src/api/CardResources.cpp
-  src/api/CardWrite.cpp
   src/api/MilestoneWrite.cpp
   src/api/ProjectGit.cpp
   src/api/ProjectRead.cpp
-  src/api/ProjectTags.cpp
   src/api/RecoveryToken.cpp
   src/api/Reindex.cpp
   src/api/AssetImportWrite.cpp

@@ -8,28 +8,31 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_tag_mutation_result import CardTagMutationResult
+    from ..models.tag_count import TagCount
 
 
-T = TypeVar("T", bound="CardTagMutationResponse")
+T = TypeVar("T", bound="TagCountListResponse")
 
 
 @_attrs_define
-class CardTagMutationResponse:
+class TagCountListResponse:
     """
     Attributes:
         ok (bool):
-        data (CardTagMutationResult):
+        data (list[TagCount]):
     """
 
     ok: bool
-    data: CardTagMutationResult
+    data: list[TagCount]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
 
-        data = self.data.to_dict()
+        data = []
+        for data_item_data in self.data:
+            data_item = data_item_data.to_dict()
+            data.append(data_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -44,22 +47,25 @@ class CardTagMutationResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_tag_mutation_result import (
-            CardTagMutationResult,
-        )
+        from ..models.tag_count import TagCount
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardTagMutationResult.from_dict(d.pop("data"))
+        data = []
+        _data = d.pop("data")
+        for data_item_data in _data:
+            data_item = TagCount.from_dict(data_item_data)
 
-        card_tag_mutation_response = cls(
+            data.append(data_item)
+
+        tag_count_list_response = cls(
             ok=ok,
             data=data,
         )
 
-        card_tag_mutation_response.additional_properties = d
-        return card_tag_mutation_response
+        tag_count_list_response.additional_properties = d
+        return tag_count_list_response
 
     @property
     def additional_keys(self) -> list[str]:

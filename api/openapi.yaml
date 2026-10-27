@@ -2641,115 +2641,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /cards/{card_id}/tags:
-    post:
-      summary: Add a tag to a live card
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/CardTagMutationRequest'}
-      responses:
-        '200':
-          description: Added or already present
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardTagMutationResponse'}
-        '400':
-          description: Malformed request, an invalid tag (invalid_tag), or a privacy error writing an
-            encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Live card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '422':
-          description: Card belongs to a different project (cross_project_tag_forbidden)
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    delete:
-      summary: Remove a tag from a live card's editable trailing tag line
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/CardTagMutationRequest'}
-      responses:
-        '200':
-          description: Removed, not present, or present only outside the editable tag line
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/CardTagMutationResponse'}
-        '400':
-          description: Malformed request, an invalid tag (invalid_tag), or a privacy error writing an
-            encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Live card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '422':
-          description: Card belongs to a different project (cross_project_tag_forbidden)
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /docs:
     get:
       summary: Browse the API documentation
@@ -3849,15 +3740,11 @@ paths:
         required: false
         schema:
           anyOf:
-          - {type: string, minLength: 1}
+          - {$ref: '#/components/schemas/Tag'}
           - {type: 'null'}
-          description: 'Only cards with this tag, matched without case and without the leading #. A tag
-            starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour
-            such as fff is not a tag.'
+          description: Only cards with this tag.
           title: Tag
-        description: 'Only cards with this tag, matched without case and without the leading #. A tag
-          starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such
-          as fff is not a tag.'
+        description: Only cards with this tag.
       - name: order
         in: query
         required: false
@@ -3972,8 +3859,9 @@ paths:
         '409':
           description: 'The request conflicts with what exists: what would be created already exists,
             such as a card with the same ID or file, or the thing to change is not in the state the request
-            needs, such as restoring a card that is not in the trash. An encrypted project''s key is not
-            on this device; the project''s recovery token restores it.'
+            needs, such as restoring a card that is not in the trash, or removing a tag that a card would
+            still carry in its prose. An encrypted project''s key is not on this device; the project''s
+            recovery token restores it.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4329,8 +4217,138 @@ paths:
         '409':
           description: 'The request conflicts with what exists: what would be created already exists,
             such as a card with the same ID or file, or the thing to change is not in the state the request
-            needs, such as restoring a card that is not in the trash. An encrypted project''s key is not
-            on this device; the project''s recovery token restores it.'
+            needs, such as restoring a card that is not in the trash, or removing a tag that a card would
+            still carry in its prose. An encrypted project''s key is not on this device; the project''s
+            recovery token restores it.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/cards/{card_id}/tags/{tag}:
+    put:
+      summary: Tag a card.
+      description: 'The tag is added to the card''s trailing tag line, which is made when the card has
+        none. A card that already
+
+        carries the tag, anywhere in its content, is left as it is. A card in the trash or in another
+        project is not
+
+        found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: tag
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Tag'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CardResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      summary: Take a tag off a card.
+      description: 'The tag is removed from the card''s trailing tag line, and the line with it when it
+        is left empty, so that the
+
+        card no longer carries it. A card that does not carry the tag is left as it is. Holder does not
+        rewrite prose,
+
+        so a card that would still carry the tag in its prose is a Conflict, and is left as it is. A card
+        in the trash
+
+        or in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: tag
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Tag'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CardResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: 'The request conflicts with what exists: what would be created already exists,
+            such as a card with the same ID or file, or the thing to change is not in the state the request
+            needs, such as restoring a card that is not in the trash, or removing a tag that a card would
+            still carry in its prose. An encrypted project''s key is not on this device; the project''s
+            recovery token restores it.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5118,20 +5136,22 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/tags:
     get:
-      summary: List project tags with live-card counts
+      summary: List a project's tags.
+      description: Each tag carried by a live card in the project, with how many carry it, by descending
+        count and then by tag.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       responses:
         '200':
-          description: Project tags ordered by descending card count, then ascending tag
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectTagListResponse'}
+              schema: {$ref: '#/components/schemas/TagCountListResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5141,12 +5161,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -7070,30 +7090,6 @@ components:
       type: object
       required: [ok, data]
       title: CardResponse
-    CardTagMutationRequest:
-      type: object
-      properties:
-        project_id: {type: string, description: Project that must own the live card., minLength: 1}
-        tag: {type: string, description: Tag without the leading, minLength: 1}
-      required: [project_id, tag]
-    CardTagMutationResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/CardTagMutationResult'}
-      required: [ok, data]
-    CardTagMutationResult:
-      type: object
-      properties:
-        card_id: {type: string}
-        tag: {type: string, description: Normalized tag without the leading}
-        outcome:
-          type: string
-          enum: [added, already_present, removed, not_present, present_outside_editable_tag_line]
-        changed: {type: boolean, description: True only when card content was changed.}
-      required: [card_id, tag, outcome, changed]
     CardUpdate:
       properties:
         title: {type: string, minLength: 1, title: Title, description: The card's new title.}
@@ -7934,24 +7930,6 @@ components:
       required: [last_commit_at, last_push_at, last_pull_at, uncommitted_changes_count, unpushed_commits_count,
         last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count, next_retry_at,
         pull_retry_count, next_pull_retry_at, updated_at]
-    ProjectTag:
-      type: object
-      properties:
-        tag: {type: string, description: Normalized tag without the leading}
-        card_count: {type: integer, description: Number of live cards in the project carrying this tag.,
-          minimum: 1}
-      required: [tag, card_count]
-    ProjectTagListResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: array
-          items: {$ref: '#/components/schemas/ProjectTag'}
-          description: Tags ordered by descending card count, then ascending tag.
-      required: [ok, data]
     ProjectUpdateRequest:
       type: object
       properties:
@@ -8350,6 +8328,27 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/StorageLocation'}
       required: [ok, data]
+    Tag: {type: string, minLength: 1}
+    TagCount:
+      properties:
+        tag: {$ref: '#/components/schemas/Tag', description: 'The tag, normalized: in lower case.'}
+        card_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Card
+            Count, description: The live cards in the project that carry the tag.}
+      additionalProperties: false
+      type: object
+      required: [tag, card_count]
+      title: TagCount
+      description: A tag and how many of a project's live cards carry it.
+    TagCountListResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data:
+          items: {$ref: '#/components/schemas/TagCount'}
+          type: array
+          title: Data
+      type: object
+      required: [ok, data]
+      title: TagCountListResponse
     TagOccurrence:
       properties:
         tag: {type: string, title: Tag, description: The normalized tag.}

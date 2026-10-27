@@ -165,8 +165,11 @@ def test_tag_collections_and_body_mentions_against_daemon(daemon):
         assert {t.name for t in card.tags} == {"body", "research"}
         card.tags.remove("missing")
         before = card.content
-        card.tags.remove("body")
-        assert card.content == before
+        # Prose is never rewritten, so a tag that would stay in it is a conflict.
+        with pytest.raises(APIError) as prose:
+            card.tags.remove("body")
+        assert prose.value.status == 409
+        assert card.refresh().content == before
         assert {t.name for t in card.tags} == {"body", "research"}
         card.tags.remove("research")
         assert [t.name for t in card.tags] == ["body"]

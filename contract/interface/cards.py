@@ -10,6 +10,10 @@ type ProjectId = Annotated[str, Field(min_length=1)]
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID, unique within its project. Copies of a project, such as a fork, keep their card IDs."""
 
+type Tag = Annotated[str, Field(min_length=1)]
+"""A tag, without the leading #, matched without case. A tag starts with an ASCII letter and holds only ASCII
+letters, digits, _, / and -; a hex colour such as fff is not a tag."""
+
 
 class CardSummary(Record):
     """Just enough to name a card, as in a reference or a backlink."""
@@ -129,3 +133,12 @@ class CardMove(Record):
     parent_card_id: CardId | None | MISSING = MISSING
     """For left, right, to_start and to_end: the parent among whose children to place it, null for the root
     cards; omit for its current parent. Ignored by the other intents."""
+
+
+class TagCount(Record):
+    """A tag and how many of a project's live cards carry it."""
+
+    tag: Tag
+    """The tag, normalized: in lower case."""
+    card_count: Int32
+    """The live cards in the project that carry the tag."""

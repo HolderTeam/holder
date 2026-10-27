@@ -436,6 +436,95 @@ class Cards(RuleBasedStateMachine):
                 self.refresh(sibling, "sort_key", "updated_at")
         assert self.siblings(parent, project) == expected
 
+    # ---- tags -------------------------------------------------------------------------------------
+
+    def a_tag(self, data, card_id: str) -> str:
+        """A tag, mostly the card's own or one the model's cards use, in any case, and sometimes text that is
+        not a tag."""
+        own = self.cards[card_id]["tags"] if card_id in self.cards else []
+        used = sorted({t for c in self.cards.values() for t in c["tags"]})
+        mine = st.sampled_from(own + [t.upper() for t in own]) if own else st.nothing()
+        known = st.sampled_from(used) if used else st.nothing()
+        return data.draw(st.one_of(mine, mine, known, st.sampled_from(TAG_POOL + ["#idea", "1st", "ab c"]),
+                                   self.values().valid({"kind": "named", "name": "Tag"})))
+
+    @rule(data=st.data())
+    def add_card_tag(self, data):
+        card_id, project = self.a_card(data)
+        tag = self.a_tag(data, card_id)
+        kinds = set()
+        if not valid_tag(tag):
+            kinds.add("InvalidArgument")
+        elif not self.is_live(card_id, project):
+            kinds.add("NotFound")
+        before = int(time.time())
+        card = self.expect("add_card_tag", kinds, {"project_id": project, "card_id": card_id, "tag": tag})
+        after = int(time.time())
+        if card is None:
+            return
+        self.conforms("add_card_tag", card)
+        old = self.cards[card_id]
+        assert tag.lower() in card["tags"]
+        assert set(old["tags"]) <= set(card["tags"])
+        self.check_tags(card)
+        for name in ("card_id", "project_id", "title", "parent_card_id", "sort_key", "created_at", "deleted_at"):
+            assert card[name] == old[name], name
+        if tag.lower() in old["tags"]:
+            # A card that already carries the tag, anywhere in its content, is left as it is.
+            assert card == old
+        else:
+            assert before <= card["updated_at"] <= after
+        self.cards[card_id] = card
+
+    @rule(data=st.data())
+    def remove_card_tag(self, data):
+        card_id, project = self.a_card(data)
+        tag = self.a_tag(data, card_id)
+        kinds = set()
+        if not valid_tag(tag):
+            kinds.add("InvalidArgument")
+        elif not self.is_live(card_id, project):
+            kinds.add("NotFound")
+        elif tag.lower() in self.cards[card_id]["tags"]:
+            # Whether the trailing tag line alone carries it is core's to read from the content.
+            try:
+                card = self.core.call("remove_card_tag", project_id=project, card_id=card_id, tag=tag)
+            except OperationError as error:
+                event(f"remove_card_tag: {error.kind}")
+                assert error.kind == "Conflict", f"unexpected {error}"
+                return  # left as it is, which the invariant checks
+            event("remove_card_tag: removed")
+            self.conforms("remove_card_tag", card)
+            assert tag.lower() not in card["tags"]
+            self.check_tags(card)
+            old = self.cards[card_id]
+            for name in ("card_id", "project_id", "title", "parent_card_id", "sort_key", "created_at", "deleted_at"):
+                assert card[name] == old[name], name
+            assert set(card["tags"]) == set(old["tags"]) - {tag.lower()}
+            self.cards[card_id] = card
+            return
+        card = self.expect("remove_card_tag", kinds, {"project_id": project, "card_id": card_id, "tag": tag})
+        if card is not None:
+            # A card that does not carry the tag is left as it is.
+            self.conforms("remove_card_tag", card)
+            assert card == self.cards[card_id]
+
+    @rule(data=st.data())
+    def list_project_tags(self, data):
+        project = data.draw(self.values().valid({"kind": "named", "name": "ProjectId"}))
+        tags = self.expect("list_project_tags", set() if project in self.projects else {"NotFound"},
+                           {"project_id": project})
+        if tags is None:
+            return
+        self.conforms("list_project_tags", tags)
+        counts: dict[str, int] = {}
+        for card in self.live(project):
+            for tag in card["tags"]:
+                counts[tag] = counts.get(tag, 0) + 1
+        expected = [{"tag": tag, "card_count": count}
+                    for tag, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+        assert tags == expected
+
     @rule(data=st.data(), operation=st.sampled_from([op["name"] for op in IR["operations"]]))
     def invalid_arguments_are_rejected(self, data, operation):
         arguments, name = data.draw(self.values().invalid_arguments(operation))

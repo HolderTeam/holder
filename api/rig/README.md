@@ -58,7 +58,7 @@ contract's (`daemon/src/api/generated/ContractRoutes.h`, see
 for one of the contract's. Schemas shared by several endpoints are in
 `Schemas.h`.
 
-- **JSON endpoints**, such as `ProjectTags.h`, return a value the dispatcher
+- **JSON endpoints**, such as `AiNudges.h`, return a value the dispatcher
   encodes as JSON.
 - **Text endpoints**, marked `RIG_RESPONSE_MEDIA_TYPE`, such as `/ping` and the
   YAML files in `StaticFiles.h`, return a string sent as that media type.

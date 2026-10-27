@@ -149,9 +149,7 @@ def sync_detailed(
         project_id (str):
         parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
             cards; a card ID selects its children.
-        tag (None | str | Unset): Only cards with this tag, matched without case and without the
-            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
-            and -; a hex colour such as fff is not a tag.
+        tag (None | str | Unset): Only cards with this tag.
         order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
             card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
@@ -209,9 +207,7 @@ def sync(
         project_id (str):
         parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
             cards; a card ID selects its children.
-        tag (None | str | Unset): Only cards with this tag, matched without case and without the
-            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
-            and -; a hex colour such as fff is not a tag.
+        tag (None | str | Unset): Only cards with this tag.
         order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
             card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
@@ -264,9 +260,7 @@ async def asyncio_detailed(
         project_id (str):
         parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
             cards; a card ID selects its children.
-        tag (None | str | Unset): Only cards with this tag, matched without case and without the
-            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
-            and -; a hex colour such as fff is not a tag.
+        tag (None | str | Unset): Only cards with this tag.
         order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
             card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.
@@ -322,9 +316,7 @@ async def asyncio(
         project_id (str):
         parent (Literal['roots'] | None | str | Unset): Omit for every level; roots selects root
             cards; a card ID selects its children.
-        tag (None | str | Unset): Only cards with this tag, matched without case and without the
-            leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, /
-            and -; a hex colour such as fff is not a tag.
+        tag (None | str | Unset): Only cards with this tag.
         order (GetProjectsProjectIdCardsOrder | Unset): updated_desc breaks ties by descending
             card ID; sort_key_asc follows sibling order. Default:
             GetProjectsProjectIdCardsOrder.CARD_ID_ASC.

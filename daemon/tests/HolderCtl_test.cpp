@@ -1671,7 +1671,7 @@ TEST_CASE("holderctl tags query and mutate live card tags", "[holderctl][tags]")
 
   const auto add_path = xdg_root / "tag-add.out";
   REQUIRE(run_command(bin + " tag add 'First Tagged' Work > \"" + add_path.string() + "\"") == 0);
-  REQUIRE(read_text(add_path) == "Added tag #work to 12345678.\n");
+  REQUIRE(read_text(add_path) == "Card 12345678 has tag #work.\n");
 
   const auto repeat_path = xdg_root / "tag-repeat.json";
   REQUIRE(
@@ -1679,11 +1679,14 @@ TEST_CASE("holderctl tags query and mutate live card tags", "[holderctl][tags]")
       0
   );
   const auto repeated = nlohmann::json::parse(read_text(repeat_path));
+  // A card that already carries the tag is left as it is, and answers with itself.
   REQUIRE(repeated["ok"] == true);
   REQUIRE(repeated["data"]["card_id"] == first_id);
-  REQUIRE(repeated["data"]["tag"] == "work");
-  REQUIRE(repeated["data"]["outcome"] == "already_present");
-  REQUIRE(repeated["data"]["changed"] == false);
+  REQUIRE(repeated["data"]["tags"].dump().find("\"work\"") != std::string::npos);
+  REQUIRE(
+      card_store.get_content(*card_store.get(first_id)).value() ==
+      repeated["data"]["content"].get<std::string>()
+  );
 
   const auto remove_path = xdg_root / "tag-remove.json";
   REQUIRE(
@@ -1693,23 +1696,27 @@ TEST_CASE("holderctl tags query and mutate live card tags", "[holderctl][tags]")
   );
   const auto removed = nlohmann::json::parse(read_text(remove_path));
   REQUIRE(removed["data"]["card_id"] == first_id);
-  REQUIRE(removed["data"]["outcome"] == "removed");
-  REQUIRE(removed["data"]["changed"] == true);
+  REQUIRE(removed["data"]["tags"].dump().find("\"work\"") == std::string::npos);
 
   const auto missing_path = xdg_root / "tag-missing.out";
   REQUIRE(
       run_command(bin + " tag remove 'First Tagged' work > \"" + missing_path.string() + "\"") == 0
   );
-  REQUIRE(read_text(missing_path) == "Tag #work is not present on 12345678.\n");
+  REQUIRE(read_text(missing_path) == "Card 12345678 does not have tag #work.\n");
 
-  const auto prose_path = xdg_root / "tag-prose.out";
+  // Holder does not rewrite prose, so the tag would stay: a conflict.
+  const auto prose_path = xdg_root / "tag-prose.json";
   REQUIRE(
-      run_command(bin + " tag remove 'Prose Tagged' PROSE > \"" + prose_path.string() + "\"") == 0
+      run_command(
+          bin + " tag remove 'Prose Tagged' PROSE --json >/dev/null 2> \"" + prose_path.string() +
+          "\""
+      ) == 1
   );
+  const auto prose = nlohmann::json::parse(read_text(prose_path));
+  REQUIRE(prose["error"]["code"] == "conflict");
+  REQUIRE(prose["error"]["message"].get<std::string>().find("in its prose") != std::string::npos);
   REQUIRE(
-      read_text(prose_path) ==
-      "Tag #prose was not removed from 87654321: it appears outside the editable trailing tag "
-      "line; edit the card text directly.\n"
+      card_store.get_content(*card_store.get(prose_id)).value() == "Keep #Prose in this sentence."
   );
   REQUIRE(
       card_store.get_content(*card_store.get(prose_id)).value() == "Keep #Prose in this sentence."
@@ -1724,7 +1731,7 @@ TEST_CASE("holderctl tags query and mutate live card tags", "[holderctl][tags]")
   );
   const auto invalid = nlohmann::json::parse(read_text(invalid_path));
   REQUIRE(invalid["ok"] == false);
-  REQUIRE(invalid["error"]["code"] == "invalid_tag");
+  REQUIRE(invalid["error"]["code"] == "invalid_argument");
 
   const auto ambiguous_path = xdg_root / "tag-ambiguous.json";
   REQUIRE(
@@ -4539,13 +4546,10 @@ TEST_CASE(
   for (const auto& item : std::vector<Case>{
            {"tags", empty, "No tags."},
            {"tags work", empty, "No cards tagged #work."},
-           {"tag add card work",
-            {{"card_id", "card-one"}, {"tag", "work"}, {"outcome", "already_present"}},
-            "already present"},
-           {"tag remove card work",
-            {{"card_id", "card-one"}, {"tag", "work"}, {"outcome", "removed"}},
-            "Removed tag"},
-           {"tag add card work", {{"outcome", "invalid"}}, "Invalid tag mutation", 1},
+           {"tag add card work", {{"card_id", "card-one"}, {"tags", {"work"}}}, "has tag #work"},
+           {"tag remove card work", {{"card_id", "card-one"}, {"tags", empty}}, "does not have tag"},
+           // A card that does not show the change is not a valid answer.
+           {"tag add card work", {{"card_id", "card-one"}, {"tags", empty}}, "Invalid tag mutation", 1},
            {"history", {{"activities", empty}, {"scan_limited", true}}, "History scan limit reached"
            },
            {"history card", {{"entries", empty}}, "No card history."},

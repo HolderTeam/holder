@@ -53,6 +53,16 @@ int main() {
   send(*context, "DELETE", "/projects/p1/cards/c1?children=everything");
   send(*context, "POST", "/projects/p1/cards/c1/restore");
   send(*context, "POST", "/projects/p1/cards/c1/restore");
+  // Tags.
+  send(*context, "PUT", "/projects/p1/cards/c1/tags/idea");
+  send(*context, "PUT", "/projects/p1/cards/c1/tags/idea");
+  send(*context, "PUT", "/projects/p1/cards/c1/tags/a%2Fb");
+  send(*context, "DELETE", "/projects/p1/cards/c1/tags/idea");
+  send(*context, "DELETE", "/projects/p1/cards/c1/tags/absent");
+  send(*context, "PUT", "/projects/p1/cards/c1/tags/%23idea");
+  send(*context, "PUT", "/projects/p1/cards/c1/tags/");
+  send(*context, "GET", "/projects/p1/tags");
+  send(*context, "GET", "/projects/p2/tags");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

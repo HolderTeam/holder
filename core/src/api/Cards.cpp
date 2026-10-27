@@ -11,11 +11,14 @@
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "card/TagExtractor.h"
+#include "card/TagLineEditor.h"
+#include "card/TagRepo.h"
 #include "identity/Uuid.h"
 #include "project/ProjectRepo.h"
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <set>
@@ -361,6 +364,51 @@ Card move(holder_context& context, const std::string& project_id, const std::str
   return read_back(context, store, card_id);
 }
 
+// A tag, checked before anything is read: an argument that is not a tag is invalid whatever the card.
+std::string checked_tag(const std::string& tag) {
+  if (!holder::core::is_valid_tag(tag)) throw InvalidArgument("not a tag: " + tag);
+  return tag;
+}
+
+Card add_tag(holder_context& context, const std::string& project_id, const std::string& card_id,
+             const std::string& tag) {
+  checked_tag(tag);
+  auto store = card_store(context);
+  live_card(store, project_id, card_id);
+  // A card that already carries the tag, anywhere in its content, is left as it is.
+  store.add_tag(card_id, tag, now_epoch_seconds());
+  return read_back(context, store, card_id);
+}
+
+Card remove_tag(holder_context& context, const std::string& project_id, const std::string& card_id,
+                const std::string& tag) {
+  checked_tag(tag);
+  const auto normalized = holder::core::normalize_tag(tag);
+  auto store = card_store(context);
+  const auto card = live_card(store, project_id, card_id);
+  const auto content = store.get_content(card);
+  if (!content) throw NotFound("card content missing: " + card_id);
+  // Only the trailing tag line is edited. A card that would still carry the tag, in its prose, is left as it is.
+  const auto carries = [&](const std::string& body) {
+    const auto tags = holder::core::extract_tags(body);
+    return std::find(tags.begin(), tags.end(), normalized) != tags.end();
+  };
+  if (!carries(*content)) return read_back(context, store, card_id);
+  if (carries(holder::core::remove_from_trailing_tag_line(*content, normalized).new_body))
+    throw Conflict("the card carries #" + normalized +
+                   " in its prose, which Holder does not rewrite; edit its content to remove it");
+  store.remove_tag(card_id, tag, now_epoch_seconds());
+  return read_back(context, store, card_id);
+}
+
+std::vector<TagCount> project_tags(holder_context& context, const std::string& project_id) {
+  if (!holder::project::ProjectRepo(context.db).get(project_id)) throw NotFound("project not found: " + project_id);
+  std::vector<TagCount> out;
+  for (auto& [tag, card_count] : holder::card::TagRepo(context.db).list_project_tags(project_id))
+    out.push_back({std::move(tag), card_count});
+  return out;
+}
+
 } // namespace
 
 Card get_card(holder_context& context, std::string project_id, std::string card_id) {
@@ -394,6 +442,18 @@ Card restore_card(holder_context& context, std::string project_id, std::string c
 
 Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move) {
   return with_contract_errors([&] { return holder::contract::move(context, project_id, card_id, move); });
+}
+
+Card add_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
+  return with_contract_errors([&] { return add_tag(context, project_id, card_id, tag); });
+}
+
+Card remove_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
+  return with_contract_errors([&] { return remove_tag(context, project_id, card_id, tag); });
+}
+
+std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id) {
+  return with_contract_errors([&] { return project_tags(context, project_id); });
 }
 
 } // namespace holder::contract

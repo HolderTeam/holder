@@ -127,6 +127,35 @@ Card move_card(holder_context& context, std::string project_id, std::string card
   return card;
 }
 
+
+Card add_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
+  if (tag.front() == '#') throw InvalidArgument("not a tag: " + tag);
+  auto& card = live_card(context, project_id, card_id);
+  if (std::find(card.tags.begin(), card.tags.end(), tag) == card.tags.end()) {
+    card.content += "\n#" + tag;
+    card.tags.push_back(tag);
+  }
+  return card;
+}
+
+// The stand-in treats every tag as one in the card's prose.
+Card remove_card_tag(holder_context& context, std::string project_id, std::string card_id, std::string tag) {
+  auto& card = live_card(context, project_id, card_id);
+  if (std::find(card.tags.begin(), card.tags.end(), tag) != card.tags.end())
+    throw Conflict("the card carries #" + tag + " only in its prose");
+  return card;
+}
+
+std::vector<TagCount> list_project_tags(holder_context& context, std::string project_id) {
+  if (project_id != "p1") throw NotFound("project not found: " + project_id);
+  std::map<std::string, std::int32_t> counts;
+  for (const auto& [id, card] : context.cards)
+    if (!card.deleted_at)
+      for (const auto& tag : card.tags) ++counts[tag];
+  std::vector<TagCount> out;
+  for (const auto& [tag, count] : counts) out.push_back({tag, count});
+  return out;
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

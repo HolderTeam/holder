@@ -22,3 +22,8 @@ trash: status 0, deleted at 1793000100
 get a trashed card: status 100, card not found: c1
 restore: status 0, deleted_at null
 restore a live card: status 101, the card is not in the trash: c1
+add a tag: status 0, tags 2, last 'idea'
+add a tag with its #: status 1, not a tag: #idea
+remove a tag in the prose: status 101, the card carries #idea only in its prose
+list tags: status 0, 2 tags, first draft on 1
+list tags of a missing project: status 100, project not found: p2
