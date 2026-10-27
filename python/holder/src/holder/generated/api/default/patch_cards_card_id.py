@@ -6,8 +6,8 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_patch_response import CardPatchResponse
-from ...models.card_update_request import CardUpdateRequest
+from ...models.card_response import CardResponse
+from ...models.card_update import CardUpdate
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
@@ -15,7 +15,7 @@ from ...types import Response
 def _get_kwargs(
     card_id: str,
     *,
-    body: CardUpdateRequest,
+    body: CardUpdate,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -36,9 +36,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardPatchResponse | ErrorResponse | None:
+) -> CardResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardPatchResponse.from_dict(response.json())
+        response_200 = CardResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,15 +57,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -80,7 +80,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardPatchResponse | ErrorResponse]:
+) -> Response[CardResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -93,22 +93,28 @@ def sync_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardUpdateRequest,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Update card content and/or title
+    body: CardUpdate,
+) -> Response[CardResponse | ErrorResponse]:
+    """Change a card.
 
-     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash is not found, and neither is a new parent that does not exist or is in the trash; a
+    parent under
+    the card itself is an InvalidMove.
 
     Args:
         card_id (str):
-        body (CardUpdateRequest):
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -127,22 +133,28 @@ def sync(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardUpdateRequest,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Update card content and/or title
+    body: CardUpdate,
+) -> CardResponse | ErrorResponse | None:
+    """Change a card.
 
-     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash is not found, and neither is a new parent that does not exist or is in the trash; a
+    parent under
+    the card itself is an InvalidMove.
 
     Args:
         card_id (str):
-        body (CardUpdateRequest):
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -156,22 +168,28 @@ async def asyncio_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardUpdateRequest,
-) -> Response[CardPatchResponse | ErrorResponse]:
-    """Update card content and/or title
+    body: CardUpdate,
+) -> Response[CardResponse | ErrorResponse]:
+    """Change a card.
 
-     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash is not found, and neither is a new parent that does not exist or is in the trash; a
+    parent under
+    the card itself is an InvalidMove.
 
     Args:
         card_id (str):
-        body (CardUpdateRequest):
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardPatchResponse | ErrorResponse]
+        Response[CardResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -188,22 +206,28 @@ async def asyncio(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: CardUpdateRequest,
-) -> CardPatchResponse | ErrorResponse | None:
-    """Update card content and/or title
+    body: CardUpdate,
+) -> CardResponse | ErrorResponse | None:
+    """Change a card.
 
-     Content and title are written first, then parent_card_id and sort_key, each as its own commit.
+     Each field left out keeps its value, and an update that leaves every field out changes nothing. The
+    title and
+    content are written first, then the parent and place, each as its own change in the project's
+    history. A card
+    in the trash is not found, and neither is a new parent that does not exist or is in the trash; a
+    parent under
+    the card itself is an InvalidMove.
 
     Args:
         card_id (str):
-        body (CardUpdateRequest):
+        body (CardUpdate): Changes to a card. Each field left out keeps its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardPatchResponse | ErrorResponse
+        CardResponse | ErrorResponse
     """
 
     return (

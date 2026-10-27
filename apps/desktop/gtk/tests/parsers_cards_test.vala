@@ -234,7 +234,7 @@ private void test_parse_card_links_missing_data_is_protocol_error() {
 
 private void test_parse_card_move_result_full_and_defaults() {
     var full = parse_json_object(
-        "{\"card_id\":\"c1\",\"parent_card_id\":\"p\",\"sort_key\":2.0,\"revision\":7,\"moved_into_title\":\"Inbox\"}"
+        "{\"card_id\":\"c1\",\"parent_card_id\":\"p\",\"sort_key\":2.0,\"title\":\"Inbox\"}"
     );
 
     HolderLinux.CardMoveResult moved;
@@ -246,11 +246,9 @@ private void test_parse_card_move_result_full_and_defaults() {
     assert(moved.card_id == "c1");
     assert(moved.parent_card_id == "p");
     assert(moved.sort_key == 2.0);
-    assert(moved.revision == 7);
-    assert(moved.moved_into_title == "Inbox");
 
     var defaults = parse_json_object(
-        "{\"card_id\":\"c2\",\"parent_card_id\":null,\"sort_key\":1.0,\"revision\":8}"
+        "{\"card_id\":\"c2\",\"parent_card_id\":null,\"sort_key\":1.0}"
     );
     HolderLinux.CardMoveResult moved_default;
     try {
@@ -259,7 +257,6 @@ private void test_parse_card_move_result_full_and_defaults() {
         assert_not_reached();
     }
     assert(moved_default.parent_card_id == null);
-    assert(moved_default.moved_into_title == "");
 }
 
 private void test_parse_card_move_result_missing_fields_is_protocol_error() {

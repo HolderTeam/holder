@@ -46,7 +46,7 @@ int command_move(const holder::core::Paths& paths, int argc, char* argv[]) {
   const auto project_id = json_string(project, "project_id");
   const auto card_id =
       resolve_card_reference(paths, project_id, card_reference, CardReferenceScope::Live);
-  nlohmann::json body = {{"project_id", project_id}};
+  nlohmann::json body = nlohmann::json::object();
   if (intent == "top-level") {
     // An explicit null parent is the project's top level; the card goes after the last root.
     body["intent"] = "to_end";
@@ -67,15 +67,16 @@ int command_move(const holder::core::Paths& paths, int argc, char* argv[]) {
     return 0;
   }
   const auto& data = payload.at("data");
-  if (intent == "into" && data.contains("moved_into_title") &&
-      data.at("moved_into_title").is_string()) {
-    std::cout << "Moved card " << display_card_id(card_id) << " into "
-              << data.at("moved_into_title").get<std::string>() << "\n";
-  } else if (intent == "top-level") {
+  if (intent == "top-level") {
     std::cout << "Moved card " << display_card_id(card_id) << " to the top level\n";
   } else if (intent == "into") {
+    // The move answers with the card; its new parent's title comes from the parent.
+    const auto parent_id = json_string(data, "parent_card_id");
+    const auto parent = card_api_request(
+        paths, boost::beast::http::verb::get, "/cards/" + url_encode_component(parent_id)
+    );
     std::cout << "Moved card " << display_card_id(card_id) << " into "
-              << display_card_id(json_string(data, "parent_card_id")) << "\n";
+              << json_string(parent.at("data"), "title") << "\n";
   } else {
     std::cout << "Moved card " << display_card_id(card_id) << " " << intent << " "
               << display_card_id(json_string(body, "target_card_id")) << "\n";

@@ -418,14 +418,11 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
 
     // Without a parent_card_id the daemon keeps the card's current parent. The field is left out
     // rather than sent as null, which the daemon reads as the project's top level.
-    internal static string build_move_card_body_text(string project_id,
-                                                     string intent,
+    internal static string build_move_card_body_text(string intent,
                                                      string? target_card_id,
                                                      string? parent_card_id) {
         var body = new Json.Builder();
         body.begin_object();
-        body.set_member_name("project_id");
-        body.add_string_value(project_id);
         body.set_member_name("intent");
         body.add_string_value(intent);
         if (target_card_id != null && target_card_id.strip().length > 0) {
@@ -443,14 +440,13 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
 
     public static async CardMoveResult move_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                  string card_id,
-                                                 string project_id,
                                                  string intent,
                                                  string? target_card_id = null,
                                                  string? parent_card_id = null) throws Error {
         var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "POST",
             "/cards/%s/move".printf(Uri.escape_string(card_id)),
-            build_move_card_body_text(project_id, intent, target_card_id, parent_card_id),
+            build_move_card_body_text(intent, target_card_id, parent_card_id),
             null
         );
         if (!root.has_member("data")) {

@@ -1212,8 +1212,10 @@ TEST_CASE("NudgeService covers helper edge cases and runner fallback behaviour",
     REQUIRE(prompt.find("Current card body:") == std::string::npos);
     REQUIRE(prompt.find("Sibling cards: ") != std::string::npos);
     REQUIRE(prompt.find("Recent Empty") != std::string::npos);
+    // The first eight titled siblings, in sibling order: their sort keys tie, so by card ID.
     REQUIRE(prompt.find("Sibling 0") != std::string::npos);
-    REQUIRE(prompt.find("Sibling 6") != std::string::npos);
+    REQUIRE(prompt.find("Sibling 5") != std::string::npos);
+    REQUIRE(prompt.find("Sibling 6") == std::string::npos);
     REQUIRE(prompt.find("Sibling 7") == std::string::npos);
     REQUIRE(prompt.find("Sibling 8") == std::string::npos);
     REQUIRE(prompt.find("Sibling card excerpts:\n") != std::string::npos);

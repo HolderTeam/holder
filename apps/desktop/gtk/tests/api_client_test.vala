@@ -1545,13 +1545,13 @@ private void test_move_card_posts_move_endpoint() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"p1\",\"sort_key\":2048.0,\"revision\":7,\"moved_into_title\":\"Parent\"}}"
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"p1\",\"sort_key\":2048.0}}"
     );
     var client = make_client(transport);
 
     bool done = false;
     HolderLinux.CardMoveResult? result = null;
-    client.move_card.begin("c42", "proj-1", "into", "p1", null, (obj, res) => {
+    client.move_card.begin("c42", "into", "p1", null, (obj, res) => {
         try {
             result = client.move_card.end(res);
         } catch (Error e) {
@@ -1564,8 +1564,6 @@ private void test_move_card_posts_move_endpoint() {
     assert(result != null);
     assert(result.card_id == "c42");
     assert(result.parent_card_id == "p1");
-    assert(result.revision == 7);
-    assert(result.moved_into_title == "Parent");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/cards/c42/move"));
     assert(transport.last_content_type == "application/json");
@@ -1575,20 +1573,20 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":null,\"sort_key\":10.0,\"revision\":1,\"moved_into_title\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":null,\"sort_key\":10.0}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"parent-1\",\"sort_key\":11.0,\"revision\":2,\"moved_into_title\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"parent-1\",\"sort_key\":11.0}}"
     );
     var client = make_client(transport);
 
     bool done_start = false;
     bool ok_start = false;
-    client.move_card.begin("c42", "proj-1", "to_start", null, null, (obj, res) => {
+    client.move_card.begin("c42", "to_start", null, null, (obj, res) => {
         try {
             var moved = client.move_card.end(res);
-            ok_start = (moved.card_id == "c42" && moved.revision == 1);
+            ok_start = (moved.card_id == "c42" && moved.sort_key == 10.0);
         } catch (Error e) {
             ok_start = false;
         }
@@ -1599,10 +1597,10 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
 
     bool done_end = false;
     bool ok_end = false;
-    client.move_card.begin("c42", "proj-1", "to_end", null, "parent-1", (obj, res) => {
+    client.move_card.begin("c42", "to_end", null, "parent-1", (obj, res) => {
         try {
             var moved = client.move_card.end(res);
-            ok_end = (moved.card_id == "c42" && moved.parent_card_id == "parent-1" && moved.revision == 2);
+            ok_end = (moved.card_id == "c42" && moved.parent_card_id == "parent-1" && moved.sort_key == 11.0);
         } catch (Error e) {
             ok_end = false;
         }
@@ -1622,19 +1620,19 @@ private void test_move_card_body_omits_absent_parent() {
     foreach (var intent in new string[] { "to_start", "to_end" }) {
         foreach (var parent in new string?[] { null, "", "  " }) {
             var body = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
-                "proj-1", intent, null, parent
+                intent, null, parent
             );
             assert(body.contains("\"intent\":\"%s\"".printf(intent)));
             assert(!body.contains("parent_card_id"));
         }
         var scoped = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
-            "proj-1", intent, null, "parent-1"
+            intent, null, "parent-1"
         );
         assert(scoped.contains("\"parent_card_id\":\"parent-1\""));
     }
 
     var into = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
-        "proj-1", "into", "target-1", "parent-1"
+        "into", "target-1", "parent-1"
     );
     assert(into.contains("\"target_card_id\":\"target-1\""));
     assert(!into.contains("parent_card_id"));
@@ -1647,7 +1645,7 @@ private void test_move_card_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.move_card.begin("c42", "proj-1", "after", "c9", null, (obj, res) => {
+    client.move_card.begin("c42", "after", "c9", null, (obj, res) => {
         try {
             client.move_card.end(res);
         } catch (Error e) {
@@ -1664,13 +1662,13 @@ private void test_move_card_missing_required_fields_is_protocol_error() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"sort_key\":2048.0}}"
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\"}}"
     );
     var client = make_client(transport);
 
     bool done = false;
     bool got_protocol = false;
-    client.move_card.begin("c42", "proj-1", "after", "c9", null, (obj, res) => {
+    client.move_card.begin("c42", "after", "c9", null, (obj, res) => {
         try {
             client.move_card.end(res);
         } catch (Error e) {

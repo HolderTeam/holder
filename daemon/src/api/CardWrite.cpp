@@ -21,12 +21,12 @@ holder::model::Card find_card(holder::card::CardStore& card_store, const std::st
   return std::move(*card);
 }
 
-std::string placement_message(holder::card::CardPlacementErrorCode code, bool target_style) {
+std::string placement_message(holder::card::CardPlacementErrorCode code) {
   using Code = holder::card::CardPlacementErrorCode;
   switch (code) {
   case Code::CardNotFound: return "Card not found.";
   case Code::CrossProjectMoveForbidden: return "Source card is in a different project.";
-  case Code::TargetNotFound: return target_style ? "Target card not found." : "Parent card not found.";
+  case Code::TargetNotFound: return "Parent card not found.";
   case Code::MoveWouldCreateCycle: return "Move would create a cycle.";
   case Code::InvalidTarget: return "Target card is invalid for requested move.";
   case Code::AlreadyAtProjectRoot: return "Card is already at project root.";
@@ -44,40 +44,8 @@ template <typename Write> void write_card(Write&& write) {
   } catch (const holder::privacy::PrivacyError& error) {
     support::throw_privacy_failure(error);
   } catch (const holder::card::CardPlacementError& error) {
-    throw std::invalid_argument(placement_message(error.code(), false));
+    throw std::invalid_argument(placement_message(error.code()));
   }
-}
-
-[[noreturn]] void throw_move_failure(const holder::card::CardPlacementError& error,
-                                     bool target_style) {
-  using Code = holder::card::CardPlacementErrorCode;
-  const auto message = placement_message(error.code(), target_style);
-  switch (error.code()) {
-  case Code::CardNotFound: throw CardWriteNotFound(message);
-  case Code::TargetNotFound: throw CardMoveTargetNotFound(message);
-  case Code::MissingTargetCardId:
-  case Code::InvalidMoveIntent: throw CardWriteInvalid(error.what(), message);
-  case Code::AlreadyAtProjectRoot: throw CardWriteRejected("invalid_move_intent", message);
-  case Code::CrossProjectMoveForbidden:
-  case Code::MoveWouldCreateCycle:
-  case Code::InvalidTarget: break;
-  }
-  throw CardWriteRejected(error.what(), message);
-}
-
-holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
-  using Intent = holder::card::CardPlacementIntent;
-  switch (intent) {
-  case CardMoveIntent::into: return Intent::Into;
-  case CardMoveIntent::before: return Intent::Before;
-  case CardMoveIntent::after: return Intent::After;
-  case CardMoveIntent::left: return Intent::Left;
-  case CardMoveIntent::right: return Intent::Right;
-  case CardMoveIntent::to_start: return Intent::ToStart;
-  case CardMoveIntent::to_end: return Intent::ToEnd;
-  case CardMoveIntent::up_level: break;
-  }
-  return Intent::UpLevel;
 }
 
 // The live card in project_id whose tags change.
@@ -102,81 +70,6 @@ CardTagMutationResponse tag_result(std::string card_id, const std::string& tag,
 }
 
 } // namespace
-
-CardPatchResponse patch_cards_card_id(holder::card::CardStore* card_store,
-                                      std::string card_id,
-                                      CardUpdateRequest request) {
-  auto& store = require_card_store(card_store);
-  const bool placing = request.parent_card_id || request.sort_key;
-  if (!request.content && !request.title && !placing)
-    throw std::invalid_argument("No updatable fields supplied.");
-  if (request.title && !request.content)
-    throw std::invalid_argument("content is required when updating title.");
-  const auto card = find_card(store, card_id);
-  if (placing && card.deleted_at) throw std::invalid_argument("Card is in Trash.");
-
-  write_card([&] {
-    if (request.content) {
-      store.update_content(card_id, *request.content, request.title.value_or(std::nullopt),
-                           request.updated_at);
-    }
-    if (placing) {
-      store.move(card_id, request.parent_card_id.has_value(),
-                 request.parent_card_id.value_or(std::nullopt), request.sort_key,
-                 request.updated_at);
-    }
-  });
-  return {true, {std::move(card_id)}};
-}
-
-CardPatchResponse delete_cards_card_id(holder::card::CardStore* card_store,
-                                       std::string card_id,
-                                       std::string children) {
-  auto& store = require_card_store(card_store);
-  if (find_card(store, card_id).deleted_at)
-    throw std::invalid_argument("Card is already in Trash.");
-  const auto mode = children == "trash_subtree" ? holder::card::TrashChildren::TrashSubtree
-                                                : holder::card::TrashChildren::Promote;
-  write_card([&] { store.trash(card_id, support::now_epoch_seconds(), mode); });
-  return {true, {std::move(card_id)}};
-}
-
-CardMoveResponse post_cards_card_id_move(holder::card::CardStore* card_store,
-                                         std::string card_id,
-                                         CardMoveRequest request) {
-  auto& store = require_card_store(card_store);
-  holder::card::CardPlacementRequest placement;
-  placement.intent = placement_intent(request.intent);
-  placement.target_card_id = request.target_card_id.value_or(std::nullopt);
-  // An omitted parent_card_id keeps the card's current parent; null is the project's top level.
-  placement.has_parent_card_id = request.parent_card_id.has_value();
-  placement.parent_card_id = request.parent_card_id.value_or(std::nullopt);
-
-  holder::card::CardMoveResult result;
-  try {
-    result = store.move_to(request.project_id, card_id, placement, support::now_epoch_seconds());
-  } catch (const holder::privacy::PrivacyError& error) {
-    support::throw_privacy_failure(error);
-  } catch (const holder::card::CardPlacementError& error) {
-    const bool target_style = request.intent == CardMoveIntent::into ||
-                              request.intent == CardMoveIntent::before ||
-                              request.intent == CardMoveIntent::after;
-    throw_move_failure(error, target_style);
-  }
-  auto& moved = result.card;
-  return {true,
-          {std::move(moved.card_id), std::move(moved.parent_card_id), moved.sort_key,
-           moved.updated_at,
-           std::optional<std::optional<std::string>>(std::move(result.moved_into_title))}};
-}
-
-CardPatchResponse post_cards_card_id_restore(holder::card::CardStore* card_store,
-                                             std::string card_id) {
-  auto& store = require_card_store(card_store);
-  if (!find_card(store, card_id).deleted_at) throw std::invalid_argument("Card is not in Trash.");
-  write_card([&] { store.restore(card_id, support::now_epoch_seconds()); });
-  return {true, {std::move(card_id)}};
-}
 
 CardTagMutationResponse post_cards_card_id_tags(holder::card::CardStore* card_store,
                                                 std::string card_id,

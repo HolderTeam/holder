@@ -266,7 +266,7 @@ std::vector<holder::model::Card> CardRepo::list_roots(const std::string& project
       "SELECT card_id, project_id, title, rel_path, parent_card_id, sort_key, "
       "created_at, updated_at, deleted_at "
       "FROM cards WHERE project_id = ? AND parent_card_id IS NULL "
-      "ORDER BY sort_key ASC, updated_at DESC;";
+      "ORDER BY sort_key ASC, card_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list cards failed");
@@ -297,7 +297,7 @@ std::vector<holder::model::Card> CardRepo::list_children(
       "SELECT card_id, project_id, title, rel_path, parent_card_id, sort_key, "
       "created_at, updated_at, deleted_at "
       "FROM cards WHERE project_id = ? AND parent_card_id = ? "
-      "ORDER BY sort_key ASC, updated_at DESC;";
+      "ORDER BY sort_key ASC, card_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list child cards failed");
@@ -325,7 +325,7 @@ std::vector<holder::model::Card> CardRepo::list_all(const std::string& project_i
       "SELECT card_id, project_id, title, rel_path, parent_card_id, sort_key, "
       "created_at, updated_at, deleted_at "
       "FROM cards WHERE project_id = ? "
-      "ORDER BY sort_key ASC, updated_at DESC;";
+      "ORDER BY sort_key ASC, card_id ASC;";
   sqlite3_stmt* stmt = nullptr;
   if (sqlite3_prepare_v2(db_.handle(), SQL, -1, &stmt, nullptr) != SQLITE_OK) {
     throw_sqlite(db_.handle(), "prepare list all cards failed");

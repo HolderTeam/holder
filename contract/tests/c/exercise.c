@@ -93,6 +93,41 @@ int main(void) {
                                                        NULL, NULL, false, false, arena, &page, &error);
     report("list a missing project", status, &error);
 
+    /* A partial update keeps what it leaves out. */
+    holder_card_update update = {0};
+    update.title = "Thesis, revised";
+    update.parent_card_id.change = HOLDER_SET;
+    update.parent_card_id.value = "c2";
+    status = holder_update_card(context, "c1", &update, arena, &card, &error);
+    printf("update: status %d, %s, content '%s', parent %s\n", status, card->title, card->content,
+           card->parent_card_id);
+    holder_card_update clear = {0};
+    clear.parent_card_id.change = HOLDER_CLEAR;
+    status = holder_update_card(context, "c1", &clear, arena, &card, &error);
+    printf("clear the parent: status %d, %s, parent %s\n", status, card->title,
+           card->parent_card_id ? card->parent_card_id : "null");
+    clear.parent_card_id.change = (holder_change)9;
+    status = holder_update_card(context, "c1", &clear, arena, &card, &error);
+    report("update with an unknown change", status, &error);
+
+    holder_card_move move = {0};
+    move.intent = HOLDER_CARD_MOVE_INTENT_INTO;
+    move.target_card_id = "c1";
+    status = holder_move_card(context, "c1", &move, arena, &card, &error);
+    report("move a card into itself", status, &error);
+    move.intent = (holder_card_move_intent)0;
+    status = holder_move_card(context, "c1", &move, arena, &card, &error);
+    report("move with no intent", status, &error);
+
+    status = holder_trash_card(context, "c1", HOLDER_TRASH_CARD_CHILDREN_DEFAULT, arena, &card, &error);
+    printf("trash: status %d, deleted at %lld\n", status, (long long)*card->deleted_at);
+    status = holder_get_card(context, "c1", arena, &card, &error);
+    report("get a trashed card", status, &error);
+    status = holder_restore_card(context, "c1", arena, &card, &error);
+    printf("restore: status %d, deleted_at %s\n", status, card->deleted_at ? "set" : "null");
+    status = holder_restore_card(context, "c1", arena, &card, &error);
+    report("restore a live card", status, &error);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

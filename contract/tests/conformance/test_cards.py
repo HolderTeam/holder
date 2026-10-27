@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 from hypothesis import HealthCheck, event, settings
 from hypothesis import strategies as st
-from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, precondition, rule
+from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
 
 from holder_capi import Core, OperationError, Unrepresentable
 from holder_contract.extract import extract, load_contract
@@ -168,13 +168,17 @@ class Cards(RuleBasedStateMachine):
         else:
             assert before <= created["created_at"] <= after
         assert created["updated_at"] == card.get("updated_at", created["created_at"])
-        content = created["content"].encode()
-        for occurrence in created["tag_occurrences"]:
+        self.check_tags(created)
+        self.cards[created["card_id"]] = created
+
+    def check_tags(self, card: dict) -> None:
+        """The card's tags are the ones written in its content."""
+        content = card["content"].encode()
+        for occurrence in card["tag_occurrences"]:
             written = content[occurrence["byte_start"]:occurrence["byte_end"]].decode()
             assert written[:1] == "#" and written[1:].lower() == occurrence["tag"], occurrence
             assert valid_tag(occurrence["tag"])
-        assert sorted(created["tags"]) == sorted({o["tag"] for o in created["tag_occurrences"]})
-        self.cards[created["card_id"]] = created
+        assert sorted(card["tags"]) == sorted({o["tag"] for o in card["tag_occurrences"]})
 
     @rule(data=st.data())
     def get_card(self, data):
@@ -208,16 +212,211 @@ class Cards(RuleBasedStateMachine):
         assert seen == [c["card_id"] for c in self.ordered(self.live(), order)]
         event(f"paged through {min(len(seen), 5)}{'+' if len(seen) >= 5 else ''} cards")
 
-    @precondition(lambda self: self.live())
+    # ---- the hierarchy ------------------------------------------------------------------------
+
+    def under(self, card_id: str | None, ancestor: str) -> bool:
+        """Whether card_id is ancestor or one of its descendants."""
+        seen = set()
+        while card_id is not None and card_id not in seen:
+            if card_id == ancestor:
+                return True
+            seen.add(card_id)
+            card_id = self.cards[card_id]["parent_card_id"] if card_id in self.cards else None
+        return False
+
+    def reachable(self, card_id: str | None) -> bool:
+        """Whether browsing from the roots reaches the card: it and each of its ancestors are live."""
+        while card_id is not None:
+            if card_id not in self.cards or card_id in self.deleted:
+                return False
+            card_id = self.cards[card_id]["parent_card_id"]
+        return True
+
+    def siblings(self, parent: str | None) -> list[str]:
+        """The live children of parent, or the live root cards, in their order."""
+        return [c["card_id"] for c in self.ordered([c for c in self.live() if c["parent_card_id"] == parent],
+                                                   "sort_key_asc")]
+
+    def refresh(self, card_id: str, *fields: str) -> None:
+        """Take fields a write may change from Holder; the invariant checks the others."""
+        current = self.core.call("get_card", card_id=card_id)
+        for name in fields:
+            self.cards[card_id][name] = current[name]
+
+    def a_card(self, data) -> str:
+        """A card's ID, mostly one the model knows, live or in the trash."""
+        return data.draw(self.values().valid({"kind": "named", "name": "CardId"}))
+
     @rule(data=st.data())
-    def delete_subtree(self, data):
-        card_id = data.draw(st.sampled_from([c["card_id"] for c in self.live()]))
-        self.core.delete_subtree(card_id)
-        pending = [card_id]
-        while pending:
-            parent = pending.pop()
-            self.deleted.add(parent)
-            pending += [c["card_id"] for c in self.live() if c["parent_card_id"] == parent]
+    def update_card(self, data):
+        card_id = self.a_card(data)
+        update = data.draw(self.values().record("CardUpdate"))
+        parent = update.get("parent_card_id", ...)
+        kinds = set()
+        new_parent = parent not in (..., None)
+        if card_id not in self.cards or card_id in self.deleted or (
+                new_parent and (parent not in self.cards or parent in self.deleted)):
+            kinds.add("NotFound")
+        elif parent not in (..., None) and self.under(parent, card_id):
+            kinds.add("InvalidMove")
+        before = int(time.time())
+        updated = self.expect("update_card", kinds, {"card_id": card_id, "update": update})
+        after = int(time.time())
+        if updated is None:
+            return
+        self.conforms("update_card", updated)
+        old = self.cards[card_id]
+        expected = {**old, **{k: update[k] for k in ("title", "content", "sort_key", "parent_card_id") if k in update}}
+        for name in ("card_id", "project_id", "rel_path", "title", "content", "parent_card_id", "created_at",
+                     "deleted_at"):
+            assert updated[name] == expected[name], name
+        if "sort_key" in update or parent in (..., old["parent_card_id"]):
+            assert updated["sort_key"] == expected["sort_key"]
+        # A field set to its current value changes nothing.
+        if any(expected[k] != old[k] for k in ("title", "content", "sort_key", "parent_card_id")):
+            if "updated_at" in update:
+                assert updated["updated_at"] == update["updated_at"]
+            else:
+                assert before <= updated["updated_at"] <= after
+        else:
+            assert updated["updated_at"] == old["updated_at"], "an update with nothing to change wrote"
+        self.check_tags(updated)
+        self.cards[card_id] = updated
+
+    @rule(data=st.data(), children=st.sampled_from(["promote", "trash_subtree"]))
+    def trash_card(self, data, children):
+        card_id = self.a_card(data)
+        live = card_id in self.cards and card_id not in self.deleted
+        before = int(time.time())
+        trashed = self.expect("trash_card", set() if live else {"NotFound"}, {"card_id": card_id, "children": children})
+        after = int(time.time())
+        if trashed is None:
+            return
+        self.conforms("trash_card", trashed)
+        assert before <= trashed["deleted_at"] <= after
+        for name in ("title", "content", "parent_card_id", "project_id", "tags"):
+            assert trashed[name] == self.cards[card_id][name], name
+        children_ids = [c["card_id"] for c in self.live() if c["parent_card_id"] == card_id]
+        order = self.siblings(card_id)
+        self.cards[card_id] = trashed
+        self.deleted.add(card_id)
+        if children == "trash_subtree":
+            pending = list(children_ids)
+            while pending:
+                child = pending.pop()
+                self.deleted.add(child)
+                pending += [c["card_id"] for c in self.live() if c["parent_card_id"] == child]
+        else:
+            # Its children take its place, keeping their own order.
+            for child in children_ids:
+                self.refresh(child, "parent_card_id")
+                assert self.cards[child]["parent_card_id"] == trashed["parent_card_id"]
+            # Cards already there may be re-spaced to make room.
+            for sibling in self.siblings(trashed["parent_card_id"]):
+                self.refresh(sibling, "sort_key", "updated_at")
+            assert [c for c in self.siblings(trashed["parent_card_id"]) if c in children_ids] == order
+
+    @rule(data=st.data())
+    def restore_card(self, data):
+        card_id = self.a_card(data)
+        kinds = set()
+        if card_id not in self.cards:
+            kinds.add("NotFound")
+        elif card_id not in self.deleted:
+            kinds.add("Conflict")
+        before = int(time.time())
+        restored = self.expect("restore_card", kinds, {"card_id": card_id})
+        after = int(time.time())
+        if restored is None:
+            return
+        self.conforms("restore_card", restored)
+        # Its parent when that is reachable, otherwise its nearest reachable ancestor, or the top level.
+        parent = self.cards[card_id]["parent_card_id"]
+        while parent is not None and not self.reachable(parent):
+            parent = self.cards[parent]["parent_card_id"] if parent in self.cards else None
+        assert restored["parent_card_id"] == parent
+        assert restored["deleted_at"] is None
+        assert before <= restored["updated_at"] <= after
+        for name in ("title", "content", "project_id", "tags"):
+            assert restored[name] == self.cards[card_id][name], name
+        # It goes back to its place among its new siblings, by its old sort key.
+        self.deleted.discard(card_id)
+        self.cards[card_id] = {**self.cards[card_id], "parent_card_id": parent}
+        expected = self.siblings(parent)
+        self.cards[card_id] = restored
+        # Siblings may be re-spaced to make room.
+        for sibling in self.siblings(parent):
+            if sibling != card_id:
+                self.refresh(sibling, "sort_key", "updated_at")
+        assert self.siblings(parent) == expected
+
+    @rule(data=st.data())
+    def move_card(self, data):
+        card_id = self.a_card(data)
+        move = data.draw(self.values().record("CardMove"))
+        intent, target = move["intent"], move.get("target_card_id")
+        scoped = intent in ("left", "right", "to_start", "to_end")
+        live = card_id in self.cards and card_id not in self.deleted
+
+        def known(other):
+            return other in self.cards and other not in self.deleted
+
+        kinds = set()
+        parent = None
+        if not live:
+            kinds.add("NotFound")
+        elif intent in ("into", "before", "after"):
+            if target is None:
+                kinds.add("InvalidArgument")
+            elif not known(target):
+                kinds.add("NotFound")
+            else:
+                parent = target if intent == "into" else self.cards[target]["parent_card_id"]
+                if self.under(parent, card_id) or target == card_id:
+                    kinds.add("InvalidMove")
+        elif scoped:
+            parent = move.get("parent_card_id", self.cards[card_id]["parent_card_id"])
+            if parent is not None and not known(parent):
+                kinds.add("NotFound")
+            elif self.under(parent, card_id):
+                kinds.add("InvalidMove")
+        else:
+            up = self.cards[card_id]["parent_card_id"]
+            if up is None:
+                kinds.add("InvalidMove")
+            else:
+                parent = self.cards[up]["parent_card_id"]
+        expected = None
+        if not kinds:
+            destination = [c for c in self.siblings(parent) if c != card_id]
+            current = self.siblings(self.cards[card_id]["parent_card_id"])
+            if intent in ("into", "to_end", "up_level"):
+                expected = destination + [card_id]
+            elif intent == "to_start":
+                expected = [card_id] + destination
+            elif intent in ("before", "after"):
+                at = destination.index(target) + (intent == "after")
+                expected = destination[:at] + [card_id] + destination[at:]
+            elif parent != self.cards[card_id]["parent_card_id"]:
+                parent, expected = self.cards[card_id]["parent_card_id"], current  # nothing to swap with
+            else:
+                expected, i = list(current), current.index(card_id)
+                j = i - 1 if intent == "left" else i + 1
+                if 0 <= j < len(expected):
+                    expected[i], expected[j] = expected[j], expected[i]
+        moved = self.expect("move_card", kinds, {"card_id": card_id, "move": move})
+        if moved is None:
+            return
+        self.conforms("move_card", moved)
+        assert moved["parent_card_id"] == parent
+        for name in ("title", "content", "project_id", "created_at", "deleted_at", "tags"):
+            assert moved[name] == self.cards[card_id][name], name
+        self.cards[card_id] = moved
+        # Siblings may be re-spaced to make room.
+        for sibling in self.siblings(parent):
+            if sibling != card_id:
+                self.refresh(sibling, "sort_key", "updated_at")
+        assert self.siblings(parent) == expected
 
     @rule(data=st.data(), operation=st.sampled_from([op["name"] for op in IR["operations"]]))
     def invalid_arguments_are_rejected(self, data, operation):

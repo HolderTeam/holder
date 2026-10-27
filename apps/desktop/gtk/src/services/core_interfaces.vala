@@ -135,7 +135,6 @@ public interface IHolderApi : Object {
     // trash_subtree sends every live descendant to Trash too; otherwise children move up a level.
     public abstract async void delete_card(string card_id, bool trash_subtree = false) throws Error;
     public abstract async CardMoveResult move_card(string card_id,
-                                                   string project_id,
                                                    string intent,
                                                    string? target_card_id = null,
                                                    string? parent_card_id = null) throws Error;

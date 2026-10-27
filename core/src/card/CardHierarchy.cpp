@@ -110,18 +110,8 @@ std::vector<Card> insert_block(
 } // namespace
 
 bool card_tree_less(const Card& a, const Card& b) {
-  if (a.sort_key < b.sort_key) return true;
-  if (a.sort_key > b.sort_key) return false;
-  if (a.updated_at != b.updated_at) return a.updated_at > b.updated_at;
-  auto lower = [](std::string title) {
-    std::transform(title.begin(), title.end(), title.begin(), [](unsigned char c) {
-      return static_cast<char>(std::tolower(c));
-    });
-    return title;
-  };
-  const auto lhs = lower(a.title);
-  const auto rhs = lower(b.title);
-  return lhs != rhs ? lhs < rhs : a.card_id < b.card_id;
+  if (a.sort_key != b.sort_key) return a.sort_key < b.sort_key;
+  return a.card_id < b.card_id;
 }
 
 std::optional<std::string> reachable_card_parent(CardRepo& repo, const Card& card) {

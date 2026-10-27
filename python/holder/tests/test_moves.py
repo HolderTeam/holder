@@ -23,15 +23,11 @@ from holder.exceptions import (
 )
 
 
-def moved():
-    return ok(
-        {
-            "card_id": "c-0000",
-            "parent_card_id": "c-0001",
-            "sort_key": 42,
-            "revision": 10,
-        }
-    )
+def moved(parent_card_id="c-0001"):
+    """The move's answer: the moved card."""
+    data = card_payload(content=True)
+    data.update(parent_card_id=parent_card_id, sort_key=42, updated_at=10)
+    return ok(data)
 
 
 @pytest.mark.parametrize(
@@ -47,7 +43,6 @@ def test_move_maps_intent_and_refreshes_card(argument, intent):
         if request.method == "POST":
             assert request.url.path == "/cards/c-0000/move"
             assert json.loads(request.content) == {
-                "project_id": "p-0",
                 "intent": intent,
                 "target_card_id": "c-0001",
             }
@@ -91,19 +86,11 @@ def test_move_to_top_level_sends_explicit_null_parent_and_refreshes_card():
         if request.method == "POST":
             assert request.url.path == "/cards/c-0000/move"
             assert json.loads(request.content) == {
-                "project_id": "p-0",
                 "intent": "to_end",
                 "parent_card_id": None,
             }
             changed = True
-            return ok(
-                {
-                    "card_id": "c-0000",
-                    "parent_card_id": None,
-                    "sort_key": 42,
-                    "revision": 10,
-                }
-            )
+            return moved(parent_card_id=None)
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
         data = card_payload(content=True)

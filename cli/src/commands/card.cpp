@@ -141,12 +141,9 @@ CardOptions parse_card_options(int argc, char* argv[]) {
   return options;
 }
 
-nlohmann::json card_update_body(const nlohmann::json& card, const std::string& content) {
-  nlohmann::json body;
-  body["content"] = content;
-  body["title"] = json_string(card, "title");
-  body["updated_at"] = now_epoch_seconds();
-  return body;
+// An update leaves out what it keeps, so only the content is sent.
+nlohmann::json card_update_body(const std::string& content) {
+  return {{"content", content}};
 } // LCOV_EXCL_LINE
 
 std::string shell_quote(const std::string& value) {
@@ -442,7 +439,7 @@ int command_edit(const holder::core::Paths& paths, int argc, char* argv[]) {
         paths,
         boost::beast::http::verb::patch,
         "/cards/" + url_encode_component(card_id),
-        card_update_body(data, edited_content)
+        card_update_body(edited_content)
     );
     remove_temp_file(temp_path);
     std::cout << "Updated card: " << display_card_id(card_id) << "\n";
@@ -527,7 +524,7 @@ int command_append(const holder::core::Paths& paths, int argc, char* argv[]) {
         paths,
         boost::beast::http::verb::patch,
         "/cards/" + url_encode_component(card_id),
-        card_update_body(data, content)
+        card_update_body(content)
     );
     std::cout << "Appended to card: " << display_card_id(card_id) << "\n";
     return 0;

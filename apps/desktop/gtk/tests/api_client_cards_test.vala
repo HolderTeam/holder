@@ -143,7 +143,7 @@ private void test_create_link_missing_data_and_move_missing_data_are_protocol_er
 
     bool done_move = false;
     bool got_move_protocol = false;
-    client.move_card.begin("c1", "p1", "before", "c2", null, (obj, res) => {
+    client.move_card.begin("c1", "before", "c2", null, (obj, res) => {
         try { client.move_card.end(res); } catch (Error e) { got_move_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         done_move = true;
     });
@@ -158,7 +158,7 @@ private void test_create_update_position_and_move_card_success() {
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"card_id\":\"c1\",\"parent_card_id\":null,\"sort_key\":10.5,\"revision\":42,\"moved_into_title\":\"Inbox\"}}"
+        "{\"ok\":true,\"data\":{\"card_id\":\"c1\",\"parent_card_id\":null,\"sort_key\":10.5}}"
     );
     var client = make_client(transport);
 
@@ -193,14 +193,14 @@ private void test_create_update_position_and_move_card_success() {
 
     bool done_move = false;
     HolderLinux.CardMoveResult? moved = null;
-    client.move_card.begin("c1", "p1", "to_start", null, null, (obj, res) => {
+    client.move_card.begin("c1", "to_start", null, null, (obj, res) => {
         try { moved = client.move_card.end(res); } catch (Error e) { moved = null; }
         done_move = true;
     });
     assert(wait_for_condition(() => done_move));
     assert(moved != null);
     assert(moved.card_id == "c1");
-    assert(moved.revision == 42);
+    assert(moved.sort_key == 10.5);
 }
 
 private void test_delete_card_sends_delete_to_card_path() {

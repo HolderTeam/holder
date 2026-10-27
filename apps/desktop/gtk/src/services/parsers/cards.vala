@@ -387,20 +387,17 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
     }
 
     public static CardMoveResult parse_card_move_result(Json.Object data) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        // The move answers with the moved card; only its place is read here.
         if (!data.has_member("card_id") // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-            || !data.has_member("sort_key")
-            || !data.has_member("revision")) {
+            || !data.has_member("sort_key")) {
             throw new ApiError.PROTOCOL("Missing fields for card move result");
         }
 
         var parent = ApiParsersCommon.nullable_string_member_or_null(data, "parent_card_id");
-        var moved_into_title = ApiParsersCommon.string_member_or_empty(data, "moved_into_title");
         return new CardMoveResult( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
             data.get_string_member("card_id"),
             parent,
-            data.get_double_member("sort_key"),
-            data.get_int_member("revision"),
-            moved_into_title
+            data.get_double_member("sort_key")
         );
     }
 }

@@ -160,6 +160,69 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "get_card");
         }
     }
+    static const std::regex route_3("^/cards/([^/]+)$");
+    if (method == "PATCH" && std::regex_match(route_path, match, route_3)) {
+        std::string card_id{};
+        holder::contract::CardUpdate update{};
+        try {
+            card_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            update = contract_json::decode<holder::contract::CardUpdate>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_card");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::update_card(context, std::move(card_id), std::move(update))), "update_card");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "update_card");
+        } catch (const holder::contract::InvalidMove& error) {
+            return failure(422, "invalid_move", error.what(), "update_card");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "update_card");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "update_card");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "update_card");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_card");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "update_card");
+        }
+    }
+    static const std::regex route_4("^/cards/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_4)) {
+        std::string card_id{};
+        holder::contract::TrashCardChildren children{};
+        try {
+            const auto query_values = decode_query(query_string);
+            card_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_children = query_values.find("children");
+            if (query_children != query_values.end()) {
+                const auto& text = query_children->second;
+                if (text == "promote") children = holder::contract::TrashCardChildren::Promote;
+                else if (text == "trash_subtree") children = holder::contract::TrashCardChildren::TrashSubtree;
+                else throw std::invalid_argument("children must be one of promote, trash_subtree");
+            } else {
+                children = holder::contract::TrashCardChildren::Promote;
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "trash_card");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::trash_card(context, std::move(card_id), std::move(children))), "trash_card");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "trash_card");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "trash_card");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "trash_card");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "trash_card");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "trash_card");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "trash_card");
+        }
+    }
     static const std::regex route_1("^/projects/([^/]+)/cards$");
     if (method == "GET" && std::regex_match(route_path, match, route_1)) {
         std::string project_id{};
@@ -239,6 +302,60 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "list_cards");
         }
     }
+    static const std::regex route_5("^/cards/([^/]+)/restore$");
+    if (method == "POST" && std::regex_match(route_path, match, route_5)) {
+        std::string card_id{};
+        try {
+            card_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "restore_card");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::restore_card(context, std::move(card_id))), "restore_card");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "restore_card");
+        } catch (const holder::contract::Conflict& error) {
+            return failure(409, "conflict", error.what(), "restore_card");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "restore_card");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "restore_card");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "restore_card");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "restore_card");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "restore_card");
+        }
+    }
+    static const std::regex route_6("^/cards/([^/]+)/move$");
+    if (method == "POST" && std::regex_match(route_path, match, route_6)) {
+        std::string card_id{};
+        holder::contract::CardMove move{};
+        try {
+            card_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
+            move = contract_json::decode<holder::contract::CardMove>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "move_card");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::move_card(context, std::move(card_id), std::move(move))), "move_card");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "move_card");
+        } catch (const holder::contract::InvalidMove& error) {
+            return failure(422, "invalid_move", error.what(), "move_card");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "move_card");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "move_card");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "move_card");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "move_card");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "move_card");
+        }
+    }
     return std::nullopt;
 }
 
@@ -249,9 +366,13 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     static const std::regex path_0("^/cards$");
     if (std::regex_match(route_path, path_0)) methods.insert({"POST"});
     static const std::regex path_1("^/cards/([^/]+)$");
-    if (std::regex_match(route_path, path_1)) methods.insert({"GET"});
+    if (std::regex_match(route_path, path_1)) methods.insert({"DELETE", "GET", "PATCH"});
     static const std::regex path_2("^/projects/([^/]+)/cards$");
     if (std::regex_match(route_path, path_2)) methods.insert({"GET"});
+    static const std::regex path_3("^/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_3)) methods.insert({"POST"});
+    static const std::regex path_4("^/cards/([^/]+)/move$");
+    if (std::regex_match(route_path, path_4)) methods.insert({"POST"});
     return methods;
 }
 }  // namespace contract_http

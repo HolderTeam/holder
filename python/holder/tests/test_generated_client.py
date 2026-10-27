@@ -33,7 +33,7 @@ from holder.generated.models import (
     AiLocalModelConfigData,
     AiStreamResyncData,
     ByeResponse,
-    CardUpdateRequest,
+    CardUpdate,
     ErrorResponse,
     EventCheckpointResponse,
     EventResyncData,
@@ -323,13 +323,13 @@ def test_patch_preserves_omitted_and_explicit_null_fields():
     def respond(request):
         assert request.method == "PATCH"
         assert request.url.raw_path == b"/cards/card%2Fone"
-        assert json.loads(request.content) == {"updated_at": 123, "title": None}
+        assert json.loads(request.content) == {"updated_at": 123, "parent_card_id": None}
         return httpx.Response(
             401, json={"ok": False, "error": {"code": "auth", "message": "auth"}}
         )
 
-    body = CardUpdateRequest(updated_at=123, title=None)
-    assert CardUpdateRequest.from_dict(body.to_dict()).to_dict() == body.to_dict()
+    body = CardUpdate(updated_at=123, parent_card_id=None)
+    assert CardUpdate.from_dict(body.to_dict()).to_dict() == body.to_dict()
     with Client(
         base_url="http://holder.test",
         httpx_args={

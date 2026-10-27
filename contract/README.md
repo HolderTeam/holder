@@ -6,7 +6,7 @@ These files describe every record, operation, error and event that core, the dae
 
 The operations are a FastAPI app, but a declaration, not a server: each is a route with a typed signature and a docstring, and a body nothing ever calls. The daemon serves the routes from code generated from the contract.
 
-The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing and creating cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`. The daemon's generators write its HTTP routes, their JSON codec and their OpenAPI paths, described in [HTTP.md](HTTP.md).
+The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing, creating, changing, moving, trashing and restoring cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`. The daemon's generators write its HTTP routes, their JSON codec and their OpenAPI paths, described in [HTTP.md](HTTP.md).
 
 ## Layout
 

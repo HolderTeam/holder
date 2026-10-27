@@ -1,4 +1,4 @@
-// A stand-in for core: the three Card operations over an in-memory map, enough to compile and run
+// A stand-in for core: the Card operations over an in-memory map, enough to compile and run
 // the generated C API end to end. Core's real implementation replaces this.
 #include "Contract.h"
 
@@ -75,6 +75,51 @@ Card create_card(holder_context& context, const NewCard& request) {
     card.tag_occurrences = {{"draft", at, at + 6}};
   }
   context.cards[card.card_id] = card;
+  return card;
+}
+
+Card& live_card(holder_context& context, const std::string& card_id) {
+  auto it = context.cards.find(card_id);
+  if (it == context.cards.end() || it->second.deleted_at) throw NotFound("card not found: " + card_id);
+  return it->second;
+}
+
+Card update_card(holder_context& context, std::string card_id, const CardUpdate& update) {
+  auto& card = live_card(context, card_id);
+  if (update.title) card.title = *update.title;
+  if (update.content) card.content = *update.content;
+  if (update.parent_card_id) card.parent_card_id = *update.parent_card_id;
+  if (update.sort_key) card.sort_key = *update.sort_key;
+  if (update.updated_at) card.updated_at = *update.updated_at;
+  return card;
+}
+
+Card trash_card(holder_context& context, std::string card_id, TrashCardChildren children) {
+  auto& card = live_card(context, card_id);
+  card.deleted_at = children == TrashCardChildren::TrashSubtree ? 1793000200 : 1793000100;
+  return card;
+}
+
+Card restore_card(holder_context& context, std::string card_id) {
+  auto it = context.cards.find(card_id);
+  if (it == context.cards.end()) throw NotFound("card not found: " + card_id);
+  if (!it->second.deleted_at) throw Conflict("the card is not in the trash: " + card_id);
+  it->second.deleted_at.reset();
+  return it->second;
+}
+
+Card move_card(holder_context& context, std::string card_id, const CardMove& move) {
+  auto& card = live_card(context, card_id);
+  if (move.intent == CardMoveIntent::Into) {
+    if (!move.target_card_id) throw InvalidArgument("target_card_id is required for into");
+    if (*move.target_card_id == card_id) throw InvalidMove("a card cannot go under itself");
+    card.parent_card_id = *move.target_card_id;
+  } else if (move.intent == CardMoveIntent::UpLevel) {
+    if (!card.parent_card_id) throw InvalidMove("the card is already at the top level");
+    card.parent_card_id = std::nullopt;
+  } else if (move.parent_card_id) {
+    card.parent_card_id = *move.parent_card_id;
+  }
   return card;
 }
 
