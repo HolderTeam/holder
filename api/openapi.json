@@ -13180,39 +13180,91 @@
         ]
       },
       "Card": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/CardMetadata"
+        "type": "object",
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The card's ID."
           },
-          {
-            "type": "object",
-            "properties": {
-              "content": {
-                "type": "string",
-                "description": "The card's body."
-              },
-              "tags": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "The card's normalized tags."
-              },
-              "tag_occurrences": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/TagOccurrence"
-                },
-                "description": "Each tag written in the content, in order."
-              }
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The project the card belongs to."
+          },
+          "title": {
+            "type": "string",
+            "description": "The card's title."
+          },
+          "rel_path": {
+            "type": "string",
+            "description": "The card's file, relative to the project's root."
+          },
+          "parent_card_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "The card's parent; null for a root card."
+          },
+          "sort_key": {
+            "type": "number",
+            "format": "double",
+            "description": "The card's place among its siblings; lower comes first."
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the card was created."
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the card was last changed."
+          },
+          "deleted_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the card was moved to the trash; null when it is not in the trash."
+          },
+          "content": {
+            "type": "string",
+            "description": "The card's body."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
             },
-            "required": [
-              "content",
-              "tags",
-              "tag_occurrences"
-            ]
+            "description": "The card's normalized tags."
+          },
+          "tag_occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagOccurrence"
+            },
+            "description": "Each tag written in the content, in order."
           }
+        },
+        "required": [
+          "card_id",
+          "project_id",
+          "title",
+          "rel_path",
+          "parent_card_id",
+          "sort_key",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "content",
+          "tags",
+          "tag_occurrences"
         ],
+        "additionalProperties": false,
         "description": "A card, with its content and tags."
       },
       "CardBacklinkListResponse": {
@@ -13899,91 +13951,6 @@
         ]
       },
       "CardListItem": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/CardMetadata"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "child_count": {
-                "type": "integer",
-                "format": "int32",
-                "description": "The card's live children; present when asked for."
-              },
-              "content": {
-                "type": "string",
-                "description": "The card's body; present when asked for."
-              }
-            }
-          }
-        ],
-        "description": "A card in a listing."
-      },
-      "CardListItemPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardListItem"
-            },
-            "description": "The page's items."
-          },
-          "next_cursor": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Pass back to get the next page; null on the last page."
-          }
-        },
-        "required": [
-          "items",
-          "next_cursor"
-        ],
-        "description": "One page of a listing."
-      },
-      "CardListItemPageResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/CardListItemPage"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "CardListResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardViewItem"
-            }
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "CardMetadata": {
         "type": "object",
         "properties": {
           "card_id": {
@@ -14034,6 +14001,15 @@
             ],
             "format": "int64",
             "description": "When the card was moved to the trash; null when it is not in the trash."
+          },
+          "child_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The card's live children; present when asked for."
+          },
+          "content": {
+            "type": "string",
+            "description": "The card's body; present when asked for."
           }
         },
         "required": [
@@ -14047,7 +14023,72 @@
           "updated_at",
           "deleted_at"
         ],
-        "description": "Everything about a card except its content."
+        "additionalProperties": false,
+        "description": "A card in a listing."
+      },
+      "CardListItemPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardListItem"
+            },
+            "description": "The page's items."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back to get the next page; null on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false,
+        "description": "One page of a listing."
+      },
+      "CardListItemPageResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/CardListItemPage"
+          }
+        },
+        "required": [
+          "ok",
+          "data"
+        ]
+      },
+      "CardListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardViewItem"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "data"
+        ]
       },
       "CardMoveIntent": {
         "type": "string",
@@ -17518,6 +17559,7 @@
           "byte_start",
           "byte_end"
         ],
+        "additionalProperties": false,
         "description": "A tag written in a card's content."
       },
       "TrashDeleteResponse": {

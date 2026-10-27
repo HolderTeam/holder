@@ -90,7 +90,7 @@ http(get_card, "GET", "/cards/{card_id}")
 A file may contain only:
 
 - imports from `typing`, `enum`, `pydantic`, `holder_contract` and other contract modules;
-- **records**: subclasses of `Record`, whose fields are documented by the string under each one;
+- **records**: subclasses of `Record`, whose fields are documented by the string under each one. A record rejects fields it does not have, in requests and results alike (clients should still read results leniently), and a generic record's use is named for its arguments: `Page[CardListItem]` is `CardListItemPage`;
 - **enums**: subclasses of `StrEnum`;
 - **error kinds**: direct subclasses of `HolderError`, optionally with fields;
 - **host interfaces**: `typing.Protocol` classes marked `@host_interface`, for callbacks core makes into the host, such as a keyring provider;
@@ -102,7 +102,7 @@ Anything else, such as a validator, a `model_config`, a helper function or an as
 
 The rest of the vocabulary:
 
-- **Sizes:** `Int32`, `Int64`, `Float64` and `Timestamp` (seconds since the Unix epoch). A bare `int` or `float` has no size in C and is rejected. A `Float64` is finite, since JSON has no NaN or infinity.
+- **Sizes:** `Int32`, `Int64`, `Float64` and `Timestamp` (seconds since the Unix epoch). A bare `int` or `float` has no size in C and is rejected. A `Float64` is finite, since JSON has no NaN or infinity. Constrain one where it is used, as `Annotated[Int32, Field(ge=1, le=5000)]`; in JSON Schema each is inline, with its format (`int32`, `int64`, `double`).
 - **Text:** a `str` is Unicode text without U+0000, so it is valid UTF-8 and fits in a C string. Lengths count characters.
 - **Null and omitted:** `T | None` may be null. On a record's field, `T | MISSING = MISSING` may be omitted. Together, as in a partial update, they mean "omit to keep, null clears".
 - **Other types:** `str`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`, unions (discriminated with `Field(discriminator=...)`), `JsonValue` for free-form JSON, `SecretStr` for secrets, and generic records such as `class Page[T](Record)`.
