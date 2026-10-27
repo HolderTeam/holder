@@ -11,6 +11,7 @@ struct holder_context {
   std::map<std::string, holder::contract::Card> cards;
   std::vector<holder::contract::Link> links;
   std::vector<holder::contract::Milestone> milestones;
+  std::vector<holder::contract::Resource> resources;
   int next_id = 1;
 };
 
@@ -257,6 +258,81 @@ Calendar get_calendar(holder_context& context, std::string project_id, long long
     if (milestone.project_id == project_id)
       out.milestones.push_back({milestone, live_card(context, project_id, milestone.card_id).title});
   return out;
+}
+// Resources, kept in the order they were made: the stand-in keeps no files and no attachments.
+Resource& resource_in(holder_context& context, const std::string& project_id, const std::string& resource_id) {
+  for (auto& resource : context.resources)
+    if (resource.resource_id == resource_id && resource.project_id == project_id) return resource;
+  throw NotFound("resource not found: " + resource_id);
+}
+
+std::vector<Resource> list_resources(holder_context& context, std::string project_id) {
+  std::vector<Resource> out;
+  for (const auto& resource : context.resources)
+    if (resource.project_id == project_id) out.push_back(resource);
+  return out;
+}
+
+Resource get_resource(holder_context& context, std::string project_id, std::string resource_id) {
+  return resource_in(context, project_id, resource_id);
+}
+
+Resource create_resource(holder_context& context, std::string project_id, const NewResource& request) {
+  Resource resource{request.resource_id.value_or("r" + std::to_string(context.next_id++)),
+                    project_id,
+                    request.type,
+                    request.label,
+                    request.metadata.value_or(std::map<std::string, std::vector<std::string>>{}),
+                    {},
+                    request.created_at.value_or(1793000500),
+                    request.updated_at.value_or(request.created_at.value_or(1793000500))};
+  context.resources.push_back(resource);
+  return resource;
+}
+
+Resource update_resource(holder_context& context, std::string project_id, std::string resource_id,
+                         const ResourceUpdate& update) {
+  auto& resource = resource_in(context, project_id, resource_id);
+  if (update.type) resource.type = *update.type;
+  if (update.label) resource.label = *update.label;
+  if (update.metadata)
+    for (const auto& [name, values] : *update.metadata) {
+      if (values.empty())
+        resource.metadata.erase(name);
+      else
+        resource.metadata[name] = values;
+    }
+  return resource;
+}
+
+Resource delete_resource(holder_context& context, std::string project_id, std::string resource_id) {
+  const auto resource = resource_in(context, project_id, resource_id);
+  std::erase_if(context.resources, [&](const Resource& r) { return r.resource_id == resource_id; });
+  return resource;
+}
+
+std::vector<Link> list_resource_backlinks(holder_context& context, std::string project_id, std::string resource_id,
+                                          bool include_deleted) {
+  (void)include_deleted;
+  resource_in(context, project_id, resource_id);
+  return {};
+}
+
+std::vector<Resource> list_card_resources(holder_context& context, std::string project_id, std::string card_id) {
+  live_card(context, project_id, card_id);
+  return {};
+}
+
+std::vector<Resource> attach_card_resource(holder_context& context, std::string project_id, std::string card_id,
+                                           std::string resource_id) {
+  live_card(context, project_id, card_id);
+  return {resource_in(context, project_id, resource_id)};
+}
+
+std::vector<Resource> detach_card_resource(holder_context& context, std::string project_id, std::string card_id,
+                                           std::string resource_id) {
+  (void)resource_id;
+  return list_card_resources(context, project_id, card_id);
 }
 }  // namespace holder::contract
 

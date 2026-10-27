@@ -79,14 +79,14 @@ private void test_async_methods_forward_to_api() {
                     assert(api.create_resource_calls == 1);
                     assert(api.last_resource_kind == "url");
 
-                    controller.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null, null,
+                    controller.update_resource.begin(api, "p-1", "r-1", "file", "file:///tmp/a.txt", "A", null, null,
                                                      (obj3, res3) => {
                         try {
                             controller.update_resource.end(res3);
                             assert(api.update_resource_calls == 1);
                             assert(api.last_resource_id == "r-1");
 
-                            controller.delete_resource.begin(api, "r-1", (obj4, res4) => {
+                            controller.delete_resource.begin(api, "p-1", "r-1", (obj4, res4) => {
                                 try {
                                     controller.delete_resource.end(res4);
                                     assert(api.delete_resource_calls == 1);

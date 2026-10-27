@@ -7,38 +7,33 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.post_cards_card_id_resources_body import PostCardsCardIdResourcesBody
-from ...models.resource_attachment_response import ResourceAttachmentResponse
+from ...models.resource_list_response import ResourceListResponse
 from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
-    *,
-    body: PostCardsCardIdResourcesBody,
+    resource_id: str,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/cards/{card_id}/resources".format(
+        "method": "put",
+        "url": "/projects/{project_id}/cards/{card_id}/resources/{resource_id}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
+            resource_id=quote(str(resource_id), safe=""),
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ResourceAttachmentResponse | None:
+) -> ErrorResponse | ResourceListResponse | None:
     if response.status_code == 200:
-        response_200 = ResourceAttachmentResponse.from_dict(response.json())
+        response_200 = ResourceListResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,20 +52,15 @@ def _parse_response(
 
         return response_404
 
-    if response.status_code == 422:
-        response_422 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
 
-        return response_422
+        return response_409
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -85,7 +75,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ResourceAttachmentResponse]:
+) -> Response[ErrorResponse | ResourceListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -95,28 +85,37 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
+    resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PostCardsCardIdResourcesBody,
-) -> Response[ErrorResponse | ResourceAttachmentResponse]:
-    """Attach a project resource to a live card (idempotent)
+) -> Response[ErrorResponse | ResourceListResponse]:
+    """Attach a resource to a card.
+
+     An attachment is the card's link of kind attachment to the resource. A card that has it already is
+    left as it
+    is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or
+    in another
+    project is not found, and neither is a resource that is not in the card's project.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (PostCardsCardIdResourcesBody):
+        resource_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ResourceAttachmentResponse]
+        Response[ErrorResponse | ResourceListResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
-        body=body,
+        resource_id=resource_id,
     )
 
     response = client.get_httpx_client().request(
@@ -127,55 +126,73 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
+    resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PostCardsCardIdResourcesBody,
-) -> ErrorResponse | ResourceAttachmentResponse | None:
-    """Attach a project resource to a live card (idempotent)
+) -> ErrorResponse | ResourceListResponse | None:
+    """Attach a resource to a card.
+
+     An attachment is the card's link of kind attachment to the resource. A card that has it already is
+    left as it
+    is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or
+    in another
+    project is not found, and neither is a resource that is not in the card's project.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (PostCardsCardIdResourcesBody):
+        resource_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ResourceAttachmentResponse
+        ErrorResponse | ResourceListResponse
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
+        resource_id=resource_id,
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
+    resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PostCardsCardIdResourcesBody,
-) -> Response[ErrorResponse | ResourceAttachmentResponse]:
-    """Attach a project resource to a live card (idempotent)
+) -> Response[ErrorResponse | ResourceListResponse]:
+    """Attach a resource to a card.
+
+     An attachment is the card's link of kind attachment to the resource. A card that has it already is
+    left as it
+    is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or
+    in another
+    project is not found, and neither is a resource that is not in the card's project.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (PostCardsCardIdResourcesBody):
+        resource_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ResourceAttachmentResponse]
+        Response[ErrorResponse | ResourceListResponse]
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
-        body=body,
+        resource_id=resource_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -184,29 +201,38 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
+    resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: PostCardsCardIdResourcesBody,
-) -> ErrorResponse | ResourceAttachmentResponse | None:
-    """Attach a project resource to a live card (idempotent)
+) -> ErrorResponse | ResourceListResponse | None:
+    """Attach a resource to a card.
+
+     An attachment is the card's link of kind attachment to the resource. A card that has it already is
+    left as it
+    is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or
+    in another
+    project is not found, and neither is a resource that is not in the card's project.
 
     Args:
+        project_id (str):
         card_id (str):
-        body (PostCardsCardIdResourcesBody):
+        resource_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ResourceAttachmentResponse
+        ErrorResponse | ResourceListResponse
     """
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
+            resource_id=resource_id,
             client=client,
-            body=body,
         )
     ).parsed

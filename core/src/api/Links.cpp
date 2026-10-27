@@ -76,6 +76,23 @@ bool on_this_device(const holder::model::Project& project) {
   return std::filesystem::is_directory(project.root_path, error);
 }
 
+// Links newest first, then by source, each with its source's type; a link whose source is gone is never listed.
+std::vector<Link> with_sources(holder_context& context, std::vector<holder::model::CardLink> links,
+                               bool include_deleted) {
+  std::sort(links.begin(), links.end(), [](const auto& left, const auto& right) {
+    if (left.created_at != right.created_at) return left.created_at > right.created_at;
+    if (left.project_id != right.project_id) return left.project_id < right.project_id;
+    if (left.from_card_id != right.from_card_id) return left.from_card_id < right.from_card_id;
+    return left.kind < right.kind;
+  });
+  std::vector<Link> out;
+  for (const auto& link : links) {
+    const auto source = source_of(context, link);
+    if (source && (include_deleted || !source->deleted)) out.push_back(to_link(link, source->type));
+  }
+  return out;
+}
+
 std::vector<Link> backlinks(holder_context& context, const std::string& project_id, const std::string& card_id,
                             ListCardBacklinksScope scope, bool include_deleted) {
   auto store = card_store(context);
@@ -90,18 +107,7 @@ std::vector<Link> backlinks(holder_context& context, const std::string& project_
     auto external = repo.list_external_backlinks_typed(project_id, card_id, "card", others);
     links.insert(links.end(), external.begin(), external.end());
   }
-  std::sort(links.begin(), links.end(), [](const auto& left, const auto& right) {
-    if (left.created_at != right.created_at) return left.created_at > right.created_at;
-    if (left.project_id != right.project_id) return left.project_id < right.project_id;
-    if (left.from_card_id != right.from_card_id) return left.from_card_id < right.from_card_id;
-    return left.kind < right.kind;
-  });
-  std::vector<Link> out;
-  for (const auto& link : links) {
-    const auto source = source_of(context, link);
-    if (source && (include_deleted || !source->deleted)) out.push_back(to_link(link, source->type));
-  }
-  return out;
+  return with_sources(context, std::move(links), include_deleted);
 }
 
 // A target in the card's own project must be there and not in the trash. A card in another project
@@ -205,6 +211,13 @@ std::vector<Link> links(holder_context& context, const std::string& project_id, 
 }
 
 } // namespace
+
+std::vector<Link> local_backlinks(holder_context& context, const std::string& project_id,
+                                  const std::string& target_type, const std::string& target_id, bool include_deleted) {
+  return with_sources(
+      context, holder::card::LinkRepo(context.db).list_backlinks_typed(project_id, target_id, target_type),
+      include_deleted);
+}
 
 std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id,
                                   bool include_deleted) {

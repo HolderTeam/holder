@@ -36,7 +36,7 @@ from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, ru
 
 from holder_capi import Core, OperationError, Unrepresentable
 from holder_contract.extract import extract, load_contract
-from holder_contract.values import Values
+from holder_contract.values import CHARACTERS, Values
 from holder_http import Http, Nonconforming, shared_daemon
 
 CONTRACT = Path(__file__).resolve().parents[2]
@@ -50,7 +50,7 @@ needs_daemon = pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a hol
 _runs = itertools.count()
 
 
-# Rules the contract states in words rather than types.
+# Rules the contract states in words rather than types. A metadata name is not empty, too.
 TAG = re.compile(r"[A-Za-z][A-Za-z0-9_/-]*")
 HEX_COLOUR = re.compile(r"[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}")
 MAX_CONTENT_PAGE = 1000
@@ -64,6 +64,7 @@ ORDER_KEYS = {
 METADATA = [f["name"] for f in next(r for r in IR["records"] if r["name"] == "CardMetadata")["fields"]]
 DATETIME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|([+-])([0-9]{2}):([0-9]{2}))")
 ROLE_POOL = ["start", "end", "due"]
+RESOURCE_ID = re.compile(r"[A-Za-z0-9_-]{4,40}")
 EPOCH = date(1970, 1, 1).toordinal()
 
 
@@ -108,12 +109,15 @@ class Cards(RuleBasedStateMachine):
         super().__init__()
         self.core = self.open()
         # Two projects, so that a card is sometimes asked for in a project it is not in.
-        self.projects = [self.core.create_project(f"Conformance {next(_runs)}") for _ in range(2)]
+        # Resource IDs are unique on a device, and the HTTP runs share one, so a run's new IDs carry its number.
+        self.run = next(_runs)
+        self.projects = [self.core.create_project(f"Conformance {self.run}-{i}") for i in range(2)]
         self.cards: dict[str, dict] = {}  # every card created, by ID, as the model expects it
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
         self.links: dict[str, list[dict]] = {}  # each card's links, by its ID
         self.milestones: dict[str, list[dict]] = {}  # each card's milestones, by its ID, in the order made
+        self.resources: dict[str, dict] = {}  # every resource that exists, by ID
 
     def open(self):
         raise NotImplementedError
@@ -145,6 +149,8 @@ class Cards(RuleBasedStateMachine):
         overrides = {"ProjectId": mostly(st.sampled_from(self.projects), "ProjectId")}
         if self.cards:
             overrides["CardId"] = mostly(st.sampled_from(list(self.cards)), "CardId")
+        if self.resources:
+            overrides["ResourceId"] = mostly(st.sampled_from(list(self.resources)), "ResourceId")
         milestone_ids = [m["milestone_id"] for made in self.milestones.values() for m in made]
         if milestone_ids:
             overrides["MilestoneId"] = mostly(st.sampled_from(milestone_ids), "MilestoneId")
@@ -165,6 +171,11 @@ class Cards(RuleBasedStateMachine):
         one = st.one_of(st.builds(lambda r, d: {"role": r, "date": d}, role, days),
                         st.builds(lambda r, d: {"role": r, "datetime": d}, role, instants))
         overrides["MilestoneDate"] = nearly_always(one, "MilestoneDate")
+        names = st.one_of(st.sampled_from(["identifier", "author", "description"]),
+                          st.text(CHARACTERS, min_size=1, max_size=8))
+        overrides["ResourceMetadata"] = nearly_always(
+            st.dictionaries(names, st.lists(st.text(CHARACTERS, max_size=12), max_size=3), max_size=4),
+            "ResourceMetadata")
         return Values(IR, overrides=overrides)
 
     def expect(self, operation: str, kinds: set[str], arguments: dict):
@@ -205,6 +216,10 @@ class Cards(RuleBasedStateMachine):
             self.create(project, card, data)
         for card in data.draw(st.lists(st.sampled_from(self.live()), max_size=4)) if self.live() else []:
             self.add_milestone(card["card_id"], card["project_id"], data.draw(self.values().record("NewMilestone")))
+        for _ in range(data.draw(st.integers(0, 3))):
+            resource = data.draw(self.values().record("NewResource"))
+            resource.pop("resource_id", None)
+            self.make_resource(data.draw(st.sampled_from(self.projects)), resource)
 
     @rule(data=st.data())
     def create_card(self, data):
@@ -523,7 +538,10 @@ class Cards(RuleBasedStateMachine):
     def add_card_link(self, data):
         card_id, project = self.a_card(data)
         link = data.draw(self.values().record("NewLink"))
-        if data.draw(st.booleans()):
+        if self.resources and data.draw(st.integers(0, 3)) == 0:
+            link = {**link, "target_type": "resource", "target_id": data.draw(st.sampled_from(list(self.resources)))}
+            link.pop("target_project_id", None)
+        elif data.draw(st.booleans()):
             # Mostly a card the model knows, in its own project or another.
             link = {**link, "target_type": "card", "target_id": data.draw(st.sampled_from(list(self.cards) or ["x"]))}
             link.pop("target_project_id", None)
@@ -534,9 +552,14 @@ class Cards(RuleBasedStateMachine):
         kinds = set()
         if not self.is_live(card_id, project):
             kinds.add("NotFound")
+        elif link["target_type"] != "card" and target_project != project:
+            kinds.add("InvalidArgument")
+        elif link["target_type"] == "resource":
+            if self.resources.get(target_id, {}).get("project_id") != project:
+                kinds.add("NotFound")
         elif link["target_type"] != "card":
-            # Nothing but cards is made here, so any other target is missing, or can only be in the card's project.
-            kinds.add("InvalidArgument" if target_project != project else "NotFound")
+            # No AI threads or messages are made here, so they are missing.
+            kinds.add("NotFound")
         elif target_project == project:
             if not self.is_live(target_id, project):
                 kinds.add("NotFound")
@@ -810,6 +833,219 @@ class Cards(RuleBasedStateMachine):
         assert calendar["updated_cards"] == [
             {name: c[name] for name in METADATA} for c in sorted(cards, key=lambda c: (c["updated_at"], c["card_id"]))
             if c["updated_at"] != c["created_at"] and first <= c["updated_at"] <= last]
+
+    # ---- resources --------------------------------------------------------------------------------
+
+    @staticmethod
+    def by_change(resources) -> list[dict]:
+        return sorted(resources, key=lambda r: (-r["updated_at"], r["resource_id"]))
+
+    def a_resource(self, data) -> tuple[str, str]:
+        """A resource's ID, mostly one the model knows, and a project to ask for it in: mostly its own."""
+        values = self.values()
+        resource_id = data.draw(values.valid({"kind": "named", "name": "ResourceId"}))
+        own = st.just(self.resources[resource_id]["project_id"]) if resource_id in self.resources else st.nothing()
+        return resource_id, data.draw(st.one_of(own, own, own, values.valid({"kind": "named", "name": "ProjectId"})))
+
+    def resource_here(self, resource_id: str, project: str) -> bool:
+        return self.resources.get(resource_id, {}).get("project_id") == project
+
+    @rule(data=st.data())
+    def create_resource(self, data):
+        project = data.draw(self.values().valid({"kind": "named", "name": "ProjectId"}))
+        resource = data.draw(self.values().record("NewResource"))
+        # Mostly a new ID, or none; sometimes one in use, or one with characters an ID may not hold.
+        choice = data.draw(st.sampled_from(["none", "new", "new", "used", "bad"]))
+        resource.pop("resource_id", None)
+        if choice == "new":
+            resource["resource_id"] = f"run{self.run}-" + data.draw(st.from_regex(RESOURCE_ID, fullmatch=True))
+        elif choice == "used" and self.resources:
+            resource["resource_id"] = data.draw(st.sampled_from(list(self.resources)))
+        elif choice == "bad":
+            resource["resource_id"] = data.draw(st.sampled_from(["../../etc", "a/b/c/d", "res.json", "res 1"]))
+        self.make_resource(project, resource)
+
+    def make_resource(self, project: str, resource: dict) -> None:
+        given = resource.get("resource_id")
+        kinds = set()
+        if (given is not None and not RESOURCE_ID.fullmatch(given)) or "" in resource.get("metadata", {}):
+            kinds.add("InvalidArgument")
+        elif project not in self.projects:
+            kinds.add("NotFound")
+        elif given in self.resources:
+            kinds.add("Conflict")
+        before = int(time.time())
+        made = self.expect("create_resource", kinds, {"project_id": project, "resource": resource})
+        after = int(time.time())
+        if made is None:
+            return
+        self.conforms("create_resource", made)
+        assert made["resource_id"] not in self.resources
+        if given is not None:
+            assert made["resource_id"] == given
+        # A name without values is no name.
+        expected = {"project_id": project, "type": resource["type"], "label": resource["label"],
+                    "metadata": {k: v for k, v in resource.get("metadata", {}).items() if v}, "assets": []}
+        assert {k: made[k] for k in expected} == expected
+        if "created_at" in resource:
+            assert made["created_at"] == resource["created_at"]
+        else:
+            assert before <= made["created_at"] <= after
+        assert made["updated_at"] == resource.get("updated_at", made["created_at"])
+        self.resources[made["resource_id"]] = made
+
+    @rule(data=st.data())
+    def get_resource(self, data):
+        resource_id, project = self.a_resource(data)
+        here = self.resource_here(resource_id, project)
+        got = self.expect("get_resource", set() if here else {"NotFound"},
+                          {"project_id": project, "resource_id": resource_id})
+        if got is not None:
+            self.conforms("get_resource", got)
+            assert got == self.resources[resource_id]
+
+    @rule(data=st.data())
+    def list_resources(self, data):
+        project = data.draw(self.values().valid({"kind": "named", "name": "ProjectId"}))
+        listed = self.expect("list_resources", set() if project in self.projects else {"NotFound"},
+                             {"project_id": project})
+        if listed is not None:
+            self.conforms("list_resources", listed)
+            assert listed == self.by_change(r for r in self.resources.values() if r["project_id"] == project)
+
+    @rule(data=st.data())
+    def update_resource(self, data):
+        resource_id, project = self.a_resource(data)
+        update = data.draw(self.values().record("ResourceUpdate"))
+        here = self.resource_here(resource_id, project)
+        kinds = {"InvalidArgument"} if "" in update.get("metadata", {}) else set() if here else {"NotFound"}
+        before = int(time.time())
+        updated = self.expect("update_resource", kinds,
+                              {"project_id": project, "resource_id": resource_id, "update": update})
+        after = int(time.time())
+        if updated is None:
+            return
+        self.conforms("update_resource", updated)
+        old = self.resources[resource_id]
+        expected = {**old, **{k: update[k] for k in ("type", "label") if k in update}}
+        metadata = dict(old["metadata"])
+        for name, values in update.get("metadata", {}).items():
+            if values:
+                metadata[name] = values
+            else:
+                metadata.pop(name, None)
+        expected["metadata"] = metadata
+        changed = any(expected[k] != old[k] for k in ("type", "label", "metadata"))
+        if "updated_at" in update:
+            expected["updated_at"] = update["updated_at"]
+        elif changed:
+            assert before <= updated["updated_at"] <= after
+            expected["updated_at"] = updated["updated_at"]
+        # Otherwise nothing changes, and nothing is written.
+        assert updated == expected
+        self.resources[resource_id] = updated
+
+    @rule(data=st.data())
+    def delete_resource(self, data):
+        resource_id, project = self.a_resource(data)
+        here = self.resource_here(resource_id, project)
+        deleted = self.expect("delete_resource", set() if here else {"NotFound"},
+                              {"project_id": project, "resource_id": resource_id})
+        if deleted is None:
+            return
+        self.conforms("delete_resource", deleted)
+        assert deleted == self.resources.pop(resource_id)
+        # The links to it from live cards go with it, changing those cards.
+        for card in self.live(project):
+            links = self.links.get(card["card_id"], [])
+            kept = [link for link in links if not (link["target_type"] == "resource" and link["target_id"] == resource_id)]
+            if len(kept) != len(links):
+                self.links[card["card_id"]] = kept
+                self.refresh(card["card_id"], "updated_at")
+
+    @rule(data=st.data(), include_deleted=st.booleans())
+    def list_resource_backlinks(self, data, include_deleted):
+        resource_id, project = self.a_resource(data)
+        here = self.resource_here(resource_id, project)
+        links = self.expect("list_resource_backlinks", set() if here else {"NotFound"},
+                            {"project_id": project, "resource_id": resource_id, "include_deleted": include_deleted})
+        if links is None:
+            return
+        self.conforms("list_resource_backlinks", links)
+        expected = [link for source, made in self.links.items()
+                    if self.cards[source]["project_id"] == project and (include_deleted or source not in self.deleted)
+                    for link in made if link["target_type"] == "resource" and link["target_id"] == resource_id]
+
+        def order(link):
+            return -link["created_at"], link["source_project_id"], link["source_id"], link["kind"]
+
+        assert links == sorted(expected, key=order)
+
+    def attached(self, card_id: str) -> list[dict]:
+        ids = {link["target_id"] for link in self.links.get(card_id, [])
+               if link["target_type"] == "resource" and link["kind"] == "attachment"}
+        return self.by_change(self.resources[i] for i in ids if i in self.resources)
+
+    def a_card_and_resource(self, data) -> tuple[str, str, str]:
+        """A card, a project to ask for it in, and mostly a resource in that project, or one attached."""
+        card_id, project = self.a_card(data)
+        near = sorted({r for r, resource in self.resources.items() if resource["project_id"] == project}
+                      | {link["target_id"] for link in self.links.get(card_id, []) if link["target_type"] == "resource"})
+        mine = st.sampled_from(near) if near else st.nothing()
+        resource_id = data.draw(st.one_of(mine, mine, mine, self.values().valid({"kind": "named", "name": "ResourceId"})))
+        return card_id, project, resource_id
+
+    @rule(data=st.data())
+    def list_card_resources(self, data):
+        card_id, project = self.a_card(data)
+        listed = self.expect("list_card_resources", set() if self.is_live(card_id, project) else {"NotFound"},
+                             {"project_id": project, "card_id": card_id})
+        if listed is not None:
+            self.conforms("list_card_resources", listed)
+            assert listed == self.attached(card_id)
+
+    def reread_links(self, card_id: str) -> None:
+        """Take the card's links from Holder after an attachment changes them, and its updated_at."""
+        project = self.cards[card_id]["project_id"]
+        self.links[card_id] = self.core.call("list_card_links", project_id=project, card_id=card_id,
+                                             include_deleted=True)
+        self.refresh(card_id, "updated_at")
+
+    @rule(data=st.data())
+    def attach_card_resource(self, data):
+        card_id, project, resource_id = self.a_card_and_resource(data)
+        kinds = set()
+        if not self.is_live(card_id, project) or not self.resource_here(resource_id, project):
+            kinds.add("NotFound")
+        had = [dict(link) for link in self.links.get(card_id, [])]
+        attached = self.expect("attach_card_resource", kinds,
+                               {"project_id": project, "card_id": card_id, "resource_id": resource_id})
+        if attached is None:
+            return
+        self.conforms("attach_card_resource", attached)
+        self.reread_links(card_id)
+        made = [link for link in self.links[card_id] if link not in had]
+        already = any(link["target_type"] == "resource" and link["target_id"] == resource_id
+                      and link["kind"] == "attachment" for link in had)
+        # Attaching once makes one link; again, none.
+        assert len(made) == (0 if already else 1)
+        assert all(link["target_id"] == resource_id and link["kind"] == "attachment" for link in made)
+        assert attached == self.attached(card_id)
+
+    @rule(data=st.data())
+    def detach_card_resource(self, data):
+        card_id, project, resource_id = self.a_card_and_resource(data)
+        had = list(self.links.get(card_id, []))
+        detached = self.expect("detach_card_resource", set() if self.is_live(card_id, project) else {"NotFound"},
+                               {"project_id": project, "card_id": card_id, "resource_id": resource_id})
+        if detached is None:
+            return
+        self.conforms("detach_card_resource", detached)
+        self.links[card_id] = [link for link in had if not (
+            link["target_type"] == "resource" and link["target_id"] == resource_id and link["kind"] == "attachment")]
+        if len(self.links[card_id]) != len(had):
+            self.refresh(card_id, "updated_at")
+        assert detached == self.attached(card_id)
 
     # ---- tags -------------------------------------------------------------------------------------
 

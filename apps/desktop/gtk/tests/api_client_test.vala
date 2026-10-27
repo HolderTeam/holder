@@ -358,6 +358,9 @@ private void test_resources_crud_and_parse() {
         200,
         "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"kind\":\"url\",\"uri\":\"https://example.com\",\"label\":\"Example\",\"desc\":null,\"created_at\":1,\"updated_at\":2}]}"
     );
+    // No cards link to it.
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[],\"next_cursor\":null}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(201, "{\"ok\":true,\"data\":{\"resource_id\":\"r2\"}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
@@ -378,8 +381,7 @@ private void test_resources_crud_and_parse() {
     assert(resources.size == 1);
     assert(resources[0].resource_id == "r1");
     assert(resources[0].desc == null);
-    assert(transport.last_uri.contains("/resources?"));
-    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("/projects/p1/resources/r1/backlinks"));
 
     bool done_create = false;
     string resource_id = "";
@@ -394,11 +396,11 @@ private void test_resources_crud_and_parse() {
     assert(wait_for_condition(() => done_create));
     assert(resource_id == "r2");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/resources"));
+    assert(transport.last_uri.has_suffix("/projects/p1/resources"));
 
     bool done_update = false;
     bool update_ok = false;
-    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", null, 7, null, (obj, res) => {
+    client.update_resource.begin("p1", "r2", "file", "/tmp/a.txt", "A", null, 7, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             update_ok = true;
@@ -410,11 +412,11 @@ private void test_resources_crud_and_parse() {
     assert(wait_for_condition(() => done_update));
     assert(update_ok);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.has_suffix("/resources/r2"));
+    assert(transport.last_uri.has_suffix("/projects/p1/resources/r2"));
 
     bool done_delete = false;
     bool delete_ok = false;
-    client.delete_resource.begin("r2", (obj, res) => {
+    client.delete_resource.begin("p1", "r2", (obj, res) => {
         try {
             client.delete_resource.end(res);
             delete_ok = true;
@@ -426,7 +428,7 @@ private void test_resources_crud_and_parse() {
     assert(wait_for_condition(() => done_delete));
     assert(delete_ok);
     assert(transport.last_method == "DELETE");
-    assert(transport.last_uri.has_suffix("/resources/r2"));
+    assert(transport.last_uri.has_suffix("/projects/p1/resources/r2"));
 }
 
 private void test_create_resource_with_desc_succeeds() {
@@ -448,7 +450,7 @@ private void test_create_resource_with_desc_succeeds() {
     assert(wait_for_condition(() => done));
     assert(resource_id == "r3");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/resources"));
+    assert(transport.last_uri.has_suffix("/projects/p1/resources"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -479,7 +481,7 @@ private void test_update_resource_with_desc_succeeds() {
 
     bool done = false;
     bool ok = false;
-    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", "has desc", 8, null, (obj, res) => {
+    client.update_resource.begin("p1", "r2", "file", "/tmp/a.txt", "A", "has desc", 8, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             ok = true;
@@ -492,7 +494,7 @@ private void test_update_resource_with_desc_succeeds() {
     assert(wait_for_condition(() => done));
     assert(ok);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.has_suffix("/resources/r2"));
+    assert(transport.last_uri.has_suffix("/projects/p1/resources/r2"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -502,6 +504,9 @@ private void test_list_resources_parses_non_null_desc() {
         200,
         "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"document\",\"label\":\"A\",\"metadata\":{\"identifier\":[\"/tmp/a.txt\"],\"description\":[\"local file\"]},\"assets\":[]}]}"
     );
+    // No cards link to it.
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[],\"next_cursor\":null}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     var client = make_client(transport);
 
     bool done = false;

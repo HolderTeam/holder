@@ -257,41 +257,6 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "OpenAPI contracts card resource attachments and paginated listing",
-    "[openapi][resources][attachments]"
-) {
-  const auto document = load_openapi();
-  const auto list = document["paths"]["/resources"]["get"];
-  CHECK(parameter_named(list, "project_id")["required"].as<bool>());
-  CHECK_FALSE(parameter_named(list, "card_id")["required"].as<bool>());
-  CHECK(parameter_named(list, "limit")["schema"]["maximum"].as<int>() == 1000);
-  // limit and offset require card_id, so their defaults are described rather than declared.
-  CHECK(parameter_named(list, "limit")["description"].as<std::string>().find("100") !=
-        std::string::npos);
-  CHECK(parameter_named(list, "offset")["schema"]["minimum"].as<int>() == 0);
-  require_json_response_ref(list, "200", "ResourceListResponse");
-  for (const auto& status : {"400", "401", "404", "422"})
-    require_json_response_ref(list, status, "ErrorResponse");
-  const auto schemas = document["components"]["schemas"];
-  CHECK(schema_has_type(schemas["ResourceListResponse"]["properties"]["next_offset"], "null"));
-  CHECK(
-      required_properties(schemas["ResourceAttachmentResponse"]["properties"]["data"]) ==
-      std::vector<std::string>{"card_id", "changed", "outcome", "resource_id"}
-  );
-  for (const auto& method : {"post", "delete"}) {
-    const auto op = document["paths"]["/cards/{card_id}/resources"][method];
-    CHECK(parameter_named(op, "card_id")["required"].as<bool>());
-    CHECK(
-        required_properties(op["requestBody"]["content"]["application/json"]["schema"]) ==
-        std::vector<std::string>{"project_id", "resource_id"}
-    );
-    require_json_response_ref(op, "200", "ResourceAttachmentResponse");
-    for (const auto& status : {"400", "401", "404", "422", "500", "501", "503"})
-      require_json_response_ref(op, status, "ErrorResponse");
-  }
-}
-
-TEST_CASE(
     "OpenAPI contracts project tags and exact card tag filtering",
     "[openapi][holderctl-foundation][tags]"
 ) {

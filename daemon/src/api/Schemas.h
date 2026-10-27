@@ -302,54 +302,6 @@ struct RIG_OPEN_RECORD StorageLocationResponse {
   StorageLocation data;
 };
 
-struct RIG_VALUE_TYPE RIG_DESCRIPTION("Permissive metadata map. Repeated and custom values are preserved in order.") ResourceMetadata {
-  std::map<std::string, std::vector<std::string>> value;
-};
-
-struct RIG_OPEN_RECORD AssetPlacement {
-  std::string placement_id;
-  std::string location_id;
-  std::string encoding RIG_STRING_VALUES("plain", "holder_asset_v1");
-  long long stored_byte_size;
-  long long created_at;
-};
-
-struct RIG_OPEN_RECORD ResourceAsset {
-  std::string asset_id;
-  std::string resource_id;
-  std::string original_filename;
-  std::string media_type;
-  long long byte_size;
-  std::string plaintext_sha256;
-  std::vector<AssetPlacement> placements;
-  long long created_at;
-  long long updated_at;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ResourceReferencedByCardsItem {
-  std::string card_id;
-  std::string title;
-  long long updated_at;
-  std::vector<std::string> link_kinds;
-};
-
-struct RIG_OPEN_RECORD Resource {
-  std::string resource_id;
-  std::string project_id;
-  std::string type RIG_FIELD_DESCRIPTION("Friendly, extensible type rather than a closed enum.");
-  std::string label;
-  ResourceMetadata metadata;
-  std::vector<ResourceAsset> assets;
-  long long created_at;
-  long long updated_at;
-  std::vector<ResourceReferencedByCardsItem> referenced_by_cards RIG_FIELD_DESCRIPTION("Live cards linking to the resource, by title then card ID. Empty in create and update responses.");
-};
-
-struct RIG_OPEN_RECORD ResourceResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  Resource data;
-};
-
 struct RIG_OPEN_RECORD EventCheckpoint {
   std::string cursor RIG_FIELD_DESCRIPTION("Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID.");
   std::map<std::string, std::optional<std::string>> git_revisions RIG_FIELD_DESCRIPTION("Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.");

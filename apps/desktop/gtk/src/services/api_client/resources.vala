@@ -1,12 +1,81 @@
 namespace HolderLinux {
 
 public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    private static string resources_path(string project_id) {
+        return "/projects/%s/resources".printf(Uri.escape_string(project_id));
+    }
+
+    private static string resource_path(string project_id, string resource_id) {
+        return "%s/%s".printf(resources_path(project_id), Uri.escape_string(resource_id));
+    }
+
+    // The project's resources, each with the live cards that link to it, as the resources table
+    // shows them: one listing of the project's cards for their titles, then each resource's links.
     public static async Gee.ArrayList<ProjectResource> list_resources(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                                        string project_id) throws Error {
-        var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id); // LCOV_EXCL_BR_LINE: hash insert branch artifact
-        var root = yield client.request_json("GET", "/resources", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
-        return ApiParsersResources.parse_resources(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        var root = yield client.request_json("GET", resources_path(project_id), null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        var resources = ApiParsersResources.parse_resources(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        if (resources.size == 0) return resources;
+        var cards = yield live_cards(client, project_id);
+        foreach (var resource in resources) {
+            var links = yield client.request_json(
+                "GET", resource_path(project_id, resource.resource_id) + "/backlinks", null, null
+            );
+            add_references(resource, links.get_array_member("data"), cards);
+        }
+        return resources;
+    }
+
+    // Each live card in the project, by ID: its title and when it last changed.
+    private static async Gee.HashMap<string, Json.Object> live_cards(ApiClient client,
+                                                                     string project_id) throws Error {
+        var cards = new Gee.HashMap<string, Json.Object>();
+        string? cursor = null;
+        do {
+            var query = new HashTable<string, string>(str_hash, str_equal);
+            query.insert("limit", "5000");
+            if (cursor != null) query.insert("cursor", (!) cursor);
+            var root = yield client.request_json(
+                "GET", "/projects/%s/cards".printf(Uri.escape_string(project_id)), null, query
+            );
+            var page = root.get_object_member("data");
+            var items = page.get_array_member("items");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var card = items.get_object_element(i);
+                cards.set(card.get_string_member("card_id"), card);
+            }
+            cursor = ApiParsersCommon.nullable_string_member_or_null(page, "next_cursor");
+        } while (cursor != null);
+        return cards;
+    }
+
+    // The live cards among a resource's links, each with its link kinds, by title and then ID.
+    private static void add_references(ProjectResource resource,
+                                       Json.Array links,
+                                       Gee.HashMap<string, Json.Object> cards) {
+        var kinds = new Gee.TreeMap<string, Gee.TreeSet<string>>();
+        for (uint i = 0; i < links.get_length(); i++) {
+            var link = links.get_object_element(i);
+            var source = link.get_string_member("source_id");
+            if (link.get_string_member("source_type") != "card" || !cards.has_key(source)) continue;
+            if (!kinds.has_key(source)) kinds.set(source, new Gee.TreeSet<string>());
+            kinds.get(source).add(link.get_string_member("kind"));
+        }
+        var references = new Gee.ArrayList<ResourceCardReference>();
+        foreach (var entry in kinds.entries) {
+            var card = cards.get(entry.key);
+            var link_kinds = new Gee.ArrayList<string>();
+            link_kinds.add_all(entry.value);
+            references.add(new ResourceCardReference(
+                entry.key, card.get_string_member("title"), card.get_int_member("updated_at"), link_kinds
+            ));
+        }
+        references.sort((left, right) => {
+            var by_title = strcmp(left.title, right.title);
+            return by_title != 0 ? by_title : strcmp(left.card_id, right.card_id);
+        });
+        resource.referenced_by_cards.clear();
+        resource.referenced_by_cards.add_all(references);
     }
 
     public static async string create_resource(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
@@ -18,8 +87,6 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
                                                Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         var body = new Json.Builder();
         body.begin_object();
-        body.set_member_name("project_id");
-        body.add_string_value(project_id);
         body.set_member_name("type");
         body.add_string_value(kind);
         body.set_member_name("label");
@@ -38,7 +105,7 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
         body.end_object();
         body.end_object();
 
-        var root = yield client.request_json("POST", "/resources", client.json_string_from_builder(body), null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        var root = yield client.request_json("POST", resources_path(project_id), client.json_string_from_builder(body), null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for resource create response"); // LCOV_EXCL_BR_LINE: throw edge artifact
         }
@@ -47,6 +114,7 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
     }
 
     public static async void update_resource(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                             string project_id,
                                              string resource_id,
                                              string? kind,
                                              string? uri,
@@ -84,7 +152,7 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
 
         yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "PATCH",
-            "/resources/%s".printf(Uri.escape_string(resource_id)),
+            resource_path(project_id, resource_id),
             client.json_string_from_builder(body),
             null
         );
@@ -104,10 +172,10 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
         }
     }
 
-    public static async void delete_resource(ApiClient client, string resource_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+    public static async void delete_resource(ApiClient client, string project_id, string resource_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
         yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "DELETE",
-            "/resources/%s".printf(Uri.escape_string(resource_id)),
+            resource_path(project_id, resource_id),
             null,
             null
         );

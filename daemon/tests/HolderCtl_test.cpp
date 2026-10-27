@@ -3171,13 +3171,13 @@ TEST_CASE(
       if (example == "location") continue;
       REQUIRE(help.find("  holderctl resource " + example + " ") != std::string::npos);
     }
-    REQUIRE(help.find("--filter searches only the returned page") != std::string::npos);
+    REQUIRE(help.find("With CARD: the card's attached resources.") != std::string::npos);
     REQUIRE(help.find("--json requires a file output") != std::string::npos);
   }
 }
 
 TEST_CASE(
-    "holderctl resource lists large projects and traverses attachment pages without omissions",
+    "holderctl resource lists large projects and every attachment of a card",
     "[holderctl][resource-pagination]"
 ) {
   const auto root = prepare_xdg_tree();
@@ -3276,12 +3276,12 @@ TEST_CASE(
   const auto output = root / "list.out";
   const auto error = root / "list.err";
   auto run = [&](const std::string& args, int expected = 0) {
-    REQUIRE(
-        run_command(
-            std::string("\"") + HOLDER_CTL_PATH + "\" resource " + args + " > \"" +
-            output.string() + "\" 2> \"" + error.string() + "\""
-        ) == expected
+    const auto status = run_command(
+        std::string("\"") + HOLDER_CTL_PATH + "\" resource " + args + " > \"" + output.string() + "\" 2> \"" +
+        error.string() + "\""
     );
+    INFO(read_text(error));
+    REQUIRE(status == expected);
     return read_text(output);
   };
   auto ids = [](const nlohmann::json& payload) {
@@ -3300,61 +3300,21 @@ TEST_CASE(
   REQUIRE(ids(filtered) == std::vector<std::string>{all_ids.back()});
   REQUIRE(run("list --filter example.com/1204") == heading + attached_rows.back());
 
-  std::vector<std::string> seen;
-  for (int offset : {0, 100, 200}) {
-    const auto args = "list abcdef12 --offset " + std::to_string(offset);
-    const auto page = nlohmann::json::parse(run(args + " --json"));
-    REQUIRE(page["ok"] == true);
-    REQUIRE(page["card_id"] == card.card_id);
-    REQUIRE(page["limit"] == 100);
-    REQUIRE(page["offset"] == offset);
-    const auto count = std::min(100, 205 - offset);
-    const std::vector<std::string> expected(
-        attached_ids.begin() + offset,
-        attached_ids.begin() + offset + count
-    );
-    REQUIRE(ids(page) == expected);
-    if (count == 100)
-      REQUIRE(page["next_offset"] == offset + count);
-    else
-      REQUIRE(page["next_offset"].is_null());
-    REQUIRE(read_text(error).empty());
-    seen.insert(seen.end(), expected.begin(), expected.end());
-    std::string table = heading;
-    for (int i = offset; i < offset + count; ++i)
-      table += attached_rows[i];
-    REQUIRE(run(args) == table);
-    if (count == 100)
-      REQUIRE(
-          read_text(error) == "More attachments may be available; use --offset " +
-                                  std::to_string(offset + count) + ".\n"
-      );
-    else
-      REQUIRE(read_text(error).empty());
-  }
-  REQUIRE(seen == attached_ids);
-  REQUIRE(std::set<std::string>(seen.begin(), seen.end()).size() == 205);
-  REQUIRE(
-      ids(nlohmann::json::parse(run("list 'Many Attachments' --limit 1000 --json"))) == attached_ids
-  );
-  const auto beyond = nlohmann::json::parse(run("list abcdef12 --offset 205 --json"));
-  REQUIRE(beyond["data"].empty());
-  REQUIRE(beyond["next_offset"].is_null());
-  REQUIRE(run("list abcdef12 --offset 205") == "No resources.\n");
+  // A card's attachments come in one list, however many there are.
+  const auto attached = nlohmann::json::parse(run("list abcdef12 --json"));
+  REQUIRE(attached["ok"] == true);
+  REQUIRE(ids(attached) == attached_ids);
   REQUIRE(read_text(error).empty());
-  const auto empty_filtered = nlohmann::json::parse(
-      run("list abcdef12 --filter example.com/1204 --json")
-  );
-  REQUIRE(empty_filtered["data"].empty());
-  REQUIRE(empty_filtered["next_offset"] == 100); // Filtering must retain continuation metadata.
+  std::string table = heading;
+  for (const auto& row : attached_rows) table += row;
+  REQUIRE(run("list 'Many Attachments'") == table);
   REQUIRE(
-      ids(nlohmann::json::parse(run("list abcdef12 --offset 200 --filter example.com/1204 --json"))
-      ) == std::vector<std::string>{attached_ids.back()}
+      ids(nlohmann::json::parse(run("list abcdef12 --filter example.com/1204 --json"))) ==
+      std::vector<std::string>{attached_ids.back()}
   );
-  REQUIRE(
-      run("list abcdef12 --offset 200 --filter example.com/1204") == heading + attached_rows.back()
-  );
-  run("list abcdef12 --limit 1001 --json", 1);
+  REQUIRE(run("list abcdef12 --filter example.com/1204") == heading + attached_rows.back());
+  // Pages are gone.
+  run("list abcdef12 --offset 100 --json", 1);
   REQUIRE(nlohmann::json::parse(read_text(error))["error"]["code"] == "invalid_arguments");
   run("list --limit 100 --json", 1);
   REQUIRE(nlohmann::json::parse(read_text(error))["error"]["code"] == "invalid_arguments");
@@ -3446,29 +3406,22 @@ TEST_CASE("holderctl resource manages resources in Home by default", "[holderctl
     return read_text(attachment_out);
   };
   REQUIRE(nlohmann::json::parse(attachment_command("list 'Import Target' --json"))["data"].empty());
+  // Attaching and detaching return the card's attachments, and repeating either changes nothing.
   auto attachment_json = nlohmann::json::parse(
       attachment_command("attach abcdef12 " + resource_id + " --json")
   );
-  REQUIRE(attachment_json["data"]["card_id"] == import_target.card_id);
-  REQUIRE(attachment_json["data"]["resource_id"] == resource_id);
-  REQUIRE(attachment_json["data"]["changed"] == true);
+  REQUIRE(attachment_json["data"].size() == 1);
+  REQUIRE(attachment_json["data"][0]["resource_id"] == resource_id);
   REQUIRE(
       nlohmann::json::parse(attachment_command("attach 'Import Target' " + resource_id + " --json")
-      )["data"]["changed"] == false
+      )["data"] == attachment_json["data"]
   );
   REQUIRE(attachment_command("list 'Import Target'").find(resource_id) != std::string::npos);
-  attachment_json = nlohmann::json::parse(attachment_command("list abcdef12 --limit 1 --json"));
-  REQUIRE(attachment_json["data"][0]["resource_id"] == resource_id);
-  REQUIRE(attachment_json["card_id"] == import_target.card_id);
-  REQUIRE(attachment_json["next_offset"] == 1);
-  REQUIRE(nlohmann::json::parse(attachment_command("list abcdef12 --limit 1 --offset 1 --json")
-  )["data"]
-              .empty());
-  REQUIRE(attachment_command("detach 'Import Target' " + resource_id).find("detached") == 0);
   REQUIRE(
-      nlohmann::json::parse(attachment_command("detach abcdef12 " + resource_id + " --json")
-      )["data"]["changed"] == false
+      attachment_command("detach 'Import Target' " + resource_id) ==
+      "Resource " + resource_id + " is not attached to abcdef12.\n"
   );
+  REQUIRE(nlohmann::json::parse(attachment_command("detach abcdef12 " + resource_id + " --json"))["data"].empty());
   REQUIRE(nlohmann::json::parse(attachment_command("list 'Import Target' --json"))["data"].empty());
   REQUIRE(nlohmann::json::parse(attachment_command("list --json"))["data"].size() == 1);
   attachment_command("attach abcdef12 missing --json", 1);
@@ -3481,7 +3434,6 @@ TEST_CASE("holderctl resource manages resources in Home by default", "[holderctl
       nlohmann::json::parse(read_text(xdg_root / "attachment-error.out"))["error"]["code"] ==
       "not_found"
   );
-  attachment_command("list abcdef12 --limit 0 --json", 1);
   attachment_command("attach missing " + resource_id + " --json", 1);
   // Resolve ambiguous titles through the shared daemon resolver, never client-side listings.
   const auto duplicate = holder::test::http_json_request(

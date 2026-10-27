@@ -35,29 +35,6 @@ http::request<http::string_body> make_request(
 
 } // namespace
 
-TEST_CASE("Resource create rejects a malformed body as a bad request", "[resources][routes]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-
-  // project_id has the wrong type, so the generated body decoding rejects it.
-  auto req = make_request(
-      http::verb::post,
-      "/resources",
-      nlohmann::json{
-          {"project_id", nlohmann::json::array()},
-          {"type", "url"},
-          {"label", "Example"}
-      }
-  );
-  http::response<http::string_body> res;
-  REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
-  REQUIRE(res.result() == http::status::bad_request);
-
-  const auto payload = nlohmann::json::parse(res.body());
-  REQUIRE(payload["ok"] == false);
-  REQUIRE(payload["error"]["code"] == "bad_request");
-}
-
 #include "git/GitOps.h"
 #include "google_storage_test_helpers.h"
 #include "resource/LocationBindingStore.h"
@@ -374,72 +351,13 @@ TEST_CASE("Storage failures keep their categories as HTTP statuses", "[resources
   }
 }
 
-TEST_CASE("Resource routes validate updates and report database failures", "[resources][routes]") {
+TEST_CASE("Asset and location routes report bad requests and database failures", "[resources][routes]") {
   LocationRouteFixture f;
-  CHECK(
-      f.call(http::verb::get, "/resources", {}, "project", true, {{"limit", "1"}}).result() ==
-      http::status::bad_request
-  );
-  CHECK(
-      f.call(
-           http::verb::post,
-           "/resources",
-           {{"project_id", 42}, {"type", "url"}, {"label", "Broken"}}
-      ).result() == http::status::bad_request
-  );
   CHECK(
       f.call(http::verb::get, "/resources/resource/assets/asset/content").result() ==
       http::status::bad_request
   );
-  REQUIRE(
-      f.call(
-           http::verb::post,
-           "/resources",
-           {{"project_id", "project"},
-            {"resource_id", "resource"},
-            {"type", "url"},
-            {"label", "Example"}}
-      ).result() == http::status::created
-  );
-  const auto duplicate = f.call(
-      http::verb::post,
-      "/resources",
-      {{"project_id", "project"}, {"resource_id", "resource"}, {"type", "url"}, {"label", "Again"}}
-  );
-  CHECK(duplicate.result() == http::status::conflict);
-  CHECK(nlohmann::json::parse(duplicate.body())["error"]["code"] == "conflict");
-  CHECK(
-      f.call(
-           http::verb::post,
-           "/resources",
-           {{"project_id", "missing"}, {"type", "url"}, {"label", "Orphan"}}
-      ).result() == http::status::bad_request
-  );
-  CHECK(f.call(http::verb::delete_, "/resources/missing").result() == http::status::not_found);
-  CHECK(
-      f.call(http::verb::patch, "/resources/missing", {{"label", "New"}}).result() ==
-      http::status::not_found
-  );
-  CHECK(
-      f.call(http::verb::patch, "/resources/resource", {{"label", 42}}).result() ==
-      http::status::bad_request
-  );
-  REQUIRE(
-      f.call(http::verb::patch, "/resources/resource", {{"label", "Changed"}}).result() ==
-      http::status::ok
-  );
-  CHECK(holder::resource::ResourceRepo(f.db).get_bundle("resource")->resource.label == "Changed");
-  CHECK(
-      f.call(http::verb::put, "/resources/resource").result() ==
-      http::status::method_not_allowed
-  );
-  REQUIRE(f.call(http::verb::delete_, "/resources/resource").result() == http::status::ok);
-  CHECK_FALSE(holder::resource::ResourceRepo(f.db).get_bundle("resource").has_value());
-  f.db.exec("DROP TABLE resources; DROP TABLE storage_locations");
-  CHECK(
-      f.call(http::verb::delete_, "/resources/resource").result() ==
-      http::status::internal_server_error
-  );
+  f.db.exec("DROP TABLE storage_locations");
   CHECK(f.call(http::verb::get, "/locations").result() == http::status::internal_server_error);
 }
 

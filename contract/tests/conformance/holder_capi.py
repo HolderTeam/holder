@@ -13,7 +13,17 @@ from typing import Any
 
 import cffi
 
-from holder_contract.generate import SCALARS_C, Instance, Model, c_out, c_param, generate, literal_member, snake
+from holder_contract.generate import (
+    SCALARS_C,
+    Instance,
+    Model,
+    c_out,
+    c_param,
+    generate,
+    literal_member,
+    map_c_name,
+    snake,
+)
 
 CONTRACT = Path(__file__).resolve().parents[2]
 SCHEMA = CONTRACT.parent / "core" / "schema" / "schema.sql"
@@ -213,6 +223,23 @@ class Core:
             if value is ... or value is None:
                 raise Unrepresentable(f"no value for {slot.name}")
             return value
+        if kind == "map":
+            if value is ... or value is None:
+                if slot.optional and value is ...:
+                    return self.ffi.NULL
+                raise Unrepresentable(f"no value for {slot.name}")
+            name = map_c_name(slot.type)
+            entries = self.ffi.new(f"{name}_entry[]", max(len(value), 1))
+            for i, (key, values) in enumerate(value.items()):
+                entries[i].key = self.text(key, keep)
+                strings = self.ffi.new("const char*[]", max(len(values), 1))
+                for k, text in enumerate(values):
+                    strings[k] = self.text(text, keep)
+                entries[i].values = {"items": strings, "count": len(values)}
+                keep.append(strings)
+            mapped = self.ffi.new(f"{name}*", {"items": entries, "count": len(value)})
+            keep += [entries, mapped]
+            return mapped if slot.optional else mapped[0]
         if kind == "list" and self.model.resolve(slot.type["items"])["kind"] == "named":
             if value is ... or value is None:
                 if slot.optional and value is ...:
@@ -243,6 +270,9 @@ class Core:
                 value = slot.type["values"][value - 1]
             elif kind == "list":
                 value = self.from_c_list(slot.type["items"], value)
+            elif kind == "map":
+                value = {self.ffi.string(value.items[i].key).decode():
+                         self.from_c_list({"kind": "string"}, value.items[i].values) for i in range(value.count)}
             elif kind == "named":
                 value = self.from_c(self.model.instance(slot.type, {}), value)
             out[slot.name] = bool(value) if kind == "bool" else value

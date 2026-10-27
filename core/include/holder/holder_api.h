@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -37,6 +37,19 @@ typedef struct holder_string_list {
     const char* const* items;
     size_t count;
 } holder_string_list;
+
+/* What is known about a resource: each name, such as identifier or author, with its values in order. A name is
+ * not empty.
+ */
+typedef struct holder_resource_metadata_entry {
+    const char* key;
+    holder_string_list values;
+} holder_resource_metadata_entry;
+
+typedef struct holder_resource_metadata {
+    const holder_resource_metadata_entry* items;
+    size_t count;
+} holder_resource_metadata;
 
 /* What a partial update does to a field. */
 typedef enum holder_change {
@@ -134,6 +147,24 @@ typedef struct holder_milestone_update {
     holder_string_change kind; /* What kind of milestone it is; null for none. Zero keeps it. */
     holder_string_change description; /* A note on the milestone; null for none. Zero keeps it. */
 } holder_milestone_update;
+
+/* A resource to make. */
+typedef struct holder_new_resource {
+    const char* resource_id; /* The resource's ID, for imports; omit for a new one. NULL when absent. */
+    const char* type; /* What kind of thing the resource is. */
+    const char* label; /* The resource's name. */
+    const holder_resource_metadata* metadata; /* What is known about the resource; omit for nothing. A name without values is left out. NULL when absent. */
+    const int64_t* created_at; /* When the resource was made, for imports; omit for now. NULL when absent. */
+    const int64_t* updated_at; /* When the resource was last changed, for imports; omit for when it was made. NULL when absent. */
+} holder_new_resource;
+
+/* A change to a resource. Each field left out keeps its value. */
+typedef struct holder_resource_update {
+    const char* type; /* What kind of thing the resource is. NULL when absent. */
+    const char* label; /* The resource's name. NULL when absent. */
+    const holder_resource_metadata* metadata; /* Names whose values change: each name's values replace its old ones, an empty list removes the name, and names left out are kept. NULL when absent. */
+    const int64_t* updated_at; /* When the resource was changed, for imports; omit for now. NULL when absent. */
+} holder_resource_update;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -295,6 +326,61 @@ typedef struct holder_calendar {
     holder_card_metadata_list created_cards; /* The live cards made in the window, by when they were made and then by ID. */
     holder_card_metadata_list updated_cards; /* The live cards last changed in the window, other than by being made, by when and then by ID. */
 } holder_calendar;
+
+/* How the copy is stored: as the file is, or encrypted for the project. */
+typedef enum holder_asset_placement_encoding {
+    HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN = 1,
+    HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1 = 2,
+    HOLDER_ASSET_PLACEMENT_ENCODING_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_asset_placement_encoding;
+
+/* One stored copy of an asset. */
+typedef struct holder_asset_placement {
+    const char* placement_id; /* The copy's ID. */
+    const char* location_id; /* The storage location that holds the copy. */
+    holder_asset_placement_encoding encoding; /* How the copy is stored: as the file is, or encrypted for the project. */
+    int64_t stored_byte_size; /* The size of the stored copy, in bytes. */
+    int64_t created_at; /* When the copy was stored. */
+} holder_asset_placement;
+
+typedef struct holder_asset_placement_list {
+    const holder_asset_placement* items;
+    size_t count;
+} holder_asset_placement_list;
+
+/* A file that belongs to a resource. */
+typedef struct holder_resource_asset {
+    const char* asset_id; /* The asset's ID. */
+    const char* original_filename; /* The file's name when it was imported. */
+    const char* media_type; /* The file's media type, such as application/pdf. */
+    int64_t byte_size; /* The file's size, in bytes. */
+    const char* plaintext_sha256; /* The SHA-256 of the file's content, in lower-case hex. */
+    holder_asset_placement_list placements; /* The stored copies of the file. */
+    int64_t created_at; /* When the asset was imported. */
+    int64_t updated_at; /* When the asset was last changed. */
+} holder_resource_asset;
+
+typedef struct holder_resource_asset_list {
+    const holder_resource_asset* items;
+    size_t count;
+} holder_resource_asset_list;
+
+/* A resource in a project, with its files. */
+typedef struct holder_resource {
+    const char* resource_id; /* The resource's ID. */
+    const char* project_id; /* The project the resource belongs to. */
+    const char* type; /* What kind of thing the resource is. */
+    const char* label; /* The resource's name. */
+    holder_resource_metadata metadata; /* What is known about the resource, by name. */
+    holder_resource_asset_list assets; /* The resource's files. */
+    int64_t created_at; /* When the resource was made. */
+    int64_t updated_at; /* When the resource was last changed. */
+} holder_resource;
+
+typedef struct holder_resource_list {
+    const holder_resource* items;
+    size_t count;
+} holder_resource_list;
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
@@ -512,6 +598,68 @@ int holder_list_milestones_by_instant(holder_context* context, const char* proje
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
+
+/* List a project's resources.
+ * By when they last changed, latest first, then by ID.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_resources(holder_context* context, const char* project_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+
+/* Fetch a resource.
+ * A resource in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+
+/* Make a resource.
+ * A project that does not exist is not found. Resource IDs are unique on this device, so an ID already in use,
+ * in this project or another, is a Conflict.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_create_resource(holder_context* context, const char* project_id, const holder_new_resource* resource, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+
+/* Change a resource.
+ * Each field left out keeps its value. A resource in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_update_resource(holder_context* context, const char* project_id, const char* resource_id, const holder_resource_update* update, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+
+/* Delete a resource.
+ * The resource goes, and so do the links to it from cards. Its files' stored copies are left where they are.
+ * Returns the resource as it was. A resource in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_delete_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error);
+
+/* List the links to a resource.
+ * Links of every kind, attachments among them, from cards and AI messages in the resource's project, newest
+ * first. A resource in another project is not found.
+ * include_deleted: Include links from cards and AI messages in the trash.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_resource_backlinks(holder_context* context, const char* project_id, const char* resource_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error);
+
+/* List the resources attached to a card.
+ * By when they last changed, latest first, then by ID. A card in the trash or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_list_card_resources(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+
+/* Attach a resource to a card.
+ * An attachment is the card's link of kind attachment to the resource. A card that has it already is left as it
+ * is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or in another
+ * project is not found, and neither is a resource that is not in the card's project.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_attach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+
+/* Detach a resource from a card.
+ * The resource itself is kept. A card without the attachment is left as it is, and a resource that no longer
+ * exists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card
+ * in the trash or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_detach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
 
 #ifdef __cplusplus
 }

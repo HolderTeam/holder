@@ -103,6 +103,8 @@ class Model:
         self.outputs: list[Instance] = []
         self.inputs: list[Instance] = []
         self.listed: set[Instance] = set()
+        # Each map's type, by its alias: a map is named for the alias it is declared with.
+        self.maps: dict[str, dict[str, Any]] = {}
         for op in self.operations:
             for parameter in op["parameters"]:
                 self.collect(parameter["type"], self.inputs, {})
@@ -135,6 +137,8 @@ class Model:
         kind = ref["kind"]
         if kind in ("nullable",):
             self.collect(ref["value"], into, bindings)
+        elif kind == "map":
+            self.maps[ref["alias"]] = ref
         elif kind == "list":
             items = self.resolve(ref["items"])
             if items["kind"] in ("named", "parameter"):
@@ -198,7 +202,13 @@ class Model:
             ref = {**self.resolve(ref["value"]), **{k: v for k, v in ref.items() if k not in ("kind", "value")}}
         if nullable and omittable and ref["kind"] != "string":
             raise Unsupported(f"{name}: a partial update of a {ref['kind']}, which only strings have so far")
-        if ref["kind"] in ("map", "json", "secret", "stream", "bytes", "none"):
+        if ref["kind"] == "map":
+            values = self.resolve(ref["values"])
+            if "alias" not in ref:
+                raise Unsupported(f"{name}: a map without a name of its own")
+            if values["kind"] != "list" or self.resolve(values["items"])["kind"] != "string":
+                raise Unsupported(f"{name}: maps to anything but lists of strings")
+        if ref["kind"] in ("json", "secret", "stream", "bytes", "none"):
             raise Unsupported(f"{name}: {ref['kind']}")
         if "pattern" in ref:
             raise Unsupported(f"{name}: patterns, which the glue would not check")
@@ -221,6 +231,10 @@ def list_c_name(model: Model, items: dict[str, Any], bindings=None) -> str:
     if items["kind"] in SCALARS_C:
         return f"holder_{items['kind']}_list"
     return model.instance(items, bindings or {}).c_name + "_list"
+
+
+def map_c_name(ref: dict[str, Any]) -> str:
+    return "holder_" + snake(ref["alias"])
 
 
 def literal_member(value: str) -> str:
@@ -247,6 +261,9 @@ def c_field(model: Model, slot: Slot) -> str:
             else f"{SCALARS_C[t['kind']]} {slot.name};"
     if t["kind"] == "list":
         name = list_c_name(model, t["items"])
+        return f"const {name}* {slot.name};" if slot.nullable or slot.optional else f"{name} {slot.name};"
+    if t["kind"] == "map":
+        name = map_c_name(t)
         return f"const {name}* {slot.name};" if slot.nullable or slot.optional else f"{name} {slot.name};"
     if t["kind"] == "named":
         name = model.instance(t, {}).c_name
@@ -364,6 +381,13 @@ def generate_c_header(model: Model) -> str:
     out += ["", "holder_arena* holder_arena_new(void);", "void holder_arena_free(holder_arena* arena);", "",
             "typedef struct holder_string_list {", "    const char* const* items;", "    size_t count;",
             "} holder_string_list;", ""]
+    for ref in model.maps.values():
+        name = map_c_name(ref)
+        alias = model.aliases[ref["alias"]]
+        out += comment(alias.get("doc"))
+        out += [f"typedef struct {name}_entry {{", "    const char* key;", "    holder_string_list values;",
+                f"}} {name}_entry;", "", f"typedef struct {name} {{", f"    const {name}_entry* items;",
+                "    size_t count;", f"}} {name};", ""]
     if model.changes():
         out += ["/* What a partial update does to a field. */", "typedef enum holder_change {",
                 "    HOLDER_KEEP = 0, /* Leave it as it is. */", "    HOLDER_SET = 1, /* Set it to value. */",
@@ -444,6 +468,8 @@ def cpp_base(model: Model, ref: dict[str, Any], generic: dict[str, str]) -> str:
         return SCALARS_CPP[ref["kind"]]
     if ref["kind"] == "list":
         return f"std::vector<{cpp_base(model, ref['items'], generic)}>"
+    if ref["kind"] == "map":
+        return f"std::map<std::string, {cpp_base(model, ref['values'], generic)}>"
     if ref["kind"] == "parameter":
         return generic[ref["name"]]
     if ref["kind"] == "named":
@@ -473,7 +499,7 @@ def cpp_param(model: Model, op: dict[str, Any], param: Param) -> tuple[str, list
 def generate_cpp_header(model: Model) -> str:
     out = [*header_lines(model.ir, "The C++ declarations core implements: one function per operation. A missing "
                                    "implementation fails to link.", "cpp"),
-           "#pragma once", "", "#include <cstdint>", "#include <optional>", "#include <stdexcept>",
+           "#pragma once", "", "#include <cstdint>", "#include <map>", "#include <optional>", "#include <stdexcept>",
            "#include <string>", "#include <variant>", "#include <vector>", "", "struct holder_context;",
            "struct holder_error;", "", "namespace holder::contract {", "",
            "/// Base of the error kinds operations throw. Anything else thrown is an unexpected failure.",
@@ -743,6 +769,10 @@ def to_c_value(model: Model, slot: Slot, source: str) -> str:
         if optional:
             raise Unsupported(f"{slot.name}: optional records")
         return f"to_c(arena, {source})"
+    if t["kind"] == "map":
+        if optional:
+            raise Unsupported(f"{slot.name}: optional maps")
+        return f"to_c_{snake(t['alias'])}(arena, {source})"
     raise Unsupported(f"{slot.name}: {t['kind']}")
 
 
@@ -769,6 +799,11 @@ def from_c_value(model: Model, slot: Slot, source: str, label: str) -> str:
                 return f"({source} ? {inner} : {cpp}{{{cpp_literal(slot.default)}}})"
             return f"({source} ? std::optional<{cpp}>({inner}) : std::nullopt)"
         return check.format(source)
+    if t["kind"] == "map":
+        convert = f"from_c_{snake(t['alias'])}"
+        if optional:
+            return f'({source} ? std::optional<{cpp_base(model, t, {})}>({convert}(*{source}, "{label}")) : std::nullopt)'
+        return f'{convert}({source}, "{label}")'
     if t["kind"] == "list":
         items = model.resolve(t["items"])
         if items["kind"] != "named":
@@ -800,12 +835,15 @@ def generate_glue(model: Model) -> str:
         for e in model.errors)
     out = [*header_lines(model.ir, "The C entry points: argument checks, conversions and error codes.", "cpp"),
            '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
-           "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <optional>",
+           "#include <cstring>", "#include <limits>", "#include <map>", "#include <memory>", "#include <new>",
+           "#include <optional>",
            "#include <stdexcept>", "#include <string>",
            "#include <utility>", "#include <vector>",
            GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
     if model.changes():
         out += [CHANGE_SUPPORT.strip("\n"), ""]
+    for ref in model.maps.values():
+        out += map_glue(model, ref)
     outputs = unique(model.outputs)
     # A result's choices of literals, from the C++ enum to the C one.
     converted: set[str] = set()
@@ -866,6 +904,30 @@ def generate_glue(model: Model) -> str:
         out += glue_operation(model, op)
     out += ['}  // extern "C"', ""]
     return "\n".join(out)
+
+
+def map_glue(model: Model, ref: dict[str, Any]) -> list[str]:
+    """A map's conversions: entries in the C++ map's order, and back, rejecting a repeated key."""
+    name, cpp, alias = map_c_name(ref), cpp_base(model, ref, {}), snake(ref["alias"])
+    low, high = limits(model.resolve(model.resolve(ref["values"])["items"]))
+    return [f"{name} to_c_{alias}(holder_arena* arena, const {cpp}& value) {{",
+            f"  auto* items = make<{name}_entry>(arena, value.size());",
+            "  std::size_t i = 0;",
+            "  for (const auto& [key, values] : value) items[i++] = {copy(arena, key), copy_strings(arena, values)};",
+            "  return {items, value.size()};", "}", "",
+            f"{cpp} from_c_{alias}(const {name}& value, const char* name) {{",
+            '  require(value.items != nullptr || value.count == 0, std::string(name) + ".items must not be null");',
+            f"  {cpp} out;",
+            "  for (std::size_t i = 0; i < value.count; ++i) {",
+            "    const auto& entry = value.items[i];",
+            '    auto key = text(entry.key, (std::string(name) + " key").c_str(), 0, SIZE_MAX);',
+            "    const auto& list = entry.values;",
+            '    require(list.items != nullptr || list.count == 0, std::string(name) + "." + key + ".items must not be null");',
+            "    std::vector<std::string> values;",
+            "    for (std::size_t k = 0; k < list.count; ++k)",
+            f'      values.push_back(text(list.items[k], (std::string(name) + "." + key).c_str(), {low}, {high}));',
+            '    require(out.emplace(std::move(key), std::move(values)).second, std::string(name) + " repeats a key");',
+            "  }", "  return out;", "}", ""]
 
 
 def glue_operation(model: Model, op: dict[str, Any]) -> list[str]:

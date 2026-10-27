@@ -1896,126 +1896,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /cards/{card_id}/resources:
-    post:
-      summary: Attach a project resource to a live card (idempotent)
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                project_id: {type: string, minLength: 1}
-                resource_id: {type: string, description: Complete exact project resource ID; no prefix
-                    or label lookup., minLength: 1}
-              required: [project_id, resource_id]
-      responses:
-        '200':
-          description: Attachment outcome; repeated requests do not change state
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceAttachmentResponse'}
-        '400':
-          description: Malformed request, or a privacy error writing an encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Live card or resource not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '422':
-          description: Card or resource belongs to a different project
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    delete:
-      summary: Detach one attachment without deleting the project resource (idempotent)
-      description: A resource that no longer exists can still be detached.
-      parameters:
-      - name: card_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                project_id: {type: string, minLength: 1}
-                resource_id: {type: string, description: Complete exact project resource ID; no prefix
-                    or label lookup., minLength: 1}
-              required: [project_id, resource_id]
-      responses:
-        '200':
-          description: Attachment outcome; repeated requests do not change state
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceAttachmentResponse'}
-        '400':
-          description: Malformed request, or a privacy error writing an encrypted card
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Live card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '422':
-          description: Card or resource belongs to a different project
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '503':
-          description: The keyring needed to write an encrypted card is unavailable
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /docs:
     get:
       summary: Browse the API documentation
@@ -4086,6 +3966,169 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/cards/{card_id}/resources:
+    get:
+      summary: List the resources attached to a card.
+      description: By when they last changed, latest first, then by ID. A card in the trash or in another
+        project is not found.
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/cards/{card_id}/resources/{resource_id}:
+    put:
+      summary: Attach a resource to a card.
+      description: 'An attachment is the card''s link of kind attachment to the resource. A card that
+        has it already is left as it
+
+        is. Returns the card''s attached resources, as list_card_resources lists them. A card in the trash
+        or in another
+
+        project is not found, and neither is a resource that is not in the card''s project.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      summary: Detach a resource from a card.
+      description: 'The resource itself is kept. A card without the attachment is left as it is, and a
+        resource that no longer
+
+        exists can still be detached. Returns the card''s attached resources, as list_card_resources lists
+        them. A card
+
+        in the trash or in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: card_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/cards/{card_id}/restore:
     post:
       summary: Restore a card from the trash.
@@ -5111,6 +5154,296 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/resources:
+    get:
+      summary: List a project's resources.
+      description: By when they last changed, latest first, then by ID.
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Make a resource.
+      description: 'A project that does not exist is not found. Resource IDs are unique on this device,
+        so an ID already in use,
+
+        in this project or another, is a Conflict.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewResource'}
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: 'The request conflicts with what exists: what would be created already exists,
+            such as a card with the same ID or file, or the thing to change is not in the state the request
+            needs, such as restoring a card that is not in the trash, or removing a tag that a card would
+            still carry in its prose. An encrypted project''s key is not on this device; the project''s
+            recovery token restores it.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/resources/{resource_id}:
+    get:
+      summary: Fetch a resource.
+      description: A resource in another project is not found.
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    patch:
+      summary: Change a resource.
+      description: Each field left out keeps its value. A resource in another project is not found.
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResourceUpdate'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      summary: Delete a resource.
+      description: 'The resource goes, and so do the links to it from cards. Its files'' stored copies
+        are left where they are.
+
+        Returns the resource as it was. A resource in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/resources/{resource_id}/backlinks:
+    get:
+      summary: List the links to a resource.
+      description: 'Links of every kind, attachments among them, from cards and AI messages in the resource''s
+        project, newest
+
+        first. A resource in another project is not found.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: resource_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+      - name: include_deleted
+        in: query
+        required: false
+        schema: {type: boolean, description: Include links from cards and AI messages in the trash., default: false,
+          title: Include Deleted}
+        description: Include links from cards and AI messages in the trash.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/tags:
     get:
       summary: List a project's tags.
@@ -5290,201 +5623,6 @@ paths:
               schema: {$ref: '#/components/schemas/ReindexResponse'}
         '401':
           description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /resources:
-    get:
-      summary: List project resources or attachments to a live card
-      description: With card_id, returns an authoritative live-card attachment join in updated_at descending,
-        resource_id ascending order. Without card_id, preserves the unpaginated project resource list.
-        Detach preserves project resources; delete removes them globally.
-      parameters:
-      - name: project_id
-        in: query
-        required: true
-        schema: {type: string, minLength: 1}
-      - name: card_id
-        in: query
-        required: false
-        schema: {type: string}
-        description: Complete resolved live card ID; must belong to project_id.
-      - name: limit
-        in: query
-        required: false
-        schema: {type: integer, minimum: 1, maximum: 1000}
-        description: Requires card_id; defaults to 100.
-      - name: offset
-        in: query
-        required: false
-        schema: {type: integer, minimum: 0}
-        description: Requires card_id; defaults to 0.
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceListResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Live card not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '422':
-          description: Card is in a different project
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    post:
-      summary: Create a resource
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/ResourceCreateRequest'}
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceResponse'}
-        '400':
-          description: Bad request, including a project that does not exist
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '409':
-          description: A resource with this ID already exists
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /resources/{resource_id}:
-    get:
-      summary: Get a resource with its assets and placements
-      parameters:
-      - name: resource_id
-        in: path
-        required: true
-        schema: {type: string}
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    patch:
-      summary: Update a resource
-      parameters:
-      - name: resource_id
-        in: path
-        required: true
-        schema: {type: string}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/ResourceUpdateRequest'}
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    delete:
-      summary: Delete a resource and remove its Card links
-      parameters:
-      - name: resource_id
-        in: path
-        required: true
-        schema: {type: string}
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ResourceDeleteResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '404':
-          description: Not found
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6566,16 +6704,24 @@ components:
             metadata.}
       required: [project_id, card_id, location_id, source_path]
     AssetPlacement:
-      type: object
       properties:
-        placement_id: {type: string}
-        location_id: {type: string}
+        placement_id: {type: string, minLength: 1, title: Placement Id, description: The copy's ID.}
+        location_id: {type: string, minLength: 1, title: Location Id, description: The storage location
+            that holds the copy.}
         encoding:
           type: string
           enum: [plain, holder_asset_v1]
-        stored_byte_size: {type: integer, format: int64}
-        created_at: {type: integer, format: int64}
+          title: Encoding
+          description: 'How the copy is stored: as the file is, or encrypted for the project.'
+        stored_byte_size: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808,
+          format: int64, title: Stored Byte Size, description: 'The size of the stored copy, in bytes.'}
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the copy was stored.}
+      additionalProperties: false
+      type: object
       required: [placement_id, location_id, encoding, stored_byte_size, created_at]
+      title: AssetPlacement
+      description: One stored copy of an asset.
     ByeResponse:
       type: object
       properties:
@@ -7579,6 +7725,25 @@ components:
       required: [dates]
       title: NewMilestone
       description: A milestone to put on a card.
+    NewResource:
+      properties:
+        resource_id: {$ref: '#/components/schemas/ResourceId', description: 'The resource''s ID, for imports;
+            omit for a new one.'}
+        type: {$ref: '#/components/schemas/ResourceType', description: What kind of thing the resource
+            is.}
+        label: {type: string, minLength: 1, title: Label, description: The resource's name.}
+        metadata: {$ref: '#/components/schemas/ResourceMetadata', description: What is known about the
+            resource; omit for nothing. A name without values is left out.}
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: 'When the resource was made, for imports; omit for now.'}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: 'When the resource was last changed, for imports; omit for when
+            it was made.'}
+      additionalProperties: false
+      type: object
+      required: [type, label]
+      title: NewResource
+      description: A resource to make.
     Project:
       type: object
       properties:
@@ -8064,135 +8229,93 @@ components:
         data: {$ref: '#/components/schemas/ReindexData'}
       required: [ok, data]
     Resource:
-      type: object
       properties:
-        resource_id: {type: string}
-        project_id: {type: string}
-        type: {type: string, description: 'Friendly, extensible type rather than a closed enum.'}
-        label: {type: string}
-        metadata: {$ref: '#/components/schemas/ResourceMetadata'}
+        resource_id: {$ref: '#/components/schemas/ResourceId', description: The resource's ID.}
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project the resource belongs
+            to.}
+        type: {$ref: '#/components/schemas/ResourceType', description: What kind of thing the resource
+            is.}
+        label: {type: string, minLength: 1, title: Label, description: The resource's name.}
+        metadata: {$ref: '#/components/schemas/ResourceMetadata', description: 'What is known about the
+            resource, by name.'}
         assets:
-          type: array
           items: {$ref: '#/components/schemas/ResourceAsset'}
-        created_at: {type: integer, format: int64}
-        updated_at: {type: integer, format: int64}
-        referenced_by_cards:
           type: array
-          items:
-            type: object
-            properties:
-              card_id: {type: string}
-              title: {type: string}
-              updated_at: {type: integer, format: int64}
-              link_kinds:
-                type: array
-                items: {type: string}
-            required: [card_id, title, updated_at, link_kinds]
-          description: Live cards linking to the resource, by title then card ID. Empty in create and
-            update responses.
-      required: [resource_id, project_id, type, label, metadata, assets, created_at, updated_at, referenced_by_cards]
+          title: Assets
+          description: The resource's files.
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the resource was made.}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: When the resource was last changed.}
+      additionalProperties: false
+      type: object
+      required: [resource_id, project_id, type, label, metadata, assets, created_at, updated_at]
+      title: Resource
+      description: A resource in a project, with its files.
     ResourceAsset:
-      type: object
       properties:
-        asset_id: {type: string}
-        resource_id: {type: string}
-        original_filename: {type: string}
-        media_type: {type: string}
-        byte_size: {type: integer, format: int64}
-        plaintext_sha256: {type: string}
+        asset_id: {type: string, minLength: 1, title: Asset Id, description: The asset's ID.}
+        original_filename: {type: string, title: Original Filename, description: The file's name when
+            it was imported.}
+        media_type: {type: string, title: Media Type, description: 'The file''s media type, such as application/pdf.'}
+        byte_size: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Byte Size, description: 'The file''s size, in bytes.'}
+        plaintext_sha256: {type: string, title: Plaintext Sha256, description: 'The SHA-256 of the file''s
+            content, in lower-case hex.'}
         placements:
-          type: array
           items: {$ref: '#/components/schemas/AssetPlacement'}
-        created_at: {type: integer, format: int64}
-        updated_at: {type: integer, format: int64}
-      required: [asset_id, resource_id, original_filename, media_type, byte_size, plaintext_sha256, placements,
-        created_at, updated_at]
-    ResourceAttachmentResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            card_id: {type: string}
-            resource_id: {type: string}
-            changed: {type: boolean}
-            outcome:
-              type: string
-              enum: [attached, already_attached, detached, not_attached]
-          required: [card_id, resource_id, changed, outcome]
-      required: [ok, data]
-    ResourceCreateRequest:
-      type: object
-      properties:
-        resource_id: {type: string, description: Optional; server generates if omitted.}
-        project_id: {type: string}
-        type: {type: string}
-        label: {type: string}
-        metadata: {$ref: '#/components/schemas/ResourceMetadata'}
-        created_at: {type: integer, format: int64, description: Optional; server uses current time if
-            omitted.}
-        updated_at: {type: integer, format: int64, description: Optional; server uses created_at if omitted.}
-      required: [project_id, type, label]
-    ResourceDeleteResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            resource_id: {type: string}
-          required: [resource_id]
-      required: [ok, data]
-    ResourceListResponse:
-      type: object
-      properties:
-        card_id: {type: string, description: 'Canonical live card ID, present only for card attachment
-            lists.'}
-        limit: {type: integer}
-        offset: {type: integer}
-        next_offset:
-          type: [integer, 'null']
-          format: int64
-          description: Present for card lists; null when exhausted, otherwise continue here (the next
-            page may be empty).
-        ok:
-          type: boolean
-          enum: [true]
-        data:
           type: array
+          title: Placements
+          description: The stored copies of the file.
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the asset was imported.}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: When the asset was last changed.}
+      additionalProperties: false
+      type: object
+      required: [asset_id, original_filename, media_type, byte_size, plaintext_sha256, placements, created_at,
+        updated_at]
+      title: ResourceAsset
+      description: A file that belongs to a resource.
+    ResourceId: {type: string, minLength: 4}
+    ResourceListResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data:
           items: {$ref: '#/components/schemas/Resource'}
+          type: array
+          title: Data
+      type: object
       required: [ok, data]
+      title: ResourceListResponse
     ResourceMetadata:
-      type: object
       additionalProperties:
-        type: array
         items: {type: string}
-      description: Permissive metadata map. Repeated and custom values are preserved in order.
+        type: array
+      type: object
     ResourceResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
+        ok: {type: boolean, const: true, title: Ok}
         data: {$ref: '#/components/schemas/Resource'}
-      required: [ok, data]
-    ResourceUpdateRequest:
       type: object
+      required: [ok, data]
+      title: ResourceResponse
+    ResourceType: {type: string, minLength: 1}
+    ResourceUpdate:
       properties:
-        type: {type: string}
-        label: {type: string}
-        metadata:
-          allOf:
-          - {$ref: '#/components/schemas/ResourceMetadata'}
-          description: Partial metadata update. Empty arrays remove a property; omitted properties are
-            preserved.
-        updated_at: {type: integer, format: int64, description: Optional; server uses current time if
-            omitted.}
+        type: {$ref: '#/components/schemas/ResourceType', description: What kind of thing the resource
+            is.}
+        label: {type: string, minLength: 1, title: Label, description: The resource's name.}
+        metadata: {$ref: '#/components/schemas/ResourceMetadata', description: 'Names whose values change:
+            each name''s values replace its old ones, an empty list removes the name, and
+
+            names left out are kept.'}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: 'When the resource was changed, for imports; omit for now.'}
+      additionalProperties: false
+      type: object
+      title: ResourceUpdate
+      description: A change to a resource. Each field left out keeps its value.
     RevisionReference: {type: string, pattern: '^[0-9A-Fa-f]{8,40}$', minLength: 8, maxLength: 40, description: Full
         Git commit object ID or a unique leading commit-ID prefix. Successful responses use the canonical
         full lowercase object ID.}

@@ -279,9 +279,11 @@ resource = project.resources.create(
     type="website", label="Reference",
     metadata={"identifier": ["https://example.com"]},
 )
-card.attach(resource)                    # True if a link was created
-for attached in card.attachments:        # lazy, paginated listing
+card.attach(resource)                    # attaching again changes nothing
+for attached in card.attachments:        # lazy listing, by last change
     print(attached.label, attached.assets)
+for link in resource.backlinks:          # links of every kind to the resource
+    print(link.source_id, link.kind)
 card.detach(resource)                    # resource still exists
 resource.update(metadata={"identifier": []})  # remove this metadata key
 ```

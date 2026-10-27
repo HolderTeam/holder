@@ -233,7 +233,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientResourcesEndpoints.create_resource(this, project_id, kind, uri, label, desc, extra_metadata); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async void update_resource(string resource_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void update_resource(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
@@ -241,12 +242,12 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
                                       int64 updated_at,
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         yield ApiClientResourcesEndpoints.update_resource( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, resource_id, kind, uri, label, desc, updated_at, extra_metadata
+            this, project_id, resource_id, kind, uri, label, desc, updated_at, extra_metadata
         );
     }
 
-    public async void delete_resource(string resource_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        yield ApiClientResourcesEndpoints.delete_resource(this, resource_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void delete_resource(string project_id, string resource_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientResourcesEndpoints.delete_resource(this, project_id, resource_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
     public async StorageLocationList list_storage_locations(string project_id) throws Error {

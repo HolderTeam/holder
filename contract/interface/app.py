@@ -16,6 +16,7 @@ from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Pa
 from .errors import Conflict, DataCorrupted, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
 from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
+from .resources import NewResource, Resource, ResourceId, ResourceUpdate
 
 contract = Contract(statuses={
     NotFound: 404,
@@ -322,4 +323,101 @@ def get_calendar(
     The caller gives the window twice, as instants and as the days they fall on where the caller is, because a day
     has no time zone: a milestone is in the window when one of its days is in the days, or one of its instants in
     the instants. Cards are made and changed at instants. Either range is empty when its start is after its end.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/resources", errors=[NotFound])
+def list_resources(project_id: Annotated[ProjectId, Path()]) -> list[Resource]:
+    """List a project's resources.
+
+    By when they last changed, latest first, then by ID.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/resources/{resource_id}", errors=[NotFound])
+def get_resource(project_id: Annotated[ProjectId, Path()], resource_id: Annotated[ResourceId, Path()]) -> Resource:
+    """Fetch a resource.
+
+    A resource in another project is not found.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/resources", status=201, errors=[NotFound, Conflict, *KEYS])
+def create_resource(project_id: Annotated[ProjectId, Path()], resource: Annotated[NewResource, Body()]) -> Resource:
+    """Make a resource.
+
+    A project that does not exist is not found. Resource IDs are unique on this device, so an ID already in use,
+    in this project or another, is a Conflict.
+    """
+
+
+@contract.route("PATCH", "/projects/{project_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+def update_resource(
+    project_id: Annotated[ProjectId, Path()],
+    resource_id: Annotated[ResourceId, Path()],
+    update: Annotated[ResourceUpdate, Body()],
+) -> Resource:
+    """Change a resource.
+
+    Each field left out keeps its value. A resource in another project is not found.
+    """
+
+
+@contract.route("DELETE", "/projects/{project_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+def delete_resource(project_id: Annotated[ProjectId, Path()], resource_id: Annotated[ResourceId, Path()]) -> Resource:
+    """Delete a resource.
+
+    The resource goes, and so do the links to it from cards. Its files' stored copies are left where they are.
+    Returns the resource as it was. A resource in another project is not found.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/resources/{resource_id}/backlinks", errors=[NotFound])
+def list_resource_backlinks(
+    project_id: Annotated[ProjectId, Path()],
+    resource_id: Annotated[ResourceId, Path()],
+    include_deleted: Annotated[bool, Query(description="Include links from cards and AI messages in the trash.")]
+    = False,
+) -> list[Link]:
+    """List the links to a resource.
+
+    Links of every kind, attachments among them, from cards and AI messages in the resource's project, newest
+    first. A resource in another project is not found.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}/resources", errors=[NotFound])
+def list_card_resources(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> list[Resource]:
+    """List the resources attached to a card.
+
+    By when they last changed, latest first, then by ID. A card in the trash or in another project is not found.
+    """
+
+
+@contract.route("PUT", "/projects/{project_id}/cards/{card_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+def attach_card_resource(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    resource_id: Annotated[ResourceId, Path()],
+) -> list[Resource]:
+    """Attach a resource to a card.
+
+    An attachment is the card's link of kind attachment to the resource. A card that has it already is left as it
+    is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or in another
+    project is not found, and neither is a resource that is not in the card's project.
+    """
+
+
+@contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/resources/{resource_id}",
+                errors=[NotFound, *KEYS])
+def detach_card_resource(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    resource_id: Annotated[ResourceId, Path()],
+) -> list[Resource]:
+    """Detach a resource from a card.
+
+    The resource itself is kept. A card without the attachment is left as it is, and a resource that no longer
+    exists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card
+    in the trash or in another project is not found.
     """

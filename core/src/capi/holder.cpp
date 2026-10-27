@@ -1343,7 +1343,7 @@ int holder_project_import(
   }
 }
 
-int holder_resource_list(
+int holder_resource_list_json(
     holder_context* context,
     const char* project_id,
     char** out_json,

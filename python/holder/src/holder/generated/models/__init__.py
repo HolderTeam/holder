@@ -149,7 +149,6 @@ from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
-from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
@@ -219,12 +218,12 @@ from .milestone_update import MilestoneUpdate
 from .new_card import NewCard
 from .new_link import NewLink
 from .new_milestone import NewMilestone
+from .new_resource import NewResource
 from .patch_locations_location_id_body import PatchLocationsLocationIdBody
 from .patch_locations_location_id_body_configuration import (
     PatchLocationsLocationIdBodyConfiguration,
 )
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
-from .post_cards_card_id_resources_body import PostCardsCardIdResourcesBody
 from .project import Project
 from .project_create_request import ProjectCreateRequest
 from .project_create_request_privacy_mode import ProjectCreateRequestPrivacyMode
@@ -310,19 +309,10 @@ from .reindex_data import ReindexData
 from .reindex_response import ReindexResponse
 from .resource import Resource
 from .resource_asset import ResourceAsset
-from .resource_attachment_response import ResourceAttachmentResponse
-from .resource_attachment_response_data import ResourceAttachmentResponseData
-from .resource_attachment_response_data_outcome import (
-    ResourceAttachmentResponseDataOutcome,
-)
-from .resource_create_request import ResourceCreateRequest
-from .resource_delete_response import ResourceDeleteResponse
-from .resource_delete_response_data import ResourceDeleteResponseData
 from .resource_list_response import ResourceListResponse
 from .resource_metadata import ResourceMetadata
-from .resource_referenced_by_cards_item import ResourceReferencedByCardsItem
 from .resource_response import ResourceResponse
-from .resource_update_request import ResourceUpdateRequest
+from .resource_update import ResourceUpdate
 from .runner_capabilities_data import RunnerCapabilitiesData
 from .runner_capabilities_response import RunnerCapabilitiesResponse
 from .runner_pull_job import RunnerPullJob
@@ -494,7 +484,6 @@ __all__ = (
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
-    "DeleteCardsCardIdResourcesBody",
     "DeleteProjectsProjectIdCardsCardIdChildren",
     "DeleteProjectsProjectIdTrashTypeIdType",
     "DeleteTrashType",
@@ -552,10 +541,10 @@ __all__ = (
     "NewCard",
     "NewLink",
     "NewMilestone",
+    "NewResource",
     "PatchLocationsLocationIdBody",
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",
-    "PostCardsCardIdResourcesBody",
     "Project",
     "ProjectCreateRequest",
     "ProjectCreateRequestPrivacyMode",
@@ -615,17 +604,10 @@ __all__ = (
     "ReindexResponse",
     "Resource",
     "ResourceAsset",
-    "ResourceAttachmentResponse",
-    "ResourceAttachmentResponseData",
-    "ResourceAttachmentResponseDataOutcome",
-    "ResourceCreateRequest",
-    "ResourceDeleteResponse",
-    "ResourceDeleteResponseData",
     "ResourceListResponse",
     "ResourceMetadata",
-    "ResourceReferencedByCardsItem",
     "ResourceResponse",
-    "ResourceUpdateRequest",
+    "ResourceUpdate",
     "RunnerCapabilitiesData",
     "RunnerCapabilitiesResponse",
     "RunnerPullJob",

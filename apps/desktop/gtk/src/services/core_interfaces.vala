@@ -45,14 +45,15 @@ public interface IHolderApi : Object {
                                                  string label,
                                                  string? desc = null,
                                                  Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
-    public abstract async void update_resource(string resource_id,
+    public abstract async void update_resource(string project_id,
+                                               string resource_id,
                                                string? kind,
                                                string? uri,
                                                string? label,
                                                string? desc,
                                                int64 updated_at,
                                                Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
-    public abstract async void delete_resource(string resource_id) throws Error;
+    public abstract async void delete_resource(string project_id, string resource_id) throws Error;
     public abstract async CardLink create_card_link(string project_id,
                                                     string from_card_id,
                                                     string to_card_id,

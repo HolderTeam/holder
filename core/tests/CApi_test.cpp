@@ -4032,15 +4032,15 @@ TEST_CASE(
     error = nullptr;
   };
 
-  REQUIRE(holder_resource_list(context, "", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
+  REQUIRE(holder_resource_list_json(context, "", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT);
   REQUIRE(json == nullptr);
   clear_expected_error();
   REQUIRE(
-      holder_resource_list(context, "project-1", nullptr, &error) == HOLDER_ERROR_INVALID_ARGUMENT
+      holder_resource_list_json(context, "project-1", nullptr, &error) == HOLDER_ERROR_INVALID_ARGUMENT
   );
   clear_expected_error();
   REQUIRE(
-      holder_resource_list(nullptr, "project-1", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT
+      holder_resource_list_json(nullptr, "project-1", &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT
   );
   clear_expected_error();
 
@@ -7770,7 +7770,7 @@ TEST_CASE(
   char* resource_list_json = nullptr;
   error = nullptr;
   REQUIRE(
-      holder_resource_list(context, project_id.c_str(), &resource_list_json, &error) == HOLDER_OK
+      holder_resource_list_json(context, project_id.c_str(), &resource_list_json, &error) == HOLDER_OK
   );
   REQUIRE(nlohmann::json::parse(resource_list_json).empty());
   holder_string_free(resource_list_json);
@@ -8464,8 +8464,8 @@ TEST_CASE("C API JSON helpers validate output and context before dispatch", "[ca
     error = nullptr;
   };
 
-  expect_invalid(holder_resource_list(nullptr, "project-1", nullptr, &error));
-  expect_invalid(holder_resource_list(nullptr, "project-1", &json, &error));
+  expect_invalid(holder_resource_list_json(nullptr, "project-1", nullptr, &error));
+  expect_invalid(holder_resource_list_json(nullptr, "project-1", &json, &error));
   expect_invalid(holder_card_milestone_update_json(
       nullptr,
       "project-1",
@@ -10407,7 +10407,7 @@ TEST_CASE(
   holder_string_free(json);
 
   json = nullptr;
-  REQUIRE(holder_resource_list(context, "project-1", &json, &error) == HOLDER_OK);
+  REQUIRE(holder_resource_list_json(context, "project-1", &json, &error) == HOLDER_OK);
   REQUIRE(nlohmann::json::parse(json).size() == 1);
   holder_string_free(json);
 

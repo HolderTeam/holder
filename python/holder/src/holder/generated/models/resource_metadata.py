@@ -12,8 +12,6 @@ T = TypeVar("T", bound="ResourceMetadata")
 
 @_attrs_define
 class ResourceMetadata:
-    """Permissive metadata map. Repeated and custom values are preserved in order."""
-
     additional_properties: dict[str, list[str]] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

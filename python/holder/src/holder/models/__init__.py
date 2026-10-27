@@ -48,7 +48,7 @@ from .project_git import (
     RemoteCheck,
     SyncResult,
 )
-from .resource import Asset, AssetPlacement, Resource, ResourceReference
+from .resource import Asset, AssetPlacement, Resource, ResourceBacklinkCollection
 from .search import CardSearchResult
 from .storage import StorageLocation
 from .tag import Tag
@@ -96,7 +96,7 @@ __all__ = [
     "RemoteCheck",
     "RepairedCard",
     "Resource",
-    "ResourceReference",
+    "ResourceBacklinkCollection",
     "Run",
     "Runner",
     "StorageLocation",

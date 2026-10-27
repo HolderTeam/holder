@@ -83,6 +83,16 @@ int main() {
   send(*context, "GET", "/projects/p1/milestones/days?first_day=2026-10-01&last_day=2026-10-31&role=start");
   send(*context, "GET", "/projects/p1/milestones/instants?first_instant=0&last_instant=x");
   send(*context, "GET", "/projects/p1/calendar?first_instant=0&last_instant=1&first_day=2026-10-01");
+  // Resources.
+  send(*context, "POST", "/projects/p1/resources",
+       R"({"resource_id": "res-1", "type": "book", "label": "A book", "metadata": {"author": ["Ada", "Grace"]}})");
+  send(*context, "POST", "/projects/p1/resources", R"({"type": "book", "label": "A book", "metadata": {"author": "Ada"}})");
+  send(*context, "POST", "/projects/p1/resources", R"({"resource_id": "r1", "type": "book", "label": "Short"})");
+  send(*context, "PATCH", "/projects/p1/resources/res-1", R"({"metadata": {"author": [], "isbn": ["123"]}})");
+  send(*context, "GET", "/projects/p1/resources");
+  send(*context, "PUT", "/projects/p1/cards/c1/resources/res-1");
+  send(*context, "GET", "/projects/p1/resources/res-9");
+  send(*context, "DELETE", "/projects/p1/resources/res-1");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

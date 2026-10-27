@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 from ..types import UNSET, Unset
@@ -13,34 +12,30 @@ if TYPE_CHECKING:
     from ..models.resource_metadata import ResourceMetadata
 
 
-T = TypeVar("T", bound="ResourceCreateRequest")
+T = TypeVar("T", bound="NewResource")
 
 
 @_attrs_define
-class ResourceCreateRequest:
-    """
+class NewResource:
+    """A resource to make.
+
     Attributes:
-        project_id (str):
         type_ (str):
-        label (str):
-        resource_id (str | Unset): Optional; server generates if omitted.
-        metadata (ResourceMetadata | Unset): Permissive metadata map. Repeated and custom values are preserved in order.
-        created_at (int | Unset): Optional; server uses current time if omitted.
-        updated_at (int | Unset): Optional; server uses created_at if omitted.
+        label (str): The resource's name.
+        resource_id (str | Unset):
+        metadata (ResourceMetadata | Unset):
+        created_at (int | Unset): When the resource was made, for imports; omit for now.
+        updated_at (int | Unset): When the resource was last changed, for imports; omit for when it was made.
     """
 
-    project_id: str
     type_: str
     label: str
     resource_id: str | Unset = UNSET
     metadata: ResourceMetadata | Unset = UNSET
     created_at: int | Unset = UNSET
     updated_at: int | Unset = UNSET
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        project_id = self.project_id
-
         type_ = self.type_
 
         label = self.label
@@ -56,10 +51,9 @@ class ResourceCreateRequest:
         updated_at = self.updated_at
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
-                "project_id": project_id,
                 "type": type_,
                 "label": label,
             }
@@ -80,8 +74,6 @@ class ResourceCreateRequest:
         from ..models.resource_metadata import ResourceMetadata
 
         d = dict(src_dict)
-        project_id = d.pop("project_id")
-
         type_ = d.pop("type")
 
         label = d.pop("label")
@@ -99,8 +91,7 @@ class ResourceCreateRequest:
 
         updated_at = d.pop("updated_at", UNSET)
 
-        resource_create_request = cls(
-            project_id=project_id,
+        new_resource = cls(
             type_=type_,
             label=label,
             resource_id=resource_id,
@@ -109,21 +100,4 @@ class ResourceCreateRequest:
             updated_at=updated_at,
         )
 
-        resource_create_request.additional_properties = d
-        return resource_create_request
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return new_resource

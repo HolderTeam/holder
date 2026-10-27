@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from test_library import card_payload, holder_for, ok, project_payload
+from test_library import card_payload, failure, holder_for, ok, project_payload
 
 from holder import Asset, ImportJob, Resource, StorageLocation
 from holder.exceptions import APIError, AuthenticationError, ProtocolError
@@ -13,20 +13,12 @@ from holder.exceptions import APIError, AuthenticationError, ProtocolError
 
 def resource_data(project_id="p-0", *, assets=None):
     return {
-        "resource_id": "r-1",
+        "resource_id": "res-1",
         "project_id": project_id,
         "type": "file",
         "label": "Report",
         "metadata": {"creator": ["Ada", "Grace"]},
         "assets": assets or [],
-        "referenced_by_cards": [
-            {
-                "card_id": "c-0000",
-                "title": "Card 0",
-                "updated_at": 2,
-                "link_kinds": ["attachment"],
-            }
-        ],
         "created_at": 1,
         "updated_at": 2,
     }
@@ -35,7 +27,7 @@ def resource_data(project_id="p-0", *, assets=None):
 def asset_data():
     return {
         "asset_id": "a-1",
-        "resource_id": "r-1",
+        "resource_id": "res-1",
         "original_filename": "report.pdf",
         "media_type": "application/pdf",
         "byte_size": 6,
@@ -68,9 +60,10 @@ def location_data(project_id="p-0", *, bound=False):
     }
 
 
-def test_resources_and_card_attachments_are_scoped_and_paginated():
+def test_resources_card_attachments_and_backlinks_are_project_scoped():
     requests = []
     state = resource_data()
+    attached = []
 
     def respond(request):
         path = request.url.path
@@ -79,52 +72,51 @@ def test_resources_and_card_attachments_are_scoped_and_paginated():
         if path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         requests.append(request)
-        if path == "/resources" and request.method == "GET":
-            assert request.url.params["project_id"] == "p-0"
-            if "card_id" in request.url.params:
-                offset = int(request.url.params["offset"])
-                return httpx.Response(
-                    200,
-                    json={
-                        "ok": True,
-                        "data": [state] if offset == 0 else [],
-                        "card_id": "c-0000",
-                        "limit": 100,
-                        "offset": offset,
-                        "next_offset": 100 if offset == 0 else None,
-                    },
-                )
-            assert "limit" not in request.url.params
+        if path == "/projects/p-0/resources" and request.method == "GET":
             return ok([state])
-        if path == "/resources" and request.method == "POST":
+        if path == "/projects/p-0/resources" and request.method == "POST":
             body = json.loads(request.content)
             assert body == {
-                "project_id": "p-0",
                 "type": "file",
                 "label": "Report",
                 "metadata": {"creator": ["Ada", "Grace"]},
             }
             return httpx.Response(201, json={"ok": True, "data": state})
-        if path == "/resources/r-1" and request.method == "GET":
+        if path == "/projects/p-0/resources/res-1" and request.method == "GET":
             return ok(state)
-        if path == "/resources/r-1" and request.method == "PATCH":
+        if path == "/projects/p-0/resources/res-1" and request.method == "PATCH":
             body = json.loads(request.content)
             assert body == {"metadata": {"creator": []}}
             state["metadata"] = {}
             return ok(state)
-        if path == "/resources/r-1" and request.method == "DELETE":
-            return ok({"resource_id": "r-1"})
-        if path == "/cards/c-0000/resources":
-            body = json.loads(request.content)
-            assert body == {"project_id": "p-0", "resource_id": "r-1"}
+        if path == "/projects/p-0/resources/res-1" and request.method == "DELETE":
+            return ok(state)
+        if path == "/projects/p-0/resources/res-1/backlinks":
+            assert request.url.params["include_deleted"] == "false"
             return ok(
-                {
-                    "card_id": "c-0000",
-                    "resource_id": "r-1",
-                    "changed": True,
-                    "outcome": "attached" if request.method == "POST" else "detached",
-                }
+                [
+                    {
+                        "source_project_id": "p-0",
+                        "source_type": "card",
+                        "source_id": "c-0000",
+                        "target_project_id": "p-0",
+                        "target_type": "resource",
+                        "target_id": "res-1",
+                        "kind": "attachment",
+                        "label": None,
+                        "created_at": 3,
+                    }
+                ]
             )
+        if path == "/projects/p-0/cards/c-0000/resources":
+            return ok(list(attached))
+        if path == "/projects/p-0/cards/c-0000/resources/res-1":
+            assert request.content == b""
+            if request.method == "PUT":
+                attached[:] = [state]
+            else:
+                attached.clear()
+            return ok(list(attached))
         raise AssertionError(path)
 
     with holder_for(respond) as holder:
@@ -134,15 +126,19 @@ def test_resources_and_card_attachments_are_scoped_and_paginated():
         )
         assert isinstance(resource, Resource)
         assert resource.metadata["creator"] == ["Ada", "Grace"]
-        assert resource.referenced_by_cards[0].link_kinds == ("attachment",)
         assert project.resources[0].id == resource.id
+        link = resource.backlinks[0]
+        assert (link.source_id, link.kind) == ("c-0000", "attachment")
         card = project.cards.get("c-0000")
-        assert card.attach(resource) is True
-        assert card.attachments[0].id == "r-1"
+        assert card.attach(resource) is None
+        assert card.attachments[0].id == "res-1"
         assert len(list(card.attachments)) == 1
-        assert card.detach(resource) is True
+        card.detach(resource)
+        assert list(card.attachments) == []
         assert resource.update(metadata={"creator": []}) is resource
         assert resource.metadata == {}
+        with pytest.raises(ValueError):
+            resource.update(metadata={"": ["x"]})
         resource.delete()
     assert sum(r.method == "DELETE" for r in requests) == 2
 
@@ -151,8 +147,8 @@ def test_project_scope_rejects_foreign_resources_and_locations():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/resources/r-1":
-            return ok(resource_data("p-1"))
+        if request.url.path == "/projects/p-0/resources/res-1":
+            return failure(404)
         if request.url.path == "/locations/l-1":
             return ok(location_data("p-1"))
         raise AssertionError(request.url.path)
@@ -160,7 +156,7 @@ def test_project_scope_rejects_foreign_resources_and_locations():
     with holder_for(respond) as holder:
         project = holder.projects.get("p-0")
         with pytest.raises(APIError):
-            project.resources.get("r-1")
+            project.resources.get("res-1")
         with pytest.raises(APIError):
             project.storage_locations.get("l-1")
 
@@ -232,14 +228,14 @@ def test_location_binding_preference_and_import_job():
                 {
                     "job_id": "j-1",
                     "status": "completed",
-                    "resource_id": "r-1",
+                    "resource_id": "res-1",
                     "asset_id": "a-1",
                     "duplicate_reused": False,
                     "link_created": True,
                     "error": None,
                 }
             )
-        if path == "/resources/r-1":
+        if path == "/projects/p-0/resources/res-1":
             return ok(resource_data())
         raise AssertionError(path)
 
@@ -258,7 +254,7 @@ def test_location_binding_preference_and_import_job():
         assert isinstance(job, ImportJob)
         assert job.wait(interval=0.001) is job
         assert job.status == "completed" and job.link_created is True
-        assert job.resource.id == "r-1"
+        assert job.resource.id == "res-1"
         assert location.unbind() is location
     assert polls == 1
 
@@ -269,7 +265,7 @@ def test_asset_download_streams_and_keeps_destination_on_error(tmp_path):
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/resources/r-1":
+        if request.url.path == "/projects/p-0/resources/res-1":
             return ok(resource_data(assets=[asset_data()]))
         requests.append(request)
         if request.url.params.get("placement_id") == "place-1":
@@ -288,7 +284,7 @@ def test_asset_download_streams_and_keeps_destination_on_error(tmp_path):
         )
 
     with holder_for(respond) as holder:
-        asset = holder.projects.get("p-0").resources.get("r-1").assets[0]
+        asset = holder.projects.get("p-0").resources.get("res-1").assets[0]
         assert isinstance(asset, Asset)
         destination = tmp_path / "report.pdf"
         assert asset.download_to(destination) == destination
@@ -300,15 +296,13 @@ def test_asset_download_streams_and_keeps_destination_on_error(tmp_path):
     assert len(requests) == 2
 
 
-def test_attachment_list_rejects_wrong_card():
+def test_attachment_list_rejects_another_projects_resource():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
         if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
-        return httpx.Response(
-            200, json={"ok": True, "data": [], "card_id": "other", "next_offset": None}
-        )
+        return ok([resource_data("p-1")])
 
     with holder_for(respond) as holder, pytest.raises(ProtocolError):
         list(holder.projects.get("p-0").cards.get("c-0000").attachments)
@@ -379,14 +373,14 @@ def test_download_error_leaves_existing_file_untouched(tmp_path):
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/resources/r-1":
+        if request.url.path == "/projects/p-0/resources/res-1":
             return ok(resource_data(assets=[asset_data()]))
         return httpx.Response(200, stream=BrokenStream())
 
     destination = tmp_path / "report.pdf"
     destination.write_bytes(b"old")
     with holder_for(respond) as holder:
-        asset = holder.projects.get("p-0").resources.get("r-1").assets[0]
+        asset = holder.projects.get("p-0").resources.get("res-1").assets[0]
         from holder.exceptions import ConnectionError
 
         with pytest.raises(ConnectionError):
@@ -399,7 +393,7 @@ def test_download_unauthorized_uses_the_high_level_error(tmp_path):
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/resources/r-1":
+        if request.url.path == "/projects/p-0/resources/res-1":
             return ok(resource_data(assets=[asset_data()]))
         return httpx.Response(
             401,
@@ -410,7 +404,7 @@ def test_download_unauthorized_uses_the_high_level_error(tmp_path):
         )
 
     with holder_for(respond) as holder:
-        asset = holder.projects.get("p-0").resources.get("r-1").assets[0]
+        asset = holder.projects.get("p-0").resources.get("res-1").assets[0]
         with pytest.raises(AuthenticationError):
             asset.download_to(tmp_path / "report.pdf")
     assert list(tmp_path.iterdir()) == []
