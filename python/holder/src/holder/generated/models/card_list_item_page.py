@@ -15,8 +15,7 @@ T = TypeVar("T", bound="CardListItemPage")
 
 @_attrs_define
 class CardListItemPage:
-    """One page of a listing.
-
+    """
     Attributes:
         items (list[CardListItem]): The page's items.
         next_cursor (None | str): Pass back to get the next page; null on the last page.

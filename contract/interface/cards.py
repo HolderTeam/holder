@@ -1,10 +1,8 @@
 """Cards: the notes a project holds, arranged in a hierarchy."""
 
-from typing import Annotated, Literal
+from typing import Annotated
 
-from holder_contract import MISSING, Field, Float64, Int32, Int64, Record, Timestamp, operation
-
-from .errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
+from holder_contract import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
 
 type ProjectId = Annotated[str, Field(min_length=1)]
 """A project's ID."""
@@ -104,43 +102,3 @@ class NewCard(Record):
     """When the card was created, for imports; omit for now."""
     updated_at: Timestamp | MISSING = MISSING
     """When the card was last changed, for imports; omit to use created_at."""
-
-
-@operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
-def get_card(card_id: CardId) -> Card:
-    """Fetch a card.
-
-    A card in the trash is not found.
-    """
-
-
-@operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
-def list_cards(
-    project_id: ProjectId,
-    parent: Annotated[Literal["roots"] | CardId | None, Field(
-        description="Omit for every level; roots selects root cards; a card ID selects its children.")] = None,
-    tag: Annotated[Annotated[str, Field(min_length=1)] | None, Field(
-        description="Only cards with this tag, matched without case and without the leading #. A tag starts with "
-                    "an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is "
-                    "not a tag.")] = None,
-    order: Annotated[Literal["card_id_asc", "updated_desc", "sort_key_asc"], Field(
-        description="updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.")]
-    = "card_id_asc",
-    limit: Annotated[Int32, Field(ge=1, le=5000, description="At most 1000 when include_content is true.")] = 200,
-    cursor: Annotated[Annotated[str, Field(min_length=1, max_length=8192)] | None, Field(
-        description="The previous page's next_cursor. Keep the project, filters and order unchanged.")] = None,
-    include_content: Annotated[bool, Field(description="Include each card's body.")] = False,
-    include_child_count: Annotated[bool, Field(description="Include each card's count of live children.")] = False,
-) -> Page[CardListItem]:
-    """Page through a project's live cards.
-
-    Filters combine. Each page reads current data; iterating is not a snapshot.
-    """
-
-
-@operation(errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
-def create_card(card: NewCard) -> Card:
-    """Create a card.
-
-    Fails with NotFound when the project or the parent does not exist.
-    """

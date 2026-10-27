@@ -673,7 +673,8 @@ TEST_CASE(
       parameter_named(operation, "include_child_count")["schema"]["type"].as<std::string>() ==
       "boolean"
   );
-  CHECK(parameter_named(operation, "parent")["schema"]["oneOf"].size() == 2);
+  // roots, a card ID, or null, as FastAPI writes the contract's choice.
+  CHECK(parameter_named(operation, "parent")["schema"]["anyOf"].size() == 3);
   CHECK(
       parameter_named(operation, "order")["schema"]["enum"].as<std::vector<std::string>>() ==
       std::vector<std::string>{"card_id_asc", "updated_desc", "sort_key_asc"}

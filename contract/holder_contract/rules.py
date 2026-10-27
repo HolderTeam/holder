@@ -1,8 +1,9 @@
 """Rules on what a contract file may contain, checked on its source before it is imported.
 
-A contract file holds declarations only: imports of the vocabulary, records, enums, error kinds,
-host interfaces, operations, `type` statements and HTTP bindings. Anything that could run logic,
-such as a validator, an assignment or a function body, is rejected with the line it is on.
+A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
+host interfaces and `type` statements. Anything that could run logic, such as a validator, an
+assignment or a function, is rejected with the line it is on. Operations are FastAPI routes in the
+package's app.py, which these rules do not cover (holder_contract.routes).
 """
 
 from __future__ import annotations
@@ -105,15 +106,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
             found.names.append((node.name, node.lineno))
             _check_class(node, found, problem)
         elif isinstance(node, ast.FunctionDef):
-            found.names.append((node.name, node.lineno))
-            if not any(_decorator_name(d) == "operation" for d in node.decorator_list):
-                problem(node, f"{node.name}: a function in the contract must be an @operation")
-            elif len(node.decorator_list) != 1:
-                problem(node, f"{node.name}: an operation takes no decorator besides @operation")
-            if not _declaration_body(node.body):
-                problem(node, f"{node.name}: an operation's body may hold only its docstring and `...`")
-        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and _decorator_name(node.value) in ("http", "http_error"):
-            continue
+            problem(node, f"{node.name}: operations are routes in app.py, not functions in a model module")
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             problem(node, "contract files hold no assignments; name a type with a `type` statement")
         else:

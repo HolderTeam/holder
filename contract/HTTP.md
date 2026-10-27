@@ -1,35 +1,37 @@
 # The generated HTTP routes
 
-`interface/http.py` binds the contract's operations to HTTP, and the daemon's generators turn the bindings into three files:
+`interface/app.py` declares the contract's operations as FastAPI routes, and the daemon's generators turn them into three files:
 
 - **`ContractRoutes.h`:** `contract_http::dispatch`, which matches a request to an operation, decodes and checks its arguments, calls core's C++ function for it with the caller's `holder_context`, and encodes the result.
 - **`ContractJson.h`:** the JSON codec for the contract's C++ types (`core/src/api/Contract.h`).
-- **`openapi.json`:** the operations' OpenAPI paths and the schemas they use.
+- **`openapi.json`:** the operations' OpenAPI paths and the schemas they use: FastAPI's document of `app.py`, with FastAPI's own 422 validation responses and the operation IDs removed, the daemon's error schemas, and each schema named by its title, so that a generic record's use is `CardListItemPage` rather than Pydantic's `Page_CardListItem_` (`openapi.py`).
 
 `make -C contract update` writes the first two into `daemon/src/api/generated/`, and merges the third into RIG's document for the daemon's other routes (`api/rig/openapi.rig.json`) to write `api/openapi.yaml` and `api/openapi.json`, the API's document; RIG's document brings authentication, servers and the API's metadata, and the contract's operations get the same 401. `make -C contract check` fails when any of them is out of date. The merge rejects a route in both, a schema of the same name with another shape, and a RIG route that would take a request meant for one of the contract's. `python -m holder_contract generate --output <directory>` writes every generated file, with core's C API files, into one directory.
 
-The daemon tries RIG's dispatcher first, then this one for a request RIG has no route for or would answer with a 405 (`daemon/src/api/GeneratedRoutes.cpp`). Each request runs in core with a `holder_context` on the worker's database, full-text indexer and Git service. The generators were ported from [RIG](https://github.com/zeth/rig) at `e32ea68` (`http_routes.py`, `json_codec.py`, `openapi.py` and the route rules in `ir.py`), which generated the same kinds of file from declarations reflected from C++. They now read the contract's IR instead. `tests/http/` compiles the routes against the stand-in for core in `tests/c/` and sends them requests.
+The daemon tries RIG's dispatcher first, then this one for a request RIG has no route for or would answer with a 405 (`daemon/src/api/GeneratedRoutes.cpp`). Each request runs in core with a `holder_context` on the worker's database, full-text indexer and Git service. The routes' and codec's generators were ported from [RIG](https://github.com/zeth/rig) at `e32ea68` (`http_routes.py`, `json_codec.py` and the route rules in `ir.py`), which generated the same kinds of file from declarations reflected from C++; they now read the contract's IR instead. `openapi.py` keeps RIG's document ordering and the merge. `tests/http/` compiles the routes against the stand-in for core in `tests/c/` and sends them requests.
 
-## Binding
+## Routes
 
 ```python
-http_error(NotFound, 404)
+contract = Contract(statuses={NotFound: 404})
 
-http(get_card, "GET", "/cards/{card_id}")
-http(list_cards, "GET", "/projects/{project_id}/cards", query=["parent", "tag", "order", "limit", "cursor"])
-http(create_card, "POST", "/cards", status=201)
+@contract.route("GET", "/cards/{card_id}", errors=[NotFound])
+def get_card(card_id: Annotated[CardId, Path()]) -> Card: ...
+
+@contract.route("POST", "/cards", status=201, errors=[NotFound])
+def create_card(card: Annotated[NewCard, Body()]) -> Card: ...
 ```
 
-- A parameter named in the path comes from the path, one listed in `query` from the query string, and at most one other, a record, is the JSON request body.
+- Each parameter says where it comes from: `Path()`, `Query()`, or `Body()` for at most one, a record, as the JSON request body.
 - `status` is the success status, 200 unless given; it must be a 2xx with a body.
-- `http_error(kind, status)` gives an error kind its status. Every error kind of an HTTP-bound operation needs one. The error kinds name conditions, such as `NotFound`; only this file says what they are in HTTP.
+- `statuses` gives each error kind its HTTP status. Every error kind of a route needs one. The error kinds name conditions, such as `NotFound`; only `app.py` says what they are in HTTP.
 
 ## Conventions
 
-- **Success:** `{"ok": true, "data": <result>}`, with the binding's status. In OpenAPI, the envelope of a named result is a schema of its own, such as `CardResponse`.
+- **Success:** `{"ok": true, "data": <result>}`, with the route's status. In OpenAPI, the envelope of a result is a schema of its own, such as `CardResponse`.
 - **Failure:** `{"ok": false, "error": {"code": <code>, "message": <text>}}`:
   - an argument the contract rejects is 400, with the code `invalid_argument`;
-  - an error kind has the status `http_error` gives it, and its name in snake case as the code, such as `not_found`;
+  - an error kind has the status the `Contract` gives it, and its name in snake case as the code, such as `not_found`;
   - anything else is 500, `internal_error`.
 - **Routes:** a literal path segment is tried before a parameter, and the generator rejects routes that could match the same request ambiguously.
 - **Path and query values** are percent-decoded; in the query, `+` is a space. A query parameter given twice is an invalid argument. Booleans are `true`, `false`, `1` or `0`. A choice of literals is its value as text, and `parent=roots` is the literal beside a card ID.

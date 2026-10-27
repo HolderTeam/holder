@@ -1,10 +1,15 @@
-"""Describe the contract's HTTP operations in OpenAPI 3.2.
+"""The contract's HTTP operations in OpenAPI 3.2: FastAPI's document of the contract's app.
 
-Ported from RIG's openapi.py (https://github.com/zeth/rig, src/rig/openapi.py at e32ea68), which
-read declarations reflected from C++; this reads the contract's IR and its HTTP bindings. The
-result has the operations' paths and the schemas they use, in the shapes contract_http::dispatch
-(http_routes.py) sends and accepts. Authentication, servers and the API's metadata belong to the
-daemon's document, which these paths are merged into.
+FastAPI writes the document from the routes in app.py (holder_contract.routes) and the Pydantic
+models they use. What is added here is only what makes it the daemon's API: FastAPI's own 422
+validation responses go, since the daemon answers an invalid argument with 400 and the error
+envelope (the routes declare those themselves); operation IDs go, as in the rest of the daemon's
+document; and the error envelope's schemas are the ones RIG's document has, so that the two merge.
+Authentication, servers and the API's metadata come from the daemon's document, which these paths
+are merged into until every route is in the contract.
+
+ordered() and merge() were ported from RIG's openapi.py (https://github.com/zeth/rig,
+src/rig/openapi.py at e32ea68).
 """
 
 from __future__ import annotations
@@ -13,20 +18,10 @@ import copy
 import json
 from typing import Any
 
-from .generate import Instance, Model, Unsupported
 from .http_routes import _more_specific, _segments_overlap, route_segments
+from .routes import Contract
 
 OPENAPI_VERSION = "3.2.0"
-SCALARS = {
-    "string": {"type": "string"},
-    "int32": {"type": "integer", "format": "int32"},
-    "int64": {"type": "integer", "format": "int64"},
-    "float64": {"type": "number", "format": "double"},
-    "bool": {"type": "boolean"},
-}
-KEYWORDS = (("min_length", "minLength"), ("max_length", "maxLength"), ("pattern", "pattern"),
-            ("ge", "minimum"), ("le", "maximum"), ("gt", "exclusiveMinimum"), ("lt", "exclusiveMaximum"))
-# The error body every failure has, as contract_http::failure writes it.
 ERROR_SCHEMAS = {
     "Error": {
         "type": "object",
@@ -44,149 +39,45 @@ ERROR_RESPONSE = {"$ref": "#/components/schemas/ErrorResponse"}
 UNAUTHORIZED = {"description": "Unauthorized", "content": {"application/json": {"schema": ERROR_RESPONSE}}}
 
 
-def schema_name(instance: Instance) -> str:
-    """A record's schema name; a generic record's names its arguments first, as CardListItemPage."""
-    return "".join([*instance.arguments, instance.record])
+# FastAPI's own response to a request it cannot validate; the daemon answers 400 instead.
+FASTAPI_ONLY = ("HTTPValidationError", "ValidationError")
 
 
-class Converter:
-    def __init__(self, model: Model):
-        self.model = model
-        self.components: dict[str, Any] = {}
-
-    def schema(self, ref: dict[str, Any]) -> dict[str, Any]:
-        ref = self.model.resolve(ref)
-        kind = ref["kind"]
-        if kind in SCALARS:
-            result = dict(SCALARS[kind])
-        elif kind == "literal":
-            result = {"type": "string" if isinstance(ref["values"][0], str) else "integer", "enum": list(ref["values"])}
-        elif kind == "list":
-            result = {"type": "array", "items": self.schema(ref["items"])}
-        elif kind == "nullable":
-            inner = self.schema({**self.model.resolve(ref["value"]),
-                                 **{k: v for k, v in ref.items() if k not in ("kind", "value", "alias")}})
-            # OpenAPI 3.1's idiom: a null type beside a typed schema, anyOf for a reference.
-            if isinstance(inner.get("type"), str):
-                inner["type"] = [inner["type"], "null"]
-                if "enum" in inner:
-                    inner["enum"].append(None)
-                return inner
-            return {"anyOf": [inner, {"type": "null"}]}
-        elif kind == "union":
-            result = {"oneOf": [self.schema(a) for a in ref["alternatives"]]}
-        elif kind == "named":
-            instance = self.model.instance(ref, {})
-            self.record(instance)
-            return {"$ref": f"#/components/schemas/{schema_name(instance)}"}
-        else:
-            raise Unsupported(f"{kind} in OpenAPI")
-        for key, keyword in KEYWORDS:
-            if key in ref:
-                result[keyword] = ref[key]
-        return result
-
-    def record(self, instance: Instance) -> None:
-        name = schema_name(instance)
-        if name in self.components:
-            return
-        self.components[name] = {}  # reserved, for records that refer to themselves
-        declaration = self.model.records[instance.record]
-        properties, required = {}, []
-        # Every field, a base record's included, as Pydantic writes a record: allOf would make a closed
-        # record and its closed base reject each other's fields.
-        for slot in self.model.slots(instance):
-            property_schema = self.schema({"kind": "nullable", "value": slot.type} if slot.nullable else slot.type)
-            if slot.doc:
-                if "$ref" in property_schema:
-                    property_schema = {"allOf": [property_schema]}
-                property_schema["description"] = slot.doc
-            if slot.has_default and slot.default is not None:
-                property_schema["default"] = slot.default
-            properties[slot.name] = property_schema
-            if not slot.optional:
-                required.append(slot.name)
-        result: dict[str, Any] = {"type": "object", "properties": properties}
-        if required:
-            result["required"] = required
-        # A record has only the fields it declares, in requests and results alike; clients should
-        # still read results leniently.
-        result["additionalProperties"] = False
-        if declaration.get("doc"):
-            result["description"] = declaration["doc"]
-        self.components[name] = result
-
-    def parameter_schema(self, parameter: dict[str, Any]) -> dict[str, Any]:
-        """A path or query parameter's schema: its value's, without null, which a URL cannot say."""
-        ref = self.model.resolve(parameter["type"])
-        if ref["kind"] == "nullable":
-            ref = {**self.model.resolve(ref["value"]), **{k: v for k, v in ref.items() if k not in ("kind", "value")}}
-        result = self.schema(ref)
-        if parameter.get("default") is not None:
-            result["default"] = parameter["default"]
-        return result
-
-    def operation(self, op: dict[str, Any], binding: dict[str, Any], statuses: dict[str, int]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key in ("summary", "description"):
-            if op.get(key):
-                result[key] = op[key]
-        parameters, body = [], None
-        for parameter in op["parameters"]:
-            name = parameter["name"]
-            if name in binding["path_parameters"]:
-                item = {"name": name, "in": "path", "required": True, "schema": self.parameter_schema(parameter)}
-            elif name in binding["query"]:
-                nullable = self.model.resolve(parameter["type"])["kind"] == "nullable"
-                item = {"name": name, "in": "query", "required": not nullable and "default" not in parameter,
-                        "schema": self.parameter_schema(parameter)}
-            else:
-                body = parameter
-                continue
-            if parameter.get("doc"):
-                item["description"] = parameter["doc"]
-            parameters.append(item)
-        if parameters:
-            result["parameters"] = parameters
-        if body is not None:
-            result["requestBody"] = {"required": True,
-                                     "content": {"application/json": {"schema": self.schema(body["type"])}}}
-        data = self.schema(op["returns"])
-        envelope: dict[str, Any] = {"type": "object",
-                                    "properties": {"ok": {"type": "boolean", "enum": [True]}, "data": data},
-                                    "required": ["ok", "data"]}
-        if "$ref" in data:
-            # Named for its result, as CardResponse, so that clients generated from it have a name for it.
-            name = data["$ref"].rsplit("/", 1)[1] + "Response"
-            self.components[name] = envelope
-            envelope = {"$ref": f"#/components/schemas/{name}"}
-        responses = {str(binding["status"]): {"description": "Success",
-                                              "content": {"application/json": {"schema": envelope}}}}
-        descriptions: dict[int, list[str]] = {400: ["Invalid argument."]}
-        for error in op["errors"]:
-            doc = next(e for e in self.model.errors if e["name"] == error)["doc"]
-            descriptions.setdefault(statuses[error], []).append(doc or error)
-        descriptions.setdefault(500, []).append("Unexpected failure.")
-        for status, texts in descriptions.items():
-            responses[str(status)] = {"description": " ".join(texts),
-                                      "content": {"application/json": {"schema": dict(ERROR_RESPONSE)}}}
-        result["responses"] = responses
-        return result
+def document(contract: Contract) -> dict[str, Any]:
+    """The OpenAPI paths and schemas of the contract's routes."""
+    result = copy.deepcopy(contract.app.openapi())
+    for methods in result["paths"].values():
+        for operation in methods.values():
+            operation["responses"].pop("422", None)
+            operation.pop("operationId", None)
+    schemas = result["components"]["schemas"]
+    for name in FASTAPI_ONLY:
+        schemas.pop(name, None)
+    schemas.update(copy.deepcopy(ERROR_SCHEMAS))
+    return ordered(named_by_title({"openapi": OPENAPI_VERSION, "paths": result["paths"],
+                                   "components": {"schemas": schemas}}))
 
 
-def convert(model: Model) -> dict[str, Any]:
-    """The OpenAPI paths and schemas of the contract's HTTP operations."""
-    converter = Converter(model)
-    operations = {op["name"]: op for op in model.operations}
-    statuses = {e["error"]: e["status"] for e in model.ir["http_errors"]}
-    paths: dict[str, dict[str, Any]] = {}
-    for binding in model.ir["http"]:
-        if binding["operation"] not in operations:
-            continue
-        paths.setdefault(binding["path"], {})[binding["method"].lower()] = converter.operation(
-            operations[binding["operation"]], binding, statuses)
-    components = {**ERROR_SCHEMAS, **converter.components}
-    return ordered({"openapi": OPENAPI_VERSION, "paths": paths, "components": {"schemas": components}})
+def named_by_title(document: dict[str, Any]) -> dict[str, Any]:
+    """The document with each schema named by its title.
+
+    Pydantic names a generic record's use after its type (Page_CardListItem_) but titles it with
+    model_parametrized_name (CardListItemPage); clients are generated from the names, so the
+    readable one is used.
+    """
+    schemas = document["components"]["schemas"]
+    renames = {name: schema["title"] for name, schema in schemas.items()
+               if schema.get("title") and schema["title"] != name}
+    names = [renames.get(name, name) for name in schemas]
+    clashes = sorted({name for name in names if names.count(name) > 1})
+    if clashes:
+        raise ValueError(f"schemas would share the names {', '.join(clashes)}")
+    text = json.dumps(document)
+    for old, new in renames.items():
+        text = text.replace(f'"#/components/schemas/{old}"', f'"#/components/schemas/{new}"')
+    result = json.loads(text)
+    result["components"]["schemas"] = {renames.get(n, n): s for n, s in result["components"]["schemas"].items()}
+    return result
 
 
 METHOD_ORDER = ("get", "put", "post", "patch", "delete")

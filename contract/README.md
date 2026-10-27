@@ -4,7 +4,7 @@ Holder's interface, written once. Nothing in this directory runs in Holder.
 
 These files describe every record, operation, error and event that core, the daemon and the clients share. A generator turns them into code that does run: `holder.h`, the C++ declarations core implements, the daemon's routes and OpenAPI, and the client libraries. To change Holder's interface, edit these files; to change what it does, edit the code that implements it.
 
-The files look like a FastAPI app, but they are declarations, not a server. An operation is a function with a typed signature and a docstring, and no body; nothing ever calls it.
+The operations are a FastAPI app, but a declaration, not a server: each is a route with a typed signature and a docstring, and a body nothing ever calls. The daemon serves the routes from code generated from the contract.
 
 The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). Today the contract declares the Card slice ([#289](https://github.com/HolderTeam/holder/issues/289)): getting, listing and creating cards. The C generator writes core's C API for it, described in [C_API.md](C_API.md), and core implements it in `core/src/api/`. The daemon's generators write its HTTP routes, their JSON codec and their OpenAPI paths, described in [HTTP.md](HTTP.md).
 
@@ -14,7 +14,8 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 - `holder_contract/` is the tooling:
   - the vocabulary contract files import (`vocabulary.py`) and the rules they must follow (`rules.py`);
   - the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md));
-  - the generators: `generate.py` for core's C API, and `http_routes.py`, `json_codec.py` and `openapi.py` for the daemon (`daemon.py` runs them);
+  - the routes' helper, `routes.py`, which `app.py` declares the operations with;
+  - the generators: `generate.py` for core's C API, `http_routes.py` and `json_codec.py` for the daemon, and `openapi.py`, which takes FastAPI's document of the routes (`daemon.py` runs them);
   - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
@@ -49,12 +50,14 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
 
 ## Writing the contract
 
+A contract package has model modules, which declare records, error kinds and host interfaces, and one `app.py`, which declares the operations as FastAPI routes:
+
 ```python
-"""Cards."""
+"""Cards."""  # cards.py, a model module
 
 from typing import Annotated
 
-from holder_contract import Field, HolderError, Record, Timestamp, http, http_error, operation
+from holder_contract import Field, HolderError, Record, Timestamp
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID."""
@@ -73,32 +76,48 @@ class Card(Record):
     """Null for a root card."""
     deleted_at: Timestamp | None
     """When the card was moved to the trash; null when it is not in the trash."""
+```
+
+```python
+"""Holder's operations."""  # app.py
+
+from typing import Annotated
+
+from fastapi import Path
+
+from holder_contract import Contract
+
+from .cards import Card, CardId, NotFound
+
+contract = Contract(statuses={NotFound: 404})
 
 
-@operation(errors=[NotFound])
-def get_card(card_id: CardId) -> Card:
+@contract.route("GET", "/cards/{card_id}", errors=[NotFound])
+def get_card(card_id: Annotated[CardId, Path()]) -> Card:
     """Fetch a card.
 
     A card in the trash is not found.
     """
-
-
-http_error(NotFound, 404)
-http(get_card, "GET", "/cards/{card_id}")
 ```
 
-A file may contain only:
+A model module may contain only:
 
 - imports from `typing`, `enum`, `pydantic`, `holder_contract` and other contract modules;
 - **records**: subclasses of `Record`, whose fields are documented by the string under each one. A record rejects fields it does not have, in requests and results alike (clients should still read results leniently), and a generic record's use is named for its arguments: `Page[CardListItem]` is `CardListItemPage`;
 - **enums**: subclasses of `StrEnum`;
 - **error kinds**: direct subclasses of `HolderError`, optionally with fields;
 - **host interfaces**: `typing.Protocol` classes marked `@host_interface`, for callbacks core makes into the host, such as a keyring provider;
-- **operations**: functions marked `@operation`, whose body is only a docstring or `...`;
-- **named types**: `type` statements, never plain assignments, so generators keep the name;
-- **HTTP bindings**: `http(operation, method, path, query=[...], status=...)` and `http_error(kind, status)` calls, which core ignores ([HTTP.md](HTTP.md)).
+- **named types**: `type` statements, never plain assignments, so generators keep the name.
 
-Anything else, such as a validator, a `model_config`, a helper function or an assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
+Anything else, such as a validator, a `model_config`, a function or an assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
+
+`app.py` is ordinary FastAPI. It makes one `Contract` (`holder_contract.routes`) and declares every operation through it:
+
+- **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
+- **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.
+- **error statuses:** `Contract(statuses={NotFound: 404, ...})` gives each error kind its HTTP status. Every error kind of a route needs one.
+
+The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)).
 
 The rest of the vocabulary:
 
@@ -107,7 +126,6 @@ The rest of the vocabulary:
 - **Null and omitted:** `T | None` may be null. On a record's field, `T | MISSING = MISSING` may be omitted. Together, as in a partial update, they mean "omit to keep, null clears".
 - **Other types:** `str`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`, unions (discriminated with `Field(discriminator=...)`), `JsonValue` for free-form JSON, `SecretStr` for secrets, and generic records such as `class Page[T](Record)`.
 - **Results only:** `Stream[T]` for an operation whose result is a sequence of items, and `Bytes` for one that returns a byte stream.
-- **Constraints:** `Field(min_length=, max_length=, pattern=, ge=, le=, gt=, lt=)` in `Annotated`, and `Field(description=...)` for a parameter's documentation.
-- **Operation options:** `@operation(errors=[...])` lists the error kinds an operation may fail with, besides an invalid argument. `daemon_only=True` keeps it out of core's C API.
+- **Constraints:** `Field(min_length=, max_length=, pattern=, ge=, le=, gt=, lt=)` in `Annotated`; a route's parameter takes them in its `Path()` or `Query()` too.
 
 Every record, field, enum, error kind, interface method and operation must have documentation. An operation's docstring is its summary, then a blank line, then its description; nothing else is read from it.

@@ -3774,18 +3774,18 @@
         "summary": "Create a card.",
         "description": "Fails with NotFound when the project or the parent does not exist.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NewCard"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3969,14 +3969,13 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/components/schemas/CardId"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -8105,8 +8104,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/components/schemas/ProjectId"
             }
           },
           {
@@ -8114,18 +8112,20 @@
             "in": "query",
             "required": false,
             "schema": {
-              "oneOf": [
+              "anyOf": [
                 {
-                  "type": "string",
-                  "enum": [
-                    "roots"
-                  ]
+                  "const": "roots",
+                  "type": "string"
                 },
                 {
-                  "type": "string",
-                  "minLength": 1
+                  "$ref": "#/components/schemas/CardId"
+                },
+                {
+                  "type": "null"
                 }
-              ]
+              ],
+              "description": "Omit for every level; roots selects root cards; a card ID selects its children.",
+              "title": "Parent"
             },
             "description": "Omit for every level; roots selects root cards; a card ID selects its children."
           },
@@ -8134,8 +8134,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cards with this tag, matched without case and without the leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is not a tag.",
+              "title": "Tag"
             },
             "description": "Only cards with this tag, matched without case and without the leading #. A tag starts with an ASCII letter and holds only ASCII letters, digits, _, / and -; a hex colour such as fff is not a tag."
           },
@@ -8144,13 +8153,15 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
               "enum": [
                 "card_id_asc",
                 "updated_desc",
                 "sort_key_asc"
               ],
-              "default": "card_id_asc"
+              "type": "string",
+              "description": "updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order.",
+              "default": "card_id_asc",
+              "title": "Order"
             },
             "description": "updated_desc breaks ties by descending card ID; sort_key_asc follows sibling order."
           },
@@ -8160,10 +8171,12 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int32",
-              "minimum": 1,
               "maximum": 5000,
-              "default": 200
+              "minimum": 1,
+              "description": "At most 1000 when include_content is true.",
+              "format": "int32",
+              "default": 200,
+              "title": "Limit"
             },
             "description": "At most 1000 when include_content is true."
           },
@@ -8172,9 +8185,18 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 8192
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8192
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The previous page's next_cursor. Keep the project, filters and order unchanged.",
+              "title": "Cursor"
             },
             "description": "The previous page's next_cursor. Keep the project, filters and order unchanged."
           },
@@ -8184,7 +8206,9 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false
+              "description": "Include each card's body.",
+              "default": false,
+              "title": "Include Content"
             },
             "description": "Include each card's body."
           },
@@ -8194,14 +8218,16 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false
+              "description": "Include each card's count of live children.",
+              "default": false,
+              "title": "Include Child Count"
             },
             "description": "Include each card's count of live children."
           }
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -13180,76 +13206,97 @@
         ]
       },
       "Card": {
-        "type": "object",
         "properties": {
           "card_id": {
-            "type": "string",
-            "minLength": 1,
+            "$ref": "#/components/schemas/CardId",
             "description": "The card's ID."
           },
           "project_id": {
-            "type": "string",
-            "minLength": 1,
+            "$ref": "#/components/schemas/ProjectId",
             "description": "The project the card belongs to."
           },
           "title": {
             "type": "string",
+            "title": "Title",
             "description": "The card's title."
           },
           "rel_path": {
             "type": "string",
+            "title": "Rel Path",
             "description": "The card's file, relative to the project's root."
           },
           "parent_card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "minLength": 1,
             "description": "The card's parent; null for a root card."
           },
           "sort_key": {
             "type": "number",
             "format": "double",
+            "title": "Sort Key",
             "description": "The card's place among its siblings; lower comes first."
           },
           "created_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Created At",
             "description": "When the card was created."
           },
           "updated_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Updated At",
             "description": "When the card was last changed."
           },
           "deleted_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64",
+            "title": "Deleted At",
             "description": "When the card was moved to the trash; null when it is not in the trash."
           },
           "content": {
             "type": "string",
+            "title": "Content",
             "description": "The card's body."
           },
           "tags": {
-            "type": "array",
             "items": {
               "type": "string"
             },
+            "type": "array",
+            "title": "Tags",
             "description": "The card's normalized tags."
           },
           "tag_occurrences": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/TagOccurrence"
             },
+            "type": "array",
+            "title": "Tag Occurrences",
             "description": "Each tag written in the content, in order."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "card_id",
           "project_id",
@@ -13264,7 +13311,7 @@
           "tags",
           "tag_occurrences"
         ],
-        "additionalProperties": false,
+        "title": "Card",
         "description": "A card, with its content and tags."
       },
       "CardBacklinkListResponse": {
@@ -13816,6 +13863,10 @@
           "body"
         ]
       },
+      "CardId": {
+        "type": "string",
+        "minLength": 1
+      },
       "CardLink": {
         "type": "object",
         "properties": {
@@ -13951,67 +14002,89 @@
         ]
       },
       "CardListItem": {
-        "type": "object",
         "properties": {
           "card_id": {
-            "type": "string",
-            "minLength": 1,
+            "$ref": "#/components/schemas/CardId",
             "description": "The card's ID."
           },
           "project_id": {
-            "type": "string",
-            "minLength": 1,
+            "$ref": "#/components/schemas/ProjectId",
             "description": "The project the card belongs to."
           },
           "title": {
             "type": "string",
+            "title": "Title",
             "description": "The card's title."
           },
           "rel_path": {
             "type": "string",
+            "title": "Rel Path",
             "description": "The card's file, relative to the project's root."
           },
           "parent_card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "minLength": 1,
             "description": "The card's parent; null for a root card."
           },
           "sort_key": {
             "type": "number",
             "format": "double",
+            "title": "Sort Key",
             "description": "The card's place among its siblings; lower comes first."
           },
           "created_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Created At",
             "description": "When the card was created."
           },
           "updated_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Updated At",
             "description": "When the card was last changed."
           },
           "deleted_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64",
+            "title": "Deleted At",
             "description": "When the card was moved to the trash; null when it is not in the trash."
           },
           "child_count": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": -2147483648.0,
             "format": "int32",
+            "title": "Child Count",
             "description": "The card's live children; present when asked for."
           },
           "content": {
             "type": "string",
+            "title": "Content",
             "description": "The card's body; present when asked for."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "card_id",
           "project_id",
@@ -14023,51 +14096,57 @@
           "updated_at",
           "deleted_at"
         ],
-        "additionalProperties": false,
+        "title": "CardListItem",
         "description": "A card in a listing."
       },
       "CardListItemPage": {
-        "type": "object",
         "properties": {
           "items": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/CardListItem"
             },
+            "type": "array",
+            "title": "Items",
             "description": "The page's items."
           },
           "next_cursor": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Next Cursor",
             "description": "Pass back to get the next page; null on the last page."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "items",
           "next_cursor"
         ],
-        "additionalProperties": false,
-        "description": "One page of a listing."
+        "title": "CardListItemPage"
       },
       "CardListItemPageResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
             "$ref": "#/components/schemas/CardListItemPage"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "CardListItemPageResponse"
       },
       "CardListResponse": {
         "type": "object",
@@ -14320,22 +14399,22 @@
         ]
       },
       "CardResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
             "$ref": "#/components/schemas/Card"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "CardResponse"
       },
       "CardTagMutationRequest": {
         "type": "object",
@@ -15389,52 +15468,64 @@
         "description": "Partial update. Supplying dates replaces the entire ordered list; an empty array clears all dates. Omitted fields remain unchanged."
       },
       "NewCard": {
-        "type": "object",
         "properties": {
           "project_id": {
-            "type": "string",
-            "minLength": 1,
+            "$ref": "#/components/schemas/ProjectId",
             "description": "The project to create it in."
           },
           "title": {
             "type": "string",
             "minLength": 1,
+            "title": "Title",
             "description": "The card's title."
           },
           "content": {
             "type": "string",
+            "title": "Content",
             "description": "The card's body.",
             "default": ""
           },
           "parent_card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardId"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "minLength": 1,
             "description": "The card's parent; null or omitted for a root card."
           },
           "sort_key": {
             "type": "number",
             "format": "double",
+            "title": "Sort Key",
             "description": "The card's place among its siblings; omit to let Holder choose."
           },
           "created_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Created At",
             "description": "When the card was created, for imports; omit for now."
           },
           "updated_at": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Updated At",
             "description": "When the card was last changed, for imports; omit to use created_at."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "project_id",
           "title"
         ],
-        "additionalProperties": false,
+        "title": "NewCard",
         "description": "A card to create."
       },
       "Project": {
@@ -16279,6 +16370,10 @@
           "ok",
           "data"
         ]
+      },
+      "ProjectId": {
+        "type": "string",
+        "minLength": 1
       },
       "ProjectListResponse": {
         "type": "object",
@@ -17537,29 +17632,37 @@
         ]
       },
       "TagOccurrence": {
-        "type": "object",
         "properties": {
           "tag": {
             "type": "string",
+            "title": "Tag",
             "description": "The normalized tag."
           },
           "byte_start": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Byte Start",
             "description": "Inclusive byte offset of the leading # in the content."
           },
           "byte_end": {
             "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
             "format": "int64",
+            "title": "Byte End",
             "description": "Exclusive byte offset after the tag's name."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "tag",
           "byte_start",
           "byte_end"
         ],
-        "additionalProperties": false,
+        "title": "TagOccurrence",
         "description": "A tag written in a card's content."
       },
       "TrashDeleteResponse": {

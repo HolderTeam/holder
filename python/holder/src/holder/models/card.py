@@ -31,11 +31,11 @@ from ..generated.models import (
     GetProjectsProjectIdCardsOrder,
     NewCard,
 )
-from ..generated.models.get_projects_project_id_cards_parent_type_0 import (
-    GetProjectsProjectIdCardsParentType0 as CardParent,
-)
 from ..generated.types import UNSET, Unset
 from .card_reference import CardReferenceResult
+
+# The parent value that selects a project's top-level cards.
+ROOTS = "roots"
 from .history import (
     CardChange,
     CardComparison,
@@ -87,7 +87,7 @@ class CardCollection(Collection["Card"]):
         if not isinstance(content, str):
             raise TypeError("content must be a string")
         parent = self._query.get("parent", UNSET)
-        if parent == CardParent.ROOTS:
+        if parent == ROOTS:
             parent = UNSET
         data = self._holder._call(
             post_cards,
@@ -121,7 +121,7 @@ class CardCollection(Collection["Card"]):
         return self._clone(
             {
                 **self._query,
-                "parent": CardParent.ROOTS,
+                "parent": ROOTS,
                 "order": GetProjectsProjectIdCardsOrder.SORT_KEY_ASC,
             }
         )

@@ -19,7 +19,7 @@ class CardListItemPageResponse:
     """
     Attributes:
         ok (bool):
-        data (CardListItemPage): One page of a listing.
+        data (CardListItemPage):
     """
 
     ok: bool
