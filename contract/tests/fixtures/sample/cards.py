@@ -5,17 +5,14 @@ from typing import Annotated, Literal, Protocol
 
 from holder_contract import (
     MISSING,
-    Bytes,
     Field,
     HolderError,
     Int32,
     JsonValue,
     Record,
     SecretStr,
-    Stream,
     Timestamp,
     host_interface,
-    operation,
 )
 
 type CardId = Annotated[str, Field(min_length=1)]
@@ -133,36 +130,3 @@ class KeyringProvider(Protocol):
 
     def store(self, service: str, account: str, secret: SecretStr) -> None:
         """Store a secret, replacing any stored before."""
-
-
-@operation(errors=[NotFound])
-def get_card(card_id: CardId) -> Card:
-    """Fetch a card.
-
-    A card in the trash is not found.
-    """
-
-
-@operation
-def list_cards(
-    project_id: Annotated[str, Field(min_length=1, description="The project to list.")],
-    parent: Literal["roots"] | CardId | None = None,
-    limit: Annotated[Int32, Field(ge=1, le=5000)] = 200,
-    cursor: str | None = None,
-) -> Page[CardListItem]:
-    """List a project's cards, one page at a time."""
-
-
-@operation(errors=[NotFound, Conflict])
-def update_message(message_id: str, patch: MessagePatch) -> None:
-    """Change an AI message."""
-
-
-@operation(errors=[NotFound])
-def get_asset_content(asset_id: str) -> Bytes:
-    """Read an asset's bytes."""
-
-
-@operation(daemon_only=True)
-def run_ai(prompt: Annotated[str, Field(min_length=1)]) -> Stream[RunEvent]:
-    """Start an AI run and stream its events."""

@@ -1,4 +1,4 @@
-// Generated from contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.

@@ -17,16 +17,21 @@ import typing
 from pathlib import Path
 from typing import Any
 
+from fastapi import params
+from fastapi.routing import APIRoute
 from pydantic import MISSING, JsonValue, SecretStr
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
+from .routes import Contract
 from .rules import Declarations, Problem, check_file
-from .vocabulary import BINDINGS, Bytes, HolderError, Native, Record, Stream
+from .vocabulary import Bytes, HolderError, Native, Record, Stream
 
 IR_VERSION = 1
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+# The module of a contract package that declares its operations, as FastAPI routes.
+APP_FILE = "app.py"
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
@@ -39,7 +44,8 @@ class ContractError(Exception):
 def extract(root: Path, package: str) -> dict[str, Any]:
     """The IR of the contract package `package` in directory `root`."""
     root = Path(root).resolve()
-    files = sorted((root / package).rglob("*.py"))
+    app_path = root / package / APP_FILE
+    files = [f for f in sorted((root / package).rglob("*.py")) if f != app_path]
     problems: list[Problem] = []
     declared: dict[str, tuple[str, Declarations]] = {}
     for path in files:
@@ -61,11 +67,17 @@ def extract(root: Path, package: str) -> dict[str, Any]:
                 modules[name] = importlib.import_module(name)
             except Exception as error:  # noqa: BLE001 - any failure to import is a problem in the contract
                 problems.append(Problem(declared[name][0], 1, f"cannot be imported: {error}"))
+        app = None
+        if app_path.exists():
+            try:
+                app = importlib.import_module(f"{package}.{app_path.stem}")
+            except Exception as error:  # noqa: BLE001 - any failure to import is a problem in the contract
+                problems.append(Problem(app_path.relative_to(root).as_posix(), 1, f"cannot be imported: {error}"))
     finally:
         sys.path.remove(str(root))
     if problems:
         raise ContractError(problems)
-    return _Builder(modules, declared).build()
+    return _Builder(modules, declared, app, app_path.relative_to(root).as_posix()).build()
 
 
 def _doc(obj: Any) -> str | None:
@@ -74,9 +86,12 @@ def _doc(obj: Any) -> str | None:
 
 
 class _Builder:
-    def __init__(self, modules: dict[str, types.ModuleType], declared: dict[str, tuple[str, Declarations]]):
+    def __init__(self, modules: dict[str, types.ModuleType], declared: dict[str, tuple[str, Declarations]],
+                 app: types.ModuleType | None = None, app_source: str = APP_FILE):
         self.modules = modules
         self.declared = declared
+        self.app = app
+        self.app_source = app_source
         self.problems: list[Problem] = []
         self.ir: dict[str, Any] = {"ir_version": IR_VERSION, "aliases": [], "enums": [], "records": [],
                                    "errors": [], "interfaces": [], "operations": [], "http": [],
@@ -92,13 +107,8 @@ class _Builder:
             for name, line in declarations.names:
                 self.where = (display, line)
                 self.declare(module, name, declarations)
-        for module_name in self.modules:
-            for binding in BINDINGS.by_module.get(module_name, []):
-                self.where = (self.declared[module_name][0], binding.line)
-                self.bind(binding)
-            for binding in BINDINGS.errors_by_module.get(module_name, []):
-                self.where = (self.declared[module_name][0], binding.line)
-                self.bind_error(binding)
+        if self.app is not None:
+            self.operations()
         self.check_error_statuses()
         if self.problems:
             raise ContractError(self.problems)
@@ -135,11 +145,8 @@ class _Builder:
         elif inspect.isclass(obj) and getattr(obj, "__holder_interface__", False):
             self.unique(name)
             self.interface(obj, source, declarations.class_members.get(name, []))
-        elif inspect.isfunction(obj) and hasattr(obj, "__holder_operation__"):
-            self.unique(name)
-            self.operation(obj, source)
         else:
-            self.problem(f"{name} is not a Record, StrEnum, HolderError, @host_interface or @operation")
+            self.problem(f"{name} is not a Record, StrEnum, HolderError or @host_interface")
 
     # ---- declarations ------------------------------------------------------------------------
 
@@ -206,19 +213,35 @@ class _Builder:
         methods = [self.callable(cls.__dict__[name], f"{cls.__name__}.{name}", skip_self=True) for name in members]
         self.ir["interfaces"].append({"name": cls.__name__, "source": source, "doc": _doc(cls), "methods": methods})
 
-    def operation(self, function: Any, source: str) -> None:
-        mark = function.__holder_operation__
-        signature = self.callable(function, function.__name__, allow_stream=True)
-        entry = {"name": signature.pop("name"), "source": source, **signature}
-        errors = []
-        for error in mark.errors:
-            if not (inspect.isclass(error) and issubclass(error, HolderError) and self.in_contract(error)):
-                self.problem(f"{function.__name__}: {error!r} is not an error kind declared in the contract")
-            else:
-                errors.append(error.__name__)
-        entry["errors"] = errors
-        entry["daemon_only"] = mark.daemon_only
-        self.ir["operations"].append(entry)
+    def operations(self) -> None:
+        """The operations app.py declares through its Contract, in the order it declares them."""
+        contracts = [v for v in vars(self.app).values() if isinstance(v, Contract)]
+        if len(contracts) != 1:
+            self.where = (self.app_source, 1)
+            self.problem(f"{APP_FILE} must make exactly one Contract, not {len(contracts)}")
+            return
+        contract = contracts[0]
+        routes = {r.endpoint: r for r in contract.router.routes if isinstance(r, APIRoute)}
+        for operation in contract.operations:
+            function = operation.function
+            self.where = (self.app_source, function.__code__.co_firstlineno)
+            self.unique(function.__name__)
+            signature = self.callable(function, function.__name__, allow_stream=True)
+            entry = {"name": signature.pop("name"), "source": self.app_source, **signature}
+            errors = []
+            for error in operation.errors:
+                if not (inspect.isclass(error) and issubclass(error, HolderError) and self.in_contract(error)):
+                    self.problem(f"{function.__name__}: {error!r} is not an error kind declared in the contract")
+                else:
+                    errors.append(error.__name__)
+            entry["errors"] = errors
+            entry["daemon_only"] = not operation.core
+            self.ir["operations"].append(entry)
+            if operation.route:
+                self.bind(function, routes[function])
+        self.where = (self.app_source, 1)
+        for error, status in contract.statuses.items():
+            self.bind_error(error, status)
 
     def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> dict[str, Any]:
         doc = _doc(function)
@@ -250,56 +273,54 @@ class _Builder:
         return {"name": where.rpartition(".")[2], "summary": summary.strip() or None,
                 "description": description.strip() or None, "parameters": parameters, "returns": returns}
 
-    def bind(self, binding) -> None:
-        operation = binding.operation
-        name = getattr(operation, "__name__", repr(operation))
-        if not (hasattr(operation, "__holder_operation__") and self.in_contract(operation)):
-            self.problem(f"http(): {name} is not an @operation declared in the contract")
-            return
-        if binding.method not in METHODS:
-            self.problem(f"http({name}): the method must be one of {', '.join(METHODS)}")
-        if not binding.path.startswith("/"):
-            self.problem(f"http({name}): the path must start with /")
-        parameters = list(inspect.signature(operation).parameters)
-        in_path = PLACEHOLDER.findall(binding.path)
+    def bind(self, function: Any, route: APIRoute) -> None:
+        name = function.__name__
+        method = next(iter(route.methods))
+        if method not in METHODS:
+            self.problem(f"{name}: the method must be one of {', '.join(METHODS)}, not {method}")
+        hints = typing.get_type_hints(function, include_extras=True)
+        markers = {}
+        for parameter in inspect.signature(function).parameters:
+            marker = next((m for m in typing.get_args(hints.get(parameter))[1:]
+                           if isinstance(m, params.Param | params.Body)), None)
+            if marker is None:
+                self.problem(f"{name}({parameter}): say where it comes from, with Path(), Query() or Body()")
+            elif isinstance(marker, params.Header | params.Cookie):
+                self.problem(f"{name}({parameter}): {type(marker).__name__.lower()} parameters are not supported yet")
+            markers[parameter] = marker
+        in_path = PLACEHOLDER.findall(route.path)
         for placeholder in in_path:
-            if placeholder not in parameters:
-                self.problem(f"http({name}): {{{placeholder}}} in the path is not a parameter")
-        for query in binding.query:
-            if query not in parameters:
-                self.problem(f"http({name}): query parameter {query} is not a parameter")
-            if query in in_path:
-                self.problem(f"http({name}): {query} cannot be both in the path and in the query")
-        body = [p for p in parameters if p not in in_path and p not in binding.query]
+            if not isinstance(markers.get(placeholder), params.Path):
+                self.problem(f"{name}: {{{placeholder}}} in the path is not a Path() parameter")
+        for parameter, marker in markers.items():
+            if isinstance(marker, params.Path) and parameter not in in_path:
+                self.problem(f"{name}({parameter}): a Path() parameter must be in the path")
+        body = [p for p, m in markers.items() if isinstance(m, params.Body)]
         if len(body) > 1:
-            self.problem(f"http({name}): {', '.join(body)} are left for the body; list all but one in query")
-        if body and binding.method in ("GET", "DELETE"):
-            self.problem(f"http({name}): a {binding.method} has no body, but {body[0]} is left for it")
+            self.problem(f"{name}: {', '.join(body)} are all Body(); a route has at most one body")
+        if body and method in ("GET", "DELETE"):
+            self.problem(f"{name}: a {method} has no body, but {body[0]} is Body()")
         for existing in self.ir["http"]:
-            if existing["operation"] == name:
-                self.problem(f"http({name}): the operation is already bound")
-            if (existing["method"], existing["path"]) == (binding.method, binding.path):
-                self.problem(f"http({name}): {binding.method} {binding.path} is already bound to {existing['operation']}")
-        if not (isinstance(binding.status, int) and 200 <= binding.status <= 299 and binding.status != 204):
-            self.problem(f"http({name}): the status must be a 2xx with a body, not {binding.status!r}")
-        entry = {"operation": name, "method": binding.method, "path": binding.path,
-                 "path_parameters": in_path, "query": list(binding.query), "status": binding.status}
+            if (existing["method"], existing["path"]) == (method, route.path):
+                self.problem(f"{name}: {method} {route.path} is already the route of {existing['operation']}")
+        if not 200 <= route.status_code <= 299 or route.status_code == 204:
+            self.problem(f"{name}: the status must be a 2xx with a body, not {route.status_code}")
+        entry = {"operation": name, "method": method, "path": route.path, "path_parameters": in_path,
+                 "query": [p for p, m in markers.items() if isinstance(m, params.Query)],
+                 "status": route.status_code}
         if body:
             entry["body"] = body[0]
         self.ir["http"].append(entry)
 
-    def bind_error(self, binding) -> None:
-        error = binding.error
+    def bind_error(self, error: Any, status: Any) -> None:
         name = getattr(error, "__name__", repr(error))
         declared = {e["name"] for e in self.ir["errors"]}
         if not (isinstance(error, type) and name in declared and self.in_contract(error)):
-            self.problem(f"http_error(): {name} is not an error kind declared in the contract")
+            self.problem(f"Contract statuses: {name} is not an error kind declared in the contract")
             return
-        if not (isinstance(binding.status, int) and 400 <= binding.status <= 599):
-            self.problem(f"http_error({name}): the status must be a 4xx or 5xx, not {binding.status!r}")
-        if any(e["error"] == name for e in self.ir["http_errors"]):
-            self.problem(f"http_error({name}): the error kind already has a status")
-        self.ir["http_errors"].append({"error": name, "status": binding.status})
+        if not (isinstance(status, int) and 400 <= status <= 599):
+            self.problem(f"Contract statuses: {name}'s status must be a 4xx or 5xx, not {status!r}")
+        self.ir["http_errors"].append({"error": name, "status": status})
 
     def check_error_statuses(self) -> None:
         """Every error kind an HTTP-bound operation may fail with needs a status."""
@@ -308,8 +329,8 @@ class _Builder:
         for binding in self.ir["http"]:
             for error in operations[binding["operation"]]["errors"]:
                 if error not in statuses:
-                    self.problem(f"{binding['operation']} is bound to HTTP, so its error kind {error} "
-                                 "needs an http_error() status")
+                    self.problem(f"{binding['operation']} is a route, so its error kind {error} "
+                                 "needs a status in the Contract's statuses")
                     statuses.add(error)
 
     # ---- types -------------------------------------------------------------------------------

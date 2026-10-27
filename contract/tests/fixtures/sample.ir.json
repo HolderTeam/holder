@@ -378,7 +378,7 @@
   "operations": [
     {
       "name": "get_card",
-      "source": "sample/cards.py",
+      "source": "sample/app.py",
       "summary": "Fetch a card.",
       "description": "A card in the trash is not found.",
       "parameters": [
@@ -401,7 +401,7 @@
     },
     {
       "name": "list_cards",
-      "source": "sample/cards.py",
+      "source": "sample/app.py",
       "summary": "List a project's cards, one page at a time.",
       "description": null,
       "parameters": [
@@ -470,7 +470,7 @@
     },
     {
       "name": "update_message",
-      "source": "sample/cards.py",
+      "source": "sample/app.py",
       "summary": "Change an AI message.",
       "description": null,
       "parameters": [
@@ -499,7 +499,7 @@
     },
     {
       "name": "get_asset_content",
-      "source": "sample/cards.py",
+      "source": "sample/app.py",
       "summary": "Read an asset's bytes.",
       "description": null,
       "parameters": [
@@ -520,7 +520,7 @@
     },
     {
       "name": "run_ai",
-      "source": "sample/cards.py",
+      "source": "sample/app.py",
       "summary": "Start an AI run and stream its events.",
       "description": null,
       "parameters": [

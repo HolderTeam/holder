@@ -2,13 +2,13 @@
 
 Ported from RIG's http_routes.py and the route rules in its ir.py (https://github.com/zeth/rig,
 src/rig/http_routes.py and src/rig/ir.py at e32ea68), which read declarations reflected from C++;
-this reads the contract's IR and its HTTP bindings (interface/http.py).
+this reads the contract's IR and its HTTP bindings (the routes in interface/app.py).
 
 contract_http::dispatch matches a request to an operation, decodes and checks its arguments, calls
 core's C++ function for it (core/src/api/Contract.h) with the caller's holder_context, and encodes
 the result. A success is {"ok": true, "data": ...} with the binding's status. A failure is
 {"ok": false, "error": {"code", "message"}}: an invalid argument is 400, each error kind has the
-status http_error() gives it, and anything else is a 500. The code is the error kind's name in
+status the Contract gives it, and anything else is a 500. The code is the error kind's name in
 snake case.
 
 dispatch answers only requests it has an operation for. For a path it knows with another method it

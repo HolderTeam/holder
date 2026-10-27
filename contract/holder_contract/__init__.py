@@ -5,6 +5,7 @@ Contract files import their vocabulary from here.
 
 from pydantic import MISSING, Field, JsonValue, SecretStr
 
+from .routes import Contract
 from .vocabulary import (
     Bytes,
     Float64,
@@ -15,14 +16,12 @@ from .vocabulary import (
     Stream,
     Timestamp,
     host_interface,
-    http,
-    http_error,
-    operation,
 )
 
 __all__ = [
     "MISSING",
     "Bytes",
+    "Contract",
     "Field",
     "Float64",
     "HolderError",
@@ -34,7 +33,4 @@ __all__ = [
     "Stream",
     "Timestamp",
     "host_interface",
-    "http",
-    "http_error",
-    "operation",
 ]

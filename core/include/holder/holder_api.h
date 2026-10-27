@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/cards.py, contract/interface/errors.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.

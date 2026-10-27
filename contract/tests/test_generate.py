@@ -31,7 +31,7 @@ def test_cores_generated_files_are_up_to_date():
 
 def test_every_generated_file_names_its_source():
     for name, text in generate(holder_ir()).items():
-        assert "Generated from contract/interface/cards.py" in "\n".join(text.splitlines()[:2]), name
+        assert "Generated from contract/interface/app.py, contract/interface/cards.py" in "\n".join(text.splitlines()[:2]), name
 
 
 def test_unsupported_parts_of_the_contract_stop_generation():

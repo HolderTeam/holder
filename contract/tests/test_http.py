@@ -82,7 +82,7 @@ def test_a_literal_segment_is_tried_before_a_parameter():
 def test_every_generated_file_names_its_source():
     for name, text in generate_daemon(holder_ir()).items():
         if name.endswith(".h"):
-            assert "Generated from contract/interface/cards.py" in text.splitlines()[0], name
+            assert "Generated from contract/interface/app.py, contract/interface/cards.py" in text.splitlines()[0], name
 
 
 def test_unsupported_parts_of_the_contract_stop_generation():
