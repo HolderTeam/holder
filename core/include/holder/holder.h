@@ -86,7 +86,7 @@ int holder_project_import(
 // {resource: {...}, assets: [{..., placements: [...]}]}; Locations are returned
 // as their safe portable declarations. Private Location bindings are deliberately
 // outside this C API and remain a host/SecretStore concern.
-int holder_resource_list(
+int holder_resource_list_json(
     holder_context* context,
     const char* project_id,
     char** out_json,

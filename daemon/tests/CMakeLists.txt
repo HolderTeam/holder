@@ -160,7 +160,6 @@ add_executable(holder_daemon_tests
   ../src/api/AiThreadRead.cpp
   ../src/api/AiThreadWrite.cpp
   ../src/api/CardRead.cpp
-  ../src/api/CardResources.cpp
   ../src/api/ProjectGit.cpp
   ../src/api/ProjectRead.cpp
   ../src/api/RecoveryToken.cpp
@@ -172,8 +171,6 @@ add_executable(holder_daemon_tests
   ../src/api/ProjectUpdate.cpp
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
-  ../src/api/ResourceRead.cpp
-  ../src/api/ResourceWrite.cpp
   ../src/api/Rebuild.cpp
   ../src/api/TrashList.cpp
   ../src/api/TrashWrite.cpp

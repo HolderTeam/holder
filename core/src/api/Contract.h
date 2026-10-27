@@ -1,10 +1,11 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -130,6 +131,24 @@ struct MilestoneUpdate {
   Change<std::string> description;  ///< A note on the milestone; null for none.
 };
 
+/// A resource to make.
+struct NewResource {
+  std::optional<std::string> resource_id;  ///< The resource's ID, for imports; omit for a new one.
+  std::string type;  ///< What kind of thing the resource is.
+  std::string label;  ///< The resource's name.
+  std::optional<std::map<std::string, std::vector<std::string>>> metadata;  ///< What is known about the resource; omit for nothing. A name without values is left out.
+  std::optional<long long> created_at;  ///< When the resource was made, for imports; omit for now.
+  std::optional<long long> updated_at;  ///< When the resource was last changed, for imports; omit for when it was made.
+};
+
+/// A change to a resource. Each field left out keeps its value.
+struct ResourceUpdate {
+  std::optional<std::string> type;  ///< What kind of thing the resource is.
+  std::optional<std::string> label;  ///< The resource's name.
+  std::optional<std::map<std::string, std::vector<std::string>>> metadata;  ///< Names whose values change: each name's values replace its old ones, an empty list removes the name, and names left out are kept.
+  std::optional<long long> updated_at;  ///< When the resource was changed, for imports; omit for now.
+};
+
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
@@ -211,6 +230,42 @@ struct Calendar {
   std::vector<CalendarMilestone> milestones;  ///< The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by when they were made and then by ID.
   std::vector<CardMetadata> created_cards;  ///< The live cards made in the window, by when they were made and then by ID.
   std::vector<CardMetadata> updated_cards;  ///< The live cards last changed in the window, other than by being made, by when and then by ID.
+};
+
+/// How the copy is stored: as the file is, or encrypted for the project.
+enum class AssetPlacementEncoding { Plain, HolderAssetV1 };
+
+/// One stored copy of an asset.
+struct AssetPlacement {
+  std::string placement_id;  ///< The copy's ID.
+  std::string location_id;  ///< The storage location that holds the copy.
+  AssetPlacementEncoding encoding;  ///< How the copy is stored: as the file is, or encrypted for the project.
+  long long stored_byte_size{};  ///< The size of the stored copy, in bytes.
+  long long created_at{};  ///< When the copy was stored.
+};
+
+/// A file that belongs to a resource.
+struct ResourceAsset {
+  std::string asset_id;  ///< The asset's ID.
+  std::string original_filename;  ///< The file's name when it was imported.
+  std::string media_type;  ///< The file's media type, such as application/pdf.
+  long long byte_size{};  ///< The file's size, in bytes.
+  std::string plaintext_sha256;  ///< The SHA-256 of the file's content, in lower-case hex.
+  std::vector<AssetPlacement> placements;  ///< The stored copies of the file.
+  long long created_at{};  ///< When the asset was imported.
+  long long updated_at{};  ///< When the asset was last changed.
+};
+
+/// A resource in a project, with its files.
+struct Resource {
+  std::string resource_id;  ///< The resource's ID.
+  std::string project_id;  ///< The project the resource belongs to.
+  std::string type;  ///< What kind of thing the resource is.
+  std::string label;  ///< The resource's name.
+  std::map<std::string, std::vector<std::string>> metadata;  ///< What is known about the resource, by name.
+  std::vector<ResourceAsset> assets;  ///< The resource's files.
+  long long created_at{};  ///< When the resource was made.
+  long long updated_at{};  ///< When the resource was last changed.
 };
 
 /// Fetch a card.
@@ -374,6 +429,59 @@ std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::
 /// @param last_day The day last_instant falls on where the caller is.
 /// @throws NotFound
 Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::string first_day, std::string last_day);
+
+/// List a project's resources.
+/// By when they last changed, latest first, then by ID.
+/// @throws NotFound
+std::vector<Resource> list_resources(holder_context& context, std::string project_id);
+
+/// Fetch a resource.
+/// A resource in another project is not found.
+/// @throws NotFound
+Resource get_resource(holder_context& context, std::string project_id, std::string resource_id);
+
+/// Make a resource.
+/// A project that does not exist is not found. Resource IDs are unique on this device, so an ID already in use,
+/// in this project or another, is a Conflict.
+/// @throws NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Resource create_resource(holder_context& context, std::string project_id, const NewResource& resource);
+
+/// Change a resource.
+/// Each field left out keeps its value. A resource in another project is not found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Resource update_resource(holder_context& context, std::string project_id, std::string resource_id, const ResourceUpdate& update);
+
+/// Delete a resource.
+/// The resource goes, and so do the links to it from cards. Its files' stored copies are left where they are.
+/// Returns the resource as it was. A resource in another project is not found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Resource delete_resource(holder_context& context, std::string project_id, std::string resource_id);
+
+/// List the links to a resource.
+/// Links of every kind, attachments among them, from cards and AI messages in the resource's project, newest
+/// first. A resource in another project is not found.
+/// @param include_deleted Include links from cards and AI messages in the trash.
+/// @throws NotFound
+std::vector<Link> list_resource_backlinks(holder_context& context, std::string project_id, std::string resource_id, bool include_deleted);
+
+/// List the resources attached to a card.
+/// By when they last changed, latest first, then by ID. A card in the trash or in another project is not found.
+/// @throws NotFound
+std::vector<Resource> list_card_resources(holder_context& context, std::string project_id, std::string card_id);
+
+/// Attach a resource to a card.
+/// An attachment is the card's link of kind attachment to the resource. A card that has it already is left as it
+/// is. Returns the card's attached resources, as list_card_resources lists them. A card in the trash or in another
+/// project is not found, and neither is a resource that is not in the card's project.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+std::vector<Resource> attach_card_resource(holder_context& context, std::string project_id, std::string card_id, std::string resource_id);
+
+/// Detach a resource from a card.
+/// The resource itself is kept. A card without the attachment is left as it is, and a resource that no longer
+/// exists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card
+/// in the trash or in another project is not found.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+std::vector<Resource> detach_card_resource(holder_context& context, std::string project_id, std::string card_id, std::string resource_id);
 
 namespace detail {
 

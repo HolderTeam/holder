@@ -154,7 +154,8 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                         Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void update_resource(string resource_id,
+    public async void update_resource(string project_id,
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
@@ -163,7 +164,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
-    public async void delete_resource(string resource_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
+    public async void delete_resource(string project_id, string resource_id) throws Error { throw new IOError.NOT_SUPPORTED("unused"); }
     public async HolderLinux.CardLink create_card_link(string project_id,
                                                        string from_card_id,
                                                        string to_card_id,

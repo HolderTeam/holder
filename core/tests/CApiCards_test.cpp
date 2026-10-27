@@ -1,5 +1,5 @@
 // The contract's Card operations through the generated C API (holder_api.h), against a real data
-// directory: cards, their tags, their links and their milestones.
+// directory: cards, their tags, their links and their milestones, and resources.
 #if __has_include(<catch2/catch_test_macros.hpp>)
 #include <catch2/catch_test_macros.hpp>
 #else
@@ -709,4 +709,164 @@ TEST_CASE("A project's milestones by day, by instant and on its calendar", "[cap
   REQUIRE(calendar->created_cards.count == 1);
   REQUIRE(f.failed(holder_get_calendar(f.context, project, 0, 1, "2026-10-01", "October", f.arena, &calendar,
                                        &f.error)) == HOLDER_ERROR_INVALID_ARGUMENT);
+}
+
+namespace {
+
+std::map<std::string, std::vector<std::string>> metadata_of(const holder_resource_metadata& metadata) {
+  std::map<std::string, std::vector<std::string>> out;
+  for (std::size_t i = 0; i < metadata.count; ++i) {
+    auto& values = out[metadata.items[i].key];
+    for (std::size_t k = 0; k < metadata.items[i].values.count; ++k)
+      values.emplace_back(metadata.items[i].values.items[k]);
+  }
+  return out;
+}
+
+std::vector<std::string> resource_ids(const holder_resource_list* list) {
+  std::vector<std::string> out;
+  for (std::size_t i = 0; i < list->count; ++i) out.emplace_back(list->items[i].resource_id);
+  return out;
+}
+
+} // namespace
+
+TEST_CASE("Resources keep their metadata by name, and change one name at a time", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const char* urls[] = {"https://example.com/a", "https://example.com/b"};
+  const char* authors[] = {"Ada"};
+  const holder_resource_metadata_entry entries[] = {{"identifier", {urls, 2}}, {"author", {authors, 1}}};
+  const holder_resource_metadata metadata{entries, 2};
+  holder_new_resource request{};
+  request.resource_id = "res-1";
+  request.type = "website";
+  request.label = "Example";
+  request.metadata = &metadata;
+  const int64_t made = 1700000000;
+  request.created_at = &made;
+  const holder_resource* resource = nullptr;
+  REQUIRE(holder_create_resource(f.context, project, &request, f.arena, &resource, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(resource->resource_id) == "res-1");
+  REQUIRE(std::string(resource->project_id) == f.project_id);
+  REQUIRE(resource->created_at == made);
+  REQUIRE(resource->updated_at == made);
+  REQUIRE(resource->assets.count == 0);
+  const std::map<std::string, std::vector<std::string>> expected{
+      {"author", {"Ada"}}, {"identifier", {"https://example.com/a", "https://example.com/b"}}};
+  REQUIRE(metadata_of(resource->metadata) == expected);
+  // The same ID again is a Conflict.
+  REQUIRE(f.failed(holder_create_resource(f.context, project, &request, f.arena, &resource, &f.error)) ==
+          HOLDER_ERROR_CONFLICT);
+  // An ID names a file, so it holds nothing a path could read differently.
+  for (const char* id : {"../../x", "res/1", "res.1"}) {
+    request.resource_id = id;
+    REQUIRE(f.failed(holder_create_resource(f.context, project, &request, f.arena, &resource, &f.error)) ==
+            HOLDER_ERROR_INVALID_ARGUMENT);
+  }
+  request.resource_id = "res-1";
+
+  // A name given replaces its values, an empty list removes it, and the rest are kept.
+  const char* editors[] = {"Grace"};
+  const holder_resource_metadata_entry changes[] = {{"author", {nullptr, 0}}, {"editor", {editors, 1}}};
+  const holder_resource_metadata change{changes, 2};
+  holder_resource_update update{};
+  update.metadata = &change;
+  update.label = "Renamed";
+  REQUIRE(holder_update_resource(f.context, project, "res-1", &update, f.arena, &resource, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(resource->label) == "Renamed");
+  REQUIRE(std::string(resource->type) == "website");
+  REQUIRE(metadata_of(resource->metadata) ==
+          std::map<std::string, std::vector<std::string>>{
+              {"editor", {"Grace"}}, {"identifier", {"https://example.com/a", "https://example.com/b"}}});
+  REQUIRE(resource->updated_at > made);
+  const auto updated_at = resource->updated_at;
+  // Changing nothing writes nothing.
+  REQUIRE(holder_update_resource(f.context, project, "res-1", &update, f.arena, &resource, &f.error) == HOLDER_OK);
+  REQUIRE(resource->updated_at == updated_at);
+
+  // A repeated name is not a map.
+  const holder_resource_metadata_entry twice[] = {{"author", {authors, 1}}, {"author", {authors, 1}}};
+  const holder_resource_metadata repeated{twice, 2};
+  update.metadata = &repeated;
+  REQUIRE(f.failed(holder_update_resource(f.context, project, "res-1", &update, f.arena, &resource, &f.error)) ==
+          HOLDER_ERROR_INVALID_ARGUMENT);
+
+  const holder_resource_list* list = nullptr;
+  REQUIRE(holder_list_resources(f.context, project, f.arena, &list, &f.error) == HOLDER_OK);
+  REQUIRE(resource_ids(list) == std::vector<std::string>{"res-1"});
+  REQUIRE(holder_get_resource(f.context, project, "res-1", f.arena, &resource, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(resource->label) == "Renamed");
+
+  // Not from another project.
+  char* json = nullptr;
+  REQUIRE(holder_project_create(f.context, "Other", nullptr, nullptr, &json, &f.error) == HOLDER_OK);
+  const auto other = nlohmann::json::parse(json).at("project_id").get<std::string>();
+  holder_string_free(json);
+  REQUIRE(f.failed(holder_get_resource(f.context, other.c_str(), "res-1", f.arena, &resource, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(f.failed(holder_create_resource(f.context, "no-such-project", &request, f.arena, &resource,
+                                          &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
+TEST_CASE("Attaching resources to cards, their backlinks, and deleting a resource", "[capi][contract]") {
+  Fixture f;
+  const auto* project = f.project_id.c_str();
+  const std::string card = f.create("Card")->card_id;
+  const holder_resource* resource = nullptr;
+  for (const char* id : {"res-1", "res-2"}) {
+    holder_new_resource request{};
+    request.resource_id = id;
+    request.type = "book";
+    request.label = id;
+    REQUIRE(holder_create_resource(f.context, project, &request, f.arena, &resource, &f.error) == HOLDER_OK);
+  }
+
+  const holder_resource_list* attached = nullptr;
+  REQUIRE(holder_attach_card_resource(f.context, project, card.c_str(), "res-1", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(resource_ids(attached) == std::vector<std::string>{"res-1"});
+  const holder_card* got = nullptr;
+  REQUIRE(holder_get_card(f.context, project, card.c_str(), f.arena, &got, &f.error) == HOLDER_OK);
+  const auto updated_at = got->updated_at;
+  // Attaching again changes nothing.
+  REQUIRE(holder_attach_card_resource(f.context, project, card.c_str(), "res-1", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(holder_get_card(f.context, project, card.c_str(), f.arena, &got, &f.error) == HOLDER_OK);
+  REQUIRE(got->updated_at == updated_at);
+  REQUIRE(holder_attach_card_resource(f.context, project, card.c_str(), "res-2", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(attached->count == 2);
+  REQUIRE(f.failed(holder_attach_card_resource(f.context, project, card.c_str(), "res-9", f.arena, &attached,
+                                               &f.error)) == HOLDER_ERROR_NOT_FOUND);
+
+  // Backlinks are links of every kind; an attachment is one.
+  const holder_link_list* backlinks = nullptr;
+  REQUIRE(holder_list_resource_backlinks(f.context, project, "res-1", false, f.arena, &backlinks, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(backlinks->count == 1);
+  REQUIRE(std::string(backlinks->items[0].source_id) == card);
+  REQUIRE(std::string(backlinks->items[0].kind) == "attachment");
+  REQUIRE(backlinks->items[0].target_type == HOLDER_LINK_TARGET_TYPE_RESOURCE);
+
+  REQUIRE(holder_detach_card_resource(f.context, project, card.c_str(), "res-1", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(resource_ids(attached) == std::vector<std::string>{"res-2"});
+  REQUIRE(holder_detach_card_resource(f.context, project, card.c_str(), "res-1", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(attached->count == 1);
+
+  // Deleting a resource removes the links to it, and returns it as it was.
+  REQUIRE(holder_delete_resource(f.context, project, "res-2", f.arena, &resource, &f.error) == HOLDER_OK);
+  REQUIRE(std::string(resource->resource_id) == "res-2");
+  REQUIRE(holder_list_card_resources(f.context, project, card.c_str(), f.arena, &attached, &f.error) == HOLDER_OK);
+  REQUIRE(attached->count == 0);
+  const holder_link_list* links = nullptr;
+  REQUIRE(holder_list_card_links(f.context, project, card.c_str(), true, f.arena, &links, &f.error) == HOLDER_OK);
+  REQUIRE(links->count == 0);
+  REQUIRE(f.failed(holder_delete_resource(f.context, project, "res-2", f.arena, &resource, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  // A resource that no longer exists can still be detached.
+  REQUIRE(holder_detach_card_resource(f.context, project, card.c_str(), "res-2", f.arena, &attached, &f.error) ==
+          HOLDER_OK);
 }

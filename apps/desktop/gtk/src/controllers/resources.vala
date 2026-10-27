@@ -92,17 +92,18 @@ public class ResourcesController : Object {
     }
 
     public async void update_resource(IHolderApi api,
+                                      string project_id,
                                       string resource_id,
                                       string kind,
                                       string uri,
                                       string label,
                                       string? desc,
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
-        yield service.update_resource(api, resource_id, kind, uri, label, desc, extra_metadata);
+        yield service.update_resource(api, project_id, resource_id, kind, uri, label, desc, extra_metadata);
     }
 
-    public async void delete_resource(IHolderApi api, string resource_id) throws Error {
-        yield service.delete_resource(api, resource_id);
+    public async void delete_resource(IHolderApi api, string project_id, string resource_id) throws Error {
+        yield service.delete_resource(api, project_id, resource_id);
     }
 
     public string format_epoch(int64 epoch) {
@@ -297,7 +298,7 @@ public class ResourcesController : Object {
             return new ResourcesMutationResult(false, true);
         }
         try {
-            yield update_resource(api, resource_id, kind, uri, label, desc, extra_metadata);
+            yield update_resource(api, project_id ?? "", resource_id, kind, uri, label, desc, extra_metadata);
             activity_requested(
                 "result.resource.update",
                 "Updated resource: %s".printf(label),
@@ -338,7 +339,7 @@ public class ResourcesController : Object {
             return new ResourcesMutationResult(false, true);
         }
         try {
-            yield delete_resource(api, resource_id);
+            yield delete_resource(api, project_id ?? "", resource_id);
             activity_requested(
                 "result.resource.delete",
                 "Deleted resource: %s".printf(resource_label),

@@ -15,28 +15,24 @@ from ..collections import Collection
 from ..exceptions import (
     AuthenticationError,
     ConnectionError,
-    NotFoundError,
     ProtocolError,
 )
 from ..generated.api.default import (
-    delete_cards_card_id_resources,
-    delete_resources_resource_id,
-    get_resources,
-    get_resources_resource_id,
+    delete_projects_project_id_cards_card_id_resources_resource_id,
+    delete_projects_project_id_resources_resource_id,
+    get_projects_project_id_cards_card_id_resources,
+    get_projects_project_id_resources,
+    get_projects_project_id_resources_resource_id,
+    get_projects_project_id_resources_resource_id_backlinks,
     get_resources_resource_id_assets_asset_id_content,
-    patch_resources_resource_id,
-    post_cards_card_id_resources,
-    post_resources,
+    patch_projects_project_id_resources_resource_id,
+    post_projects_project_id_resources,
+    put_projects_project_id_cards_card_id_resources_resource_id,
 )
-from ..generated.models import (
-    DeleteCardsCardIdResourcesBody,
-    PostCardsCardIdResourcesBody,
-    ResourceCreateRequest,
-    ResourceMetadata,
-    ResourceUpdateRequest,
-)
+from ..generated.models import NewResource, ResourceMetadata, ResourceUpdate
 from ..generated.streams import StreamError
 from ..generated.types import UNSET, Unset
+from .link import CardLink
 
 if TYPE_CHECKING:
     from .card import Card
@@ -51,6 +47,8 @@ def _metadata(values: dict[str, list[str]]) -> ResourceMetadata:
         for key, items in values.items()
     ):
         raise TypeError("metadata must map strings to lists of strings")
+    if "" in values:
+        raise ValueError("a metadata name must not be empty")
     result = ResourceMetadata()
     result.additional_properties = {key: list(items) for key, items in values.items()}
     return result
@@ -63,16 +61,6 @@ class AssetPlacement:
     encoding: str
     stored_byte_size: int
     created_at: int
-
-
-@dataclass(frozen=True)
-class ResourceReference:
-    """A live card referring to a resource, including attachment links."""
-
-    card_id: str
-    title: str
-    updated_at: int
-    link_kinds: tuple[str, ...]
 
 
 @dataclass(frozen=True, eq=False)
@@ -106,12 +94,15 @@ class Asset:
                     placement_id=placement.id if placement is not None else UNSET,
                 )
                 try:
-                    with download, tempfile.NamedTemporaryFile(
-                        mode="wb",
-                        dir=destination.parent,
-                        prefix=f".{destination.name}.",
-                        delete=False,
-                    ) as output:
+                    with (
+                        download,
+                        tempfile.NamedTemporaryFile(
+                            mode="wb",
+                            dir=destination.parent,
+                            prefix=f".{destination.name}.",
+                            delete=False,
+                        ) as output,
+                    ):
                         temporary = output.name
                         download.write_to(output)
                 except StreamError as error:
@@ -146,7 +137,6 @@ class Resource:
     label: str
     metadata: dict[str, list[str]]
     assets: tuple[Asset, ...]
-    referenced_by_cards: tuple[ResourceReference, ...]
     created_at: int
     updated_at: int
     _project: Project = field(repr=False, compare=False)
@@ -175,7 +165,7 @@ class Resource:
                         AssetPlacement(
                             p.placement_id,
                             p.location_id,
-                            str(p.encoding),
+                            p.encoding.value,
                             p.stored_byte_size,
                             p.created_at,
                         )
@@ -187,25 +177,18 @@ class Resource:
                 )
                 for asset in row.assets
             ),
-            referenced_by_cards=tuple(
-                ResourceReference(
-                    reference.card_id,
-                    reference.title,
-                    reference.updated_at,
-                    tuple(reference.link_kinds),
-                )
-                for reference in row.referenced_by_cards
-            ),
             created_at=row.created_at,
             updated_at=row.updated_at,
             _project=project,
         )
 
+    @property
+    def backlinks(self) -> ResourceBacklinkCollection:
+        """The links to this resource, of every kind, from its project's cards and AI messages."""
+        return ResourceBacklinkCollection(self)
+
     def refresh(self) -> Self:
-        fresh = self._project.resources.get(self.id)
-        for item in fields(self):
-            if item.name != "_project":
-                object.__setattr__(self, item.name, getattr(fresh, item.name))
+        self._replace(self._project.resources.get(self.id))
         return self
 
     def update(
@@ -215,28 +198,37 @@ class Resource:
         label: str | Unset = UNSET,
         metadata: dict[str, list[str]] | Unset = UNSET,
     ) -> Self:
-        """Patch supplied fields; empty metadata lists remove those keys."""
+        """Change the fields given; in metadata, each name given replaces its values, and an empty list
+        removes it."""
         if all(isinstance(x, Unset) for x in (type, label, metadata)):
             raise TypeError("Supply type, label, or metadata")
         for name, value in (("type", type), ("label", label)):
             if not isinstance(value, (str, Unset)):
                 raise TypeError(f"{name} must be a string")
         values = UNSET if isinstance(metadata, Unset) else _metadata(metadata)
-        self._project.resources.get(
-            self.id
-        )  # Verify project membership before writing.
-        self._project._holder._call(
-            patch_resources_resource_id,
+        row = self._project._holder._call(
+            patch_projects_project_id_resources_resource_id,
+            self.project_id,
             self.id,
-            body=ResourceUpdateRequest(type_=type, label=label, metadata=values),
+            body=ResourceUpdate(type_=type, label=label, metadata=values),
             write=True,
         )
-        return self.refresh()
+        self._replace(Resource._from(self._project, row))
+        return self
+
+    def _replace(self, fresh: Resource) -> None:
+        for item in fields(self):
+            if item.name != "_project":
+                object.__setattr__(self, item.name, getattr(fresh, item.name))
 
     def delete(self) -> None:
         """Remove the resource and its card links; stored file bytes may remain."""
-        self._project.resources.get(self.id)
-        self._project._holder._call(delete_resources_resource_id, self.id, write=True)
+        self._project._holder._call(
+            delete_projects_project_id_resources_resource_id,
+            self.project_id,
+            self.id,
+            write=True,
+        )
 
 
 class ResourceCollection(Collection[Resource]):
@@ -248,15 +240,14 @@ class ResourceCollection(Collection[Resource]):
         return type(self)(self._project)
 
     def _fetch_page(self) -> tuple[list[Resource], None]:
-        data = self._holder._call(
-            get_resources, project_id=self._project.id, limit=UNSET, offset=UNSET
-        )
+        data = self._holder._call(get_projects_project_id_resources, self._project.id)
         return [Resource._from(self._project, row) for row in data], None
 
     def get(self, resource_id: str) -> Resource:
-        row = self._holder._call(get_resources_resource_id, resource_id)
-        if row.project_id != self._project.id:
-            raise NotFoundError(404, "not_found", "Resource not found in this project")
+        """Fetch a resource; one in another project is not found."""
+        row = self._holder._call(
+            get_projects_project_id_resources_resource_id, self._project.id, resource_id
+        )
         return Resource._from(self._project, row)
 
     def create(
@@ -266,12 +257,17 @@ class ResourceCollection(Collection[Resource]):
         label: str,
         metadata: dict[str, list[str]] | None = None,
     ) -> Resource:
-        if not isinstance(type, str) or not type or not isinstance(label, str):
+        if (
+            not isinstance(type, str)
+            or not type
+            or not isinstance(label, str)
+            or not label
+        ):
             raise ValueError("type and label must be nonempty strings")
         row = self._holder._call(
-            post_resources,
-            body=ResourceCreateRequest(
-                project_id=self._project.id,
+            post_projects_project_id_resources,
+            self._project.id,
+            body=NewResource(
                 type_=type,
                 label=label,
                 metadata=_metadata(metadata) if metadata is not None else UNSET,
@@ -281,7 +277,37 @@ class ResourceCollection(Collection[Resource]):
         return Resource._from(self._project, row)
 
 
+class ResourceBacklinkCollection(Collection["CardLink"]):
+    """The links to a resource, newest first; evaluated results stay cached until refresh()."""
+
+    def __init__(self, resource: Resource, *, include_deleted: bool = False) -> None:
+        self._resource = resource
+        self._include_deleted = include_deleted
+        super().__init__(resource._project._holder)
+
+    def _clone(self, query: dict[str, Any]) -> Self:
+        return type(self)(
+            self._resource,
+            include_deleted=query.get("include_deleted", self._include_deleted),
+        )
+
+    def including_deleted(self) -> Self:
+        """Return a fresh query that includes links from cards and AI messages in the trash."""
+        return self._clone({"include_deleted": True})
+
+    def _fetch_page(self) -> tuple[list[CardLink], None]:
+        data = self._holder._call(
+            get_projects_project_id_resources_resource_id_backlinks,
+            self._resource.project_id,
+            self._resource.id,
+            include_deleted=self._include_deleted,
+        )
+        return [CardLink._from(row) for row in data], None
+
+
 class CardAttachmentCollection(Collection[Resource]):
+    """The resources attached to a card, by last change; cached until refresh()."""
+
     def __init__(self, card: Card) -> None:
         self._card = card
         super().__init__(card._project._holder)
@@ -289,25 +315,13 @@ class CardAttachmentCollection(Collection[Resource]):
     def _clone(self, query: dict[str, Any]) -> Self:
         return type(self)(self._card)
 
-    def _fetch_page(self) -> tuple[list[Resource], int | None]:
-        offset = int(self._next or 0)
-        envelope = self._holder._call(
-            get_resources,
-            project_id=self._card.project_id,
-            card_id=self._card.id,
-            limit=100,
-            offset=offset,
-            return_envelope=True,
+    def _fetch_page(self) -> tuple[list[Resource], None]:
+        data = self._holder._call(
+            get_projects_project_id_cards_card_id_resources,
+            self._card.project_id,
+            self._card.id,
         )
-        if envelope.card_id != self._card.id:
-            raise ProtocolError("Attachment listing returned another card")
-        rows = [Resource._from(self._card._project, row) for row in envelope.data]
-        next_offset = envelope.next_offset
-        if isinstance(next_offset, Unset) or (
-            next_offset is not None and next_offset <= offset
-        ):
-            raise ProtocolError("Attachment pagination did not advance")
-        return rows, next_offset
+        return [Resource._from(self._card._project, row) for row in data], None
 
     def _id(self, resource: Resource | str) -> str:
         if isinstance(resource, Resource):
@@ -318,28 +332,24 @@ class CardAttachmentCollection(Collection[Resource]):
             raise ValueError("resource must be a Resource or nonempty ID")
         return resource
 
-    def attach(self, resource: Resource | str) -> bool:
-        """Attach a project resource; return whether a link was created."""
-        row = self._holder._call(
-            post_cards_card_id_resources,
+    def attach(self, resource: Resource | str) -> None:
+        """Attach a project resource; attaching one already attached changes nothing."""
+        self._holder._call(
+            put_projects_project_id_cards_card_id_resources_resource_id,
+            self._card.project_id,
             self._card.id,
-            body=PostCardsCardIdResourcesBody(
-                project_id=self._card.project_id, resource_id=self._id(resource)
-            ),
+            self._id(resource),
             write=True,
         )
         self.refresh()
-        return row.changed
 
-    def detach(self, resource: Resource | str) -> bool:
-        """Detach a resource without deleting it; return whether a link existed."""
-        row = self._holder._call(
-            delete_cards_card_id_resources,
+    def detach(self, resource: Resource | str) -> None:
+        """Detach a resource without deleting it; detaching one not attached changes nothing."""
+        self._holder._call(
+            delete_projects_project_id_cards_card_id_resources_resource_id,
+            self._card.project_id,
             self._card.id,
-            body=DeleteCardsCardIdResourcesBody(
-                project_id=self._card.project_id, resource_id=self._id(resource)
-            ),
+            self._id(resource),
             write=True,
         )
         self.refresh()
-        return row.changed

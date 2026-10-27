@@ -35,3 +35,6 @@ add a milestone whose dates are missing: status 1, new_milestone.dates.items mus
 clear a milestone's dates and kind: status 0, 0 dates, kind (null)
 calendar: status 0, m3 on Thesis, revised
 remove a milestone: status 0, 0 left
+create a resource: status 0, res-1 website identifier=https://example.com/a,https://example.com/b
+update a resource with a repeated name: status 1, resource_update.metadata repeats a key
+attach a resource: status 0, 1 attached

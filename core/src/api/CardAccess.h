@@ -1,7 +1,7 @@
 #pragma once
 
-// What the contract's operations in src/api/ share: the time, a card store on the context, and the
-// cards of a project.
+// What the contract's operations in src/api/ share: the time, a card store on the context, the
+// cards of a project, and the links to a target.
 
 #include "api/Contract.h"
 
@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace holder::contract {
 
@@ -40,5 +41,10 @@ inline holder::model::Card live_card(holder::card::CardStore& store, const std::
   if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
   return std::move(*card);
 }
+
+// The links to a target in its own project, of every kind, from cards and AI messages, newest first; a link
+// whose source is gone is never listed. Defined in Links.cpp.
+std::vector<Link> local_backlinks(holder_context& context, const std::string& project_id,
+                                  const std::string& target_type, const std::string& target_id, bool include_deleted);
 
 } // namespace holder::contract

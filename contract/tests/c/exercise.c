@@ -191,6 +191,34 @@ int main(void) {
     status = holder_remove_card_milestone(context, "p1", "c1", milestone_id, arena, &milestones, &error);
     printf("remove a milestone: status %d, %zu left\n", status, milestones->count);
 
+    const char* identifiers[] = {"https://example.com/a", "https://example.com/b"};
+    holder_resource_metadata_entry entries[1] = {{0}};
+    entries[0].key = "identifier";
+    entries[0].values.items = identifiers;
+    entries[0].values.count = 2;
+    holder_resource_metadata metadata = {entries, 1};
+    holder_new_resource new_resource = {0};
+    new_resource.resource_id = "res-1";
+    new_resource.type = "website";
+    new_resource.label = "Example";
+    new_resource.metadata = &metadata;
+    const holder_resource* resource = NULL;
+    status = holder_create_resource(context, "p1", &new_resource, arena, &resource, &error);
+    printf("create a resource: status %d, %s %s %s=%s,%s\n", status, resource->resource_id, resource->type,
+           resource->metadata.items[0].key, resource->metadata.items[0].values.items[0],
+           resource->metadata.items[0].values.items[1]);
+    holder_resource_metadata_entry repeated[2] = {{0}};
+    repeated[0].key = "author";
+    repeated[1].key = "author";
+    holder_resource_metadata twice = {repeated, 2};
+    holder_resource_update resource_update = {0};
+    resource_update.metadata = &twice;
+    status = holder_update_resource(context, "p1", "res-1", &resource_update, arena, &resource, &error);
+    report("update a resource with a repeated name", status, &error);
+    const holder_resource_list* attached = NULL;
+    status = holder_attach_card_resource(context, "p1", "c1", "res-1", arena, &attached, &error);
+    printf("attach a resource: status %d, %zu attached\n", status, attached->count);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

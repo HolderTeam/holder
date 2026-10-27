@@ -312,11 +312,11 @@ class Card:
         """Resources attached to this live card."""
         return CardAttachmentCollection(self)
 
-    def attach(self, resource: Resource | str) -> bool:
-        return self.attachments.attach(resource)
+    def attach(self, resource: Resource | str) -> None:
+        self.attachments.attach(resource)
 
-    def detach(self, resource: Resource | str) -> bool:
-        return self.attachments.detach(resource)
+    def detach(self, resource: Resource | str) -> None:
+        self.attachments.detach(resource)
 
     def import_file(
         self, source: str | os.PathLike[str], *, location: StorageLocation | None = None

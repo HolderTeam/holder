@@ -226,7 +226,7 @@ TEST_CASE(
   run_error("missing --output " + quote_export_path(output), "not_found");
   run_error(
       foreign.resource.resource_id + " --output " + quote_export_path(output),
-      "cross_project_resource_forbidden"
+      "not_found"
   );
   run_error(resource_id, "invalid_arguments");
   run_error(resource_id + " --output -", "invalid_arguments");

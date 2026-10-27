@@ -17,6 +17,7 @@ public class ResourcesService : Object {
     }
 
     public async void update_resource(IHolderApi api,
+                                      string project_id,
                                       string resource_id,
                                       string kind,
                                       string uri,
@@ -24,11 +25,11 @@ public class ResourcesService : Object {
                                       string? desc,
                                       Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         var now = new DateTime.now_utc().to_unix();
-        yield api.update_resource(resource_id, kind, uri, label, desc, now, extra_metadata);
+        yield api.update_resource(project_id, resource_id, kind, uri, label, desc, now, extra_metadata);
     }
 
-    public async void delete_resource(IHolderApi api, string resource_id) throws Error {
-        yield api.delete_resource(resource_id);
+    public async void delete_resource(IHolderApi api, string project_id, string resource_id) throws Error {
+        yield api.delete_resource(project_id, resource_id);
     }
 }
 

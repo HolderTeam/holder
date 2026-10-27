@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -154,6 +155,26 @@ template <typename T> struct codec<std::vector<T>> {
         return result;
     }
 };
+// A map is a JSON object; JSON names its keys, so each is text and appears once.
+template <typename T> struct codec<std::map<std::string, T>> {
+    static json encode(const std::map<std::string, T>& value) {
+        json result = json::object();
+        for (const auto& [key, item] : value) result[key] = codec<T>::encode(item);
+        return result;
+    }
+    static std::map<std::string, T> decode(const json& value) {
+        if (!value.is_object()) throw std::invalid_argument("must be an object");
+        std::map<std::string, T> result;
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            try {
+                result.emplace(it.key(), codec<T>::decode(it.value()));
+            } catch (const std::invalid_argument& error) {
+                throw std::invalid_argument("has " + it.key() + ", which " + error.what());
+            }
+        }
+        return result;
+    }
+};
 
 template <> struct codec<holder::contract::LinkSourceType> {
     static json encode(holder::contract::LinkSourceType value) {
@@ -190,6 +211,23 @@ template <> struct codec<holder::contract::LinkTargetType> {
         if (text == "ai_thread") return holder::contract::LinkTargetType::AiThread;
         if (text == "resource") return holder::contract::LinkTargetType::Resource;
         throw std::invalid_argument("must be one of card, ai_message, ai_thread, resource");
+    }
+};
+
+template <> struct codec<holder::contract::AssetPlacementEncoding> {
+    static json encode(holder::contract::AssetPlacementEncoding value) {
+        switch (value) {
+        case holder::contract::AssetPlacementEncoding::Plain: return "plain";
+        case holder::contract::AssetPlacementEncoding::HolderAssetV1: return "holder_asset_v1";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::AssetPlacementEncoding decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "plain") return holder::contract::AssetPlacementEncoding::Plain;
+        if (text == "holder_asset_v1") return holder::contract::AssetPlacementEncoding::HolderAssetV1;
+        throw std::invalid_argument("must be one of plain, holder_asset_v1");
     }
 };
 
@@ -287,6 +325,18 @@ template <> struct codec<holder::contract::Calendar> {
     static json encode(const holder::contract::Calendar& value);
     static holder::contract::Calendar decode(const json& value);
 };
+template <> struct codec<holder::contract::AssetPlacement> {
+    static json encode(const holder::contract::AssetPlacement& value);
+    static holder::contract::AssetPlacement decode(const json& value);
+};
+template <> struct codec<holder::contract::ResourceAsset> {
+    static json encode(const holder::contract::ResourceAsset& value);
+    static holder::contract::ResourceAsset decode(const json& value);
+};
+template <> struct codec<holder::contract::Resource> {
+    static json encode(const holder::contract::Resource& value);
+    static holder::contract::Resource decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -310,6 +360,14 @@ template <> struct codec<holder::contract::NewMilestone> {
 template <> struct codec<holder::contract::MilestoneUpdate> {
     static json encode(const holder::contract::MilestoneUpdate& value);
     static holder::contract::MilestoneUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::NewResource> {
+    static json encode(const holder::contract::NewResource& value);
+    static holder::contract::NewResource decode(const json& value);
+};
+template <> struct codec<holder::contract::ResourceUpdate> {
+    static json encode(const holder::contract::ResourceUpdate& value);
+    static holder::contract::ResourceUpdate decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -917,6 +975,189 @@ inline holder::contract::Calendar codec<holder::contract::Calendar>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::AssetPlacement>::encode(const holder::contract::AssetPlacement& value) {
+    json result = json::object();
+    result["placement_id"] = codec<std::string>::encode(value.placement_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["encoding"] = codec<holder::contract::AssetPlacementEncoding>::encode(value.encoding);
+    result["stored_byte_size"] = codec<long long>::encode(value.stored_byte_size);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    return result;
+}
+inline holder::contract::AssetPlacement codec<holder::contract::AssetPlacement>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetPlacement object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "placement_id" && it.key() != "location_id" && it.key() != "encoding" && it.key() != "stored_byte_size" && it.key() != "created_at") throw std::invalid_argument("AssetPlacement has no field " + it.key());
+    holder::contract::AssetPlacement out;
+    if (value.contains("placement_id") && !value.at("placement_id").is_null()) {
+        const auto& item = value.at("placement_id");
+        out.placement_id = check_text(decode_field<std::string>(item, "placement_id"), "placement_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("placement_id is required and must not be null");
+    }
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("encoding") && !value.at("encoding").is_null()) {
+        const auto& item = value.at("encoding");
+        out.encoding = decode_field<holder::contract::AssetPlacementEncoding>(item, "encoding");
+    } else {
+        throw std::invalid_argument("encoding is required and must not be null");
+    }
+    if (value.contains("stored_byte_size") && !value.at("stored_byte_size").is_null()) {
+        const auto& item = value.at("stored_byte_size");
+        out.stored_byte_size = decode_field<long long>(item, "stored_byte_size");
+    } else {
+        throw std::invalid_argument("stored_byte_size is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ResourceAsset>::encode(const holder::contract::ResourceAsset& value) {
+    json result = json::object();
+    result["asset_id"] = codec<std::string>::encode(value.asset_id);
+    result["original_filename"] = codec<std::string>::encode(value.original_filename);
+    result["media_type"] = codec<std::string>::encode(value.media_type);
+    result["byte_size"] = codec<long long>::encode(value.byte_size);
+    result["plaintext_sha256"] = codec<std::string>::encode(value.plaintext_sha256);
+    result["placements"] = codec<std::vector<holder::contract::AssetPlacement>>::encode(value.placements);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::ResourceAsset codec<holder::contract::ResourceAsset>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ResourceAsset object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "asset_id" && it.key() != "original_filename" && it.key() != "media_type" && it.key() != "byte_size" && it.key() != "plaintext_sha256" && it.key() != "placements" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("ResourceAsset has no field " + it.key());
+    holder::contract::ResourceAsset out;
+    if (value.contains("asset_id") && !value.at("asset_id").is_null()) {
+        const auto& item = value.at("asset_id");
+        out.asset_id = check_text(decode_field<std::string>(item, "asset_id"), "asset_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("asset_id is required and must not be null");
+    }
+    if (value.contains("original_filename") && !value.at("original_filename").is_null()) {
+        const auto& item = value.at("original_filename");
+        out.original_filename = check_text(decode_field<std::string>(item, "original_filename"), "original_filename", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("original_filename is required and must not be null");
+    }
+    if (value.contains("media_type") && !value.at("media_type").is_null()) {
+        const auto& item = value.at("media_type");
+        out.media_type = check_text(decode_field<std::string>(item, "media_type"), "media_type", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("media_type is required and must not be null");
+    }
+    if (value.contains("byte_size") && !value.at("byte_size").is_null()) {
+        const auto& item = value.at("byte_size");
+        out.byte_size = decode_field<long long>(item, "byte_size");
+    } else {
+        throw std::invalid_argument("byte_size is required and must not be null");
+    }
+    if (value.contains("plaintext_sha256") && !value.at("plaintext_sha256").is_null()) {
+        const auto& item = value.at("plaintext_sha256");
+        out.plaintext_sha256 = check_text(decode_field<std::string>(item, "plaintext_sha256"), "plaintext_sha256", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("plaintext_sha256 is required and must not be null");
+    }
+    if (value.contains("placements") && !value.at("placements").is_null()) {
+        const auto& item = value.at("placements");
+        out.placements = decode_field<std::vector<holder::contract::AssetPlacement>>(item, "placements");
+    } else {
+        throw std::invalid_argument("placements is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::Resource>::encode(const holder::contract::Resource& value) {
+    json result = json::object();
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["type"] = codec<std::string>::encode(value.type);
+    result["label"] = codec<std::string>::encode(value.label);
+    result["metadata"] = codec<std::map<std::string, std::vector<std::string>>>::encode(value.metadata);
+    result["assets"] = codec<std::vector<holder::contract::ResourceAsset>>::encode(value.assets);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::Resource codec<holder::contract::Resource>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Resource object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "resource_id" && it.key() != "project_id" && it.key() != "type" && it.key() != "label" && it.key() != "metadata" && it.key() != "assets" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("Resource has no field " + it.key());
+    holder::contract::Resource out;
+    if (value.contains("resource_id") && !value.at("resource_id").is_null()) {
+        const auto& item = value.at("resource_id");
+        out.resource_id = check_text(decode_field<std::string>(item, "resource_id"), "resource_id", 4, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("resource_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("type") && !value.at("type").is_null()) {
+        const auto& item = value.at("type");
+        out.type = check_text(decode_field<std::string>(item, "type"), "type", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("type is required and must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("label is required and must not be null");
+    }
+    if (value.contains("metadata") && !value.at("metadata").is_null()) {
+        const auto& item = value.at("metadata");
+        out.metadata = [&] { auto entries = decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"); for (const auto& [key, values] : entries) { check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max()); for (const auto& text : values) check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else {
+        throw std::invalid_argument("metadata is required and must not be null");
+    }
+    if (value.contains("assets") && !value.at("assets").is_null()) {
+        const auto& item = value.at("assets");
+        out.assets = decode_field<std::vector<holder::contract::ResourceAsset>>(item, "assets");
+    } else {
+        throw std::invalid_argument("assets is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
     result["title"] = codec<std::string>::encode(value.title);
@@ -1159,6 +1400,100 @@ inline holder::contract::MilestoneUpdate codec<holder::contract::MilestoneUpdate
         out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
     } else if (value.contains("description")) {
         out.description.emplace();
+    }
+    return out;
+}
+
+inline json codec<holder::contract::NewResource>::encode(const holder::contract::NewResource& value) {
+    json result = json::object();
+    if (value.resource_id) result["resource_id"] = codec<std::string>::encode(*value.resource_id);
+    result["type"] = codec<std::string>::encode(value.type);
+    result["label"] = codec<std::string>::encode(value.label);
+    if (value.metadata) result["metadata"] = codec<std::map<std::string, std::vector<std::string>>>::encode(*value.metadata);
+    if (value.created_at) result["created_at"] = codec<long long>::encode(*value.created_at);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::NewResource codec<holder::contract::NewResource>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a NewResource object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "resource_id" && it.key() != "type" && it.key() != "label" && it.key() != "metadata" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("NewResource has no field " + it.key());
+    holder::contract::NewResource out;
+    if (value.contains("resource_id") && !value.at("resource_id").is_null()) {
+        const auto& item = value.at("resource_id");
+        out.resource_id = check_text(decode_field<std::string>(item, "resource_id"), "resource_id", 4, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("resource_id")) {
+        throw std::invalid_argument("resource_id must not be null");
+    }
+    if (value.contains("type") && !value.at("type").is_null()) {
+        const auto& item = value.at("type");
+        out.type = check_text(decode_field<std::string>(item, "type"), "type", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("type is required and must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("label is required and must not be null");
+    }
+    if (value.contains("metadata") && !value.at("metadata").is_null()) {
+        const auto& item = value.at("metadata");
+        out.metadata = [&] { auto entries = decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"); for (const auto& [key, values] : entries) { check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max()); for (const auto& text : values) check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else if (value.contains("metadata")) {
+        throw std::invalid_argument("metadata must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else if (value.contains("created_at")) {
+        throw std::invalid_argument("created_at must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ResourceUpdate>::encode(const holder::contract::ResourceUpdate& value) {
+    json result = json::object();
+    if (value.type) result["type"] = codec<std::string>::encode(*value.type);
+    if (value.label) result["label"] = codec<std::string>::encode(*value.label);
+    if (value.metadata) result["metadata"] = codec<std::map<std::string, std::vector<std::string>>>::encode(*value.metadata);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::ResourceUpdate codec<holder::contract::ResourceUpdate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ResourceUpdate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "type" && it.key() != "label" && it.key() != "metadata" && it.key() != "updated_at") throw std::invalid_argument("ResourceUpdate has no field " + it.key());
+    holder::contract::ResourceUpdate out;
+    if (value.contains("type") && !value.at("type").is_null()) {
+        const auto& item = value.at("type");
+        out.type = check_text(decode_field<std::string>(item, "type"), "type", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("type")) {
+        throw std::invalid_argument("type must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("label")) {
+        throw std::invalid_argument("label must not be null");
+    }
+    if (value.contains("metadata") && !value.at("metadata").is_null()) {
+        const auto& item = value.at("metadata");
+        out.metadata = [&] { auto entries = decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"); for (const auto& [key, values] : entries) { check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max()); for (const auto& text : values) check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else if (value.contains("metadata")) {
+        throw std::invalid_argument("metadata must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
     }
     return out;
 }

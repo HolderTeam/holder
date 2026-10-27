@@ -36,308 +36,6 @@ struct RunningServer {
 } // namespace
 
 TEST_CASE(
-    "HTTP resource attachments are isolated idempotent live-card operations",
-    "[http][resources][attachments]"
-) {
-  namespace http = boost::beast::http;
-  const auto dir = make_temp_dir();
-  auto db = open_db_with_schema(dir / "holder.db");
-  create_project(db, "proj-1", (dir / "project").string());
-  create_project(db, "proj-2", (dir / "other").string());
-  const std::string token = "testtoken";
-  RunningServer running(db, token);
-  auto request = [&](http::verb method,
-                     const std::string& path,
-                     const nlohmann::json& body = nlohmann::json::object(),
-                     http::status status = http::status::ok) {
-    return http_json_request(
-        running.bound.bind,
-        running.bound.port,
-        token,
-        method,
-        path,
-        body,
-        status
-    );
-  };
-  const auto card = request(
-      http::verb::post,
-      "/projects/proj-1/cards",
-      {{"title", "Attachments"}, {"content", "Attachment card\n"}},
-      http::status::created
-  );
-  const auto card_id = card["data"]["card_id"].get<std::string>();
-  const auto path = "/cards/" + card_id + "/resources";
-  const auto list_path = "/resources?project_id=proj-1&card_id=" + card_id;
-  const auto resource = request(
-      http::verb::post,
-      "/resources",
-      {{"project_id", "proj-1"},
-       {"type", "url"},
-       {"label", "Docs"},
-       {"metadata", {{"identifier", {"https://example.com"}}}}},
-      http::status::created
-  );
-  const auto resource_id = resource["data"]["resource_id"].get<std::string>();
-  const nlohmann::json body = {{"project_id", "proj-1"}, {"resource_id", resource_id}};
-  REQUIRE(request(http::verb::get, list_path)["data"].empty());
-  const auto attached = request(http::verb::post, path, body);
-  REQUIRE(attached["data"]["changed"] == true);
-  REQUIRE(attached["data"]["card_id"] == card_id);
-  REQUIRE(attached["data"]["resource_id"] == resource_id);
-  REQUIRE(request(http::verb::post, path, body)["data"]["changed"] == false);
-  auto listed = request(http::verb::get, list_path + "&limit=1");
-  REQUIRE(listed["data"].size() == 1);
-  REQUIRE(listed["data"][0]["metadata"] == resource["data"]["metadata"]);
-  REQUIRE(listed["next_offset"] == 1);
-  REQUIRE(request(http::verb::get, list_path + "&limit=1&offset=1")["data"].empty());
-  REQUIRE(
-      request(http::verb::get, list_path + "&limit=0", {}, http::status::bad_request)["ok"] == false
-  );
-  REQUIRE(
-      request(http::verb::get, list_path + "&offset=1x", {}, http::status::bad_request)["ok"] ==
-      false
-  );
-  REQUIRE(
-      request(
-          http::verb::post,
-          path,
-          {{"resource_id", resource_id}},
-          http::status::bad_request
-      )["ok"] == false
-  );
-  REQUIRE(
-      request(
-          http::verb::post,
-          path,
-          {{"project_id", "proj-1"}, {"resource_id", 5}},
-          http::status::bad_request
-      )["ok"] == false
-  );
-  REQUIRE(
-      request(
-          http::verb::post,
-          path,
-          {{"project_id", "proj-1"}, {"resource_id", card_id}},
-          http::status::not_found
-      )["ok"] == false
-  );
-  REQUIRE(
-      request(
-          http::verb::delete_,
-          path,
-          {{"project_id", "proj-2"}, {"resource_id", resource_id}},
-          http::status::unprocessable_entity
-      )["ok"] == false
-  );
-  REQUIRE(
-      request(
-          http::verb::get,
-          "/resources?project_id=proj-2&card_id=" + card_id,
-          {},
-          http::status::unprocessable_entity
-      )["ok"] == false
-  );
-  const auto foreign = request(
-      http::verb::post,
-      "/resources",
-      {{"project_id", "proj-2"}, {"type", "url"}, {"label", "Foreign"}},
-      http::status::created
-  );
-  for (auto method : {http::verb::post, http::verb::delete_}) {
-    REQUIRE(
-        request(
-            method,
-            path,
-            {{"project_id", "proj-1"}, {"resource_id", foreign["data"]["resource_id"]}},
-            http::status::unprocessable_entity
-        )["ok"] == false
-    );
-    REQUIRE(
-        http_json_request(
-            running.bound.bind,
-            running.bound.port,
-            "wrong-token",
-            method,
-            path,
-            body,
-            http::status::unauthorized
-        )["ok"] == false
-    );
-  }
-  // Parallel read requests exercise listener request ownership and worker-owned DB handles.
-  std::vector<std::future<holder::test::HttpResult>> reads;
-  for (int i = 0; i < 12; ++i)
-    reads.push_back(std::async(std::launch::async, [&] {
-      return holder::test::http_request_raw(
-          running.bound.bind,
-          running.bound.port,
-          token,
-          http::verb::get,
-          list_path
-      );
-    }));
-  for (auto& read : reads) {
-    const auto response = read.get();
-    INFO("Concurrent HTTP GET " << list_path << " returned " << response.status);
-    INFO("Concurrent HTTP response body: " << response.body);
-    REQUIRE(response.status == http::status::ok);
-    REQUIRE(nlohmann::json::parse(response.body)["data"][0]["resource_id"] == resource_id);
-  }
-  // An unrelated resource reference survives detach; delete removes both kinds globally.
-  request(
-      http::verb::post,
-      "/projects/proj-1/cards/" + card_id + "/links",
-      {{"target_id", resource_id}, {"target_type", "resource"}, {"kind", "ref"}}
-  );
-  REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == true);
-  REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
-  REQUIRE(request(http::verb::get, list_path)["data"].empty());
-  REQUIRE(
-      request(http::verb::get, "/resources/" + resource_id)["data"]["resource_id"] == resource_id
-  );
-  REQUIRE(request(http::verb::get, "/projects/proj-1/cards/" + card_id + "/links")["data"].size() == 1);
-  request(http::verb::post, path, body);
-  request(http::verb::delete_, "/resources/" + resource_id);
-  REQUIRE(request(http::verb::get, list_path)["data"].empty());
-  REQUIRE(request(http::verb::get, "/projects/proj-1/cards/" + card_id + "/links")["data"].empty());
-  REQUIRE(request(http::verb::delete_, path, body)["data"]["changed"] == false);
-  request(http::verb::delete_, "/projects/proj-1/cards/" + card_id);
-  REQUIRE(request(http::verb::get, list_path, {}, http::status::not_found)["ok"] == false);
-  REQUIRE(request(http::verb::post, path, body, http::status::not_found)["ok"] == false);
-}
-
-TEST_CASE("HTTP resources persist complete Git-backed metadata", "[http][resources]") {
-  const auto dir = make_temp_dir();
-  auto db = open_db_with_schema(dir / "holder.db");
-  const auto project_root = dir / "project_repo";
-  create_project(db, "proj-1", project_root.string());
-
-  const std::string token = "testtoken";
-  RunningServer running(db, token);
-  const auto created = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::post,
-      "/resources",
-      {
-          {"project_id", "proj-1"},
-          {"type", "website"},
-          {"label", "Example"},
-          {"metadata",
-           {{"identifier", nlohmann::json::array({"https://example.com"})},
-            {"creator", nlohmann::json::array({"Ada", "Grace"})}}},
-      },
-      boost::beast::http::status::created
-  );
-  const auto resource_id = created["data"]["resource_id"].get<std::string>();
-  REQUIRE(created["data"]["assets"].empty());
-
-  const auto listed = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/resources?project_id=proj-1",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(listed["data"].size() == 1);
-  REQUIRE(listed["data"][0]["type"] == "website");
-  REQUIRE(listed["data"][0]["metadata"]["creator"].size() == 2);
-
-  const auto fetched = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/resources/" + resource_id,
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(fetched["data"]["label"] == "Example");
-
-  const auto patched = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/resources/" + resource_id,
-      {{"label", "Updated"}, {"metadata", {{"description", nlohmann::json::array({"Reference"})}}}},
-      boost::beast::http::status::ok
-  );
-  REQUIRE(patched["data"]["label"] == "Updated");
-  REQUIRE(patched["data"]["metadata"]["description"][0] == "Reference");
-  REQUIRE(patched["data"]["metadata"]["creator"] == nlohmann::json::array({"Ada", "Grace"}));
-
-  const auto removed_creator = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/resources/" + resource_id,
-      {{"metadata", {{"creator", nlohmann::json::array()}}}},
-      boost::beast::http::status::ok
-  );
-  REQUIRE(!removed_creator["data"]["metadata"].contains("creator"));
-  REQUIRE(removed_creator["data"]["metadata"]["description"][0] == "Reference");
-
-  REQUIRE(std::filesystem::exists(project_root / "resources"));
-  const auto deleted = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::delete_,
-      "/resources/" + resource_id,
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(deleted["ok"] == true);
-}
-
-TEST_CASE("HTTP resource routes validate the replacement contract", "[http][resources]") {
-  const auto dir = make_temp_dir();
-  auto db = open_db_with_schema(dir / "holder.db");
-  create_project(db, "proj-1", (dir / "project_repo").string());
-  const std::string token = "testtoken";
-  RunningServer running(db, token);
-
-  const auto missing_fields = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::post,
-      "/resources",
-      {{"project_id", "proj-1"}},
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(missing_fields["error"]["code"] == "bad_request");
-
-  const auto missing_project = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/resources",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(missing_project["error"]["code"] == "bad_request");
-
-  const auto missing_resource = http_json_request(
-      running.bound.bind,
-      running.bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/resources/no-such-resource",
-      nlohmann::json::object(),
-      boost::beast::http::status::not_found
-  );
-  REQUIRE(missing_resource["error"]["code"] == "not_found");
-}
-
-TEST_CASE(
     "HTTP local Location import runs as a polled background job",
     "[http][resources][imports]"
 ) {
@@ -451,12 +149,12 @@ TEST_CASE(
         running.bound.bind,
         running.bound.port,
         token,
-        boost::beast::http::verb::post,
-        "/cards/" + extra_id + "/resources",
-        {{"project_id", "proj-1"}, {"resource_id", job["resource_id"]}},
+        boost::beast::http::verb::put,
+        "/projects/proj-1/cards/" + extra_id + "/resources/" + job["resource_id"].get<std::string>(),
+        nlohmann::json::object(),
         boost::beast::http::status::ok
     );
-    REQUIRE(attached["data"]["changed"] == true);
+    REQUIRE(attached["data"].size() == 1);
   }
 
   const auto resources = http_json_request(
@@ -464,29 +162,24 @@ TEST_CASE(
       running.bound.port,
       token,
       boost::beast::http::verb::get,
-      "/resources?project_id=proj-1",
+      "/projects/proj-1/resources",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   REQUIRE(resources["data"].size() == 1);
   REQUIRE(resources["data"][0]["assets"][0]["media_type"] == "application/pdf");
-  REQUIRE(resources["data"][0]["referenced_by_cards"].size() == 3);
-  REQUIRE(resources["data"][0]["referenced_by_cards"][0]["card_id"] == "card-alpha");
-  REQUIRE(resources["data"][0]["referenced_by_cards"][0]["title"] == "Alpha");
-  REQUIRE(
-      resources["data"][0]["referenced_by_cards"][1]["link_kinds"] ==
-      nlohmann::json::array({"attachment"})
-  );
-  const auto single = http_json_request(
+  // The import's card and the two attached here link to the resource.
+  const auto backlinks = http_json_request(
       running.bound.bind,
       running.bound.port,
       token,
       boost::beast::http::verb::get,
-      "/resources/" + job["resource_id"].get<std::string>(),
+      "/projects/proj-1/resources/" + job["resource_id"].get<std::string>() + "/backlinks",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
-  REQUIRE(single["data"]["referenced_by_cards"] == resources["data"][0]["referenced_by_cards"]);
+  REQUIRE(backlinks["data"].size() == 3);
+  for (const auto& link : backlinks["data"]) REQUIRE(link["kind"] == "attachment");
 
   const auto cache = holder::core::Paths::resolve("holder").cache_dir / "asset-cache";
   std::filesystem::create_directories(cache / "directory-entry");

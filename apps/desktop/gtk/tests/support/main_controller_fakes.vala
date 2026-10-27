@@ -704,7 +704,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return "r1";
     }
 
-    public async void update_resource(string resource_id,
+    public async void update_resource(string project_id,
+                                      string resource_id,
                                       string? kind,
                                       string? uri,
                                       string? label,
@@ -724,7 +725,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_updated_at = updated_at;
     }
 
-    public async void delete_resource(string resource_id) throws Error {
+    public async void delete_resource(string project_id, string resource_id) throws Error {
         if (fail_delete_resource) {
             throw new IOError.FAILED("delete resource failed");
         }

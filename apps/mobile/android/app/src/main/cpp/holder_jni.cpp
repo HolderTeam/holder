@@ -1923,7 +1923,7 @@ Java_team_holder_android_HolderNative_nativeResourceList(JNIEnv *env,
   }
   char *json = nullptr;
   holder_error *error = nullptr;
-  if (holder_resource_list(context, project.get(), &json, &error) !=
+  if (holder_resource_list_json(context, project.get(), &json, &error) !=
       HOLDER_OK) {
     throw_runtime(env, error_message(error));
     return nullptr;

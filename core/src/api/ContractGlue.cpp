@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
@@ -172,6 +173,29 @@ contract::Change<std::string> changed_text(const holder_string_change& value, co
   }
 }
 
+holder_resource_metadata to_c_resource_metadata(holder_arena* arena, const std::map<std::string, std::vector<std::string>>& value) {
+  auto* items = make<holder_resource_metadata_entry>(arena, value.size());
+  std::size_t i = 0;
+  for (const auto& [key, values] : value) items[i++] = {copy(arena, key), copy_strings(arena, values)};
+  return {items, value.size()};
+}
+
+std::map<std::string, std::vector<std::string>> from_c_resource_metadata(const holder_resource_metadata& value, const char* name) {
+  require(value.items != nullptr || value.count == 0, std::string(name) + ".items must not be null");
+  std::map<std::string, std::vector<std::string>> out;
+  for (std::size_t i = 0; i < value.count; ++i) {
+    const auto& entry = value.items[i];
+    auto key = text(entry.key, (std::string(name) + " key").c_str(), 0, SIZE_MAX);
+    const auto& list = entry.values;
+    require(list.items != nullptr || list.count == 0, std::string(name) + "." + key + ".items must not be null");
+    std::vector<std::string> values;
+    for (std::size_t k = 0; k < list.count; ++k)
+      values.push_back(text(list.items[k], (std::string(name) + "." + key).c_str(), 0, SIZE_MAX));
+    require(out.emplace(std::move(key), std::move(values)).second, std::string(name) + " repeats a key");
+  }
+  return out;
+}
+
 holder_link_source_type to_c_enum(contract::LinkSourceType value) {
   switch (value) {
   case contract::LinkSourceType::Card: return HOLDER_LINK_SOURCE_TYPE_CARD;
@@ -188,6 +212,14 @@ holder_link_target_type to_c_enum(contract::LinkTargetType value) {
   case contract::LinkTargetType::Resource: return HOLDER_LINK_TARGET_TYPE_RESOURCE;
   }
   throw std::logic_error("not a contract::LinkTargetType value");
+}
+
+holder_asset_placement_encoding to_c_enum(contract::AssetPlacementEncoding value) {
+  switch (value) {
+  case contract::AssetPlacementEncoding::Plain: return HOLDER_ASSET_PLACEMENT_ENCODING_PLAIN;
+  case contract::AssetPlacementEncoding::HolderAssetV1: return HOLDER_ASSET_PLACEMENT_ENCODING_HOLDER_ASSET_V1;
+  }
+  throw std::logic_error("not a contract::AssetPlacementEncoding value");
 }
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
@@ -209,6 +241,12 @@ holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<
 holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value);
 holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values);
 holder_calendar to_c(holder_arena* arena, const contract::Calendar& value);
+holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value);
+holder_asset_placement_list to_c_list(holder_arena* arena, const std::vector<contract::AssetPlacement>& values);
+holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& value);
+holder_resource_asset_list to_c_list(holder_arena* arena, const std::vector<contract::ResourceAsset>& values);
+holder_resource to_c(holder_arena* arena, const contract::Resource& value);
+holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::Resource>& values);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -384,6 +422,60 @@ holder_calendar to_c(holder_arena* arena, const contract::Calendar& value) {
   return out;
 }
 
+holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value) {
+  holder_asset_placement out{};
+  out.placement_id = copy(arena, value.placement_id);
+  out.location_id = copy(arena, value.location_id);
+  out.encoding = to_c_enum(value.encoding);
+  out.stored_byte_size = value.stored_byte_size;
+  out.created_at = value.created_at;
+  return out;
+}
+
+holder_asset_placement_list to_c_list(holder_arena* arena, const std::vector<contract::AssetPlacement>& values) {
+  auto* items = make<holder_asset_placement>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& value) {
+  holder_resource_asset out{};
+  out.asset_id = copy(arena, value.asset_id);
+  out.original_filename = copy(arena, value.original_filename);
+  out.media_type = copy(arena, value.media_type);
+  out.byte_size = value.byte_size;
+  out.plaintext_sha256 = copy(arena, value.plaintext_sha256);
+  out.placements = to_c_list(arena, value.placements);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_resource_asset_list to_c_list(holder_arena* arena, const std::vector<contract::ResourceAsset>& values) {
+  auto* items = make<holder_resource_asset>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_resource to_c(holder_arena* arena, const contract::Resource& value) {
+  holder_resource out{};
+  out.resource_id = copy(arena, value.resource_id);
+  out.project_id = copy(arena, value.project_id);
+  out.type = copy(arena, value.type);
+  out.label = copy(arena, value.label);
+  out.metadata = to_c_resource_metadata(arena, value.metadata);
+  out.assets = to_c_list(arena, value.assets);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::Resource>& values) {
+  auto* items = make<holder_resource>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -469,6 +561,26 @@ contract::MilestoneUpdate from_c(const holder_milestone_update& value) {
   out.dates = (value.dates ? std::optional<std::vector<contract::MilestoneDate>>(from_c_list(*value.dates, "milestone_update.dates")) : std::nullopt);
   out.kind = changed_text(value.kind, "milestone_update.kind", 1, SIZE_MAX);
   out.description = changed_text(value.description, "milestone_update.description", 1, SIZE_MAX);
+  return out;
+}
+
+contract::NewResource from_c(const holder_new_resource& value) {
+  contract::NewResource out;
+  out.resource_id = optional_text(value.resource_id, "new_resource.resource_id", 4, SIZE_MAX);
+  out.type = text(value.type, "new_resource.type", 1, SIZE_MAX);
+  out.label = text(value.label, "new_resource.label", 1, SIZE_MAX);
+  out.metadata = (value.metadata ? std::optional<std::map<std::string, std::vector<std::string>>>(from_c_resource_metadata(*value.metadata, "new_resource.metadata")) : std::nullopt);
+  out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
+  return out;
+}
+
+contract::ResourceUpdate from_c(const holder_resource_update& value) {
+  contract::ResourceUpdate out;
+  out.type = optional_text(value.type, "resource_update.type", 1, SIZE_MAX);
+  out.label = optional_text(value.label, "resource_update.label", 1, SIZE_MAX);
+  out.metadata = (value.metadata ? std::optional<std::map<std::string, std::vector<std::string>>>(from_c_resource_metadata(*value.metadata, "resource_update.metadata")) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
   return out;
 }
 
@@ -817,6 +929,128 @@ int holder_get_calendar(holder_context* context, const char* project_id, int64_t
     auto* out = make<holder_calendar>(arena);
     *out = to_c(arena, contract::get_calendar(*context, project_id_value, first_instant_value, last_instant_value, first_day_value, last_day_value));
     *out_calendar = out;
+  });
+}
+
+int holder_list_resources(holder_context* context, const char* project_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource_list != nullptr, "out_resource_list must not be null");
+    *out_resource_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_resource_list>(arena);
+    *out = to_c_list(arena, contract::list_resources(*context, project_id_value));
+    *out_resource_list = out;
+  });
+}
+
+int holder_get_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource != nullptr, "out_resource must not be null");
+    *out_resource = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    auto* out = make<holder_resource>(arena);
+    *out = to_c(arena, contract::get_resource(*context, project_id_value, resource_id_value));
+    *out_resource = out;
+  });
+}
+
+int holder_create_resource(holder_context* context, const char* project_id, const holder_new_resource* resource, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource != nullptr, "out_resource must not be null");
+    *out_resource = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(resource != nullptr, "resource must not be null");
+    const auto resource_value = from_c(*resource);
+    auto* out = make<holder_resource>(arena);
+    *out = to_c(arena, contract::create_resource(*context, project_id_value, resource_value));
+    *out_resource = out;
+  });
+}
+
+int holder_update_resource(holder_context* context, const char* project_id, const char* resource_id, const holder_resource_update* update, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource != nullptr, "out_resource must not be null");
+    *out_resource = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    require(update != nullptr, "update must not be null");
+    const auto update_value = from_c(*update);
+    auto* out = make<holder_resource>(arena);
+    *out = to_c(arena, contract::update_resource(*context, project_id_value, resource_id_value, update_value));
+    *out_resource = out;
+  });
+}
+
+int holder_delete_resource(holder_context* context, const char* project_id, const char* resource_id, holder_arena* arena, const holder_resource** out_resource, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource != nullptr, "out_resource must not be null");
+    *out_resource = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    auto* out = make<holder_resource>(arena);
+    *out = to_c(arena, contract::delete_resource(*context, project_id_value, resource_id_value));
+    *out_resource = out;
+  });
+}
+
+int holder_list_resource_backlinks(holder_context* context, const char* project_id, const char* resource_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_list != nullptr, "out_link_list must not be null");
+    *out_link_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    const auto include_deleted_value = include_deleted;
+    auto* out = make<holder_link_list>(arena);
+    *out = to_c_list(arena, contract::list_resource_backlinks(*context, project_id_value, resource_id_value, include_deleted_value));
+    *out_link_list = out;
+  });
+}
+
+int holder_list_card_resources(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource_list != nullptr, "out_resource_list must not be null");
+    *out_resource_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_resource_list>(arena);
+    *out = to_c_list(arena, contract::list_card_resources(*context, project_id_value, card_id_value));
+    *out_resource_list = out;
+  });
+}
+
+int holder_attach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource_list != nullptr, "out_resource_list must not be null");
+    *out_resource_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    auto* out = make<holder_resource_list>(arena);
+    *out = to_c_list(arena, contract::attach_card_resource(*context, project_id_value, card_id_value, resource_id_value));
+    *out_resource_list = out;
+  });
+}
+
+int holder_detach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_resource_list != nullptr, "out_resource_list must not be null");
+    *out_resource_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    auto* out = make<holder_resource_list>(arena);
+    *out = to_c_list(arena, contract::detach_card_resource(*context, project_id_value, card_id_value, resource_id_value));
+    *out_resource_list = out;
   });
 }
 
