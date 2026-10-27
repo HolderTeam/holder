@@ -16,7 +16,7 @@ class NewCard:
     """A card to create.
 
     Attributes:
-        project_id (str): The project to create it in.
+        project_id (str):
         title (str): The card's title.
         content (str | Unset): The card's body. Default: ''.
         parent_card_id (None | str | Unset): The card's parent; null or omitted for a root card.

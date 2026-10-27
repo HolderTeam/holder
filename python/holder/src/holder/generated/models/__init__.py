@@ -194,9 +194,6 @@ from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order import GetProjectsOrder
 from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
-from .get_projects_project_id_cards_parent_type_0 import (
-    GetProjectsProjectIdCardsParentType0,
-)
 from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
@@ -548,7 +545,6 @@ __all__ = (
     "GetPingResponse200",
     "GetProjectsOrder",
     "GetProjectsProjectIdCardsOrder",
-    "GetProjectsProjectIdCardsParentType0",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
     "GetProjectsProjectIdHistoryKind",
     "GetProjectsProjectIdMilestonesWithDatesValueType",
