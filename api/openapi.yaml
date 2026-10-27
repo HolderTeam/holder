@@ -6556,13 +6556,13 @@ components:
           description: The card's parent; null for a root card.
         sort_key: {type: number, format: double, title: Sort Key, description: The card's place among
             its siblings; lower comes first.}
-        created_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Created At, description: When the card was created.}
-        updated_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Updated At, description: When the card was last changed.}
         deleted_at:
           anyOf:
-          - {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64}
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
           - {type: 'null'}
           title: Deleted At
           description: When the card was moved to the trash; null when it is not in the trash.
@@ -6871,17 +6871,17 @@ components:
           description: The card's parent; null for a root card.
         sort_key: {type: number, format: double, title: Sort Key, description: The card's place among
             its siblings; lower comes first.}
-        created_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Created At, description: When the card was created.}
-        updated_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Updated At, description: When the card was last changed.}
         deleted_at:
           anyOf:
-          - {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64}
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
           - {type: 'null'}
           title: Deleted At
           description: When the card was moved to the trash; null when it is not in the trash.
-        child_count: {type: integer, maximum: 2147483647.0, minimum: -2147483648.0, format: int32, title: Child
+        child_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Child
             Count, description: The card's live children; present when asked for.}
         content: {type: string, title: Content, description: The card's body; present when asked for.}
       additionalProperties: false
@@ -7466,9 +7466,9 @@ components:
           description: The card's parent; null or omitted for a root card.
         sort_key: {type: number, format: double, title: Sort Key, description: The card's place among
             its siblings; omit to let Holder choose.}
-        created_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Created At, description: 'When the card was created, for imports; omit for now.'}
-        updated_at: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Updated At, description: 'When the card was last changed, for imports; omit to use created_at.'}
       additionalProperties: false
       type: object
@@ -8306,9 +8306,9 @@ components:
     TagOccurrence:
       properties:
         tag: {type: string, title: Tag, description: The normalized tag.}
-        byte_start: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        byte_start: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Byte Start, description: 'Inclusive byte offset of the leading # in the content.'}
-        byte_end: {type: integer, maximum: 9.223372036854776e+18, minimum: -9.223372036854776e+18, format: int64,
+        byte_end: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
           title: Byte End, description: Exclusive byte offset after the tag's name.}
       additionalProperties: false
       type: object

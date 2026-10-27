@@ -18,7 +18,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
   - the generators: `generate.py` for core's C API, `http_routes.py` and `json_codec.py` for the daemon, and `openapi.py`, which takes FastAPI's document of the routes (`daemon.py` runs them);
   - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
-- `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
+- `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Over HTTP, every response must also be one its route declares: a status it lists, and a body its Pydantic model accepts. Schemathesis (`test_schemathesis.py`) also sends the daemon requests valid and invalid by `api/openapi.json`, for the contract's routes, and checks each answer against the document. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
 
 None of this is built, packaged or published. `pyproject.toml` holds only tool settings, and CI fails if anything outside this directory imports `holder_contract` or depends on it ([.github/scripts/check-contract-boundary.py](../.github/scripts/check-contract-boundary.py)). The generated Python client has its own models, even where they look like the contract's records.
 
@@ -46,7 +46,7 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
   python3 -m pytest contract/tests/conformance
 ```
 
-`HOLDER_CONFORMANCE_EXAMPLES` sets how many runs Hypothesis makes; the default is 25, and CI uses 100. A new operation needs rules in a conformance test, so that the model says what it should do.
+`HOLDER_CONFORMANCE_EXAMPLES` sets how many runs Hypothesis makes; the default is 25, and CI uses 100. A new operation needs rules in a conformance test, so that the model says what it should do. Schemathesis covers a route once it is in the contract; a rule the document cannot state, such as which cursors are valid, goes in `stated_in_words` there.
 
 ## Writing the contract
 

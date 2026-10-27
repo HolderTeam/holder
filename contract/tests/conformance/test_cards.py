@@ -3,7 +3,8 @@ HTTP, against the contract.
 
 Hypothesis drives a model of a project with the contract's operations, drawing arguments from the
 strategies in holder_contract.values, and checks every result two ways: it conforms to the
-operation's declared result type, and it is what the model expects. The machine talks to Holder
+operation's declared result type, and it is what the model expects. Over HTTP, every response must
+also be one its route in interface/app.py declares (see holder_http). The machine talks to Holder
 through a transport's call method and a few set-up helpers, and runs once per transport:
 
 - through the C API, with HOLDER_LIBRARY set to a shared libholder built from the same commit (for
@@ -18,8 +19,8 @@ Hypothesis makes for each (default 25).
 
 from __future__ import annotations
 
-import atexit
 import itertools
+import json
 import os
 import re
 import shutil
@@ -33,28 +34,19 @@ from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, precondition, rule
 
 from holder_capi import Core, OperationError, Unrepresentable
-from holder_contract.extract import extract
+from holder_contract.extract import extract, load_contract
 from holder_contract.values import Values
-from holder_http import Daemon, Http
+from holder_http import Http, Nonconforming, shared_daemon
 
 CONTRACT = Path(__file__).resolve().parents[2]
 IR = extract(CONTRACT, "interface")
+CONTRACT_APP = load_contract(CONTRACT, "interface")
 LIBRARY = os.environ.get("HOLDER_LIBRARY")
 DAEMON = os.environ.get("HOLDER_DAEMON")
 needs_library = pytest.mark.skipif(not LIBRARY, reason="set HOLDER_LIBRARY to a shared libholder to run these")
 needs_daemon = pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")
-_daemon: Daemon | None = None
 # A project's directory comes from its name, and the HTTP runs share a daemon, so each run's is new.
 _runs = itertools.count()
-
-
-def shared_daemon() -> Daemon:
-    """The one holderd every HTTP run uses, started on first use and stopped at exit."""
-    global _daemon
-    if _daemon is None:
-        _daemon = Daemon(DAEMON)
-        atexit.register(_daemon.close)
-    return _daemon
 
 
 # Rules the contract states in words rather than types.
@@ -305,7 +297,7 @@ class CardsThroughTheCApi(Cards):
 
 class CardsOverHttp(Cards):
     def open(self):
-        return Http(IR, shared_daemon())
+        return Http(IR, CONTRACT_APP, shared_daemon(DAEMON))
 
 
 NOT_UTF8 = pytest.mark.parametrize(
@@ -339,11 +331,56 @@ def test_text_that_is_not_utf8_is_rejected_through_the_c_api(tmp_path, text):
 @NOT_UTF8
 def test_text_that_is_not_utf8_is_rejected_over_http(text):
     # A JSON body is text, so only the path and the query can carry bytes that are not UTF-8.
-    http = Http(IR, shared_daemon())
+    http = Http(IR, CONTRACT_APP, shared_daemon(DAEMON))
     project = http.create_project(f"UTF-8 {next(_runs)}")
     rejects_text_that_is_not_utf8(http, project, [
         ("get_card", {"card_id": text}),
         ("list_cards", {"project_id": project, "tag": text})])
+
+
+CARD = {"card_id": "c1", "project_id": "p1", "title": "A card", "rel_path": "a-card.md", "parent_card_id": None,
+        "sort_key": 1.5, "created_at": 1700000000, "updated_at": 1700000000, "deleted_at": None,
+        "content": "#idea", "tags": ["idea"], "tag_occurrences": [{"tag": "idea", "byte_start": 0, "byte_end": 5}]}
+
+
+def failure(code: str) -> dict:
+    return {"ok": False, "error": {"code": code, "message": "No."}}
+
+
+@pytest.mark.parametrize("operation, status, media_type, body", [
+    ("get_card", 200, "application/json", {"ok": True, "data": CARD}),
+    ("create_card", 201, "application/json", {"ok": True, "data": CARD}),
+    ("list_cards", 200, "application/json", {"ok": True, "data": {"items": [], "next_cursor": None}}),
+    ("get_card", 404, "application/json", failure("not_found")),
+    ("get_card", 409, "application/json", failure("key_missing")),
+    ("create_card", 409, "application/json", failure("conflict")),
+    ("list_cards", 400, "application/json", failure("invalid_argument")),
+    ("get_card", 500, "application/json", failure("internal_error")),
+], ids=lambda value: value if isinstance(value, str) else None)
+def test_a_response_its_route_declares_conforms(operation, status, media_type, body):
+    http = Http(IR, CONTRACT_APP, None)
+    assert http.conforming(operation, status, media_type, json.dumps(body).encode()) == body
+
+
+@pytest.mark.parametrize("operation, status, media_type, body, problem", [
+    ("get_card", 201, "application/json", {"ok": True, "data": CARD}, "a status its route does not declare"),
+    ("get_card", 418, "application/json", failure("not_found"), "a status its route does not declare"),
+    ("get_card", 200, "text/plain", {"ok": True, "data": CARD}, "not application/json"),
+    ("get_card", 200, "application/json", CARD, "not its CardResponse"),
+    ("get_card", 200, "application/json", {"ok": True, "data": {**CARD, "colour": "red"}}, "not its CardResponse"),
+    ("get_card", 200, "application/json", {"ok": True, "data": {**CARD, "created_at": 1.5}}, "not its CardResponse"),
+    ("get_card", 200, "application/json", {"ok": True, "data": {**CARD, "created_at": "1700000000"}},
+     "not its CardResponse"),
+    ("get_card", 200, "application/json", {"ok": True, "data": {k: v for k, v in CARD.items() if k != "tags"}},
+     "not its CardResponse"),
+    ("get_card", 404, "application/json", {"ok": False, "error": {"code": "not_found"}}, "not its ErrorResponse"),
+    ("get_card", 409, "application/json", failure("conflict"), "not one of its error kinds"),
+    ("get_card", 404, "application/json", failure("key_missing"), "whose status is 409"),
+], ids=lambda value: value if isinstance(value, str) and " " in value else None)
+def test_a_response_its_route_does_not_declare_is_nonconforming(operation, status, media_type, body, problem):
+    http = Http(IR, CONTRACT_APP, None)
+    with pytest.raises(Nonconforming, match=re.escape(problem)):
+        http.conforming(operation, status, media_type, json.dumps(body).encode())
 
 
 SETTINGS = settings(max_examples=int(os.environ.get("HOLDER_CONFORMANCE_EXAMPLES", "25")),

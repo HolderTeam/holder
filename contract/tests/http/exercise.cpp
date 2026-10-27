@@ -39,6 +39,9 @@ int main() {
   send(*context, "GET", "/projects/p1/cards?parent=roots&include_child_count=true&include_content=1");
   send(*context, "GET", "/projects/p1/cards?parent=c1&order=updated_desc&limit=1");
   send(*context, "GET", "/projects/p1/cards?limit=1&cursor=1");
+  // An integer written with a fraction or an exponent, down to int64's least.
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Whole", "created_at": 691.0, "updated_at": 7e2})");
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Least", "created_at": -9223372036854775808.0})");
   // Not found.
   send(*context, "GET", "/cards/c9");
   send(*context, "GET", "/projects/p2/cards");
@@ -52,6 +55,9 @@ int main() {
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": null})");
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": "high"})");
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": 1e999})");
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 1.5})");
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 9223372036854775808.0})");
+  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 9223372036854775808})");
   send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "a\u0000b"})");
   send(*context, "POST", "/cards", R"(["project_id"])");
   send(*context, "GET", "/projects/p1/cards?limit=0");

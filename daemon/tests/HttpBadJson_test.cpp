@@ -2,6 +2,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/beast/http.hpp>
+#include <nlohmann/json.hpp>
 
 using holder::test::create_project;
 using holder::test::make_temp_dir;
@@ -39,24 +40,36 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
   boost::asio::io_context ioc;
   tcp::resolver resolver(ioc);
   auto endpoints = resolver.resolve(bound.bind, std::to_string(bound.port));
-  tcp::socket socket(ioc);
-  boost::asio::connect(socket, endpoints);
+  const auto post = [&](const std::string& target, const std::string& body) {
+    tcp::socket socket(ioc);
+    boost::asio::connect(socket, endpoints);
+    http::request<http::string_body> req{http::verb::post, target, 11};
+    req.set(http::field::host, bound.bind);
+    req.set(http::field::user_agent, "holder-tests");
+    req.set(http::field::authorization, "Bearer " + token);
+    req.set(http::field::content_type, "application/json");
+    req.body() = body;
+    req.prepare_payload();
+    http::write(socket, req);
+    boost::beast::flat_buffer buffer;
+    http::response<http::string_body> res;
+    http::read(socket, buffer, res);
+    holder::test::close_http_socket(socket);
+    return res;
+  };
 
-  http::request<http::string_body> req{http::verb::post, "/cards", 11};
-  req.set(http::field::host, bound.bind);
-  req.set(http::field::user_agent, "holder-tests");
-  req.set(http::field::authorization, "Bearer " + token);
-  req.set(http::field::content_type, "application/json");
-  req.body() = "{";
-  req.prepare_payload();
+  // The contract's POST /cards, then one of RIG's routes.
+  for (const std::string target : {"/cards", "/projects"}) {
+    const auto res = post(target, "{");
+    CHECK(res.result() == http::status::bad_request);
 
-  http::write(socket, req);
-  boost::beast::flat_buffer buffer;
-  http::response<http::string_body> res;
-  http::read(socket, buffer, res);
-  holder::test::close_http_socket(socket);
-
-  REQUIRE(res.result() == http::status::bad_request);
+    // The parser's message quotes bytes that are not UTF-8; the failure is still a JSON 400.
+    const auto not_utf8 = post(target, "\xff\xfe{");
+    CHECK(not_utf8.result() == http::status::bad_request);
+    const auto payload = nlohmann::json::parse(not_utf8.body());
+    CHECK(payload["ok"] == false);
+    CHECK(payload["error"]["code"] == (target == "/cards" ? "invalid_argument" : "bad_request"));
+  }
 
   std::raise(SIGTERM);
   server_thread.join();

@@ -92,20 +92,33 @@ template <typename T> T decode_field(const json& value, const char* name) {
     }
 }
 
+// An integer of type T. JSON has one kind of number, so an integer may be written with a fraction or
+// an exponent, such as 691.0 or 1e3, as JSON Schema allows; it must be whole and in range.
+template <typename T> T decode_integer(const json& value) {
+    constexpr auto minimum = std::numeric_limits<T>::min();
+    constexpr auto maximum = std::numeric_limits<T>::max();
+    if (value.is_number_unsigned()) {
+        if (value.get<std::uint64_t>() > static_cast<std::uint64_t>(maximum))
+            throw std::invalid_argument("is out of range");
+        return static_cast<T>(value.get<std::uint64_t>());
+    }
+    if (value.is_number_integer()) {
+        const auto number = value.get<std::int64_t>();
+        if (number < minimum || number > maximum) throw std::invalid_argument("is out of range");
+        return static_cast<T>(number);
+    }
+    if (!value.is_number_float() || std::trunc(value.get<double>()) != value.get<double>())
+        throw std::invalid_argument("must be an integer");
+    // -minimum, a power of two, is the first double past maximum.
+    const auto number = value.get<double>();
+    if (number < static_cast<double>(minimum) || number >= -static_cast<double>(minimum))
+        throw std::invalid_argument("is out of range");
+    return static_cast<T>(number);
+}
+
 template <> struct codec<std::int32_t> {
     static json encode(std::int32_t value) { return value; }
-    static std::int32_t decode(const json& value) {
-        if (!value.is_number_integer()) throw std::invalid_argument("must be an integer");
-        if (value.is_number_unsigned()) {
-            if (value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()))
-                throw std::invalid_argument("is out of range");
-        } else {
-            const auto number = value.get<std::int64_t>();
-            if (number < std::numeric_limits<std::int32_t>::min() || number > std::numeric_limits<std::int32_t>::max())
-                throw std::invalid_argument("is out of range");
-        }
-        return value.get<std::int32_t>();
-    }
+    static std::int32_t decode(const json& value) { return decode_integer<std::int32_t>(value); }
 };
 template <> struct codec<bool> {
     static json encode(bool value) { return value; }
@@ -116,13 +129,7 @@ template <> struct codec<bool> {
 };
 template <> struct codec<long long> {
     static json encode(long long value) { return value; }
-    static long long decode(const json& value) {
-        if (!value.is_number_integer()) throw std::invalid_argument("must be an integer");
-        if (value.is_number_unsigned() &&
-            value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))
-            throw std::invalid_argument("is out of range");
-        return value.get<long long>();
-    }
+    static long long decode(const json& value) { return decode_integer<long long>(value); }
 };
 template <> struct codec<double> {
     static json encode(double value) { return value; }
