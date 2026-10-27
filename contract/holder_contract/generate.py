@@ -111,6 +111,8 @@ class Model:
             for slot in self.slots(instance):
                 if slot.change:
                     raise Unsupported(f"{instance.record}.{slot.name}: a partial update in a result")
+                if slot.type["kind"] == "literal":
+                    raise Unsupported(f"{instance.record}.{slot.name}: a choice of literals in a result")
 
     def resolve(self, ref: dict[str, Any]) -> dict[str, Any]:
         """The type with aliases replaced by what they name, keeping any constraints on top."""
@@ -159,10 +161,26 @@ class Model:
         out = self.slots(Instance(record["base"])) if "base" in record else []
         bindings = dict(zip(record.get("type_parameters", []), instance.arguments))
         for field in record["fields"]:
-            out.append(self.slot(field["name"], self.substitute(field["type"], bindings), field.get("doc"),
-                                 omittable=field.get("omittable", False), default=field.get("default"),
-                                 has_default="default" in field))
+            out.append(self.field_slot(instance.record, field, bindings))
         return out
+
+    def field_slot(self, record: str, field: dict[str, Any], bindings: dict[str, str] | None = None) -> Slot:
+        """A record's field. A choice of literals is an enum named for the record and the field."""
+        slot = self.slot(field["name"], self.substitute(field["type"], bindings or {}), field.get("doc"),
+                         omittable=field.get("omittable", False), default=field.get("default"),
+                         has_default="default" in field)
+        if slot.type["kind"] == "literal":
+            if slot.nullable or slot.optional:
+                raise Unsupported(f"{record}.{slot.name}: an optional choice of literals in a record")
+            if not all(isinstance(v, str) for v in slot.type["values"]):
+                raise Unsupported(f"{record}.{slot.name}: a choice of integers in a record")
+            slot.type = {**slot.type, "enum": camel(record) + camel(slot.name)}
+        return slot
+
+    def own_enums(self, record: str) -> list[Slot]:
+        """The record's own fields, not its base's, that are a choice of literals."""
+        slots = [self.field_slot(record, field) for field in self.records[record]["fields"]]
+        return [slot for slot in slots if slot.type["kind"] == "literal"]
 
     def substitute(self, ref: dict[str, Any], bindings: dict[str, str]) -> dict[str, Any]:
         if ref["kind"] == "parameter":
@@ -212,10 +230,16 @@ def literal_member(value: str) -> str:
 # ---- C header ---------------------------------------------------------------------------------
 
 
+def c_enum_name(slot: Slot) -> str:
+    return "holder_" + snake(slot.type["enum"])
+
+
 def c_field(model: Model, slot: Slot) -> str:
     t = slot.type
     if slot.change:
         return f"holder_string_change {slot.name};"
+    if t["kind"] == "literal":
+        return f"{c_enum_name(slot)} {slot.name};"
     if t["kind"] == "string":
         return f"const char* {slot.name};"
     if t["kind"] in SCALARS_C:
@@ -340,8 +364,19 @@ def generate_c_header(model: Model) -> str:
                 "} holder_change;", "",
                 "typedef struct holder_string_change {", "    holder_change change;",
                 "    const char* value; /* Read when change is HOLDER_SET. */", "} holder_string_change;", ""]
+    declared: set[str] = set()
     for instance in unique(model.inputs + model.outputs):
         record = model.records[instance.record]
+        for slot in model.slots(instance):
+            if slot.type["kind"] != "literal" or c_enum_name(slot) in declared:
+                continue
+            name = c_enum_name(slot)
+            declared.add(name)
+            out += comment(slot.doc)
+            out.append(f"typedef enum {name} {{")
+            out += [f"    {name.upper()}_{literal_member(v)} = {i}," for i, v in enumerate(slot.type["values"], 1)]
+            out += [f"    {name.upper()}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */",
+                    f"}} {name};", ""]
         out += comment(record["doc"])
         out.append(f"typedef struct {instance.c_name} {{")
         for slot in model.slots(instance):
@@ -393,6 +428,8 @@ def cpp_type(model: Model, slot: Slot, generic: dict[str, str] | None = None) ->
 
 def cpp_base(model: Model, ref: dict[str, Any], generic: dict[str, str]) -> str:
     ref = model.resolve(ref)
+    if ref["kind"] == "literal" and "enum" in ref:
+        return ref["enum"]
     if ref["kind"] == "string":
         return "std::string"
     if ref["kind"] in SCALARS_CPP:
@@ -451,6 +488,8 @@ def generate_cpp_header(model: Model) -> str:
         for field in record["fields"]:
             slot = model.slot(field["name"], field["type"], field.get("doc"), omittable=field.get("omittable", False),
                               default=field.get("default"), has_default="default" in field)
+            if slot.type["kind"] == "literal":
+                raise Unsupported(f"{name}.{slot.name}: a choice of literals in a generic record")
             out.append(f"  {cpp_type(model, slot, {p: p for p in params})} {slot.name};"
                        + (f"  ///< {slot.doc}" if slot.doc else ""))
         out += ["};", ""]
@@ -466,11 +505,14 @@ def generate_cpp_header(model: Model) -> str:
         names += [n for n in chain if n not in names]
     for name in names:
         record = model.records[name]
+        for slot in model.own_enums(name):
+            out += comment(slot.doc, style="cpp")
+            out.append(f"enum class {slot.type['enum']} {{ {', '.join(camel(v) for v in slot.type['values'])} }};")
+            out.append("")
         out += comment(record["doc"], style="cpp")
         out.append(f"struct {name}" + (f" : {record['base']}" if "base" in record else "") + " {")
         for field in record["fields"]:
-            slot = model.slot(field["name"], field["type"], field.get("doc"), omittable=field.get("omittable", False),
-                              default=field.get("default"), has_default="default" in field)
+            slot = model.field_slot(name, field)
             out.append(f"  {cpp_type(model, slot)} {slot.name}{cpp_initializer(model, slot)};"
                        + (f"  ///< {slot.doc}" if slot.doc else ""))
         out += ["};", ""]
@@ -769,6 +811,13 @@ def generate_glue(model: Model) -> str:
         out.append(f"  {instance.qualified('contract::')} out;")
         for slot in model.slots(instance):
             label = f"{snake(instance.record)}.{slot.name}"
+            if slot.type["kind"] == "literal":
+                enum = c_enum_name(slot)
+                out.append(f"  switch (value.{slot.name}) {{")
+                out += [f"  case {enum.upper()}_{literal_member(v)}: out.{slot.name} = "
+                        f"contract::{slot.type['enum']}::{camel(v)}; break;" for v in slot.type["values"]]
+                out += [f'  default: throw ArgumentError("{label} is not a {enum} value");', "  }"]
+                continue
             out.append(f"  out.{slot.name} = {from_c_value(model, slot, 'value.' + slot.name, label)};")
         out += ["  return out;", "}", ""]
     out += ["}  // namespace", "", 'extern "C" {', "",

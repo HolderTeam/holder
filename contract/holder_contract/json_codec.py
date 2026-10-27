@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from .generate import SCALARS_CPP, Instance, Model, Slot, Unsupported, header_lines
+from .generate import SCALARS_CPP, Instance, Model, Slot, Unsupported, camel, header_lines
 
 NAMESPACE = "contract_json"
 INT_RANGES = {"int32": ("std::numeric_limits<std::int32_t>::min()", "std::numeric_limits<std::int32_t>::max()"),
@@ -166,6 +166,8 @@ template <typename T> struct codec<std::vector<T>> {
 def cpp_base(model: Model, ref: dict) -> str:
     """The C++ type of a value, as core/src/api/Contract.h declares it, qualified for use outside it."""
     ref = model.resolve(ref)
+    if ref["kind"] == "literal" and "enum" in ref:
+        return "holder::contract::" + ref["enum"]
     if ref["kind"] == "string":
         return "std::string"
     if ref["kind"] in SCALARS_CPP:
@@ -202,6 +204,23 @@ def field_decoder(model: Model, slot: Slot, label: str) -> str:
             return (f'[&] {{ auto items = {value}; for (const auto& text : items) '
                     f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); return items; }}()')
     return value
+
+
+def enum_lines(slot: Slot) -> list[str]:
+    """The codec of a record's choice of literals: its C++ enum as the JSON string it stands for."""
+    qualified = "holder::contract::" + slot.type["enum"]
+    values = slot.type["values"]
+    lines = [f"template <> struct codec<{qualified}> {{",
+             f"    static json encode({qualified} value) {{",
+             "        switch (value) {"]
+    lines += [f'        case {qualified}::{camel(v)}: return "{v}";' for v in values]
+    lines += ["        }", '        throw std::invalid_argument("is not a known value");', "    }",
+              f"    static {qualified} decode(const json& value) {{",
+              '        if (!value.is_string()) throw std::invalid_argument("must be a string");',
+              "        const auto& text = value.get_ref<const std::string&>();"]
+    lines += [f'        if (text == "{v}") return {qualified}::{camel(v)};' for v in values]
+    lines += [f'        throw std::invalid_argument("must be one of {", ".join(values)}");', "    }", "};", ""]
+    return lines
 
 
 def record_lines(model: Model, instance: Instance) -> list[str]:
@@ -273,6 +292,13 @@ def generate_codec(model: Model, api_header: str) -> str:
              "#include <string>",
              "#include <vector>",
              SUPPORT.rstrip(), ""]
+    enums: dict[str, Slot] = {}
+    for instance in instances:
+        for slot in model.slots(instance):
+            if slot.type["kind"] == "literal":
+                enums.setdefault(slot.type["enum"], slot)
+    for slot in enums.values():
+        lines += enum_lines(slot)
     for instance in instances:
         qualified = instance.qualified("holder::contract::")
         lines += [f"template <> struct codec<{qualified}> {{",

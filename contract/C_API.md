@@ -30,6 +30,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Choices:**
   - A choice of literals is an enum. Its zero member is `…_DEFAULT` when the parameter has a default, and the other members start at 1.
   - A choice between literals and a string, such as `"roots"` or a card ID, is a `{kind, value}` struct whose zero kind means null.
+  - A required choice of strings in an input record is an enum named for the record and the field, such as `holder_card_move_intent`, whose members start at 1; the glue rejects zero. In C++ it is an `enum class` (`CardMoveIntent`). Optional choices, and choices in results, are not supported yet.
   - Every enum ends with `…_MAX_ENUM = 0x7FFFFFFF`, so any `int` is a valid value of the type and the glue can reject a bad one without undefined behaviour.
 - **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_new_card card = {0};` then set what you need.
 - **Generic records** are generated for each use: `Page[CardListItem]` becomes `holder_card_list_item_page`.

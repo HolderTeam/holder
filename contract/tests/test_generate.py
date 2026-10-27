@@ -83,13 +83,16 @@ def test_generated_code_compiles_and_runs(tmp_path):
     assert result.stdout == (TESTS / "c" / "exercise.expected").read_text(encoding="utf-8")
 
 
-# ---- partial updates ---------------------------------------------------------------------------
+# ---- partial updates and choices in records ---------------------------------------------------
 
 
 def with_partial_update(ir):
-    """Holder's contract plus change_card, whose CardChange keeps, sets or clears a card's parent."""
+    """Holder's contract plus change_card, whose CardChange keeps, sets or clears a card's parent,
+    and says how with a choice of literals."""
     ir["records"].append({"name": "CardChange", "source": "interface/cards.py", "doc": "A change to a card.",
-                          "fields": [{"name": "parent_card_id", "doc": "Null makes it a root card.", "omittable": True,
+                          "fields": [{"name": "intent", "doc": "How to place it.",
+                                      "type": {"kind": "literal", "values": ["into", "to_end"]}},
+                                     {"name": "parent_card_id", "doc": "Null makes it a root card.", "omittable": True,
                                       "type": {"kind": "nullable", "value": {"kind": "named", "name": "CardId"}}}]})
     ir["operations"].append({"name": "change_card", "source": "interface/app.py", "summary": "Change a card.",
                              "description": None, "errors": [], "daemon_only": False,
@@ -108,7 +111,8 @@ namespace holder::contract {
 Card change_card(holder_context&, std::string card_id, const CardChange& change) {
   Card card{};
   card.card_id = card_id;
-  card.title = !change.parent_card_id ? "keep" : !*change.parent_card_id ? "clear" : "set " + **change.parent_card_id;
+  card.title = std::string(change.intent == CardChangeIntent::Into ? "into, " : "to end, ") +
+               (!change.parent_card_id ? "keep" : !*change.parent_card_id ? "clear" : "set " + **change.parent_card_id);
   return card;
 }
 
@@ -122,21 +126,35 @@ def test_a_partial_update_is_a_change_in_c_and_cpp():
     assert "    holder_string_change parent_card_id; /* Null makes it a root card. Zero keeps it. */" in files["holder_api.h"]
     assert "using Change = std::optional<std::optional<T>>;" in files["Contract.h"]
     assert "  Change<std::string> parent_card_id;  ///< Null makes it a root card." in files["Contract.h"]
+    # A choice of literals in a record is an enum named for the record and the field.
+    assert "    HOLDER_CARD_CHANGE_INTENT_INTO = 1," in files["holder_api.h"]
+    assert "    holder_card_change_intent intent; /* How to place it. */" in files["holder_api.h"]
+    assert "enum class CardChangeIntent { Into, ToEnd };" in files["Contract.h"]
     # Holder's contract has none yet, so nothing changes for it.
     assert "holder_change" not in generate(holder_ir())["holder_api.h"]
 
 
 def test_a_partial_update_of_anything_but_text_stops_generation():
     ir = with_partial_update(holder_ir())
-    ir["records"][-1]["fields"][0]["type"]["value"] = {"kind": "int64"}
+    ir["records"][-1]["fields"][1]["type"]["value"] = {"kind": "int64"}
     with pytest.raises(Unsupported, match="a partial update of a int64, which only strings have so far"):
         generate(ir)
 
 
-def test_a_partial_update_in_a_result_stops_generation():
+def test_a_partial_update_or_a_choice_in_a_result_stops_generation():
     ir = with_partial_update(holder_ir())
     ir["operations"][-1]["returns"] = {"kind": "named", "name": "CardChange"}
+    with pytest.raises(Unsupported, match="CardChange.intent: a choice of literals in a result"):
+        generate(ir)
+    ir["records"][-1]["fields"].pop(0)
     with pytest.raises(Unsupported, match="CardChange.parent_card_id: a partial update in a result"):
+        generate(ir)
+
+
+def test_an_optional_choice_in_a_record_stops_generation():
+    ir = with_partial_update(holder_ir())
+    ir["records"][-1]["fields"][0]["omittable"] = True
+    with pytest.raises(Unsupported, match="CardChange.intent: an optional choice of literals in a record"):
         generate(ir)
 
 
@@ -155,8 +173,9 @@ def test_a_partial_update_keeps_sets_or_clears_through_the_c_api(tmp_path):
 holder_context* stub_context_new(void);
 void stub_context_free(holder_context* context);
 
-static void change(holder_context* context, holder_arena* arena, int kind, const char* value) {
+static void change(holder_context* context, holder_arena* arena, int intent, int kind, const char* value) {
     holder_card_change card_change = {0};
+    card_change.intent = (holder_card_change_intent)intent;
     card_change.parent_card_id.change = (holder_change)kind;
     card_change.parent_card_id.value = value;
     const holder_card* card = NULL;
@@ -172,12 +191,13 @@ static void change(holder_context* context, holder_arena* arena, int kind, const
 int main(void) {
     holder_context* context = stub_context_new();
     holder_arena* arena = holder_arena_new();
-    change(context, arena, HOLDER_KEEP, "ignored");
-    change(context, arena, HOLDER_SET, "c2");
-    change(context, arena, HOLDER_CLEAR, "ignored");
-    change(context, arena, HOLDER_SET, NULL);
-    change(context, arena, HOLDER_SET, "");
-    change(context, arena, 7, "c2");
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_INTO, HOLDER_KEEP, "ignored");
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_TO_END, HOLDER_SET, "c2");
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_INTO, HOLDER_CLEAR, "ignored");
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_INTO, HOLDER_SET, NULL);
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_INTO, HOLDER_SET, "");
+    change(context, arena, HOLDER_CARD_CHANGE_INTENT_INTO, 7, "c2");
+    change(context, arena, 0, HOLDER_KEEP, NULL);
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;
@@ -194,10 +214,11 @@ int main(void) {
     run("g++", *SANITIZE, "glue.o", "stub.o", "change_card.o", "main.o", "-o", "main")
     result = subprocess.run([str(tmp_path / "main")], capture_output=True, text=True, check=True)
     assert result.stdout.splitlines() == [
-        "keep", "set c2", "clear",
+        "into, keep", "to end, set c2", "into, clear",
         "card_change.parent_card_id.value must not be null",
         "card_change.parent_card_id.value must not be empty",
-        "card_change.parent_card_id.change is not a holder_change value"]
+        "card_change.parent_card_id.change is not a holder_change value",
+        "card_change.intent is not a holder_card_change_intent value"]
 
 
 @pytest.mark.skipif(not shutil.which("g++") or not any(p.exists() for p in NLOHMANN),
@@ -213,8 +234,9 @@ def test_a_partial_update_keeps_sets_or_clears_through_json(tmp_path):
 
 int main() {
   using holder::contract::CardChange;
-  for (const char* text : {"{}", R"({"parent_card_id": null})", R"({"parent_card_id": "c2"})",
-                           R"({"parent_card_id": ""})", R"({"parent_card_id": 7})"}) {
+  for (const char* text : {R"({"intent": "into"})", R"({"intent": "into", "parent_card_id": null})",
+                           R"({"intent": "to_end", "parent_card_id": "c2"})", R"({"intent": "into", "parent_card_id": ""})",
+                           R"({"intent": "into", "parent_card_id": 7})", R"({"intent": "up"})", R"({})"}) {
     try {
       const auto change = contract_json::decode<CardChange>(nlohmann::json::parse(text));
       std::cout << contract_json::encode(change).dump() << "\n";
@@ -228,5 +250,6 @@ int main() {
                    cwd=tmp_path, capture_output=True, text=True)
     result = subprocess.run([str(tmp_path / "main")], capture_output=True, text=True, check=True)
     assert result.stdout.splitlines() == [
-        "{}", '{"parent_card_id":null}', '{"parent_card_id":"c2"}',
-        "parent_card_id must not be empty", "parent_card_id must be a string"]
+        '{"intent":"into"}', '{"intent":"into","parent_card_id":null}', '{"intent":"to_end","parent_card_id":"c2"}',
+        "parent_card_id must not be empty", "parent_card_id must be a string",
+        "intent must be one of into, to_end", "intent is required and must not be null"]
