@@ -7,45 +7,40 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.card_response import CardResponse
-from ...models.delete_cards_card_id_children import DeleteCardsCardIdChildren
 from ...models.error_response import ErrorResponse
-from ...types import UNSET, Response, Unset
+from ...models.new_card import NewCard
+from ...types import Response
 
 
 def _get_kwargs(
-    card_id: str,
+    project_id: str,
     *,
-    children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
+    body: NewCard,
 ) -> dict[str, Any]:
-
-    params: dict[str, Any] = {}
-
-    json_children: str | Unset = UNSET
-    if not isinstance(children, Unset):
-        json_children = children.value
-
-    params["children"] = json_children
-
-    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "delete",
-        "url": "/cards/{card_id}".format(
-            card_id=quote(str(card_id), safe=""),
+        "method": "post",
+        "url": "/projects/{project_id}/cards".format(
+            project_id=quote(str(project_id), safe=""),
         ),
-        "params": params,
     }
 
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> CardResponse | ErrorResponse | None:
-    if response.status_code == 200:
-        response_200 = CardResponse.from_dict(response.json())
+    if response.status_code == 201:
+        response_201 = CardResponse.from_dict(response.json())
 
-        return response_200
+        return response_201
 
     if response.status_code == 400:
         response_400 = ErrorResponse.from_dict(response.json())
@@ -95,22 +90,18 @@ def _build_response(
 
 
 def sync_detailed(
-    card_id: str,
+    project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
+    body: NewCard,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Move a card to the trash.
+    """Create a card.
 
-     The card and every card that changes with it are written as one change in the project's history. A
-    card already
-    in the trash is not found. Returns the card as it is in the trash.
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        card_id (str):
-        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
-            its place among its siblings, keeping their own descendants; trash_subtree moves every
-            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
+        project_id (str):
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -121,8 +112,8 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
-        card_id=card_id,
-        children=children,
+        project_id=project_id,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -133,22 +124,18 @@ def sync_detailed(
 
 
 def sync(
-    card_id: str,
+    project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
+    body: NewCard,
 ) -> CardResponse | ErrorResponse | None:
-    """Move a card to the trash.
+    """Create a card.
 
-     The card and every card that changes with it are written as one change in the project's history. A
-    card already
-    in the trash is not found. Returns the card as it is in the trash.
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        card_id (str):
-        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
-            its place among its siblings, keeping their own descendants; trash_subtree moves every
-            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
+        project_id (str):
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -159,29 +146,25 @@ def sync(
     """
 
     return sync_detailed(
-        card_id=card_id,
+        project_id=project_id,
         client=client,
-        children=children,
+        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
-    card_id: str,
+    project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
+    body: NewCard,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Move a card to the trash.
+    """Create a card.
 
-     The card and every card that changes with it are written as one change in the project's history. A
-    card already
-    in the trash is not found. Returns the card as it is in the trash.
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        card_id (str):
-        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
-            its place among its siblings, keeping their own descendants; trash_subtree moves every
-            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
+        project_id (str):
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -192,8 +175,8 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
-        card_id=card_id,
-        children=children,
+        project_id=project_id,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -202,22 +185,18 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    card_id: str,
+    project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    children: DeleteCardsCardIdChildren | Unset = DeleteCardsCardIdChildren.PROMOTE,
+    body: NewCard,
 ) -> CardResponse | ErrorResponse | None:
-    """Move a card to the trash.
+    """Create a card.
 
-     The card and every card that changes with it are written as one change in the project's history. A
-    card already
-    in the trash is not found. Returns the card as it is in the trash.
+     Fails with NotFound when the project or the parent does not exist.
 
     Args:
-        card_id (str):
-        children (DeleteCardsCardIdChildren | Unset): promote moves the card's live children into
-            its place among its siblings, keeping their own descendants; trash_subtree moves every
-            live descendant to the trash with it. Default: DeleteCardsCardIdChildren.PROMOTE.
+        project_id (str):
+        body (NewCard): A card to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -229,8 +208,8 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
-            card_id=card_id,
+            project_id=project_id,
             client=client,
-            children=children,
+            body=body,
         )
     ).parsed

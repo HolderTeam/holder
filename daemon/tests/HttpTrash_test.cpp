@@ -70,7 +70,7 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/card-1",
+      "/projects/proj-1/cards/card-1",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -245,7 +245,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
         bound.port,
         token,
         boost::beast::http::verb::delete_,
-        "/cards/" + id,
+        "/projects/proj-1/cards/" + id,
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );
@@ -382,7 +382,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/other-card",
+      "/projects/proj-2/cards/other-card",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );

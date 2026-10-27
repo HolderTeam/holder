@@ -155,8 +155,10 @@ from .caste_recommended_model import CasteRecommendedModel
 from .caste_recommended_model_required_caste import CasteRecommendedModelRequiredCaste
 from .change_event_data import ChangeEventData
 from .change_event_data_entity import ChangeEventDataEntity
-from .delete_cards_card_id_children import DeleteCardsCardIdChildren
 from .delete_cards_card_id_resources_body import DeleteCardsCardIdResourcesBody
+from .delete_projects_project_id_cards_card_id_children import (
+    DeleteProjectsProjectIdCardsCardIdChildren,
+)
 from .delete_projects_project_id_trash_type_id_type import (
     DeleteProjectsProjectIdTrashTypeIdType,
 )
@@ -512,8 +514,8 @@ __all__ = (
     "CasteRecommendedModelRequiredCaste",
     "ChangeEventData",
     "ChangeEventDataEntity",
-    "DeleteCardsCardIdChildren",
     "DeleteCardsCardIdResourcesBody",
+    "DeleteProjectsProjectIdCardsCardIdChildren",
     "DeleteProjectsProjectIdTrashTypeIdType",
     "DeleteTrashType",
     "DeleteTrashTypeIdType",

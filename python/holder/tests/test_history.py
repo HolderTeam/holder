@@ -176,7 +176,7 @@ def test_restore_version_writes_once_and_keeps_trash_restore_distinct():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(stored)
         requests.append(request)
         if request.method == "POST":

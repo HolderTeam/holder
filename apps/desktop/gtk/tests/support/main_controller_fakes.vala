@@ -207,6 +207,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_provider_api_key = "";
     public bool last_provider_enabled = false;
     public string last_move_card_id = "";
+    public string last_card_project_id = "";
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
     public int64 last_move_updated_at = 0;
@@ -306,6 +307,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_trash_project_id = "";
     public string last_trash_type = "";
     public string last_restore_item_type = "";
+    public string last_restore_project_id = "";
     public string last_restore_item_id = "";
     public string last_hard_delete_item_type = "";
     public string last_hard_delete_item_id = "";
@@ -537,7 +539,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error {
+    public async HolderLinux.CardDetail get_card(string project_id, string card_id) throws Error {
         if (slow_get_card) {
             var end = GLib.get_monotonic_time() + 50 * 1000;
             while (GLib.get_monotonic_time() < end) {
@@ -664,11 +666,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_trash_type = type;
     }
 
-    public async void restore_trash_item(string item_type, string item_id) throws Error {
+    public async void restore_trash_item(string project_id, string item_type, string item_id) throws Error {
         if (fail_restore_trash) {
             throw new IOError.FAILED("restore trash failed");
         }
         restore_trash_calls++;
+        last_restore_project_id = project_id;
         last_restore_item_type = item_type;
         last_restore_item_id = item_id;
     }
@@ -1115,7 +1118,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return "c-created";
     }
 
-    public async void update_card(string card_id,
+    public async void update_card(string project_id,
+                                  string card_id,
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {
@@ -1140,7 +1144,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         }
     }
 
-    public async void update_card_position(string card_id,
+    public async void update_card_position(string project_id,
+                                           string card_id,
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {
@@ -1154,16 +1159,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_move_updated_at = updated_at;
     }
 
-    public async void delete_card(string card_id, bool trash_subtree = false) throws Error {
+    public async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error {
         if (fail_delete_card) {
             throw new IOError.FAILED("delete card failed");
         }
         delete_card_calls++;
+        last_card_project_id = project_id;
         last_updated_card_id = card_id;
         last_delete_trash_subtree = trash_subtree;
     }
 
-    public async HolderLinux.CardMoveResult move_card(string card_id,
+    public async HolderLinux.CardMoveResult move_card(string project_id,
+                                                       string card_id,
                                                        string intent,
                                                        string? target_card_id = null,
                                                        string? parent_card_id = null) throws Error {
@@ -1171,6 +1178,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
             throw new IOError.FAILED("move by intent failed");
         }
         update_card_position_calls++;
+        last_card_project_id = project_id;
         last_move_intent = intent;
         last_move_target_card_id = target_card_id;
         last_move_card_id = card_id;

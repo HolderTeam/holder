@@ -108,11 +108,25 @@ const char* order_name(ListCardsOrder order) {
   return "card_id_asc";
 }
 
-Card find_card(holder_context& context, const std::string& card_id) {
-  auto store = card_store(context);
-  const auto card = store.get(card_id);
+// The card, live or in the trash, when it is in the project: a card in another project is not found.
+std::optional<holder::model::Card> card_in(holder::card::CardStore& store, const std::string& project_id,
+                                           const std::string& card_id) {
+  auto card = store.get(card_id);
+  if (!card || card->project_id != project_id) return std::nullopt;
+  return card;
+}
+
+// A live card in the project, with nothing read but its metadata.
+holder::model::Card live_card(holder::card::CardStore& store, const std::string& project_id,
+                              const std::string& card_id) {
+  auto card = card_in(store, project_id, card_id);
   if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
-  return full_card(context, store, *card);
+  return std::move(*card);
+}
+
+Card find_card(holder_context& context, const std::string& project_id, const std::string& card_id) {
+  auto store = card_store(context);
+  return full_card(context, store, live_card(store, project_id, card_id));
 }
 
 Page<CardListItem> list_page(holder_context& context, const std::string& project_id,
@@ -177,13 +191,13 @@ Page<CardListItem> list_page(holder_context& context, const std::string& project
   return out;
 }
 
-Card create(holder_context& context, const NewCard& request) {
-  const auto project = holder::project::ProjectRepo(context.db).get(request.project_id);
-  if (!project) throw NotFound("project not found: " + request.project_id);
+Card create(holder_context& context, const std::string& project_id, const NewCard& request) {
+  const auto project = holder::project::ProjectRepo(context.db).get(project_id);
+  if (!project) throw NotFound("project not found: " + project_id);
 
   holder::model::Card card;
   card.card_id = holder::identity::generate_id(project->id_scheme);
-  card.project_id = request.project_id;
+  card.project_id = project_id;
   card.title = request.title;
   card.parent_card_id = request.parent_card_id;
   card.created_at = request.created_at.value_or(now_epoch_seconds());
@@ -201,13 +215,6 @@ Card create(holder_context& context, const NewCard& request) {
   const auto created = store.get(card.card_id);
   if (!created) throw Error("the created card cannot be read back: " + card.card_id);
   return full_card(context, store, *created);
-}
-
-// A live card, with nothing read but its metadata.
-holder::model::Card live_card(holder::card::CardStore& store, const std::string& card_id) {
-  auto card = store.get(card_id);
-  if (!card || card->deleted_at) throw NotFound("card not found: " + card_id);
-  return std::move(*card);
 }
 
 // Whether parent is the card itself or one of its descendants: a parent the card cannot go under.
@@ -240,8 +247,8 @@ Card read_back(holder_context& context, holder::card::CardStore& store, const st
   return full_card(context, store, *card);
 }
 
-// A placement core refuses, as the contract's error kinds. The card's own project is always the
-// one asked for, so a card in another project is one that is not found.
+// A placement core refuses, as the contract's error kinds. A target or parent in another project is
+// one that is not found.
 [[noreturn]] void placement_failed(const holder::card::CardPlacementError& error) {
   using Code = holder::card::CardPlacementErrorCode;
   switch (error.code()) {
@@ -257,9 +264,10 @@ Card read_back(holder_context& context, holder::card::CardStore& store, const st
   throw InvalidArgument(error.what());
 }
 
-Card update(holder_context& context, const std::string& card_id, const CardUpdate& update) {
+Card update(holder_context& context, const std::string& project_id, const std::string& card_id,
+            const CardUpdate& update) {
   auto store = card_store(context);
-  const auto card = live_card(store, card_id);
+  const auto card = live_card(store, project_id, card_id);
   // A field set to its current value changes nothing, and nothing is written for it.
   std::optional<std::string> content;
   if (update.title || update.content) {
@@ -288,18 +296,19 @@ Card update(holder_context& context, const std::string& card_id, const CardUpdat
   return read_back(context, store, card_id);
 }
 
-Card trash(holder_context& context, const std::string& card_id, TrashCardChildren children) {
+Card trash(holder_context& context, const std::string& project_id, const std::string& card_id,
+           TrashCardChildren children) {
   auto store = card_store(context);
-  live_card(store, card_id);
+  live_card(store, project_id, card_id);
   store.trash(card_id, now_epoch_seconds(),
               children == TrashCardChildren::TrashSubtree ? holder::card::TrashChildren::TrashSubtree
                                                           : holder::card::TrashChildren::Promote);
   return read_back(context, store, card_id);
 }
 
-Card restore(holder_context& context, const std::string& card_id) {
+Card restore(holder_context& context, const std::string& project_id, const std::string& card_id) {
   auto store = card_store(context);
-  const auto card = store.get(card_id);
+  const auto card = card_in(store, project_id, card_id);
   if (!card) throw NotFound("card not found: " + card_id);
   if (!card->deleted_at) throw Conflict("the card is not in the trash: " + card_id);
   store.restore(card_id, now_epoch_seconds());
@@ -321,9 +330,10 @@ holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
   return Intent::UpLevel;
 }
 
-Card move(holder_context& context, const std::string& card_id, const CardMove& move) {
+Card move(holder_context& context, const std::string& project_id, const std::string& card_id,
+          const CardMove& move) {
   auto store = card_store(context);
-  const auto card = live_card(store, card_id);
+  const auto card = live_card(store, project_id, card_id);
   holder::card::CardPlacementRequest placement;
   placement.intent = placement_intent(move.intent);
   placement.target_card_id = move.target_card_id;
@@ -353,8 +363,8 @@ Card move(holder_context& context, const std::string& card_id, const CardMove& m
 
 } // namespace
 
-Card get_card(holder_context& context, std::string card_id) {
-  return with_contract_errors([&] { return find_card(context, card_id); });
+Card get_card(holder_context& context, std::string project_id, std::string card_id) {
+  return with_contract_errors([&] { return find_card(context, project_id, card_id); });
 }
 
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
@@ -366,24 +376,24 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
   });
 }
 
-Card create_card(holder_context& context, const NewCard& request) {
-  return with_contract_errors([&] { return create(context, request); });
+Card create_card(holder_context& context, std::string project_id, const NewCard& request) {
+  return with_contract_errors([&] { return create(context, project_id, request); });
 }
 
-Card update_card(holder_context& context, std::string card_id, const CardUpdate& update) {
-  return with_contract_errors([&] { return holder::contract::update(context, card_id, update); });
+Card update_card(holder_context& context, std::string project_id, std::string card_id, const CardUpdate& update) {
+  return with_contract_errors([&] { return holder::contract::update(context, project_id, card_id, update); });
 }
 
-Card trash_card(holder_context& context, std::string card_id, TrashCardChildren children) {
-  return with_contract_errors([&] { return trash(context, card_id, children); });
+Card trash_card(holder_context& context, std::string project_id, std::string card_id, TrashCardChildren children) {
+  return with_contract_errors([&] { return trash(context, project_id, card_id, children); });
 }
 
-Card restore_card(holder_context& context, std::string card_id) {
-  return with_contract_errors([&] { return restore(context, card_id); });
+Card restore_card(holder_context& context, std::string project_id, std::string card_id) {
+  return with_contract_errors([&] { return restore(context, project_id, card_id); });
 }
 
-Card move_card(holder_context& context, std::string card_id, const CardMove& move) {
-  return with_contract_errors([&] { return holder::contract::move(context, card_id, move); });
+Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move) {
+  return with_contract_errors([&] { return holder::contract::move(context, project_id, card_id, move); });
 }
 
 } // namespace holder::contract

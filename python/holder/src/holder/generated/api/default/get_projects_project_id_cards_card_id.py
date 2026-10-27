@@ -12,12 +12,14 @@ from ...types import Response
 
 
 def _get_kwargs(
+    project_id: str,
     card_id: str,
 ) -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/cards/{card_id}/restore".format(
+        "method": "get",
+        "url": "/projects/{project_id}/cards/{card_id}".format(
+            project_id=quote(str(project_id), safe=""),
             card_id=quote(str(card_id), safe=""),
         ),
     }
@@ -81,21 +83,17 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Restore a card from the trash.
+    """Fetch a card.
 
-     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
-    to its
-    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
-    they are;
-    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
-    not in the
-    trash is a Conflict.
+     A card in the trash or in another project is not found.
 
     Args:
+        project_id (str):
         card_id (str):
 
     Raises:
@@ -107,6 +105,7 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
     )
 
@@ -118,21 +117,17 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
 ) -> CardResponse | ErrorResponse | None:
-    """Restore a card from the trash.
+    """Fetch a card.
 
-     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
-    to its
-    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
-    they are;
-    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
-    not in the
-    trash is a Conflict.
+     A card in the trash or in another project is not found.
 
     Args:
+        project_id (str):
         card_id (str):
 
     Raises:
@@ -144,27 +139,24 @@ def sync(
     """
 
     return sync_detailed(
+        project_id=project_id,
         card_id=card_id,
         client=client,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Restore a card from the trash.
+    """Fetch a card.
 
-     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
-    to its
-    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
-    they are;
-    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
-    not in the
-    trash is a Conflict.
+     A card in the trash or in another project is not found.
 
     Args:
+        project_id (str):
         card_id (str):
 
     Raises:
@@ -176,6 +168,7 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
+        project_id=project_id,
         card_id=card_id,
     )
 
@@ -185,21 +178,17 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
 ) -> CardResponse | ErrorResponse | None:
-    """Restore a card from the trash.
+    """Fetch a card.
 
-     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
-    to its
-    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
-    they are;
-    descendants trashed with it stay in the trash, and come back under it when restored. A card that is
-    not in the
-    trash is a Conflict.
+     A card in the trash or in another project is not found.
 
     Args:
+        project_id (str):
         card_id (str):
 
     Raises:
@@ -212,6 +201,7 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
             card_id=card_id,
             client=client,
         )

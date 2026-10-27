@@ -76,7 +76,7 @@ def test_resources_and_card_attachments_are_scoped_and_paginated():
         path = request.url.path
         if path == "/projects/p-0":
             return ok(project_payload())
-        if path == "/cards/c-0000":
+        if path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         requests.append(request)
         if path == "/resources" and request.method == "GET":
@@ -175,7 +175,7 @@ def test_location_binding_preference_and_import_job():
         path = request.url.path
         if path == "/projects/p-0":
             return ok(project_payload())
-        if path == "/cards/c-0000":
+        if path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         requests.append(request)
         if path == "/locations" and request.method == "POST":
@@ -304,7 +304,7 @@ def test_attachment_list_rejects_wrong_card():
     def respond(request):
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         return httpx.Response(
             200, json={"ok": True, "data": [], "card_id": "other", "next_offset": None}

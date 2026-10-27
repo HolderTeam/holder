@@ -41,7 +41,7 @@ def test_move_maps_intent_and_refreshes_card(argument, intent):
         nonlocal changed
         requests.append(request)
         if request.method == "POST":
-            assert request.url.path == "/cards/c-0000/move"
+            assert request.url.path == "/projects/p-0/cards/c-0000/move"
             assert json.loads(request.content) == {
                 "intent": intent,
                 "target_card_id": "c-0001",
@@ -50,7 +50,7 @@ def test_move_maps_intent_and_refreshes_card(argument, intent):
             return moved()
         if request.url.path == "/projects/p-0":
             return ok(project_payload())
-        if request.url.path == "/cards/c-0001":
+        if request.url.path == "/projects/p-0/cards/c-0001":
             return ok(card_payload(1, content=True))
         data = card_payload(content=True)
         if changed:
@@ -84,7 +84,7 @@ def test_move_to_top_level_sends_explicit_null_parent_and_refreshes_card():
         nonlocal changed
         requests.append(request)
         if request.method == "POST":
-            assert request.url.path == "/cards/c-0000/move"
+            assert request.url.path == "/projects/p-0/cards/c-0000/move"
             assert json.loads(request.content) == {
                 "intent": "to_end",
                 "parent_card_id": None,
@@ -111,7 +111,10 @@ def test_move_to_top_level_sends_explicit_null_parent_and_refreshes_card():
 def test_move_argument_validation_does_not_write():
     def respond(request):
         assert request.method == "GET"
-        if request.url.path.startswith("/projects/"):
+        if (
+            request.url.path.startswith("/projects/")
+            and "/cards" not in request.url.path
+        ):
             return ok(project_payload())
         return ok(card_payload(content=True))
 
@@ -152,7 +155,7 @@ def test_move_write_failures_are_not_retried(monkeypatch, error):
                     "conflict": 409,
                 }[error]
             )
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return failure(404) if writes else ok(card_payload(content=True))
         return ok(project_payload())
 

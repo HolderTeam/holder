@@ -58,8 +58,9 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
     return res;
   };
 
-  // The contract's POST /cards, then one of RIG's routes.
-  for (const std::string target : {"/cards", "/projects"}) {
+  // The contract's create_card, then one of RIG's routes.
+  const std::string create_card = "/projects/proj-1/cards";
+  for (const std::string target : {create_card, std::string("/projects")}) {
     const auto res = post(target, "{");
     CHECK(res.result() == http::status::bad_request);
 
@@ -68,7 +69,7 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
     CHECK(not_utf8.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(not_utf8.body());
     CHECK(payload["ok"] == false);
-    CHECK(payload["error"]["code"] == (target == "/cards" ? "invalid_argument" : "bad_request"));
+    CHECK(payload["error"]["code"] == (target == create_card ? "invalid_argument" : "bad_request"));
   }
 
   std::raise(SIGTERM);

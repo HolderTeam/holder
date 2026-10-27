@@ -28,7 +28,10 @@ def lifecycle_handler(requests, writes):
                     }
                 )
             return ok(card_payload(content=True))
-        if request.url.path.startswith("/projects/"):
+        if (
+            request.url.path.startswith("/projects/")
+            and "/cards" not in request.url.path
+        ):
             return ok(project_payload())
         return ok(card_payload(content=True))
 
@@ -46,7 +49,7 @@ def test_trash_sends_the_children_policy(kwargs, expected):
         assert card.trash(**kwargs) is None
     assert len(writes) == 1
     assert writes[0].method == "DELETE"
-    assert writes[0].url.path == "/cards/c-0000"
+    assert writes[0].url.path == "/projects/p-0/cards/c-0000"
     assert writes[0].url.params["children"] == expected
     # A trashed card cannot be read, so trash() does not refresh it.
     assert requests[-1] is writes[0]
@@ -66,7 +69,7 @@ def test_restore_posts_and_refreshes():
     with holder_for(lifecycle_handler(requests, writes)) as h:
         card = h.projects.get("p-0").cards.get("c-0000")
         assert card.restore() is card
-    assert [w.url.path for w in writes] == ["/cards/c-0000/restore"]
+    assert [w.url.path for w in writes] == ["/projects/p-0/cards/c-0000/restore"]
     assert [r.method for r in requests[-2:]] == ["POST", "GET"]
 
 

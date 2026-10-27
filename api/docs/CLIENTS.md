@@ -101,9 +101,12 @@ Project/card clients usually use:
 - `POST /projects/{project_id}/recovery-token/import`
 - `POST /recovery-token/import`
 
-- `GET/POST /cards`
-- `GET/PATCH/DELETE /cards/{card_id}`
+- `GET /cards`
 - `GET /cards/context`
+- `GET/POST /projects/{project_id}/cards`
+- `GET/PATCH/DELETE /projects/{project_id}/cards/{card_id}`
+- `POST /projects/{project_id}/cards/{card_id}/move`
+- `POST /projects/{project_id}/cards/{card_id}/restore`
 
 - `GET/POST /resources`
 - `PATCH/DELETE /resources/{resource_id}`

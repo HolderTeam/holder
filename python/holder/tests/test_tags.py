@@ -47,7 +47,7 @@ def test_lazy_tag_collections_lookup_cache_and_reverse_cards():
             assert request.url.params["tag"] == "research"
             assert request.url.params["parent"] == "roots"
             return ok({"items": [card_payload()], "next_cursor": None})
-        if path.startswith("/cards/"):
+        if path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(["research", "draft"]))
         return ok(project_payload())
 
@@ -108,7 +108,7 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
                     "changed": True,
                 }
             )
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(
                 {**tagged_card(list(names)), "content": content, "updated_at": 10}
             )
@@ -136,7 +136,7 @@ def test_tag_mutations_send_scope_and_input_unchanged_and_refresh(method):
 @pytest.mark.parametrize("tags", [None, "research", [1], [""]])
 def test_invalid_or_missing_tag_data_is_not_an_empty_collection(tags):
     def respond(request):
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(tags))
         return ok(project_payload())
 
@@ -144,14 +144,14 @@ def test_invalid_or_missing_tag_data_is_not_an_empty_collection(tags):
         list(h.projects.get("p-0").cards.get("c-0000").tags)
 
 
-def test_tag_read_rejects_card_moved_to_another_project():
+def test_tag_read_of_a_card_no_longer_in_the_project_is_not_found():
     calls = 0
 
     def respond(request):
         nonlocal calls
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             calls += 1
-            return ok({**tagged_card([]), "project_id": "p-0" if calls == 1 else "p-1"})
+            return ok(tagged_card([])) if calls == 1 else failure(404)
         return ok(project_payload())
 
     with holder_for(respond) as h:
@@ -185,7 +185,7 @@ def test_tag_writes_are_not_retried(monkeypatch, method, error):
                     "changed": True,
                 }
             )
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return failure(404) if writes else ok(tagged_card(["draft"]))
         return ok(project_payload())
 
@@ -216,7 +216,7 @@ def test_content_update_invalidates_cached_tags():
         if request.method == "PATCH":
             names.clear()
             return ok(card_payload(content=True))
-        if request.url.path.startswith("/cards/"):
+        if request.url.path.startswith("/projects/p-0/cards/"):
             return ok(tagged_card(list(names)))
         return ok(project_payload())
 

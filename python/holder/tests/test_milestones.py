@@ -45,7 +45,7 @@ def test_multiple_milestones_keep_undated_repeated_roles_and_offsets():
 
     def respond(request):
         paths.append(request.url.path)
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/milestones-with-dates"):
             return ok(records)
@@ -82,7 +82,7 @@ def test_create_partial_update_remove_and_refresh_cache():
     writes = []
 
     def respond(request):
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path == "/cards/c-0000/milestones-with-dates":
             if request.method == "GET":
@@ -168,7 +168,7 @@ def test_invalid_dates_and_empty_updates_do_not_write():
     writes = []
 
     def respond(request):
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.method != "GET":
             writes.append(request)

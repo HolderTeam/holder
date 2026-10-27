@@ -29,48 +29,51 @@ void send(holder_context& context, const std::string& method, const std::string&
 
 int main() {
   holder_context* context = stub_context_new();
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Thesis", "content": "Intro #draft"})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Child", "parent_card_id": "c1", "sort_key": 2.5,)"
-                                   R"( "created_at": -5})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Named", "card_id": "mine"})");
-  send(*context, "GET", "/cards/c1");
-  send(*context, "GET", "/cards/c%31");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "Thesis", "content": "Intro #draft"})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "Child", "parent_card_id": "c1", "sort_key": 2.5,)"
+                                               R"( "created_at": -5})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "Named", "card_id": "mine"})");
+  send(*context, "GET", "/projects/p1/cards/c1");
+  send(*context, "GET", "/projects/p1/cards/c%31");
   send(*context, "GET", "/projects/p1/cards");
   send(*context, "GET", "/projects/p1/cards?parent=roots&include_child_count=true&include_content=1");
   send(*context, "GET", "/projects/p1/cards?parent=c1&order=updated_desc&limit=1");
   send(*context, "GET", "/projects/p1/cards?limit=1&cursor=1");
   // An integer written with a fraction or an exponent, down to int64's least.
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Whole", "created_at": 691.0, "updated_at": 7e2})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "Least", "created_at": -9223372036854775808.0})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "Whole", "created_at": 691.0, "updated_at": 7e2})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "Least", "created_at": -9223372036854775808.0})");
   // The card lifecycle.
-  send(*context, "PATCH", "/cards/c1", R"({"title": "Thesis, revised", "parent_card_id": "c2"})");
-  send(*context, "PATCH", "/cards/c1", R"({"parent_card_id": null})");
-  send(*context, "PATCH", "/cards/c1", R"({"title": ""})");
-  send(*context, "POST", "/cards/c1/move", R"({"intent": "into", "target_card_id": "c1"})");
-  send(*context, "POST", "/cards/c1/move", R"({"intent": "sideways"})");
-  send(*context, "POST", "/cards/c1/move", R"({"intent": "to_end", "project_id": "p1"})");
-  send(*context, "DELETE", "/cards/c1?children=trash_subtree");
-  send(*context, "DELETE", "/cards/c1?children=everything");
-  send(*context, "POST", "/cards/c1/restore");
-  send(*context, "POST", "/cards/c1/restore");
+  send(*context, "PATCH", "/projects/p1/cards/c1", R"({"title": "Thesis, revised", "parent_card_id": "c2"})");
+  send(*context, "PATCH", "/projects/p1/cards/c1", R"({"parent_card_id": null})");
+  send(*context, "PATCH", "/projects/p1/cards/c1", R"({"title": ""})");
+  send(*context, "POST", "/projects/p1/cards/c1/move", R"({"intent": "into", "target_card_id": "c1"})");
+  send(*context, "POST", "/projects/p1/cards/c1/move", R"({"intent": "sideways"})");
+  send(*context, "POST", "/projects/p1/cards/c1/move", R"({"intent": "to_end", "project_id": "p1"})");
+  send(*context, "DELETE", "/projects/p1/cards/c1?children=trash_subtree");
+  send(*context, "DELETE", "/projects/p1/cards/c1?children=everything");
+  send(*context, "POST", "/projects/p1/cards/c1/restore");
+  send(*context, "POST", "/projects/p1/cards/c1/restore");
   // Not found.
-  send(*context, "GET", "/cards/c9");
+  send(*context, "GET", "/projects/p1/cards/c9");
+  send(*context, "GET", "/projects/p2/cards/c1");
+  send(*context, "PATCH", "/projects/p2/cards/c1", R"({"title": "Elsewhere"})");
   send(*context, "GET", "/projects/p2/cards");
-  send(*context, "POST", "/cards", R"({"project_id": "p2", "title": "Lost"})");
+  send(*context, "POST", "/projects/p2/cards", R"({"title": "Lost"})");
   // Invalid arguments.
-  send(*context, "POST", "/cards", "");
-  send(*context, "POST", "/cards", "{not json");
-  send(*context, "POST", "/cards", R"({"project_id": "p1"})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": ""})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": null})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": null})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": "high"})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "sort_key": 1e999})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 1.5})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 9223372036854775808.0})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "x", "created_at": 9223372036854775808})");
-  send(*context, "POST", "/cards", R"({"project_id": "p1", "title": "a\u0000b"})");
-  send(*context, "POST", "/cards", R"(["project_id"])");
+  send(*context, "POST", "/projects/p1/cards", "");
+  send(*context, "POST", "/projects/p1/cards", "{not json");
+  send(*context, "POST", "/projects/p1/cards", R"({})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": ""})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": null})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "sort_key": null})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "sort_key": "high"})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "sort_key": 1e999})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "created_at": 1.5})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "created_at": 9223372036854775808.0})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "x", "created_at": 9223372036854775808})");
+  send(*context, "POST", "/projects/p1/cards", R"({"title": "a\u0000b"})");
+  send(*context, "POST", "/projects/p1/cards", R"({"project_id": "p1", "title": "x"})");
+  send(*context, "POST", "/projects/p1/cards", R"(["title"])");
   send(*context, "GET", "/projects/p1/cards?limit=0");
   send(*context, "GET", "/projects/p1/cards?limit=5001");
   send(*context, "GET", "/projects/p1/cards?limit=ten");
@@ -80,9 +83,10 @@ int main() {
   send(*context, "GET", "/projects/p1/cards?include_content=yes");
   send(*context, "GET", "/projects/p1/cards?limit=1&limit=2");
   send(*context, "GET", "/projects/p1/cards?tag=%ff");
-  send(*context, "GET", "/cards/%zz");
+  send(*context, "GET", "/projects/p1/cards/%zz");
   // Not the contract's.
-  send(*context, "PUT", "/cards/c1");
+  send(*context, "PUT", "/projects/p1/cards/c1");
+  send(*context, "GET", "/cards/c1");
   send(*context, "GET", "/cards");
   send(*context, "GET", "/nowhere");
   stub_context_free(context);

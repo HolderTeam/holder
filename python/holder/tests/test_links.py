@@ -39,7 +39,7 @@ def test_qualified_link_values_and_backlink_coverage():
 
     def respond(request):
         requests.append(request)
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/backlinks"):
             scope = request.url.params["scope"]
@@ -110,7 +110,7 @@ def test_link_mutations_send_exact_qualified_selector_and_refresh():
     writes = []
 
     def respond(request):
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/links"):
             if request.method == "GET":
@@ -177,7 +177,7 @@ def test_link_queries_refresh_after_external_change_and_no_delete_all_method():
     rows = [link_row()]
 
     def respond(request):
-        if request.url.path == "/cards/c-0000":
+        if request.url.path == "/projects/p-0/cards/c-0000":
             return ok(card_payload(content=True))
         if request.url.path.endswith("/backlinks"):
             return httpx.Response(

@@ -65,8 +65,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientCardsEndpoints.get_card_context(this, project_id, parent_card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async CardDetail get_card(string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientCardsEndpoints.get_card(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async CardDetail get_card(string project_id, string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientCardsEndpoints.get_card(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
     public async CardHistoryPage list_card_history(string project_id,
@@ -162,32 +162,35 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         return yield ApiClientCardsEndpoints.create_card(this, project_id, title, content, parent_card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async void update_card(string card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void update_card(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                  string card_id,
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {
-        yield ApiClientCardsEndpoints.update_card(this, card_id, title, content, updated_at); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientCardsEndpoints.update_card(this, project_id, card_id, title, content, updated_at); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async void update_card_position(string card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void update_card_position(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                           string card_id,
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {
         yield ApiClientCardsEndpoints.update_card_position( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, card_id, parent_card_id, sort_key, updated_at
+            this, project_id, card_id, parent_card_id, sort_key, updated_at
         );
     }
 
-    public async void delete_card(string card_id, bool trash_subtree = false) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        yield ApiClientCardsEndpoints.delete_card(this, card_id, trash_subtree); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientCardsEndpoints.delete_card(this, project_id, card_id, trash_subtree); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async CardMoveResult move_card(string card_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async CardMoveResult move_card(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                          string card_id,
                                           string intent,
                                           string? target_card_id = null,
                                           string? parent_card_id = null) throws Error {
         return yield ApiClientCardsEndpoints.move_card( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, card_id, intent, target_card_id, parent_card_id
+            this, project_id, card_id, intent, target_card_id, parent_card_id
         );
     }
 
@@ -315,8 +318,8 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         yield ApiClientTrashEndpoints.empty_trash(this, project_id, type); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async void restore_trash_item(string item_type, string item_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        yield ApiClientTrashEndpoints.restore_trash_item(this, item_type, item_id);
+    public async void restore_trash_item(string project_id, string item_type, string item_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientTrashEndpoints.restore_trash_item(this, project_id, item_type, item_id);
     }
 
     public async void hard_delete_trash_item(string item_type, string item_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact

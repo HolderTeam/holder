@@ -619,11 +619,12 @@ private void test_failed_actions_are_reported_and_logged() {
     h.view.empty_trash.begin("p1", (obj, res) => { h.view.empty_trash.end(res); finished++; });
 
     assert(wait_for_condition(() => finished == 3));
-    assert(h.errors.contains("Failed to restore item|restore trash failed"));
+    // Restoring needs the project whose trash is listed.
+    assert(h.errors.contains("Failed to restore item|No project is selected."));
+    assert(h.api.restore_trash_calls == 0);
     assert(h.errors.contains("Failed to permanently delete item|hard delete trash failed"));
     assert(h.errors.contains("Failed to empty trash|empty trash failed"));
     // With no project selected and no list loaded there is no project to log the item against.
-    assert(h.activities.contains("result.trash.restore_failed|Failed to restore card: restore trash failed|-|c1"));
     assert(h.activities.contains("result.trash.delete_failed|Failed to permanently delete card: hard delete trash failed|-|c1"));
     assert(h.activities.contains("result.trash.empty_failed|Failed to empty trash: empty trash failed|p1|-"));
     assert(h.toasts.size == 0);

@@ -116,7 +116,7 @@ TEST_CASE(
   // The contract takes any card ID as a parent; one that names no card has no children.
   CHECK(call({{"parent", "bad"}}).second["data"]["items"].empty());
   CHECK(call({}, "/projects/missing/cards").first == http::status::not_found);
-  CHECK(call({}, "/projects/p/cards", http::verb::post).first == http::status::method_not_allowed);
+  CHECK(call({}, "/projects/p/cards", http::verb::put).first == http::status::method_not_allowed);
 
   // The display endpoint retains its original hierarchy, recent mode and tag precedence.
   auto display = [&](Params params) {

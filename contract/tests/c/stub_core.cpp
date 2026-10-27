@@ -22,10 +22,21 @@ int detail::fail(holder_error** out_error, int code, const std::string& message)
   return code;
 }
 
-Card get_card(holder_context& context, std::string card_id) {
+// The card, live or in the trash, when it is in the project.
+Card& card_in(holder_context& context, const std::string& project_id, const std::string& card_id) {
   auto it = context.cards.find(card_id);
-  if (it == context.cards.end() || it->second.deleted_at) throw NotFound("card not found: " + card_id);
+  if (it == context.cards.end() || it->second.project_id != project_id) throw NotFound("card not found: " + card_id);
   return it->second;
+}
+
+Card& live_card(holder_context& context, const std::string& project_id, const std::string& card_id) {
+  auto& card = card_in(context, project_id, card_id);
+  if (card.deleted_at) throw NotFound("card not found: " + card_id);
+  return card;
+}
+
+Card get_card(holder_context& context, std::string project_id, std::string card_id) {
+  return live_card(context, project_id, card_id);
 }
 
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
@@ -55,13 +66,13 @@ Page<CardListItem> list_cards(holder_context& context, std::string project_id, s
   return page;
 }
 
-Card create_card(holder_context& context, const NewCard& request) {
-  if (request.project_id != "p1") throw NotFound("project not found: " + request.project_id);
+Card create_card(holder_context& context, std::string project_id, const NewCard& request) {
+  if (project_id != "p1") throw NotFound("project not found: " + project_id);
   if (request.parent_card_id && !context.cards.contains(*request.parent_card_id))
     throw NotFound("parent not found: " + *request.parent_card_id);
   Card card;
   card.card_id = "c" + std::to_string(context.next_id++);
-  card.project_id = request.project_id;
+  card.project_id = project_id;
   card.title = request.title;
   card.rel_path = "cards/" + card.card_id + ".md";
   card.parent_card_id = request.parent_card_id;
@@ -78,14 +89,8 @@ Card create_card(holder_context& context, const NewCard& request) {
   return card;
 }
 
-Card& live_card(holder_context& context, const std::string& card_id) {
-  auto it = context.cards.find(card_id);
-  if (it == context.cards.end() || it->second.deleted_at) throw NotFound("card not found: " + card_id);
-  return it->second;
-}
-
-Card update_card(holder_context& context, std::string card_id, const CardUpdate& update) {
-  auto& card = live_card(context, card_id);
+Card update_card(holder_context& context, std::string project_id, std::string card_id, const CardUpdate& update) {
+  auto& card = live_card(context, project_id, card_id);
   if (update.title) card.title = *update.title;
   if (update.content) card.content = *update.content;
   if (update.parent_card_id) card.parent_card_id = *update.parent_card_id;
@@ -94,22 +99,21 @@ Card update_card(holder_context& context, std::string card_id, const CardUpdate&
   return card;
 }
 
-Card trash_card(holder_context& context, std::string card_id, TrashCardChildren children) {
-  auto& card = live_card(context, card_id);
+Card trash_card(holder_context& context, std::string project_id, std::string card_id, TrashCardChildren children) {
+  auto& card = live_card(context, project_id, card_id);
   card.deleted_at = children == TrashCardChildren::TrashSubtree ? 1793000200 : 1793000100;
   return card;
 }
 
-Card restore_card(holder_context& context, std::string card_id) {
-  auto it = context.cards.find(card_id);
-  if (it == context.cards.end()) throw NotFound("card not found: " + card_id);
-  if (!it->second.deleted_at) throw Conflict("the card is not in the trash: " + card_id);
-  it->second.deleted_at.reset();
-  return it->second;
+Card restore_card(holder_context& context, std::string project_id, std::string card_id) {
+  auto& card = card_in(context, project_id, card_id);
+  if (!card.deleted_at) throw Conflict("the card is not in the trash: " + card_id);
+  card.deleted_at.reset();
+  return card;
 }
 
-Card move_card(holder_context& context, std::string card_id, const CardMove& move) {
-  auto& card = live_card(context, card_id);
+Card move_card(holder_context& context, std::string project_id, std::string card_id, const CardMove& move) {
+  auto& card = live_card(context, project_id, card_id);
   if (move.intent == CardMoveIntent::Into) {
     if (!move.target_card_id) throw InvalidArgument("target_card_id is required for into");
     if (*move.target_card_id == card_id) throw InvalidMove("a card cannot go under itself");

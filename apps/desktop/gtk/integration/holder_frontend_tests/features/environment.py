@@ -65,16 +65,15 @@ def _seed_history_fixture(context) -> None:
     )
     card = _fixture_request(
         "POST",
-        "/cards",
+        f"/projects/{project['project_id']}/cards",
         {
-            "project_id": project["project_id"],
             "title": "History Fixture Card",
             "content": "First fixture body\n",
         },
     )
     _fixture_request(
         "PATCH",
-        f"/cards/{card['card_id']}",
+        f"/projects/{project['project_id']}/cards/{card['card_id']}",
         {
             "title": "History Fixture Card",
             "content": "Fixture revised history body\n",

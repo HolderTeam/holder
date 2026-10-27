@@ -235,11 +235,12 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   const auto param_get = [](const std::string&) {
     return std::string();
   };
-  auto post = [&](const nlohmann::json& body) {
-    auto req = make_request(http::verb::post, "/cards", body.dump());
+  auto post = [&](const std::string& project_id, const nlohmann::json& body) {
+    const auto path = "/projects/" + project_id + "/cards";
+    auto req = make_request(http::verb::post, path, body.dump());
     http::response<http::string_body> res;
     REQUIRE(route_card(
-        "/cards",
+        path,
         req,
         res,
         db,
@@ -252,7 +253,7 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   };
 
   const auto [v4_status, v4_payload] = post(
-      {{"project_id", "project-v4"}, {"title", "Version 4"}, {"content", "content"}}
+      "project-v4", {{"title", "Version 4"}, {"content", "content"}}
   );
   REQUIRE(v4_status == http::status::created);
   REQUIRE(v4_payload["ok"] == true);
@@ -261,8 +262,8 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   REQUIRE(v4_id.at(14) == '4');
 
   const auto [child_status, child_payload] = post(
-      {{"project_id", "project-v4"},
-       {"title", "Child"},
+      "project-v4",
+      {{"title", "Child"},
        {"content", "content"},
        {"parent_card_id", v4_id}}
   );
@@ -270,7 +271,7 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   REQUIRE(card_store.get(child_payload["data"]["card_id"])->parent_card_id == v4_id);
 
   const auto [v7_status, v7_payload] = post(
-      {{"project_id", "project-v7"}, {"title", "Version 7"}, {"content", "content"}}
+      "project-v7", {{"title", "Version 7"}, {"content", "content"}}
   );
   REQUIRE(v7_status == http::status::created);
   REQUIRE(v7_payload["ok"] == true);
@@ -280,7 +281,7 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
   REQUIRE_FALSE(legacy_generator_called);
 
   const auto [missing_status, missing_payload] = post(
-      {{"project_id", "missing-project"}, {"title", "Missing"}, {"content", "content"}}
+      "missing-project", {{"title", "Missing"}, {"content", "content"}}
   );
   REQUIRE(missing_status == http::status::not_found);
   REQUIRE(missing_payload["error"]["code"] == "not_found");
@@ -292,8 +293,8 @@ TEST_CASE("CardRoutes post generates card ids from persisted project schemes", "
 
   const std::string supplied_id = "11111111-1111-4111-8111-111111111111";
   const auto [rejected_status, rejected_payload] = post(
+      "project-v4",
       {{"card_id", supplied_id},
-       {"project_id", "project-v4"},
        {"title", "Caller selected"},
        {"content", "content"}}
   );
@@ -524,7 +525,7 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
     REQUIRE(create_status == http::status::created);
     REQUIRE(create_payload["ok"] == true);
     auto [trash_status, trash_payload] = call(
-        http::verb::delete_, "/cards/" + target, nlohmann::json::object()
+        http::verb::delete_, "/projects/proj-1/cards/" + target, nlohmann::json::object()
     );
     REQUIRE(trash_status == http::status::ok);
     REQUIRE(trash_payload["ok"] == true);
@@ -599,7 +600,7 @@ TEST_CASE("CardRoutes links and backlinks edge branches", "[card-routes]") {
 
     auto [del_status, del_payload] = call(
         http::verb::delete_,
-        "/cards/22222222-2222-4222-8222-222222222222",
+        "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
         nlohmann::json::object()
     );
     REQUIRE(del_status == http::status::ok);
@@ -664,7 +665,7 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
   SECTION("get card not found") {
     auto [status, payload] = call(
         http::verb::get,
-        "/cards/ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "/projects/proj-1/cards/ffffffff-ffff-4fff-8fff-ffffffffffff",
         nlohmann::json::object()
     );
     REQUIRE(status == http::status::not_found);
@@ -681,7 +682,7 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
 
     auto [status, payload] = call(
         http::verb::get,
-        "/cards/22222222-2222-4222-8222-222222222222",
+        "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
         nlohmann::json::object()
     );
     REQUIRE(status == http::status::not_found);
@@ -691,7 +692,7 @@ TEST_CASE("CardRoutes item get and patch validation branches", "[card-routes]") 
   SECTION("post to item route is not allowed") {
     auto [status, payload] = call(
         http::verb::post,
-        "/cards/11111111-1111-4111-8111-111111111111",
+        "/projects/proj-1/cards/11111111-1111-4111-8111-111111111111",
         nlohmann::json::object()
     );
     REQUIRE(status == http::status::method_not_allowed);
@@ -824,7 +825,7 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
   SECTION("tree list filters deleted by default and can include child_count") {
     auto [trash_status, trash_payload] = call(
         http::verb::delete_,
-        "/cards/33333333-3333-4333-8333-333333333333",
+        "/projects/proj-1/cards/33333333-3333-4333-8333-333333333333",
         nlohmann::json::object()
     );
     REQUIRE(trash_status == http::status::ok);
@@ -843,17 +844,16 @@ TEST_CASE("CardRoutes additional uncovered branches", "[card-routes]") {
     }
   }
 
-  SECTION("post /cards takes the contract's NewCard and rejects fields it does not have") {
+  SECTION("post /projects/{project_id}/cards takes the contract's NewCard and rejects fields it does not have") {
     auto [plain_status, plain_payload] =
-        call(http::verb::post, "/cards", {{"project_id", "proj-1"}, {"title", "no content"}});
+        call(http::verb::post, "/projects/proj-1/cards", {{"title", "no content"}});
     REQUIRE(plain_status == http::status::created);
     REQUIRE(plain_payload["data"]["content"] == "");
 
     auto [bad_status, bad_payload] = call(
         http::verb::post,
-        "/cards",
-        {{"project_id", "proj-1"},
-         {"title", "manual"},
+        "/projects/proj-1/cards",
+        {{"title", "manual"},
          {"content", "manual"},
          {"created_at", 20},
          {"updated_at", 20},
@@ -1046,7 +1046,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
   SECTION("context skips deleted level cards and broken breadcrumb chain") {
     auto [trash_status, trash_payload] = call(
         http::verb::delete_,
-        "/cards/00000000-0000-4000-8000-000000000002",
+        "/projects/proj-1/cards/00000000-0000-4000-8000-000000000002",
         nlohmann::json::object()
     );
     REQUIRE(trash_status == http::status::ok);
@@ -1063,7 +1063,7 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     );
     auto [del_parent_status, del_parent_payload] = call(
         http::verb::delete_,
-        "/cards/00000000-0000-4000-8000-000000000099",
+        "/projects/proj-1/cards/00000000-0000-4000-8000-000000000099",
         nlohmann::json::object()
     );
     REQUIRE(del_parent_status == http::status::ok);
@@ -1131,10 +1131,11 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     db.exec(
         "UPDATE cards SET rel_path='cards/bad-path.md' WHERE card_id='00000000-0000-4000-8000-000000000020';"
     );
-    auto get_req = make_request(http::verb::get, "/cards/00000000-0000-4000-8000-000000000020");
+    const std::string item = "/projects/proj-1/cards/00000000-0000-4000-8000-000000000020";
+    auto get_req = make_request(http::verb::get, item);
     http::response<http::string_body> get_res;
     const bool get_handled = route_card(
-        "/cards/00000000-0000-4000-8000-000000000020",
+        item,
         get_req,
         get_res,
         db,
@@ -1147,10 +1148,10 @@ TEST_CASE("CardRoutes residual branch coverage", "[card-routes]") {
     REQUIRE(get_res.result() == http::status::internal_server_error);
 
     // Method not handled by any item branch -> final not_found branch.
-    auto put_req = make_request(http::verb::put, "/cards/00000000-0000-4000-8000-000000000020");
+    auto put_req = make_request(http::verb::put, item);
     http::response<http::string_body> put_res;
     const bool put_handled = route_card(
-        "/cards/00000000-0000-4000-8000-000000000020",
+        item,
         put_req,
         put_res,
         db,
@@ -1206,7 +1207,7 @@ TEST_CASE(
 
   const auto [detail_status, detail] = call(
       http::verb::get,
-      "/cards/11111111-1111-4111-8111-111111111111",
+      "/projects/proj-1/cards/11111111-1111-4111-8111-111111111111",
       nlohmann::json::object()
   );
   REQUIRE(detail_status == http::status::ok);
@@ -1388,7 +1389,7 @@ TEST_CASE("CardRoutes DELETE trashes children by the requested policy", "[card-r
       child
   );
   auto call = [&](const std::string& card_id, const std::string& children) {
-    const std::string path = "/cards/" + card_id;
+    const std::string path = "/projects/proj-1/cards/" + card_id;
     auto req = make_request(http::verb::delete_, path, "");
     http::response<http::string_body> res;
     REQUIRE(route_card(

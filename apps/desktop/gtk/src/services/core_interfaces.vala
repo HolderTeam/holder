@@ -27,7 +27,7 @@ public interface IHolderApi : Object {
                                                                  int limit = 0) throws Error;
     public abstract async CardContextData get_card_context(string project_id,
                                                            string? parent_card_id = null) throws Error;
-    public abstract async CardDetail get_card(string card_id) throws Error;
+    public abstract async CardDetail get_card(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
                                                                          string tag) throws Error;
@@ -37,7 +37,7 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
                                                                      string type = "all") throws Error;
     public abstract async void empty_trash(string project_id, string type = "all") throws Error;
-    public abstract async void restore_trash_item(string item_type, string item_id) throws Error;
+    public abstract async void restore_trash_item(string project_id, string item_type, string item_id) throws Error;
     public abstract async void hard_delete_trash_item(string item_type, string item_id) throws Error;
     public abstract async string create_resource(string project_id,
                                                  string kind,
@@ -124,17 +124,20 @@ public interface IHolderApi : Object {
                                              string title,
                                              string content,
                                              string? parent_card_id = null) throws Error;
-    public abstract async void update_card(string card_id,
+    public abstract async void update_card(string project_id,
+                                           string card_id,
                                            string title,
                                            string content,
                                            int64 updated_at) throws Error;
-    public abstract async void update_card_position(string card_id,
+    public abstract async void update_card_position(string project_id,
+                                                    string card_id,
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
     // trash_subtree sends every live descendant to Trash too; otherwise children move up a level.
-    public abstract async void delete_card(string card_id, bool trash_subtree = false) throws Error;
-    public abstract async CardMoveResult move_card(string card_id,
+    public abstract async void delete_card(string project_id, string card_id, bool trash_subtree = false) throws Error;
+    public abstract async CardMoveResult move_card(string project_id,
+                                                   string card_id,
                                                    string intent,
                                                    string? target_card_id = null,
                                                    string? parent_card_id = null) throws Error;

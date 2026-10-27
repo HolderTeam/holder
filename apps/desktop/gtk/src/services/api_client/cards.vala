@@ -47,8 +47,13 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return ApiParsersCards.parse_card_context(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
     }
 
-    public static async CardDetail get_card(ApiClient client, string card_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
-        var root = yield client.request_json("GET", "/cards/%s".printf(Uri.escape_string(card_id)), null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+    // A card's path, under its project.
+    internal static string card_path(string project_id, string card_id) {
+        return "/projects/%s/cards/%s".printf(Uri.escape_string(project_id), Uri.escape_string(card_id));
+    }
+
+    public static async CardDetail get_card(ApiClient client, string project_id, string card_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json("GET", card_path(project_id, card_id), null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
         return ApiParsersCards.parse_card_detail(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
     }
 
@@ -333,8 +338,6 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                            string? parent_card_id = null) throws Error {
         var body = new Json.Builder();
         body.begin_object();
-        body.set_member_name("project_id");
-        body.add_string_value(project_id);
         body.set_member_name("title");
         body.add_string_value(title);
         body.set_member_name("content");
@@ -345,12 +348,18 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         }
         body.end_object();
 
-        var root = yield client.request_json("POST", "/cards", client.json_string_from_builder(body), null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
+            "POST",
+            "/projects/%s/cards".printf(Uri.escape_string(project_id)),
+            client.json_string_from_builder(body),
+            null
+        );
         var data = root.get_object_member("data"); // LCOV_EXCL_BR_LINE: invalid-type branch artifact
         return data.get_string_member("card_id"); // LCOV_EXCL_BR_LINE: call/return branch artifact
     }
 
     public static async void update_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                         string project_id,
                                          string card_id,
                                          string title,
                                          string content,
@@ -367,13 +376,14 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
 
         yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "PATCH",
-            "/cards/%s".printf(Uri.escape_string(card_id)),
+            card_path(project_id, card_id),
             client.json_string_from_builder(body),
             null
         );
     }
 
     public static async void update_card_position(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                  string project_id,
                                                   string card_id,
                                                   string? parent_card_id,
                                                   double sort_key,
@@ -394,23 +404,24 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
 
         yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "PATCH",
-            "/cards/%s".printf(Uri.escape_string(card_id)),
+            card_path(project_id, card_id),
             client.json_string_from_builder(body),
             null
         );
     }
 
-    internal static string delete_card_path(string card_id, bool trash_subtree) {
-        var path = "/cards/%s".printf(Uri.escape_string(card_id));
+    internal static string delete_card_path(string project_id, string card_id, bool trash_subtree) {
+        var path = card_path(project_id, card_id);
         return trash_subtree ? path + "?children=trash_subtree" : path;
     }
 
     public static async void delete_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                         string project_id,
                                          string card_id,
                                          bool trash_subtree = false) throws Error {
         yield client.request_json(
             "DELETE",
-            delete_card_path(card_id, trash_subtree),
+            delete_card_path(project_id, card_id, trash_subtree),
             null,
             null
         );
@@ -439,13 +450,14 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
     }
 
     public static async CardMoveResult move_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                 string project_id,
                                                  string card_id,
                                                  string intent,
                                                  string? target_card_id = null,
                                                  string? parent_card_id = null) throws Error {
         var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "POST",
-            "/cards/%s/move".printf(Uri.escape_string(card_id)),
+            card_path(project_id, card_id) + "/move",
             build_move_card_body_text(intent, target_card_id, parent_card_id),
             null
         );

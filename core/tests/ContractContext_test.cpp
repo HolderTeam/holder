@@ -71,12 +71,11 @@ TEST_CASE("The contract's operations run on a host's database, indexer and Git",
 
   holder_context context(db, fts, &git);
   holder::contract::NewCard request;
-  request.project_id = project.project_id;
   request.title = "Hosted";
   request.content = "Body #draft";
-  const auto card = holder::contract::create_card(context, request);
+  const auto card = holder::contract::create_card(context, project.project_id, request);
   REQUIRE(git.commits == 1);
-  REQUIRE(holder::contract::get_card(context, card.card_id).content == "Body #draft");
+  REQUIRE(holder::contract::get_card(context, project.project_id, card.card_id).content == "Body #draft");
   REQUIRE(holder::card::CardRepo(db).get(card.card_id).has_value());
   const auto page = holder::contract::list_cards(context, project.project_id, std::nullopt, std::string("draft"),
                                                  holder::contract::ListCardsOrder::CardIdAsc, 10, std::nullopt,
@@ -115,16 +114,16 @@ TEST_CASE("The C API reports an encrypted project's missing key as HOLDER_ERROR_
   const auto project_id = nlohmann::json::parse(json).at("project_id").get<std::string>();
   holder_string_free(json);
   holder_new_card request{};
-  request.project_id = project_id.c_str();
   request.title = "Sealed";
   request.content = "Secret body";
   const holder_card* card = nullptr;
-  REQUIRE(holder_create_card(context, &request, arena, &card, &error) == HOLDER_OK);
+  REQUIRE(holder_create_card(context, project_id.c_str(), &request, arena, &card, &error) == HOLDER_OK);
   const std::string card_id = card->card_id;
 
   {
     holder::test::EnvGuard elsewhere("HOLDER_TEST_KEYSTORE_DIR", (dir / "empty-keystore").string());
-    REQUIRE(holder_get_card(context, card_id.c_str(), arena, &card, &error) == HOLDER_ERROR_KEY_MISSING);
+    REQUIRE(holder_get_card(context, project_id.c_str(), card_id.c_str(), arena, &card, &error) ==
+            HOLDER_ERROR_KEY_MISSING);
     holder_error_destroy(error);
     error = nullptr;
     const holder_card_list_item_page* page = nullptr;
@@ -134,11 +133,12 @@ TEST_CASE("The C API reports an encrypted project's missing key as HOLDER_ERROR_
     error = nullptr;
     REQUIRE(holder_list_cards(context, project_id.c_str(), {}, nullptr, HOLDER_LIST_CARDS_ORDER_DEFAULT, nullptr,
                               nullptr, false, false, arena, &page, &error) == HOLDER_OK);
-    REQUIRE(holder_create_card(context, &request, arena, &card, &error) == HOLDER_ERROR_KEY_MISSING);
+    REQUIRE(holder_create_card(context, project_id.c_str(), &request, arena, &card, &error) ==
+            HOLDER_ERROR_KEY_MISSING);
     holder_error_destroy(error);
     error = nullptr;
   }
-  REQUIRE(holder_get_card(context, card_id.c_str(), arena, &card, &error) == HOLDER_OK);
+  REQUIRE(holder_get_card(context, project_id.c_str(), card_id.c_str(), arena, &card, &error) == HOLDER_OK);
   REQUIRE(std::string(card->content) == "Secret body");
   holder_arena_free(arena);
   holder_context_destroy(context);

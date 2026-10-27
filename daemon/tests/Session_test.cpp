@@ -314,21 +314,26 @@ TEST_CASE("Session write_prepared_response cancel hook terminates in-flight writ
   }
 }
 
-TEST_CASE("Session prepare_request classifies card patch as save lane", "[session]") {
-  SocketPair pair;
+TEST_CASE("Session prepare_request classifies card writes as save lane", "[session]") {
+  for (const std::string target :
+       {"/projects/project-123/cards/card-123", "/projects/project-123/cards",
+        "/cards/card-123/tags"}) {
+    CAPTURE(target);
+    SocketPair pair;
+    const std::string req = "PATCH " + target +
+                            " HTTP/1.1\r\n"
+                            "Host: localhost\r\n"
+                            "Content-Length: 2\r\n"
+                            "Connection: close\r\n"
+                            "\r\n"
+                            "{}";
+    boost::asio::write(pair.client, boost::asio::buffer(req));
 
-  const std::string req = "PATCH /cards/card-123 HTTP/1.1\r\n"
-                          "Host: localhost\r\n"
-                          "Content-Length: 2\r\n"
-                          "Connection: close\r\n"
-                          "\r\n"
-                          "{}";
-  boost::asio::write(pair.client, boost::asio::buffer(req));
-
-  auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
-  REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/cards/card-123");
-  REQUIRE(prepared->lane == holder::api::Session::RequestLane::Save);
+    auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
+    REQUIRE(prepared.has_value());
+    REQUIRE(prepared->path == target);
+    REQUIRE(prepared->lane == holder::api::Session::RequestLane::Save);
+  }
 }
 
 TEST_CASE("Session prepare_request classifies links reads as background lane", "[session]") {

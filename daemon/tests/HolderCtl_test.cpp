@@ -3477,8 +3477,8 @@ TEST_CASE("holderctl resource manages resources in Home by default", "[holderctl
       bound.port,
       token,
       boost::beast::http::verb::post,
-      "/cards",
-      {{"project_id", "home-id"}, {"title", "Import Target"}, {"content", "Duplicate\n"}},
+      "/projects/home-id/cards",
+      {{"title", "Import Target"}, {"content", "Duplicate\n"}},
       boost::beast::http::status::created
   );
   for (const auto& args : std::vector<std::string>{
@@ -3494,7 +3494,7 @@ TEST_CASE("holderctl resource manages resources in Home by default", "[holderctl
       bound.port,
       token,
       boost::beast::http::verb::delete_,
-      "/cards/" + duplicate["data"]["card_id"].get<std::string>(),
+      "/projects/home-id/cards/" + duplicate["data"]["card_id"].get<std::string>(),
       {},
       boost::beast::http::status::ok
   );
@@ -4344,10 +4344,13 @@ TEST_CASE("holderctl guards malformed daemon success payloads", "[holderctl][err
       );
     }
     if (target.starts_with("/search")) return Server::response(200, R"({"ok":true})");
-    if (target == "/cards/card") {
-      return Server::response(200, R"({"ok":true,"data":{"project_id":"other"}})");
+    if (target == "/projects/project/cards/card") {
+      return Server::response(
+          404,
+          R"({"ok":false,"error":{"code":"not_found","message":"card not found: card"}})"
+      );
     }
-    if (target == "/cards/malformed") return Server::response(200, "not-json");
+    if (target == "/projects/project/cards/malformed") return Server::response(200, "not-json");
     if (target == "/imports") {
       return Server::response(202, R"({"ok":true,"data":{"job_id":"job"}})");
     }
@@ -4383,7 +4386,7 @@ TEST_CASE("holderctl guards malformed daemon success payloads", "[holderctl][err
     CHECK(read_text(error).find(message) != std::string::npos);
   };
   fails("search words", "Failed to search cards:");
-  fails("card card", "Card is not in the current project:");
+  fails("card card", "card not found: card");
   fails("append malformed text", "Failed to append to card:");
   fails("link card bad", "Failed to link cards:");
   fails("restore bad", "Failed to restore card:");

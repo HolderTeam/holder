@@ -135,9 +135,9 @@ bool dispatch_generated_routes(
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
   try {
-    // RIG's routes first, so that a literal route such as GET /cards/context keeps its place
-    // before the contract's GET /cards/{card_id}; the contract's tooling checks that no RIG route
-    // hides one of the contract's. Then the contract's, for a request RIG has no route for or
+    // RIG's routes first, so that a literal segment in one of RIG's keeps its place before a
+    // parameter in one of the contract's; the contract's tooling checks that no RIG route hides
+    // one of the contract's. Then the contract's, for a request RIG has no route for or
     // would answer with a 405.
     auto generated = rig_http::dispatch(
         method, path, req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {

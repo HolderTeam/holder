@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -7,36 +8,32 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.card_response import CardResponse
 from ...models.error_response import ErrorResponse
-from ...models.new_card import NewCard
 from ...types import Response
 
 
 def _get_kwargs(
-    *,
-    body: NewCard,
+    project_id: str,
+    card_id: str,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/cards",
+        "url": "/projects/{project_id}/cards/{card_id}/restore".format(
+            project_id=quote(str(project_id), safe=""),
+            card_id=quote(str(card_id), safe=""),
+        ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> CardResponse | ErrorResponse | None:
-    if response.status_code == 201:
-        response_201 = CardResponse.from_dict(response.json())
+    if response.status_code == 200:
+        response_200 = CardResponse.from_dict(response.json())
 
-        return response_201
+        return response_200
 
     if response.status_code == 400:
         response_400 = ErrorResponse.from_dict(response.json())
@@ -86,16 +83,24 @@ def _build_response(
 
 
 def sync_detailed(
+    project_id: str,
+    card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: NewCard,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Create a card.
+    """Restore a card from the trash.
 
-     Fails with NotFound when the project or the parent does not exist.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card in
+    another
+    project is not found, and one that is not in the trash is a Conflict.
 
     Args:
-        body (NewCard): A card to create.
+        project_id (str):
+        card_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -106,7 +111,8 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
-        body=body,
+        project_id=project_id,
+        card_id=card_id,
     )
 
     response = client.get_httpx_client().request(
@@ -117,16 +123,24 @@ def sync_detailed(
 
 
 def sync(
+    project_id: str,
+    card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: NewCard,
 ) -> CardResponse | ErrorResponse | None:
-    """Create a card.
+    """Restore a card from the trash.
 
-     Fails with NotFound when the project or the parent does not exist.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card in
+    another
+    project is not found, and one that is not in the trash is a Conflict.
 
     Args:
-        body (NewCard): A card to create.
+        project_id (str):
+        card_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -137,22 +151,31 @@ def sync(
     """
 
     return sync_detailed(
+        project_id=project_id,
+        card_id=card_id,
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
+    project_id: str,
+    card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: NewCard,
 ) -> Response[CardResponse | ErrorResponse]:
-    """Create a card.
+    """Restore a card from the trash.
 
-     Fails with NotFound when the project or the parent does not exist.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card in
+    another
+    project is not found, and one that is not in the trash is a Conflict.
 
     Args:
-        body (NewCard): A card to create.
+        project_id (str):
+        card_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -163,7 +186,8 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
-        body=body,
+        project_id=project_id,
+        card_id=card_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -172,16 +196,24 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    project_id: str,
+    card_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: NewCard,
 ) -> CardResponse | ErrorResponse | None:
-    """Create a card.
+    """Restore a card from the trash.
 
-     Fails with NotFound when the project or the parent does not exist.
+     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise
+    to its
+    nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where
+    they are;
+    descendants trashed with it stay in the trash, and come back under it when restored. A card in
+    another
+    project is not found, and one that is not in the trash is a Conflict.
 
     Args:
-        body (NewCard): A card to create.
+        project_id (str):
+        card_id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -193,7 +225,8 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
+            project_id=project_id,
+            card_id=card_id,
             client=client,
-            body=body,
         )
     ).parsed

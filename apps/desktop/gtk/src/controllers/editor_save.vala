@@ -97,7 +97,7 @@ internal class EditorSaveController : Object {
 
         try {
             set_editor_save_state("Saving...");
-            yield ((!) owner.api).update_card(saved_card_id, title, text, updated_at);
+            yield ((!) owner.api).update_card(saved_project_id, saved_card_id, title, text, updated_at);
             note_confirmed_durable_save(
                 saved_card_id,
                 previous_title,
@@ -557,7 +557,7 @@ internal class EditorSaveController : Object {
             return;
         }
         try {
-            var refreshed = yield ((!) owner.api).get_card(card_id);
+            var refreshed = yield ((!) owner.api).get_card(owner.current_card.project_id, card_id);
             if (owner.current_card == null || owner.current_card.card_id != card_id ||
                 trim_for_save(owner.editor_text.get_text()) != saved_text) {
                 return;

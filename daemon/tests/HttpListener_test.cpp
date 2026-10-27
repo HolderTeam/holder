@@ -256,7 +256,7 @@ TEST_CASE("Slow background route does not block save lane route", "[listener]") 
       bound.port,
       token,
       http::verb::patch,
-      "/cards/save-test",
+      "/projects/proj-1/cards/save-test",
       // The card does not exist, so the save fails at once; only its lane matters here.
       nlohmann::json{{"content", "x"}},
       http::status::not_found
@@ -373,7 +373,7 @@ TEST_CASE("Listener worker-owned DB handles support concurrent mixed request loa
         bound.port,
         token,
         http::verb::get,
-        "/cards/card-1"
+        "/projects/proj-1/cards/card-1"
     );
   });
 
@@ -1114,7 +1114,7 @@ TEST_CASE("Listener serves card nudge and ai status routes without regression", 
       bound.port,
       token,
       http::verb::patch,
-      "/cards/card-1",
+      "/projects/proj-1/cards/card-1",
       nlohmann::json{
           {"title", "Frog Updated"},
           {"content", "Now has body"},
@@ -1234,7 +1234,7 @@ TEST_CASE(
       bound.port,
       token,
       http::verb::patch,
-      "/cards/card-1",
+      "/projects/proj-1/cards/card-1",
       nlohmann::json{
           {"title", "Saved While Busy"},
           {"content", "updated"},
@@ -1358,7 +1358,7 @@ TEST_CASE(
       bound.port,
       token,
       http::verb::patch,
-      "/cards/save-priority",
+      "/projects/proj-1/cards/save-priority",
       // The card does not exist, so the save fails at once; only its lane matters here.
       nlohmann::json{{"content", "x"}},
       http::status::not_found

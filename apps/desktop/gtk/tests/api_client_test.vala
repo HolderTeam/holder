@@ -552,7 +552,7 @@ private void test_get_card_parses_detail() {
     bool done = false;
     HolderLinux.CardDetail? card = null;
     string error_message = "";
-    client.get_card.begin("c1", (obj, res) => {
+    client.get_card.begin("proj-1", "c1", (obj, res) => {
         try {
             card = client.get_card.end(res);
         } catch (Error e) {
@@ -867,7 +867,7 @@ private void test_restore_trash_item_routes_by_type() {
 
     bool card_done = false;
     bool card_ok = false;
-    client.restore_trash_item.begin("card", "c1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "card", "c1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             card_ok = true;
@@ -884,7 +884,7 @@ private void test_restore_trash_item_routes_by_type() {
 
     bool message_done = false;
     bool message_ok = false;
-    client.restore_trash_item.begin("ai_message", "m1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "ai_message", "m1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
             message_ok = true;
@@ -906,7 +906,7 @@ private void test_restore_trash_item_unsupported_type_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.restore_trash_item.begin("unknown_type", "x1", (obj, res) => {
+    client.restore_trash_item.begin("p1", "unknown_type", "x1", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
         } catch (HolderLinux.ApiError.PROTOCOL e) {
@@ -951,7 +951,7 @@ private void test_restore_and_hard_delete_escape_ids() {
     var client = make_client(transport);
 
     bool restore_done = false;
-    client.restore_trash_item.begin("card", "c 1/2", (obj, res) => {
+    client.restore_trash_item.begin("p1", "card", "c 1/2", (obj, res) => {
         try {
             client.restore_trash_item.end(res);
         } catch (Error e) {
@@ -1457,12 +1457,12 @@ private void test_create_and_update_card_payloads() {
     });
     assert(wait_for_condition(() => done_create));
     assert(card_id == "c42");
-    assert(transport.last_uri.has_suffix("/cards"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards"));
     assert(transport.last_content_type == "application/json");
 
     bool done_update = false;
     bool update_ok = false;
-    client.update_card.begin("c42", "New title", "New body", 99, (obj, res) => {
+    client.update_card.begin("proj-1", "c42", "New title", "New body", 99, (obj, res) => {
         try {
             client.update_card.end(res);
             update_ok = true;
@@ -1474,7 +1474,7 @@ private void test_create_and_update_card_payloads() {
     assert(wait_for_condition(() => done_update));
     assert(update_ok);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.has_suffix("/cards/c42"));
+    assert(transport.last_uri.has_suffix("/projects/proj-1/cards/c42"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -1497,7 +1497,7 @@ private void test_create_card_with_parent_id_succeeds() {
     assert(wait_for_condition(() => done));
     assert(card_id == "c43");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/cards"));
+    assert(transport.last_uri.has_suffix("/projects/p1/cards"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -1509,7 +1509,7 @@ private void test_update_card_position_with_parent_and_root() {
 
     bool done_nested = false;
     bool nested_ok = false;
-    client.update_card_position.begin("c42", "parent-1", 123.5, 99, (obj, res) => {
+    client.update_card_position.begin("proj-1", "c42", "parent-1", 123.5, 99, (obj, res) => {
         try {
             client.update_card_position.end(res);
             nested_ok = true;
@@ -1521,12 +1521,12 @@ private void test_update_card_position_with_parent_and_root() {
     assert(wait_for_condition(() => done_nested));
     assert(nested_ok);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.has_suffix("/cards/c42"));
+    assert(transport.last_uri.has_suffix("/projects/proj-1/cards/c42"));
     assert(transport.last_content_type == "application/json");
 
     bool done_root = false;
     bool root_ok = false;
-    client.update_card_position.begin("c42", null, 12.0, 100, (obj, res) => {
+    client.update_card_position.begin("proj-1", "c42", null, 12.0, 100, (obj, res) => {
         try {
             client.update_card_position.end(res);
             root_ok = true;
@@ -1538,7 +1538,7 @@ private void test_update_card_position_with_parent_and_root() {
     assert(wait_for_condition(() => done_root));
     assert(root_ok);
     assert(transport.last_method == "PATCH");
-    assert(transport.last_uri.has_suffix("/cards/c42"));
+    assert(transport.last_uri.has_suffix("/projects/proj-1/cards/c42"));
 }
 
 private void test_move_card_posts_move_endpoint() {
@@ -1551,7 +1551,7 @@ private void test_move_card_posts_move_endpoint() {
 
     bool done = false;
     HolderLinux.CardMoveResult? result = null;
-    client.move_card.begin("c42", "into", "p1", null, (obj, res) => {
+    client.move_card.begin("proj-1", "c42", "into", "p1", null, (obj, res) => {
         try {
             result = client.move_card.end(res);
         } catch (Error e) {
@@ -1565,7 +1565,7 @@ private void test_move_card_posts_move_endpoint() {
     assert(result.card_id == "c42");
     assert(result.parent_card_id == "p1");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/cards/c42/move"));
+    assert(transport.last_uri.has_suffix("/projects/proj-1/cards/c42/move"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -1583,7 +1583,7 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
 
     bool done_start = false;
     bool ok_start = false;
-    client.move_card.begin("c42", "to_start", null, null, (obj, res) => {
+    client.move_card.begin("proj-1", "c42", "to_start", null, null, (obj, res) => {
         try {
             var moved = client.move_card.end(res);
             ok_start = (moved.card_id == "c42" && moved.sort_key == 10.0);
@@ -1597,7 +1597,7 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
 
     bool done_end = false;
     bool ok_end = false;
-    client.move_card.begin("c42", "to_end", null, "parent-1", (obj, res) => {
+    client.move_card.begin("proj-1", "c42", "to_end", null, "parent-1", (obj, res) => {
         try {
             var moved = client.move_card.end(res);
             ok_end = (moved.card_id == "c42" && moved.parent_card_id == "parent-1" && moved.sort_key == 11.0);
@@ -1611,9 +1611,10 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
 }
 
 private void test_delete_card_path_asks_for_subtree_only_when_chosen() {
-    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("c 1", false) == "/cards/c%201");
-    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("c 1", true) ==
-           "/cards/c%201?children=trash_subtree");
+    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("p 1", "c 1", false) ==
+           "/projects/p%201/cards/c%201");
+    assert(HolderLinux.ApiClientCardsEndpoints.delete_card_path("p 1", "c 1", true) ==
+           "/projects/p%201/cards/c%201?children=trash_subtree");
 }
 
 private void test_move_card_body_omits_absent_parent() {
@@ -1645,7 +1646,7 @@ private void test_move_card_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.move_card.begin("c42", "after", "c9", null, (obj, res) => {
+    client.move_card.begin("proj-1", "c42", "after", "c9", null, (obj, res) => {
         try {
             client.move_card.end(res);
         } catch (Error e) {
@@ -1668,7 +1669,7 @@ private void test_move_card_missing_required_fields_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.move_card.begin("c42", "after", "c9", null, (obj, res) => {
+    client.move_card.begin("proj-1", "c42", "after", "c9", null, (obj, res) => {
         try {
             client.move_card.end(res);
         } catch (Error e) {
@@ -2095,7 +2096,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
     bool done = false;
     client.list_cards.begin("p1", "tree", null, 0, (o1, r1) => {
         try { client.list_cards.end(r1); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
-        client.get_card.begin("c1", (o2, r2) => {
+        client.get_card.begin("proj-1", "c1", (o2, r2) => {
             try { client.get_card.end(r2); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
             client.search_cards.begin("p1", "q", 30, (o3, r3) => {
                 try { client.search_cards.end(r3); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }

@@ -2,6 +2,8 @@
 
 Each operation is a FastAPI route whose body never runs: the daemon serves it, and core implements
 it, from code generated from the IR. holder_contract.routes says what a route declares.
+
+A card is named by its project and its card ID; an operation on a card in another project does not find it.
 """
 
 from typing import Annotated, Literal
@@ -28,11 +30,12 @@ KEYS = [KeyringUnavailable, KeyMissing, DataCorrupted]
 app = contract.app
 
 
-@contract.route("GET", "/cards/{card_id}", errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
-def get_card(card_id: Annotated[CardId, Path()]) -> Card:
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}",
+                errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
+def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
     """Fetch a card.
 
-    A card in the trash is not found.
+    A card in the trash or in another project is not found.
     """
 
 
@@ -61,28 +64,33 @@ def list_cards(
     """
 
 
-@contract.route("POST", "/cards", status=201,
+@contract.route("POST", "/projects/{project_id}/cards", status=201,
                 errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
-def create_card(card: Annotated[NewCard, Body()]) -> Card:
+def create_card(project_id: Annotated[ProjectId, Path()], card: Annotated[NewCard, Body()]) -> Card:
     """Create a card.
 
     Fails with NotFound when the project or the parent does not exist.
     """
 
 
-@contract.route("PATCH", "/cards/{card_id}", errors=[NotFound, InvalidMove, *KEYS])
-def update_card(card_id: Annotated[CardId, Path()], update: Annotated[CardUpdate, Body()]) -> Card:
+@contract.route("PATCH", "/projects/{project_id}/cards/{card_id}", errors=[NotFound, InvalidMove, *KEYS])
+def update_card(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    update: Annotated[CardUpdate, Body()],
+) -> Card:
     """Change a card.
 
     Each field left out keeps its value, and an update that leaves every field out changes nothing. The title and
     content are written first, then the parent and place, each as its own change in the project's history. A card
-    in the trash is not found, and neither is a new parent that does not exist or is in the trash; a parent under
-    the card itself is an InvalidMove.
+    in the trash or in another project is not found, and neither is a new parent that does not exist or is in the
+    trash; a parent under the card itself is an InvalidMove.
     """
 
 
-@contract.route("DELETE", "/cards/{card_id}", errors=[NotFound, *KEYS])
+@contract.route("DELETE", "/projects/{project_id}/cards/{card_id}", errors=[NotFound, *KEYS])
 def trash_card(
+    project_id: Annotated[ProjectId, Path()],
     card_id: Annotated[CardId, Path()],
     children: Annotated[Literal["promote", "trash_subtree"], Query(
         description="promote moves the card's live children into its place among its siblings, keeping their own "
@@ -91,27 +99,31 @@ def trash_card(
     """Move a card to the trash.
 
     The card and every card that changes with it are written as one change in the project's history. A card already
-    in the trash is not found. Returns the card as it is in the trash.
+    in the trash, or in another project, is not found. Returns the card as it is in the trash.
     """
 
 
-@contract.route("POST", "/cards/{card_id}/restore", errors=[NotFound, Conflict, *KEYS])
-def restore_card(card_id: Annotated[CardId, Path()]) -> Card:
+@contract.route("POST", "/projects/{project_id}/cards/{card_id}/restore", errors=[NotFound, Conflict, *KEYS])
+def restore_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
     """Restore a card from the trash.
 
     Restores this card only. It returns to its parent when that parent is live and reachable, otherwise to its
     nearest live, reachable ancestor or the top level. Children promoted when it was trashed stay where they are;
-    descendants trashed with it stay in the trash, and come back under it when restored. A card that is not in the
-    trash is a Conflict.
+    descendants trashed with it stay in the trash, and come back under it when restored. A card in another
+    project is not found, and one that is not in the trash is a Conflict.
     """
 
 
-@contract.route("POST", "/cards/{card_id}/move", errors=[NotFound, InvalidMove, *KEYS])
-def move_card(card_id: Annotated[CardId, Path()], move: Annotated[CardMove, Body()]) -> Card:
+@contract.route("POST", "/projects/{project_id}/cards/{card_id}/move", errors=[NotFound, InvalidMove, *KEYS])
+def move_card(
+    project_id: Annotated[ProjectId, Path()],
+    card_id: Annotated[CardId, Path()],
+    move: Annotated[CardMove, Body()],
+) -> Card:
     """Move a card in its project's hierarchy.
 
     When the card's new neighbours leave no room between their places, nearby siblings are re-spaced in the same
     change, keeping their order; other cards' sort_key values a caller holds may then be out of date. A card in the
-    trash is not found, and neither is a target or parent that does not exist, is in the trash or is in another
-    project. A move that changes nothing writes nothing.
+    trash or in another project is not found, and neither is a target or parent that does not exist or is in the
+    trash. A move that changes nothing writes nothing.
     """

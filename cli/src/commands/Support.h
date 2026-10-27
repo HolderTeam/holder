@@ -58,6 +58,8 @@ std::string resolve_card_reference(
 );
 std::vector<std::string> display_card_ids(const std::vector<std::string>& card_ids);
 std::string display_card_id(const std::string& card_id);
+// A card's path in the daemon's API, under its project.
+std::string card_api_path(const std::string& project_id, const std::string& card_id);
 nlohmann::json card_api_request(
     const holder::core::Paths& paths,
     boost::beast::http::verb method,

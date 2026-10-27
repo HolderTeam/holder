@@ -8,17 +8,17 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ..collections import Collection
-from ..exceptions import AmbiguousCardReferenceError, NotFoundError, ProtocolError
+from ..exceptions import AmbiguousCardReferenceError, ProtocolError
 from ..generated.api.default import (
-    delete_cards_card_id,
-    get_cards_card_id,
+    delete_projects_project_id_cards_card_id,
     get_projects_project_id_cards,
+    get_projects_project_id_cards_card_id,
     get_projects_project_id_cards_card_id_breadcrumbs,
-    patch_cards_card_id,
+    patch_projects_project_id_cards_card_id,
     post_card_references_resolve,
-    post_cards,
-    post_cards_card_id_move,
-    post_cards_card_id_restore,
+    post_projects_project_id_cards,
+    post_projects_project_id_cards_card_id_move,
+    post_projects_project_id_cards_card_id_restore,
 )
 from ..generated.models import (
     CardMove,
@@ -26,7 +26,7 @@ from ..generated.models import (
     CardReferenceResolveRequest,
     CardReferenceResolveRequestScope,
     CardUpdate,
-    DeleteCardsCardIdChildren,
+    DeleteProjectsProjectIdCardsCardIdChildren,
     GetProjectsProjectIdCardsOrder,
     NewCard,
 )
@@ -89,9 +89,9 @@ class CardCollection(Collection["Card"]):
         if parent == ROOTS:
             parent = UNSET
         data = self._holder._call(
-            post_cards,
+            post_projects_project_id_cards,
+            self._project.id,
             body=NewCard(
-                project_id=self._project.id,
                 title=title,
                 content=content,
                 parent_card_id=parent,
@@ -184,9 +184,9 @@ class CardCollection(Collection["Card"]):
         return rows, cursor
 
     def get(self, card_id: str) -> Card:
-        data = self._holder._call(get_cards_card_id, card_id)
-        if data.project_id != self._project.id:
-            raise NotFoundError(404, "not_found", "Card not found in this project")
+        data = self._holder._call(
+            get_projects_project_id_cards_card_id, self._project.id, card_id
+        )
         return Card._from(self._project, data)
 
     def lookup(
@@ -381,10 +381,15 @@ class Card:
             raise TypeError("title must be a string or None")
         if not isinstance(content, (str, Unset)):
             raise TypeError("content must be a string")
-        # Verify membership before any write. What is left out, or a None title, is kept.
-        self._project.cards.get(self.id)
+        # What is left out, or a None title, is kept.
         body = CardUpdate(title=UNSET if title is None else title, content=content)
-        self._project._holder._call(patch_cards_card_id, self.id, body=body, write=True)
+        self._project._holder._call(
+            patch_projects_project_id_cards_card_id,
+            self._project.id,
+            self.id,
+            body=body,
+            write=True,
+        )
         return self.refresh()
 
     def move(
@@ -422,7 +427,11 @@ class Card:
         else:
             raise TypeError("The move target must be a Card")
         self._project._holder._call(
-            post_cards_card_id_move, self.id, body=body, write=True
+            post_projects_project_id_cards_card_id_move,
+            self._project.id,
+            self.id,
+            body=body,
+            write=True,
         )
         return self.refresh()
 
@@ -436,11 +445,15 @@ class Card:
         not refreshed. The write is never retried.
         """
         try:
-            policy = DeleteCardsCardIdChildren(children)
+            policy = DeleteProjectsProjectIdCardsCardIdChildren(children)
         except ValueError:
             raise ValueError('children must be "promote" or "trash_subtree"') from None
         self._project._holder._call(
-            delete_cards_card_id, self.id, children=policy, write=True
+            delete_projects_project_id_cards_card_id,
+            self._project.id,
+            self.id,
+            children=policy,
+            write=True,
         )
 
     def restore(self) -> Self:
@@ -450,5 +463,10 @@ class Card:
         parent is live, otherwise to its nearest live ancestor or the top level.
         Children promoted when it was trashed stay where they are.
         """
-        self._project._holder._call(post_cards_card_id_restore, self.id, write=True)
+        self._project._holder._call(
+            post_projects_project_id_cards_card_id_restore,
+            self._project.id,
+            self.id,
+            write=True,
+        )
         return self.refresh()

@@ -15,11 +15,11 @@ The daemon tries RIG's dispatcher first, then this one for a request RIG has no 
 ```python
 contract = Contract(statuses={NotFound: 404})
 
-@contract.route("GET", "/cards/{card_id}", errors=[NotFound])
-def get_card(card_id: Annotated[CardId, Path()]) -> Card: ...
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
+def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card: ...
 
-@contract.route("POST", "/cards", status=201, errors=[NotFound])
-def create_card(card: Annotated[NewCard, Body()]) -> Card: ...
+@contract.route("POST", "/projects/{project_id}/cards", status=201, errors=[NotFound])
+def create_card(project_id: Annotated[ProjectId, Path()], card: Annotated[NewCard, Body()]) -> Card: ...
 ```
 
 - Each parameter says where it comes from: `Path()`, `Query()`, or `Body()` for at most one, a record, as the JSON request body.
@@ -33,6 +33,7 @@ def create_card(card: Annotated[NewCard, Body()]) -> Card: ...
   - an argument the contract rejects is 400, with the code `invalid_argument`;
   - an error kind has the status the `Contract` gives it, and its name in snake case as the code, such as `not_found`;
   - anything else is 500, `internal_error`.
+- **Cards** are named by their project and their ID, under `/projects/{project_id}/cards/{card_id}`, because copies of a project, such as a fork, keep their card IDs. A card in another project is not found. In the C API, `project_id` comes before `card_id`.
 - **Routes:** a literal path segment is tried before a parameter, and the generator rejects routes that could match the same request ambiguously.
 - **Path and query values** are percent-decoded; in the query, `+` is a space. A query parameter given twice is an invalid argument. Booleans are `true`, `false`, `1` or `0`. A choice of literals is its value as text, and `parent=roots` is the literal beside a card ID.
 - **Text** is UTF-8 without U+0000, and its length constraints count characters, as in the contract and the C API.

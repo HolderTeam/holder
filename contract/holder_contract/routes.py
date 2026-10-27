@@ -4,8 +4,8 @@ A contract's app.py makes one Contract and declares every operation through it:
 
     contract = Contract(statuses={NotFound: 404})
 
-    @contract.route("GET", "/cards/{card_id}", errors=[NotFound])
-    def get_card(card_id: Annotated[CardId, Path()]) -> Card:
+    @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
+    def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
         \"\"\"Fetch a card.\"\"\"
 
 A route is an ordinary FastAPI path operation on contract.router (contract.app is the FastAPI app
