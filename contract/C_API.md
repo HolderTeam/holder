@@ -21,6 +21,7 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Nullable and optional values:**
   - A nullable or absent string is `NULL`.
   - A nullable, absent or defaulted number in a record is a pointer, `NULL` when absent.
+- **Partial updates:** a field of an input record that is both nullable and omittable, such as a card's new parent in an update, is a `holder_string_change`: `{change, value}`, where `change` is `HOLDER_KEEP` (zero, so a zeroed record changes nothing), `HOLDER_SET` (to `value`) or `HOLDER_CLEAR` (to null). In C++ it is a `Change<T>`, `std::optional<std::optional<T>>`: `nullopt` keeps the field, an empty value clears it. Only strings have them so far, and results never do.
 - **Lists:** a list is a `{items, count}` struct.
 - **Parameter defaults:**
   - A parameter whose default is the zero value (`false`, `0`) is passed by value, so zero means the default.
@@ -33,4 +34,4 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
 - **Input records** are passed by pointer. A zeroed record means every optional field is absent: `holder_new_card card = {0};` then set what you need.
 - **Generic records** are generated for each use: `Page[CardListItem]` becomes `holder_card_list_item_page`.
 
-Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, host interfaces, error kinds with fields, maps, free-form JSON, secrets, streams, bytes, fields that are both nullable and omittable, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.
+Daemon-only operations are left out. Parts of the vocabulary the C generator does not support yet stop generation with a message naming them: enums, host interfaces, error kinds with fields, maps, free-form JSON, secrets, streams, bytes, partial updates of anything but a string, and constraints the glue cannot check yet (`pattern`, and bounds on a `float64`). Each is added when the first contract declaration needs it.

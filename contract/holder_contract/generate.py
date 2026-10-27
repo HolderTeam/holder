@@ -82,6 +82,7 @@ class Slot:
     optional: bool  # omittable, or has a default
     default: Any = None
     has_default: bool = False
+    change: bool = False  # nullable and omittable: a partial update keeps, sets or clears it
 
 
 class Model:
@@ -106,6 +107,10 @@ class Model:
             for parameter in op["parameters"]:
                 self.collect(parameter["type"], self.inputs, {})
             self.collect(op["returns"], self.outputs, {})
+        for instance in self.outputs:
+            for slot in self.slots(instance):
+                if slot.change:
+                    raise Unsupported(f"{instance.record}.{slot.name}: a partial update in a result")
 
     def resolve(self, ref: dict[str, Any]) -> dict[str, Any]:
         """The type with aliases replaced by what they name, keeping any constraints on top."""
@@ -175,13 +180,17 @@ class Model:
         nullable = ref["kind"] == "nullable"
         if nullable:
             ref = {**self.resolve(ref["value"]), **{k: v for k, v in ref.items() if k not in ("kind", "value")}}
-        if nullable and omittable:
-            raise Unsupported(f"{name}: a field both nullable and omittable (a partial update)")
+        if nullable and omittable and ref["kind"] != "string":
+            raise Unsupported(f"{name}: a partial update of a {ref['kind']}, which only strings have so far")
         if ref["kind"] in ("map", "json", "secret", "stream", "bytes", "none"):
             raise Unsupported(f"{name}: {ref['kind']}")
         if "pattern" in ref:
             raise Unsupported(f"{name}: patterns, which the glue would not check")
-        return Slot(name, ref, doc, nullable, omittable or has_default, default, has_default)
+        return Slot(name, ref, doc, nullable, omittable or has_default, default, has_default, nullable and omittable)
+
+    def changes(self) -> bool:
+        """Whether an input record has a field a partial update keeps, sets or clears."""
+        return any(slot.change for instance in self.inputs for slot in self.slots(instance))
 
 
 # ---- shared C and C++ spellings ---------------------------------------------------------------
@@ -205,6 +214,8 @@ def literal_member(value: str) -> str:
 
 def c_field(model: Model, slot: Slot) -> str:
     t = slot.type
+    if slot.change:
+        return f"holder_string_change {slot.name};"
     if t["kind"] == "string":
         return f"const char* {slot.name};"
     if t["kind"] in SCALARS_C:
@@ -221,7 +232,9 @@ def c_field(model: Model, slot: Slot) -> str:
 
 def c_field_note(slot: Slot) -> str:
     notes = []
-    if slot.nullable:
+    if slot.change:
+        notes.append("Zero keeps it.")
+    elif slot.nullable:
         notes.append("May be NULL.")
     elif slot.optional and not slot.has_default:
         notes.append("NULL when absent.")
@@ -319,6 +332,14 @@ def generate_c_header(model: Model) -> str:
     out += ["", "holder_arena* holder_arena_new(void);", "void holder_arena_free(holder_arena* arena);", "",
             "typedef struct holder_string_list {", "    const char* const* items;", "    size_t count;",
             "} holder_string_list;", ""]
+    if model.changes():
+        out += ["/* What a partial update does to a field. */", "typedef enum holder_change {",
+                "    HOLDER_KEEP = 0, /* Leave it as it is. */", "    HOLDER_SET = 1, /* Set it to value. */",
+                "    HOLDER_CLEAR = 2, /* Make it null. */",
+                "    HOLDER_CHANGE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */",
+                "} holder_change;", "",
+                "typedef struct holder_string_change {", "    holder_change change;",
+                "    const char* value; /* Read when change is HOLDER_SET. */", "} holder_string_change;", ""]
     for instance in unique(model.inputs + model.outputs):
         record = model.records[instance.record]
         out += comment(record["doc"])
@@ -365,6 +386,8 @@ def unique(items: list[Instance]) -> list[Instance]:
 
 def cpp_type(model: Model, slot: Slot, generic: dict[str, str] | None = None) -> str:
     base = cpp_base(model, slot.type, generic or {})
+    if slot.change:
+        return f"Change<{base}>"
     return f"std::optional<{base}>" if slot.nullable or (slot.optional and not slot.has_default) else base
 
 
@@ -412,6 +435,9 @@ def generate_cpp_header(model: Model) -> str:
            "struct Error : std::runtime_error {", "  using std::runtime_error::runtime_error;", "};", "",
            "/// Thrown for an argument the contract's checks cannot catch.",
            "struct InvalidArgument : Error {", "  using Error::Error;", "};", ""]
+    if model.changes():
+        out += ["/// A field of a partial update: nullopt keeps it, an empty value clears it, and a value sets it.",
+                "template <class T>", "using Change = std::optional<std::optional<T>>;", ""]
     for error in model.errors:
         out += comment(error["doc"], style="cpp")
         out += [f"struct {error['name']} : Error {{", "  using Error::Error;", "};", ""]
@@ -627,12 +653,28 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
 """
 
 
+CHANGE_SUPPORT = r"""
+// A partial update's text field: kept, set to its value, or cleared.
+contract::Change<std::string> changed_text(const holder_string_change& value, const char* name,
+                                           std::size_t min_length, std::size_t max_length) {
+  switch (value.change) {
+  case HOLDER_KEEP: return std::nullopt;
+  case HOLDER_SET: return text(value.value, (std::string(name) + ".value").c_str(), min_length, max_length);
+  case HOLDER_CLEAR: return std::optional<std::string>{};
+  default: throw ArgumentError(std::string(name) + ".change is not a holder_change value");
+  }
+}
+"""
+
+
 def limits(t: dict[str, Any]) -> tuple[str, str]:
     return str(t.get("min_length", 0)), str(t["max_length"]) if "max_length" in t else "SIZE_MAX"
 
 
 def to_c_value(model: Model, slot: Slot, source: str) -> str:
     t = slot.type
+    if slot.change:
+        raise Unsupported(f"{slot.name}: a partial update in a result")
     optional = slot.nullable or (slot.optional and not slot.has_default)
     if t["kind"] == "string":
         return f"copy_text(arena, {source})" if optional else f"copy(arena, {source})"
@@ -655,6 +697,9 @@ def to_c_value(model: Model, slot: Slot, source: str) -> str:
 def from_c_value(model: Model, slot: Slot, source: str, label: str) -> str:
     t = slot.type
     optional = slot.nullable or slot.optional
+    if slot.change:
+        low, high = limits(t)
+        return f'changed_text({source}, "{label}", {low}, {high})'
     if t["kind"] == "string":
         low, high = limits(t)
         if optional:
@@ -698,6 +743,8 @@ def generate_glue(model: Model) -> str:
            "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <optional>", "#include <string>",
            "#include <utility>", "#include <vector>",
            GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
+    if model.changes():
+        out += [CHANGE_SUPPORT.strip("\n"), ""]
     outputs = unique(model.outputs)
     for instance in outputs:
         out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value);")

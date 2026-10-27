@@ -12,12 +12,14 @@ from pathlib import Path
 import pytest
 
 from holder_contract.extract import extract
-from holder_contract.generate import CORE_PATHS, Unsupported, camel, generate, snake
+from holder_contract.generate import CORE_PATHS, Model, Unsupported, camel, generate, snake
+from holder_contract.json_codec import generate_codec
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
 STRICT = ["-Wall", "-Wextra", "-Wpedantic", "-Werror"]
 SANITIZE = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
+NLOHMANN = [Path(p) for p in ("/usr/include/nlohmann/json.hpp", "/usr/local/include/nlohmann/json.hpp")]
 
 
 def holder_ir():
@@ -79,3 +81,152 @@ def test_generated_code_compiles_and_runs(tmp_path):
     run("g++", *SANITIZE, "glue.o", "stub.o", "exercise.o", "-o", "exercise")
     result = subprocess.run([str(tmp_path / "exercise")], capture_output=True, text=True, check=True)
     assert result.stdout == (TESTS / "c" / "exercise.expected").read_text(encoding="utf-8")
+
+
+# ---- partial updates ---------------------------------------------------------------------------
+
+
+def with_partial_update(ir):
+    """Holder's contract plus change_card, whose CardChange keeps, sets or clears a card's parent."""
+    ir["records"].append({"name": "CardChange", "source": "interface/cards.py", "doc": "A change to a card.",
+                          "fields": [{"name": "parent_card_id", "doc": "Null makes it a root card.", "omittable": True,
+                                      "type": {"kind": "nullable", "value": {"kind": "named", "name": "CardId"}}}]})
+    ir["operations"].append({"name": "change_card", "source": "interface/app.py", "summary": "Change a card.",
+                             "description": None, "errors": [], "daemon_only": False,
+                             "parameters": [{"name": "card_id", "type": {"kind": "named", "name": "CardId"}},
+                                            {"name": "change", "type": {"kind": "named", "name": "CardChange"}}],
+                             "returns": {"kind": "named", "name": "Card"}})
+    return ir
+
+
+# What core sees: the change_card the tests below link, which names the change in the card's title.
+CHANGE_CARD = r"""
+#include "Contract.h"
+
+namespace holder::contract {
+
+Card change_card(holder_context&, std::string card_id, const CardChange& change) {
+  Card card{};
+  card.card_id = card_id;
+  card.title = !change.parent_card_id ? "keep" : !*change.parent_card_id ? "clear" : "set " + **change.parent_card_id;
+  return card;
+}
+
+}  // namespace holder::contract
+"""
+
+
+def test_a_partial_update_is_a_change_in_c_and_cpp():
+    files = generate(with_partial_update(holder_ir()))
+    assert "typedef enum holder_change {" in files["holder_api.h"]
+    assert "    holder_string_change parent_card_id; /* Null makes it a root card. Zero keeps it. */" in files["holder_api.h"]
+    assert "using Change = std::optional<std::optional<T>>;" in files["Contract.h"]
+    assert "  Change<std::string> parent_card_id;  ///< Null makes it a root card." in files["Contract.h"]
+    # Holder's contract has none yet, so nothing changes for it.
+    assert "holder_change" not in generate(holder_ir())["holder_api.h"]
+
+
+def test_a_partial_update_of_anything_but_text_stops_generation():
+    ir = with_partial_update(holder_ir())
+    ir["records"][-1]["fields"][0]["type"]["value"] = {"kind": "int64"}
+    with pytest.raises(Unsupported, match="a partial update of a int64, which only strings have so far"):
+        generate(ir)
+
+
+def test_a_partial_update_in_a_result_stops_generation():
+    ir = with_partial_update(holder_ir())
+    ir["operations"][-1]["returns"] = {"kind": "named", "name": "CardChange"}
+    with pytest.raises(Unsupported, match="CardChange.parent_card_id: a partial update in a result"):
+        generate(ir)
+
+
+@pytest.mark.skipif(not (shutil.which("gcc") and shutil.which("g++")), reason="needs gcc and g++")
+def test_a_partial_update_keeps_sets_or_clears_through_the_c_api(tmp_path):
+    (tmp_path / "holder").mkdir()
+    shutil.copy(CONTRACT.parent / "core/include/holder/holder.h", tmp_path / "holder" / "holder.h")
+    for name, text in generate(with_partial_update(holder_ir())).items():
+        (tmp_path / ("holder" if name == "holder_api.h" else ".") / name).write_text(text, encoding="utf-8")
+    (tmp_path / "change_card.cpp").write_text(CHANGE_CARD, encoding="utf-8")
+    (tmp_path / "main.c").write_text(r"""
+#include "holder/holder.h"
+
+#include <stdio.h>
+
+holder_context* stub_context_new(void);
+void stub_context_free(holder_context* context);
+
+static void change(holder_context* context, holder_arena* arena, int kind, const char* value) {
+    holder_card_change card_change = {0};
+    card_change.parent_card_id.change = (holder_change)kind;
+    card_change.parent_card_id.value = value;
+    const holder_card* card = NULL;
+    holder_error* error = NULL;
+    if (holder_change_card(context, "c1", &card_change, arena, &card, &error) == HOLDER_OK) {
+        printf("%s\n", card->title);
+    } else {
+        printf("%s\n", holder_error_message(error));
+        holder_error_destroy(error);
+    }
+}
+
+int main(void) {
+    holder_context* context = stub_context_new();
+    holder_arena* arena = holder_arena_new();
+    change(context, arena, HOLDER_KEEP, "ignored");
+    change(context, arena, HOLDER_SET, "c2");
+    change(context, arena, HOLDER_CLEAR, "ignored");
+    change(context, arena, HOLDER_SET, NULL);
+    change(context, arena, HOLDER_SET, "");
+    change(context, arena, 7, "c2");
+    holder_arena_free(arena);
+    stub_context_free(context);
+    return 0;
+}
+""", encoding="utf-8")
+
+    def run(*command):
+        subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
+
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractGlue.cpp", "-o", "glue.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "change_card.cpp", "-o", "change_card.o")
+    run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", "main.c", "-o", "main.o")
+    run("g++", *SANITIZE, "glue.o", "stub.o", "change_card.o", "main.o", "-o", "main")
+    result = subprocess.run([str(tmp_path / "main")], capture_output=True, text=True, check=True)
+    assert result.stdout.splitlines() == [
+        "keep", "set c2", "clear",
+        "card_change.parent_card_id.value must not be null",
+        "card_change.parent_card_id.value must not be empty",
+        "card_change.parent_card_id.change is not a holder_change value"]
+
+
+@pytest.mark.skipif(not shutil.which("g++") or not any(p.exists() for p in NLOHMANN),
+                    reason="needs g++ and nlohmann/json")
+def test_a_partial_update_keeps_sets_or_clears_through_json(tmp_path):
+    ir = with_partial_update(holder_ir())
+    (tmp_path / "Contract.h").write_text(generate(ir)["Contract.h"], encoding="utf-8")
+    (tmp_path / "ContractJson.h").write_text(generate_codec(Model(ir), "Contract.h"), encoding="utf-8")
+    (tmp_path / "main.cpp").write_text(r"""
+#include "ContractJson.h"
+
+#include <iostream>
+
+int main() {
+  using holder::contract::CardChange;
+  for (const char* text : {"{}", R"({"parent_card_id": null})", R"({"parent_card_id": "c2"})",
+                           R"({"parent_card_id": ""})", R"({"parent_card_id": 7})"}) {
+    try {
+      const auto change = contract_json::decode<CardChange>(nlohmann::json::parse(text));
+      std::cout << contract_json::encode(change).dump() << "\n";
+    } catch (const std::invalid_argument& error) {
+      std::cout << error.what() << "\n";
+    }
+  }
+}
+""", encoding="utf-8")
+    subprocess.run(["g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "main.cpp", "-o", "main"], check=True,
+                   cwd=tmp_path, capture_output=True, text=True)
+    result = subprocess.run([str(tmp_path / "main")], capture_output=True, text=True, check=True)
+    assert result.stdout.splitlines() == [
+        "{}", '{"parent_card_id":null}', '{"parent_card_id":"c2"}',
+        "parent_card_id must not be empty", "parent_card_id must be a string"]

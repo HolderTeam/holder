@@ -213,7 +213,10 @@ def record_lines(model: Model, instance: Instance) -> list[str]:
     for slot in slots:
         base = cpp_base(model, slot.type)
         held = slot.nullable or (slot.optional and not slot.has_default)
-        if not held:
+        if slot.change:
+            lines.append(f'    if (value.{slot.name}) result["{slot.name}"] = *value.{slot.name} ? '
+                         f'codec<{base}>::encode(**value.{slot.name}) : json(nullptr);')
+        elif not held:
             lines.append(f'    result["{slot.name}"] = codec<{base}>::encode(value.{slot.name});')
         elif slot.nullable:
             lines.append(f'    result["{slot.name}"] = value.{slot.name} ? '
@@ -234,7 +237,10 @@ def record_lines(model: Model, instance: Instance) -> list[str]:
         lines.append(f'    if ({present} && !value.at("{slot.name}").is_null()) {{')
         lines.append(f'        const auto& item = value.at("{slot.name}");')
         lines.append(f"        out.{slot.name} = {decoded};")
-        if slot.nullable:
+        if slot.change:
+            # Absent keeps the field; null clears it.
+            lines += [f"    }} else if ({present}) {{", f"        out.{slot.name}.emplace();", "    }"]
+        elif slot.nullable:
             lines.append("    }")
         elif slot.optional:
             lines += [f"    }} else if ({present}) {{",
