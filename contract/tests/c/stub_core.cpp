@@ -12,6 +12,7 @@ struct holder_context {
   std::vector<holder::contract::Link> links;
   std::vector<holder::contract::Milestone> milestones;
   std::vector<holder::contract::Resource> resources;
+  std::vector<holder::contract::Project> projects;
   int next_id = 1;
 };
 
@@ -333,6 +334,57 @@ std::vector<Resource> detach_card_resource(holder_context& context, std::string 
                                            std::string resource_id) {
   (void)resource_id;
   return list_card_resources(context, project_id, card_id);
+}
+// Projects, kept in the order they were made: the stand-in keeps no repositories.
+Project& project_named(holder_context& context, const std::string& project_id) {
+  for (auto& project : context.projects)
+    if (project.project_id == project_id) return project;
+  throw NotFound("project not found: " + project_id);
+}
+
+std::vector<ProjectListItem> list_projects(holder_context& context, std::optional<std::string> name,
+                                           std::optional<long long> updated_after,
+                                           std::optional<long long> updated_before,
+                                           std::optional<ListProjectsOrder> order, std::int32_t limit,
+                                           std::int32_t offset, bool include_card_counts) {
+  (void)updated_after, (void)updated_before, (void)order, (void)include_card_counts;
+  std::vector<ProjectListItem> out;
+  for (const auto& project : context.projects)
+    if (!name || project.name.find(*name) != std::string::npos) out.push_back({project, std::nullopt, std::nullopt});
+  out.erase(out.begin(), out.begin() + std::min<std::size_t>(out.size(), offset));
+  if (out.size() > static_cast<std::size_t>(limit)) out.resize(limit);
+  return out;
+}
+
+Project get_project(holder_context& context, std::string project_id) { return project_named(context, project_id); }
+
+Project create_project(holder_context& context, const NewProject& request) {
+  Project project{request.project_id.value_or("p" + std::to_string(context.next_id++)),
+                  request.name,
+                  request.root_path.value_or("/projects/" + request.name),
+                  request.git_remote_url,
+                  request.git_provider,
+                  request.privacy_mode == NewProjectPrivacyMode::Plain ? ProjectPrivacyMode::Plain
+                                                                       : ProjectPrivacyMode::EncryptedGit,
+                  std::nullopt,
+                  request.created_at.value_or(1793000600),
+                  request.updated_at.value_or(request.created_at.value_or(1793000600))};
+  context.projects.push_back(project);
+  return project;
+}
+
+Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update) {
+  auto& project = project_named(context, project_id);
+  if (update.name) project.name = *update.name;
+  if (update.git_remote_url) project.git_remote_url = *update.git_remote_url;
+  if (update.git_provider) project.git_provider = *update.git_provider;
+  return project;
+}
+
+Project delete_project(holder_context& context, std::string project_id) {
+  const auto project = project_named(context, project_id);
+  std::erase_if(context.projects, [&](const Project& p) { return p.project_id == project_id; });
+  return project;
 }
 }  // namespace holder::contract
 

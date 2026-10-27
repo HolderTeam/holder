@@ -190,16 +190,15 @@ class ConcurrentPullGitOps final : public holder::git::GitOps {
   std::filesystem::path repo_dir() const override { return root; }
 };
 
-void check_mutation(const CliResult& result, bool changed) {
+// A remote change's --json output is the project as it is now, with the remote shown as holderctl
+// shows it.
+void check_mutation(const CliResult& result, SyncFixture& fixture,
+                    std::optional<std::string> shown_remote = std::nullopt) {
   REQUIRE(result.code == 0);
   CHECK(result.error.empty());
-  CHECK(
-      nlohmann::json::parse(result.output) ==
-      nlohmann::json{
-          {"ok", true},
-          {"data", {{"project_id", work_id}, {"git_remote_changed", changed}}}
-      }
-  );
+  auto expected = fixture.request(http::verb::get, work_id);
+  if (shown_remote) expected["data"]["git_remote_url"] = *shown_remote;
+  CHECK(nlohmann::json::parse(result.output) == expected);
 }
 } // namespace
 
@@ -227,12 +226,12 @@ TEST_CASE(
   CHECK(result.error.empty());
   CHECK(fixture.request(http::verb::get, work_id)["data"]["git_remote_url"] == first_url);
   CHECK(git_remote_url(fixture.dir / "work") == first_url);
-  check_mutation(fixture.run("remote " + first_url + " --project " + work_id + " --json"), false);
+  check_mutation(fixture.run("remote " + first_url + " --project " + work_id + " --json"), fixture);
   result = fixture.run("remote " + first_url + select);
   CHECK(result.output == "Project: " + work_id + "\nRemote unchanged: " + first_url + "\n");
 
   const std::string second_url = "https://example.com/team/work.git";
-  check_mutation(fixture.run("--project 'Work Project' remote " + second_url + " --json"), true);
+  check_mutation(fixture.run("--project 'Work Project' remote " + second_url + " --json"), fixture);
   result = fixture.run("remote" + select);
   CHECK(result.output == "Remote: " + second_url + "\n");
   result = fixture.run("remote --json" + select);
@@ -243,10 +242,10 @@ TEST_CASE(
   REQUIRE(result.code == 0);
   CHECK(result.output == "Project: " + work_id + "\nDisconnected.\n");
   CHECK_FALSE(git_remote_url(fixture.dir / "work").has_value());
-  check_mutation(fixture.run("remote " + second_url + select + " --json"), true);
-  check_mutation(fixture.run("disconnect --json" + select), true);
+  check_mutation(fixture.run("remote " + second_url + select + " --json"), fixture);
+  check_mutation(fixture.run("disconnect --json" + select), fixture);
   CHECK_FALSE(git_remote_url(fixture.dir / "work").has_value());
-  check_mutation(fixture.run("disconnect --json" + select), false);
+  check_mutation(fixture.run("disconnect --json" + select), fixture);
   result = fixture.run("disconnect" + select);
   CHECK(result.output == "Project: " + work_id + "\nAlready disconnected.\n");
   CHECK(fixture.run("remote" + select).output == "Remote: none\n");
@@ -273,9 +272,8 @@ TEST_CASE(
   second_thread.join();
   REQUIRE(first.code == 0);
   REQUIRE(second.code == 0);
-  const bool first_changed = nlohmann::json::parse(first.output)["data"]["git_remote_changed"];
-  check_mutation(first, first_changed);
-  check_mutation(second, !first_changed);
+  check_mutation(first, fixture);
+  check_mutation(second, fixture);
   CHECK(git_remote_url(fixture.dir / "work") == "https://example.com/work.git");
 }
 
@@ -302,7 +300,6 @@ TEST_CASE("holderctl sync remote redacts URLs and diagnostics", "[holderctl][syn
   REQUIRE(result.code == 0);
   auto expected = fixture.request(http::verb::get, work_id);
   expected["data"]["git_remote_url"] = "[redacted]";
-  expected["data"]["sync"]["last_sync_error"] = "[redacted]";
   CHECK(nlohmann::json::parse(result.output) == expected);
   CHECK(result.output.find("private-secret") == std::string::npos);
   CHECK(result.output.find(fixture.token) == std::string::npos);
@@ -318,8 +315,7 @@ TEST_CASE("holderctl sync remote redacts URLs and diagnostics", "[holderctl][syn
           "remote 'https://user:private-secret@example.com/new.git' --project " + work_id +
           " --json"
       ),
-      false
-  );
+      fixture, "[redacted]");
 }
 
 TEST_CASE(
@@ -341,12 +337,12 @@ TEST_CASE(
   }
   SECTION("remote rejected by Git") {
     git.set_error = "Invalid remote https://user:private-secret@example.com/new.git";
-    expected_code = "bad_request";
+    expected_code = "invalid_argument";
   }
   SECTION("disconnect rejected by Git") {
     git.remove_error = "Bearer private-secret";
     operation = "disconnect";
-    expected_code = "bad_request";
+    expected_code = "internal_error";
   }
   SECTION("network failure") {
     stop_server = true;
@@ -393,17 +389,16 @@ TEST_CASE("project remote update contract rejects malformed input", "[http][sync
   SyncFixture fixture(&git);
   const auto before = fixture.request(http::verb::get, work_id);
   for (const auto& body :
-       {nlohmann::json{{"git_remote_url", 42}, {"updated_at", 2}},
-        nlohmann::json{{"git_remote_url", "url"}},
-        nlohmann::json{{"git_remote_url", false}, {"updated_at", 2}}}) {
+       {nlohmann::json{{"git_remote_url", 42}},
+        nlohmann::json{{"git_remote_url", "url"}, {"updated_at", 2}},
+        nlohmann::json{{"git_remote_url", false}}}) {
     CHECK(
         fixture.request(http::verb::patch, work_id, body, http::status::bad_request)["ok"] == false
     );
     CHECK(fixture.request(http::verb::get, work_id) == before);
   }
-  const auto name_only =
-      fixture.request(http::verb::patch, work_id, {{"name", "Work"}, {"updated_at", 2}});
-  CHECK_FALSE(name_only["data"].contains("git_remote_changed"));
+  const auto name_only = fixture.request(http::verb::patch, work_id, {{"name", "Work"}});
+  CHECK(name_only["data"]["name"] == "Work");
 }
 
 TEST_CASE(
@@ -493,7 +488,7 @@ TEST_CASE(
   );
   CHECK(read_text(fixture.dir / "work" / "seed.txt") == "uncommitted edits");
   CHECK(
-      fixture.request(http::verb::get, work_id)["data"]["sync"]["uncommitted_changes_count"]
+      fixture.request(http::verb::get, work_id + "/git/sync-status")["data"]["sync"]["uncommitted_changes_count"]
           .get<int>() > 0
   );
   local.write_file("seed.txt", "seed");
@@ -617,10 +612,10 @@ TEST_CASE("holderctl sync push preserves results and conflict state", "[holderct
     }
   }
   CHECK(
-      fixture.request(http::verb::get, work_id)["data"]["sync"]["last_push_status"] ==
+      fixture.request(http::verb::get, work_id + "/git/sync-status")["data"]["sync"]["last_push_status"] ==
       holder::git::push_status_name(git.push_result.status)
   );
-  CHECK(fixture.request(http::verb::get, "home-id")["data"]["sync"]["updated_at"].is_null());
+  CHECK(fixture.request(http::verb::get, "home-id/git/sync-status")["data"]["sync"]["updated_at"].is_null());
 }
 
 TEST_CASE("holderctl sync test redacts successful remote URLs", "[holderctl][sync][probe]") {

@@ -1,33 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="ProjectDeleteResponseData")
+if TYPE_CHECKING:
+    from ..models.project import Project
+
+
+T = TypeVar("T", bound="ProjectResponse")
 
 
 @_attrs_define
-class ProjectDeleteResponseData:
+class ProjectResponse:
     """
     Attributes:
-        project_id (str):
+        ok (bool):
+        data (Project): A project on this device.
     """
 
-    project_id: str
+    ok: bool
+    data: Project
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        project_id = self.project_id
+        ok = self.ok
+
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "project_id": project_id,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -35,15 +44,20 @@ class ProjectDeleteResponseData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        project_id = d.pop("project_id")
+        from ..models.project import Project
 
-        project_delete_response_data = cls(
-            project_id=project_id,
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = Project.from_dict(d.pop("data"))
+
+        project_response = cls(
+            ok=ok,
+            data=data,
         )
 
-        project_delete_response_data.additional_properties = d
-        return project_delete_response_data
+        project_response.additional_properties = d
+        return project_response
 
     @property
     def additional_keys(self) -> list[str]:

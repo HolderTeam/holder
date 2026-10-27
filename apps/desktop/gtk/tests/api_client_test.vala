@@ -63,6 +63,7 @@ private void test_list_projects_parses_data() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"card_count\":7,\"root_card_count\":3}]}"
     );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -83,8 +84,8 @@ private void test_list_projects_parses_data() {
     assert(projects[0].name == "My Project");
     assert(projects[0].card_count == 7);
     assert(projects[0].root_card_count == 3);
-    assert(transport.last_uri.contains("/projects"));
-    assert(transport.last_uri.contains("count=true"));
+    // Each project's sync state is read after the listing.
+    assert(transport.last_uri.contains("/projects/p1/git/sync-status"));
 }
 
 private void test_create_project_sends_json_and_returns_id() {
@@ -1320,7 +1321,7 @@ private void test_set_project_git_remote_handles_null_and_non_empty_url() {
 
     bool done_null = false;
     bool ok_null = false;
-    client.set_project_git_remote.begin("p1", null, 11, (obj, res) => {
+    client.set_project_git_remote.begin("p1", null, (obj, res) => {
         try {
             client.set_project_git_remote.end(res);
             ok_null = true;
@@ -1336,7 +1337,7 @@ private void test_set_project_git_remote_handles_null_and_non_empty_url() {
 
     bool done_url = false;
     bool ok_url = false;
-    client.set_project_git_remote.begin("p1", "git@github.com:me/repo.git", 12, (obj, res) => {
+    client.set_project_git_remote.begin("p1", "git@github.com:me/repo.git", (obj, res) => {
         try {
             client.set_project_git_remote.end(res);
             ok_url = true;
@@ -1815,7 +1816,12 @@ private void test_list_projects_parses_sync_state_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"pull_retry_count\":5,\"next_pull_retry_at\":16,\"updated_at\":15}}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2}]}"
+    );
+    // The listing, then the project's sync state, read on its own.
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"pull_retry_count\":5,\"next_pull_retry_at\":16,\"updated_at\":15}}}"
     );
     var client = make_client(transport);
 
@@ -1857,41 +1863,14 @@ private void test_list_projects_parses_sync_state_fields() {
     assert(sync.updated_at == 15);
 }
 
-private void test_list_projects_sync_null_or_non_object_uses_defaults() {
-    var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(
-        200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Null Sync\",\"root_path\":\"/tmp/p1\",\"sync\":null},{\"project_id\":\"p2\",\"name\":\"Array Sync\",\"root_path\":\"/tmp/p2\",\"sync\":[]}]}"
-    );
-    var client = make_client(transport);
-
-    bool done = false;
-    Gee.ArrayList<HolderLinux.Project>? projects = null;
-    client.list_projects.begin((obj, res) => {
-        try {
-            projects = client.list_projects.end(res);
-        } catch (Error e) {
-            projects = null;
-        }
-        done = true;
-    });
-
-    assert(wait_for_condition(() => done));
-    assert(projects != null);
-    assert(projects.size == 2);
-    assert(!projects[0].sync.has_last_commit_at);
-    assert(projects[0].sync.uncommitted_changes_count == 0);
-    assert(!projects[1].sync.has_last_push_at);
-    assert(projects[1].sync.retry_count == 0);
-    assert(projects[1].sync.pull_retry_count == 0);
-}
-
 private void test_list_projects_parses_nullable_git_remote_url() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"No Remote\",\"git_remote_url\":null},{\"project_id\":\"p2\",\"name\":\"Has Remote\",\"git_remote_url\":\"git@github.com:owner/repo.git\"}]}"
     );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p2\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1916,8 +1895,9 @@ private void test_list_projects_sync_nullable_int_fields_missing_and_null() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"next_pull_retry_at\":66,\"updated_at\":99}}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\"}]}"
     );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"next_pull_retry_at\":66,\"updated_at\":99}}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1952,8 +1932,9 @@ private void test_list_projects_sync_object_missing_counts_defaults_to_zero() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Missing Counts\",\"sync\":{}}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Missing Counts\"}]}"
     );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{}}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -2972,8 +2953,6 @@ int main(string[] args) {
                   test_list_cards_recent_view_calls_cards_endpoint);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
-    Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",
-                  test_list_projects_sync_null_or_non_object_uses_defaults);
     Test.add_func("/api_client/list_projects_parses_nullable_git_remote_url",
                   test_list_projects_parses_nullable_git_remote_url);
     Test.add_func("/api_client/list_projects_sync_nullable_int_fields_missing_and_null",

@@ -273,28 +273,22 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
     }
     if (action == "remote" || action == "disconnect") {
       const bool mutation = action == "disconnect" || remote_url.has_value();
-      auto body = nlohmann::json::object();
+      auto payload = card_api_request(paths, boost::beast::http::verb::get, target);
+      // Whether the remote changes is whether the one stored differs.
+      const auto& before = payload.at("data").at("git_remote_url");
+      const bool changed = mutation && (remote_url ? before != nlohmann::json(*remote_url) : !before.is_null());
       if (mutation) {
-        body["git_remote_url"] = remote_url ? nlohmann::json(*remote_url) : nlohmann::json(nullptr);
-        body["updated_at"] = now_epoch_seconds();
+        const auto body = nlohmann::json{
+            {"git_remote_url", remote_url ? nlohmann::json(*remote_url) : nlohmann::json(nullptr)}};
+        payload = card_api_request(paths, boost::beast::http::verb::patch, target, body);
       }
-      auto payload = card_api_request(
-          paths,
-          mutation ? boost::beast::http::verb::patch : boost::beast::http::verb::get,
-          target,
-          body
-      );
-      if (!mutation) {
-        auto& data = payload.at("data");
-        if (!data.at("git_remote_url").is_null()) {
-          data["git_remote_url"] = safe_remote_url(json_string(data, "git_remote_url"));
-        }
-        redact_diagnostics(data.at("sync").at("last_sync_error"));
+      auto& data = payload.at("data");
+      if (!data.at("git_remote_url").is_null()) {
+        data["git_remote_url"] = safe_remote_url(json_string(data, "git_remote_url"));
       }
       if (json_output) {
         std::cout << payload.dump(2) << "\n";
       } else if (mutation) {
-        const bool changed = payload.at("data").at("git_remote_changed").get<bool>();
         std::cout << "Project: " << json_string(payload.at("data"), "project_id") << "\n";
         if (action == "disconnect") {
           std::cout << (changed ? "Disconnected.\n" : "Already disconnected.\n");

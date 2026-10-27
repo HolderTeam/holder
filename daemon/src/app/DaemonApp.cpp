@@ -27,7 +27,7 @@
 #include "platform/LockFile.h"
 #include "platform/Migrations.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "platform/ServerInfo.h"
 #include "platform/Signal.h"
 #include "privacy/SecretStore.h"

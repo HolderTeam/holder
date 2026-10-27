@@ -270,8 +270,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
     public async void set_project_git_remote(string project_id,
-                                             string? git_remote_url,
-                                             int64 updated_at) throws Error {}
+                                             string? git_remote_url) throws Error {}
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
                                                                          string? remote_url = null,
                                                                          string branch = "") throws Error {

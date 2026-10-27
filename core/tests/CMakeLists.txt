@@ -42,6 +42,7 @@ add_executable(holder_core_tests
   CApiCards_test.cpp
   ContractContext_test.cpp
   ContractLinks_test.cpp
+  ContractProjects_test.cpp
   CardFrontMatter_test.cpp
   CardPaths_test.cpp
   CardPlacementResolver_test.cpp
@@ -72,6 +73,7 @@ add_executable(holder_core_tests
   PrivacyError_test.cpp
   ProjectPaths_test.cpp
   ProjectPrivacy_test.cpp
+  ProjectRegistry_test.cpp
   ProjectRepo_test.cpp
   ProjectStore_test.cpp
   ProjectManifest_test.cpp

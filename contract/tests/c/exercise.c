@@ -219,6 +219,23 @@ int main(void) {
     status = holder_attach_card_resource(context, "p1", "c1", "res-1", arena, &attached, &error);
     printf("attach a resource: status %d, %zu attached\n", status, attached->count);
 
+    holder_new_project new_project = {0};
+    new_project.name = "Garden";
+    const holder_project* project = NULL;
+    status = holder_create_project(context, &new_project, arena, &project, &error);
+    printf("create a project: status %d, %s %s privacy %d\n", status, project->project_id, project->name,
+           (int)project->privacy_mode);
+    new_project.privacy_mode = (holder_new_project_privacy_mode)9;
+    status = holder_create_project(context, &new_project, arena, &project, &error);
+    report("create a project with an unknown privacy mode", status, &error);
+    const holder_project_list_item_list* projects = NULL;
+    status = holder_list_projects(context, "Gard", NULL, NULL, HOLDER_LIST_PROJECTS_ORDER_NONE, NULL, 0, false, arena,
+                                  &projects, &error);
+    printf("list projects: status %d, %zu found\n", status, projects->count);
+    status = holder_list_projects(context, NULL, NULL, NULL, (holder_list_projects_order)99, NULL, 0, false, arena,
+                                  &projects, &error);
+    report("list projects in an unknown order", status, &error);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

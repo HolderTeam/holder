@@ -217,8 +217,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   nlohmann::json update_body = {
       {"name", "Project Uno"},
       {"git_remote_url", "git@github.com:me/demo.git"},
-      {"git_provider", "github"},
-      {"updated_at", 20}
+      {"git_provider", "github"}
   };
 
   const auto updated = http_json_request(
@@ -264,8 +263,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
 
   nlohmann::json clear_git = {
       {"git_remote_url", nullptr},
-      {"git_provider", nullptr},
-      {"updated_at", 21}
+      {"git_provider", nullptr}
   };
 
   http_json_request(
@@ -292,11 +290,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
   const auto remote_cleared = get_remote_url(project_root, "origin");
   REQUIRE_FALSE(remote_cleared.has_value());
 
-  nlohmann::json privacy_patch = {
-      {"privacy_mode", "plain"},
-      {"project_key_id", "key-123"},
-      {"updated_at", 22}
-  };
+  // The privacy mode and key are set when a project is made.
+  nlohmann::json privacy_patch = {{"privacy_mode", "plain"}, {"project_key_id", "key-123"}};
   http_json_request(
       bound.bind,
       bound.port,
@@ -304,9 +299,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       boost::beast::http::verb::patch,
       "/projects/proj-1",
       privacy_patch,
-      boost::beast::http::status::ok
+      boost::beast::http::status::bad_request
   );
-
   const auto fetched_privacy = http_json_request(
       bound.bind,
       bound.port,
@@ -316,8 +310,8 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
-  REQUIRE(fetched_privacy["data"]["privacy_mode"] == "plain");
-  REQUIRE(fetched_privacy["data"]["project_key_id"] == "key-123");
+  REQUIRE(fetched_privacy["data"]["privacy_mode"] == "encrypted_git");
+  REQUIRE(fetched_privacy["data"]["project_key_id"] == fetched_after["data"]["project_key_id"]);
 
   git_repo.open_or_init(manual_project_root.string());
   git_repo.remove_remote("origin");
@@ -371,7 +365,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?count=true",
+      "/projects?include_card_counts=true",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -395,11 +389,11 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
 
   const auto numeric_count = http_json_request(
       bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects?count=1", nlohmann::json::object(), boost::beast::http::status::ok);
+      "/projects?include_card_counts=true", nlohmann::json::object(), boost::beast::http::status::ok);
   REQUIRE(numeric_count["data"][0].contains("card_count"));
   const auto numeric_no_count = http_json_request(
       bound.bind, bound.port, token, boost::beast::http::verb::get,
-      "/projects?count=0", nlohmann::json::object(), boost::beast::http::status::ok);
+      "/projects?include_card_counts=false", nlohmann::json::object(), boost::beast::http::status::ok);
   REQUIRE_FALSE(numeric_no_count["data"][0].contains("card_count"));
 
   const auto filtered_by_name = http_json_request(
@@ -435,8 +429,9 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
+  // Changing proj-1 above made it the latest changed.
   REQUIRE(filtered_ordered["data"].size() == 1);
-  REQUIRE(filtered_ordered["data"][0]["project_id"] == "proj-1");
+  REQUIRE(filtered_ordered["data"][0]["project_id"] == "proj-2");
 
   const auto name_ordered = http_json_request(
       bound.bind,
@@ -503,7 +498,7 @@ TEST_CASE("HTTP project create/list/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?order=updated_at_desc&limit=5001&offset=0",
+      "/projects?order=updated_at_desc&limit=1000&offset=0",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
@@ -585,7 +580,7 @@ TEST_CASE("HTTP project list rejects invalid order and negative paging", "[http]
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/projects?count=maybe",
+      "/projects?include_card_counts=maybe",
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
@@ -780,7 +775,6 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
        {"name", "Project One"},
        {"root_path", (dir / "repo").string()},
        {"git_provider", "github"},
-       {"project_key_id", nullptr},
        {"privacy_mode", "plain"},
        {"created_at", 1},
        {"updated_at", 1}},
@@ -893,29 +887,27 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
       )["ok"] == false
   );
 
-  // patch validation / not-found / root_path update / invalid privacy mode
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"name", "No Updated At"}},
-          boost::beast::http::status::bad_request
-      )["ok"] == false
-  );
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"updated_at", 2}},
-          boost::beast::http::status::bad_request
-      )["ok"] == false
-  );
+  // Patch validation and not found. Only the name and the Git remote change; the root path and the
+  // privacy mode are set when a project is made, and a time of change is not given.
+  for (const auto& body : std::vector<nlohmann::json>{
+           {{"name", ""}},
+           {{"updated_at", 2}},
+           {{"root_path", (dir / "repo2").string()}},
+           {{"privacy_mode", "plain"}},
+       }) {
+    INFO(body.dump());
+    REQUIRE(
+        http_json_request(
+            bound.bind,
+            bound.port,
+            token,
+            boost::beast::http::verb::patch,
+            "/projects/proj-1",
+            body,
+            boost::beast::http::status::bad_request
+        )["ok"] == false
+    );
+  }
   REQUIRE(
       http_json_request(
           bound.bind,
@@ -923,29 +915,8 @@ TEST_CASE("HTTP project routes cover validation and not-found branches", "[http]
           token,
           boost::beast::http::verb::patch,
           "/projects/nope",
-          {{"updated_at", 2}, {"name", "x"}},
+          {{"name", "x"}},
           boost::beast::http::status::not_found
-      )["ok"] == false
-  );
-  const auto patched_root = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/projects/proj-1",
-      {{"updated_at", 3}, {"root_path", (dir / "repo2").string()}},
-      boost::beast::http::status::ok
-  );
-  REQUIRE(patched_root["ok"] == true);
-  REQUIRE(
-      http_json_request(
-          bound.bind,
-          bound.port,
-          token,
-          boost::beast::http::verb::patch,
-          "/projects/proj-1",
-          {{"updated_at", 4}, {"privacy_mode", "nope"}},
-          boost::beast::http::status::bad_request
       )["ok"] == false
   );
 

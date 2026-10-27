@@ -180,7 +180,7 @@ from .get_cards_view import GetCardsView
 from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
 from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
-from .get_projects_order import GetProjectsOrder
+from .get_projects_order_type_0 import GetProjectsOrderType0
 from .get_projects_project_id_cards_card_id_backlinks_scope import (
     GetProjectsProjectIdCardsCardIdBacklinksScope,
 )
@@ -218,25 +218,21 @@ from .milestone_update import MilestoneUpdate
 from .new_card import NewCard
 from .new_link import NewLink
 from .new_milestone import NewMilestone
+from .new_project import NewProject
 from .new_resource import NewResource
 from .patch_locations_location_id_body import PatchLocationsLocationIdBody
 from .patch_locations_location_id_body_configuration import (
     PatchLocationsLocationIdBodyConfiguration,
 )
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
+from .privacy_mode import PrivacyMode
 from .project import Project
-from .project_create_request import ProjectCreateRequest
-from .project_create_request_privacy_mode import ProjectCreateRequestPrivacyMode
-from .project_create_response import ProjectCreateResponse
-from .project_delete_response import ProjectDeleteResponse
-from .project_delete_response_data import ProjectDeleteResponseData
 from .project_encryption_check import ProjectEncryptionCheck
 from .project_encryption_check_response import ProjectEncryptionCheckResponse
 from .project_encryption_check_response_data import ProjectEncryptionCheckResponseData
 from .project_encryption_check_response_data_privacy_mode import (
     ProjectEncryptionCheckResponseDataPrivacyMode,
 )
-from .project_get_response import ProjectGetResponse
 from .project_git_push_request import ProjectGitPushRequest
 from .project_git_push_response import ProjectGitPushResponse
 from .project_git_push_response_data import ProjectGitPushResponseData
@@ -277,8 +273,8 @@ from .project_history_affected_object_items_item import (
 from .project_history_affected_object_kind import ProjectHistoryAffectedObjectKind
 from .project_history_page_data import ProjectHistoryPageData
 from .project_history_page_response import ProjectHistoryPageResponse
-from .project_list_response import ProjectListResponse
-from .project_privacy_mode import ProjectPrivacyMode
+from .project_list_item import ProjectListItem
+from .project_list_item_list_response import ProjectListItemListResponse
 from .project_recovery_token_export_request import ProjectRecoveryTokenExportRequest
 from .project_recovery_token_export_response import ProjectRecoveryTokenExportResponse
 from .project_recovery_token_export_response_data import (
@@ -289,11 +285,9 @@ from .project_recovery_token_import_response import ProjectRecoveryTokenImportRe
 from .project_recovery_token_import_response_data import (
     ProjectRecoveryTokenImportResponseData,
 )
+from .project_response import ProjectResponse
 from .project_sync import ProjectSync
-from .project_update_request import ProjectUpdateRequest
-from .project_update_request_privacy_mode import ProjectUpdateRequestPrivacyMode
-from .project_update_response import ProjectUpdateResponse
-from .project_update_response_data import ProjectUpdateResponseData
+from .project_update import ProjectUpdate
 from .put_locations_preferred_body import PutLocationsPreferredBody
 from .rebuild_data import RebuildData
 from .rebuild_request import RebuildRequest
@@ -507,7 +501,7 @@ __all__ = (
     "GetGitProvidersJsonResponse200",
     "GetOpenapiJsonResponse200",
     "GetPingResponse200",
-    "GetProjectsOrder",
+    "GetProjectsOrderType0",
     "GetProjectsProjectIdCardsCardIdBacklinksScope",
     "GetProjectsProjectIdCardsOrder",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
@@ -541,21 +535,17 @@ __all__ = (
     "NewCard",
     "NewLink",
     "NewMilestone",
+    "NewProject",
     "NewResource",
     "PatchLocationsLocationIdBody",
     "PatchLocationsLocationIdBodyConfiguration",
     "PostAiRunnerPullBody",
+    "PrivacyMode",
     "Project",
-    "ProjectCreateRequest",
-    "ProjectCreateRequestPrivacyMode",
-    "ProjectCreateResponse",
-    "ProjectDeleteResponse",
-    "ProjectDeleteResponseData",
     "ProjectEncryptionCheck",
     "ProjectEncryptionCheckResponse",
     "ProjectEncryptionCheckResponseData",
     "ProjectEncryptionCheckResponseDataPrivacyMode",
-    "ProjectGetResponse",
     "ProjectGitPushRequest",
     "ProjectGitPushResponse",
     "ProjectGitPushResponseData",
@@ -580,19 +570,17 @@ __all__ = (
     "ProjectHistoryAffectedObjectKind",
     "ProjectHistoryPageData",
     "ProjectHistoryPageResponse",
-    "ProjectListResponse",
-    "ProjectPrivacyMode",
+    "ProjectListItem",
+    "ProjectListItemListResponse",
     "ProjectRecoveryTokenExportRequest",
     "ProjectRecoveryTokenExportResponse",
     "ProjectRecoveryTokenExportResponseData",
     "ProjectRecoveryTokenImportRequest",
     "ProjectRecoveryTokenImportResponse",
     "ProjectRecoveryTokenImportResponseData",
+    "ProjectResponse",
     "ProjectSync",
-    "ProjectUpdateRequest",
-    "ProjectUpdateRequestPrivacyMode",
-    "ProjectUpdateResponse",
-    "ProjectUpdateResponseData",
+    "ProjectUpdate",
     "PutLocationsPreferredBody",
     "RebuildData",
     "RebuildRequest",

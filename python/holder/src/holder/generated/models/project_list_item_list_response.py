@@ -8,28 +8,31 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project import Project
+    from ..models.project_list_item import ProjectListItem
 
 
-T = TypeVar("T", bound="ProjectCreateResponse")
+T = TypeVar("T", bound="ProjectListItemListResponse")
 
 
 @_attrs_define
-class ProjectCreateResponse:
+class ProjectListItemListResponse:
     """
     Attributes:
         ok (bool):
-        data (Project):
+        data (list[ProjectListItem]):
     """
 
     ok: bool
-    data: Project
+    data: list[ProjectListItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
 
-        data = self.data.to_dict()
+        data = []
+        for data_item_data in self.data:
+            data_item = data_item_data.to_dict()
+            data.append(data_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -44,20 +47,25 @@ class ProjectCreateResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project import Project
+        from ..models.project_list_item import ProjectListItem
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = Project.from_dict(d.pop("data"))
+        data = []
+        _data = d.pop("data")
+        for data_item_data in _data:
+            data_item = ProjectListItem.from_dict(data_item_data)
 
-        project_create_response = cls(
+            data.append(data_item)
+
+        project_list_item_list_response = cls(
             ok=ok,
             data=data,
         )
 
-        project_create_response.additional_properties = d
-        return project_create_response
+        project_list_item_list_response.additional_properties = d
+        return project_list_item_list_response
 
     @property
     def additional_keys(self) -> list[str]:

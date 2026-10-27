@@ -1,4 +1,5 @@
 #include "http_test_helpers.h"
+#include "project/ProjectRepo.h"
 
 using holder::test::ensure_uuid_seeded;
 using holder::test::EnvGuard;
@@ -69,15 +70,9 @@ TEST_CASE("HTTP project recovery token export/import round-trip", "[http]") {
   const std::string recovery_token = exported["data"]["recovery_token"].get<std::string>();
   REQUIRE_FALSE(recovery_token.empty());
 
-  http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::patch,
-      "/projects/proj-1",
-      {{"privacy_mode", "plain"}, {"project_key_id", nullptr}, {"updated_at", 30}},
-      boost::beast::http::status::ok
-  );
+  // The API sets a project's privacy only when it is made, so the test changes it underneath.
+  holder::project::ProjectRepo(db).update_privacy_mode("proj-1", "plain", 30);
+  holder::project::ProjectRepo(db).update_project_key_id("proj-1", std::nullopt, 30);
 
   const auto fetched_cleared = http_json_request(
       bound.bind,

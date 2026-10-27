@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -222,6 +222,14 @@ holder_asset_placement_encoding to_c_enum(contract::AssetPlacementEncoding value
   throw std::logic_error("not a contract::AssetPlacementEncoding value");
 }
 
+holder_project_privacy_mode to_c_enum(contract::ProjectPrivacyMode value) {
+  switch (value) {
+  case contract::ProjectPrivacyMode::EncryptedGit: return HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+  case contract::ProjectPrivacyMode::Plain: return HOLDER_PROJECT_PRIVACY_MODE_PLAIN;
+  }
+  throw std::logic_error("not a contract::ProjectPrivacyMode value");
+}
+
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -247,6 +255,9 @@ holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& v
 holder_resource_asset_list to_c_list(holder_arena* arena, const std::vector<contract::ResourceAsset>& values);
 holder_resource to_c(holder_arena* arena, const contract::Resource& value);
 holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::Resource>& values);
+holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value);
+holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values);
+holder_project to_c(holder_arena* arena, const contract::Project& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -476,6 +487,42 @@ holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::
   return {items, values.size()};
 }
 
+holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value) {
+  holder_project_list_item out{};
+  out.project_id = copy(arena, value.project_id);
+  out.name = copy(arena, value.name);
+  out.root_path = copy(arena, value.root_path);
+  out.git_remote_url = copy_text(arena, value.git_remote_url);
+  out.git_provider = copy_text(arena, value.git_provider);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.project_key_id = copy_text(arena, value.project_key_id);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  out.card_count = copy_value<int32_t>(arena, value.card_count);
+  out.root_card_count = copy_value<int32_t>(arena, value.root_card_count);
+  return out;
+}
+
+holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values) {
+  auto* items = make<holder_project_list_item>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_project to_c(holder_arena* arena, const contract::Project& value) {
+  holder_project out{};
+  out.project_id = copy(arena, value.project_id);
+  out.name = copy(arena, value.name);
+  out.root_path = copy(arena, value.root_path);
+  out.git_remote_url = copy_text(arena, value.git_remote_url);
+  out.git_provider = copy_text(arena, value.git_provider);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.project_key_id = copy_text(arena, value.project_key_id);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -581,6 +628,32 @@ contract::ResourceUpdate from_c(const holder_resource_update& value) {
   out.label = optional_text(value.label, "resource_update.label", 1, SIZE_MAX);
   out.metadata = (value.metadata ? std::optional<std::map<std::string, std::vector<std::string>>>(from_c_resource_metadata(*value.metadata, "resource_update.metadata")) : std::nullopt);
   out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
+  return out;
+}
+
+contract::NewProject from_c(const holder_new_project& value) {
+  contract::NewProject out;
+  out.project_id = optional_text(value.project_id, "new_project.project_id", 1, SIZE_MAX);
+  out.name = text(value.name, "new_project.name", 1, SIZE_MAX);
+  out.root_path = optional_text(value.root_path, "new_project.root_path", 0, SIZE_MAX);
+  out.git_remote_url = optional_text(value.git_remote_url, "new_project.git_remote_url", 1, SIZE_MAX);
+  out.git_provider = optional_text(value.git_provider, "new_project.git_provider", 0, SIZE_MAX);
+  switch (value.privacy_mode) {
+  case HOLDER_NEW_PROJECT_PRIVACY_MODE_DEFAULT: break;
+  case HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT: out.privacy_mode = contract::NewProjectPrivacyMode::EncryptedGit; break;
+  case HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN: out.privacy_mode = contract::NewProjectPrivacyMode::Plain; break;
+  default: throw ArgumentError("new_project.privacy_mode is not a holder_new_project_privacy_mode value");
+  }
+  out.created_at = (value.created_at ? std::optional<long long>(in_range<long long>(*value.created_at, "new_project.created_at", 1, std::numeric_limits<long long>::max())) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(in_range<long long>(*value.updated_at, "new_project.updated_at", 1, std::numeric_limits<long long>::max())) : std::nullopt);
+  return out;
+}
+
+contract::ProjectUpdate from_c(const holder_project_update& value) {
+  contract::ProjectUpdate out;
+  out.name = optional_text(value.name, "project_update.name", 1, SIZE_MAX);
+  out.git_remote_url = changed_text(value.git_remote_url, "project_update.git_remote_url", 1, SIZE_MAX);
+  out.git_provider = changed_text(value.git_provider, "project_update.git_provider", 0, SIZE_MAX);
   return out;
 }
 
@@ -1051,6 +1124,85 @@ int holder_detach_card_resource(holder_context* context, const char* project_id,
     auto* out = make<holder_resource_list>(arena);
     *out = to_c_list(arena, contract::detach_card_resource(*context, project_id_value, card_id_value, resource_id_value));
     *out_resource_list = out;
+  });
+}
+
+int holder_list_projects(holder_context* context, const char* name, const int64_t* updated_after, const int64_t* updated_before, holder_list_projects_order order, const int32_t* limit, int32_t offset, bool include_card_counts, holder_arena* arena, const holder_project_list_item_list** out_project_list_item_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_list_item_list != nullptr, "out_project_list_item_list must not be null");
+    *out_project_list_item_list = nullptr;
+    const auto name_value = optional_text(name, "name", 1, SIZE_MAX);
+    const auto updated_after_value = (updated_after ? std::optional<long long>(*updated_after) : std::nullopt);
+    const auto updated_before_value = (updated_before ? std::optional<long long>(*updated_before) : std::nullopt);
+    std::optional<contract::ListProjectsOrder> order_value;
+    switch (order) {
+    case HOLDER_LIST_PROJECTS_ORDER_NONE: break;
+    case HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC: order_value = contract::ListProjectsOrder::UpdatedAtDesc; break;
+    case HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_ASC: order_value = contract::ListProjectsOrder::UpdatedAtAsc; break;
+    case HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_DESC: order_value = contract::ListProjectsOrder::CreatedAtDesc; break;
+    case HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_ASC: order_value = contract::ListProjectsOrder::CreatedAtAsc; break;
+    case HOLDER_LIST_PROJECTS_ORDER_NAME_DESC: order_value = contract::ListProjectsOrder::NameDesc; break;
+    case HOLDER_LIST_PROJECTS_ORDER_NAME_ASC: order_value = contract::ListProjectsOrder::NameAsc; break;
+    default: throw ArgumentError("order is not a holder_list_projects_order value");
+    }
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, 1000) : std::int32_t{100});
+    const auto offset_value = in_range<std::int32_t>(offset, "offset", 0, std::numeric_limits<std::int32_t>::max());
+    const auto include_card_counts_value = include_card_counts;
+    auto* out = make<holder_project_list_item_list>(arena);
+    *out = to_c_list(arena, contract::list_projects(*context, name_value, updated_after_value, updated_before_value, order_value, limit_value, offset_value, include_card_counts_value));
+    *out_project_list_item_list = out;
+  });
+}
+
+int holder_get_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::get_project(*context, project_id_value));
+    *out_project = out;
+  });
+}
+
+int holder_create_project(holder_context* context, const holder_new_project* project, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    require(project != nullptr, "project must not be null");
+    const auto project_value = from_c(*project);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::create_project(*context, project_value));
+    *out_project = out;
+  });
+}
+
+int holder_update_project(holder_context* context, const char* project_id, const holder_project_update* update, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(update != nullptr, "update must not be null");
+    const auto update_value = from_c(*update);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::update_project(*context, project_id_value, update_value));
+    *out_project = out;
+  });
+}
+
+int holder_delete_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::delete_project(*context, project_id_value));
+    *out_project = out;
   });
 }
 

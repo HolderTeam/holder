@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -165,6 +165,33 @@ typedef struct holder_resource_update {
     const holder_resource_metadata* metadata; /* Names whose values change: each name's values replace its old ones, an empty list removes the name, and names left out are kept. NULL when absent. */
     const int64_t* updated_at; /* When the resource was changed, for imports; omit for now. NULL when absent. */
 } holder_resource_update;
+
+/* How the project's files are stored. */
+typedef enum holder_new_project_privacy_mode {
+    HOLDER_NEW_PROJECT_PRIVACY_MODE_DEFAULT = 0, /* encrypted_git */
+    HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+    HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN = 2,
+    HOLDER_NEW_PROJECT_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_new_project_privacy_mode;
+
+/* A project to make. */
+typedef struct holder_new_project {
+    const char* project_id; /* The project's ID, for imports; omit for a new one. NULL when absent. */
+    const char* name; /* The project's name. */
+    const char* root_path; /* The directory for the project's repository; omit for one under this device's projects directory, named for the project. NULL when absent. */
+    const char* git_remote_url; /* The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument. May be NULL. */
+    const char* git_provider; /* Who hosts the Git remote; null or omitted when unknown. May be NULL. */
+    holder_new_project_privacy_mode privacy_mode; /* How the project's files are stored. Zero for the default, encrypted_git. */
+    const int64_t* created_at; /* When the project was made, for imports, after the epoch; omit for now. NULL when absent. */
+    const int64_t* updated_at; /* When the project's settings last changed, for imports, after the epoch; omit for when it was made. NULL when absent. */
+} holder_new_project;
+
+/* A change to a project's settings. Each field left out keeps its value. */
+typedef struct holder_project_update {
+    const char* name; /* The project's name. NULL when absent. */
+    holder_string_change git_remote_url; /* The Git remote to sync with; null for none. Zero keeps it. */
+    holder_string_change git_provider; /* Who hosts the Git remote; null when unknown. Zero keeps it. */
+} holder_project_update;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -381,6 +408,46 @@ typedef struct holder_resource_list {
     const holder_resource* items;
     size_t count;
 } holder_resource_list;
+
+/* How the project's files are stored. */
+typedef enum holder_project_privacy_mode {
+    HOLDER_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+    HOLDER_PROJECT_PRIVACY_MODE_PLAIN = 2,
+    HOLDER_PROJECT_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_project_privacy_mode;
+
+/* A project in a listing. */
+typedef struct holder_project_list_item {
+    const char* project_id; /* The project's ID. */
+    const char* name; /* The project's name. */
+    const char* root_path; /* The directory that holds the project's repository on this device. */
+    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
+    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
+    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
+    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
+    int64_t created_at; /* When the project was made. */
+    int64_t updated_at; /* When the project's settings last changed. */
+    const int32_t* card_count; /* The project's live cards; present when asked for. NULL when absent. */
+    const int32_t* root_card_count; /* The project's live root cards; present when asked for. NULL when absent. */
+} holder_project_list_item;
+
+typedef struct holder_project_list_item_list {
+    const holder_project_list_item* items;
+    size_t count;
+} holder_project_list_item_list;
+
+/* A project on this device. */
+typedef struct holder_project {
+    const char* project_id; /* The project's ID. */
+    const char* name; /* The project's name. */
+    const char* root_path; /* The directory that holds the project's repository on this device. */
+    const char* git_remote_url; /* The Git remote the project syncs with; null when it has none. May be NULL. */
+    const char* git_provider; /* Who hosts the Git remote, such as github; null when unknown. May be NULL. */
+    holder_project_privacy_mode privacy_mode; /* How the project's files are stored. */
+    const char* project_key_id; /* The ID of an encrypted project's key; null for a plain project. May be NULL. */
+    int64_t created_at; /* When the project was made. */
+    int64_t updated_at; /* When the project's settings last changed. */
+} holder_project;
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
@@ -660,6 +727,56 @@ int holder_attach_card_resource(holder_context* context, const char* project_id,
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_detach_card_resource(holder_context* context, const char* project_id, const char* card_id, const char* resource_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error);
+
+typedef enum holder_list_projects_order {
+    HOLDER_LIST_PROJECTS_ORDER_NONE = 0, /* null */
+    HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC = 1,
+    HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_ASC = 2,
+    HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_DESC = 3,
+    HOLDER_LIST_PROJECTS_ORDER_CREATED_AT_ASC = 4,
+    HOLDER_LIST_PROJECTS_ORDER_NAME_DESC = 5,
+    HOLDER_LIST_PROJECTS_ORDER_NAME_ASC = 6,
+    HOLDER_LIST_PROJECTS_ORDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_list_projects_order;
+
+/* List the projects on this device.
+ * Filters combine. Projects that tie in the order keep the order they were stored in.
+ * name: Only projects whose name contains this text. May be NULL.
+ * updated_after: Only projects last changed at or after this instant. May be NULL.
+ * updated_before: Only projects last changed at or before this instant. May be NULL.
+ * order: Omit for Home first, then the latest changed. The zero value is null.
+ * limit: NULL for 100.
+ * offset: How many of the ordered projects to skip.
+ * include_card_counts: Include each project's counts of live cards.
+ */
+int holder_list_projects(holder_context* context, const char* name, const int64_t* updated_after, const int64_t* updated_before, holder_list_projects_order order, const int32_t* limit, int32_t offset, bool include_card_counts, holder_arena* arena, const holder_project_list_item_list** out_project_list_item_list, holder_error** out_error);
+
+/* Fetch a project.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+
+/* Make a project.
+ * Its repository is made, with its settings, and an encrypted project's key. An ID a project on this device has
+ * is a Conflict. Making a project that was removed from this device makes it known here again.
+ * Errors: HOLDER_ERROR_CONFLICT, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_create_project(holder_context* context, const holder_new_project* project, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+
+/* Change a project's settings.
+ * Each field left out keeps its value, and an update that changes nothing writes nothing. The settings are
+ * committed to the project's repository; a Git remote is set there before it is stored, and one Git does not
+ * accept is an invalid argument.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_update_project(holder_context* context, const char* project_id, const holder_project_update* update, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+
+/* Remove a project from this device.
+ * The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
+ * bring it back; making it again does. Returns the project as it was.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_delete_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
 
 #ifdef __cplusplus
 }

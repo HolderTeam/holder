@@ -4,7 +4,7 @@ import json
 
 import httpx
 import pytest
-from test_library import failure, holder_for, ok, project_payload
+from test_library import SYNC_STATE, failure, holder_for, ok, project_payload
 
 from holder import EncryptionCheck, RecoveryResult, RemoteCheck, SyncResult
 from holder.exceptions import APIError, ProtocolError
@@ -54,7 +54,7 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
                 }
             )
         if path.endswith("/git/sync-status"):
-            return ok({"project_id": "p-0", "sync": project_payload()["sync"]})
+            return ok({"project_id": "p-0", "sync": SYNC_STATE})
         if path.endswith("/git/push"):
             return ok(
                 {
@@ -122,10 +122,9 @@ def test_remote_configuration_refreshes_and_allows_disconnect():
             return ok(stored)
         requests.append(request)
         body = json.loads(request.content)
-        assert set(body) == {"updated_at", "git_remote_url"}
-        changed = stored["git_remote_url"] != body["git_remote_url"]
+        assert set(body) == {"git_remote_url"}
         stored["git_remote_url"] = body["git_remote_url"]
-        return ok({"project_id": "p-0", "git_remote_changed": changed})
+        return ok(stored)
 
     with holder_for(respond) as holder:
         project = holder.projects.get("p-0")
@@ -171,7 +170,7 @@ def test_encryption_recovery_and_removal():
             }
             return ok({"project_id": "p-0"})
         if request.method == "DELETE":
-            return ok({"project_id": "p-0"})
+            return ok(stored)
         raise AssertionError(path)
 
     with holder_for(respond) as holder:
@@ -233,7 +232,7 @@ def test_project_operations_reject_cross_project_responses_and_write_failure():
     def wrong(request):
         if request.method == "GET" and request.url.path == "/projects/p-0":
             return ok(project_payload())
-        return ok({"project_id": "p-1", "sync": project_payload()["sync"]})
+        return ok({"project_id": "p-1", "sync": SYNC_STATE})
 
     with holder_for(wrong) as holder, pytest.raises(ProtocolError):
         holder.projects.get("p-0").git.status()

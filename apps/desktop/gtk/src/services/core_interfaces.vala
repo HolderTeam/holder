@@ -107,8 +107,7 @@ public interface IHolderApi : Object {
                                                                          string? basis_commit = null) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
-                                                      string? git_remote_url,
-                                                      int64 updated_at) throws Error;
+                                                      string? git_remote_url) throws Error;
     public abstract async GitTestRemoteResult test_project_git_remote(string project_id,
                                                                       string? remote_url = null,
                                                                       string branch = "") throws Error;

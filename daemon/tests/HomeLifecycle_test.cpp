@@ -8,7 +8,7 @@
 #include "platform/DeviceConfigStore.h"
 #include "platform/Migrations.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/StartupRecovery.h"
 

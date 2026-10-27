@@ -37,7 +37,7 @@ private void test_set_project_git_remote_handles_null_and_non_empty_url() {
 
     bool done_null = false;
     bool ok_null = false;
-    client.set_project_git_remote.begin("p1", null, 11, (obj, res) => {
+    client.set_project_git_remote.begin("p1", null, (obj, res) => {
         try { client.set_project_git_remote.end(res); ok_null = true; } catch (Error e) { ok_null = false; }
         done_null = true;
     });
@@ -48,7 +48,7 @@ private void test_set_project_git_remote_handles_null_and_non_empty_url() {
 
     bool done_url = false;
     bool ok_url = false;
-    client.set_project_git_remote.begin("p1", "git@github.com:me/repo.git", 12, (obj, res) => {
+    client.set_project_git_remote.begin("p1", "git@github.com:me/repo.git", (obj, res) => {
         try { client.set_project_git_remote.end(res); ok_url = true; } catch (Error e) { ok_url = false; }
         done_url = true;
     });

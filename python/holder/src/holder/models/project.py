@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import time
 from dataclasses import dataclass, field, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, Self, cast
@@ -24,15 +23,13 @@ from ..generated.api.default import (
     post_recovery_token_import,
 )
 from ..generated.models import (
-    GetProjectsOrder,
+    GetProjectsOrderType0,
     HierarchyRepairRequest,
-    ProjectCreateRequest,
-    ProjectCreateRequestPrivacyMode,
-    ProjectPrivacyMode,
+    NewProject,
+    PrivacyMode,
     ProjectRecoveryTokenExportRequest,
     ProjectRecoveryTokenImportRequest,
-    ProjectSync,
-    ProjectUpdateRequest,
+    ProjectUpdate,
 )
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
@@ -82,8 +79,7 @@ class ProjectCollection(Collection["Project"]):
         """Create a project using daemon defaults for omitted settings.
 
         Listing filters do not supply creation values. Cached listings remain
-        unchanged until refreshed. The write is never retried; if the subsequent
-        fetch fails, the project may already exist.
+        unchanged until refreshed. The write is never retried.
         """
         if not isinstance(name, str):
             raise TypeError("name must be a string")
@@ -94,16 +90,14 @@ class ProjectCollection(Collection["Project"]):
         mode = (
             UNSET
             if isinstance(privacy_mode, Unset)
-            else ProjectCreateRequestPrivacyMode(privacy_mode)
+            else PrivacyMode(privacy_mode)
         )
         data = self._holder._call(
             post_projects,
-            body=ProjectCreateRequest(
-                name=name, root_path=root_path, privacy_mode=mode
-            ),
+            body=NewProject(name=name, root_path=root_path, privacy_mode=mode),
             write=True,
         )
-        return self.get(data.project_id)
+        return Project._from(self._holder, data)
 
     def _clone(self, query: dict[str, Any]) -> Self:
         return type(self)(self._holder, query)
@@ -146,7 +140,7 @@ class ProjectCollection(Collection["Project"]):
             raise TypeError("descending must be a bool")
         direction = "desc" if descending else "asc"
         return self._clone(
-            {**self._query, "order": GetProjectsOrder(f"{field}_{direction}")}
+            {**self._query, "order": GetProjectsOrderType0(f"{field}_{direction}")}
         )
 
     def alphabetical(self) -> Self:
@@ -159,12 +153,12 @@ class ProjectCollection(Collection["Project"]):
 
     def with_card_counts(self) -> Self:
         """Include each project's live card and root card counts."""
-        return self._clone({**self._query, "count": True})
+        return self._clone({**self._query, "include_card_counts": True})
 
     def _fetch_page(self) -> tuple[list[Project], int | None]:
         offset = cast(int, self._next or 0)
         data = self._holder._call(get_projects, limit=100, offset=offset, **self._query)
-        if self._query.get("count") and any(
+        if self._query.get("include_card_counts") and any(
             isinstance(item.card_count, Unset)
             or isinstance(item.root_card_count, Unset)
             for item in data
@@ -237,10 +231,9 @@ class Project:
     project_id: str
     name: str
     root_path: str
-    privacy_mode: ProjectPrivacyMode
+    privacy_mode: PrivacyMode
     created_at: int
     updated_at: int
-    sync: ProjectSync
     git_remote_url: str | None
     git_provider: str | None
     project_key_id: str | None
@@ -320,13 +313,17 @@ class Project:
         """Rename this project and refresh its server metadata."""
         if not isinstance(name, str):
             raise TypeError("name must be a string")
-        self._holder._call(
+        data = self._holder._call(
             patch_projects_project_id,
             self.id,
-            body=ProjectUpdateRequest(updated_at=int(time.time()), name=name),
+            body=ProjectUpdate(name=name),
             write=True,
         )
-        return self.refresh()
+        fresh = Project._from(self._holder, data)
+        for f in fields(self):
+            if f.name != "_holder":
+                object.__setattr__(self, f.name, getattr(fresh, f.name))
+        return self
 
     def repair_hierarchy(self, *, apply: bool = False) -> HierarchyRepair:
         """Find, and with apply=True fix, cards hidden under missing or trashed parents.

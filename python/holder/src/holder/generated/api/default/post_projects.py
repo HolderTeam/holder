@@ -6,14 +6,14 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_create_request import ProjectCreateRequest
-from ...models.project_create_response import ProjectCreateResponse
+from ...models.new_project import NewProject
+from ...models.project_response import ProjectResponse
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: ProjectCreateRequest,
+    body: NewProject,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -32,9 +32,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectCreateResponse | None:
+) -> ErrorResponse | ProjectResponse | None:
     if response.status_code == 201:
-        response_201 = ProjectCreateResponse.from_dict(response.json())
+        response_201 = ProjectResponse.from_dict(response.json())
 
         return response_201
 
@@ -47,6 +47,11 @@ def _parse_response(
         response_401 = ErrorResponse.from_dict(response.json())
 
         return response_401
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
@@ -66,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectCreateResponse]:
+) -> Response[ErrorResponse | ProjectResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -78,19 +83,23 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectCreateRequest,
-) -> Response[ErrorResponse | ProjectCreateResponse]:
-    """Create a project
+    body: NewProject,
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Make a project.
+
+     Its repository is made, with its settings, and an encrypted project's key. An ID a project on this
+    device has
+    is a Conflict. Making a project that was removed from this device makes it known here again.
 
     Args:
-        body (ProjectCreateRequest):
+        body (NewProject): A project to make.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectCreateResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -107,19 +116,23 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectCreateRequest,
-) -> ErrorResponse | ProjectCreateResponse | None:
-    """Create a project
+    body: NewProject,
+) -> ErrorResponse | ProjectResponse | None:
+    """Make a project.
+
+     Its repository is made, with its settings, and an encrypted project's key. An ID a project on this
+    device has
+    is a Conflict. Making a project that was removed from this device makes it known here again.
 
     Args:
-        body (ProjectCreateRequest):
+        body (NewProject): A project to make.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectCreateResponse
+        ErrorResponse | ProjectResponse
     """
 
     return sync_detailed(
@@ -131,19 +144,23 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectCreateRequest,
-) -> Response[ErrorResponse | ProjectCreateResponse]:
-    """Create a project
+    body: NewProject,
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Make a project.
+
+     Its repository is made, with its settings, and an encrypted project's key. An ID a project on this
+    device has
+    is a Conflict. Making a project that was removed from this device makes it known here again.
 
     Args:
-        body (ProjectCreateRequest):
+        body (NewProject): A project to make.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectCreateResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -158,19 +175,23 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectCreateRequest,
-) -> ErrorResponse | ProjectCreateResponse | None:
-    """Create a project
+    body: NewProject,
+) -> ErrorResponse | ProjectResponse | None:
+    """Make a project.
+
+     Its repository is made, with its settings, and an encrypted project's key. An ID a project on this
+    device has
+    is a Conflict. Making a project that was removed from this device makes it known here again.
 
     Args:
-        body (ProjectCreateRequest):
+        body (NewProject): A project to make.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectCreateResponse
+        ErrorResponse | ProjectResponse
     """
 
     return (

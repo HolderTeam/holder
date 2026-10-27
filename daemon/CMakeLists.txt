@@ -370,7 +370,6 @@ add_executable(holderd
   ${HOLDER_COMMON_DIR}/src/platform/Paths.cpp
   src/platform/DatabaseRecovery.cpp
   src/platform/DeviceConfigStore.cpp
-  src/platform/ProjectRegistry.cpp
   src/platform/LockFile.cpp
   src/platform/ServerInfo.cpp
   src/platform/Signal.cpp
@@ -411,10 +410,7 @@ add_executable(holderd
   src/api/RecoveryToken.cpp
   src/api/Reindex.cpp
   src/api/AssetImportWrite.cpp
-  src/api/ProjectCreate.cpp
-  src/api/ProjectDelete.cpp
   src/api/ProjectCards.cpp
-  src/api/ProjectUpdate.cpp
   src/api/ProviderCredentials.cpp
   src/api/ProviderSettings.cpp
   src/api/Rebuild.cpp

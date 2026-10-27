@@ -5478,53 +5478,95 @@
     },
     "/projects": {
       "get": {
-        "summary": "List projects",
+        "summary": "List the projects on this device.",
+        "description": "Filters combine. Projects that tie in the order keep the order they were stored in.",
         "parameters": [
           {
             "name": "name",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only projects whose name contains this text.",
+              "title": "Name"
             },
-            "description": "Substring match on project name."
+            "description": "Only projects whose name contains this text."
           },
           {
             "name": "updated_after",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9223372036854775807,
+                  "minimum": -9223372036854775808,
+                  "format": "int64"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only projects last changed at or after this instant.",
+              "title": "Updated After"
             },
-            "description": "Return projects with updated_at >= updated_after."
+            "description": "Only projects last changed at or after this instant."
           },
           {
             "name": "updated_before",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9223372036854775807,
+                  "minimum": -9223372036854775808,
+                  "format": "int64"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only projects last changed at or before this instant.",
+              "title": "Updated Before"
             },
-            "description": "Return projects with updated_at <= updated_before."
+            "description": "Only projects last changed at or before this instant."
           },
           {
             "name": "order",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "updated_at_desc",
-                "updated_at_asc",
-                "created_at_desc",
-                "created_at_asc",
-                "name_desc",
-                "name_asc"
-              ]
+              "anyOf": [
+                {
+                  "enum": [
+                    "updated_at_desc",
+                    "updated_at_asc",
+                    "created_at_desc",
+                    "created_at_asc",
+                    "name_desc",
+                    "name_asc"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Omit for Home first, then the latest changed.",
+              "title": "Order"
             },
-            "description": "Order by updated_at (default), created_at, or name."
+            "description": "Omit for Home first, then the latest changed."
           },
           {
             "name": "limit",
@@ -5532,10 +5574,12 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "format": "int32"
-            },
-            "description": "Max results (default 100, capped at 1000)."
+              "maximum": 1000,
+              "minimum": 1,
+              "format": "int32",
+              "default": 100,
+              "title": "Limit"
+            }
           },
           {
             "name": "offset",
@@ -5543,35 +5587,41 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 2147483647,
               "minimum": 0,
-              "format": "int32"
+              "description": "How many of the ordered projects to skip.",
+              "format": "int32",
+              "default": 0,
+              "title": "Offset"
             },
-            "description": "Offset into ordered results (default 0)."
+            "description": "How many of the ordered projects to skip."
           },
           {
-            "name": "count",
+            "name": "include_card_counts",
             "in": "query",
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false
+              "description": "Include each project's counts of live cards.",
+              "default": false,
+              "title": "Include Card Counts"
             },
-            "description": "Include count fields (card_count/root_card_count) per project."
+            "description": "Include each project's counts of live cards."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectListResponse"
+                  "$ref": "#/components/schemas/ProjectListItemListResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5591,7 +5641,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5603,30 +5653,31 @@
         }
       },
       "post": {
-        "summary": "Create a project",
+        "summary": "Make a project.",
+        "description": "Its repository is made, with its settings, and an encrypted project's key. An ID a project on this device has\nis a Conflict. Making a project that was removed from this device makes it known here again.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectCreateRequest"
+                "$ref": "#/components/schemas/NewProject"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectCreateResponse"
+                  "$ref": "#/components/schemas/ProjectResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5645,8 +5696,18 @@
               }
             }
           },
+          "409": {
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose. An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Project encryption setup failed",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5656,7 +5717,7 @@
             }
           },
           "503": {
-            "description": "Keyring unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5670,30 +5731,31 @@
     },
     "/projects/{project_id}": {
       "get": {
-        "summary": "Get a project",
+        "summary": "Fetch a project.",
+        "description": "Fetch a project.",
         "parameters": [
           {
             "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectId"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectGetResponse"
+                  "$ref": "#/components/schemas/ProjectResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5713,7 +5775,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5723,7 +5785,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5735,14 +5797,15 @@
         }
       },
       "patch": {
-        "summary": "Update a project",
+        "summary": "Change a project's settings.",
+        "description": "Each field left out keeps its value, and an update that changes nothing writes nothing. The settings are\ncommitted to the project's repository; a Git remote is set there before it is stored, and one Git does not\naccept is an invalid argument.",
         "parameters": [
           {
             "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectId"
             }
           }
         ],
@@ -5751,24 +5814,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectUpdateRequest"
+                "$ref": "#/components/schemas/ProjectUpdate"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectUpdateResponse"
+                  "$ref": "#/components/schemas/ProjectResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5788,7 +5851,17 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5798,7 +5871,7 @@
             }
           },
           "500": {
-            "description": "Project encryption setup failed",
+            "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5808,7 +5881,7 @@
             }
           },
           "503": {
-            "description": "Keyring unavailable",
+            "description": "The keyring that holds an encrypted project's key cannot be used: it is locked, or this device has none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5820,31 +5893,31 @@
         }
       },
       "delete": {
-        "summary": "Delete a project",
-        "description": "Removes the project from this device's database and records its removal so startup discovery and database reconstruction do not automatically import it again. Project files and encryption keys are retained for explicit recovery. Creating or importing the project explicitly registers it again.",
+        "summary": "Remove a project from this device.",
+        "description": "The project's files and keys are kept, and its removal is remembered, so that looking for projects does not\nbring it back; making it again does. Returns the project as it was.",
         "parameters": [
           {
             "name": "project_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectId"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectDeleteResponse"
+                  "$ref": "#/components/schemas/ProjectResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5864,7 +5937,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5874,7 +5947,7 @@
             }
           },
           "500": {
-            "description": "Could not persist the project removal; the database deletion is rolled back.",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14931,6 +15004,10 @@
           }
         ]
       },
+      "GitRemoteUrl": {
+        "type": "string",
+        "minLength": 1
+      },
       "GoogleDriveAuthorizeResponse": {
         "type": "object",
         "properties": {
@@ -15678,6 +15755,74 @@
         "title": "NewMilestone",
         "description": "A milestone to put on a card."
       },
+      "NewProject": {
+        "properties": {
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project's ID, for imports; omit for a new one."
+          },
+          "name": {
+            "$ref": "#/components/schemas/ProjectName",
+            "description": "The project's name."
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path",
+            "description": "The directory for the project's repository; omit for one under this device's projects directory, named\nfor the project."
+          },
+          "git_remote_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitRemoteUrl"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument."
+          },
+          "git_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Provider",
+            "description": "Who hosts the Git remote; null or omitted when unknown."
+          },
+          "privacy_mode": {
+            "$ref": "#/components/schemas/PrivacyMode",
+            "description": "How the project's files are stored.",
+            "default": "encrypted_git"
+          },
+          "created_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the project was made, for imports, after the epoch; omit for now."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the project's settings last changed, for imports, after the epoch; omit for when it was made."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NewProject",
+        "description": "A project to make."
+      },
       "NewResource": {
         "properties": {
           "resource_id": {
@@ -15724,174 +15869,99 @@
         "title": "NewResource",
         "description": "A resource to make."
       },
+      "PrivacyMode": {
+        "type": "string",
+        "enum": [
+          "encrypted_git",
+          "plain"
+        ]
+      },
       "Project": {
-        "type": "object",
         "properties": {
           "project_id": {
-            "type": "string"
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project's ID."
           },
           "name": {
-            "type": "string"
+            "$ref": "#/components/schemas/ProjectName",
+            "description": "The project's name."
           },
           "root_path": {
-            "type": "string"
+            "type": "string",
+            "title": "Root Path",
+            "description": "The directory that holds the project's repository on this device."
           },
           "git_remote_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitRemoteUrl"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Git remote the project syncs with; null when it has none."
           },
           "git_provider": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Provider",
+            "description": "Who hosts the Git remote, such as github; null when unknown."
           },
           "privacy_mode": {
-            "type": "string",
-            "enum": [
-              "encrypted_git",
-              "plain"
-            ]
+            "$ref": "#/components/schemas/PrivacyMode",
+            "description": "How the project's files are stored."
           },
           "project_key_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Key Id",
+            "description": "The ID of an encrypted project's key; null for a plain project."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the project was made."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
-          },
-          "card_count": {
-            "type": "integer",
-            "description": "Present when count=true.",
-            "minimum": 0
-          },
-          "root_card_count": {
-            "type": "integer",
-            "description": "Present when count=true.",
-            "minimum": 0
-          },
-          "sync": {
-            "$ref": "#/components/schemas/ProjectSync"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the project's settings last changed."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "project_id",
           "name",
           "root_path",
+          "git_remote_url",
+          "git_provider",
           "privacy_mode",
+          "project_key_id",
           "created_at",
-          "updated_at",
-          "sync"
-        ]
-      },
-      "ProjectCreateRequest": {
-        "type": "object",
-        "properties": {
-          "project_id": {
-            "type": "string",
-            "description": "Optional; server generates if omitted."
-          },
-          "name": {
-            "type": "string"
-          },
-          "root_path": {
-            "type": "string",
-            "description": "Optional; server chooses a default if omitted."
-          },
-          "git_remote_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "git_provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "privacy_mode": {
-            "type": "string",
-            "enum": [
-              "encrypted_git",
-              "plain"
-            ],
-            "description": "Optional; defaults to encrypted_git."
-          },
-          "project_key_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Optional keyring identifier (metadata only)."
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional; server uses current time if omitted or 0."
-          },
-          "updated_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional; server uses created_at if omitted or 0."
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "ProjectCreateResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/Project"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "ProjectDeleteResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "project_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "project_id"
-            ]
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
+          "updated_at"
+        ],
+        "title": "Project",
+        "description": "A project on this device."
       },
       "ProjectEncryptionCheck": {
         "type": "object",
@@ -15954,24 +16024,6 @@
               "privacy_mode",
               "check"
             ]
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "ProjectGetResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/Project"
           }
         },
         "required": [
@@ -16512,26 +16564,134 @@
         "type": "string",
         "minLength": 1
       },
-      "ProjectListResponse": {
+      "ProjectListItem": {
+        "properties": {
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project's ID."
+          },
+          "name": {
+            "$ref": "#/components/schemas/ProjectName",
+            "description": "The project's name."
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path",
+            "description": "The directory that holds the project's repository on this device."
+          },
+          "git_remote_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitRemoteUrl"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Git remote the project syncs with; null when it has none."
+          },
+          "git_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Provider",
+            "description": "Who hosts the Git remote, such as github; null when unknown."
+          },
+          "privacy_mode": {
+            "$ref": "#/components/schemas/PrivacyMode",
+            "description": "How the project's files are stored."
+          },
+          "project_key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Key Id",
+            "description": "The ID of an encrypted project's key; null for a plain project."
+          },
+          "created_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the project was made."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the project's settings last changed."
+          },
+          "card_count": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "format": "int32",
+            "title": "Card Count",
+            "description": "The project's live cards; present when asked for."
+          },
+          "root_card_count": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "format": "int32",
+            "title": "Root Card Count",
+            "description": "The project's live root cards; present when asked for."
+          }
+        },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "root_path",
+          "git_remote_url",
+          "git_provider",
+          "privacy_mode",
+          "project_key_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectListItem",
+        "description": "A project in a listing."
+      },
+      "ProjectListItemListResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
-            "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Project"
-            }
+              "$ref": "#/components/schemas/ProjectListItem"
+            },
+            "type": "array",
+            "title": "Data"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "ProjectListItemListResponse"
+      },
+      "ProjectName": {
+        "type": "string",
+        "minLength": 1
       },
       "ProjectRecoveryTokenExportRequest": {
         "type": "object",
@@ -16622,6 +16782,24 @@
           "ok",
           "data"
         ]
+      },
+      "ProjectResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "ProjectResponse"
       },
       "ProjectSync": {
         "type": "object",
@@ -16723,94 +16901,40 @@
           "updated_at"
         ]
       },
-      "ProjectUpdateRequest": {
-        "type": "object",
+      "ProjectUpdate": {
         "properties": {
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "root_path": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "$ref": "#/components/schemas/ProjectName",
+            "description": "The project's name."
           },
           "git_remote_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "git_provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "privacy_mode": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ProjectUpdateRequestPrivacyMode"
+                "$ref": "#/components/schemas/GitRemoteUrl"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The Git remote to sync with; null for none."
           },
-          "project_key_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "required": [
-          "updated_at"
-        ]
-      },
-      "ProjectUpdateRequestPrivacyMode": {
-        "type": "string",
-        "enum": [
-          "encrypted_git",
-          "plain"
-        ]
-      },
-      "ProjectUpdateResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "project_id": {
+          "git_provider": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "git_remote_changed": {
-                "type": "boolean",
-                "description": "Present when git_remote_url is supplied. Reports whether the stored remote URL changed, including disconnecting it. Reapplying the same value returns false. The URL is persisted only after Git accepts the remote operation."
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "project_id"
-            ]
+            ],
+            "title": "Git Provider",
+            "description": "Who hosts the Git remote; null when unknown."
           }
         },
-        "required": [
-          "ok",
-          "data"
-        ]
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectUpdate",
+        "description": "A change to a project's settings. Each field left out keeps its value."
       },
       "RebuildData": {
         "type": "object",

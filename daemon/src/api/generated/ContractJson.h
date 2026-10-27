@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -231,6 +231,23 @@ template <> struct codec<holder::contract::AssetPlacementEncoding> {
     }
 };
 
+template <> struct codec<holder::contract::ProjectPrivacyMode> {
+    static json encode(holder::contract::ProjectPrivacyMode value) {
+        switch (value) {
+        case holder::contract::ProjectPrivacyMode::EncryptedGit: return "encrypted_git";
+        case holder::contract::ProjectPrivacyMode::Plain: return "plain";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::ProjectPrivacyMode decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "encrypted_git") return holder::contract::ProjectPrivacyMode::EncryptedGit;
+        if (text == "plain") return holder::contract::ProjectPrivacyMode::Plain;
+        throw std::invalid_argument("must be one of encrypted_git, plain");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -278,6 +295,23 @@ template <> struct codec<holder::contract::NewLinkTargetType> {
         if (text == "ai_thread") return holder::contract::NewLinkTargetType::AiThread;
         if (text == "resource") return holder::contract::NewLinkTargetType::Resource;
         throw std::invalid_argument("must be one of card, ai_message, ai_thread, resource");
+    }
+};
+
+template <> struct codec<holder::contract::NewProjectPrivacyMode> {
+    static json encode(holder::contract::NewProjectPrivacyMode value) {
+        switch (value) {
+        case holder::contract::NewProjectPrivacyMode::EncryptedGit: return "encrypted_git";
+        case holder::contract::NewProjectPrivacyMode::Plain: return "plain";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::NewProjectPrivacyMode decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "encrypted_git") return holder::contract::NewProjectPrivacyMode::EncryptedGit;
+        if (text == "plain") return holder::contract::NewProjectPrivacyMode::Plain;
+        throw std::invalid_argument("must be one of encrypted_git, plain");
     }
 };
 
@@ -337,6 +371,14 @@ template <> struct codec<holder::contract::Resource> {
     static json encode(const holder::contract::Resource& value);
     static holder::contract::Resource decode(const json& value);
 };
+template <> struct codec<holder::contract::ProjectListItem> {
+    static json encode(const holder::contract::ProjectListItem& value);
+    static holder::contract::ProjectListItem decode(const json& value);
+};
+template <> struct codec<holder::contract::Project> {
+    static json encode(const holder::contract::Project& value);
+    static holder::contract::Project decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -368,6 +410,14 @@ template <> struct codec<holder::contract::NewResource> {
 template <> struct codec<holder::contract::ResourceUpdate> {
     static json encode(const holder::contract::ResourceUpdate& value);
     static holder::contract::ResourceUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::NewProject> {
+    static json encode(const holder::contract::NewProject& value);
+    static holder::contract::NewProject decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectUpdate> {
+    static json encode(const holder::contract::ProjectUpdate& value);
+    static holder::contract::ProjectUpdate decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -1158,6 +1208,158 @@ inline holder::contract::Resource codec<holder::contract::Resource>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::ProjectListItem>::encode(const holder::contract::ProjectListItem& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["root_path"] = codec<std::string>::encode(value.root_path);
+    result["git_remote_url"] = value.git_remote_url ? codec<std::string>::encode(*value.git_remote_url) : json(nullptr);
+    result["git_provider"] = value.git_provider ? codec<std::string>::encode(*value.git_provider) : json(nullptr);
+    result["privacy_mode"] = codec<holder::contract::ProjectPrivacyMode>::encode(value.privacy_mode);
+    result["project_key_id"] = value.project_key_id ? codec<std::string>::encode(*value.project_key_id) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    if (value.card_count) result["card_count"] = codec<std::int32_t>::encode(*value.card_count);
+    if (value.root_card_count) result["root_card_count"] = codec<std::int32_t>::encode(*value.root_card_count);
+    return result;
+}
+inline holder::contract::ProjectListItem codec<holder::contract::ProjectListItem>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectListItem object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" && it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" && it.key() != "project_key_id" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "card_count" && it.key() != "root_card_count") throw std::invalid_argument("ProjectListItem has no field " + it.key());
+    holder::contract::ProjectListItem out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("root_path") && !value.at("root_path").is_null()) {
+        const auto& item = value.at("root_path");
+        out.root_path = check_text(decode_field<std::string>(item, "root_path"), "root_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("root_path is required and must not be null");
+    }
+    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
+        const auto& item = value.at("git_remote_url");
+        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
+        const auto& item = value.at("git_provider");
+        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::ProjectPrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("project_key_id") && !value.at("project_key_id").is_null()) {
+        const auto& item = value.at("project_key_id");
+        out.project_key_id = check_text(decode_field<std::string>(item, "project_key_id"), "project_key_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("card_count") && !value.at("card_count").is_null()) {
+        const auto& item = value.at("card_count");
+        out.card_count = decode_field<std::int32_t>(item, "card_count");
+    } else if (value.contains("card_count")) {
+        throw std::invalid_argument("card_count must not be null");
+    }
+    if (value.contains("root_card_count") && !value.at("root_card_count").is_null()) {
+        const auto& item = value.at("root_card_count");
+        out.root_card_count = decode_field<std::int32_t>(item, "root_card_count");
+    } else if (value.contains("root_card_count")) {
+        throw std::invalid_argument("root_card_count must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::Project>::encode(const holder::contract::Project& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["root_path"] = codec<std::string>::encode(value.root_path);
+    result["git_remote_url"] = value.git_remote_url ? codec<std::string>::encode(*value.git_remote_url) : json(nullptr);
+    result["git_provider"] = value.git_provider ? codec<std::string>::encode(*value.git_provider) : json(nullptr);
+    result["privacy_mode"] = codec<holder::contract::ProjectPrivacyMode>::encode(value.privacy_mode);
+    result["project_key_id"] = value.project_key_id ? codec<std::string>::encode(*value.project_key_id) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::Project codec<holder::contract::Project>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Project object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" && it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" && it.key() != "project_key_id" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("Project has no field " + it.key());
+    holder::contract::Project out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("root_path") && !value.at("root_path").is_null()) {
+        const auto& item = value.at("root_path");
+        out.root_path = check_text(decode_field<std::string>(item, "root_path"), "root_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("root_path is required and must not be null");
+    }
+    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
+        const auto& item = value.at("git_remote_url");
+        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
+        const auto& item = value.at("git_provider");
+        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::ProjectPrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("project_key_id") && !value.at("project_key_id").is_null()) {
+        const auto& item = value.at("project_key_id");
+        out.project_key_id = check_text(decode_field<std::string>(item, "project_key_id"), "project_key_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
     result["title"] = codec<std::string>::encode(value.title);
@@ -1494,6 +1696,103 @@ inline holder::contract::ResourceUpdate codec<holder::contract::ResourceUpdate>:
         out.updated_at = decode_field<long long>(item, "updated_at");
     } else if (value.contains("updated_at")) {
         throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::NewProject>::encode(const holder::contract::NewProject& value) {
+    json result = json::object();
+    if (value.project_id) result["project_id"] = codec<std::string>::encode(*value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    if (value.root_path) result["root_path"] = codec<std::string>::encode(*value.root_path);
+    result["git_remote_url"] = value.git_remote_url ? codec<std::string>::encode(*value.git_remote_url) : json(nullptr);
+    result["git_provider"] = value.git_provider ? codec<std::string>::encode(*value.git_provider) : json(nullptr);
+    result["privacy_mode"] = codec<holder::contract::NewProjectPrivacyMode>::encode(value.privacy_mode);
+    if (value.created_at) result["created_at"] = codec<long long>::encode(*value.created_at);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::NewProject codec<holder::contract::NewProject>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a NewProject object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" && it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("NewProject has no field " + it.key());
+    holder::contract::NewProject out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("project_id")) {
+        throw std::invalid_argument("project_id must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("root_path") && !value.at("root_path").is_null()) {
+        const auto& item = value.at("root_path");
+        out.root_path = check_text(decode_field<std::string>(item, "root_path"), "root_path", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("root_path")) {
+        throw std::invalid_argument("root_path must not be null");
+    }
+    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
+        const auto& item = value.at("git_remote_url");
+        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
+        const auto& item = value.at("git_provider");
+        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::NewProjectPrivacyMode>(item, "privacy_mode");
+    } else if (value.contains("privacy_mode")) {
+        throw std::invalid_argument("privacy_mode must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = check_range<long long>(decode_field<long long>(item, "created_at"), "created_at", 1, std::numeric_limits<long long>::max());
+    } else if (value.contains("created_at")) {
+        throw std::invalid_argument("created_at must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = check_range<long long>(decode_field<long long>(item, "updated_at"), "updated_at", 1, std::numeric_limits<long long>::max());
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectUpdate>::encode(const holder::contract::ProjectUpdate& value) {
+    json result = json::object();
+    if (value.name) result["name"] = codec<std::string>::encode(*value.name);
+    if (value.git_remote_url) result["git_remote_url"] = *value.git_remote_url ? codec<std::string>::encode(**value.git_remote_url) : json(nullptr);
+    if (value.git_provider) result["git_provider"] = *value.git_provider ? codec<std::string>::encode(**value.git_provider) : json(nullptr);
+    return result;
+}
+inline holder::contract::ProjectUpdate codec<holder::contract::ProjectUpdate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectUpdate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "name" && it.key() != "git_remote_url" && it.key() != "git_provider") throw std::invalid_argument("ProjectUpdate has no field " + it.key());
+    holder::contract::ProjectUpdate out;
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("name")) {
+        throw std::invalid_argument("name must not be null");
+    }
+    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
+        const auto& item = value.at("git_remote_url");
+        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("git_remote_url")) {
+        out.git_remote_url.emplace();
+    }
+    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
+        const auto& item = value.at("git_provider");
+        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("git_provider")) {
+        out.git_provider.emplace();
     }
     return out;
 }

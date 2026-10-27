@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +19,7 @@ from ..generated.models import (
     ProjectGitSyncRequest,
     ProjectGitTestRemoteRequest,
     ProjectSync,
-    ProjectUpdateRequest,
+    ProjectUpdate,
 )
 from ..generated.types import UNSET, Unset
 
@@ -102,7 +101,7 @@ class SyncResult:
 
 
 class ProjectGit:
-    """Live Git operations for one project. Project.sync is a fetched snapshot."""
+    """Live Git operations for one project, and its recorded sync state."""
 
     def __init__(self, project: Project) -> None:
         self._project = project
@@ -142,18 +141,16 @@ class ProjectGit:
         """Configure a remote, or disconnect it with None. Return whether it changed."""
         if url is not None and not isinstance(url, str):
             raise TypeError("url must be a string or None")
+        before = self._project.refresh().git_remote_url
         data = self._project._holder._call(
             patch_projects_project_id,
             self._project.id,
-            body=ProjectUpdateRequest(updated_at=int(time.time()), git_remote_url=url),
+            body=ProjectUpdate(git_remote_url=url),
             write=True,
         )
         _check_project(self._project, data)
-        changed = _optional(data.git_remote_changed)
-        if not isinstance(changed, bool):
-            raise ProtocolError("Remote update omitted change status")
         self._project.refresh()
-        return changed
+        return before != url
 
     def pull(self) -> SyncResult:
         """Pull and reconcile the checked-out branch."""

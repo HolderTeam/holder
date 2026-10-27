@@ -7,7 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_get_response import ProjectGetResponse
+from ...models.project_response import ProjectResponse
 from ...types import Response
 
 
@@ -27,9 +27,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectGetResponse | None:
+) -> ErrorResponse | ProjectResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectGetResponse.from_dict(response.json())
+        response_200 = ProjectResponse.from_dict(response.json())
 
         return response_200
 
@@ -61,7 +61,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectGetResponse]:
+) -> Response[ErrorResponse | ProjectResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -74,8 +74,10 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectGetResponse]:
-    """Get a project
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Fetch a project.
+
+     Fetch a project.
 
     Args:
         project_id (str):
@@ -85,7 +87,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGetResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -103,8 +105,10 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectGetResponse | None:
-    """Get a project
+) -> ErrorResponse | ProjectResponse | None:
+    """Fetch a project.
+
+     Fetch a project.
 
     Args:
         project_id (str):
@@ -114,7 +118,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGetResponse
+        ErrorResponse | ProjectResponse
     """
 
     return sync_detailed(
@@ -127,8 +131,10 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectGetResponse]:
-    """Get a project
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Fetch a project.
+
+     Fetch a project.
 
     Args:
         project_id (str):
@@ -138,7 +144,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGetResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -154,8 +160,10 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectGetResponse | None:
-    """Get a project
+) -> ErrorResponse | ProjectResponse | None:
+    """Fetch a project.
+
+     Fetch a project.
 
     Args:
         project_id (str):
@@ -165,7 +173,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGetResponse
+        ErrorResponse | ProjectResponse
     """
 
     return (

@@ -1,4 +1,4 @@
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 
 #include <nlohmann/json.hpp>
 

@@ -60,7 +60,7 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
 
   // The contract's create_card, then one of RIG's routes.
   const std::string create_card = "/projects/proj-1/cards";
-  for (const std::string target : {create_card, std::string("/projects")}) {
+  for (const std::string target : {create_card, std::string("/locations")}) {
     const auto res = post(target, "{");
     CHECK(res.result() == http::status::bad_request);
 

@@ -12,6 +12,7 @@ private void test_list_projects_and_create_project() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Project One\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2}]}"
     );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p-created\"}}");
     var client = make_client(transport);
 
@@ -25,8 +26,7 @@ private void test_list_projects_and_create_project() {
     assert(projects != null);
     assert(projects.size == 1);
     assert(projects[0].project_id == "p1");
-    assert(transport.last_uri.contains("/projects"));
-    assert(transport.last_uri.contains("count=true"));
+    assert(transport.last_uri.contains("/projects/p1/git/sync-status"));
 
     bool done_create = false;
     string created = "";

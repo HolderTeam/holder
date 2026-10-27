@@ -95,8 +95,6 @@ int command_project(const holder::core::Paths& paths, int argc, char* argv[]) {
   nlohmann::json body = {
       {"name", options.name},
       {"privacy_mode", options.privacy_mode},
-      {"created_at", now_epoch_seconds()},
-      {"updated_at", now_epoch_seconds()},
   };
   // LCOV_EXCL_STOP
   if (options.remote_url.has_value()) {

@@ -65,6 +65,15 @@ METADATA = [f["name"] for f in next(r for r in IR["records"] if r["name"] == "Ca
 DATETIME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|([+-])([0-9]{2}):([0-9]{2}))")
 ROLE_POOL = ["start", "end", "due"]
 RESOURCE_ID = re.compile(r"[A-Za-z0-9_-]{4,40}")
+REMOTES = [None, "https://example.com/notes.git", "git@example.com:team/notes.git"]
+PROJECT_ORDERS = {
+    "updated_at_desc": (lambda p: p["updated_at"], True),
+    "updated_at_asc": (lambda p: p["updated_at"], False),
+    "created_at_desc": (lambda p: p["created_at"], True),
+    "created_at_asc": (lambda p: p["created_at"], False),
+    "name_desc": (lambda p: p["name"], True),
+    "name_asc": (lambda p: p["name"], False),
+}
 EPOCH = date(1970, 1, 1).toordinal()
 
 
@@ -111,7 +120,13 @@ class Cards(RuleBasedStateMachine):
         # Two projects, so that a card is sometimes asked for in a project it is not in.
         # Resource IDs are unique on a device, and the HTTP runs share one, so a run's new IDs carry its number.
         self.run = next(_runs)
-        self.projects = [self.core.create_project(f"Conformance {self.run}-{i}") for i in range(2)]
+        # Every project a run makes has its prefix in its name, so that a listing can find the run's own.
+        self.prefix = f"Conformance {self.run}-"
+        self.project_records: dict[str, dict] = {}  # every project the run made, by ID, as the model expects it
+        for i in range(2):
+            made = self.core.call("create_project", project={"name": f"{self.prefix}{i}", "privacy_mode": "plain"})
+            self.project_records[made["project_id"]] = made
+        self.projects = list(self.project_records)
         self.cards: dict[str, dict] = {}  # every card created, by ID, as the model expects it
         self.deleted: set[str] = set()
         self.cursors: dict[str, tuple] = {}  # each cursor handed out: its query and the key it stops at
@@ -1046,6 +1061,130 @@ class Cards(RuleBasedStateMachine):
         if len(self.links[card_id]) != len(had):
             self.refresh(card_id, "updated_at")
         assert detached == self.attached(card_id)
+
+    # ---- projects ---------------------------------------------------------------------------------
+
+    def a_project_id(self, data) -> str:
+        """Mostly a project the run made, and sometimes any."""
+        known = st.sampled_from(list(self.project_records))
+        return data.draw(st.one_of(known, known, known, Values(IR).valid({"kind": "named", "name": "ProjectId"})))
+
+    def project_name(self, data) -> str:
+        return self.prefix + data.draw(st.text(CHARACTERS, max_size=12))
+
+    @rule(data=st.data())
+    def create_project(self, data):
+        project = data.draw(self.values().record("NewProject"))
+        # A new ID or none, a plain project in this device's directory, and a remote Git accepts.
+        project.pop("project_id", None)
+        project.pop("root_path", None)
+        project["name"] = self.project_name(data)
+        project["privacy_mode"] = "plain"
+        project["git_remote_url"] = data.draw(st.sampled_from(REMOTES))
+        if data.draw(st.booleans()):
+            project["project_id"] = f"run{self.run}-" + data.draw(st.from_regex(r"[a-z0-9]{1,12}", fullmatch=True))
+        if data.draw(st.integers(0, 4)) == 0 and self.project_records:
+            project["project_id"] = data.draw(st.sampled_from(list(self.project_records)))
+        given = project.get("project_id")
+        before = int(time.time())
+        made = self.expect("create_project", {"Conflict"} if given in self.project_records else set(),
+                           {"project": project})
+        after = int(time.time())
+        if made is None:
+            return
+        self.conforms("create_project", made)
+        expected = {"name": project["name"], "privacy_mode": "plain", "project_key_id": None,
+                    "git_remote_url": project["git_remote_url"], "git_provider": project.get("git_provider")}
+        assert {k: made[k] for k in expected} == expected
+        if given is not None:
+            assert made["project_id"] == given
+        assert made["project_id"] not in self.project_records
+        if "created_at" in project:
+            assert made["created_at"] == project["created_at"]
+        else:
+            assert before <= made["created_at"] <= after
+        assert made["updated_at"] == project.get("updated_at", made["created_at"])
+        self.project_records[made["project_id"]] = made
+
+    @rule(data=st.data())
+    def get_project(self, data):
+        project_id = self.a_project_id(data)
+        got = self.expect("get_project", set() if project_id in self.project_records else {"NotFound"},
+                          {"project_id": project_id})
+        if got is not None:
+            self.conforms("get_project", got)
+            assert got == self.project_records[project_id]
+
+    @rule(data=st.data())
+    def update_project(self, data):
+        project_id = self.a_project_id(data)
+        update = data.draw(self.values().record("ProjectUpdate"))
+        if "name" in update:
+            update["name"] = self.project_name(data)
+        if "git_remote_url" in update:
+            update["git_remote_url"] = data.draw(st.sampled_from(REMOTES))
+        before = int(time.time())
+        updated = self.expect("update_project", set() if project_id in self.project_records else {"NotFound"},
+                              {"project_id": project_id, "update": update})
+        after = int(time.time())
+        if updated is None:
+            return
+        self.conforms("update_project", updated)
+        old = self.project_records[project_id]
+        expected = {**old, **update}
+        if any(expected[k] != old[k] for k in update):
+            assert before <= updated["updated_at"] <= after
+            expected["updated_at"] = updated["updated_at"]
+        # An update that changes nothing writes nothing.
+        assert updated == expected
+        self.project_records[project_id] = updated
+
+    @rule(data=st.data())
+    def delete_project(self, data):
+        # Only a project made by create_project, so that the cards' projects stay.
+        removable = [p for p in self.project_records if p not in self.projects]
+        known = st.sampled_from(removable) if removable else st.nothing()
+        project_id = data.draw(st.one_of(known, known, Values(IR).valid({"kind": "named", "name": "ProjectId"})))
+        if project_id in self.projects:
+            return
+        removed = self.expect("delete_project", set() if project_id in self.project_records else {"NotFound"},
+                              {"project_id": project_id})
+        if removed is not None:
+            self.conforms("delete_project", removed)
+            assert removed == self.project_records.pop(project_id)
+
+    @rule(data=st.data(), counts=st.booleans())
+    def list_projects(self, data, counts):
+        order = data.draw(st.sampled_from([None, *PROJECT_ORDERS]))
+        arguments = {"name": self.prefix, "limit": 1000, "include_card_counts": counts}
+        if order is not None:
+            arguments["order"] = order
+        if data.draw(st.booleans()):
+            # Fixed, so that a replayed run draws the same: up to 2028-01-01.
+            arguments["updated_after"] = data.draw(st.integers(0, 1830297600))
+        listed = self.expect("list_projects", set(), arguments)
+        self.conforms("list_projects", listed)
+        expected = [p for p in self.project_records.values()
+                    if p["updated_at"] >= arguments.get("updated_after", -(2**63))]
+        assert sorted(p["project_id"] for p in listed) == sorted(p["project_id"] for p in expected)
+        key, descending = PROJECT_ORDERS[order or "updated_at_desc"]
+        keys = [key(p) for p in listed]
+        assert keys == sorted(keys, reverse=descending), "projects out of order"
+        for item in listed:
+            record = {k: v for k, v in item.items() if k not in ("card_count", "root_card_count")}
+            assert record == self.project_records[item["project_id"]]
+            if counts:
+                live = self.live(item["project_id"])
+                assert item["card_count"] == len(live)
+                assert item["root_card_count"] == sum(1 for c in live if c["parent_card_id"] is None)
+            else:
+                assert "card_count" not in item
+        # Pages of the same listing are its slices.
+        if listed:
+            size = data.draw(st.integers(1, len(listed)))
+            offset = data.draw(st.integers(0, len(listed)))
+            page = self.core.call("list_projects", **{**arguments, "limit": size, "offset": offset})
+            assert page == listed[offset:offset + size]
 
     # ---- tags -------------------------------------------------------------------------------------
 

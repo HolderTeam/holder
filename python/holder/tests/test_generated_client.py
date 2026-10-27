@@ -39,7 +39,7 @@ from holder.generated.models import (
     EventResyncData,
     HealthResponse,
     ProjectGitSyncOperationResponseDataPush,
-    ProjectUpdateRequest,
+    ProjectUpdate,
     RunnerCapabilitiesData,
     RunnerPullJob,
     StorageLocationProvider,
@@ -413,9 +413,10 @@ def test_nullable_enums_preserve_null():
     assert (
         ProjectGitSyncOperationResponseDataPush.from_dict(push.to_dict()).status is None
     )
-    update = ProjectUpdateRequest(updated_at=0, privacy_mode=None)
-    assert update.to_dict()["privacy_mode"] is None
-    assert ProjectUpdateRequest.from_dict(update.to_dict()).privacy_mode is None
+    # A partial update's null clears a field; it is not the same as leaving it out.
+    update = ProjectUpdate(git_remote_url=None)
+    assert update.to_dict() == {"git_remote_url": None}
+    assert ProjectUpdate.from_dict(update.to_dict()).git_remote_url is None
 
 
 def test_unexpected_status_can_raise():

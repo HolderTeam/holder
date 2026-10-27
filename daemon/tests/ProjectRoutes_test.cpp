@@ -11,7 +11,7 @@
 #include "http_test_helpers.h"
 #include "model/Project.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "project/ProjectRepo.h"
 #include "project/ProjectSyncRepo.h"
 
@@ -130,8 +130,10 @@ TEST_CASE("Generated project deletion records a removal without deleting files",
   http::response<http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::ok);
-  REQUIRE(nlohmann::json::parse(res.body()) ==
-          nlohmann::json{{"ok", true}, {"data", {{"project_id", "proj-delete"}}}});
+  // The project, as it was.
+  const auto deleted = nlohmann::json::parse(res.body());
+  REQUIRE(deleted["data"]["project_id"] == "proj-delete");
+  REQUIRE(deleted["data"]["name"] == "To delete");
   REQUIRE_FALSE(repo.get(project.project_id).has_value());
   REQUIRE_FALSE(sync_repo.get(project.project_id).has_value());
   REQUIRE(std::filesystem::exists(project_root / ".holder" / "project.json"));
@@ -214,7 +216,7 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::internal_server_error);
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "error");
+    REQUIRE(payload["error"]["code"] == "internal_error");
   }
 }
 
@@ -523,40 +525,37 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::internal_server_error);
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "error");
+    REQUIRE(payload["error"]["code"] == "internal_error");
   }
 
   SECTION("project delete internal error catch with closed db") {
     db.close();
     auto [status, payload] = call(http::verb::delete_, "/projects/proj-1");
     REQUIRE(status == http::status::internal_server_error);
-    REQUIRE(payload["error"]["code"] == "error");
+    REQUIRE(payload["error"]["code"] == "internal_error");
   }
 
   SECTION("project metadata update persists successfully") {
     auto [status, payload] =
-        call(http::verb::patch, "/projects/proj-1", {{"name", "Renamed"}, {"updated_at", 2}});
+        call(http::verb::patch, "/projects/proj-1", {{"name", "Renamed"}});
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["project_id"] == "proj-1");
-    REQUIRE_FALSE(payload["data"].contains("git_remote_changed"));
+    REQUIRE(payload["data"]["name"] == "Renamed");
     REQUIRE(holder::project::ProjectRepo(db).get("proj-1")->name == "Renamed");
   }
 
-  SECTION("project update ignores null values for name, root and privacy") {
-    auto [status, payload] = call(http::verb::patch, "/projects/proj-1",
-                                  {{"name", nullptr}, {"root_path", nullptr},
-                                   {"privacy_mode", nullptr}, {"updated_at", 2}});
+  SECTION("project update rejects a null name") {
+    auto [status, payload] = call(http::verb::patch, "/projects/proj-1", {{"name", nullptr}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
     REQUIRE(holder::project::ProjectRepo(db).get("proj-1")->name == "Proj One");
   }
 
   SECTION("project update clears nullable remote and provider") {
     auto [status, payload] = call(http::verb::patch, "/projects/proj-1",
-                                  {{"git_remote_url", nullptr}, {"git_provider", nullptr},
-                                   {"updated_at", 2}});
+                                  {{"git_remote_url", nullptr}, {"git_provider", nullptr}});
     REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["git_remote_changed"] == true);
+    REQUIRE(payload["data"]["git_remote_url"].is_null());
     const auto updated = holder::project::ProjectRepo(db).get("proj-1");
     REQUIRE_FALSE(updated->git_remote_url.has_value());
     REQUIRE_FALSE(updated->git_provider.has_value());
@@ -565,10 +564,9 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
   SECTION("project update does not persist a rejected remote") {
     git.throw_on_set_remote = true;
     auto [status, payload] = call(http::verb::patch, "/projects/proj-1",
-                                  {{"git_remote_url", "https://example.com/new.git"},
-                                   {"updated_at", 2}});
+                                  {{"git_remote_url", "https://example.com/new.git"}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
     REQUIRE(git.calls == std::vector<std::string>{"remote"});
     REQUIRE(holder::project::ProjectRepo(db).get("proj-1")->git_remote_url ==
             project.git_remote_url);
@@ -624,8 +622,7 @@ TEST_CASE("The contract's route lists project tags with card counts", "[project-
   REQUIRE(listed["data"][0]["git_remote_url"].is_null());
   REQUIRE(listed["data"][0]["project_key_id"].is_null());
   REQUIRE_FALSE(listed["data"][0].contains("card_count"));
-  REQUIRE(listed["data"][0]["sync"]["uncommitted_changes_count"] == 0);
-  REQUIRE(listed["data"][0]["sync"]["updated_at"].is_null());
+  REQUIRE_FALSE(listed["data"][0].contains("sync"));
 
   req = make_request(http::verb::get, "/projects/proj-1");
   REQUIRE_FALSE(holder::api::is_public_generated_route(req));
@@ -644,8 +641,7 @@ TEST_CASE("The contract's route lists project tags with card counts", "[project-
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
-  req = make_request(http::verb::patch, "/projects/missing",
-                     {{"name", "Renamed"}, {"updated_at", 2}});
+  req = make_request(http::verb::patch, "/projects/missing", {{"name", "Renamed"}});
   REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
   REQUIRE(res.result() == http::status::not_found);
   REQUIRE(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
@@ -782,10 +778,10 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
   SECTION("projects post missing name") {
     auto [status, payload] = call(http::verb::post, "/projects", {{"x", 1}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 
-  SECTION("projects post parses project_key_id") {
+  SECTION("projects post refuses a project_key_id: Holder makes the key") {
     auto [status, payload] = call(
         http::verb::post,
         "/projects",
@@ -793,12 +789,10 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
          {"name", "Two"},
          {"root_path", (dir / "repo2").string()},
          {"project_key_id", "k1"},
-         {"privacy_mode", "plain"},
-         {"created_at", 1},
-         {"updated_at", 1}}
+         {"privacy_mode", "plain"}}
     );
-    REQUIRE(status == http::status::created);
-    REQUIRE(payload["ok"] == true);
+    REQUIRE(status == http::status::bad_request);
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 
   SECTION("project recovery export missing pin") {

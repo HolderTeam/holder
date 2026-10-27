@@ -6,41 +6,59 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.get_projects_order import GetProjectsOrder
-from ...models.project_list_response import ProjectListResponse
+from ...models.get_projects_order_type_0 import GetProjectsOrderType0
+from ...models.project_list_item_list_response import ProjectListItemListResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    name: str | Unset = UNSET,
-    updated_after: int | Unset = UNSET,
-    updated_before: int | Unset = UNSET,
-    order: GetProjectsOrder | Unset = UNSET,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-    count: bool | Unset = False,
+    name: None | str | Unset = UNSET,
+    updated_after: int | None | Unset = UNSET,
+    updated_before: int | None | Unset = UNSET,
+    order: GetProjectsOrderType0 | None | Unset = UNSET,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+    include_card_counts: bool | Unset = False,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["name"] = name
+    json_name: None | str | Unset
+    if isinstance(name, Unset):
+        json_name = UNSET
+    else:
+        json_name = name
+    params["name"] = json_name
 
-    params["updated_after"] = updated_after
+    json_updated_after: int | None | Unset
+    if isinstance(updated_after, Unset):
+        json_updated_after = UNSET
+    else:
+        json_updated_after = updated_after
+    params["updated_after"] = json_updated_after
 
-    params["updated_before"] = updated_before
+    json_updated_before: int | None | Unset
+    if isinstance(updated_before, Unset):
+        json_updated_before = UNSET
+    else:
+        json_updated_before = updated_before
+    params["updated_before"] = json_updated_before
 
-    json_order: str | Unset = UNSET
-    if not isinstance(order, Unset):
+    json_order: None | str | Unset
+    if isinstance(order, Unset):
+        json_order = UNSET
+    elif isinstance(order, GetProjectsOrderType0):
         json_order = order.value
-
+    else:
+        json_order = order
     params["order"] = json_order
 
     params["limit"] = limit
 
     params["offset"] = offset
 
-    params["count"] = count
+    params["include_card_counts"] = include_card_counts
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -55,9 +73,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectListResponse | None:
+) -> ErrorResponse | ProjectListItemListResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectListResponse.from_dict(response.json())
+        response_200 = ProjectListItemListResponse.from_dict(response.json())
 
         return response_200
 
@@ -84,7 +102,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectListResponse]:
+) -> Response[ErrorResponse | ProjectListItemListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -96,31 +114,35 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    name: str | Unset = UNSET,
-    updated_after: int | Unset = UNSET,
-    updated_before: int | Unset = UNSET,
-    order: GetProjectsOrder | Unset = UNSET,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-    count: bool | Unset = False,
-) -> Response[ErrorResponse | ProjectListResponse]:
-    """List projects
+    name: None | str | Unset = UNSET,
+    updated_after: int | None | Unset = UNSET,
+    updated_before: int | None | Unset = UNSET,
+    order: GetProjectsOrderType0 | None | Unset = UNSET,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+    include_card_counts: bool | Unset = False,
+) -> Response[ErrorResponse | ProjectListItemListResponse]:
+    """List the projects on this device.
+
+     Filters combine. Projects that tie in the order keep the order they were stored in.
 
     Args:
-        name (str | Unset):
-        updated_after (int | Unset):
-        updated_before (int | Unset):
-        order (GetProjectsOrder | Unset):
-        limit (int | Unset):
-        offset (int | Unset):
-        count (bool | Unset):  Default: False.
+        name (None | str | Unset): Only projects whose name contains this text.
+        updated_after (int | None | Unset): Only projects last changed at or after this instant.
+        updated_before (int | None | Unset): Only projects last changed at or before this instant.
+        order (GetProjectsOrderType0 | None | Unset): Omit for Home first, then the latest
+            changed.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset): How many of the ordered projects to skip. Default: 0.
+        include_card_counts (bool | Unset): Include each project's counts of live cards. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectListResponse]
+        Response[ErrorResponse | ProjectListItemListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -130,7 +152,7 @@ def sync_detailed(
         order=order,
         limit=limit,
         offset=offset,
-        count=count,
+        include_card_counts=include_card_counts,
     )
 
     response = client.get_httpx_client().request(
@@ -143,31 +165,35 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    name: str | Unset = UNSET,
-    updated_after: int | Unset = UNSET,
-    updated_before: int | Unset = UNSET,
-    order: GetProjectsOrder | Unset = UNSET,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-    count: bool | Unset = False,
-) -> ErrorResponse | ProjectListResponse | None:
-    """List projects
+    name: None | str | Unset = UNSET,
+    updated_after: int | None | Unset = UNSET,
+    updated_before: int | None | Unset = UNSET,
+    order: GetProjectsOrderType0 | None | Unset = UNSET,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+    include_card_counts: bool | Unset = False,
+) -> ErrorResponse | ProjectListItemListResponse | None:
+    """List the projects on this device.
+
+     Filters combine. Projects that tie in the order keep the order they were stored in.
 
     Args:
-        name (str | Unset):
-        updated_after (int | Unset):
-        updated_before (int | Unset):
-        order (GetProjectsOrder | Unset):
-        limit (int | Unset):
-        offset (int | Unset):
-        count (bool | Unset):  Default: False.
+        name (None | str | Unset): Only projects whose name contains this text.
+        updated_after (int | None | Unset): Only projects last changed at or after this instant.
+        updated_before (int | None | Unset): Only projects last changed at or before this instant.
+        order (GetProjectsOrderType0 | None | Unset): Omit for Home first, then the latest
+            changed.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset): How many of the ordered projects to skip. Default: 0.
+        include_card_counts (bool | Unset): Include each project's counts of live cards. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectListResponse
+        ErrorResponse | ProjectListItemListResponse
     """
 
     return sync_detailed(
@@ -178,38 +204,42 @@ def sync(
         order=order,
         limit=limit,
         offset=offset,
-        count=count,
+        include_card_counts=include_card_counts,
     ).parsed
 
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    name: str | Unset = UNSET,
-    updated_after: int | Unset = UNSET,
-    updated_before: int | Unset = UNSET,
-    order: GetProjectsOrder | Unset = UNSET,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-    count: bool | Unset = False,
-) -> Response[ErrorResponse | ProjectListResponse]:
-    """List projects
+    name: None | str | Unset = UNSET,
+    updated_after: int | None | Unset = UNSET,
+    updated_before: int | None | Unset = UNSET,
+    order: GetProjectsOrderType0 | None | Unset = UNSET,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+    include_card_counts: bool | Unset = False,
+) -> Response[ErrorResponse | ProjectListItemListResponse]:
+    """List the projects on this device.
+
+     Filters combine. Projects that tie in the order keep the order they were stored in.
 
     Args:
-        name (str | Unset):
-        updated_after (int | Unset):
-        updated_before (int | Unset):
-        order (GetProjectsOrder | Unset):
-        limit (int | Unset):
-        offset (int | Unset):
-        count (bool | Unset):  Default: False.
+        name (None | str | Unset): Only projects whose name contains this text.
+        updated_after (int | None | Unset): Only projects last changed at or after this instant.
+        updated_before (int | None | Unset): Only projects last changed at or before this instant.
+        order (GetProjectsOrderType0 | None | Unset): Omit for Home first, then the latest
+            changed.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset): How many of the ordered projects to skip. Default: 0.
+        include_card_counts (bool | Unset): Include each project's counts of live cards. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectListResponse]
+        Response[ErrorResponse | ProjectListItemListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -219,7 +249,7 @@ async def asyncio_detailed(
         order=order,
         limit=limit,
         offset=offset,
-        count=count,
+        include_card_counts=include_card_counts,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -230,31 +260,35 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    name: str | Unset = UNSET,
-    updated_after: int | Unset = UNSET,
-    updated_before: int | Unset = UNSET,
-    order: GetProjectsOrder | Unset = UNSET,
-    limit: int | Unset = UNSET,
-    offset: int | Unset = UNSET,
-    count: bool | Unset = False,
-) -> ErrorResponse | ProjectListResponse | None:
-    """List projects
+    name: None | str | Unset = UNSET,
+    updated_after: int | None | Unset = UNSET,
+    updated_before: int | None | Unset = UNSET,
+    order: GetProjectsOrderType0 | None | Unset = UNSET,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+    include_card_counts: bool | Unset = False,
+) -> ErrorResponse | ProjectListItemListResponse | None:
+    """List the projects on this device.
+
+     Filters combine. Projects that tie in the order keep the order they were stored in.
 
     Args:
-        name (str | Unset):
-        updated_after (int | Unset):
-        updated_before (int | Unset):
-        order (GetProjectsOrder | Unset):
-        limit (int | Unset):
-        offset (int | Unset):
-        count (bool | Unset):  Default: False.
+        name (None | str | Unset): Only projects whose name contains this text.
+        updated_after (int | None | Unset): Only projects last changed at or after this instant.
+        updated_before (int | None | Unset): Only projects last changed at or before this instant.
+        order (GetProjectsOrderType0 | None | Unset): Omit for Home first, then the latest
+            changed.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset): How many of the ordered projects to skip. Default: 0.
+        include_card_counts (bool | Unset): Include each project's counts of live cards. Default:
+            False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectListResponse
+        ErrorResponse | ProjectListItemListResponse
     """
 
     return (
@@ -266,6 +300,6 @@ async def asyncio(
             order=order,
             limit=limit,
             offset=offset,
-            count=count,
+            include_card_counts=include_card_counts,
         )
     ).parsed

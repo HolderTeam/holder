@@ -7,7 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_delete_response import ProjectDeleteResponse
+from ...models.project_response import ProjectResponse
 from ...types import Response
 
 
@@ -27,9 +27,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectDeleteResponse | None:
+) -> ErrorResponse | ProjectResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectDeleteResponse.from_dict(response.json())
+        response_200 = ProjectResponse.from_dict(response.json())
 
         return response_200
 
@@ -61,7 +61,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectDeleteResponse]:
+) -> Response[ErrorResponse | ProjectResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -74,12 +74,12 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectDeleteResponse]:
-    """Delete a project
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Remove a project from this device.
 
-     Removes the project from this device's database and records its removal so startup discovery and
-    database reconstruction do not automatically import it again. Project files and encryption keys are
-    retained for explicit recovery. Creating or importing the project explicitly registers it again.
+     The project's files and keys are kept, and its removal is remembered, so that looking for projects
+    does not
+    bring it back; making it again does. Returns the project as it was.
 
     Args:
         project_id (str):
@@ -89,7 +89,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectDeleteResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -107,12 +107,12 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectDeleteResponse | None:
-    """Delete a project
+) -> ErrorResponse | ProjectResponse | None:
+    """Remove a project from this device.
 
-     Removes the project from this device's database and records its removal so startup discovery and
-    database reconstruction do not automatically import it again. Project files and encryption keys are
-    retained for explicit recovery. Creating or importing the project explicitly registers it again.
+     The project's files and keys are kept, and its removal is remembered, so that looking for projects
+    does not
+    bring it back; making it again does. Returns the project as it was.
 
     Args:
         project_id (str):
@@ -122,7 +122,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectDeleteResponse
+        ErrorResponse | ProjectResponse
     """
 
     return sync_detailed(
@@ -135,12 +135,12 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ProjectDeleteResponse]:
-    """Delete a project
+) -> Response[ErrorResponse | ProjectResponse]:
+    """Remove a project from this device.
 
-     Removes the project from this device's database and records its removal so startup discovery and
-    database reconstruction do not automatically import it again. Project files and encryption keys are
-    retained for explicit recovery. Creating or importing the project explicitly registers it again.
+     The project's files and keys are kept, and its removal is remembered, so that looking for projects
+    does not
+    bring it back; making it again does. Returns the project as it was.
 
     Args:
         project_id (str):
@@ -150,7 +150,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectDeleteResponse]
+        Response[ErrorResponse | ProjectResponse]
     """
 
     kwargs = _get_kwargs(
@@ -166,12 +166,12 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ProjectDeleteResponse | None:
-    """Delete a project
+) -> ErrorResponse | ProjectResponse | None:
+    """Remove a project from this device.
 
-     Removes the project from this device's database and records its removal so startup discovery and
-    database reconstruction do not automatically import it again. Project files and encryption keys are
-    retained for explicit recovery. Creating or importing the project explicitly registers it again.
+     The project's files and keys are kept, and its removal is remembered, so that looking for projects
+    does not
+    bring it back; making it again does. Returns the project as it was.
 
     Args:
         project_id (str):
@@ -181,7 +181,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectDeleteResponse
+        ErrorResponse | ProjectResponse
     """
 
     return (
