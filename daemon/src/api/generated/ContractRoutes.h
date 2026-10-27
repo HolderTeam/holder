@@ -88,10 +88,14 @@ inline bool decode_bool(std::string_view input, const char* name) {
     if (input == "false" || input == "0") return false;
     throw std::invalid_argument(std::string(name) + " must be true or false");
 }
+// The body's JSON. A syntax error's message quotes the bytes the parser stopped at, which need not
+// be UTF-8, so it says only where; any other quotes a number, such as one too large.
 inline json decode_body(const std::string& body) {
     if (body.empty()) throw std::invalid_argument("a request body is required");
     try {
         return json::parse(body);
+    } catch (const json::parse_error& error) {
+        throw std::invalid_argument("the request body is not JSON, at byte " + std::to_string(error.byte));
     } catch (const json::exception& error) {
         throw std::invalid_argument(std::string("the request body is not JSON: ") + error.what());
     }

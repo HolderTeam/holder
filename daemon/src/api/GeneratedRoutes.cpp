@@ -10,6 +10,7 @@
 #include "privacy/SecretStore.h"
 
 #include <boost/beast/http.hpp>
+#include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <exception>
@@ -49,21 +50,28 @@ std::string error_code(int status) {
   }
 }
 
+// A failure's message, as UTF-8 a JSON body can carry: a message can quote a request's bytes, such
+// as the parser's for a body that is not JSON.
+std::string utf8_message(const char* what) {
+  return nlohmann::json::parse(nlohmann::json(what).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace))
+      .get<std::string>();
+}
+
 } // namespace
 
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
                              const std::exception& error) {
-  return {false, {error_code(status), error.what()}};
+  return {false, {error_code(status), utf8_message(error.what())}};
 }
 
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
                              const holder::privacy::PrivacyError& error) {
-  return {false, {holder::privacy::privacy_error_code_name(error.code()), error.what()}};
+  return {false, {holder::privacy::privacy_error_code_name(error.code()), utf8_message(error.what())}};
 }
 
 ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
                              const CodedError& error) {
-  return {false, {error.code, error.what()}};
+  return {false, {error.code, utf8_message(error.what())}};
 }
 
 namespace {

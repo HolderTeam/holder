@@ -16,7 +16,7 @@ from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import Model, Unsupported, generate
 from holder_contract.http_routes import generate_routes, route_pattern, validate_routes
-from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, merge, named_by_title
+from holder_contract.openapi import ERROR_SCHEMAS, document, dumps, exact_bounds, merge, named_by_title
 
 CONTRACT = Path(__file__).resolve().parents[1]
 TESTS = CONTRACT / "tests"
@@ -167,6 +167,17 @@ def test_a_generic_records_use_is_named_for_its_arguments():
     assert {"CardListItemPage", "CardListItemPageResponse", "CardResponse"} <= set(schemas)
     assert not any("_" in name for name in schemas)
     assert schemas["CardListItemPage"]["properties"]["items"]["items"] == {"$ref": "#/components/schemas/CardListItem"}
+
+
+def test_integer_bounds_are_exact():
+    created_at = openapi()["components"]["schemas"]["Card"]["properties"]["created_at"]
+    assert (created_at["format"], created_at["minimum"], created_at["maximum"]) == ("int64", -(2**63), 2**63 - 1)
+    assert type(created_at["minimum"]) is int and type(created_at["maximum"]) is int
+    assert exact_bounds({"type": "integer", "format": "int32", "minimum": float(-(2**31)), "maximum": 5000.0}) == {
+        "type": "integer", "format": "int32", "minimum": -(2**31), "maximum": 5000}
+    assert exact_bounds({"type": "number", "maximum": 0.5}) == {"type": "number", "maximum": 0.5}
+    with pytest.raises(ValueError, match="maximum of 1e\\+17 is not exact"):
+        exact_bounds({"type": "integer", "format": "int64", "maximum": 1e17})
 
 
 def test_schemas_that_would_share_a_name_are_refused():

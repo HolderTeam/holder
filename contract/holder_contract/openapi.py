@@ -4,7 +4,8 @@ FastAPI writes the document from the routes in app.py (holder_contract.routes) a
 models they use. What is added here is only what makes it the daemon's API: FastAPI's own 422
 validation responses go, since the daemon answers an invalid argument with 400 and the error
 envelope (the routes declare those themselves); operation IDs go, as in the rest of the daemon's
-document; and the error envelope's schemas are the ones RIG's document has, so that the two merge.
+document; integer bounds are exact again, after FastAPI's models made them floats; and the error
+envelope's schemas are the ones RIG's document has, so that the two merge.
 Authentication, servers and the API's metadata come from the daemon's document, which these paths
 are merged into until every route is in the contract.
 
@@ -41,6 +42,9 @@ UNAUTHORIZED = {"description": "Unauthorized", "content": {"application/json": {
 
 # FastAPI's own response to a request it cannot validate; the daemon answers 400 instead.
 FASTAPI_ONLY = ("HTTPValidationError", "ValidationError")
+BOUNDS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum")
+# Each integer format's range, which its native type's schema states as bounds (vocabulary.Native).
+FORMAT_RANGES = {"int32": (-(2**31), 2**31 - 1), "int64": (-(2**63), 2**63 - 1)}
 
 
 def document(contract: Contract) -> dict[str, Any]:
@@ -54,8 +58,35 @@ def document(contract: Contract) -> dict[str, Any]:
     for name in FASTAPI_ONLY:
         schemas.pop(name, None)
     schemas.update(copy.deepcopy(ERROR_SCHEMAS))
-    return ordered(named_by_title({"openapi": OPENAPI_VERSION, "paths": result["paths"],
-                                   "components": {"schemas": schemas}}))
+    return ordered(named_by_title(exact_bounds({"openapi": OPENAPI_VERSION, "paths": result["paths"],
+                                                "components": {"schemas": schemas}})))
+
+
+def exact_bounds(value: Any) -> Any:
+    """The document with each integer schema's bounds as integers.
+
+    FastAPI's OpenAPI models hold bounds as floats, so int64's range comes back rounded:
+    2**63 - 1 becomes 2.0**63, a value past it. A bound equal to its format's limit is that limit;
+    any other must be a whole number a float holds exactly, or it is refused.
+    """
+    if isinstance(value, list):
+        return [exact_bounds(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: exact_bounds(item) for key, item in value.items()}
+    if result.get("type") == "integer":
+        limits = FORMAT_RANGES.get(result.get("format"), ())
+        for key in BOUNDS:
+            bound = result.get(key)
+            if not isinstance(bound, float):
+                continue
+            exact = next((limit for limit in limits if float(limit) == bound), None)
+            if exact is None and bound.is_integer() and abs(bound) <= 2**53:
+                exact = int(bound)
+            if exact is None:
+                raise ValueError(f"an integer schema's {key} of {bound!r} is not exact")
+            result[key] = exact
+    return result
 
 
 def named_by_title(document: dict[str, Any]) -> dict[str, Any]:
