@@ -111,8 +111,6 @@ class Model:
             for slot in self.slots(instance):
                 if slot.change:
                     raise Unsupported(f"{instance.record}.{slot.name}: a partial update in a result")
-                if slot.type["kind"] == "literal":
-                    raise Unsupported(f"{instance.record}.{slot.name}: a choice of literals in a result")
 
     def resolve(self, ref: dict[str, Any]) -> dict[str, Any]:
         """The type with aliases replaced by what they name, keeping any constraints on top."""
@@ -728,6 +726,8 @@ def to_c_value(model: Model, slot: Slot, source: str) -> str:
     if slot.change:
         raise Unsupported(f"{slot.name}: a partial update in a result")
     optional = slot.nullable or (slot.optional and not slot.has_default)
+    if t["kind"] == "literal":
+        return f"to_c_enum({source})"
     if t["kind"] == "string":
         return f"copy_text(arena, {source})" if optional else f"copy(arena, {source})"
     if t["kind"] in SCALARS_C:
@@ -792,12 +792,25 @@ def generate_glue(model: Model) -> str:
         for e in model.errors)
     out = [*header_lines(model.ir, "The C entry points: argument checks, conversions and error codes.", "cpp"),
            '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
-           "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <optional>", "#include <string>",
+           "#include <cstring>", "#include <limits>", "#include <memory>", "#include <new>", "#include <optional>",
+           "#include <stdexcept>", "#include <string>",
            "#include <utility>", "#include <vector>",
            GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
     if model.changes():
         out += [CHANGE_SUPPORT.strip("\n"), ""]
     outputs = unique(model.outputs)
+    # A result's choices of literals, from the C++ enum to the C one.
+    converted: set[str] = set()
+    for instance in outputs:
+        for slot in model.slots(instance):
+            if slot.type["kind"] != "literal" or c_enum_name(slot) in converted:
+                continue
+            enum = c_enum_name(slot)
+            converted.add(enum)
+            out += [f"{enum} to_c_enum(contract::{slot.type['enum']} value) {{", "  switch (value) {"]
+            out += [f"  case contract::{slot.type['enum']}::{camel(v)}: return {enum.upper()}_{literal_member(v)};"
+                    for v in slot.type["values"]]
+            out += ["  }", f'  throw std::logic_error("not a contract::{slot.type["enum"]} value");', "}", ""]
     for instance in outputs:
         out.append(f"{instance.c_name} to_c(holder_arena* arena, const {instance.qualified('contract::')}& value);")
         if instance in model.listed:
