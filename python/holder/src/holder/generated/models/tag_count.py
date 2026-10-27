@@ -15,7 +15,7 @@ class TagCount:
 
     Attributes:
         tag (str):
-        card_count (int): The live cards in the project that carry the tag.
+        card_count (int): The live cards in the project that carry the tag: at least one, or the tag is not listed.
     """
 
     tag: str

@@ -140,5 +140,5 @@ class TagCount(Record):
 
     tag: Tag
     """The tag, normalized: in lower case."""
-    card_count: Int32
-    """The live cards in the project that carry the tag."""
+    card_count: Annotated[Int32, Field(ge=1)]
+    """The live cards in the project that carry the tag: at least one, or the tag is not listed."""

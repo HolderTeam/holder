@@ -8332,8 +8332,9 @@ components:
     TagCount:
       properties:
         tag: {$ref: '#/components/schemas/Tag', description: 'The tag, normalized: in lower case.'}
-        card_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Card
-            Count, description: The live cards in the project that carry the tag.}
+        card_count: {type: integer, maximum: 2147483647, minimum: 1, format: int32, title: Card Count,
+          description: 'The live cards in the project that carry the tag: at least one, or the tag is
+            not listed.'}
       additionalProperties: false
       type: object
       required: [tag, card_count]

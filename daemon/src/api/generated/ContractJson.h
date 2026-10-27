@@ -470,7 +470,7 @@ inline holder::contract::TagCount codec<holder::contract::TagCount>::decode(cons
     }
     if (value.contains("card_count") && !value.at("card_count").is_null()) {
         const auto& item = value.at("card_count");
-        out.card_count = decode_field<std::int32_t>(item, "card_count");
+        out.card_count = check_range<std::int32_t>(decode_field<std::int32_t>(item, "card_count"), "card_count", 1, std::numeric_limits<std::int32_t>::max());
     } else {
         throw std::invalid_argument("card_count is required and must not be null");
     }

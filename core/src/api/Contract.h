@@ -132,7 +132,7 @@ struct CardListItem : CardMetadata {
 /// A tag and how many of a project's live cards carry it.
 struct TagCount {
   std::string tag;  ///< The tag, normalized: in lower case.
-  std::int32_t card_count{};  ///< The live cards in the project that carry the tag.
+  std::int32_t card_count{};  ///< The live cards in the project that carry the tag: at least one, or the tag is not listed.
 };
 
 /// Fetch a card.

@@ -147,7 +147,7 @@ typedef struct holder_card_list_item_page {
 /* A tag and how many of a project's live cards carry it. */
 typedef struct holder_tag_count {
     const char* tag; /* The tag, normalized: in lower case. */
-    int32_t card_count; /* The live cards in the project that carry the tag. */
+    int32_t card_count; /* The live cards in the project that carry the tag: at least one, or the tag is not listed. */
 } holder_tag_count;
 
 typedef struct holder_tag_count_list {
