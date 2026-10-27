@@ -178,7 +178,7 @@ typedef enum holder_new_project_privacy_mode {
 typedef struct holder_new_project {
     const char* project_id; /* The project's ID, for imports; omit for a new one. NULL when absent. */
     const char* name; /* The project's name. */
-    const char* root_path; /* The directory for the project's repository; omit for one under this device's projects directory, named for the project. NULL when absent. */
+    const char* root_path; /* The directory for the project's repository, an absolute path; omit for one under this device's projects directory, named for the project. NULL when absent. */
     const char* git_remote_url; /* The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument. May be NULL. */
     const char* git_provider; /* Who hosts the Git remote; null or omitted when unknown. May be NULL. */
     holder_new_project_privacy_mode privacy_mode; /* How the project's files are stored. Zero for the default, encrypted_git. */

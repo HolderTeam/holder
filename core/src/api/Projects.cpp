@@ -100,6 +100,9 @@ const char* privacy_name(NewProjectPrivacyMode mode) {
 }
 
 Project create(holder_context& context, const NewProject& request) {
+  // A relative directory would be read against wherever the host happens to run.
+  if (request.root_path && !std::filesystem::path(*request.root_path).is_absolute())
+    throw InvalidArgument("root_path must be an absolute path");
   holder::model::Project project;
   project.project_id = request.project_id.value_or("");
   project.name = request.name;

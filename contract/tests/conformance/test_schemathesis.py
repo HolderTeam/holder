@@ -63,5 +63,8 @@ def test_the_daemon_answers_as_its_document_says(case):
     target = requests.Request(case.method, daemon.url + case.formatted_path, params=case.query).prepare().path_url
     if len(target) > MAX_TARGET:  # the daemon drops a request longer than it reads (#300)
         return
+    # A project's root path is a directory the daemon makes: a random one could be anywhere.
+    if isinstance(case.body, dict) and "root_path" in case.body:
+        return
     case.call_and_validate(base_url=daemon.url, headers={"Authorization": f"Bearer {daemon.token}"},
                            excluded_checks=[positive_data_acceptance] if stated_in_words(case) else [])

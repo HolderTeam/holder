@@ -7783,10 +7783,10 @@ components:
         project_id: {$ref: '#/components/schemas/ProjectId', description: 'The project''s ID, for imports;
             omit for a new one.'}
         name: {$ref: '#/components/schemas/ProjectName', description: The project's name.}
-        root_path: {type: string, title: Root Path, description: 'The directory for the project''s repository;
-            omit for one under this device''s projects directory, named
+        root_path: {type: string, title: Root Path, description: 'The directory for the project''s repository,
+            an absolute path; omit for one under this device''s projects
 
-            for the project.'}
+            directory, named for the project.'}
         git_remote_url:
           anyOf:
           - {$ref: '#/components/schemas/GitRemoteUrl'}

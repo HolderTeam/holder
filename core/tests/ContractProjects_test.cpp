@@ -77,6 +77,11 @@ TEST_CASE("Projects are made under the host's directory and known to its registr
   REQUIRE(registered(host, made));
   REQUIRE(contract::get_project(host.context, "proj-research").name == "Research notes");
   REQUIRE_THROWS_AS(host.make("Again", "proj-research"), contract::Conflict);
+  contract::NewProject relative;
+  relative.name = "Relative";
+  relative.root_path = "notes/relative";
+  REQUIRE_THROWS_AS(contract::create_project(host.context, relative), contract::InvalidArgument);
+  REQUIRE_FALSE(std::filesystem::exists("notes/relative"));
   REQUIRE_THROWS_AS(contract::get_project(host.context, "no-such-project"), contract::NotFound);
 }
 

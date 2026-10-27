@@ -15768,7 +15768,7 @@
           "root_path": {
             "type": "string",
             "title": "Root Path",
-            "description": "The directory for the project's repository; omit for one under this device's projects directory, named\nfor the project."
+            "description": "The directory for the project's repository, an absolute path; omit for one under this device's projects\ndirectory, named for the project."
           },
           "git_remote_url": {
             "anyOf": [

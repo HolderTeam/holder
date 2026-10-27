@@ -156,7 +156,7 @@ enum class NewProjectPrivacyMode { EncryptedGit, Plain };
 struct NewProject {
   std::optional<std::string> project_id;  ///< The project's ID, for imports; omit for a new one.
   std::string name;  ///< The project's name.
-  std::optional<std::string> root_path;  ///< The directory for the project's repository; omit for one under this device's projects directory, named for the project.
+  std::optional<std::string> root_path;  ///< The directory for the project's repository, an absolute path; omit for one under this device's projects directory, named for the project.
   std::optional<std::string> git_remote_url;  ///< The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument.
   std::optional<std::string> git_provider;  ///< Who hosts the Git remote; null or omitted when unknown.
   NewProjectPrivacyMode privacy_mode = NewProjectPrivacyMode::EncryptedGit;  ///< How the project's files are stored.

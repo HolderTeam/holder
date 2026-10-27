@@ -57,8 +57,8 @@ class NewProject(Record):
     name: ProjectName
     """The project's name."""
     root_path: str | MISSING = MISSING
-    """The directory for the project's repository; omit for one under this device's projects directory, named
-    for the project."""
+    """The directory for the project's repository, an absolute path; omit for one under this device's projects
+    directory, named for the project."""
     git_remote_url: GitRemoteUrl | None = None
     """The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument."""
     git_provider: str | None = None
