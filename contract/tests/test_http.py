@@ -137,16 +137,17 @@ def test_success_is_enveloped_with_the_bindings_status():
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
 
 
-def test_records_extend_their_base_and_keep_null_and_omitted_apart():
+def test_records_list_their_bases_fields_and_keep_null_and_omitted_apart():
     schemas = openapi()["components"]["schemas"]
     item = schemas["CardListItem"]
-    assert item["allOf"][0] == {"$ref": "#/components/schemas/CardMetadata"}
-    assert item["allOf"][1]["properties"]["child_count"] == {
+    # The base's fields as well as its own: a closed record cannot be an allOf of closed schemas.
+    assert "allOf" not in item and item["additionalProperties"] is False
+    assert list(item["properties"])[:2] == ["card_id", "project_id"]
+    assert item["properties"]["child_count"] == {
         "type": "integer", "format": "int32", "description": "The card's live children; present when asked for."}
-    assert "required" not in item["allOf"][1]
-    metadata = schemas["CardMetadata"]
-    assert metadata["properties"]["parent_card_id"]["type"] == ["string", "null"]
-    assert "parent_card_id" in metadata["required"]
+    assert "child_count" not in item["required"] and "card_id" in item["required"]
+    assert item["properties"]["parent_card_id"]["type"] == ["string", "null"]
+    assert "parent_card_id" in item["required"]
     new_card = schemas["NewCard"]
     assert new_card["required"] == ["project_id", "title"]
     assert new_card["properties"]["content"]["default"] == ""

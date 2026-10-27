@@ -22,7 +22,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from .rules import Declarations, Problem, check_file
-from .vocabulary import BINDINGS, FORMATS, NATIVE_TYPES, Bytes, HolderError, Record, Stream
+from .vocabulary import BINDINGS, Bytes, HolderError, Native, Record, Stream
 
 IR_VERSION = 1
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
@@ -316,19 +316,23 @@ class _Builder:
 
     def ref(self, tp: Any, where: str, allow_missing: bool = False, allow_stream: bool = False) -> dict[str, Any]:
         origin, args = typing.get_origin(tp), typing.get_args(tp)
-        if tp in NATIVE_TYPES:
-            out = {"kind": NATIVE_TYPES[tp]}
-            if tp in FORMATS:
-                out["format"] = FORMATS[tp]
-            return out
         if tp is JsonValue:
             return {"kind": "json"}
         if origin is typing.Annotated:
-            out = dict(self.ref(args[0], where, allow_missing, allow_stream))
+            native = next((item for item in args[1:] if isinstance(item, Native)), None)
+            if native:
+                out = {"kind": native.kind, **({"format": native.format} if native.format else {})}
+            else:
+                out = dict(self.ref(args[0], where, allow_missing, allow_stream))
             for item in args[1:]:
                 out.update(_constraints(item))
                 if isinstance(item, FieldInfo) and item.discriminator:
                     out["discriminator"] = item.discriminator if isinstance(item.discriminator, str) else None
+            if native:
+                # The type's own bounds are what its kind says already.
+                for key in ("ge", "le"):
+                    if key in out and out[key] == getattr(native, key):
+                        del out[key]
             return out
         if isinstance(tp, typing.TypeAliasType):
             if not self.in_contract(tp):

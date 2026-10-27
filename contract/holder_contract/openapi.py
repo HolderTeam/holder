@@ -92,11 +92,10 @@ class Converter:
             return
         self.components[name] = {}  # reserved, for records that refer to themselves
         declaration = self.model.records[instance.record]
-        own = {f["name"] for f in declaration["fields"]}
         properties, required = {}, []
+        # Every field, a base record's included, as Pydantic writes a record: allOf would make a closed
+        # record and its closed base reject each other's fields.
         for slot in self.model.slots(instance):
-            if slot.name not in own:
-                continue
             property_schema = self.schema({"kind": "nullable", "value": slot.type} if slot.nullable else slot.type)
             if slot.doc:
                 if "$ref" in property_schema:
@@ -110,13 +109,9 @@ class Converter:
         result: dict[str, Any] = {"type": "object", "properties": properties}
         if required:
             result["required"] = required
-        if instance in self.model.inputs and instance not in self.model.outputs:
-            # Requests are checked for fields the record does not have; results may gain fields.
-            result["additionalProperties"] = False
-        if "base" in declaration:
-            base = Instance(declaration["base"])
-            self.record(base)
-            result = {"allOf": [{"$ref": f"#/components/schemas/{schema_name(base)}"}, result]}
+        # A record has only the fields it declares, in requests and results alike; clients should
+        # still read results leniently.
+        result["additionalProperties"] = False
         if declaration.get("doc"):
             result["description"] = declaration["doc"]
         self.components[name] = result

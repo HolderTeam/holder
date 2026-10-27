@@ -17,21 +17,43 @@ from pydantic_core import core_schema
 
 
 class Record(BaseModel):
-    """Base for every record. Field documentation is the string written under each field."""
+    """Base for every record. Field documentation is the string written under each field.
 
-    model_config = ConfigDict(use_attribute_docstrings=True, extra="allow", frozen=True)
+    A record rejects fields it does not have, in requests and in results alike. A generic record's
+    use is named for its arguments, as CardListItemPage for Page[CardListItem].
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True, extra="forbid", frozen=True)
+
+    @classmethod
+    def model_parametrized_name(cls, params: tuple[type[Any], ...]) -> str:
+        return "".join(getattr(p, "__name__", str(p)) for p in params) + cls.__name__
 
 
-# Native types. A bare int or float has no size in C, so the extractor rejects it.
-type Int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
-type Int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
-type Float64 = Annotated[float, Field(allow_inf_nan=False)]
+@dataclass(frozen=True)
+class Native:
+    """Marks a native type in its metadata: its kind and format in the IR, and its own bounds."""
+
+    kind: str
+    format: str | None = None
+    ge: int | None = None
+    le: int | None = None
+
+
+def _integer(kind: str, bits: int, format: str | None = None) -> Any:
+    low, high = -(2 ** (bits - 1)), 2 ** (bits - 1) - 1
+    return Annotated[int, Native(kind, format, low, high), Field(ge=low, le=high, json_schema_extra={"format": kind})]
+
+
+# Native types. A bare int or float has no size in C, so the extractor rejects it. Each is a plain
+# Annotated value, not a `type` statement, so that a constraint written on one (Annotated[Int32,
+# Field(ge=1)]) stays where it is written, and JSON Schema shows the type inline, with its format.
+Int32 = _integer("int32", 32)
+Int64 = _integer("int64", 64)
+Float64 = Annotated[float, Native("float64"), Field(allow_inf_nan=False, json_schema_extra={"format": "double"})]
 """A finite number: JSON has no NaN or infinity."""
-type Timestamp = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
+Timestamp = _integer("int64", 64, "unix-seconds")
 """Seconds since the Unix epoch."""
-
-NATIVE_TYPES = {Int32: "int32", Int64: "int64", Float64: "float64", Timestamp: "int64"}
-FORMATS = {Timestamp: "unix-seconds"}
 
 
 class HolderError(Exception):
