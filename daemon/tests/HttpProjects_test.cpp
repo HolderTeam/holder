@@ -620,7 +620,7 @@ TEST_CASE("HTTP project list defaults to Home first", "[http]") {
       "/projects",
       {{"project_id", "proj-a"},
        {"name", "Alpha"},
-       {"root_path", "/tmp/proj-a"},
+       {"root_path", (dir / "proj-a").string()},
        {"created_at", 20},
        {"updated_at", 20}},
       boost::beast::http::status::created
@@ -633,7 +633,7 @@ TEST_CASE("HTTP project list defaults to Home first", "[http]") {
       "/projects",
       {{"project_id", "proj-home"},
        {"name", "Home"},
-       {"root_path", "/tmp/proj-home"},
+       {"root_path", (dir / "proj-home").string()},
        {"created_at", 10},
        {"updated_at", 10}},
       boost::beast::http::status::created
