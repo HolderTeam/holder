@@ -13,8 +13,19 @@ from fastapi import Body, Path, Query
 from holder_contract import Contract, Field, Int32, Timestamp
 
 from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Page, ProjectId, Tag, TagCount
-from .errors import Conflict, DataCorrupted, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
+from .errors import (
+    Conflict,
+    DataCorrupted,
+    HistoryKeyUnavailable,
+    HistoryResponseTooLarge,
+    HistoryUnavailable,
+    InvalidMove,
+    KeyMissing,
+    KeyringUnavailable,
+    NotFound,
+)
 from .git import PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
+from .history import HistoryObjectKind, ProjectHistoryPage
 from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
@@ -29,6 +40,9 @@ contract = Contract(statuses={
     # Not something the caller can fix; the code names the condition.
     DataCorrupted: 500,
     InvalidMove: 422,
+    HistoryResponseTooLarge: 413,
+    HistoryKeyUnavailable: 409,
+    HistoryUnavailable: 503,
 })
 # What every write to a card's file may fail with, besides its own errors: an encrypted project's key.
 KEYS = [KeyringUnavailable, KeyMissing, DataCorrupted]
@@ -519,4 +533,19 @@ def test_project_remote(project_id: Annotated[ProjectId, Path()],
 
     Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository
     changes.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/history",
+                errors=[NotFound, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable])
+def list_project_history(
+    project_id: Annotated[ProjectId, Path()],
+    limit: Annotated[Int32, Query(ge=1, le=200)] = 50,
+    cursor: Annotated[str | None, Query(description="A full commit OID from next_cursor.")] = None,
+    kind: Annotated[HistoryObjectKind | None, Query(description="Only activities affecting this object kind.")] = None,
+) -> ProjectHistoryPage:
+    """Return bounded, cursor-paginated Git activities for a project.
+
+    Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as unknown.
+    A missing decryption key is HistoryKeyUnavailable; other history read failures are HistoryUnavailable.
     """

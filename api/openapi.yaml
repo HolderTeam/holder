@@ -4654,38 +4654,48 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/history:
     get:
-      summary: List project activity history
-      description: Returns bounded, cursor-paginated Git activities for the project. Each activity groups
-        its changed paths by recognised Holder object kind; unknown paths remain visible as unknown.
+      summary: Return bounded, cursor-paginated Git activities for a project.
+      description: 'Each commit groups its changed paths by Holder object kind. Unrecognised paths remain
+        visible as unknown.
+
+        A missing decryption key is HistoryKeyUnavailable; other history read failures are HistoryUnavailable.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: limit
         in: query
         required: false
-        schema: {type: integer, default: 50, minimum: 1, maximum: 200}
+        schema: {type: integer, maximum: 200, minimum: 1, format: int32, default: 50, title: Limit}
       - name: cursor
         in: query
         required: false
-        schema: {type: string}
+        schema:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          description: A full commit OID from next_cursor.
+          title: Cursor
         description: A full commit OID from next_cursor.
       - name: kind
         in: query
         required: false
         schema:
-          type: string
-          enum: [card, resource, location, ai_data, project_settings, unknown]
-        description: Return only activities affecting this Holder object kind.
+          anyOf:
+          - {$ref: '#/components/schemas/HistoryObjectKind'}
+          - {type: 'null'}
+          description: Only activities affecting this object kind.
+          title: Kind
+        description: Only activities affecting this object kind.
       responses:
         '200':
-          description: Project activity history
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ProjectHistoryPageResponse'}
         '400':
-          description: Invalid limit, cursor, or object-kind filter
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4695,27 +4705,27 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: The encrypted project key is unavailable on this device
+          description: This device cannot use the encrypted project's key to read its history.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
-          description: The bounded History response would exceed 2 MiB
+          description: The bounded History response would exceed 2 MiB.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Project history is temporarily unavailable
+          description: The project's Git history cannot be read right now.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -7561,6 +7571,47 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/HierarchyRepair'}
       required: [ok, data]
+    HistoryAffectedObject:
+      properties:
+        kind: {$ref: '#/components/schemas/HistoryObjectKind', description: What kind of object these
+            paths belong to.}
+        paths:
+          items: {type: string}
+          type: array
+          title: Paths
+          description: The changed paths, retained for existing clients.
+        items:
+          items: {$ref: '#/components/schemas/HistoryAffectedPath'}
+          type: array
+          title: Items
+          description: The changed paths with historical display details.
+      additionalProperties: false
+      type: object
+      required: [kind, paths, items]
+      title: HistoryAffectedObject
+      description: Paths changed together in one commit, grouped by Holder object kind.
+    HistoryAffectedPath:
+      properties:
+        path: {type: string, title: Path, description: The path relative to the project root.}
+        title: {type: string, title: Title, description: 'A historical title, when available.'}
+        detail: {type: string, title: Detail, description: 'A historical detail, when available.'}
+      additionalProperties: false
+      type: object
+      required: [path]
+      title: HistoryAffectedPath
+      description: A changed path with any display details found in its historical version.
+    HistoryAuthor:
+      properties:
+        name: {type: string, title: Name, description: The author's name.}
+        email: {type: string, title: Email, description: The author's email address.}
+      additionalProperties: false
+      type: object
+      required: [name, email]
+      title: HistoryAuthor
+      description: The author recorded on a Git commit.
+    HistoryObjectKind:
+      type: string
+      enum: [card, resource, location, ai_data, project_settings, unknown]
     Link:
       properties:
         source_project_id: {$ref: '#/components/schemas/ProjectId', description: The project of the card
@@ -7905,6 +7956,31 @@ components:
         created_at, updated_at]
       title: Project
       description: A project on this device.
+    ProjectActivity:
+      properties:
+        oid: {type: string, title: Oid, description: The full commit object ID.}
+        parent_oids:
+          items: {type: string}
+          type: array
+          title: Parent Oids
+          description: The commit's parents.
+        author: {$ref: '#/components/schemas/HistoryAuthor', description: The commit's author.}
+        authored_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Authored At, description: When the commit was authored.}
+        committed_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Committed At, description: When the commit was committed.}
+        message: {type: string, title: Message, description: The commit message.}
+        affected_objects:
+          items: {$ref: '#/components/schemas/HistoryAffectedObject'}
+          type: array
+          title: Affected Objects
+          description: Changed paths grouped by Holder object kind.
+        is_merge: {type: boolean, title: Is Merge, description: Whether the commit has multiple parents.}
+      additionalProperties: false
+      type: object
+      required: [oid, parent_oids, author, authored_at, committed_at, message, affected_objects, is_merge]
+      title: ProjectActivity
+      description: One Git commit affecting a project.
     ProjectEncryptionCheck:
       type: object
       properties:
@@ -7932,62 +8008,39 @@ components:
             check: {$ref: '#/components/schemas/ProjectEncryptionCheck'}
           required: [project_id, privacy_mode, check]
       required: [ok, data]
-    ProjectHistoryActivity:
-      type: object
-      properties:
-        oid: {type: string}
-        parent_oids:
-          type: array
-          items: {type: string}
-        author: {$ref: '#/components/schemas/CardHistoryAuthor'}
-        authored_at: {type: integer, format: int64}
-        committed_at: {type: integer, format: int64}
-        message: {type: string}
-        affected_objects:
-          type: array
-          items: {$ref: '#/components/schemas/ProjectHistoryAffectedObject'}
-        is_merge: {type: boolean}
-      required: [oid, parent_oids, author, authored_at, committed_at, message, affected_objects, is_merge]
-    ProjectHistoryAffectedObject:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum: [card, resource, location, ai_data, project_settings, unknown]
-        paths:
-          type: array
-          items: {type: string}
-        items:
-          type: array
-          items:
-            type: object
-            properties:
-              path: {type: string}
-              title: {type: string}
-              detail: {type: string}
-            required: [path]
-          description: Historical display details for the affected paths, when available.
-      required: [kind, paths, items]
-    ProjectHistoryPageData:
-      type: object
+    ProjectHistoryPage:
       properties:
         head_oid:
-          type: [string, 'null']
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Head Oid
+          description: The project HEAD captured for this page; null for an empty repository.
         activities:
+          items: {$ref: '#/components/schemas/ProjectActivity'}
           type: array
-          items: {$ref: '#/components/schemas/ProjectHistoryActivity'}
+          title: Activities
+          description: The activities on this page, newest first.
         next_cursor:
-          type: [string, 'null']
-        scan_limited: {type: boolean}
-      required: [head_oid, activities, next_cursor, scan_limited]
-    ProjectHistoryPageResponse:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Next Cursor
+          description: The cursor for another page; null at the end.
+        scan_limited: {type: boolean, title: Scan Limited, description: Whether History reached its bounded
+            scan before the end.}
+      additionalProperties: false
       type: object
+      required: [head_oid, activities, next_cursor, scan_limited]
+      title: ProjectHistoryPage
+      description: One bounded page of project activity, newest first.
+    ProjectHistoryPageResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/ProjectHistoryPageData'}
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ProjectHistoryPage'}
+      type: object
       required: [ok, data]
+      title: ProjectHistoryPageResponse
     ProjectId: {type: string, minLength: 1}
     ProjectListItem:
       properties:

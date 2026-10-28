@@ -449,7 +449,7 @@ Session::RequestLane Session::classify_request_lane(const Request& req, const st
   const bool is_get_like = method == http::verb::get || method == http::verb::head;
   const bool is_card_route = is_card_path(path);
   const bool is_ai_route = path == "/ai" || path.rfind("/ai/", 0) == 0;
-  const bool is_history_route = path.find("/history/") != std::string::npos;
+  const bool is_history_route = path.ends_with("/history") || path.find("/history/") != std::string::npos;
   const bool is_link_route = path.find("/links") != std::string::npos ||
                              path.find("/backlinks") != std::string::npos;
   const bool is_forced_sync_route = path.ends_with("/git/pull") || path.ends_with("/git/sync");

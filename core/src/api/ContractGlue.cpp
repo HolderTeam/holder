@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -153,6 +153,12 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_DATA_CORRUPTED, e.what());
   } catch (const contract::InvalidMove& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_MOVE, e.what());
+  } catch (const contract::HistoryUnavailable& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_UNAVAILABLE, e.what());
+  } catch (const contract::HistoryKeyUnavailable& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, e.what());
+  } catch (const contract::HistoryResponseTooLarge& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, e.what());
   } catch (const std::bad_alloc&) {
     return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
@@ -276,6 +282,18 @@ holder_remote_test_result_status to_c_enum(contract::RemoteTestResultStatus valu
   throw std::logic_error("not a contract::RemoteTestResultStatus value");
 }
 
+holder_history_affected_object_kind to_c_enum(contract::HistoryAffectedObjectKind value) {
+  switch (value) {
+  case contract::HistoryAffectedObjectKind::Card: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_CARD;
+  case contract::HistoryAffectedObjectKind::Resource: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_RESOURCE;
+  case contract::HistoryAffectedObjectKind::Location: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_LOCATION;
+  case contract::HistoryAffectedObjectKind::AiData: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_AI_DATA;
+  case contract::HistoryAffectedObjectKind::ProjectSettings: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS;
+  case contract::HistoryAffectedObjectKind::Unknown: return HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN;
+  }
+  throw std::logic_error("not a contract::HistoryAffectedObjectKind value");
+}
+
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -309,6 +327,14 @@ holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
 holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
 holder_remote_test_result to_c(holder_arena* arena, const contract::RemoteTestResult& value);
+holder_history_author to_c(holder_arena* arena, const contract::HistoryAuthor& value);
+holder_history_affected_path to_c(holder_arena* arena, const contract::HistoryAffectedPath& value);
+holder_history_affected_path_list to_c_list(holder_arena* arena, const std::vector<contract::HistoryAffectedPath>& values);
+holder_history_affected_object to_c(holder_arena* arena, const contract::HistoryAffectedObject& value);
+holder_history_affected_object_list to_c_list(holder_arena* arena, const std::vector<contract::HistoryAffectedObject>& values);
+holder_project_activity to_c(holder_arena* arena, const contract::ProjectActivity& value);
+holder_project_activity_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectActivity>& values);
+holder_project_history_page to_c(holder_arena* arena, const contract::ProjectHistoryPage& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -632,6 +658,69 @@ holder_remote_test_result to_c(holder_arena* arena, const contract::RemoteTestRe
   out.remote_url = copy_text(arena, value.remote_url);
   out.remote_has_head = value.remote_has_head;
   out.error_message = copy_text(arena, value.error_message);
+  return out;
+}
+
+holder_history_author to_c(holder_arena* arena, const contract::HistoryAuthor& value) {
+  holder_history_author out{};
+  out.name = copy(arena, value.name);
+  out.email = copy(arena, value.email);
+  return out;
+}
+
+holder_history_affected_path to_c(holder_arena* arena, const contract::HistoryAffectedPath& value) {
+  holder_history_affected_path out{};
+  out.path = copy(arena, value.path);
+  out.title = copy_text(arena, value.title);
+  out.detail = copy_text(arena, value.detail);
+  return out;
+}
+
+holder_history_affected_path_list to_c_list(holder_arena* arena, const std::vector<contract::HistoryAffectedPath>& values) {
+  auto* items = make<holder_history_affected_path>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_history_affected_object to_c(holder_arena* arena, const contract::HistoryAffectedObject& value) {
+  holder_history_affected_object out{};
+  out.kind = to_c_enum(value.kind);
+  out.paths = copy_strings(arena, value.paths);
+  out.items = to_c_list(arena, value.items);
+  return out;
+}
+
+holder_history_affected_object_list to_c_list(holder_arena* arena, const std::vector<contract::HistoryAffectedObject>& values) {
+  auto* items = make<holder_history_affected_object>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_project_activity to_c(holder_arena* arena, const contract::ProjectActivity& value) {
+  holder_project_activity out{};
+  out.oid = copy(arena, value.oid);
+  out.parent_oids = copy_strings(arena, value.parent_oids);
+  out.author = to_c(arena, value.author);
+  out.authored_at = value.authored_at;
+  out.committed_at = value.committed_at;
+  out.message = copy(arena, value.message);
+  out.affected_objects = to_c_list(arena, value.affected_objects);
+  out.is_merge = value.is_merge;
+  return out;
+}
+
+holder_project_activity_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectActivity>& values) {
+  auto* items = make<holder_project_activity>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_project_history_page to_c(holder_arena* arena, const contract::ProjectHistoryPage& value) {
+  holder_project_history_page out{};
+  out.head_oid = copy_text(arena, value.head_oid);
+  out.activities = to_c_list(arena, value.activities);
+  out.next_cursor = copy_text(arena, value.next_cursor);
+  out.scan_limited = value.scan_limited;
   return out;
 }
 
@@ -1394,6 +1483,31 @@ int holder_test_project_remote(holder_context* context, const char* project_id, 
     auto* out = make<holder_remote_test_result>(arena);
     *out = to_c(arena, contract::test_project_remote(*context, project_id_value, remote_value));
     *out_remote_test_result = out;
+  });
+}
+
+int holder_list_project_history(holder_context* context, const char* project_id, const int32_t* limit, const char* cursor, holder_list_project_history_kind kind, holder_arena* arena, const holder_project_history_page** out_project_history_page, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_history_page != nullptr, "out_project_history_page must not be null");
+    *out_project_history_page = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, 200) : std::int32_t{50});
+    const auto cursor_value = optional_text(cursor, "cursor", 0, SIZE_MAX);
+    std::optional<contract::ListProjectHistoryKind> kind_value;
+    switch (kind) {
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_NONE: break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_CARD: kind_value = contract::ListProjectHistoryKind::Card; break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_RESOURCE: kind_value = contract::ListProjectHistoryKind::Resource; break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_LOCATION: kind_value = contract::ListProjectHistoryKind::Location; break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_AI_DATA: kind_value = contract::ListProjectHistoryKind::AiData; break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_PROJECT_SETTINGS: kind_value = contract::ListProjectHistoryKind::ProjectSettings; break;
+    case HOLDER_LIST_PROJECT_HISTORY_KIND_UNKNOWN: kind_value = contract::ListProjectHistoryKind::Unknown; break;
+    default: throw ArgumentError("kind is not a holder_list_project_history_kind value");
+    }
+    auto* out = make<holder_project_history_page>(arena);
+    *out = to_c(arena, contract::list_project_history(*context, project_id_value, limit_value, cursor_value, kind_value));
+    *out_project_history_page = out;
   });
 }
 

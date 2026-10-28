@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class GetProjectsProjectIdHistoryKind(StrEnum):
+class HistoryObjectKind(StrEnum):
     AI_DATA = "ai_data"
     CARD = "card"
     LOCATION = "location"

@@ -243,6 +243,11 @@ int main(void) {
     printf("sync a project with no remote: status %d, result %d, pull %d, push %d\n", status, (int)synced->status,
            (int)synced->pull.status, (int)synced->push.status);
 
+    const holder_project_history_page* history = NULL;
+    status = holder_list_project_history(context, project_id, NULL, NULL, HOLDER_LIST_PROJECT_HISTORY_KIND_NONE,
+                                         arena, &history, &error);
+    printf("list project history: status %d, %zu activities\n", status, history->activities.count);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

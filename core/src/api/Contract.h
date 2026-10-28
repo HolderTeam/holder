@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -58,6 +58,21 @@ struct DataCorrupted : Error {
 
 /// A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top.
 struct InvalidMove : Error {
+  using Error::Error;
+};
+
+/// The project's Git history cannot be read right now.
+struct HistoryUnavailable : Error {
+  using Error::Error;
+};
+
+/// This device cannot use the encrypted project's key to read its history.
+struct HistoryKeyUnavailable : Error {
+  using Error::Error;
+};
+
+/// The bounded History response would exceed 2 MiB.
+struct HistoryResponseTooLarge : Error {
   using Error::Error;
 };
 
@@ -393,6 +408,49 @@ struct RemoteTestResult {
   std::optional<std::string> error_message;  ///< Why the remote could not be reached; null when it could.
 };
 
+/// The author recorded on a Git commit.
+struct HistoryAuthor {
+  std::string name;  ///< The author's name.
+  std::string email;  ///< The author's email address.
+};
+
+/// A changed path with any display details found in its historical version.
+struct HistoryAffectedPath {
+  std::string path;  ///< The path relative to the project root.
+  std::optional<std::string> title;  ///< A historical title, when available.
+  std::optional<std::string> detail;  ///< A historical detail, when available.
+};
+
+/// What kind of object these paths belong to.
+enum class HistoryAffectedObjectKind { Card, Resource, Location, AiData, ProjectSettings, Unknown };
+
+/// Paths changed together in one commit, grouped by Holder object kind.
+struct HistoryAffectedObject {
+  HistoryAffectedObjectKind kind;  ///< What kind of object these paths belong to.
+  std::vector<std::string> paths;  ///< The changed paths, retained for existing clients.
+  std::vector<HistoryAffectedPath> items;  ///< The changed paths with historical display details.
+};
+
+/// One Git commit affecting a project.
+struct ProjectActivity {
+  std::string oid;  ///< The full commit object ID.
+  std::vector<std::string> parent_oids;  ///< The commit's parents.
+  HistoryAuthor author;  ///< The commit's author.
+  long long authored_at{};  ///< When the commit was authored.
+  long long committed_at{};  ///< When the commit was committed.
+  std::string message;  ///< The commit message.
+  std::vector<HistoryAffectedObject> affected_objects;  ///< Changed paths grouped by Holder object kind.
+  bool is_merge{};  ///< Whether the commit has multiple parents.
+};
+
+/// One bounded page of project activity, newest first.
+struct ProjectHistoryPage {
+  std::optional<std::string> head_oid;  ///< The project HEAD captured for this page; null for an empty repository.
+  std::vector<ProjectActivity> activities;  ///< The activities on this page, newest first.
+  std::optional<std::string> next_cursor;  ///< The cursor for another page; null at the end.
+  bool scan_limited{};  ///< Whether History reached its bounded scan before the end.
+};
+
 /// Fetch a card.
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
@@ -671,6 +729,16 @@ SyncResult sync_project(holder_context& context, std::string project_id, const P
 /// changes.
 /// @throws NotFound
 RemoteTestResult test_project_remote(holder_context& context, std::string project_id, const RemoteTest& remote);
+
+enum class ListProjectHistoryKind { Card, Resource, Location, AiData, ProjectSettings, Unknown };
+
+/// Return bounded, cursor-paginated Git activities for a project.
+/// Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as unknown.
+/// A missing decryption key is HistoryKeyUnavailable; other history read failures are HistoryUnavailable.
+/// @param cursor A full commit OID from next_cursor.
+/// @param kind Only activities affecting this object kind.
+/// @throws NotFound, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable
+ProjectHistoryPage list_project_history(holder_context& context, std::string project_id, std::int32_t limit, std::optional<std::string> cursor, std::optional<ListProjectHistoryKind> kind);
 
 namespace detail {
 

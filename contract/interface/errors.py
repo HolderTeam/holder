@@ -29,3 +29,15 @@ class DataCorrupted(HolderError):
 
 class InvalidMove(HolderError):
     """A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top."""
+
+
+class HistoryUnavailable(HolderError):
+    """The project's Git history cannot be read right now."""
+
+
+class HistoryKeyUnavailable(HolderError):
+    """This device cannot use the encrypted project's key to read its history."""
+
+
+class HistoryResponseTooLarge(HolderError):
+    """The bounded History response would exceed 2 MiB."""

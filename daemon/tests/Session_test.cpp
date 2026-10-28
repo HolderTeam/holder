@@ -352,18 +352,19 @@ TEST_CASE("Session prepare_request classifies links reads as background lane", "
 }
 
 TEST_CASE("Session prepare_request classifies history reads as background lane", "[session]") {
-  SocketPair pair;
+  for (const auto& path : {"/projects/project-123/history", "/projects/project-123/history/cards/card-123"}) {
+    SocketPair pair;
+    const std::string req = "GET " + std::string(path) + " HTTP/1.1\r\n"
+                            "Host: localhost\r\n"
+                            "Connection: close\r\n"
+                            "\r\n";
+    boost::asio::write(pair.client, boost::asio::buffer(req));
 
-  const std::string req = "GET /projects/project-123/history/cards/card-123 HTTP/1.1\r\n"
-                          "Host: localhost\r\n"
-                          "Connection: close\r\n"
-                          "\r\n";
-  boost::asio::write(pair.client, boost::asio::buffer(req));
-
-  auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
-  REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/projects/project-123/history/cards/card-123");
-  REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
+    auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
+    REQUIRE(prepared.has_value());
+    REQUIRE(prepared->path == path);
+    REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
+  }
 }
 
 TEST_CASE("Session prepare_request classifies forced sync as background lane", "[session]") {

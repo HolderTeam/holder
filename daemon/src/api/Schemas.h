@@ -144,41 +144,6 @@ struct RIG_OPEN_RECORD CardHistoryAuthor {
   std::string email;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD ProjectHistoryAffectedObjectItemsItem {
-  std::string path;
-  std::optional<std::string> title RIG_OMIT_EMPTY;
-  std::optional<std::string> detail RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD ProjectHistoryAffectedObject {
-  std::string kind RIG_STRING_VALUES("card", "resource", "location", "ai_data", "project_settings", "unknown");
-  std::vector<std::string> paths;
-  std::vector<ProjectHistoryAffectedObjectItemsItem> items RIG_FIELD_DESCRIPTION("Historical display details for the affected paths, when available.");
-};
-
-struct RIG_OPEN_RECORD ProjectHistoryActivity {
-  std::string oid;
-  std::vector<std::string> parent_oids;
-  CardHistoryAuthor author;
-  long long authored_at;
-  long long committed_at;
-  std::string message;
-  std::vector<ProjectHistoryAffectedObject> affected_objects;
-  bool is_merge;
-};
-
-struct RIG_OPEN_RECORD ProjectHistoryPageData {
-  std::optional<std::string> head_oid RIG_NULLABLE;
-  std::vector<ProjectHistoryActivity> activities;
-  std::optional<std::string> next_cursor RIG_NULLABLE;
-  bool scan_limited;
-};
-
-struct RIG_OPEN_RECORD ProjectHistoryPageResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  ProjectHistoryPageData data;
-};
-
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD CardHistoryEntrySavesItem {
   std::string oid;
   std::vector<std::string> parent_oids;
