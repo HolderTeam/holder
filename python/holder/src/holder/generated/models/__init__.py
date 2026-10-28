@@ -106,20 +106,17 @@ from .card_context_card import CardContextCard
 from .card_context_data import CardContextData
 from .card_context_data_project import CardContextDataProject
 from .card_context_response import CardContextResponse
-from .card_history_author import CardHistoryAuthor
-from .card_history_comparison_data import CardHistoryComparisonData
+from .card_history_comparison import CardHistoryComparison
 from .card_history_comparison_response import CardHistoryComparisonResponse
 from .card_history_diff_line import CardHistoryDiffLine
-from .card_history_diff_line_origin import CardHistoryDiffLineOrigin
 from .card_history_entry import CardHistoryEntry
-from .card_history_entry_kind import CardHistoryEntryKind
-from .card_history_entry_saves_item import CardHistoryEntrySavesItem
-from .card_history_page_data import CardHistoryPageData
+from .card_history_page import CardHistoryPage
 from .card_history_page_response import CardHistoryPageResponse
-from .card_history_restore_response import CardHistoryRestoreResponse
-from .card_history_restore_response_data import CardHistoryRestoreResponseData
+from .card_history_restore_result import CardHistoryRestoreResult
+from .card_history_restore_result_response import CardHistoryRestoreResultResponse
+from .card_history_save import CardHistorySave
+from .card_history_snapshot import CardHistorySnapshot
 from .card_history_snapshot_response import CardHistorySnapshotResponse
-from .card_history_snapshot_response_data import CardHistorySnapshotResponseData
 from .card_history_version import CardHistoryVersion
 from .card_link import CardLink
 from .card_link_create_request import CardLinkCreateRequest
@@ -414,20 +411,17 @@ __all__ = (
     "CardContextData",
     "CardContextDataProject",
     "CardContextResponse",
-    "CardHistoryAuthor",
-    "CardHistoryComparisonData",
+    "CardHistoryComparison",
     "CardHistoryComparisonResponse",
     "CardHistoryDiffLine",
-    "CardHistoryDiffLineOrigin",
     "CardHistoryEntry",
-    "CardHistoryEntryKind",
-    "CardHistoryEntrySavesItem",
-    "CardHistoryPageData",
+    "CardHistoryPage",
     "CardHistoryPageResponse",
-    "CardHistoryRestoreResponse",
-    "CardHistoryRestoreResponseData",
+    "CardHistoryRestoreResult",
+    "CardHistoryRestoreResultResponse",
+    "CardHistorySave",
+    "CardHistorySnapshot",
     "CardHistorySnapshotResponse",
-    "CardHistorySnapshotResponseData",
     "CardHistoryVersion",
     "CardLink",
     "CardLinkCreateRequest",

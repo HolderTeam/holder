@@ -1,5 +1,4 @@
 #include "api/GeneratedRoutes.h"
-#include "api/History.h"
 #include "http_test_helpers.h"
 
 #include "ai/AiMessageFrontMatter.h"
@@ -45,7 +44,7 @@ bool dispatch_history(
 ) {
   std::string target = path;
   char separator = '?';
-  for (const char* key : {"limit", "cursor", "kind", "from", "to", "mode", "oid"}) {
+  for (const char* key : {"limit", "cursor", "kind", "from_oid", "to_oid", "mode", "oid"}) {
     const std::string value = param(key);
     if (value.empty()) continue;
     target += separator;
@@ -259,43 +258,43 @@ TEST_CASE("HistoryRoutes lists and compares card versions", "[http][history]") {
   CHECK(list["entries"][0]["saves"][0]["authored_at"].is_number_integer());
 
   const auto head_oid = list["head_oid"].get<std::string>();
-  query["from"] = uppercase_hex(old_oid->substr(0, 8));
-  query["to"] = uppercase_hex(head_oid.substr(0, 8));
+  query["from_oid"] = uppercase_hex(old_oid->substr(0, 8));
+  query["to_oid"] = uppercase_hex(head_oid.substr(0, 8));
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
   const auto comparison = nlohmann::json::parse(res.body())["data"];
-  CHECK(comparison["from"]["body"] == "Old body\n");
-  CHECK(comparison["from"]["oid"] == *old_oid);
-  CHECK(comparison["to"]["body"] == "New body\n");
-  CHECK(comparison["to"]["oid"] == head_oid);
+  CHECK(comparison["before"]["body"] == "Old body\n");
+  CHECK(comparison["before"]["oid"] == *old_oid);
+  CHECK(comparison["after"]["body"] == "New body\n");
+  CHECK(comparison["after"]["oid"] == head_oid);
 
   query.clear();
-  query["to"] = uppercase_hex(head_oid.substr(0, 8));
+  query["to_oid"] = uppercase_hex(head_oid.substr(0, 8));
   query["mode"] = "change";
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
   const auto edit = nlohmann::json::parse(res.body())["data"];
-  CHECK(edit["from"]["exists"] == true);
-  CHECK(edit["from"]["body"] == "Old body\n");
-  CHECK(edit["from"]["oid"] == *old_oid);
-  CHECK(edit["to"]["body"] == "New body\n");
-  CHECK(edit["to"]["oid"] == head_oid);
+  CHECK(edit["before"]["exists"] == true);
+  CHECK(edit["before"]["body"] == "Old body\n");
+  CHECK(edit["before"]["oid"] == *old_oid);
+  CHECK(edit["after"]["body"] == "New body\n");
+  CHECK(edit["after"]["oid"] == head_oid);
   CHECK(std::none_of(edit["lines"].begin(), edit["lines"].end(), [](const auto& line) {
     return line["origin"] == "+" && line["text"] == "# History card";
   }));
 
   query.clear();
-  query["to"] = old_oid->substr(0, 8);
+  query["to_oid"] = old_oid->substr(0, 8);
   query["mode"] = "change";
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
   const auto creation = nlohmann::json::parse(res.body())["data"];
-  CHECK_FALSE(creation["from"]["exists"].get<bool>());
-  CHECK(creation["to"]["body"] == "Old body\n");
-  CHECK(creation["to"]["oid"] == *old_oid);
+  CHECK_FALSE(creation["before"]["exists"].get<bool>());
+  CHECK(creation["after"]["body"] == "Old body\n");
+  CHECK(creation["after"]["oid"] == *old_oid);
 
   query["mode"] = "unsupported";
   res = {};
@@ -304,26 +303,26 @@ TEST_CASE("HistoryRoutes lists and compares card versions", "[http][history]") {
 
   // A reference that is not 8 to 40 hex digits fails the contract before any lookup.
   query["mode"] = "since";
-  query["from"] = "not-an-oid";
+  query["from_oid"] = "not-an-oid";
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   CHECK(res.result() == http::status::bad_request);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "invalid_argument");
 
-  query["from"] = "deadbeef";
+  query["from_oid"] = "deadbeef";
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   CHECK(res.result() == http::status::not_found);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_not_found");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
-  query = {{"mode", "change"}, {"to", "deadbeef"}};
+  query = {{"mode", "change"}, {"to_oid", "deadbeef"}};
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   CHECK(res.result() == http::status::not_found);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_not_found");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   query.clear();
-  query["to"] = list["head_oid"].get<std::string>();
+  query["to_oid"] = list["head_oid"].get<std::string>();
   query["mode"] = "since";
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
@@ -481,25 +480,25 @@ TEST_CASE(
   res = {};
   REQUIRE(dispatch_history_get(path, res, db, param));
   CHECK(res.result() == http::status::bad_request);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "invalid_argument");
 
   query["oid"] = saved_oid.substr(0, 7);
   res = {};
   REQUIRE(dispatch_history_get(path, res, db, param));
   CHECK(res.result() == http::status::bad_request);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "bad_request");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "invalid_argument");
 
   query["oid"] = std::string(40, '0');
   res = {};
   REQUIRE(dispatch_history_get(path, res, db, param));
   CHECK(res.result() == http::status::not_found);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_not_found");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   query["oid"] = other_oid;
   res = {};
   REQUIRE(dispatch_history_get(path, res, db, param));
   CHECK(res.result() == http::status::not_found);
-  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_not_found");
+  CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "not_found");
 
   require_method_not_allowed(http::verb::post, path, db, "GET");
 }
@@ -544,13 +543,13 @@ TEST_CASE(
   REQUIRE(res.result() == http::status::conflict);
   CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_ambiguous");
 
-  query = {{"from", first_oid}, {"to", first_oid.substr(0, 8)}};
+  query = {{"from_oid", first_oid}, {"to_oid", first_oid.substr(0, 8)}};
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::conflict);
   CHECK(nlohmann::json::parse(res.body())["error"]["code"] == "revision_ambiguous");
 
-  query = {{"mode", "change"}, {"to", first_oid.substr(0, 8)}};
+  query = {{"mode", "change"}, {"to_oid", first_oid.substr(0, 8)}};
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::conflict);
@@ -683,14 +682,14 @@ TEST_CASE(
   CHECK(list["entries"].empty());
   CHECK(list["next_cursor"].is_null());
 
-  query["from"] = *unrelated_oid;
-  query["to"] = *unrelated_oid;
+  query["from_oid"] = *unrelated_oid;
+  query["to_oid"] = *unrelated_oid;
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
   const auto comparison = nlohmann::json::parse(res.body())["data"];
-  CHECK_FALSE(comparison["from"]["exists"].get<bool>());
-  CHECK_FALSE(comparison["to"]["exists"].get<bool>());
+  CHECK_FALSE(comparison["before"]["exists"].get<bool>());
+  CHECK_FALSE(comparison["after"]["exists"].get<bool>());
   CHECK(comparison["lines"].empty());
 }
 
@@ -724,16 +723,16 @@ TEST_CASE("HistoryRoutes compares captured revisions after a later autosave", "[
 
   history_commit(git, card_id, "Later autosave body\n", "Update card History card");
 
-  query["from"] = *first_oid;
-  query["to"] = captured_oid;
+  query["from_oid"] = *first_oid;
+  query["to_oid"] = captured_oid;
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
   const auto comparison = nlohmann::json::parse(res.body())["data"];
-  CHECK(comparison["from"]["oid"] == *first_oid);
-  CHECK(comparison["from"]["body"] == "First saved body\n");
-  CHECK(comparison["to"]["oid"] == captured_oid);
-  CHECK(comparison["to"]["body"] == "Captured saved body\n");
+  CHECK(comparison["before"]["oid"] == *first_oid);
+  CHECK(comparison["before"]["body"] == "First saved body\n");
+  CHECK(comparison["after"]["oid"] == captured_oid);
+  CHECK(comparison["after"]["body"] == "Captured saved body\n");
 }
 
 TEST_CASE("HistoryRoutes rejects an oversized history comparison", "[http][history]") {
@@ -762,8 +761,8 @@ TEST_CASE("HistoryRoutes rejects an oversized history comparison", "[http][histo
     return found == query.end() ? std::string{} : found->second;
   };
 
-  query["from"] = *old_oid;
-  query["to"] = *head_oid;
+  query["from_oid"] = *old_oid;
+  query["to_oid"] = *head_oid;
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::payload_too_large);
@@ -812,8 +811,8 @@ TEST_CASE("HistoryRoutes leave SQLite files unchanged", "[http][history]") {
 
   REQUIRE(dispatch_history_get(base, res, db, param));
   REQUIRE(res.result() == http::status::ok);
-  query["from"] = *old_oid;
-  query["to"] = *head_oid;
+  query["from_oid"] = *old_oid;
+  query["to_oid"] = *head_oid;
   res = {};
   REQUIRE(dispatch_history_get(base + "/compare", res, db, param));
   REQUIRE(res.result() == http::status::ok);
@@ -854,16 +853,6 @@ TEST_CASE("HistoryRoutes reports an unavailable encrypted project key", "[http][
   CHECK(res.result() == http::status::conflict);
   const auto error = nlohmann::json::parse(res.body())["error"];
   CHECK(error["code"] == "history_key_unavailable");
-}
-
-TEST_CASE("HistoryRoutes maps privacy failures by recoverability", "[http][history]") {
-  using Code = holder::privacy::PrivacyErrorCode;
-  CHECK(holder::api::history_key_unavailable(
-      holder::privacy::PrivacyError(Code::KeyringUnavailable, "missing keyring")));
-  CHECK(holder::api::history_key_unavailable(
-      holder::privacy::PrivacyError(Code::KeyMaterialMissing, "missing key")));
-  CHECK_FALSE(holder::api::history_key_unavailable(
-      holder::privacy::PrivacyError(Code::EnvelopeInvalid, "bad envelope")));
 }
 
 TEST_CASE("HistoryRoutes reports malformed historical card data", "[http][history]") {
@@ -960,7 +949,7 @@ TEST_CASE(
                                "/projects/history-project/history/cards/card-one/unknown",
                                response, db, params, &cards));
   require_method_not_allowed(http::verb::get, path, db, "POST");
-  // The revision is required, so it is checked before the card store.
+  // The revision is required before the card is looked up.
   REQUIRE(dispatch_history(http::verb::post, path, response, db, params));
   CHECK(response.result() == http::status::bad_request);
 
@@ -973,7 +962,7 @@ TEST_CASE(
     return key == "oid" ? *oid : std::string();
   };
   REQUIRE(dispatch_history(http::verb::post, path, response, db, oid_param));
-  CHECK(response.result() == http::status::not_implemented);
+  CHECK(response.result() == http::status::not_found);
   REQUIRE(dispatch_history(http::verb::post, path, response, db, oid_param, &cards));
   CHECK(response.result() == http::status::not_found);
   CHECK(nlohmann::json::parse(response.body())["error"]["message"] == "Card not found.");

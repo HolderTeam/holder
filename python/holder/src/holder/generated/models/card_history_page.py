@@ -4,32 +4,30 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
     from ..models.card_history_entry import CardHistoryEntry
 
 
-T = TypeVar("T", bound="CardHistoryPageData")
+T = TypeVar("T", bound="CardHistoryPage")
 
 
 @_attrs_define
-class CardHistoryPageData:
-    """
+class CardHistoryPage:
+    """One bounded page of saved card changes, newest first.
+
     Attributes:
-        head_oid (None | str):
-        entries (list[CardHistoryEntry]):
-        next_cursor (None | str):
-        scan_limited (bool): True when History examined its bounded number of revisions before reaching the end;
-            next_cursor continues the scan.
+        head_oid (None | str): The project HEAD captured for this page; null for an empty repository.
+        entries (list[CardHistoryEntry]): The card changes on this page.
+        next_cursor (None | str): The cursor for another page; null at the end.
+        scan_limited (bool): Whether History reached its bounded scan before the end.
     """
 
     head_oid: None | str
     entries: list[CardHistoryEntry]
     next_cursor: None | str
     scan_limited: bool
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         head_oid: None | str
@@ -46,7 +44,7 @@ class CardHistoryPageData:
         scan_limited = self.scan_limited
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "head_oid": head_oid,
@@ -87,28 +85,11 @@ class CardHistoryPageData:
 
         scan_limited = d.pop("scan_limited")
 
-        card_history_page_data = cls(
+        card_history_page = cls(
             head_oid=head_oid,
             entries=entries,
             next_cursor=next_cursor,
             scan_limited=scan_limited,
         )
 
-        card_history_page_data.additional_properties = d
-        return card_history_page_data
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return card_history_page

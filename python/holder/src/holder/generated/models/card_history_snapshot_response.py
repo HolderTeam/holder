@@ -8,9 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.card_history_snapshot_response_data import (
-        CardHistorySnapshotResponseData,
-    )
+    from ..models.card_history_snapshot import CardHistorySnapshot
 
 
 T = TypeVar("T", bound="CardHistorySnapshotResponse")
@@ -21,11 +19,11 @@ class CardHistorySnapshotResponse:
     """
     Attributes:
         ok (bool):
-        data (CardHistorySnapshotResponseData):
+        data (CardHistorySnapshot): A card's state at a selected revision.
     """
 
     ok: bool
-    data: CardHistorySnapshotResponseData
+    data: CardHistorySnapshot
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,14 +44,12 @@ class CardHistorySnapshotResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.card_history_snapshot_response_data import (
-            CardHistorySnapshotResponseData,
-        )
+        from ..models.card_history_snapshot import CardHistorySnapshot
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = CardHistorySnapshotResponseData.from_dict(d.pop("data"))
+        data = CardHistorySnapshot.from_dict(d.pop("data"))
 
         card_history_snapshot_response = cls(
             ok=ok,

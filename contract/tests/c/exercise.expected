@@ -44,3 +44,7 @@ list projects: status 0, 1 found
 list projects in an unknown order: status 1, order is not a holder_list_projects_order value
 sync a project with no remote: status 0, result 2, pull 3, push 1
 list project history: status 0, 0 activities
+list card history: status 0, 0 entries
+compare card history: status 0, after deadbeef
+card history snapshot: status 0, exists 0
+restore card history: status 0, title restored

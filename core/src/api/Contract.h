@@ -71,6 +71,11 @@ struct HistoryKeyUnavailable : Error {
   using Error::Error;
 };
 
+/// A commit ID prefix matches more than one revision; use a longer prefix or the full ID.
+struct RevisionAmbiguous : Error {
+  using Error::Error;
+};
+
 /// The bounded History response would exceed 2 MiB.
 struct HistoryResponseTooLarge : Error {
   using Error::Error;
@@ -451,6 +456,80 @@ struct ProjectHistoryPage {
   bool scan_limited{};  ///< Whether History reached its bounded scan before the end.
 };
 
+/// One exact commit saved for a card.
+struct CardHistorySave {
+  std::string oid;  ///< The full commit ID.
+  std::vector<std::string> parent_oids;  ///< The commit's parents.
+  long long authored_at{};  ///< When the commit was authored.
+  long long committed_at{};  ///< When the commit was committed.
+  std::string message;  ///< The commit message.
+};
+
+/// One displayed card change, possibly grouping adjacent autosaves.
+struct CardHistoryEntry {
+  std::string first_oid;  ///< The first commit in the entry.
+  std::string last_oid;  ///< The last commit in the entry.
+  std::vector<std::string> parent_oids;  ///< Parents of the first commit.
+  std::vector<std::string> visible_parent_oids;  ///< Direct parents represented on this page; omitted connections must not be inferred.
+  HistoryAuthor author;  ///< The author's name and email.
+  long long started_at{};  ///< When the first commit was authored.
+  long long ended_at{};  ///< When the last commit was committed.
+  std::string kind;  ///< The kind of change shown.
+  std::string summary;  ///< A short description of the change.
+  std::int32_t commit_count{};  ///< The number of commits grouped in this entry.
+  bool is_merge{};  ///< Whether this entry includes a merge commit.
+  std::vector<CardHistorySave> saves;  ///< Exact saved commits in chronological order.
+};
+
+/// One bounded page of saved card changes, newest first.
+struct CardHistoryPage {
+  std::optional<std::string> head_oid;  ///< The project HEAD captured for this page; null for an empty repository.
+  std::vector<CardHistoryEntry> entries;  ///< The card changes on this page.
+  std::optional<std::string> next_cursor;  ///< The cursor for another page; null at the end.
+  bool scan_limited{};  ///< Whether History reached its bounded scan before the end.
+};
+
+/// A card's saved state at one commit, including an explicit absent state.
+struct CardHistoryVersion {
+  bool exists{};  ///< Whether the card existed in this snapshot.
+  std::string oid;  ///< The full commit ID.
+  std::string title;  ///< The card's saved title, empty when absent.
+  std::string body;  ///< The card's saved body, empty when absent.
+};
+
+/// One line in a card comparison.
+struct CardHistoryDiffLine {
+  std::string origin;  ///< Space for unchanged, plus for added, minus for removed.
+  std::string text;  ///< The line's text.
+  std::optional<long long> old_line;  ///< Its old line number; null for an addition.
+  std::optional<long long> new_line;  ///< Its new line number; null for a removal.
+};
+
+/// A bounded line comparison of two saved card states.
+struct CardHistoryComparison {
+  CardHistoryVersion before;  ///< The earlier state.
+  CardHistoryVersion after;  ///< The later state.
+  std::string summary;  ///< A short description of the difference.
+  std::vector<CardHistoryDiffLine> lines;  ///< The comparison's lines.
+  bool truncated{};  ///< Whether the line comparison was cut short.
+};
+
+/// A card's state at a selected revision.
+struct CardHistorySnapshot {
+  std::string card_id;  ///< The card being inspected.
+  CardHistoryVersion snapshot;  ///< The state at the selected commit.
+};
+
+/// A card restored from a saved state by creating a new commit.
+struct CardHistoryRestoreResult {
+  std::string card_id;  ///< The restored card.
+  std::string restored_from_oid;  ///< The full commit ID of the selected historical snapshot.
+  std::string result_oid;  ///< The full commit ID created by restoring it.
+  std::string title;  ///< The card's title after restoration.
+  long long updated_at{};  ///< When the restored card was updated.
+  std::optional<long long> deleted_at;  ///< When the restored card is in Trash; null when live.
+};
+
 /// Fetch a card.
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
@@ -739,6 +818,38 @@ enum class ListProjectHistoryKind { Card, Resource, Location, AiData, ProjectSet
 /// @param kind Only activities affecting this object kind.
 /// @throws NotFound, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable
 ProjectHistoryPage list_project_history(holder_context& context, std::string project_id, std::int32_t limit, std::optional<std::string> cursor, std::optional<ListProjectHistoryKind> kind);
+
+/// List saved history for a card.
+/// Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves may be
+/// grouped into one displayed entry.
+/// @param cursor A full commit ID from next_cursor.
+/// @throws NotFound, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable
+CardHistoryPage list_card_history(holder_context& context, std::string project_id, std::string card_id, std::int32_t limit, std::optional<std::string> cursor);
+
+enum class CompareCardHistoryMode { Since, Change };
+
+/// Compare saved card versions or one revision's change.
+/// In since mode, compares the selected before and after snapshots. In change mode, compares the first parent
+/// of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge uses only
+/// its first parent.
+/// @param to_oid The ending revision, or the change to inspect.
+/// @param from_oid Required in since mode; ignored in change mode.
+/// @param mode Compare two snapshots or one introduced change.
+/// @throws NotFound, RevisionAmbiguous, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable
+CardHistoryComparison compare_card_history(holder_context& context, std::string project_id, std::string card_id, std::string to_oid, std::optional<std::string> from_oid, CompareCardHistoryMode mode);
+
+/// Read a card snapshot at a selected revision, including an explicit absent state.
+/// @param oid The revision containing the card snapshot.
+/// @throws NotFound, RevisionAmbiguous, HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable
+CardHistorySnapshot get_card_history_snapshot(holder_context& context, std::string project_id, std::string card_id, std::string oid);
+
+/// Restore a card to a saved snapshot.
+/// Restores the complete snapshot as a new commit, preserving the old history. Lifecycle rules still apply:
+/// restoring a trashed snapshot promotes live children, and restoring a live snapshot places the card under a
+/// reachable parent.
+/// @param oid The revision containing the snapshot to restore.
+/// @throws NotFound, RevisionAmbiguous, HistoryKeyUnavailable, HistoryUnavailable
+CardHistoryRestoreResult restore_card_history_snapshot(holder_context& context, std::string project_id, std::string card_id, std::string oid);
 
 namespace detail {
 

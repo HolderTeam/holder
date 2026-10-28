@@ -540,6 +540,38 @@ template <> struct codec<holder::contract::ProjectHistoryPage> {
     static json encode(const holder::contract::ProjectHistoryPage& value);
     static holder::contract::ProjectHistoryPage decode(const json& value);
 };
+template <> struct codec<holder::contract::CardHistorySave> {
+    static json encode(const holder::contract::CardHistorySave& value);
+    static holder::contract::CardHistorySave decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryEntry> {
+    static json encode(const holder::contract::CardHistoryEntry& value);
+    static holder::contract::CardHistoryEntry decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryPage> {
+    static json encode(const holder::contract::CardHistoryPage& value);
+    static holder::contract::CardHistoryPage decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryVersion> {
+    static json encode(const holder::contract::CardHistoryVersion& value);
+    static holder::contract::CardHistoryVersion decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryDiffLine> {
+    static json encode(const holder::contract::CardHistoryDiffLine& value);
+    static holder::contract::CardHistoryDiffLine decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryComparison> {
+    static json encode(const holder::contract::CardHistoryComparison& value);
+    static holder::contract::CardHistoryComparison decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistorySnapshot> {
+    static json encode(const holder::contract::CardHistorySnapshot& value);
+    static holder::contract::CardHistorySnapshot decode(const json& value);
+};
+template <> struct codec<holder::contract::CardHistoryRestoreResult> {
+    static json encode(const holder::contract::CardHistoryRestoreResult& value);
+    static holder::contract::CardHistoryRestoreResult decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -2001,6 +2033,386 @@ inline holder::contract::ProjectHistoryPage codec<holder::contract::ProjectHisto
         out.scan_limited = decode_field<bool>(item, "scan_limited");
     } else {
         throw std::invalid_argument("scan_limited is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistorySave>::encode(const holder::contract::CardHistorySave& value) {
+    json result = json::object();
+    result["oid"] = codec<std::string>::encode(value.oid);
+    result["parent_oids"] = codec<std::vector<std::string>>::encode(value.parent_oids);
+    result["authored_at"] = codec<long long>::encode(value.authored_at);
+    result["committed_at"] = codec<long long>::encode(value.committed_at);
+    result["message"] = codec<std::string>::encode(value.message);
+    return result;
+}
+inline holder::contract::CardHistorySave codec<holder::contract::CardHistorySave>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistorySave object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "oid" && it.key() != "parent_oids" && it.key() != "authored_at" && it.key() != "committed_at" && it.key() != "message") throw std::invalid_argument("CardHistorySave has no field " + it.key());
+    holder::contract::CardHistorySave out;
+    if (value.contains("oid") && !value.at("oid").is_null()) {
+        const auto& item = value.at("oid");
+        out.oid = check_text(decode_field<std::string>(item, "oid"), "oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("oid is required and must not be null");
+    }
+    if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
+        const auto& item = value.at("parent_oids");
+        out.parent_oids = [&] { auto items = decode_field<std::vector<std::string>>(item, "parent_oids"); for (const auto& text : items) check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("parent_oids is required and must not be null");
+    }
+    if (value.contains("authored_at") && !value.at("authored_at").is_null()) {
+        const auto& item = value.at("authored_at");
+        out.authored_at = decode_field<long long>(item, "authored_at");
+    } else {
+        throw std::invalid_argument("authored_at is required and must not be null");
+    }
+    if (value.contains("committed_at") && !value.at("committed_at").is_null()) {
+        const auto& item = value.at("committed_at");
+        out.committed_at = decode_field<long long>(item, "committed_at");
+    } else {
+        throw std::invalid_argument("committed_at is required and must not be null");
+    }
+    if (value.contains("message") && !value.at("message").is_null()) {
+        const auto& item = value.at("message");
+        out.message = check_text(decode_field<std::string>(item, "message"), "message", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("message is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryEntry>::encode(const holder::contract::CardHistoryEntry& value) {
+    json result = json::object();
+    result["first_oid"] = codec<std::string>::encode(value.first_oid);
+    result["last_oid"] = codec<std::string>::encode(value.last_oid);
+    result["parent_oids"] = codec<std::vector<std::string>>::encode(value.parent_oids);
+    result["visible_parent_oids"] = codec<std::vector<std::string>>::encode(value.visible_parent_oids);
+    result["author"] = codec<holder::contract::HistoryAuthor>::encode(value.author);
+    result["started_at"] = codec<long long>::encode(value.started_at);
+    result["ended_at"] = codec<long long>::encode(value.ended_at);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["summary"] = codec<std::string>::encode(value.summary);
+    result["commit_count"] = codec<std::int32_t>::encode(value.commit_count);
+    result["is_merge"] = codec<bool>::encode(value.is_merge);
+    result["saves"] = codec<std::vector<holder::contract::CardHistorySave>>::encode(value.saves);
+    return result;
+}
+inline holder::contract::CardHistoryEntry codec<holder::contract::CardHistoryEntry>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryEntry object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "first_oid" && it.key() != "last_oid" && it.key() != "parent_oids" && it.key() != "visible_parent_oids" && it.key() != "author" && it.key() != "started_at" && it.key() != "ended_at" && it.key() != "kind" && it.key() != "summary" && it.key() != "commit_count" && it.key() != "is_merge" && it.key() != "saves") throw std::invalid_argument("CardHistoryEntry has no field " + it.key());
+    holder::contract::CardHistoryEntry out;
+    if (value.contains("first_oid") && !value.at("first_oid").is_null()) {
+        const auto& item = value.at("first_oid");
+        out.first_oid = check_text(decode_field<std::string>(item, "first_oid"), "first_oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("first_oid is required and must not be null");
+    }
+    if (value.contains("last_oid") && !value.at("last_oid").is_null()) {
+        const auto& item = value.at("last_oid");
+        out.last_oid = check_text(decode_field<std::string>(item, "last_oid"), "last_oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("last_oid is required and must not be null");
+    }
+    if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
+        const auto& item = value.at("parent_oids");
+        out.parent_oids = [&] { auto items = decode_field<std::vector<std::string>>(item, "parent_oids"); for (const auto& text : items) check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("parent_oids is required and must not be null");
+    }
+    if (value.contains("visible_parent_oids") && !value.at("visible_parent_oids").is_null()) {
+        const auto& item = value.at("visible_parent_oids");
+        out.visible_parent_oids = [&] { auto items = decode_field<std::vector<std::string>>(item, "visible_parent_oids"); for (const auto& text : items) check_text(text, "visible_parent_oids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("visible_parent_oids is required and must not be null");
+    }
+    if (value.contains("author") && !value.at("author").is_null()) {
+        const auto& item = value.at("author");
+        out.author = codec<holder::contract::HistoryAuthor>::decode(item);
+    } else {
+        throw std::invalid_argument("author is required and must not be null");
+    }
+    if (value.contains("started_at") && !value.at("started_at").is_null()) {
+        const auto& item = value.at("started_at");
+        out.started_at = decode_field<long long>(item, "started_at");
+    } else {
+        throw std::invalid_argument("started_at is required and must not be null");
+    }
+    if (value.contains("ended_at") && !value.at("ended_at").is_null()) {
+        const auto& item = value.at("ended_at");
+        out.ended_at = decode_field<long long>(item, "ended_at");
+    } else {
+        throw std::invalid_argument("ended_at is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("summary") && !value.at("summary").is_null()) {
+        const auto& item = value.at("summary");
+        out.summary = check_text(decode_field<std::string>(item, "summary"), "summary", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("summary is required and must not be null");
+    }
+    if (value.contains("commit_count") && !value.at("commit_count").is_null()) {
+        const auto& item = value.at("commit_count");
+        out.commit_count = check_range<std::int32_t>(decode_field<std::int32_t>(item, "commit_count"), "commit_count", 1, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("commit_count is required and must not be null");
+    }
+    if (value.contains("is_merge") && !value.at("is_merge").is_null()) {
+        const auto& item = value.at("is_merge");
+        out.is_merge = decode_field<bool>(item, "is_merge");
+    } else {
+        throw std::invalid_argument("is_merge is required and must not be null");
+    }
+    if (value.contains("saves") && !value.at("saves").is_null()) {
+        const auto& item = value.at("saves");
+        out.saves = decode_field<std::vector<holder::contract::CardHistorySave>>(item, "saves");
+    } else {
+        throw std::invalid_argument("saves is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryPage>::encode(const holder::contract::CardHistoryPage& value) {
+    json result = json::object();
+    result["head_oid"] = value.head_oid ? codec<std::string>::encode(*value.head_oid) : json(nullptr);
+    result["entries"] = codec<std::vector<holder::contract::CardHistoryEntry>>::encode(value.entries);
+    result["next_cursor"] = value.next_cursor ? codec<std::string>::encode(*value.next_cursor) : json(nullptr);
+    result["scan_limited"] = codec<bool>::encode(value.scan_limited);
+    return result;
+}
+inline holder::contract::CardHistoryPage codec<holder::contract::CardHistoryPage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryPage object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "head_oid" && it.key() != "entries" && it.key() != "next_cursor" && it.key() != "scan_limited") throw std::invalid_argument("CardHistoryPage has no field " + it.key());
+    holder::contract::CardHistoryPage out;
+    if (value.contains("head_oid") && !value.at("head_oid").is_null()) {
+        const auto& item = value.at("head_oid");
+        out.head_oid = check_text(decode_field<std::string>(item, "head_oid"), "head_oid", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("entries") && !value.at("entries").is_null()) {
+        const auto& item = value.at("entries");
+        out.entries = decode_field<std::vector<holder::contract::CardHistoryEntry>>(item, "entries");
+    } else {
+        throw std::invalid_argument("entries is required and must not be null");
+    }
+    if (value.contains("next_cursor") && !value.at("next_cursor").is_null()) {
+        const auto& item = value.at("next_cursor");
+        out.next_cursor = check_text(decode_field<std::string>(item, "next_cursor"), "next_cursor", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("scan_limited") && !value.at("scan_limited").is_null()) {
+        const auto& item = value.at("scan_limited");
+        out.scan_limited = decode_field<bool>(item, "scan_limited");
+    } else {
+        throw std::invalid_argument("scan_limited is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryVersion>::encode(const holder::contract::CardHistoryVersion& value) {
+    json result = json::object();
+    result["exists"] = codec<bool>::encode(value.exists);
+    result["oid"] = codec<std::string>::encode(value.oid);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["body"] = codec<std::string>::encode(value.body);
+    return result;
+}
+inline holder::contract::CardHistoryVersion codec<holder::contract::CardHistoryVersion>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryVersion object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "exists" && it.key() != "oid" && it.key() != "title" && it.key() != "body") throw std::invalid_argument("CardHistoryVersion has no field " + it.key());
+    holder::contract::CardHistoryVersion out;
+    if (value.contains("exists") && !value.at("exists").is_null()) {
+        const auto& item = value.at("exists");
+        out.exists = decode_field<bool>(item, "exists");
+    } else {
+        throw std::invalid_argument("exists is required and must not be null");
+    }
+    if (value.contains("oid") && !value.at("oid").is_null()) {
+        const auto& item = value.at("oid");
+        out.oid = check_text(decode_field<std::string>(item, "oid"), "oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("oid is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("body") && !value.at("body").is_null()) {
+        const auto& item = value.at("body");
+        out.body = check_text(decode_field<std::string>(item, "body"), "body", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("body is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryDiffLine>::encode(const holder::contract::CardHistoryDiffLine& value) {
+    json result = json::object();
+    result["origin"] = codec<std::string>::encode(value.origin);
+    result["text"] = codec<std::string>::encode(value.text);
+    result["old_line"] = value.old_line ? codec<long long>::encode(*value.old_line) : json(nullptr);
+    result["new_line"] = value.new_line ? codec<long long>::encode(*value.new_line) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardHistoryDiffLine codec<holder::contract::CardHistoryDiffLine>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryDiffLine object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "origin" && it.key() != "text" && it.key() != "old_line" && it.key() != "new_line") throw std::invalid_argument("CardHistoryDiffLine has no field " + it.key());
+    holder::contract::CardHistoryDiffLine out;
+    if (value.contains("origin") && !value.at("origin").is_null()) {
+        const auto& item = value.at("origin");
+        out.origin = check_text(decode_field<std::string>(item, "origin"), "origin", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("origin is required and must not be null");
+    }
+    if (value.contains("text") && !value.at("text").is_null()) {
+        const auto& item = value.at("text");
+        out.text = check_text(decode_field<std::string>(item, "text"), "text", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("text is required and must not be null");
+    }
+    if (value.contains("old_line") && !value.at("old_line").is_null()) {
+        const auto& item = value.at("old_line");
+        out.old_line = decode_field<long long>(item, "old_line");
+    }
+    if (value.contains("new_line") && !value.at("new_line").is_null()) {
+        const auto& item = value.at("new_line");
+        out.new_line = decode_field<long long>(item, "new_line");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryComparison>::encode(const holder::contract::CardHistoryComparison& value) {
+    json result = json::object();
+    result["before"] = codec<holder::contract::CardHistoryVersion>::encode(value.before);
+    result["after"] = codec<holder::contract::CardHistoryVersion>::encode(value.after);
+    result["summary"] = codec<std::string>::encode(value.summary);
+    result["lines"] = codec<std::vector<holder::contract::CardHistoryDiffLine>>::encode(value.lines);
+    result["truncated"] = codec<bool>::encode(value.truncated);
+    return result;
+}
+inline holder::contract::CardHistoryComparison codec<holder::contract::CardHistoryComparison>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryComparison object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "before" && it.key() != "after" && it.key() != "summary" && it.key() != "lines" && it.key() != "truncated") throw std::invalid_argument("CardHistoryComparison has no field " + it.key());
+    holder::contract::CardHistoryComparison out;
+    if (value.contains("before") && !value.at("before").is_null()) {
+        const auto& item = value.at("before");
+        out.before = codec<holder::contract::CardHistoryVersion>::decode(item);
+    } else {
+        throw std::invalid_argument("before is required and must not be null");
+    }
+    if (value.contains("after") && !value.at("after").is_null()) {
+        const auto& item = value.at("after");
+        out.after = codec<holder::contract::CardHistoryVersion>::decode(item);
+    } else {
+        throw std::invalid_argument("after is required and must not be null");
+    }
+    if (value.contains("summary") && !value.at("summary").is_null()) {
+        const auto& item = value.at("summary");
+        out.summary = check_text(decode_field<std::string>(item, "summary"), "summary", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("summary is required and must not be null");
+    }
+    if (value.contains("lines") && !value.at("lines").is_null()) {
+        const auto& item = value.at("lines");
+        out.lines = decode_field<std::vector<holder::contract::CardHistoryDiffLine>>(item, "lines");
+    } else {
+        throw std::invalid_argument("lines is required and must not be null");
+    }
+    if (value.contains("truncated") && !value.at("truncated").is_null()) {
+        const auto& item = value.at("truncated");
+        out.truncated = decode_field<bool>(item, "truncated");
+    } else {
+        throw std::invalid_argument("truncated is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistorySnapshot>::encode(const holder::contract::CardHistorySnapshot& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["snapshot"] = codec<holder::contract::CardHistoryVersion>::encode(value.snapshot);
+    return result;
+}
+inline holder::contract::CardHistorySnapshot codec<holder::contract::CardHistorySnapshot>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistorySnapshot object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "snapshot") throw std::invalid_argument("CardHistorySnapshot has no field " + it.key());
+    holder::contract::CardHistorySnapshot out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("snapshot") && !value.at("snapshot").is_null()) {
+        const auto& item = value.at("snapshot");
+        out.snapshot = codec<holder::contract::CardHistoryVersion>::decode(item);
+    } else {
+        throw std::invalid_argument("snapshot is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardHistoryRestoreResult>::encode(const holder::contract::CardHistoryRestoreResult& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["restored_from_oid"] = codec<std::string>::encode(value.restored_from_oid);
+    result["result_oid"] = codec<std::string>::encode(value.result_oid);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardHistoryRestoreResult codec<holder::contract::CardHistoryRestoreResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardHistoryRestoreResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "restored_from_oid" && it.key() != "result_oid" && it.key() != "title" && it.key() != "updated_at" && it.key() != "deleted_at") throw std::invalid_argument("CardHistoryRestoreResult has no field " + it.key());
+    holder::contract::CardHistoryRestoreResult out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("restored_from_oid") && !value.at("restored_from_oid").is_null()) {
+        const auto& item = value.at("restored_from_oid");
+        out.restored_from_oid = check_text(decode_field<std::string>(item, "restored_from_oid"), "restored_from_oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("restored_from_oid is required and must not be null");
+    }
+    if (value.contains("result_oid") && !value.at("result_oid").is_null()) {
+        const auto& item = value.at("result_oid");
+        out.result_oid = check_text(decode_field<std::string>(item, "result_oid"), "result_oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("result_oid is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+        const auto& item = value.at("deleted_at");
+        out.deleted_at = decode_field<long long>(item, "deleted_at");
     }
     return out;
 }

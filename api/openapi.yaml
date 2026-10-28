@@ -4731,35 +4731,42 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/history/cards/{card_id}:
     get:
-      summary: List saved history for a card
-      description: Returns commits reachable from the captured project HEAD that changed the card. Adjacent
-        autosaves may be grouped into one entry.
+      summary: List saved history for a card.
+      description: 'Returns commits reachable from the captured project HEAD that changed the card. Adjacent
+        autosaves may be
+
+        grouped into one displayed entry.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: card_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/CardId'}
       - name: limit
         in: query
         required: false
-        schema: {type: integer, default: 50, minimum: 1, maximum: 200}
+        schema: {type: integer, maximum: 200, minimum: 1, format: int32, default: 50, title: Limit}
       - name: cursor
         in: query
         required: false
-        schema: {type: string}
-        description: A full commit OID from next_cursor.
+        schema:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          description: A full commit ID from next_cursor.
+          title: Cursor
+        description: A full commit ID from next_cursor.
       responses:
         '200':
-          description: Saved card history
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardHistoryPageResponse'}
         '400':
-          description: Invalid card identifier, limit, or cursor
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4769,71 +4776,83 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: The encrypted project key is unavailable on this device
+          description: This device cannot use the encrypted project's key to read its history.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
-          description: The bounded History response would exceed 2 MiB
+          description: The bounded History response would exceed 2 MiB.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Project history is temporarily unavailable
+          description: The project's Git history cannot be read right now.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/history/cards/{card_id}/compare:
     get:
-      summary: Compare saved card versions or the change introduced by one revision
-      description: In since mode, compares the explicitly selected from and to snapshots. In change mode,
-        compares the first parent of to with to; a root commit is compared with a previously nonexistent
-        card. Merge commits use only their first parent, not a combined multi-parent diff.
+      summary: Compare saved card versions or one revision's change.
+      description: 'In since mode, compares the selected before and after snapshots. In change mode, compares
+        the first parent
+
+        of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a
+        merge uses only
+
+        its first parent.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: card_id
         in: path
         required: true
-        schema: {type: string}
-      - name: from
-        in: query
-        required: false
-        schema: {$ref: '#/components/schemas/RevisionReference'}
-        description: Required and used in since mode; change mode derives its base from to.
-      - name: to
+        schema: {$ref: '#/components/schemas/CardId'}
+      - name: to_oid
         in: query
         required: true
-        schema: {$ref: '#/components/schemas/RevisionReference'}
-        description: The ending revision, or the revision whose introduced change is requested.
+        schema: {$ref: '#/components/schemas/RevisionRef', description: 'The ending revision, or the change
+            to inspect.'}
+        description: The ending revision, or the change to inspect.
+      - name: from_oid
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - {$ref: '#/components/schemas/RevisionRef'}
+          - {type: 'null'}
+          description: Required in since mode; ignored in change mode.
+          title: From Oid
+        description: Required in since mode; ignored in change mode.
       - name: mode
         in: query
         required: false
         schema:
-          type: string
           enum: [since, change]
+          type: string
+          description: Compare two snapshots or one introduced change.
           default: since
-        description: Since compares two explicit snapshots; change compares to with its first parent.
+          title: Mode
+        description: Compare two snapshots or one introduced change.
       responses:
         '200':
-          description: A line-oriented card comparison
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardHistoryComparisonResponse'}
         '400':
-          description: Invalid or missing comparison parameters
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4843,59 +4862,64 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project or revision not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: A revision reference is ambiguous or the encrypted project key is unavailable
+          description: A commit ID prefix matches more than one revision; use a longer prefix or the full
+            ID. This device cannot use the encrypted project's key to read its history.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
-          description: The bounded History response would exceed 2 MiB
+          description: The bounded History response would exceed 2 MiB.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Project history is temporarily unavailable
+          description: The project's Git history cannot be read right now.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/history/cards/{card_id}/restore:
     post:
-      summary: Restore a card to a saved snapshot
-      description: Restores the complete card snapshot at the selected commit and records the result as
-        a new commit without rewriting history. Lifecycle rules still apply. Restoring a snapshot in which
-        the card was trashed promotes its current live children, as trashing does. Restoring a live snapshot
-        places the card under a reachable parent, as restoring from Trash does.
+      summary: Restore a card to a saved snapshot.
+      description: 'Restores the complete snapshot as a new commit, preserving the old history. Lifecycle
+        rules still apply:
+
+        restoring a trashed snapshot promotes live children, and restoring a live snapshot places the
+        card under a
+
+        reachable parent.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: card_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/CardId'}
       - name: oid
         in: query
         required: true
-        schema: {$ref: '#/components/schemas/RevisionReference'}
-        description: Revision containing the snapshot to restore.
+        schema: {$ref: '#/components/schemas/RevisionRef', description: The revision containing the snapshot
+            to restore.}
+        description: The revision containing the snapshot to restore.
       responses:
         '200':
-          description: Card snapshot restored
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CardHistoryRestoreResponse'}
+              schema: {$ref: '#/components/schemas/CardHistoryRestoreResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4905,54 +4929,53 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project, card, or revision not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: A revision reference is ambiguous or the encrypted project key is unavailable
+          description: A commit ID prefix matches more than one revision; use a longer prefix or the full
+            ID. This device cannot use the encrypted project's key to read its history.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: The historical snapshot cannot be read or restored
+          description: The project's Git history cannot be read right now.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/history/cards/{card_id}/snapshot:
     get:
-      summary: Read a card snapshot at a selected revision
+      summary: Read a card snapshot at a selected revision, including an explicit absent state.
+      description: Read a card snapshot at a selected revision, including an explicit absent state.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: card_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/CardId'}
       - name: oid
         in: query
         required: true
-        schema: {$ref: '#/components/schemas/RevisionReference'}
+        schema: {$ref: '#/components/schemas/RevisionRef', description: The revision containing the card
+            snapshot.}
+        description: The revision containing the card snapshot.
       responses:
         '200':
-          description: The card snapshot, including an explicit absent state
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CardHistorySnapshotResponse'}
         '400':
-          description: Missing revision reference or invalid card identifier
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4962,27 +4985,28 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project or revision not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: A revision reference is ambiguous or the encrypted project key is unavailable
+          description: A commit ID prefix matches more than one revision; use a longer prefix or the full
+            ID. This device cannot use the encrypted project's key to read its history.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '413':
-          description: The bounded snapshot response would exceed 2 MiB
+          description: The bounded History response would exceed 2 MiB.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: The historical snapshot is temporarily unavailable
+          description: The project's Git history cannot be read right now.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6998,145 +7022,194 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/CardContextData'}
       required: [ok, data]
-    CardHistoryAuthor:
-      type: object
+    CardHistoryComparison:
       properties:
-        name: {type: string}
-        email: {type: string}
-      required: [name, email]
-    CardHistoryComparisonData:
-      type: object
-      properties:
-        from: {$ref: '#/components/schemas/CardHistoryVersion'}
-        to: {$ref: '#/components/schemas/CardHistoryVersion'}
-        summary: {type: string}
+        before: {$ref: '#/components/schemas/CardHistoryVersion', description: The earlier state.}
+        after: {$ref: '#/components/schemas/CardHistoryVersion', description: The later state.}
+        summary: {type: string, title: Summary, description: A short description of the difference.}
         lines:
-          type: array
           items: {$ref: '#/components/schemas/CardHistoryDiffLine'}
-        truncated: {type: boolean}
-      required: [from, to, summary, lines, truncated]
+          type: array
+          title: Lines
+          description: The comparison's lines.
+        truncated: {type: boolean, title: Truncated, description: Whether the line comparison was cut
+            short.}
+      additionalProperties: false
+      type: object
+      required: [before, after, summary, lines, truncated]
+      title: CardHistoryComparison
+      description: A bounded line comparison of two saved card states.
     CardHistoryComparisonResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/CardHistoryComparisonData'}
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/CardHistoryComparison'}
+      type: object
       required: [ok, data]
+      title: CardHistoryComparisonResponse
     CardHistoryDiffLine:
-      type: object
       properties:
-        origin:
-          type: string
-          enum: [' ', +, '-']
-        text: {type: string}
+        origin: {type: string, title: Origin, description: 'Space for unchanged, plus for added, minus
+            for removed.'}
+        text: {type: string, title: Text, description: The line's text.}
         old_line:
-          type: [integer, 'null']
-          format: int64
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Old Line
+          description: Its old line number; null for an addition.
         new_line:
-          type: [integer, 'null']
-          format: int64
-      required: [origin, text, old_line, new_line]
-    CardHistoryEntry:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: New Line
+          description: Its new line number; null for a removal.
+      additionalProperties: false
       type: object
+      required: [origin, text, old_line, new_line]
+      title: CardHistoryDiffLine
+      description: One line in a card comparison.
+    CardHistoryEntry:
       properties:
-        first_oid: {type: string}
-        last_oid: {type: string}
+        first_oid: {type: string, title: First Oid, description: The first commit in the entry.}
+        last_oid: {type: string, title: Last Oid, description: The last commit in the entry.}
         parent_oids:
-          type: array
           items: {type: string}
+          type: array
+          title: Parent Oids
+          description: Parents of the first commit.
         visible_parent_oids:
-          type: array
           items: {type: string}
-          description: Direct parent entries visible on this history page; omitted connections must not
-            be inferred across filtered commits or page boundaries.
-        author: {$ref: '#/components/schemas/CardHistoryAuthor'}
-        started_at: {type: integer, format: int64}
-        ended_at: {type: integer, format: int64}
-        kind:
-          type: string
-          enum: [created, updated, moved, links, milestones, deleted, restored, permanently_deleted, merged]
-        summary: {type: string}
-        commit_count: {type: integer, minimum: 1}
-        is_merge: {type: boolean}
-        saves:
           type: array
-          items:
-            type: object
-            properties:
-              oid: {type: string}
-              parent_oids:
-                type: array
-                items: {type: string}
-              authored_at: {type: integer, format: int64}
-              committed_at: {type: integer, format: int64}
-              message: {type: string}
-            required: [oid, parent_oids, authored_at, committed_at, message]
-          description: Exact saved commits in chronological order; one item for an ungrouped entry.
+          title: Visible Parent Oids
+          description: Direct parents represented on this page; omitted connections must not be inferred.
+        author: {$ref: '#/components/schemas/HistoryAuthor', description: The author's name and email.}
+        started_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Started At, description: When the first commit was authored.}
+        ended_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Ended At, description: When the last commit was committed.}
+        kind: {type: string, title: Kind, description: The kind of change shown.}
+        summary: {type: string, title: Summary, description: A short description of the change.}
+        commit_count: {type: integer, maximum: 2147483647, minimum: 1, format: int32, title: Commit Count,
+          description: The number of commits grouped in this entry.}
+        is_merge: {type: boolean, title: Is Merge, description: Whether this entry includes a merge commit.}
+        saves:
+          items: {$ref: '#/components/schemas/CardHistorySave'}
+          type: array
+          title: Saves
+          description: Exact saved commits in chronological order.
+      additionalProperties: false
+      type: object
       required: [first_oid, last_oid, parent_oids, visible_parent_oids, author, started_at, ended_at,
         kind, summary, commit_count, is_merge, saves]
-    CardHistoryPageData:
-      type: object
+      title: CardHistoryEntry
+      description: One displayed card change, possibly grouping adjacent autosaves.
+    CardHistoryPage:
       properties:
         head_oid:
-          type: [string, 'null']
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Head Oid
+          description: The project HEAD captured for this page; null for an empty repository.
         entries:
-          type: array
           items: {$ref: '#/components/schemas/CardHistoryEntry'}
+          type: array
+          title: Entries
+          description: The card changes on this page.
         next_cursor:
-          type: [string, 'null']
-        scan_limited: {type: boolean, description: True when History examined its bounded number of revisions
-            before reaching the end; next_cursor continues the scan.}
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Next Cursor
+          description: The cursor for another page; null at the end.
+        scan_limited: {type: boolean, title: Scan Limited, description: Whether History reached its bounded
+            scan before the end.}
+      additionalProperties: false
+      type: object
       required: [head_oid, entries, next_cursor, scan_limited]
+      title: CardHistoryPage
+      description: One bounded page of saved card changes, newest first.
     CardHistoryPageResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/CardHistoryPageData'}
-      required: [ok, data]
-    CardHistoryRestoreResponse:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/CardHistoryPage'}
       type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            card_id: {type: string}
-            restored_from_oid: {type: string, description: Canonical full commit object ID of the selected
-                historical snapshot.}
-            result_oid: {type: string, description: Canonical full commit object ID created by the restoration.}
-            title: {type: string}
-            updated_at: {type: integer, format: int64}
-            deleted_at:
-              type: [integer, 'null']
-              format: int64
-          required: [card_id, restored_from_oid, result_oid, title, updated_at, deleted_at]
       required: [ok, data]
+      title: CardHistoryPageResponse
+    CardHistoryRestoreResult:
+      properties:
+        card_id: {$ref: '#/components/schemas/CardId', description: The restored card.}
+        restored_from_oid: {type: string, title: Restored From Oid, description: The full commit ID of
+            the selected historical snapshot.}
+        result_oid: {type: string, title: Result Oid, description: The full commit ID created by restoring
+            it.}
+        title: {type: string, title: Title, description: The card's title after restoration.}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: When the restored card was updated.}
+        deleted_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Deleted At
+          description: When the restored card is in Trash; null when live.
+      additionalProperties: false
+      type: object
+      required: [card_id, restored_from_oid, result_oid, title, updated_at, deleted_at]
+      title: CardHistoryRestoreResult
+      description: A card restored from a saved state by creating a new commit.
+    CardHistoryRestoreResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/CardHistoryRestoreResult'}
+      type: object
+      required: [ok, data]
+      title: CardHistoryRestoreResultResponse
+    CardHistorySave:
+      properties:
+        oid: {type: string, title: Oid, description: The full commit ID.}
+        parent_oids:
+          items: {type: string}
+          type: array
+          title: Parent Oids
+          description: The commit's parents.
+        authored_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Authored At, description: When the commit was authored.}
+        committed_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Committed At, description: When the commit was committed.}
+        message: {type: string, title: Message, description: The commit message.}
+      additionalProperties: false
+      type: object
+      required: [oid, parent_oids, authored_at, committed_at, message]
+      title: CardHistorySave
+      description: One exact commit saved for a card.
+    CardHistorySnapshot:
+      properties:
+        card_id: {$ref: '#/components/schemas/CardId', description: The card being inspected.}
+        snapshot: {$ref: '#/components/schemas/CardHistoryVersion', description: The state at the selected
+            commit.}
+      additionalProperties: false
+      type: object
+      required: [card_id, snapshot]
+      title: CardHistorySnapshot
+      description: A card's state at a selected revision.
     CardHistorySnapshotResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            card_id: {type: string}
-            snapshot: {$ref: '#/components/schemas/CardHistoryVersion'}
-          required: [card_id, snapshot]
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/CardHistorySnapshot'}
+      type: object
       required: [ok, data]
+      title: CardHistorySnapshotResponse
     CardHistoryVersion:
-      type: object
       properties:
-        exists: {type: boolean}
-        oid: {type: string}
-        title: {type: string}
-        body: {type: string}
+        exists: {type: boolean, title: Exists, description: Whether the card existed in this snapshot.}
+        oid: {type: string, title: Oid, description: The full commit ID.}
+        title: {type: string, title: Title, description: 'The card''s saved title, empty when absent.'}
+        body: {type: string, title: Body, description: 'The card''s saved body, empty when absent.'}
+      additionalProperties: false
+      type: object
       required: [exists, oid, title, body]
+      title: CardHistoryVersion
+      description: A card's saved state at one commit, including an explicit absent state.
     CardId: {type: string, minLength: 1}
     CardLink:
       type: object
@@ -8405,9 +8478,7 @@ components:
       type: object
       title: ResourceUpdate
       description: A change to a resource. Each field left out keeps its value.
-    RevisionReference: {type: string, pattern: '^[0-9A-Fa-f]{8,40}$', minLength: 8, maxLength: 40, description: Full
-        Git commit object ID or a unique leading commit-ID prefix. Successful responses use the canonical
-        full lowercase object ID.}
+    RevisionRef: {type: string, maxLength: 40, minLength: 8}
     RunnerCapabilitiesData:
       type: object
       properties:

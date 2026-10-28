@@ -157,6 +157,8 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_UNAVAILABLE, e.what());
   } catch (const contract::HistoryKeyUnavailable& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, e.what());
+  } catch (const contract::RevisionAmbiguous& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_REVISION_AMBIGUOUS, e.what());
   } catch (const contract::HistoryResponseTooLarge& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, e.what());
   } catch (const std::bad_alloc&) {
@@ -335,6 +337,17 @@ holder_history_affected_object_list to_c_list(holder_arena* arena, const std::ve
 holder_project_activity to_c(holder_arena* arena, const contract::ProjectActivity& value);
 holder_project_activity_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectActivity>& values);
 holder_project_history_page to_c(holder_arena* arena, const contract::ProjectHistoryPage& value);
+holder_card_history_save to_c(holder_arena* arena, const contract::CardHistorySave& value);
+holder_card_history_save_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistorySave>& values);
+holder_card_history_entry to_c(holder_arena* arena, const contract::CardHistoryEntry& value);
+holder_card_history_entry_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistoryEntry>& values);
+holder_card_history_page to_c(holder_arena* arena, const contract::CardHistoryPage& value);
+holder_card_history_version to_c(holder_arena* arena, const contract::CardHistoryVersion& value);
+holder_card_history_diff_line to_c(holder_arena* arena, const contract::CardHistoryDiffLine& value);
+holder_card_history_diff_line_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistoryDiffLine>& values);
+holder_card_history_comparison to_c(holder_arena* arena, const contract::CardHistoryComparison& value);
+holder_card_history_snapshot to_c(holder_arena* arena, const contract::CardHistorySnapshot& value);
+holder_card_history_restore_result to_c(holder_arena* arena, const contract::CardHistoryRestoreResult& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -721,6 +734,106 @@ holder_project_history_page to_c(holder_arena* arena, const contract::ProjectHis
   out.activities = to_c_list(arena, value.activities);
   out.next_cursor = copy_text(arena, value.next_cursor);
   out.scan_limited = value.scan_limited;
+  return out;
+}
+
+holder_card_history_save to_c(holder_arena* arena, const contract::CardHistorySave& value) {
+  holder_card_history_save out{};
+  out.oid = copy(arena, value.oid);
+  out.parent_oids = copy_strings(arena, value.parent_oids);
+  out.authored_at = value.authored_at;
+  out.committed_at = value.committed_at;
+  out.message = copy(arena, value.message);
+  return out;
+}
+
+holder_card_history_save_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistorySave>& values) {
+  auto* items = make<holder_card_history_save>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_card_history_entry to_c(holder_arena* arena, const contract::CardHistoryEntry& value) {
+  holder_card_history_entry out{};
+  out.first_oid = copy(arena, value.first_oid);
+  out.last_oid = copy(arena, value.last_oid);
+  out.parent_oids = copy_strings(arena, value.parent_oids);
+  out.visible_parent_oids = copy_strings(arena, value.visible_parent_oids);
+  out.author = to_c(arena, value.author);
+  out.started_at = value.started_at;
+  out.ended_at = value.ended_at;
+  out.kind = copy(arena, value.kind);
+  out.summary = copy(arena, value.summary);
+  out.commit_count = value.commit_count;
+  out.is_merge = value.is_merge;
+  out.saves = to_c_list(arena, value.saves);
+  return out;
+}
+
+holder_card_history_entry_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistoryEntry>& values) {
+  auto* items = make<holder_card_history_entry>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_card_history_page to_c(holder_arena* arena, const contract::CardHistoryPage& value) {
+  holder_card_history_page out{};
+  out.head_oid = copy_text(arena, value.head_oid);
+  out.entries = to_c_list(arena, value.entries);
+  out.next_cursor = copy_text(arena, value.next_cursor);
+  out.scan_limited = value.scan_limited;
+  return out;
+}
+
+holder_card_history_version to_c(holder_arena* arena, const contract::CardHistoryVersion& value) {
+  holder_card_history_version out{};
+  out.exists = value.exists;
+  out.oid = copy(arena, value.oid);
+  out.title = copy(arena, value.title);
+  out.body = copy(arena, value.body);
+  return out;
+}
+
+holder_card_history_diff_line to_c(holder_arena* arena, const contract::CardHistoryDiffLine& value) {
+  holder_card_history_diff_line out{};
+  out.origin = copy(arena, value.origin);
+  out.text = copy(arena, value.text);
+  out.old_line = copy_value<int64_t>(arena, value.old_line);
+  out.new_line = copy_value<int64_t>(arena, value.new_line);
+  return out;
+}
+
+holder_card_history_diff_line_list to_c_list(holder_arena* arena, const std::vector<contract::CardHistoryDiffLine>& values) {
+  auto* items = make<holder_card_history_diff_line>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_card_history_comparison to_c(holder_arena* arena, const contract::CardHistoryComparison& value) {
+  holder_card_history_comparison out{};
+  out.before = to_c(arena, value.before);
+  out.after = to_c(arena, value.after);
+  out.summary = copy(arena, value.summary);
+  out.lines = to_c_list(arena, value.lines);
+  out.truncated = value.truncated;
+  return out;
+}
+
+holder_card_history_snapshot to_c(holder_arena* arena, const contract::CardHistorySnapshot& value) {
+  holder_card_history_snapshot out{};
+  out.card_id = copy(arena, value.card_id);
+  out.snapshot = to_c(arena, value.snapshot);
+  return out;
+}
+
+holder_card_history_restore_result to_c(holder_arena* arena, const contract::CardHistoryRestoreResult& value) {
+  holder_card_history_restore_result out{};
+  out.card_id = copy(arena, value.card_id);
+  out.restored_from_oid = copy(arena, value.restored_from_oid);
+  out.result_oid = copy(arena, value.result_oid);
+  out.title = copy(arena, value.title);
+  out.updated_at = value.updated_at;
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
   return out;
 }
 
@@ -1508,6 +1621,71 @@ int holder_list_project_history(holder_context* context, const char* project_id,
     auto* out = make<holder_project_history_page>(arena);
     *out = to_c(arena, contract::list_project_history(*context, project_id_value, limit_value, cursor_value, kind_value));
     *out_project_history_page = out;
+  });
+}
+
+int holder_list_card_history(holder_context* context, const char* project_id, const char* card_id, const int32_t* limit, const char* cursor, holder_arena* arena, const holder_card_history_page** out_card_history_page, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_history_page != nullptr, "out_card_history_page must not be null");
+    *out_card_history_page = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, 200) : std::int32_t{50});
+    const auto cursor_value = optional_text(cursor, "cursor", 0, SIZE_MAX);
+    auto* out = make<holder_card_history_page>(arena);
+    *out = to_c(arena, contract::list_card_history(*context, project_id_value, card_id_value, limit_value, cursor_value));
+    *out_card_history_page = out;
+  });
+}
+
+int holder_compare_card_history(holder_context* context, const char* project_id, const char* card_id, const char* to_oid, const char* from_oid, holder_compare_card_history_mode mode, holder_arena* arena, const holder_card_history_comparison** out_card_history_comparison, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_history_comparison != nullptr, "out_card_history_comparison must not be null");
+    *out_card_history_comparison = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto to_oid_value = text(to_oid, "to_oid", 8, 40);
+    const auto from_oid_value = optional_text(from_oid, "from_oid", 8, 40);
+    contract::CompareCardHistoryMode mode_value;
+    switch (mode) {
+    case HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT: mode_value = contract::CompareCardHistoryMode::Since; break;
+    case HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE: mode_value = contract::CompareCardHistoryMode::Since; break;
+    case HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE: mode_value = contract::CompareCardHistoryMode::Change; break;
+    default: throw ArgumentError("mode is not a holder_compare_card_history_mode value");
+    }
+    auto* out = make<holder_card_history_comparison>(arena);
+    *out = to_c(arena, contract::compare_card_history(*context, project_id_value, card_id_value, to_oid_value, from_oid_value, mode_value));
+    *out_card_history_comparison = out;
+  });
+}
+
+int holder_get_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_snapshot** out_card_history_snapshot, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_history_snapshot != nullptr, "out_card_history_snapshot must not be null");
+    *out_card_history_snapshot = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto oid_value = text(oid, "oid", 8, 40);
+    auto* out = make<holder_card_history_snapshot>(arena);
+    *out = to_c(arena, contract::get_card_history_snapshot(*context, project_id_value, card_id_value, oid_value));
+    *out_card_history_snapshot = out;
+  });
+}
+
+int holder_restore_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_restore_result** out_card_history_restore_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_history_restore_result != nullptr, "out_card_history_restore_result must not be null");
+    *out_card_history_restore_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    const auto oid_value = text(oid, "oid", 8, 40);
+    auto* out = make<holder_card_history_restore_result>(arena);
+    *out = to_c(arena, contract::restore_card_history_snapshot(*context, project_id_value, card_id_value, oid_value));
+    *out_card_history_restore_result = out;
   });
 }
 

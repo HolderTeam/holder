@@ -221,8 +221,8 @@ void print_snapshot(const nlohmann::json& data) {
 }
 
 void print_comparison(const nlohmann::json& data) {
-  const auto& from = data.at("from");
-  const auto& to = data.at("to");
+  const auto& from = data.at("before");
+  const auto& to = data.at("after");
   std::cout << json_string(data, "summary") << "\nFrom: ";
   if (from.value("exists", false))
     std::cout << json_string(from, "oid");
@@ -282,11 +282,11 @@ int command_history(const holder::core::Paths& paths, int argc, char* argv[]) {
       target += "/compare";
       if (options.revisions.size() == 1) {
         append_query(target, "mode", "change");
-        append_query(target, "to", options.revisions.front());
+        append_query(target, "to_oid", options.revisions.front());
       } else {
         append_query(target, "mode", "since");
-        append_query(target, "from", options.revisions.at(0));
-        append_query(target, "to", options.revisions.at(1));
+        append_query(target, "from_oid", options.revisions.at(0));
+        append_query(target, "to_oid", options.revisions.at(1));
       }
     } else {
       target += "/restore";

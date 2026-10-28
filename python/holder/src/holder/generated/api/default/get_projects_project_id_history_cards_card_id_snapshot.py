@@ -103,13 +103,14 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     oid: str,
 ) -> Response[CardHistorySnapshotResponse | ErrorResponse]:
-    """Read a card snapshot at a selected revision
+    """Read a card snapshot at a selected revision, including an explicit absent state.
+
+     Read a card snapshot at a selected revision, including an explicit absent state.
 
     Args:
         project_id (str):
         card_id (str):
-        oid (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
+        oid (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -139,13 +140,14 @@ def sync(
     client: AuthenticatedClient | Client,
     oid: str,
 ) -> CardHistorySnapshotResponse | ErrorResponse | None:
-    """Read a card snapshot at a selected revision
+    """Read a card snapshot at a selected revision, including an explicit absent state.
+
+     Read a card snapshot at a selected revision, including an explicit absent state.
 
     Args:
         project_id (str):
         card_id (str):
-        oid (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
+        oid (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -170,13 +172,14 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     oid: str,
 ) -> Response[CardHistorySnapshotResponse | ErrorResponse]:
-    """Read a card snapshot at a selected revision
+    """Read a card snapshot at a selected revision, including an explicit absent state.
+
+     Read a card snapshot at a selected revision, including an explicit absent state.
 
     Args:
         project_id (str):
         card_id (str):
-        oid (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
+        oid (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -204,13 +207,14 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     oid: str,
 ) -> CardHistorySnapshotResponse | ErrorResponse | None:
-    """Read a card snapshot at a selected revision
+    """Read a card snapshot at a selected revision, including an explicit absent state.
+
+     Read a card snapshot at a selected revision, including an explicit absent state.
 
     Args:
         project_id (str):
         card_id (str):
-        oid (str): Full Git commit object ID or a unique leading commit-ID prefix. Successful
-            responses use the canonical full lowercase object ID.
+        oid (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

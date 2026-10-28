@@ -16,14 +16,19 @@ def _get_kwargs(
     card_id: str,
     *,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["limit"] = limit
 
-    params["cursor"] = cursor
+    json_cursor: None | str | Unset
+    if isinstance(cursor, Unset):
+        json_cursor = UNSET
+    else:
+        json_cursor = cursor
+    params["cursor"] = json_cursor
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -105,18 +110,19 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
 ) -> Response[CardHistoryPageResponse | ErrorResponse]:
-    """List saved history for a card
+    """List saved history for a card.
 
      Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves
-    may be grouped into one entry.
+    may be
+    grouped into one displayed entry.
 
     Args:
         project_id (str):
         card_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
+        cursor (None | str | Unset): A full commit ID from next_cursor.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -146,18 +152,19 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
 ) -> CardHistoryPageResponse | ErrorResponse | None:
-    """List saved history for a card
+    """List saved history for a card.
 
      Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves
-    may be grouped into one entry.
+    may be
+    grouped into one displayed entry.
 
     Args:
         project_id (str):
         card_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
+        cursor (None | str | Unset): A full commit ID from next_cursor.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -182,18 +189,19 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
 ) -> Response[CardHistoryPageResponse | ErrorResponse]:
-    """List saved history for a card
+    """List saved history for a card.
 
      Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves
-    may be grouped into one entry.
+    may be
+    grouped into one displayed entry.
 
     Args:
         project_id (str):
         card_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
+        cursor (None | str | Unset): A full commit ID from next_cursor.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -221,18 +229,19 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
 ) -> CardHistoryPageResponse | ErrorResponse | None:
-    """List saved history for a card
+    """List saved history for a card.
 
      Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves
-    may be grouped into one entry.
+    may be
+    grouped into one displayed entry.
 
     Args:
         project_id (str):
         card_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
+        cursor (None | str | Unset): A full commit ID from next_cursor.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

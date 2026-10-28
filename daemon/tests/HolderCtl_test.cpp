@@ -2293,8 +2293,8 @@ TEST_CASE("holderctl history exposes project and card revision workflows", "[hol
       ) == 0
   );
   const auto since = nlohmann::json::parse(read_text(since_path));
-  CHECK(since["data"]["from"]["oid"] == creation_oid);
-  CHECK(since["data"]["to"]["oid"] == edit_oid);
+  CHECK(since["data"]["before"]["oid"] == creation_oid);
+  CHECK(since["data"]["after"]["oid"] == edit_oid);
 
   const auto missing_path = xdg_root / "history-missing.json";
   REQUIRE(
@@ -2303,7 +2303,7 @@ TEST_CASE("holderctl history exposes project and card revision workflows", "[hol
           missing_path.string() + "\""
       ) == 1
   );
-  CHECK(nlohmann::json::parse(read_text(missing_path))["error"]["code"] == "revision_not_found");
+  CHECK(nlohmann::json::parse(read_text(missing_path))["error"]["code"] == "not_found");
 
   const auto revision_ambiguous_path = xdg_root / "history-revision-ambiguous.json";
   REQUIRE(
@@ -2348,7 +2348,7 @@ TEST_CASE("holderctl history exposes project and card revision workflows", "[hol
   );
   CHECK(
       nlohmann::json::parse(read_text(restore_missing_path))["error"]["code"] ==
-      "revision_not_found"
+      "not_found"
   );
   REQUIRE(card_store.get(card_id).has_value());
   CHECK(card_store.get(card_id)->deleted_at.has_value());
@@ -4513,7 +4513,7 @@ TEST_CASE(
             {{"snapshot", {{"oid", "abcdef01"}, {"exists", false}}}},
             "Card did not exist"},
            {"history diff card abcdef01",
-            {{"from", {{"exists", false}}}, {"to", {{"oid", "abcdef01"}}}, {"lines", empty}},
+            {{"before", {{"exists", false}}}, {"after", {{"oid", "abcdef01"}}}, {"lines", empty}},
             "(card did not exist)"},
            {"milestones card", Json::array({milestone}), "Delivery"},
            {"milestone remove card due", empty, "is not on card-one"},

@@ -155,8 +155,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             );
         }
         return new CardHistoryComparison(
-            parse_history_version(data.get_object_member("from")),
-            parse_history_version(data.get_object_member("to")),
+            parse_history_version(data.get_object_member("before")),
+            parse_history_version(data.get_object_member("after")),
             ApiParsersCommon.string_member_or_empty(data, "summary"),
             lines,
             data.has_member("truncated") && data.get_boolean_member("truncated")

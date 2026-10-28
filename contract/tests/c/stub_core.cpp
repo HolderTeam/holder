@@ -429,6 +429,38 @@ ProjectHistoryPage list_project_history(holder_context& context, std::string pro
   (void)kind;
   return {std::nullopt, {}, std::nullopt, false};
 }
+
+CardHistoryPage list_card_history(holder_context& context, std::string project_id, std::string card_id,
+                                  std::int32_t limit, std::optional<std::string> cursor) {
+  project_named(context, project_id);
+  (void)card_id;
+  (void)limit;
+  (void)cursor;
+  return {std::nullopt, {}, std::nullopt, false};
+}
+
+CardHistoryComparison compare_card_history(holder_context& context, std::string project_id,
+                                           std::string card_id, std::string to_oid,
+                                           std::optional<std::string> from_oid, CompareCardHistoryMode mode) {
+  project_named(context, project_id);
+  (void)card_id;
+  (void)from_oid;
+  (void)mode;
+  CardHistoryVersion version{false, to_oid, "", ""};
+  return {version, version, "", {}, false};
+}
+
+CardHistorySnapshot get_card_history_snapshot(holder_context& context, std::string project_id,
+                                              std::string card_id, std::string oid) {
+  project_named(context, project_id);
+  return {card_id, {false, oid, "", ""}};
+}
+
+CardHistoryRestoreResult restore_card_history_snapshot(holder_context& context, std::string project_id,
+                                                       std::string card_id, std::string oid) {
+  project_named(context, project_id);
+  return {card_id, oid, oid, "restored", 1, std::nullopt};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

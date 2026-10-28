@@ -248,6 +248,26 @@ int main(void) {
                                          arena, &history, &error);
     printf("list project history: status %d, %zu activities\n", status, history->activities.count);
 
+    const holder_card_history_page* card_history = NULL;
+    status = holder_list_card_history(context, project_id, "card-one", NULL, NULL, arena,
+                                      &card_history, &error);
+    printf("list card history: status %d, %zu entries\n", status, card_history->entries.count);
+
+    const holder_card_history_comparison* comparison = NULL;
+    status = holder_compare_card_history(context, project_id, "card-one", "deadbeef", NULL,
+                                         HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE, arena, &comparison, &error);
+    printf("compare card history: status %d, after %s\n", status, comparison->after.oid);
+
+    const holder_card_history_snapshot* snapshot = NULL;
+    status = holder_get_card_history_snapshot(context, project_id, "card-one", "deadbeef", arena,
+                                              &snapshot, &error);
+    printf("card history snapshot: status %d, exists %d\n", status, snapshot->snapshot.exists);
+
+    const holder_card_history_restore_result* restored = NULL;
+    status = holder_restore_card_history_snapshot(context, project_id, "card-one", "deadbeef", arena,
+                                                  &restored, &error);
+    printf("restore card history: status %d, title %s\n", status, restored->title);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;
