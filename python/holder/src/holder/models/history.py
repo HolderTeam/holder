@@ -180,8 +180,8 @@ class CardComparison:
     @classmethod
     def _from(cls, row: Any) -> Self:
         return cls(
-            before=CardVersion._from(row.from_),
-            after=CardVersion._from(row.to),
+            before=CardVersion._from(row.before),
+            after=CardVersion._from(row.after),
             summary=row.summary,
             lines=tuple(
                 DiffLine(str(line.origin), line.text, line.old_line, line.new_line)
@@ -339,8 +339,8 @@ class CardHistoryCollection(Collection[CardChange]):
             get_projects_project_id_history_cards_card_id_compare,
             self._project.id,
             self.card_id,
-            from_=_revision(before),
-            to=_revision(after),
+            from_oid=_revision(before),
+            to_oid=_revision(after),
             mode=CompareMode.SINCE,
         )
         return CardComparison._from(data)
@@ -350,7 +350,7 @@ class CardHistoryCollection(Collection[CardChange]):
             get_projects_project_id_history_cards_card_id_compare,
             self._project.id,
             self.card_id,
-            to=revision,
+            to_oid=revision,
             mode=CompareMode.CHANGE,
         )
         return CardComparison._from(data)

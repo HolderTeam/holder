@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
@@ -12,31 +11,31 @@ if TYPE_CHECKING:
     from ..models.card_history_version import CardHistoryVersion
 
 
-T = TypeVar("T", bound="CardHistoryComparisonData")
+T = TypeVar("T", bound="CardHistoryComparison")
 
 
 @_attrs_define
-class CardHistoryComparisonData:
-    """
+class CardHistoryComparison:
+    """A bounded line comparison of two saved card states.
+
     Attributes:
-        from_ (CardHistoryVersion):
-        to (CardHistoryVersion):
-        summary (str):
-        lines (list[CardHistoryDiffLine]):
-        truncated (bool):
+        before (CardHistoryVersion): A card's saved state at one commit, including an explicit absent state.
+        after (CardHistoryVersion): A card's saved state at one commit, including an explicit absent state.
+        summary (str): A short description of the difference.
+        lines (list[CardHistoryDiffLine]): The comparison's lines.
+        truncated (bool): Whether the line comparison was cut short.
     """
 
-    from_: CardHistoryVersion
-    to: CardHistoryVersion
+    before: CardHistoryVersion
+    after: CardHistoryVersion
     summary: str
     lines: list[CardHistoryDiffLine]
     truncated: bool
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from_ = self.from_.to_dict()
+        before = self.before.to_dict()
 
-        to = self.to.to_dict()
+        after = self.after.to_dict()
 
         summary = self.summary
 
@@ -48,11 +47,11 @@ class CardHistoryComparisonData:
         truncated = self.truncated
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
-                "from": from_,
-                "to": to,
+                "before": before,
+                "after": after,
                 "summary": summary,
                 "lines": lines,
                 "truncated": truncated,
@@ -67,9 +66,9 @@ class CardHistoryComparisonData:
         from ..models.card_history_version import CardHistoryVersion
 
         d = dict(src_dict)
-        from_ = CardHistoryVersion.from_dict(d.pop("from"))
+        before = CardHistoryVersion.from_dict(d.pop("before"))
 
-        to = CardHistoryVersion.from_dict(d.pop("to"))
+        after = CardHistoryVersion.from_dict(d.pop("after"))
 
         summary = d.pop("summary")
 
@@ -82,29 +81,12 @@ class CardHistoryComparisonData:
 
         truncated = d.pop("truncated")
 
-        card_history_comparison_data = cls(
-            from_=from_,
-            to=to,
+        card_history_comparison = cls(
+            before=before,
+            after=after,
             summary=summary,
             lines=lines,
             truncated=truncated,
         )
 
-        card_history_comparison_data.additional_properties = d
-        return card_history_comparison_data
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return card_history_comparison

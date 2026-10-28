@@ -4,22 +4,22 @@ from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="CardHistoryRestoreResponseData")
+T = TypeVar("T", bound="CardHistoryRestoreResult")
 
 
 @_attrs_define
-class CardHistoryRestoreResponseData:
-    """
+class CardHistoryRestoreResult:
+    """A card restored from a saved state by creating a new commit.
+
     Attributes:
         card_id (str):
-        restored_from_oid (str): Canonical full commit object ID of the selected historical snapshot.
-        result_oid (str): Canonical full commit object ID created by the restoration.
-        title (str):
-        updated_at (int):
-        deleted_at (int | None):
+        restored_from_oid (str): The full commit ID of the selected historical snapshot.
+        result_oid (str): The full commit ID created by restoring it.
+        title (str): The card's title after restoration.
+        updated_at (int): When the restored card was updated.
+        deleted_at (int | None): When the restored card is in Trash; null when live.
     """
 
     card_id: str
@@ -28,7 +28,6 @@ class CardHistoryRestoreResponseData:
     title: str
     updated_at: int
     deleted_at: int | None
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         card_id = self.card_id
@@ -45,7 +44,7 @@ class CardHistoryRestoreResponseData:
         deleted_at = self.deleted_at
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "card_id": card_id,
@@ -79,7 +78,7 @@ class CardHistoryRestoreResponseData:
 
         deleted_at = _parse_deleted_at(d.pop("deleted_at"))
 
-        card_history_restore_response_data = cls(
+        card_history_restore_result = cls(
             card_id=card_id,
             restored_from_oid=restored_from_oid,
             result_oid=result_oid,
@@ -88,21 +87,4 @@ class CardHistoryRestoreResponseData:
             deleted_at=deleted_at,
         )
 
-        card_history_restore_response_data.additional_properties = d
-        return card_history_restore_response_data
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return card_history_restore_result

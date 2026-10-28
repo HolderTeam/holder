@@ -21,7 +21,6 @@
 #include "api/EventCursor.h"
 #include "api/GoogleDriveOAuth.h"
 #include "api/Health.h"
-#include "api/History.h"
 #include "api/LocationRead.h"
 #include "api/ProviderCredentials.h"
 #include "api/ProviderSettings.h"

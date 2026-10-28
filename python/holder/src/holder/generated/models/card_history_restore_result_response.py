@@ -1,38 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="CardHistoryAuthor")
+if TYPE_CHECKING:
+    from ..models.card_history_restore_result import CardHistoryRestoreResult
+
+
+T = TypeVar("T", bound="CardHistoryRestoreResultResponse")
 
 
 @_attrs_define
-class CardHistoryAuthor:
+class CardHistoryRestoreResultResponse:
     """
     Attributes:
-        name (str):
-        email (str):
+        ok (bool):
+        data (CardHistoryRestoreResult): A card restored from a saved state by creating a new commit.
     """
 
-    name: str
-    email: str
+    ok: bool
+    data: CardHistoryRestoreResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        name = self.name
+        ok = self.ok
 
-        email = self.email
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "name": name,
-                "email": email,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -40,18 +44,22 @@ class CardHistoryAuthor:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        name = d.pop("name")
-
-        email = d.pop("email")
-
-        card_history_author = cls(
-            name=name,
-            email=email,
+        from ..models.card_history_restore_result import (
+            CardHistoryRestoreResult,
         )
 
-        card_history_author.additional_properties = d
-        return card_history_author
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = CardHistoryRestoreResult.from_dict(d.pop("data"))
+
+        card_history_restore_result_response = cls(
+            ok=ok,
+            data=data,
+        )
+
+        card_history_restore_result_response.additional_properties = d
+        return card_history_restore_result_response
 
     @property
     def additional_keys(self) -> list[str]:

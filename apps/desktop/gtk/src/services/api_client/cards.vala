@@ -86,9 +86,9 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                                                    string mode = "since") throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         if (from_oid != null && ((!) from_oid).strip().length > 0) {
-            query.insert("from", (!) from_oid);
+            query.insert("from_oid", (!) from_oid);
         }
-        query.insert("to", to_oid);
+        query.insert("to_oid", to_oid);
         query.insert("mode", mode);
         var root = yield client.request_json(
             "GET",

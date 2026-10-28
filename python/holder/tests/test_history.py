@@ -19,8 +19,8 @@ def version(oid, body, *, exists=True):
 
 def comparison(before, after):
     return {
-        "from": before,
-        "to": after,
+        "before": before,
+        "after": after,
         "summary": "Body changed",
         "lines": [
             {"origin": "-", "text": "old", "old_line": 1, "new_line": None},
@@ -163,8 +163,8 @@ def test_card_history_grouped_change_exact_saves_and_comparison():
         assert diff.before.revision == OLD
         assert diff.after.revision == NEW
         assert diff.text == "-old\n+new"
-        assert requests[-1].url.params["from"] == OLD
-        assert requests[-1].url.params["to"] == NEW
+        assert requests[-1].url.params["from_oid"] == OLD
+        assert requests[-1].url.params["to_oid"] == NEW
         assert requests[-1].url.params["mode"] == "since"
         assert history.compare(change.saves[0], change).after.revision == NEW
 

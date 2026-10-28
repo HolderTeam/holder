@@ -33,8 +33,10 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_HISTORY_UNAVAILABLE 106
 /* This device cannot use the encrypted project's key to read its history. */
 #define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 107
+/* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
+#define HOLDER_ERROR_REVISION_AMBIGUOUS 108
 /* The bounded History response would exceed 2 MiB. */
-#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 108
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 109
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -634,6 +636,95 @@ typedef struct holder_project_history_page {
     bool scan_limited; /* Whether History reached its bounded scan before the end. */
 } holder_project_history_page;
 
+/* One exact commit saved for a card. */
+typedef struct holder_card_history_save {
+    const char* oid; /* The full commit ID. */
+    holder_string_list parent_oids; /* The commit's parents. */
+    int64_t authored_at; /* When the commit was authored. */
+    int64_t committed_at; /* When the commit was committed. */
+    const char* message; /* The commit message. */
+} holder_card_history_save;
+
+typedef struct holder_card_history_save_list {
+    const holder_card_history_save* items;
+    size_t count;
+} holder_card_history_save_list;
+
+/* One displayed card change, possibly grouping adjacent autosaves. */
+typedef struct holder_card_history_entry {
+    const char* first_oid; /* The first commit in the entry. */
+    const char* last_oid; /* The last commit in the entry. */
+    holder_string_list parent_oids; /* Parents of the first commit. */
+    holder_string_list visible_parent_oids; /* Direct parents represented on this page; omitted connections must not be inferred. */
+    holder_history_author author; /* The author's name and email. */
+    int64_t started_at; /* When the first commit was authored. */
+    int64_t ended_at; /* When the last commit was committed. */
+    const char* kind; /* The kind of change shown. */
+    const char* summary; /* A short description of the change. */
+    int32_t commit_count; /* The number of commits grouped in this entry. */
+    bool is_merge; /* Whether this entry includes a merge commit. */
+    holder_card_history_save_list saves; /* Exact saved commits in chronological order. */
+} holder_card_history_entry;
+
+typedef struct holder_card_history_entry_list {
+    const holder_card_history_entry* items;
+    size_t count;
+} holder_card_history_entry_list;
+
+/* One bounded page of saved card changes, newest first. */
+typedef struct holder_card_history_page {
+    const char* head_oid; /* The project HEAD captured for this page; null for an empty repository. May be NULL. */
+    holder_card_history_entry_list entries; /* The card changes on this page. */
+    const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
+    bool scan_limited; /* Whether History reached its bounded scan before the end. */
+} holder_card_history_page;
+
+/* A card's saved state at one commit, including an explicit absent state. */
+typedef struct holder_card_history_version {
+    bool exists; /* Whether the card existed in this snapshot. */
+    const char* oid; /* The full commit ID. */
+    const char* title; /* The card's saved title, empty when absent. */
+    const char* body; /* The card's saved body, empty when absent. */
+} holder_card_history_version;
+
+/* One line in a card comparison. */
+typedef struct holder_card_history_diff_line {
+    const char* origin; /* Space for unchanged, plus for added, minus for removed. */
+    const char* text; /* The line's text. */
+    const int64_t* old_line; /* Its old line number; null for an addition. May be NULL. */
+    const int64_t* new_line; /* Its new line number; null for a removal. May be NULL. */
+} holder_card_history_diff_line;
+
+typedef struct holder_card_history_diff_line_list {
+    const holder_card_history_diff_line* items;
+    size_t count;
+} holder_card_history_diff_line_list;
+
+/* A bounded line comparison of two saved card states. */
+typedef struct holder_card_history_comparison {
+    holder_card_history_version before; /* The earlier state. */
+    holder_card_history_version after; /* The later state. */
+    const char* summary; /* A short description of the difference. */
+    holder_card_history_diff_line_list lines; /* The comparison's lines. */
+    bool truncated; /* Whether the line comparison was cut short. */
+} holder_card_history_comparison;
+
+/* A card's state at a selected revision. */
+typedef struct holder_card_history_snapshot {
+    const char* card_id; /* The card being inspected. */
+    holder_card_history_version snapshot; /* The state at the selected commit. */
+} holder_card_history_snapshot;
+
+/* A card restored from a saved state by creating a new commit. */
+typedef struct holder_card_history_restore_result {
+    const char* card_id; /* The restored card. */
+    const char* restored_from_oid; /* The full commit ID of the selected historical snapshot. */
+    const char* result_oid; /* The full commit ID created by restoring it. */
+    const char* title; /* The card's title after restoration. */
+    int64_t updated_at; /* When the restored card was updated. */
+    const int64_t* deleted_at; /* When the restored card is in Trash; null when live. May be NULL. */
+} holder_card_history_restore_result;
+
 /* Fetch a card.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
@@ -1017,6 +1108,48 @@ typedef enum holder_list_project_history_kind {
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
 int holder_list_project_history(holder_context* context, const char* project_id, const int32_t* limit, const char* cursor, holder_list_project_history_kind kind, holder_arena* arena, const holder_project_history_page** out_project_history_page, holder_error** out_error);
+
+/* List saved history for a card.
+ * Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves may be
+ * grouped into one displayed entry.
+ * limit: NULL for 50.
+ * cursor: A full commit ID from next_cursor. May be NULL.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ */
+int holder_list_card_history(holder_context* context, const char* project_id, const char* card_id, const int32_t* limit, const char* cursor, holder_arena* arena, const holder_card_history_page** out_card_history_page, holder_error** out_error);
+
+typedef enum holder_compare_card_history_mode {
+    HOLDER_COMPARE_CARD_HISTORY_MODE_DEFAULT = 0, /* since */
+    HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE = 1,
+    HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE = 2,
+    HOLDER_COMPARE_CARD_HISTORY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_compare_card_history_mode;
+
+/* Compare saved card versions or one revision's change.
+ * In since mode, compares the selected before and after snapshots. In change mode, compares the first parent
+ * of to_oid with to_oid. A root commit has a previously nonexistent card as its before state; a merge uses only
+ * its first parent.
+ * to_oid: The ending revision, or the change to inspect.
+ * from_oid: Required in since mode; ignored in change mode. May be NULL.
+ * mode: Compare two snapshots or one introduced change.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ */
+int holder_compare_card_history(holder_context* context, const char* project_id, const char* card_id, const char* to_oid, const char* from_oid, holder_compare_card_history_mode mode, holder_arena* arena, const holder_card_history_comparison** out_card_history_comparison, holder_error** out_error);
+
+/* Read a card snapshot at a selected revision, including an explicit absent state.
+ * oid: The revision containing the card snapshot.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ */
+int holder_get_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_snapshot** out_card_history_snapshot, holder_error** out_error);
+
+/* Restore a card to a saved snapshot.
+ * Restores the complete snapshot as a new commit, preserving the old history. Lifecycle rules still apply:
+ * restoring a trashed snapshot promotes live children, and restoring a live snapshot places the card under a
+ * reachable parent.
+ * oid: The revision containing the snapshot to restore.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ */
+int holder_restore_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_restore_result** out_card_history_restore_result, holder_error** out_error);
 
 #ifdef __cplusplus
 }
