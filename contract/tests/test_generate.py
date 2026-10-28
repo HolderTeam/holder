@@ -75,7 +75,7 @@ def test_generated_code_compiles_and_runs(tmp_path):
     (tmp_path / "include.c").write_text('#include "holder/holder.h"\n')
     run("gcc", "-std=c17", *STRICT, "-fsyntax-only", "-I.", "include.c")
     run("g++", "-std=c++20", *STRICT, "-fsyntax-only", "-I.", "-x", "c++", "include.c")
-    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractGlue.cpp", "-o", "glue.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractCApi.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "exercise.c"), "-o", "exercise.o")
     run("g++", *SANITIZE, "glue.o", "stub.o", "exercise.o", "-o", "exercise")
@@ -150,7 +150,7 @@ def test_a_choice_in_a_result_is_converted_to_its_c_enum():
     ir = with_partial_update(holder_ir())
     ir["records"][-1]["fields"].pop(1)
     ir["operations"][-1]["returns"] = {"kind": "named", "name": "CardChange"}
-    glue = generate(ir)["ContractGlue.cpp"]
+    glue = generate(ir)["ContractCApi.cpp"]
     assert "holder_card_change_intent to_c_enum(contract::CardChangeIntent value) {" in glue
     assert "  case contract::CardChangeIntent::ToEnd: return HOLDER_CARD_CHANGE_INTENT_TO_END;" in glue
     assert "  out.intent = to_c_enum(value.intent);" in glue
@@ -212,7 +212,7 @@ int main(void) {
     def run(*command):
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)
 
-    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractGlue.cpp", "-o", "glue.o")
+    run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "ContractCApi.cpp", "-o", "glue.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", str(TESTS / "c" / "stub_core.cpp"), "-o", "stub.o")
     run("g++", "-std=c++20", *STRICT, *SANITIZE, "-I.", "-c", "change_card.cpp", "-o", "change_card.o")
     run("gcc", "-std=c17", *STRICT, *SANITIZE, "-I.", "-c", "main.c", "-o", "main.o")

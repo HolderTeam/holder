@@ -4,7 +4,7 @@ Three files come out:
 
 - holder_api.h: the C declarations every consumer of core's C API sees.
 - Contract.h: the C++ declarations core implements, one function per operation, in holder::contract.
-- ContractGlue.cpp: the C entry points. Each checks its arguments against the contract, calls
+- ContractCApi.cpp: the C entry points. Each checks its arguments against the contract, calls
   core's C++ function, converts the result into the caller's arena, and turns error kinds into
   status codes.
 
@@ -1016,11 +1016,11 @@ def glue_param(model: Model, op: dict[str, Any], param: Param) -> list[str]:
 
 
 CORE_PATHS = {"holder_api.h": "core/include/holder/holder_api.h", "Contract.h": "core/src/api/Contract.h",
-              "ContractGlue.cpp": "core/src/api/ContractGlue.cpp"}
+              "ContractCApi.cpp": "core/src/api/ContractCApi.cpp"}
 
 
 def generate(ir: dict[str, Any]) -> dict[str, str]:
     """The generated files, by name."""
     model = Model(ir)
     return {"holder_api.h": generate_c_header(model), "Contract.h": generate_cpp_header(model),
-            "ContractGlue.cpp": generate_glue(model)}
+            "ContractCApi.cpp": generate_glue(model)}

@@ -1179,7 +1179,7 @@ int resolve_pull_conflicts(
 
 } // namespace
 
-// The generated glue (src/api/ContractGlue.cpp) reports errors through the same holder_error as
+// The generated C API (src/api/ContractCApi.cpp) reports errors through the same holder_error as
 // the rest of the C API.
 int holder::contract::detail::fail(holder_error** out_error, int code, const std::string& message) {
   return set_error(out_error, code, message);
