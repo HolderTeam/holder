@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -190,6 +190,25 @@ template <> struct codec<holder::contract::CardBreadcrumbKind> {
         if (text == "project") return holder::contract::CardBreadcrumbKind::Project;
         if (text == "card") return holder::contract::CardBreadcrumbKind::Card;
         throw std::invalid_argument("must be one of project, card");
+    }
+};
+
+template <> struct codec<holder::contract::CardReferenceResolveDataStatus> {
+    static json encode(holder::contract::CardReferenceResolveDataStatus value) {
+        switch (value) {
+        case holder::contract::CardReferenceResolveDataStatus::Resolved: return "resolved";
+        case holder::contract::CardReferenceResolveDataStatus::Ambiguous: return "ambiguous";
+        case holder::contract::CardReferenceResolveDataStatus::NotFound: return "not_found";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::CardReferenceResolveDataStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "resolved") return holder::contract::CardReferenceResolveDataStatus::Resolved;
+        if (text == "ambiguous") return holder::contract::CardReferenceResolveDataStatus::Ambiguous;
+        if (text == "not_found") return holder::contract::CardReferenceResolveDataStatus::NotFound;
+        throw std::invalid_argument("must be one of resolved, ambiguous, not_found");
     }
 };
 
@@ -403,6 +422,25 @@ template <> struct codec<holder::contract::TrashItemType> {
     }
 };
 
+template <> struct codec<holder::contract::CardReferenceResolveRequestScope> {
+    static json encode(holder::contract::CardReferenceResolveRequestScope value) {
+        switch (value) {
+        case holder::contract::CardReferenceResolveRequestScope::Live: return "live";
+        case holder::contract::CardReferenceResolveRequestScope::Trashed: return "trashed";
+        case holder::contract::CardReferenceResolveRequestScope::Either: return "either";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::CardReferenceResolveRequestScope decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "live") return holder::contract::CardReferenceResolveRequestScope::Live;
+        if (text == "trashed") return holder::contract::CardReferenceResolveRequestScope::Trashed;
+        if (text == "either") return holder::contract::CardReferenceResolveRequestScope::Either;
+        throw std::invalid_argument("must be one of live, trashed, either");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -481,6 +519,14 @@ template <> struct codec<holder::contract::Card> {
 template <> struct codec<holder::contract::CardBreadcrumb> {
     static json encode(const holder::contract::CardBreadcrumb& value);
     static holder::contract::CardBreadcrumb decode(const json& value);
+};
+template <> struct codec<holder::contract::CardReferenceCandidate> {
+    static json encode(const holder::contract::CardReferenceCandidate& value);
+    static holder::contract::CardReferenceCandidate decode(const json& value);
+};
+template <> struct codec<holder::contract::CardReferenceResolveData> {
+    static json encode(const holder::contract::CardReferenceResolveData& value);
+    static holder::contract::CardReferenceResolveData decode(const json& value);
 };
 template <> struct codec<holder::contract::CardListItem> {
     static json encode(const holder::contract::CardListItem& value);
@@ -629,6 +675,10 @@ template <> struct codec<holder::contract::SearchCard> {
 template <> struct codec<holder::contract::SearchMessage> {
     static json encode(const holder::contract::SearchMessage& value);
     static holder::contract::SearchMessage decode(const json& value);
+};
+template <> struct codec<holder::contract::CardReferenceResolveRequest> {
+    static json encode(const holder::contract::CardReferenceResolveRequest& value);
+    static holder::contract::CardReferenceResolveRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
@@ -833,6 +883,77 @@ inline holder::contract::CardBreadcrumb codec<holder::contract::CardBreadcrumb>:
         out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
     } else {
         throw std::invalid_argument("title is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardReferenceCandidate>::encode(const holder::contract::CardReferenceCandidate& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardReferenceCandidate codec<holder::contract::CardReferenceCandidate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardReferenceCandidate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "title" && it.key() != "deleted_at") throw std::invalid_argument("CardReferenceCandidate has no field " + it.key());
+    holder::contract::CardReferenceCandidate out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+        const auto& item = value.at("deleted_at");
+        out.deleted_at = decode_field<long long>(item, "deleted_at");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardReferenceResolveData>::encode(const holder::contract::CardReferenceResolveData& value) {
+    json result = json::object();
+    result["status"] = codec<holder::contract::CardReferenceResolveDataStatus>::encode(value.status);
+    if (value.match_kind) result["match_kind"] = codec<std::string>::encode(*value.match_kind);
+    if (value.card) result["card"] = codec<holder::contract::CardReferenceCandidate>::encode(*value.card);
+    if (value.candidates) result["candidates"] = codec<std::vector<holder::contract::CardReferenceCandidate>>::encode(*value.candidates);
+    return result;
+}
+inline holder::contract::CardReferenceResolveData codec<holder::contract::CardReferenceResolveData>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardReferenceResolveData object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "status" && it.key() != "match_kind" && it.key() != "card" && it.key() != "candidates") throw std::invalid_argument("CardReferenceResolveData has no field " + it.key());
+    holder::contract::CardReferenceResolveData out;
+    if (value.contains("status") && !value.at("status").is_null()) {
+        const auto& item = value.at("status");
+        out.status = decode_field<holder::contract::CardReferenceResolveDataStatus>(item, "status");
+    } else {
+        throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("match_kind") && !value.at("match_kind").is_null()) {
+        const auto& item = value.at("match_kind");
+        out.match_kind = check_text(decode_field<std::string>(item, "match_kind"), "match_kind", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("match_kind")) {
+        throw std::invalid_argument("match_kind must not be null");
+    }
+    if (value.contains("card") && !value.at("card").is_null()) {
+        const auto& item = value.at("card");
+        out.card = codec<holder::contract::CardReferenceCandidate>::decode(item);
+    } else if (value.contains("card")) {
+        throw std::invalid_argument("card must not be null");
+    }
+    if (value.contains("candidates") && !value.at("candidates").is_null()) {
+        const auto& item = value.at("candidates");
+        out.candidates = decode_field<std::vector<holder::contract::CardReferenceCandidate>>(item, "candidates");
+    } else if (value.contains("candidates")) {
+        throw std::invalid_argument("candidates must not be null");
     }
     return out;
 }
@@ -2707,6 +2828,39 @@ inline holder::contract::SearchMessage codec<holder::contract::SearchMessage>::d
         out.rank = decode_field<double>(item, "rank");
     } else {
         throw std::invalid_argument("rank is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardReferenceResolveRequest>::encode(const holder::contract::CardReferenceResolveRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["reference"] = codec<std::string>::encode(value.reference);
+    result["scope"] = codec<holder::contract::CardReferenceResolveRequestScope>::encode(value.scope);
+    return result;
+}
+inline holder::contract::CardReferenceResolveRequest codec<holder::contract::CardReferenceResolveRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardReferenceResolveRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "reference" && it.key() != "scope") throw std::invalid_argument("CardReferenceResolveRequest has no field " + it.key());
+    holder::contract::CardReferenceResolveRequest out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("reference") && !value.at("reference").is_null()) {
+        const auto& item = value.at("reference");
+        out.reference = check_text(decode_field<std::string>(item, "reference"), "reference", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("reference is required and must not be null");
+    }
+    if (value.contains("scope") && !value.at("scope").is_null()) {
+        const auto& item = value.at("scope");
+        out.scope = decode_field<holder::contract::CardReferenceResolveRequestScope>(item, "scope");
+    } else {
+        throw std::invalid_argument("scope is required and must not be null");
     }
     return out;
 }

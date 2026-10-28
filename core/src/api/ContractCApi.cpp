@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -48,6 +48,14 @@ const C* copy_value(holder_arena* arena, const std::optional<T>& value) {
   if (!value) return nullptr;
   C* out = make<C>(arena);
   *out = static_cast<C>(*value);
+  return out;
+}
+
+template <class C, class T, class Convert>
+const C* copy_optional(holder_arena* arena, const std::optional<T>& value, Convert convert) {
+  if (!value) return nullptr;
+  C* out = make<C>(arena);
+  *out = convert(*value);
   return out;
 }
 
@@ -216,6 +224,15 @@ holder_card_breadcrumb_kind to_c_enum(contract::CardBreadcrumbKind value) {
   throw std::logic_error("not a contract::CardBreadcrumbKind value");
 }
 
+holder_card_reference_resolve_data_status to_c_enum(contract::CardReferenceResolveDataStatus value) {
+  switch (value) {
+  case contract::CardReferenceResolveDataStatus::Resolved: return HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED;
+  case contract::CardReferenceResolveDataStatus::Ambiguous: return HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS;
+  case contract::CardReferenceResolveDataStatus::NotFound: return HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND;
+  }
+  throw std::logic_error("not a contract::CardReferenceResolveDataStatus value");
+}
+
 holder_link_source_type to_c_enum(contract::LinkSourceType value) {
   switch (value) {
   case contract::LinkSourceType::Card: return HOLDER_LINK_SOURCE_TYPE_CARD;
@@ -321,6 +338,9 @@ holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<cont
 holder_card to_c(holder_arena* arena, const contract::Card& value);
 holder_card_breadcrumb to_c(holder_arena* arena, const contract::CardBreadcrumb& value);
 holder_card_breadcrumb_list to_c_list(holder_arena* arena, const std::vector<contract::CardBreadcrumb>& values);
+holder_card_reference_candidate to_c(holder_arena* arena, const contract::CardReferenceCandidate& value);
+holder_card_reference_candidate_list to_c_list(holder_arena* arena, const std::vector<contract::CardReferenceCandidate>& values);
+holder_card_reference_resolve_data to_c(holder_arena* arena, const contract::CardReferenceResolveData& value);
 holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value);
 holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::CardListItem>& values);
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
@@ -422,6 +442,29 @@ holder_card_breadcrumb_list to_c_list(holder_arena* arena, const std::vector<con
   auto* items = make<holder_card_breadcrumb>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
+}
+
+holder_card_reference_candidate to_c(holder_arena* arena, const contract::CardReferenceCandidate& value) {
+  holder_card_reference_candidate out{};
+  out.card_id = copy(arena, value.card_id);
+  out.title = copy(arena, value.title);
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  return out;
+}
+
+holder_card_reference_candidate_list to_c_list(holder_arena* arena, const std::vector<contract::CardReferenceCandidate>& values) {
+  auto* items = make<holder_card_reference_candidate>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_card_reference_resolve_data to_c(holder_arena* arena, const contract::CardReferenceResolveData& value) {
+  holder_card_reference_resolve_data out{};
+  out.status = to_c_enum(value.status);
+  out.match_kind = copy_text(arena, value.match_kind);
+  out.card = copy_optional<holder_card_reference_candidate>(arena, value.card, [&](const auto& item) { return to_c(arena, item); });
+  out.candidates = copy_optional<holder_card_reference_candidate_list>(arena, value.candidates, [&](const auto& items) { return to_c_list(arena, items); });
+  return out;
 }
 
 holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value) {
@@ -947,6 +990,19 @@ holder_search_message_list to_c_list(holder_arena* arena, const std::vector<cont
   return {items, values.size()};
 }
 
+contract::CardReferenceResolveRequest from_c(const holder_card_reference_resolve_request& value) {
+  contract::CardReferenceResolveRequest out;
+  out.project_id = text(value.project_id, "card_reference_resolve_request.project_id", 1, SIZE_MAX);
+  out.reference = text(value.reference, "card_reference_resolve_request.reference", 1, SIZE_MAX);
+  switch (value.scope) {
+  case HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE: out.scope = contract::CardReferenceResolveRequestScope::Live; break;
+  case HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED: out.scope = contract::CardReferenceResolveRequestScope::Trashed; break;
+  case HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER: out.scope = contract::CardReferenceResolveRequestScope::Either; break;
+  default: throw ArgumentError("card_reference_resolve_request.scope is not a holder_card_reference_resolve_request_scope value");
+  }
+  return out;
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -1124,6 +1180,19 @@ int holder_get_card_breadcrumbs(holder_context* context, const char* project_id,
     auto* out = make<holder_card_breadcrumb_list>(arena);
     *out = to_c_list(arena, contract::get_card_breadcrumbs(*context, project_id_value, card_id_value));
     *out_card_breadcrumb_list = out;
+  });
+}
+
+int holder_resolve_card_reference(holder_context* context, const holder_card_reference_resolve_request* request, holder_arena* arena, const holder_card_reference_resolve_data** out_card_reference_resolve_data, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_reference_resolve_data != nullptr, "out_card_reference_resolve_data must not be null");
+    *out_card_reference_resolve_data = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_card_reference_resolve_data>(arena);
+    *out = to_c(arena, contract::resolve_card_reference(*context, request_value));
+    *out_card_reference_resolve_data = out;
   });
 }
 

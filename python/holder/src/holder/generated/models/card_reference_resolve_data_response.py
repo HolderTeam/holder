@@ -11,15 +11,15 @@ if TYPE_CHECKING:
     from ..models.card_reference_resolve_data import CardReferenceResolveData
 
 
-T = TypeVar("T", bound="CardReferenceResolveResponse")
+T = TypeVar("T", bound="CardReferenceResolveDataResponse")
 
 
 @_attrs_define
-class CardReferenceResolveResponse:
+class CardReferenceResolveDataResponse:
     """
     Attributes:
         ok (bool):
-        data (CardReferenceResolveData):
+        data (CardReferenceResolveData): A resolved, ambiguous, or absent card reference.
     """
 
     ok: bool
@@ -53,13 +53,13 @@ class CardReferenceResolveResponse:
 
         data = CardReferenceResolveData.from_dict(d.pop("data"))
 
-        card_reference_resolve_response = cls(
+        card_reference_resolve_data_response = cls(
             ok=ok,
             data=data,
         )
 
-        card_reference_resolve_response.additional_properties = d
-        return card_reference_resolve_response
+        card_reference_resolve_data_response.additional_properties = d
+        return card_reference_resolve_data_response
 
     @property
     def additional_keys(self) -> list[str]:

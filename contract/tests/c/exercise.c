@@ -60,6 +60,19 @@ int main(void) {
     printf("breadcrumbs: status %d, %zu steps, %s then %s\n", status, breadcrumbs->count,
            breadcrumbs->items[0].title, breadcrumbs->items[1].title);
 
+    holder_card_reference_resolve_request reference = {"p1", "c1", HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE};
+    const holder_card_reference_resolve_data* resolution = NULL;
+    status = holder_resolve_card_reference(context, &reference, arena, &resolution, &error);
+    printf("resolve card: status %d, match %s, card %s\n", status, resolution->match_kind,
+           resolution->card->card_id);
+    reference.reference = "ambiguous";
+    status = holder_resolve_card_reference(context, &reference, arena, &resolution, &error);
+    printf("resolve ambiguous: status %d, %zu candidates\n", status, resolution->candidates->count);
+    reference.reference = "missing";
+    status = holder_resolve_card_reference(context, &reference, arena, &resolution, &error);
+    printf("resolve missing: status %d, match absent %d, card absent %d, candidates absent %d\n",
+           status, resolution->match_kind == NULL, resolution->card == NULL, resolution->candidates == NULL);
+
     const holder_card_list_item_page* page = NULL;
     holder_list_cards_parent all = {0};
     status = holder_list_cards(context, "p1", all, NULL, HOLDER_LIST_CARDS_ORDER_DEFAULT, NULL, NULL, false, false,

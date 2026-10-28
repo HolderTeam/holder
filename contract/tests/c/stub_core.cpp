@@ -51,6 +51,20 @@ std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::s
           {CardBreadcrumbKind::Card, card_id, "Thesis"}};
 }
 
+CardReferenceResolveData resolve_card_reference(holder_context& context,
+                                                const CardReferenceResolveRequest& request) {
+  (void)context;
+  if (request.project_id != "p1") throw NotFound("project not found: " + request.project_id);
+  if (request.reference == "c1")
+    return {CardReferenceResolveDataStatus::Resolved, "full_id",
+            CardReferenceCandidate{"c1", "Thesis", std::nullopt}, std::nullopt};
+  if (request.reference == "ambiguous")
+    return {CardReferenceResolveDataStatus::Ambiguous, "exact_title", std::nullopt,
+            std::vector<CardReferenceCandidate>{{"c1", "Thesis", std::nullopt},
+                                                {"c2", "Thesis", std::nullopt}}};
+  return {CardReferenceResolveDataStatus::NotFound, std::nullopt, std::nullopt, std::nullopt};
+}
+
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
                               std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
                               std::optional<std::string> cursor, bool include_content, bool include_child_count) {

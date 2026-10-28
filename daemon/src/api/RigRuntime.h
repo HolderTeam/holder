@@ -17,7 +17,6 @@
 #include "api/Alive.h"
 #include "api/Bye.h"
 #include "api/CardLinks.h"
-#include "api/CardReferenceResolve.h"
 #include "api/EventCursor.h"
 #include "api/GoogleDriveOAuth.h"
 #include "api/Health.h"

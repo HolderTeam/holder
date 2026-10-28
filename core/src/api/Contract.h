@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -96,6 +96,16 @@ template <class T>
 struct Page {
   std::vector<T> items;  ///< The page's items.
   std::optional<std::string> next_cursor;  ///< Pass back to get the next page; null on the last page.
+};
+
+/// Which cards may match.
+enum class CardReferenceResolveRequestScope { Live, Trashed, Either };
+
+/// A reference to resolve among one project's cards.
+struct CardReferenceResolveRequest {
+  std::string project_id;  ///< The project to search.
+  std::string reference;  ///< A full canonical UUID, eligible UUID prefix, or exact card title.
+  CardReferenceResolveRequestScope scope;  ///< Which cards may match.
 };
 
 /// A card to create.
@@ -247,6 +257,24 @@ struct CardBreadcrumb {
   CardBreadcrumbKind kind;  ///< Whether this step names the project or a card.
   std::string id;  ///< The project or card ID.
   std::string title;  ///< The project or card title.
+};
+
+/// A card that matches a reference.
+struct CardReferenceCandidate {
+  std::string card_id;  ///< The card's canonical full UUID.
+  std::string title;  ///< The card's title.
+  std::optional<long long> deleted_at;  ///< When the card entered Trash, or null while live.
+};
+
+/// The resolution outcome.
+enum class CardReferenceResolveDataStatus { Resolved, Ambiguous, NotFound };
+
+/// A resolved, ambiguous, or absent card reference.
+struct CardReferenceResolveData {
+  CardReferenceResolveDataStatus status;  ///< The resolution outcome.
+  std::optional<std::string> match_kind;  ///< How a reference matched: full_id, id_prefix or exact_title. Absent when no card matched.
+  std::optional<CardReferenceCandidate> card;  ///< The matching card for a resolved reference.
+  std::optional<std::vector<CardReferenceCandidate>> candidates;  ///< Two candidate cards for an ambiguous reference.
 };
 
 /// A card in a listing.
@@ -606,6 +634,10 @@ Card get_card(holder_context& context, std::string project_id, std::string card_
 /// card is not found; a broken or cyclic ancestor chain is invalid.
 /// @throws NotFound, HierarchyInvalid
 std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id, std::string card_id);
+
+/// Resolve a card reference within a project and deletion scope.
+/// @throws NotFound
+CardReferenceResolveData resolve_card_reference(holder_context& context, const CardReferenceResolveRequest& request);
 
 struct ListCardsParentRoots {};
 using ListCardsParent = std::variant<ListCardsParentRoots, std::string>;

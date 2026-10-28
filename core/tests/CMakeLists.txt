@@ -46,6 +46,7 @@ add_executable(holder_core_tests
   ContractTrash_test.cpp
   ContractSearch_test.cpp
   ContractBreadcrumbs_test.cpp
+  ContractCardReference_test.cpp
   ContractLinks_test.cpp
   ContractProjects_test.cpp
   CardFrontMatter_test.cpp
