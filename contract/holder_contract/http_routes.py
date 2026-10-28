@@ -285,8 +285,17 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
         pname = param.slot.name
         arguments.append(f"std::move({pname})")
         if pname in captures:
-            decodes.append(f"            {pname} = "
-                           f"{scalar_value(param.slot.type, f'decode_uri_component(match[{captures[pname]}].str(), false)', pname)};")
+            source = f"decode_uri_component(match[{captures[pname]}].str(), false)"
+            if param.slot.type["kind"] == "literal":
+                choices = param.slot.type["values"]
+                type_name = "holder::contract::" + camel(name) + camel(pname)
+                decodes.append(f"            const auto {pname}_text = {source};")
+                for i, value in enumerate(choices):
+                    decodes.append(f'            {"if" if i == 0 else "else if"} ({pname}_text == {json.dumps(value)}) '
+                                   f"{pname} = {type_name}::{camel(str(value))};")
+                decodes.append(f'            else throw std::invalid_argument("{pname} must be one of {", ".join(choices)}");')
+            else:
+                decodes.append(f"            {pname} = {scalar_value(param.slot.type, source, pname)};")
         elif pname in binding["query"]:
             decodes += query_lines(model, op, parameter)
         else:

@@ -17,8 +17,8 @@ namespace holder::contract {
 namespace {
 
 TrashDeleteResult remove_item(holder_context& context, const std::optional<std::string>& project_id,
-                              const std::string& type, const std::string& id) {
-  if (type == "card") {
+                              bool is_card, const std::string& id) {
+  if (is_card) {
     const auto card = holder::card::CardRepo(context.db).get(id);
     if (!card || (project_id && card->project_id != *project_id)) throw NotFound("Card not found.");
     if (!card->deleted_at) throw NotTrashed("Card is not in Trash.");
@@ -26,7 +26,6 @@ TrashDeleteResult remove_item(holder_context& context, const std::optional<std::
     store.hard_delete(id, project_id);
     return {id, std::nullopt};
   }
-  if (type != "ai_message") throw InvalidArgument("type must be card or ai_message");
   holder::ai::AiMessageRepo messages(context.db, &context.fts);
   const auto message = messages.get(id);
   const auto thread = message ? holder::ai::AiThreadRepo(context.db).get(message->thread_id) : std::nullopt;
@@ -82,13 +81,17 @@ TrashEmptyResult empty_trash(holder_context& context, std::string project_id, Em
   });
 }
 
-TrashDeleteResult delete_trash_item(holder_context& context, std::string type, std::string id) {
-  return with_contract_errors([&] { return remove_item(context, std::nullopt, type, id); });
+TrashDeleteResult delete_trash_item(holder_context& context, DeleteTrashItemType type, std::string id) {
+  return with_contract_errors([&] {
+    return remove_item(context, std::nullopt, type == DeleteTrashItemType::Card, id);
+  });
 }
 
 TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id,
-                                             std::string type, std::string id) {
-  return with_contract_errors([&] { return remove_item(context, project_id, type, id); });
+                                             DeleteProjectTrashItemType type, std::string id) {
+  return with_contract_errors([&] {
+    return remove_item(context, project_id, type == DeleteProjectTrashItemType::Card, id);
+  });
 }
 
 } // namespace holder::contract

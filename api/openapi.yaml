@@ -5615,7 +5615,7 @@ paths:
       - name: type
         in: path
         required: true
-        schema: {type: string, title: Type}
+        schema: {$ref: '#/components/schemas/TrashItemType'}
       - name: id
         in: path
         required: true
@@ -6019,7 +6019,7 @@ paths:
       - name: type
         in: path
         required: true
-        schema: {type: string, title: Type}
+        schema: {$ref: '#/components/schemas/TrashItemType'}
       - name: id
         in: path
         required: true

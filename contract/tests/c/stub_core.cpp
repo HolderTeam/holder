@@ -475,16 +475,17 @@ TrashEmptyResult empty_trash(holder_context& context, std::string project_id, Em
   return {project_id};
 }
 
-TrashDeleteResult delete_trash_item(holder_context& context, std::string type, std::string id) {
+TrashDeleteResult delete_trash_item(holder_context& context, DeleteTrashItemType type, std::string id) {
   (void)context;
-  return type == "card" ? TrashDeleteResult{id, std::nullopt}
-                        : TrashDeleteResult{std::nullopt, id};
+  return type == DeleteTrashItemType::Card ? TrashDeleteResult{id, std::nullopt}
+                                           : TrashDeleteResult{std::nullopt, id};
 }
 
 TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id,
-                                             std::string type, std::string id) {
+                                             DeleteProjectTrashItemType type, std::string id) {
   project_named(context, project_id);
-  return delete_trash_item(context, type, id);
+  return delete_trash_item(context, type == DeleteProjectTrashItemType::Card
+                                       ? DeleteTrashItemType::Card : DeleteTrashItemType::AiMessage, id);
 }
 }  // namespace holder::contract
 

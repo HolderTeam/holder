@@ -132,6 +132,15 @@ def test_parameters_come_from_fastapis_analysis_of_the_routes():
     assert operation["summary"] == "Page through a project's live cards."
 
 
+def test_trash_delete_paths_only_advertise_supported_item_types():
+    result = openapi()
+    for path in ("/trash/{type}/{id}", "/projects/{project_id}/trash/{type}/{id}"):
+        parameters = result["paths"][path]["delete"]["parameters"]
+        item_type = next(parameter for parameter in parameters if parameter["name"] == "type")
+        schema_name = item_type["schema"]["$ref"].split("/")[-1]
+        assert result["components"]["schemas"][schema_name]["enum"] == ["card", "ai_message"]
+
+
 def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemons_body():
     result = openapi()
     responses = result["paths"]["/projects/{project_id}/cards"]["post"]["responses"]

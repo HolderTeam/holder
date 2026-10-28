@@ -10537,8 +10537,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "title": "Type"
+              "$ref": "#/components/schemas/TrashItemType"
             }
           },
           {
@@ -11314,8 +11313,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "title": "Type"
+              "$ref": "#/components/schemas/TrashItemType"
             }
           },
           {

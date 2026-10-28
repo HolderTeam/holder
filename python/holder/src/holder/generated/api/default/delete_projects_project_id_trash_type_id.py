@@ -8,12 +8,13 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.trash_delete_result_response import TrashDeleteResultResponse
+from ...models.trash_item_type import TrashItemType
 from ...types import Response
 
 
 def _get_kwargs(
     project_id: str,
-    type_: str,
+    type_: TrashItemType,
     id: str,
 ) -> dict[str, Any]:
 
@@ -86,7 +87,7 @@ def _build_response(
 
 def sync_detailed(
     project_id: str,
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -97,7 +98,7 @@ def sync_detailed(
 
     Args:
         project_id (str):
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -123,7 +124,7 @@ def sync_detailed(
 
 def sync(
     project_id: str,
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -134,7 +135,7 @@ def sync(
 
     Args:
         project_id (str):
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -155,7 +156,7 @@ def sync(
 
 async def asyncio_detailed(
     project_id: str,
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -166,7 +167,7 @@ async def asyncio_detailed(
 
     Args:
         project_id (str):
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -190,7 +191,7 @@ async def asyncio_detailed(
 
 async def asyncio(
     project_id: str,
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -201,7 +202,7 @@ async def asyncio(
 
     Args:
         project_id (str):
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:

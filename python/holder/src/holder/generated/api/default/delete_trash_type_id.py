@@ -8,11 +8,12 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.trash_delete_result_response import TrashDeleteResultResponse
+from ...models.trash_item_type import TrashItemType
 from ...types import Response
 
 
 def _get_kwargs(
-    type_: str,
+    type_: TrashItemType,
     id: str,
 ) -> dict[str, Any]:
 
@@ -83,7 +84,7 @@ def _build_response(
 
 
 def sync_detailed(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -93,7 +94,7 @@ def sync_detailed(
      Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -117,7 +118,7 @@ def sync_detailed(
 
 
 def sync(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -127,7 +128,7 @@ def sync(
      Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -146,7 +147,7 @@ def sync(
 
 
 async def asyncio_detailed(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -156,7 +157,7 @@ async def asyncio_detailed(
      Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:
@@ -178,7 +179,7 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    type_: str,
+    type_: TrashItemType,
     id: str,
     *,
     client: AuthenticatedClient | Client,
@@ -188,7 +189,7 @@ async def asyncio(
      Permanently remove a trashed item by its global ID (legacy route).
 
     Args:
-        type_ (str):
+        type_ (TrashItemType):
         id (str):
 
     Raises:

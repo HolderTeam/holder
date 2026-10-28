@@ -1684,12 +1684,15 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     static const std::regex route_48("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_48)) {
         std::string project_id{};
-        std::string type{};
+        holder::contract::DeleteProjectTrashItemType type{};
         std::string id{};
         try {
             check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
-            type = contract_json::check_text(decode_uri_component(match[2].str(), false), "type", 0, std::numeric_limits<std::size_t>::max());
+            const auto type_text = decode_uri_component(match[2].str(), false);
+            if (type_text == "card") type = holder::contract::DeleteProjectTrashItemType::Card;
+            else if (type_text == "ai_message") type = holder::contract::DeleteProjectTrashItemType::AiMessage;
+            else throw std::invalid_argument("type must be one of card, ai_message");
             id = contract_json::check_text(decode_uri_component(match[3].str(), false), "id", 0, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "delete_project_trash_item");
@@ -1714,11 +1717,14 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     }
     static const std::regex route_47("^/trash/([^/]+)/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_47)) {
-        std::string type{};
+        holder::contract::DeleteTrashItemType type{};
         std::string id{};
         try {
             check_query_names(decode_query(query_string), {});
-            type = contract_json::check_text(decode_uri_component(match[1].str(), false), "type", 0, std::numeric_limits<std::size_t>::max());
+            const auto type_text = decode_uri_component(match[1].str(), false);
+            if (type_text == "card") type = holder::contract::DeleteTrashItemType::Card;
+            else if (type_text == "ai_message") type = holder::contract::DeleteTrashItemType::AiMessage;
+            else throw std::invalid_argument("type must be one of card, ai_message");
             id = contract_json::check_text(decode_uri_component(match[2].str(), false), "id", 0, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "delete_trash_item");

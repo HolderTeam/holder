@@ -277,10 +277,11 @@ int main(void) {
     printf("empty trash: status %d, project %s\n", status, emptied->project_id);
 
     const holder_trash_delete_result* removed = NULL;
-    status = holder_delete_trash_item(context, "card", "card-one", arena, &removed, &error);
+    status = holder_delete_trash_item(context, HOLDER_DELETE_TRASH_ITEM_TYPE_CARD, "card-one", arena, &removed, &error);
     printf("delete trash item: status %d, card %s\n", status, removed->card_id);
 
-    status = holder_delete_project_trash_item(context, project_id, "ai_message", "message-one", arena,
+    status = holder_delete_project_trash_item(context, project_id, HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE,
+                                             "message-one", arena,
                                              &removed, &error);
     printf("delete project trash item: status %d, message %s\n", status, removed->message_id);
 

@@ -1770,12 +1770,17 @@ int holder_empty_trash(holder_context* context, const char* project_id, holder_e
   });
 }
 
-int holder_delete_trash_item(holder_context* context, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
+int holder_delete_trash_item(holder_context* context, holder_delete_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_trash_delete_result != nullptr, "out_trash_delete_result must not be null");
     *out_trash_delete_result = nullptr;
-    const auto type_value = text(type, "type", 0, SIZE_MAX);
+    contract::DeleteTrashItemType type_value;
+    switch (type) {
+    case HOLDER_DELETE_TRASH_ITEM_TYPE_CARD: type_value = contract::DeleteTrashItemType::Card; break;
+    case HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE: type_value = contract::DeleteTrashItemType::AiMessage; break;
+    default: throw ArgumentError("type is not a holder_delete_trash_item_type value");
+    }
     const auto id_value = text(id, "id", 0, SIZE_MAX);
     auto* out = make<holder_trash_delete_result>(arena);
     *out = to_c(arena, contract::delete_trash_item(*context, type_value, id_value));
@@ -1783,13 +1788,18 @@ int holder_delete_trash_item(holder_context* context, const char* type, const ch
   });
 }
 
-int holder_delete_project_trash_item(holder_context* context, const char* project_id, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
+int holder_delete_project_trash_item(holder_context* context, const char* project_id, holder_delete_project_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
     require(out_trash_delete_result != nullptr, "out_trash_delete_result must not be null");
     *out_trash_delete_result = nullptr;
     const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
-    const auto type_value = text(type, "type", 0, SIZE_MAX);
+    contract::DeleteProjectTrashItemType type_value;
+    switch (type) {
+    case HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD: type_value = contract::DeleteProjectTrashItemType::Card; break;
+    case HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE: type_value = contract::DeleteProjectTrashItemType::AiMessage; break;
+    default: throw ArgumentError("type is not a holder_delete_project_trash_item_type value");
+    }
     const auto id_value = text(id, "id", 0, SIZE_MAX);
     auto* out = make<holder_trash_delete_result>(arena);
     *out = to_c(arena, contract::delete_project_trash_item(*context, project_id_value, type_value, id_value));

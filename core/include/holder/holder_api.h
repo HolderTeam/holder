@@ -1213,16 +1213,28 @@ typedef enum holder_empty_trash_type {
  */
 int holder_empty_trash(holder_context* context, const char* project_id, holder_empty_trash_type type, holder_arena* arena, const holder_trash_empty_result** out_trash_empty_result, holder_error** out_error);
 
+typedef enum holder_delete_trash_item_type {
+    HOLDER_DELETE_TRASH_ITEM_TYPE_CARD = 1,
+    HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+    HOLDER_DELETE_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_delete_trash_item_type;
+
 /* Permanently remove a trashed item by its global ID (legacy route).
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_delete_trash_item(holder_context* context, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+int holder_delete_trash_item(holder_context* context, holder_delete_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+
+typedef enum holder_delete_project_trash_item_type {
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD = 1,
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_delete_project_trash_item_type;
 
 /* Permanently remove a trashed item from the named project.
  * Old Git revisions of cards remain available.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
-int holder_delete_project_trash_item(holder_context* context, const char* project_id, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+int holder_delete_project_trash_item(holder_context* context, const char* project_id, holder_delete_project_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
 
 #ifdef __cplusplus
 }

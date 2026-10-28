@@ -899,14 +899,18 @@ enum class EmptyTrashType { Card, AiMessage, All };
 /// @throws KeyringUnavailable, KeyMissing, DataCorrupted
 TrashEmptyResult empty_trash(holder_context& context, std::string project_id, EmptyTrashType type);
 
+enum class DeleteTrashItemType { Card, AiMessage };
+
 /// Permanently remove a trashed item by its global ID (legacy route).
 /// @throws NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted
-TrashDeleteResult delete_trash_item(holder_context& context, std::string type, std::string id);
+TrashDeleteResult delete_trash_item(holder_context& context, DeleteTrashItemType type, std::string id);
+
+enum class DeleteProjectTrashItemType { Card, AiMessage };
 
 /// Permanently remove a trashed item from the named project.
 /// Old Git revisions of cards remain available.
 /// @throws NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted
-TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id, std::string type, std::string id);
+TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id, DeleteProjectTrashItemType type, std::string id);
 
 namespace detail {
 

@@ -40,7 +40,7 @@ from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
 from .resources import NewResource, Resource, ResourceId, ResourceUpdate
-from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem
+from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 
 contract = Contract(statuses={
     NotFound: 404,
@@ -650,7 +650,7 @@ def empty_trash(
 @contract.route("DELETE", "/trash/{type}/{id}",
                 errors=[NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted])
 def delete_trash_item(
-    type: Annotated[str, Path()],
+    type: Annotated[TrashItemType, Path()],
     id: Annotated[str, Path()],
 ) -> TrashDeleteResult:
     """Permanently remove a trashed item by its global ID (legacy route)."""
@@ -660,7 +660,7 @@ def delete_trash_item(
                 errors=[NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted])
 def delete_project_trash_item(
     project_id: Annotated[ProjectId, Path()],
-    type: Annotated[str, Path()],
+    type: Annotated[TrashItemType, Path()],
     id: Annotated[str, Path()],
 ) -> TrashDeleteResult:
     """Permanently remove a trashed item from the named project.
