@@ -4,7 +4,7 @@
 
 - **`core/include/holder/holder_api.h`:** the C declarations consumers use: records, operations, error codes, and the arena. `holder.h` includes it, so consumers still include only `holder.h`.
 - **`core/src/api/Contract.h`:** the C++ declarations core implements, one function per operation, in `holder::contract`, a namespace of its own so nothing clashes with the daemon's `holder::api`. A missing implementation fails to link.
-- **`core/src/api/ContractGlue.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
+- **`core/src/api/ContractCApi.cpp`:** the C entry points. Each checks its arguments against the contract, calls core's function, copies the result into the caller's arena, and turns error kinds into status codes. Core never sees a null pointer, an out-of-range number or an unknown enum value.
 
 Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A record's C++ struct inherits the record it extends, so `CardMetadata` is one type; core's `holder::model::Card` is an alias of it. In C++, 64-bit integers are `long long`, as in the rest of core; the glue converts them to `int64_t` at the C boundary. `tests/c/` compiles the generated files against a stand-in for core and runs them.
 
