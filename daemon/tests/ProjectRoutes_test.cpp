@@ -252,7 +252,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
   };
 
-  SECTION("git test-remote emits status_name and null remote override") {
+  SECTION("git test-remote refuses a null remote") {
     git.probe_result = {
         .status = holder::git::RemoteProbeStatus::AuthFailed,
         .remote_has_head = false,
@@ -261,25 +261,23 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] = call(
         http::verb::post,
         "/projects/proj-1/git/test-remote",
-        {{"remote_url", nullptr}, {"branch", "main"}}
+        {{"remote_url", nullptr}}
     );
-    REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["status"] == "remote_unset");
-    REQUIRE(payload["data"]["error_code"] == "remote_unset");
-    REQUIRE(payload["data"]["remote_has_head"] == false);
+    REQUIRE(status == http::status::bad_request);
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 
-  SECTION("git test-remote emits reachable status with null error_code") {
+  SECTION("git test-remote emits reachable status with no error") {
     git.probe_result = {
         .status = holder::git::RemoteProbeStatus::Reachable,
         .remote_has_head = true,
         .error_message = {},
     };
     auto [status, payload] =
-        call(http::verb::post, "/projects/proj-1/git/test-remote", {{"branch", "main"}});
+        call(http::verb::post, "/projects/proj-1/git/test-remote", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "reachable");
-    REQUIRE(payload["data"]["error_code"].is_null());
+    REQUIRE(payload["data"]["error_message"].is_null());
     REQUIRE(payload["data"]["remote_has_head"] == true);
   }
 
@@ -304,8 +302,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["status"] == "auth_failed");
-    REQUIRE(payload["data"]["error_code"] == "auth_failed");
+    REQUIRE(payload["data"]["status"] == "failed");
+    REQUIRE(payload["data"]["push"]["status"] == "auth_failed");
   }
 
   SECTION("git push refuses plaintext blobs in an encrypted project") {
@@ -315,10 +313,13 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         << "plaintext";
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
-    REQUIRE(status == http::status::bad_request);
+    // Plaintext where only ciphertext belongs: Holder refuses to push it.
+    REQUIRE(status == http::status::internal_server_error);
+    REQUIRE(payload["error"]["code"] == "data_corrupted");
     REQUIRE(payload["error"]["message"].get<std::string>().find("cards/unsafe.md") !=
             std::string::npos);
-    REQUIRE(git.calls == std::vector<std::string>{"remote"});
+    // Refused before any Git work.
+    REQUIRE(git.calls.empty());
   }
 
   SECTION("git push serializes empty local_head_commit as null") {
@@ -332,8 +333,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["status"] == "pushed");
-    REQUIRE(payload["data"]["local_head_commit"].is_null());
+    REQUIRE(payload["data"]["push"]["status"] == "pushed");
+    REQUIRE(payload["data"]["push"]["local_head_commit"].is_null());
   }
 
   SECTION("git push serializes non-empty local_head_commit") {
@@ -347,8 +348,8 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["status"] == "pushed");
-    REQUIRE(payload["data"]["local_head_commit"] == "abc123def456");
+    REQUIRE(payload["data"]["push"]["status"] == "pushed");
+    REQUIRE(payload["data"]["push"]["local_head_commit"] == "abc123def456");
   }
 
   SECTION("git push bad json catch") {
@@ -367,7 +368,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
       CAPTURE(action);
       auto [status, payload] = call(http::verb::post, "/projects/missing/git/" + action);
       REQUIRE(status == http::status::not_found);
-      REQUIRE(payload["error"]["message"] == "Project not found.");
+      REQUIRE(payload["error"]["code"] == "not_found");
     }
   }
 
@@ -383,7 +384,6 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         call(http::verb::post, "/projects/proj-1/git/pull", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "succeeded");
-    REQUIRE(payload["data"]["error_code"].is_null());
     REQUIRE(payload["data"]["pull"]["attempted"] == true);
     REQUIRE(payload["data"]["pull"]["status"] == "succeeded");
     REQUIRE(payload["data"]["push"]["attempted"] == false);
@@ -407,7 +407,6 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         call(http::verb::post, "/projects/proj-1/git/sync", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "failed");
-    REQUIRE(payload["data"]["error_code"] == "pull_failed");
     REQUIRE(payload["data"]["pull"]["status"] == "failed");
     REQUIRE(payload["data"]["push"]["attempted"] == false);
     REQUIRE(git.calls == std::vector<std::string>{"remote", "pull"});
@@ -423,12 +422,12 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
     auto [status, payload] = call(
         http::verb::post,
         "/projects/proj-1/git/sync",
-        {{"branch", "main"}, {"set_upstream", nullptr}}
+        {{"branch", "main"}}
     );
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["data"]["status"] == "failed");
-    REQUIRE(payload["data"]["error_code"] == "auth_failed");
-    REQUIRE(payload["data"]["error_message"] == "push authentication failed");
+    REQUIRE(payload["data"]["push"]["status"] == "auth_failed");
+    REQUIRE(payload["data"]["push"]["error_message"] == "push authentication failed");
   }
 
   SECTION("forced sync rejects a missing project") {
@@ -470,21 +469,20 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         {"ok", true},
         {"data",
          {{"project_id", "proj-1"},
-          {"sync",
-           {{"last_commit_at", nullptr},
-            {"last_push_at", nullptr},
-            {"last_pull_at", nullptr},
-            {"uncommitted_changes_count", 0},
-            {"unpushed_commits_count", 0},
-            {"last_push_status", nullptr},
-            {"last_pull_status", nullptr},
-            {"last_sync_error", nullptr},
-            {"last_sync_error_at", nullptr},
-            {"retry_count", 0},
-            {"next_retry_at", nullptr},
-            {"pull_retry_count", 0},
-            {"next_pull_retry_at", nullptr},
-            {"updated_at", nullptr}}}}}
+          {"last_commit_at", nullptr},
+          {"last_push_at", nullptr},
+          {"last_pull_at", nullptr},
+          {"uncommitted_changes_count", 0},
+          {"unpushed_commits_count", 0},
+          {"last_push_status", nullptr},
+          {"last_pull_status", nullptr},
+          {"last_sync_error", nullptr},
+          {"last_sync_error_at", nullptr},
+          {"retry_count", 0},
+          {"next_retry_at", nullptr},
+          {"pull_retry_count", 0},
+          {"next_pull_retry_at", nullptr},
+          {"updated_at", nullptr}}}
     };
     REQUIRE(payload == expected);
   }
@@ -500,7 +498,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
 
     auto [status, payload] = call(http::verb::get, "/projects/proj-1/git/sync-status");
     REQUIRE(status == http::status::ok);
-    REQUIRE(payload["data"]["sync"]["updated_at"].is_null());
+    REQUIRE(payload["data"]["updated_at"].is_null());
   }
 
   SECTION("git push best-effort metrics catch still returns payload") {
@@ -515,7 +513,7 @@ TEST_CASE("ProjectRoutes git and project route error/status branches", "[project
         call(http::verb::post, "/projects/proj-1/git/push", nlohmann::json::object());
     REQUIRE(status == http::status::ok);
     REQUIRE(payload["ok"] == true);
-    REQUIRE(payload["data"]["status"] == "pushed");
+    REQUIRE(payload["data"]["push"]["status"] == "pushed");
   }
 
   SECTION("generated project get returns an internal error with closed db") {

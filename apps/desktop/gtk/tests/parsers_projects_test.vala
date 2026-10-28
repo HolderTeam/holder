@@ -56,12 +56,12 @@ private void test_parse_projects_full_and_defaults() {
     // A project's sync state is read on its own.
     assert(!p1.sync.has_last_commit_at);
     var status = parse_json_object(
-        "{\"data\":{\"project_id\":\"p1\",\"sync\":{" +
+        "{\"data\":{\"project_id\":\"p1\"," +
         "\"last_commit_at\":100,\"last_push_at\":101,\"last_pull_at\":102," +
         "\"uncommitted_changes_count\":1,\"unpushed_commits_count\":2," +
         "\"last_push_status\":\"ok\",\"last_pull_status\":\"ok\",\"last_sync_error\":\"\"," +
         "\"last_sync_error_at\":103,\"retry_count\":4,\"next_retry_at\":104," +
-        "\"pull_retry_count\":5,\"next_pull_retry_at\":105,\"updated_at\":106}}}"
+        "\"pull_retry_count\":5,\"next_pull_retry_at\":105,\"updated_at\":106}}"
     );
     try {
         p1.sync = HolderLinux.ApiParsersProjects.parse_project_sync_status(status);

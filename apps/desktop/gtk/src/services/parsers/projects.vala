@@ -33,7 +33,7 @@ public class ApiParsersProjects { // LCOV_EXCL_LINE: declaration-only coverage a
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for project sync status response");
         }
-        return parse_project_sync_state(root.get_object_member("data").get_object_member("sync"));
+        return parse_project_sync_state(root.get_object_member("data"));
     }
 
     private static ProjectSyncState parse_project_sync_state(Json.Object obj) { // LCOV_EXCL_BR_LINE: declaration branch artifact

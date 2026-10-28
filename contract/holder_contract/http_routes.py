@@ -188,7 +188,9 @@ inline bool decode_bool(std::string_view input, const char* name) {
 }
 // The body's JSON. A syntax error's message quotes the bytes the parser stopped at, which need not
 // be UTF-8, so it says only where; any other quotes a number, such as one too large.
-inline json decode_body(const std::string& body) {
+// A body whose record has only fields that may be left out may itself be left out, as {}.
+inline json decode_body(const std::string& body, bool optional = false) {
+    if (body.empty() && optional) return json::object();
     if (body.empty()) throw std::invalid_argument("a request body is required");
     try {
         return json::parse(body);
@@ -291,7 +293,9 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
             if param.slot.type["kind"] != "named" or param.slot.nullable:
                 raise Unsupported(f"{name}({pname}): a request body that is not a record")
             record = model.instance(param.slot.type, {}).qualified("holder::contract::")
-            decodes.append(f"            {pname} = contract_json::decode<{record}>(decode_body(body));")
+            optional = all(slot.optional for slot in model.slots(model.instance(param.slot.type, {})))
+            decodes.append(f"            {pname} = contract_json::decode<{record}>("
+                           f"decode_body(body{', true' if optional else ''}));")
     status, code = INVALID_ARGUMENT
     lines += declarations
     if decodes:

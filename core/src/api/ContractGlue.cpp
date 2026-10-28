@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -230,6 +230,52 @@ holder_project_privacy_mode to_c_enum(contract::ProjectPrivacyMode value) {
   throw std::logic_error("not a contract::ProjectPrivacyMode value");
 }
 
+holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
+  switch (value) {
+  case contract::PullPhaseStatus::NotAttempted: return HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED;
+  case contract::PullPhaseStatus::Succeeded: return HOLDER_PULL_PHASE_STATUS_SUCCEEDED;
+  case contract::PullPhaseStatus::RemoteUnset: return HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET;
+  case contract::PullPhaseStatus::Failed: return HOLDER_PULL_PHASE_STATUS_FAILED;
+  }
+  throw std::logic_error("not a contract::PullPhaseStatus value");
+}
+
+holder_push_phase_status to_c_enum(contract::PushPhaseStatus value) {
+  switch (value) {
+  case contract::PushPhaseStatus::NotAttempted: return HOLDER_PUSH_PHASE_STATUS_NOT_ATTEMPTED;
+  case contract::PushPhaseStatus::Pushed: return HOLDER_PUSH_PHASE_STATUS_PUSHED;
+  case contract::PushPhaseStatus::UpToDate: return HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE;
+  case contract::PushPhaseStatus::AuthFailed: return HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED;
+  case contract::PushPhaseStatus::NotFound: return HOLDER_PUSH_PHASE_STATUS_NOT_FOUND;
+  case contract::PushPhaseStatus::NetworkError: return HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR;
+  case contract::PushPhaseStatus::NonFastForward: return HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD;
+  case contract::PushPhaseStatus::RemoteUnset: return HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET;
+  case contract::PushPhaseStatus::UnknownError: return HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR;
+  }
+  throw std::logic_error("not a contract::PushPhaseStatus value");
+}
+
+holder_sync_result_status to_c_enum(contract::SyncResultStatus value) {
+  switch (value) {
+  case contract::SyncResultStatus::Succeeded: return HOLDER_SYNC_RESULT_STATUS_SUCCEEDED;
+  case contract::SyncResultStatus::Failed: return HOLDER_SYNC_RESULT_STATUS_FAILED;
+  }
+  throw std::logic_error("not a contract::SyncResultStatus value");
+}
+
+holder_remote_test_result_status to_c_enum(contract::RemoteTestResultStatus value) {
+  switch (value) {
+  case contract::RemoteTestResultStatus::Reachable: return HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE;
+  case contract::RemoteTestResultStatus::AuthFailed: return HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED;
+  case contract::RemoteTestResultStatus::NotFound: return HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND;
+  case contract::RemoteTestResultStatus::NetworkError: return HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR;
+  case contract::RemoteTestResultStatus::InvalidRemoteUrl: return HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL;
+  case contract::RemoteTestResultStatus::RemoteUnset: return HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET;
+  case contract::RemoteTestResultStatus::UnknownError: return HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR;
+  }
+  throw std::logic_error("not a contract::RemoteTestResultStatus value");
+}
+
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -258,6 +304,11 @@ holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value);
 holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values);
 holder_project to_c(holder_arena* arena, const contract::Project& value);
+holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
+holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
+holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
+holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
+holder_remote_test_result to_c(holder_arena* arena, const contract::RemoteTestResult& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -523,6 +574,67 @@ holder_project to_c(holder_arena* arena, const contract::Project& value) {
   return out;
 }
 
+holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value) {
+  holder_sync_state out{};
+  out.project_id = copy(arena, value.project_id);
+  out.last_commit_at = copy_value<int64_t>(arena, value.last_commit_at);
+  out.last_push_at = copy_value<int64_t>(arena, value.last_push_at);
+  out.last_pull_at = copy_value<int64_t>(arena, value.last_pull_at);
+  out.uncommitted_changes_count = value.uncommitted_changes_count;
+  out.unpushed_commits_count = value.unpushed_commits_count;
+  out.last_push_status = copy_text(arena, value.last_push_status);
+  out.last_pull_status = copy_text(arena, value.last_pull_status);
+  out.last_sync_error = copy_text(arena, value.last_sync_error);
+  out.last_sync_error_at = copy_value<int64_t>(arena, value.last_sync_error_at);
+  out.retry_count = value.retry_count;
+  out.next_retry_at = copy_value<int64_t>(arena, value.next_retry_at);
+  out.pull_retry_count = value.pull_retry_count;
+  out.next_pull_retry_at = copy_value<int64_t>(arena, value.next_pull_retry_at);
+  out.updated_at = copy_value<int64_t>(arena, value.updated_at);
+  return out;
+}
+
+holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value) {
+  holder_pull_phase out{};
+  out.attempted = value.attempted;
+  out.status = to_c_enum(value.status);
+  out.conflicts_resolved = value.conflicts_resolved;
+  out.hidden_cards_repaired = value.hidden_cards_repaired;
+  out.error_message = copy_text(arena, value.error_message);
+  return out;
+}
+
+holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value) {
+  holder_push_phase out{};
+  out.attempted = value.attempted;
+  out.status = to_c_enum(value.status);
+  out.ahead_count = value.ahead_count;
+  out.behind_count = value.behind_count;
+  out.local_head_commit = copy_text(arena, value.local_head_commit);
+  out.error_message = copy_text(arena, value.error_message);
+  return out;
+}
+
+holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value) {
+  holder_sync_result out{};
+  out.project_id = copy(arena, value.project_id);
+  out.status = to_c_enum(value.status);
+  out.remote_url = copy_text(arena, value.remote_url);
+  out.pull = to_c(arena, value.pull);
+  out.push = to_c(arena, value.push);
+  return out;
+}
+
+holder_remote_test_result to_c(holder_arena* arena, const contract::RemoteTestResult& value) {
+  holder_remote_test_result out{};
+  out.project_id = copy(arena, value.project_id);
+  out.status = to_c_enum(value.status);
+  out.remote_url = copy_text(arena, value.remote_url);
+  out.remote_has_head = value.remote_has_head;
+  out.error_message = copy_text(arena, value.error_message);
+  return out;
+}
+
 contract::NewCard from_c(const holder_new_card& value) {
   contract::NewCard out;
   out.title = text(value.title, "new_card.title", 1, SIZE_MAX);
@@ -654,6 +766,19 @@ contract::ProjectUpdate from_c(const holder_project_update& value) {
   out.name = optional_text(value.name, "project_update.name", 1, SIZE_MAX);
   out.git_remote_url = changed_text(value.git_remote_url, "project_update.git_remote_url", 1, SIZE_MAX);
   out.git_provider = changed_text(value.git_provider, "project_update.git_provider", 0, SIZE_MAX);
+  return out;
+}
+
+contract::PushOptions from_c(const holder_push_options& value) {
+  contract::PushOptions out;
+  out.branch = optional_text(value.branch, "push_options.branch", 1, SIZE_MAX);
+  out.set_upstream = (value.set_upstream ? *value.set_upstream : bool{true});
+  return out;
+}
+
+contract::RemoteTest from_c(const holder_remote_test& value) {
+  contract::RemoteTest out;
+  out.remote_url = optional_text(value.remote_url, "remote_test.remote_url", 1, SIZE_MAX);
   return out;
 }
 
@@ -1203,6 +1328,72 @@ int holder_delete_project(holder_context* context, const char* project_id, holde
     auto* out = make<holder_project>(arena);
     *out = to_c(arena, contract::delete_project(*context, project_id_value));
     *out_project = out;
+  });
+}
+
+int holder_get_project_sync_state(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_state** out_sync_state, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_sync_state != nullptr, "out_sync_state must not be null");
+    *out_sync_state = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_sync_state>(arena);
+    *out = to_c(arena, contract::get_project_sync_state(*context, project_id_value));
+    *out_sync_state = out;
+  });
+}
+
+int holder_pull_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_sync_result != nullptr, "out_sync_result must not be null");
+    *out_sync_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_sync_result>(arena);
+    *out = to_c(arena, contract::pull_project(*context, project_id_value));
+    *out_sync_result = out;
+  });
+}
+
+int holder_push_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_sync_result != nullptr, "out_sync_result must not be null");
+    *out_sync_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(options != nullptr, "options must not be null");
+    const auto options_value = from_c(*options);
+    auto* out = make<holder_sync_result>(arena);
+    *out = to_c(arena, contract::push_project(*context, project_id_value, options_value));
+    *out_sync_result = out;
+  });
+}
+
+int holder_sync_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_sync_result != nullptr, "out_sync_result must not be null");
+    *out_sync_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(options != nullptr, "options must not be null");
+    const auto options_value = from_c(*options);
+    auto* out = make<holder_sync_result>(arena);
+    *out = to_c(arena, contract::sync_project(*context, project_id_value, options_value));
+    *out_sync_result = out;
+  });
+}
+
+int holder_test_project_remote(holder_context* context, const char* project_id, const holder_remote_test* remote, holder_arena* arena, const holder_remote_test_result** out_remote_test_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_remote_test_result != nullptr, "out_remote_test_result must not be null");
+    *out_remote_test_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(remote != nullptr, "remote must not be null");
+    const auto remote_value = from_c(*remote);
+    auto* out = make<holder_remote_test_result>(arena);
+    *out = to_c(arena, contract::test_project_remote(*context, project_id_value, remote_value));
+    *out_remote_test_result = out;
   });
 }
 

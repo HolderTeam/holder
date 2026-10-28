@@ -9,14 +9,14 @@ from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.resource_response import ResourceResponse
 from ...models.resource_update import ResourceUpdate
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     resource_id: str,
     *,
-    body: ResourceUpdate,
+    body: ResourceUpdate | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -28,7 +28,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -96,7 +97,7 @@ def sync_detailed(
     resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ResourceUpdate,
+    body: ResourceUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | ResourceResponse]:
     """Change a resource.
 
@@ -105,7 +106,8 @@ def sync_detailed(
     Args:
         project_id (str):
         resource_id (str):
-        body (ResourceUpdate): A change to a resource. Each field left out keeps its value.
+        body (ResourceUpdate | Unset): A change to a resource. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,7 +135,7 @@ def sync(
     resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ResourceUpdate,
+    body: ResourceUpdate | Unset = UNSET,
 ) -> ErrorResponse | ResourceResponse | None:
     """Change a resource.
 
@@ -142,7 +144,8 @@ def sync(
     Args:
         project_id (str):
         resource_id (str):
-        body (ResourceUpdate): A change to a resource. Each field left out keeps its value.
+        body (ResourceUpdate | Unset): A change to a resource. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -165,7 +168,7 @@ async def asyncio_detailed(
     resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ResourceUpdate,
+    body: ResourceUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | ResourceResponse]:
     """Change a resource.
 
@@ -174,7 +177,8 @@ async def asyncio_detailed(
     Args:
         project_id (str):
         resource_id (str):
-        body (ResourceUpdate): A change to a resource. Each field left out keeps its value.
+        body (ResourceUpdate | Unset): A change to a resource. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -200,7 +204,7 @@ async def asyncio(
     resource_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ResourceUpdate,
+    body: ResourceUpdate | Unset = UNSET,
 ) -> ErrorResponse | ResourceResponse | None:
     """Change a resource.
 
@@ -209,7 +213,8 @@ async def asyncio(
     Args:
         project_id (str):
         resource_id (str):
-        body (ResourceUpdate): A change to a resource. Each field left out keeps its value.
+        body (ResourceUpdate | Unset): A change to a resource. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

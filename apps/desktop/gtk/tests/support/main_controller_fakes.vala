@@ -1046,21 +1046,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     }
 
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                         string? remote_url = null,
-                                                                         string branch = "") throws Error {
+                                                                         string? remote_url = null) throws Error {
         if (fail_test_project_git_remote) {
             throw new IOError.FAILED("test project git remote failed");
         }
         test_project_git_remote_calls++;
         last_git_project_id = project_id;
         last_git_remote_url = remote_url;
-        last_git_branch = branch;
         return new HolderLinux.GitTestRemoteResult(project_id,
                                                    remote_url ?? "",
-                                                   branch,
                                                    test_project_git_remote_status,
                                                    test_project_git_remote_status == "reachable",
-                                                   "",
                                                    "");
     }
 
@@ -1080,7 +1076,6 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                                              "pushed",
                                              0,
                                              0,
-                                             "",
                                              "",
                                              "",
                                              "");

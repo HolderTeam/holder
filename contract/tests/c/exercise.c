@@ -225,6 +225,7 @@ int main(void) {
     status = holder_create_project(context, &new_project, arena, &project, &error);
     printf("create a project: status %d, %s %s privacy %d\n", status, project->project_id, project->name,
            (int)project->privacy_mode);
+    const char* project_id = project->project_id;
     new_project.privacy_mode = (holder_new_project_privacy_mode)9;
     status = holder_create_project(context, &new_project, arena, &project, &error);
     report("create a project with an unknown privacy mode", status, &error);
@@ -235,6 +236,12 @@ int main(void) {
     status = holder_list_projects(context, NULL, NULL, NULL, (holder_list_projects_order)99, NULL, 0, false, arena,
                                   &projects, &error);
     report("list projects in an unknown order", status, &error);
+
+    holder_push_options push_options = {0};
+    const holder_sync_result* synced = NULL;
+    status = holder_sync_project(context, project_id, &push_options, arena, &synced, &error);
+    printf("sync a project with no remote: status %d, result %d, pull %d, push %d\n", status, (int)synced->status,
+           (int)synced->pull.status, (int)synced->push.status);
 
     holder_arena_free(arena);
     stub_context_free(context);

@@ -8,35 +8,37 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_sync import ProjectSync
+    from ..models.sync_state import SyncState
 
 
-T = TypeVar("T", bound="ProjectGitSyncStatusResponseData")
+T = TypeVar("T", bound="SyncStateResponse")
 
 
 @_attrs_define
-class ProjectGitSyncStatusResponseData:
+class SyncStateResponse:
     """
     Attributes:
-        project_id (str):
-        sync (ProjectSync):
+        ok (bool):
+        data (SyncState): What this device last recorded about a project's sync: its last pull and push, what is waiting
+            to go, and
+            when it will retry.
     """
 
-    project_id: str
-    sync: ProjectSync
+    ok: bool
+    data: SyncState
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        project_id = self.project_id
+        ok = self.ok
 
-        sync = self.sync.to_dict()
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "project_id": project_id,
-                "sync": sync,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -44,20 +46,20 @@ class ProjectGitSyncStatusResponseData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_sync import ProjectSync
+        from ..models.sync_state import SyncState
 
         d = dict(src_dict)
-        project_id = d.pop("project_id")
+        ok = d.pop("ok")
 
-        sync = ProjectSync.from_dict(d.pop("sync"))
+        data = SyncState.from_dict(d.pop("data"))
 
-        project_git_sync_status_response_data = cls(
-            project_id=project_id,
-            sync=sync,
+        sync_state_response = cls(
+            ok=ok,
+            data=data,
         )
 
-        project_git_sync_status_response_data.additional_properties = d
-        return project_git_sync_status_response_data
+        sync_state_response.additional_properties = d
+        return sync_state_response
 
     @property
     def additional_keys(self) -> list[str]:

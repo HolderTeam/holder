@@ -212,8 +212,8 @@ private void test_core_git_mutation_methods_delegate() {
     var client = make_client(transport);
 
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"branch\":\"main\",\"status\":\"ok\"}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"branch\":\"main\",\"status\":\"ok\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"status\":\"ok\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"u\",\"status\":\"succeeded\",\"push\":{\"status\":\"ok\"}}}");
 
     bool done_set = false;
     bool set_ok = false;
@@ -231,7 +231,7 @@ private void test_core_git_mutation_methods_delegate() {
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "https://example/repo.git", "main", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "https://example/repo.git", (obj, res) => {
         try {
             test_result = client.test_project_git_remote.end(res);
         } catch (Error e) {

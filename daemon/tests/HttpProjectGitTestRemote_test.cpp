@@ -97,7 +97,6 @@ TEST_CASE("Project git test-remote returns remote_unset when no remote configure
   REQUIRE(tested["data"]["status"] == "remote_unset");
   REQUIRE(tested["data"]["remote_url"].is_null());
   REQUIRE(tested["data"]["remote_has_head"] == false);
-  REQUIRE(tested["data"]["error_code"] == "remote_unset");
   REQUIRE(tested["data"]["error_message"].is_string());
 
   CHECK(git.repo_dir_.empty());
@@ -149,16 +148,14 @@ TEST_CASE(
       token,
       boost::beast::http::verb::post,
       "/projects/proj-1/git/test-remote",
-      {{"remote_url", remote_url}, {"branch", "main"}},
+      {{"remote_url", remote_url}},
       boost::beast::http::status::ok
   );
   REQUIRE(tested["ok"] == true);
   REQUIRE(tested["data"]["status"] == "not_found");
   REQUIRE(tested["data"]["project_id"] == "proj-1");
   REQUIRE(tested["data"]["remote_url"] == remote_url);
-  REQUIRE(tested["data"]["branch"] == "main");
   REQUIRE(tested["data"]["remote_has_head"] == false);
-  REQUIRE(tested["data"]["error_code"] == "not_found");
   REQUIRE(tested["data"]["error_message"] == "Repository not found");
   REQUIRE(git.last_remote_url == remote_url);
 

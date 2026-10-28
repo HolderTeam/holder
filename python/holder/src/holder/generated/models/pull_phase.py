@@ -4,31 +4,30 @@ from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..models.project_git_sync_operation_response_data_pull_status import (
-    ProjectGitSyncOperationResponseDataPullStatus,
-)
+from ..models.pull_phase_status import PullPhaseStatus
 
-T = TypeVar("T", bound="ProjectGitSyncOperationResponseDataPull")
+T = TypeVar("T", bound="PullPhase")
 
 
 @_attrs_define
-class ProjectGitSyncOperationResponseDataPull:
-    """
+class PullPhase:
+    """What a pull did.
+
     Attributes:
-        attempted (bool):
-        status (ProjectGitSyncOperationResponseDataPullStatus):
-        conflicts_resolved (int):
-        error_message (None | str):
+        attempted (bool): Whether a pull was tried.
+        status (PullPhaseStatus): How the pull ended.
+        conflicts_resolved (int): Cards changed both here and on the remote, merged by Holder's card rules.
+        hidden_cards_repaired (int): Live cards the pull left under a missing or trashed parent, made reachable again.
+        error_message (None | str): Why the pull failed; null when it did not.
     """
 
     attempted: bool
-    status: ProjectGitSyncOperationResponseDataPullStatus
+    status: PullPhaseStatus
     conflicts_resolved: int
+    hidden_cards_repaired: int
     error_message: None | str
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         attempted = self.attempted
@@ -37,16 +36,19 @@ class ProjectGitSyncOperationResponseDataPull:
 
         conflicts_resolved = self.conflicts_resolved
 
+        hidden_cards_repaired = self.hidden_cards_repaired
+
         error_message: None | str
         error_message = self.error_message
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "attempted": attempted,
                 "status": status,
                 "conflicts_resolved": conflicts_resolved,
+                "hidden_cards_repaired": hidden_cards_repaired,
                 "error_message": error_message,
             }
         )
@@ -58,9 +60,11 @@ class ProjectGitSyncOperationResponseDataPull:
         d = dict(src_dict)
         attempted = d.pop("attempted")
 
-        status = ProjectGitSyncOperationResponseDataPullStatus(d.pop("status"))
+        status = PullPhaseStatus(d.pop("status"))
 
         conflicts_resolved = d.pop("conflicts_resolved")
+
+        hidden_cards_repaired = d.pop("hidden_cards_repaired")
 
         def _parse_error_message(data: object) -> None | str:
             if data is None:
@@ -69,28 +73,12 @@ class ProjectGitSyncOperationResponseDataPull:
 
         error_message = _parse_error_message(d.pop("error_message"))
 
-        project_git_sync_operation_response_data_pull = cls(
+        pull_phase = cls(
             attempted=attempted,
             status=status,
             conflicts_resolved=conflicts_resolved,
+            hidden_cards_repaired=hidden_cards_repaired,
             error_message=error_message,
         )
 
-        project_git_sync_operation_response_data_pull.additional_properties = d
-        return project_git_sync_operation_response_data_pull
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return pull_phase

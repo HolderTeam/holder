@@ -122,22 +122,6 @@ struct RIG_OPEN_RECORD AiThread {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD ProjectSync {
-  std::optional<long long> last_commit_at RIG_NULLABLE;
-  std::optional<long long> last_push_at RIG_NULLABLE;
-  std::optional<long long> last_pull_at RIG_NULLABLE;
-  int uncommitted_changes_count;
-  int unpushed_commits_count;
-  std::optional<std::string> last_push_status RIG_NULLABLE;
-  std::optional<std::string> last_pull_status RIG_NULLABLE;
-  std::optional<std::string> last_sync_error RIG_NULLABLE;
-  std::optional<long long> last_sync_error_at RIG_NULLABLE;
-  int retry_count;
-  std::optional<long long> next_retry_at RIG_NULLABLE;
-  int pull_retry_count;
-  std::optional<long long> next_pull_retry_at RIG_NULLABLE;
-  std::optional<long long> updated_at RIG_NULLABLE;
-};
 
 
 // A card in GET /cards and GET /cards/context. The contract's CardListItem replaces it when those

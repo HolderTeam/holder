@@ -63,7 +63,7 @@ private void test_list_projects_parses_data() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"card_count\":7,\"root_card_count\":3}]}"
     );
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1270,17 +1270,17 @@ private void test_git_remote_test_and_push_parse_results() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"reachable\",\"remote_has_head\":true,\"error_code\":\"\",\"error_message\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"status\":\"reachable\",\"remote_has_head\":true,\"error_message\":null}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"pushed\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"none\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"status\":\"succeeded\",\"push\":{\"attempted\":true,\"status\":\"pushed\",\"ahead_count\":0,\"behind_count\":0,\"local_head_commit\":null,\"error_message\":null}}}"
     );
     var client = make_client(transport);
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "git@github.com:me/repo.git", "cards", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "git@github.com:me/repo.git", (obj, res) => {
         try {
             test_result = client.test_project_git_remote.end(res);
         } catch (Error e) {
@@ -1308,7 +1308,7 @@ private void test_git_remote_test_and_push_parse_results() {
     assert(wait_for_condition(() => done_push));
     assert(push_result != null);
     assert(push_result.status == "pushed");
-    assert(push_result.next_action == "none");
+    assert(push_result.next_action == "");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/projects/p1/git/push"));
 }
@@ -1356,17 +1356,17 @@ private void test_git_remote_optional_inputs_are_accepted() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"missing_remote\",\"remote_has_head\":false,\"error_code\":\"\",\"error_message\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":null,\"status\":\"remote_unset\",\"remote_has_head\":false,\"error_message\":\"unset\"}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"no_remote\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"set_remote\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":null,\"status\":\"failed\",\"push\":{\"attempted\":true,\"status\":\"remote_unset\",\"ahead_count\":0,\"behind_count\":0,\"local_head_commit\":null,\"error_message\":\"unset\"}}}"
     );
     var client = make_client(transport);
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", null, "", (obj, res) => {
+    client.test_project_git_remote.begin("p1", null, (obj, res) => {
         try {
             test_result = client.test_project_git_remote.end(res);
         } catch (Error e) {
@@ -1376,7 +1376,7 @@ private void test_git_remote_optional_inputs_are_accepted() {
     });
     assert(wait_for_condition(() => done_test));
     assert(test_result != null);
-    assert(test_result.status == "missing_remote");
+    assert(test_result.status == "remote_unset");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/projects/p1/git/test-remote"));
 
@@ -1392,23 +1392,23 @@ private void test_git_remote_optional_inputs_are_accepted() {
     });
     assert(wait_for_condition(() => done_push));
     assert(push_result != null);
-    assert(push_result.status == "no_remote");
-    assert(push_result.next_action == "set_remote");
+    assert(push_result.status == "remote_unset");
+    assert(push_result.next_action == "");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/projects/p1/git/push"));
 }
 
-private void test_test_project_git_remote_whitespace_remote_url_maps_to_null() {
+private void test_test_project_git_remote_whitespace_remote_url_is_left_out() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"cards\",\"status\":\"missing_remote\",\"remote_has_head\":false,\"error_code\":\"\",\"error_message\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":null,\"status\":\"remote_unset\",\"remote_has_head\":false,\"error_message\":\"unset\"}}"
     );
     var client = make_client(transport);
 
     bool done = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "   ", "cards", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "   ", (obj, res) => {
         try {
             test_result = client.test_project_git_remote.end(res);
         } catch (Error e) {
@@ -1419,7 +1419,7 @@ private void test_test_project_git_remote_whitespace_remote_url_maps_to_null() {
 
     assert(wait_for_condition(() => done));
     assert(test_result != null);
-    assert(test_result.status == "missing_remote");
+    assert(test_result.status == "remote_unset");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/projects/p1/git/test-remote"));
     assert(transport.last_content_type == "application/json");
@@ -1433,7 +1433,7 @@ private void test_git_remote_test_and_push_missing_data_are_protocol_errors() {
 
     bool done_test = false;
     bool test_protocol = false;
-    client.test_project_git_remote.begin("p1", null, "", (obj, res) => {
+    client.test_project_git_remote.begin("p1", null, (obj, res) => {
         try {
             client.test_project_git_remote.end(res);
         } catch (Error e) {
@@ -1821,7 +1821,7 @@ private void test_list_projects_parses_sync_state_fields() {
     // The listing, then the project's sync state, read on its own.
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"pull_retry_count\":5,\"next_pull_retry_at\":16,\"updated_at\":15}}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"pull_retry_count\":5,\"next_pull_retry_at\":16,\"updated_at\":15}}"
     );
     var client = make_client(transport);
 
@@ -1869,8 +1869,8 @@ private void test_list_projects_parses_nullable_git_remote_url() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"No Remote\",\"git_remote_url\":null},{\"project_id\":\"p2\",\"name\":\"Has Remote\",\"git_remote_url\":\"git@github.com:owner/repo.git\"}]}"
     );
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p2\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p2\",\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1897,7 +1897,7 @@ private void test_list_projects_sync_nullable_int_fields_missing_and_null() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\"}]}"
     );
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"next_pull_retry_at\":66,\"updated_at\":99}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"next_pull_retry_at\":66,\"updated_at\":99}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1934,7 +1934,7 @@ private void test_list_projects_sync_object_missing_counts_defaults_to_zero() {
         200,
         "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Missing Counts\"}]}"
     );
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\"}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -2922,8 +2922,8 @@ int main(string[] args) {
                   test_set_project_git_remote_handles_null_and_non_empty_url);
     Test.add_func("/api_client/git_remote_optional_inputs_are_accepted",
                   test_git_remote_optional_inputs_are_accepted);
-    Test.add_func("/api_client/test_project_git_remote_whitespace_remote_url_maps_to_null",
-                  test_test_project_git_remote_whitespace_remote_url_maps_to_null);
+    Test.add_func("/api_client/test_project_git_remote_whitespace_remote_url_is_left_out",
+                  test_test_project_git_remote_whitespace_remote_url_is_left_out);
     Test.add_func("/api_client/git_remote_test_and_push_missing_data_are_protocol_errors",
                   test_git_remote_test_and_push_missing_data_are_protocol_errors);
     Test.add_func("/api_client/create_and_update_card_payloads", test_create_and_update_card_payloads);

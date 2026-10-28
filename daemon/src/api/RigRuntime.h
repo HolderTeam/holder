@@ -27,7 +27,6 @@
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
-#include "api/ProjectGit.h"
 #include "api/ProjectRead.h"
 #include "api/ProjectCards.h"
 #include "api/CardRead.h"

@@ -14,6 +14,7 @@ from holder_contract import Contract, Field, Int32, Timestamp
 
 from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Page, ProjectId, Tag, TagCount
 from .errors import Conflict, DataCorrupted, InvalidMove, KeyMissing, KeyringUnavailable, NotFound
+from .git import PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
@@ -475,4 +476,47 @@ def delete_project(project_id: Annotated[ProjectId, Path()]) -> Project:
 
     The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
     bring it back; making it again does. Returns the project as it was.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/git/sync-status", errors=[NotFound])
+def get_project_sync_state(project_id: Annotated[ProjectId, Path()]) -> SyncState:
+    """What this device last recorded about a project's sync."""
+
+
+@contract.route("POST", "/projects/{project_id}/git/pull", errors=[NotFound, *KEYS])
+def pull_project(project_id: Annotated[ProjectId, Path()]) -> SyncResult:
+    """Pull a project's checked-out branch from its Git remote.
+
+    Changes fast-forward, or merge card by card where both sides changed, and the project's index is updated
+    before the result returns. A Git failure is an outcome in the result, recorded in the sync state. Git work on
+    one project runs one at a time.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/git/push", errors=[NotFound, *KEYS])
+def push_project(project_id: Annotated[ProjectId, Path()], options: Annotated[PushOptions, Body()]) -> SyncResult:
+    """Push a project to its Git remote.
+
+    An encrypted project is checked first, so no plaintext card leaves the device: one whose files are not safe
+    to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded in the
+    sync state.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/git/sync", errors=[NotFound, *KEYS])
+def sync_project(project_id: Annotated[ProjectId, Path()], options: Annotated[PushOptions, Body()]) -> SyncResult:
+    """Pull a project, then push it.
+
+    The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/git/test-remote", errors=[NotFound])
+def test_project_remote(project_id: Annotated[ProjectId, Path()],
+                        remote: Annotated[RemoteTest, Body()]) -> RemoteTestResult:
+    """Test whether a Git remote can be reached, with this device's credentials.
+
+    Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository
+    changes.
     """

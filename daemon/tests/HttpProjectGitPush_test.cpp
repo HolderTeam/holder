@@ -92,9 +92,8 @@ TEST_CASE("Project git push returns remote_unset when no remote configured", "[g
       boost::beast::http::status::ok
   );
   REQUIRE(pushed["ok"] == true);
-  REQUIRE(pushed["data"]["status"] == "remote_unset");
-  REQUIRE(pushed["data"]["error_code"] == "remote_unset");
-  REQUIRE(pushed["data"]["next_action"].is_null());
+  REQUIRE(pushed["data"]["push"]["status"] == "remote_unset");
+  REQUIRE(pushed["data"]["status"] == "failed");
 
   const auto sync = holder::test::http_json_request(
       bound.bind,
@@ -107,12 +106,12 @@ TEST_CASE("Project git push returns remote_unset when no remote configured", "[g
   );
   REQUIRE(sync["ok"] == true);
   REQUIRE(sync["data"]["project_id"] == "proj-1");
-  REQUIRE(sync["data"]["sync"]["last_push_status"] == "remote_unset");
-  REQUIRE(sync["data"]["sync"]["retry_count"] == 1);
-  REQUIRE(sync["data"]["sync"]["next_retry_at"].is_number_integer());
-  REQUIRE(sync["data"]["sync"]["pull_retry_count"] == 0);
-  REQUIRE(sync["data"]["sync"]["next_pull_retry_at"].is_null());
-  REQUIRE(sync["data"]["sync"]["last_sync_error"].is_string());
+  REQUIRE(sync["data"]["last_push_status"] == "remote_unset");
+  REQUIRE(sync["data"]["retry_count"] == 1);
+  REQUIRE(sync["data"]["next_retry_at"].is_number_integer());
+  REQUIRE(sync["data"]["pull_retry_count"] == 0);
+  REQUIRE(sync["data"]["next_pull_retry_at"].is_null());
+  REQUIRE(sync["data"]["last_sync_error"].is_string());
 
   std::raise(SIGTERM);
   server_thread.join();
@@ -159,10 +158,10 @@ TEST_CASE("Project git sync-status returns zero defaults when sync row is absent
   );
   REQUIRE(sync["ok"] == true);
   REQUIRE(sync["data"]["project_id"] == "proj-1");
-  REQUIRE(sync["data"]["sync"]["uncommitted_changes_count"] == 0);
-  REQUIRE(sync["data"]["sync"]["unpushed_commits_count"] == 0);
-  REQUIRE(sync["data"]["sync"]["retry_count"] == 0);
-  REQUIRE(sync["data"]["sync"]["pull_retry_count"] == 0);
+  REQUIRE(sync["data"]["uncommitted_changes_count"] == 0);
+  REQUIRE(sync["data"]["unpushed_commits_count"] == 0);
+  REQUIRE(sync["data"]["retry_count"] == 0);
+  REQUIRE(sync["data"]["pull_retry_count"] == 0);
 
   std::raise(SIGTERM);
   server_thread.join();
@@ -216,11 +215,10 @@ TEST_CASE("Project git push returns structured non_fast_forward result", "[git][
       boost::beast::http::status::ok
   );
   REQUIRE(pushed["ok"] == true);
-  REQUIRE(pushed["data"]["status"] == "non_fast_forward");
-  REQUIRE(pushed["data"]["error_code"] == "non_fast_forward");
-  REQUIRE(pushed["data"]["next_action"] == "pull_then_retry");
-  REQUIRE(pushed["data"]["ahead_count"] == 2);
-  REQUIRE(pushed["data"]["behind_count"] == 1);
+  REQUIRE(pushed["data"]["push"]["status"] == "non_fast_forward");
+  REQUIRE(pushed["data"]["status"] == "failed");
+  REQUIRE(pushed["data"]["push"]["ahead_count"] == 2);
+  REQUIRE(pushed["data"]["push"]["behind_count"] == 1);
   REQUIRE(git.pushed_branch == "main");
   REQUIRE(git.pushed_set_upstream == false);
 
@@ -234,18 +232,18 @@ TEST_CASE("Project git push returns structured non_fast_forward result", "[git][
       boost::beast::http::status::ok
   );
   REQUIRE(sync["ok"] == true);
-  REQUIRE(sync["data"]["sync"]["last_push_status"] == "non_fast_forward");
-  REQUIRE(sync["data"]["sync"]["retry_count"] == 1);
-  REQUIRE(sync["data"]["sync"]["next_retry_at"].is_number_integer());
-  REQUIRE(sync["data"]["sync"]["pull_retry_count"] == 0);
-  REQUIRE(sync["data"]["sync"]["next_pull_retry_at"].is_null());
-  REQUIRE(sync["data"]["sync"]["last_sync_error"] == "non-fast-forward");
+  REQUIRE(sync["data"]["last_push_status"] == "non_fast_forward");
+  REQUIRE(sync["data"]["retry_count"] == 1);
+  REQUIRE(sync["data"]["next_retry_at"].is_number_integer());
+  REQUIRE(sync["data"]["pull_retry_count"] == 0);
+  REQUIRE(sync["data"]["next_pull_retry_at"].is_null());
+  REQUIRE(sync["data"]["last_sync_error"] == "non-fast-forward");
 
   std::raise(SIGTERM);
   server_thread.join();
 }
 
-TEST_CASE("Project git push maps error statuses to expected next_action", "[git][http]") {
+TEST_CASE("Project git push reports each failure in its push phase", "[git][http]") {
   const auto dir = holder::test::make_temp_dir();
   const auto db_path = dir / "holder.db";
   auto db = holder::test::open_db_with_schema(db_path);
@@ -292,8 +290,7 @@ TEST_CASE("Project git push maps error statuses to expected next_action", "[git]
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );
-    REQUIRE(pushed["data"]["status"] == "auth_failed");
-    REQUIRE(pushed["data"]["next_action"] == "fix_auth_then_retry");
+    REQUIRE(pushed["data"]["push"]["status"] == "auth_failed");
   }
 
   SECTION("not_found -> fix_remote_url_then_retry") {
@@ -312,8 +309,7 @@ TEST_CASE("Project git push maps error statuses to expected next_action", "[git]
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );
-    REQUIRE(pushed["data"]["status"] == "not_found");
-    REQUIRE(pushed["data"]["next_action"] == "fix_remote_url_then_retry");
+    REQUIRE(pushed["data"]["push"]["status"] == "not_found");
   }
 
   SECTION("network_error -> retry") {
@@ -332,8 +328,7 @@ TEST_CASE("Project git push maps error statuses to expected next_action", "[git]
         nlohmann::json::object(),
         boost::beast::http::status::ok
     );
-    REQUIRE(pushed["data"]["status"] == "network_error");
-    REQUIRE(pushed["data"]["next_action"] == "retry");
+    REQUIRE(pushed["data"]["push"]["status"] == "network_error");
   }
 
   std::raise(SIGTERM);

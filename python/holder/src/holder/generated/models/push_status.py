@@ -1,10 +1,11 @@
 from enum import StrEnum
 
 
-class ProjectGitSyncOperationResponseDataPushStatus(StrEnum):
+class PushStatus(StrEnum):
     AUTH_FAILED = "auth_failed"
     NETWORK_ERROR = "network_error"
     NON_FAST_FORWARD = "non_fast_forward"
+    NOT_ATTEMPTED = "not_attempted"
     NOT_FOUND = "not_found"
     PUSHED = "pushed"
     REMOTE_UNSET = "remote_unset"

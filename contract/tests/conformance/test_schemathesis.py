@@ -22,7 +22,7 @@ import requests
 import schemathesis
 from hypothesis import HealthCheck, settings
 from schemathesis.config import SchemathesisConfig
-from schemathesis.specs.openapi.checks import positive_data_acceptance
+from schemathesis.specs.openapi.checks import negative_data_rejection, positive_data_acceptance
 
 from holder_contract.extract import extract
 from holder_http import MAX_TARGET, shared_daemon
@@ -43,15 +43,34 @@ def stated_in_words(case) -> bool:
     when the daemon handed it out, a tag has a form (see Tag in interface/cards.py), whether in the
     query or the path, a page with content holds at most 1000 cards, and a day and an instant have
     forms, and a milestone's date holds exactly one of them (see interface/milestones.py), and a
-    resource's ID and metadata names have forms (see interface/resources.py).
+    resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
     """
     query = case.query or {}
+    path = case.path_parameters or {}
     limit = str(query.get("limit", 200))
     body = case.body if isinstance(case.body, dict) else {}
-    return "cursor" in query or "tag" in query or "tag" in (case.path_parameters or {}) or (
+    return "cursor" in query or "tag" in query or "tag" in path or "resource_id" in path or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
         "first_day" in query or "last_day" in query or "dates" in body or "resource_id" in body
         or "metadata" in body)
+
+
+def invalid_only_unsent(case) -> bool:
+    """Whether every way the request breaks the document is lost before it reaches the daemon.
+
+    The test sends its own token in place of the Authorization header Schemathesis makes, and an
+    extra query parameter whose value is an empty list is not sent at all, so such a request
+    reaches the daemon valid.
+    """
+    mutations = getattr(case.meta.phase.data, "mutations", None) if case.meta else None
+    if not case.meta or not case.meta.generation.mode.is_negative or not mutations:
+        return False
+    declared = {parameter.name for parameter in case.operation.query}
+    extras = [value for name, value in (case.query or {}).items() if name not in declared]
+    return all(m.parameter == "Authorization" or (
+        m.parameter_location is not None and m.parameter_location.name == "QUERY"
+        and m.keywords == ("additionalProperties",) and all(value in ([], None) for value in extras))
+        for m in mutations)
 
 
 @pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")
@@ -66,5 +85,8 @@ def test_the_daemon_answers_as_its_document_says(case):
     # A project's root path is a directory the daemon makes: a random one could be anywhere.
     if isinstance(case.body, dict) and "root_path" in case.body:
         return
+    excluded = [positive_data_acceptance] if stated_in_words(case) else []
+    if invalid_only_unsent(case):
+        excluded.append(negative_data_rejection)
     case.call_and_validate(base_url=daemon.url, headers={"Authorization": f"Bearer {daemon.token}"},
-                           excluded_checks=[positive_data_acceptance] if stated_in_words(case) else [])
+                           excluded_checks=excluded)

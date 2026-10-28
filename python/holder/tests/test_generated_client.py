@@ -38,7 +38,6 @@ from holder.generated.models import (
     EventCheckpointResponse,
     EventResyncData,
     HealthResponse,
-    ProjectGitSyncOperationResponseDataPush,
     ProjectUpdate,
     RunnerCapabilitiesData,
     RunnerPullJob,
@@ -401,18 +400,7 @@ def test_runner_capabilities_preserve_null_caste():
     assert RunnerCapabilitiesData.from_dict(model.to_dict()).caste is None
 
 
-def test_nullable_enums_preserve_null():
-    push = ProjectGitSyncOperationResponseDataPush(
-        attempted=False,
-        status=None,
-        ahead_count=0,
-        behind_count=0,
-        local_head_commit=None,
-        error_message=None,
-    )
-    assert (
-        ProjectGitSyncOperationResponseDataPush.from_dict(push.to_dict()).status is None
-    )
+def test_partial_update_keeps_null():
     # A partial update's null clears a field; it is not the same as leaving it out.
     update = ProjectUpdate(git_remote_url=None)
     assert update.to_dict() == {"git_remote_url": None}

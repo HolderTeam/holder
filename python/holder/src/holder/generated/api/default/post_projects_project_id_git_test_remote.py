@@ -7,15 +7,15 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_git_test_remote_request import ProjectGitTestRemoteRequest
-from ...models.project_git_test_remote_response import ProjectGitTestRemoteResponse
+from ...models.remote_test import RemoteTest
+from ...models.remote_test_result_response import RemoteTestResultResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    body: ProjectGitTestRemoteRequest | Unset = UNSET,
+    body: RemoteTest | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -37,9 +37,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectGitTestRemoteResponse | None:
+) -> ErrorResponse | RemoteTestResultResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectGitTestRemoteResponse.from_dict(response.json())
+        response_200 = RemoteTestResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -71,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectGitTestRemoteResponse]:
+) -> Response[ErrorResponse | RemoteTestResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -84,24 +84,24 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitTestRemoteRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitTestRemoteResponse]:
-    """Test project remote reachability/auth
+    body: RemoteTest | Unset = UNSET,
+) -> Response[ErrorResponse | RemoteTestResultResponse]:
+    """Test whether a Git remote can be reached, with this device's credentials.
 
-     Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration. Git failures are reported
-    in the result, not as HTTP errors.
+     Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its
+    repository
+    changes.
 
     Args:
         project_id (str):
-        body (ProjectGitTestRemoteRequest | Unset):
+        body (RemoteTest | Unset): A remote to test.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitTestRemoteResponse]
+        Response[ErrorResponse | RemoteTestResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -120,24 +120,24 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitTestRemoteRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitTestRemoteResponse | None:
-    """Test project remote reachability/auth
+    body: RemoteTest | Unset = UNSET,
+) -> ErrorResponse | RemoteTestResultResponse | None:
+    """Test whether a Git remote can be reached, with this device's credentials.
 
-     Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration. Git failures are reported
-    in the result, not as HTTP errors.
+     Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its
+    repository
+    changes.
 
     Args:
         project_id (str):
-        body (ProjectGitTestRemoteRequest | Unset):
+        body (RemoteTest | Unset): A remote to test.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitTestRemoteResponse
+        ErrorResponse | RemoteTestResultResponse
     """
 
     return sync_detailed(
@@ -151,24 +151,24 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitTestRemoteRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitTestRemoteResponse]:
-    """Test project remote reachability/auth
+    body: RemoteTest | Unset = UNSET,
+) -> Response[ErrorResponse | RemoteTestResultResponse]:
+    """Test whether a Git remote can be reached, with this device's credentials.
 
-     Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration. Git failures are reported
-    in the result, not as HTTP errors.
+     Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its
+    repository
+    changes.
 
     Args:
         project_id (str):
-        body (ProjectGitTestRemoteRequest | Unset):
+        body (RemoteTest | Unset): A remote to test.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitTestRemoteResponse]
+        Response[ErrorResponse | RemoteTestResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -185,24 +185,24 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitTestRemoteRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitTestRemoteResponse | None:
-    """Test project remote reachability/auth
+    body: RemoteTest | Unset = UNSET,
+) -> ErrorResponse | RemoteTestResultResponse | None:
+    """Test whether a Git remote can be reached, with this device's credentials.
 
-     Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-    repository, or change stored project configuration or Git configuration. Git failures are reported
-    in the result, not as HTTP errors.
+     Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its
+    repository
+    changes.
 
     Args:
         project_id (str):
-        body (ProjectGitTestRemoteRequest | Unset):
+        body (RemoteTest | Unset): A remote to test.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitTestRemoteResponse
+        ErrorResponse | RemoteTestResultResponse
     """
 
     return (

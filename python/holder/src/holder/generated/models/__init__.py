@@ -233,38 +233,6 @@ from .project_encryption_check_response_data import ProjectEncryptionCheckRespon
 from .project_encryption_check_response_data_privacy_mode import (
     ProjectEncryptionCheckResponseDataPrivacyMode,
 )
-from .project_git_push_request import ProjectGitPushRequest
-from .project_git_push_response import ProjectGitPushResponse
-from .project_git_push_response_data import ProjectGitPushResponseData
-from .project_git_push_response_data_status import ProjectGitPushResponseDataStatus
-from .project_git_sync_operation_response import ProjectGitSyncOperationResponse
-from .project_git_sync_operation_response_data import (
-    ProjectGitSyncOperationResponseData,
-)
-from .project_git_sync_operation_response_data_pull import (
-    ProjectGitSyncOperationResponseDataPull,
-)
-from .project_git_sync_operation_response_data_pull_status import (
-    ProjectGitSyncOperationResponseDataPullStatus,
-)
-from .project_git_sync_operation_response_data_push import (
-    ProjectGitSyncOperationResponseDataPush,
-)
-from .project_git_sync_operation_response_data_push_status import (
-    ProjectGitSyncOperationResponseDataPushStatus,
-)
-from .project_git_sync_operation_response_data_status import (
-    ProjectGitSyncOperationResponseDataStatus,
-)
-from .project_git_sync_request import ProjectGitSyncRequest
-from .project_git_sync_status_response import ProjectGitSyncStatusResponse
-from .project_git_sync_status_response_data import ProjectGitSyncStatusResponseData
-from .project_git_test_remote_request import ProjectGitTestRemoteRequest
-from .project_git_test_remote_response import ProjectGitTestRemoteResponse
-from .project_git_test_remote_response_data import ProjectGitTestRemoteResponseData
-from .project_git_test_remote_response_data_status import (
-    ProjectGitTestRemoteResponseDataStatus,
-)
 from .project_history_activity import ProjectHistoryActivity
 from .project_history_affected_object import ProjectHistoryAffectedObject
 from .project_history_affected_object_items_item import (
@@ -286,8 +254,12 @@ from .project_recovery_token_import_response_data import (
     ProjectRecoveryTokenImportResponseData,
 )
 from .project_response import ProjectResponse
-from .project_sync import ProjectSync
 from .project_update import ProjectUpdate
+from .pull_phase import PullPhase
+from .pull_phase_status import PullPhaseStatus
+from .push_options import PushOptions
+from .push_phase import PushPhase
+from .push_status import PushStatus
 from .put_locations_preferred_body import PutLocationsPreferredBody
 from .rebuild_data import RebuildData
 from .rebuild_request import RebuildRequest
@@ -301,6 +273,10 @@ from .recovery_token_import_auto_response_data_pull_status import (
 )
 from .reindex_data import ReindexData
 from .reindex_response import ReindexResponse
+from .remote_test import RemoteTest
+from .remote_test_result import RemoteTestResult
+from .remote_test_result_response import RemoteTestResultResponse
+from .remote_test_result_status import RemoteTestResultStatus
 from .resource import Resource
 from .resource_asset import ResourceAsset
 from .resource_list_response import ResourceListResponse
@@ -326,6 +302,11 @@ from .storage_location_request import StorageLocationRequest
 from .storage_location_request_configuration import StorageLocationRequestConfiguration
 from .storage_location_request_provider import StorageLocationRequestProvider
 from .storage_location_response import StorageLocationResponse
+from .sync_result import SyncResult
+from .sync_result_response import SyncResultResponse
+from .sync_result_status import SyncResultStatus
+from .sync_state import SyncState
+from .sync_state_response import SyncStateResponse
 from .tag_count import TagCount
 from .tag_count_list_response import TagCountListResponse
 from .tag_occurrence import TagOccurrence
@@ -546,24 +527,6 @@ __all__ = (
     "ProjectEncryptionCheckResponse",
     "ProjectEncryptionCheckResponseData",
     "ProjectEncryptionCheckResponseDataPrivacyMode",
-    "ProjectGitPushRequest",
-    "ProjectGitPushResponse",
-    "ProjectGitPushResponseData",
-    "ProjectGitPushResponseDataStatus",
-    "ProjectGitSyncOperationResponse",
-    "ProjectGitSyncOperationResponseData",
-    "ProjectGitSyncOperationResponseDataPull",
-    "ProjectGitSyncOperationResponseDataPullStatus",
-    "ProjectGitSyncOperationResponseDataPush",
-    "ProjectGitSyncOperationResponseDataPushStatus",
-    "ProjectGitSyncOperationResponseDataStatus",
-    "ProjectGitSyncRequest",
-    "ProjectGitSyncStatusResponse",
-    "ProjectGitSyncStatusResponseData",
-    "ProjectGitTestRemoteRequest",
-    "ProjectGitTestRemoteResponse",
-    "ProjectGitTestRemoteResponseData",
-    "ProjectGitTestRemoteResponseDataStatus",
     "ProjectHistoryActivity",
     "ProjectHistoryAffectedObject",
     "ProjectHistoryAffectedObjectItemsItem",
@@ -579,8 +542,12 @@ __all__ = (
     "ProjectRecoveryTokenImportResponse",
     "ProjectRecoveryTokenImportResponseData",
     "ProjectResponse",
-    "ProjectSync",
     "ProjectUpdate",
+    "PullPhase",
+    "PullPhaseStatus",
+    "PushOptions",
+    "PushPhase",
+    "PushStatus",
     "PutLocationsPreferredBody",
     "RebuildData",
     "RebuildRequest",
@@ -590,6 +557,10 @@ __all__ = (
     "RecoveryTokenImportAutoResponseDataPullStatus",
     "ReindexData",
     "ReindexResponse",
+    "RemoteTest",
+    "RemoteTestResult",
+    "RemoteTestResultResponse",
+    "RemoteTestResultStatus",
     "Resource",
     "ResourceAsset",
     "ResourceListResponse",
@@ -615,6 +586,11 @@ __all__ = (
     "StorageLocationRequestConfiguration",
     "StorageLocationRequestProvider",
     "StorageLocationResponse",
+    "SyncResult",
+    "SyncResultResponse",
+    "SyncResultStatus",
+    "SyncState",
+    "SyncStateResponse",
     "TagCount",
     "TagCountListResponse",
     "TagOccurrence",

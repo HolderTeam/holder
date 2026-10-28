@@ -272,14 +272,11 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async void set_project_git_remote(string project_id,
                                              string? git_remote_url) throws Error {}
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
-                                                                         string? remote_url = null,
-                                                                         string branch = "") throws Error {
+                                                                         string? remote_url = null) throws Error {
         return new HolderLinux.GitTestRemoteResult(project_id,
                                                    remote_url ?? "",
-                                                   branch,
                                                    "reachable",
                                                    true,
-                                                   "",
                                                    "");
     }
     public async HolderLinux.GitPushResult push_project_git(string project_id,
@@ -291,7 +288,6 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                              "pushed",
                                              0,
                                              0,
-                                             "",
                                              "",
                                              "",
                                              "");

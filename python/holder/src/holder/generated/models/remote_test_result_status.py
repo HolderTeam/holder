@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ProjectGitTestRemoteResponseDataStatus(StrEnum):
+class RemoteTestResultStatus(StrEnum):
     AUTH_FAILED = "auth_failed"
     INVALID_REMOTE_URL = "invalid_remote_url"
     NETWORK_ERROR = "network_error"

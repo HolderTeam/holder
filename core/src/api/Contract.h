@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -171,6 +171,17 @@ struct ProjectUpdate {
   Change<std::string> git_provider;  ///< Who hosts the Git remote; null when unknown.
 };
 
+/// How to push.
+struct PushOptions {
+  std::optional<std::string> branch;  ///< The branch to push; omit for the repository's default.
+  bool set_upstream = true;  ///< Whether the remote branch becomes the local branch's upstream.
+};
+
+/// A remote to test.
+struct RemoteTest {
+  std::optional<std::string> remote_url;  ///< The Git remote to test; omit for the project's own.
+};
+
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
@@ -310,6 +321,76 @@ struct Project {
 struct ProjectListItem : Project {
   std::optional<std::int32_t> card_count;  ///< The project's live cards; present when asked for.
   std::optional<std::int32_t> root_card_count;  ///< The project's live root cards; present when asked for.
+};
+
+/// What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
+/// when it will retry.
+struct SyncState {
+  std::string project_id;  ///< The project.
+  std::optional<long long> last_commit_at;  ///< When the project's repository last had a commit; null when unknown.
+  std::optional<long long> last_push_at;  ///< When the project was last pushed; null when never.
+  std::optional<long long> last_pull_at;  ///< When the project was last pulled; null when never.
+  std::int32_t uncommitted_changes_count{};  ///< Files changed and not yet committed.
+  std::int32_t unpushed_commits_count{};  ///< Commits not yet on the remote.
+  std::optional<std::string> last_push_status;  ///< How the last push ended, as a PushStatus; null when never.
+  std::optional<std::string> last_pull_status;  ///< How the last pull ended; null when never.
+  std::optional<std::string> last_sync_error;  ///< The last failure's message; null when the last sync succeeded.
+  std::optional<long long> last_sync_error_at;  ///< When the last failure happened; null when none is recorded.
+  std::int32_t retry_count{};  ///< Failed pushes in a row.
+  std::optional<long long> next_retry_at;  ///< When a push will next be tried; null when none is waiting.
+  std::int32_t pull_retry_count{};  ///< Failed pulls in a row.
+  std::optional<long long> next_pull_retry_at;  ///< When a pull will next be tried; null when none is waiting.
+  std::optional<long long> updated_at;  ///< When this state was last recorded; null when nothing has been.
+};
+
+/// How the pull ended.
+enum class PullPhaseStatus { NotAttempted, Succeeded, RemoteUnset, Failed };
+
+/// What a pull did.
+struct PullPhase {
+  bool attempted{};  ///< Whether a pull was tried.
+  PullPhaseStatus status;  ///< How the pull ended.
+  std::int32_t conflicts_resolved{};  ///< Cards changed both here and on the remote, merged by Holder's card rules.
+  std::int32_t hidden_cards_repaired{};  ///< Live cards the pull left under a missing or trashed parent, made reachable again.
+  std::optional<std::string> error_message;  ///< Why the pull failed; null when it did not.
+};
+
+/// How the push ended.
+enum class PushPhaseStatus { NotAttempted, Pushed, UpToDate, AuthFailed, NotFound, NetworkError, NonFastForward, RemoteUnset, UnknownError };
+
+/// What a push did.
+struct PushPhase {
+  bool attempted{};  ///< Whether a push was tried.
+  PushPhaseStatus status;  ///< How the push ended.
+  std::int32_t ahead_count{};  ///< Commits here that the remote does not have.
+  std::int32_t behind_count{};  ///< Commits on the remote that are not here.
+  std::optional<std::string> local_head_commit;  ///< The commit this device's branch is at; null when unknown.
+  std::optional<std::string> error_message;  ///< Why the push failed; null when it did not.
+};
+
+/// Whether every phase tried succeeded.
+enum class SyncResultStatus { Succeeded, Failed };
+
+/// What a pull, a push or a sync did, as recorded in the project's sync state. A Git failure is an outcome
+/// here, not an error.
+struct SyncResult {
+  std::string project_id;  ///< The project.
+  SyncResultStatus status;  ///< Whether every phase tried succeeded.
+  std::optional<std::string> remote_url;  ///< The Git remote used; null when the project has none.
+  PullPhase pull;  ///< The pull; not attempted for a push.
+  PushPhase push;  ///< The push; not attempted for a pull, or after a pull that failed.
+};
+
+/// What testing the remote found; remote_unset when there was none to test.
+enum class RemoteTestResultStatus { Reachable, AuthFailed, NotFound, NetworkError, InvalidRemoteUrl, RemoteUnset, UnknownError };
+
+/// Whether a Git remote can be reached with this device's credentials.
+struct RemoteTestResult {
+  std::string project_id;  ///< The project.
+  RemoteTestResultStatus status;  ///< What testing the remote found; remote_unset when there was none to test.
+  std::optional<std::string> remote_url;  ///< The remote tested; null when there was none.
+  bool remote_has_head{};  ///< Whether the remote has any commits.
+  std::optional<std::string> error_message;  ///< Why the remote could not be reached; null when it could.
 };
 
 /// Fetch a card.
@@ -561,6 +642,35 @@ Project update_project(holder_context& context, std::string project_id, const Pr
 /// bring it back; making it again does. Returns the project as it was.
 /// @throws NotFound
 Project delete_project(holder_context& context, std::string project_id);
+
+/// What this device last recorded about a project's sync.
+/// @throws NotFound
+SyncState get_project_sync_state(holder_context& context, std::string project_id);
+
+/// Pull a project's checked-out branch from its Git remote.
+/// Changes fast-forward, or merge card by card where both sides changed, and the project's index is updated
+/// before the result returns. A Git failure is an outcome in the result, recorded in the sync state. Git work on
+/// one project runs one at a time.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+SyncResult pull_project(holder_context& context, std::string project_id);
+
+/// Push a project to its Git remote.
+/// An encrypted project is checked first, so no plaintext card leaves the device: one whose files are not safe
+/// to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded in the
+/// sync state.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+SyncResult push_project(holder_context& context, std::string project_id, const PushOptions& options);
+
+/// Pull a project, then push it.
+/// The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+SyncResult sync_project(holder_context& context, std::string project_id, const PushOptions& options);
+
+/// Test whether a Git remote can be reached, with this device's credentials.
+/// Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository
+/// changes.
+/// @throws NotFound
+RemoteTestResult test_project_remote(holder_context& context, std::string project_id, const RemoteTest& remote);
 
 namespace detail {
 

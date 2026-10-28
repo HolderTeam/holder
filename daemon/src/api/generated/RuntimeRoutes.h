@@ -247,8 +247,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "rebuild_project_from_files"};
         }
     }
-    static const std::regex route_65("^/cards$");
-    if (method == "GET" && std::regex_match(route_path, match, route_65)) {
+    static const std::regex route_60("^/cards$");
+    if (method == "GET" && std::regex_match(route_path, match, route_60)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<std::string>> argument_1;
         std::optional<std::string> argument_2;
@@ -314,32 +314,32 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_cards"};
         }
     }
-    static const std::regex route_67("^/ping$");
-    if (method == "GET" && std::regex_match(route_path, match, route_67)) {
+    static const std::regex route_62("^/ping$");
+    if (method == "GET" && std::regex_match(route_path, match, route_62)) {
         try {
             return response{200, json(holder::api::get_ping()), "get_ping", {}, {}, "text/plain"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ping"};
         }
     }
-    static const std::regex route_68("^/openapi\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, match, route_68)) {
+    static const std::regex route_63("^/openapi\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, match, route_63)) {
         try {
             return response{200, json(holder::api::download_openapi_yaml()), "download_openapi_yaml", {}, {}, "application/yaml"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_openapi_yaml"};
         }
     }
-    static const std::regex route_69("^/openapi\\.json$");
-    if (method == "GET" && std::regex_match(route_path, match, route_69)) {
+    static const std::regex route_64("^/openapi\\.json$");
+    if (method == "GET" && std::regex_match(route_path, match, route_64)) {
         try {
             return response{200, rig_json::encode(holder::api::download_openapi_json()), "download_openapi_json"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_openapi_json"};
         }
     }
-    static const std::regex route_70("^/ai_catalog\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, match, route_70)) {
+    static const std::regex route_65("^/ai_catalog\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, match, route_65)) {
         try {
             return response{200, json(holder::api::download_ai_catalog_yaml()), "download_ai_catalog_yaml", {}, {}, "application/yaml"};
         } catch (const holder::api::StaticFileNotFound& error) {
@@ -348,8 +348,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_ai_catalog_yaml"};
         }
     }
-    static const std::regex route_71("^/git_providers\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, match, route_71)) {
+    static const std::regex route_66("^/git_providers\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, match, route_66)) {
         try {
             return response{200, json(holder::api::download_git_providers_yaml()), "download_git_providers_yaml", {}, {}, "application/yaml"};
         } catch (const holder::api::StaticFileNotFound& error) {
@@ -358,8 +358,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_git_providers_yaml"};
         }
     }
-    static const std::regex route_72("^/ai_catalog\\.json$");
-    if (method == "GET" && std::regex_match(route_path, match, route_72)) {
+    static const std::regex route_67("^/ai_catalog\\.json$");
+    if (method == "GET" && std::regex_match(route_path, match, route_67)) {
         try {
             return response{200, rig_json::encode(holder::api::download_ai_catalog_json()), "download_ai_catalog_json"};
         } catch (const holder::api::StaticFileNotFound& error) {
@@ -368,8 +368,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_ai_catalog_json"};
         }
     }
-    static const std::regex route_73("^/git_providers\\.json$");
-    if (method == "GET" && std::regex_match(route_path, match, route_73)) {
+    static const std::regex route_68("^/git_providers\\.json$");
+    if (method == "GET" && std::regex_match(route_path, match, route_68)) {
         try {
             return response{200, rig_json::encode(holder::api::download_git_providers_json()), "download_git_providers_json"};
         } catch (const holder::api::StaticFileNotFound& error) {
@@ -378,8 +378,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "download_git_providers_json"};
         }
     }
-    static const std::regex route_74("^/docs$");
-    if (method == "GET" && std::regex_match(route_path, match, route_74)) {
+    static const std::regex route_69("^/docs$");
+    if (method == "GET" && std::regex_match(route_path, match, route_69)) {
         try {
             auto outcome = holder::api::get_docs();
             if (outcome.status != 200)
@@ -391,8 +391,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_docs"};
         }
     }
-    static const std::regex route_76("^/trash$");
-    if (method == "GET" && std::regex_match(route_path, match, route_76)) {
+    static const std::regex route_71("^/trash$");
+    if (method == "GET" && std::regex_match(route_path, match, route_71)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<std::string>> argument_1;
         try {
@@ -418,8 +418,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_trash"};
         }
     }
-    static const std::regex route_77("^/imports$");
-    if (method == "POST" && std::regex_match(route_path, match, route_77)) {
+    static const std::regex route_72("^/imports$");
+    if (method == "POST" && std::regex_match(route_path, match, route_72)) {
         std::optional<holder::api::AssetImportRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::AssetImportRequest>(body));
@@ -444,8 +444,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_imports"};
         }
     }
-    static const std::regex route_78("^/locations$");
-    if (method == "POST" && std::regex_match(route_path, match, route_78)) {
+    static const std::regex route_73("^/locations$");
+    if (method == "POST" && std::regex_match(route_path, match, route_73)) {
         std::optional<holder::api::StorageLocationRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::StorageLocationRequest>(body));
@@ -462,16 +462,16 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_locations"};
         }
     }
-    static const std::regex route_88("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, match, route_88)) {
+    static const std::regex route_83("^/reindex$");
+    if (method == "POST" && std::regex_match(route_path, match, route_83)) {
         try {
             return response{200, rig_json::encode(holder::api::post_reindex(context.db)), "post_reindex"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_reindex"};
         }
     }
-    static const std::regex route_94("^/events$");
-    if (method == "GET" && std::regex_match(route_path, match, route_94)) {
+    static const std::regex route_89("^/events$");
+    if (method == "GET" && std::regex_match(route_path, match, route_89)) {
         std::optional<std::optional<std::string>> argument_0;
         std::optional<std::optional<std::string>> argument_1;
         std::optional<std::optional<std::string>> argument_2;
@@ -514,8 +514,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_events"};
         }
     }
-    static const std::regex route_95("^/trash$");
-    if (method == "DELETE" && std::regex_match(route_path, match, route_95)) {
+    static const std::regex route_90("^/trash$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_90)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -794,8 +794,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_events_cursor"};
         }
     }
-    static const std::regex route_66("^/cards/context$");
-    if (method == "GET" && std::regex_match(route_path, match, route_66)) {
+    static const std::regex route_61("^/cards/context$");
+    if (method == "GET" && std::regex_match(route_path, match, route_61)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<std::string>> argument_1;
         std::optional<std::string> argument_2;
@@ -836,8 +836,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_cards_context"};
         }
     }
-    static const std::regex route_84("^/locations/preferred$");
-    if (method == "PUT" && std::regex_match(route_path, match, route_84)) {
+    static const std::regex route_79("^/locations/preferred$");
+    if (method == "PUT" && std::regex_match(route_path, match, route_79)) {
         std::optional<holder::api::PutLocationsPreferredRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::PutLocationsPreferredRequest>(body));
@@ -856,8 +856,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_preferred"};
         }
     }
-    static const std::regex route_85("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_85)) {
+    static const std::regex route_80("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_80)) {
         std::optional<holder::api::ProjectRecoveryTokenImportRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::ProjectRecoveryTokenImportRequest>(body));
@@ -881,8 +881,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_recovery_token_import"};
         }
     }
-    static const std::regex route_89("^/search/cards$");
-    if (method == "GET" && std::regex_match(route_path, match, route_89)) {
+    static const std::regex route_84("^/search/cards$");
+    if (method == "GET" && std::regex_match(route_path, match, route_84)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         std::optional<int> argument_2;
@@ -926,8 +926,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_search_cards"};
         }
     }
-    static const std::regex route_90("^/search/ai$");
-    if (method == "GET" && std::regex_match(route_path, match, route_90)) {
+    static const std::regex route_85("^/search/ai$");
+    if (method == "GET" && std::regex_match(route_path, match, route_85)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         std::optional<int> argument_2;
@@ -971,8 +971,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_search_ai"};
         }
     }
-    static const std::regex route_91("^/ai/runs$");
-    if (method == "POST" && std::regex_match(route_path, match, route_91)) {
+    static const std::regex route_86("^/ai/runs$");
+    if (method == "POST" && std::regex_match(route_path, match, route_86)) {
         std::optional<holder::api::AiRunCreateRequest> argument_0;
         try {
             argument_0.emplace(decode_body<holder::api::AiRunCreateRequest>(body));
@@ -1211,8 +1211,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_provider_setting"};
         }
     }
-    static const std::regex route_93("^/ai/runner/pull/([^/]+)/events$");
-    if (method == "GET" && std::regex_match(route_path, match, route_93)) {
+    static const std::regex route_88("^/ai/runner/pull/([^/]+)/events$");
+    if (method == "GET" && std::regex_match(route_path, match, route_88)) {
         std::optional<std::optional<std::string>> argument_0;
         std::optional<std::optional<std::string>> argument_1;
         std::optional<std::string> argument_2;
@@ -1596,8 +1596,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runners_runner_id_retry"};
         }
     }
-    static const std::regex route_92("^/ai/runs/([^/]+)/events$");
-    if (method == "GET" && std::regex_match(route_path, match, route_92)) {
+    static const std::regex route_87("^/ai/runs/([^/]+)/events$");
+    if (method == "GET" && std::regex_match(route_path, match, route_87)) {
         std::optional<std::optional<std::string>> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -1658,8 +1658,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_location"};
         }
     }
-    static const std::regex route_75("^/docs/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, match, route_75)) {
+    static const std::regex route_70("^/docs/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, match, route_70)) {
         std::optional<std::string> argument_0;
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
@@ -1679,8 +1679,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_docs_file"};
         }
     }
-    static const std::regex route_79("^/locations/([^/]+)$");
-    if (method == "PATCH" && std::regex_match(route_path, match, route_79)) {
+    static const std::regex route_74("^/locations/([^/]+)$");
+    if (method == "PATCH" && std::regex_match(route_path, match, route_74)) {
         std::optional<std::string> argument_0;
         std::optional<holder::api::PatchLocationsLocationIdRequest> argument_1;
         try {
@@ -1701,8 +1701,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_locations_location_id"};
         }
     }
-    static const std::regex route_80("^/locations/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, match, route_80)) {
+    static const std::regex route_75("^/locations/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_75)) {
         std::optional<std::string> argument_0;
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
@@ -1768,8 +1768,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_project_history"};
         }
     }
-    static const std::regex route_62("^/projects/([^/]+)/encryption\\-check$");
-    if (method == "GET" && std::regex_match(route_path, match, route_62)) {
+    static const std::regex route_57("^/projects/([^/]+)/encryption\\-check$");
+    if (method == "GET" && std::regex_match(route_path, match, route_57)) {
         std::optional<std::string> argument_0;
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
@@ -1786,8 +1786,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "check_project_encryption"};
         }
     }
-    static const std::regex route_64("^/projects/([^/]+)/repair\\-hierarchy$");
-    if (method == "POST" && std::regex_match(route_path, match, route_64)) {
+    static const std::regex route_59("^/projects/([^/]+)/repair\\-hierarchy$");
+    if (method == "POST" && std::regex_match(route_path, match, route_59)) {
         std::optional<std::string> argument_0;
         std::optional<std::optional<holder::api::HierarchyRepairRequest>> argument_1;
         try {
@@ -1812,8 +1812,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_repair_hierarchy"};
         }
     }
-    static const std::regex route_81("^/locations/([^/]+)/binding$");
-    if (method == "PUT" && std::regex_match(route_path, match, route_81)) {
+    static const std::regex route_76("^/locations/([^/]+)/binding$");
+    if (method == "PUT" && std::regex_match(route_path, match, route_76)) {
         std::optional<std::string> argument_0;
         std::optional<holder::api::LocationBindingRequest> argument_1;
         try {
@@ -1836,8 +1836,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_locations_location_id_binding"};
         }
     }
-    static const std::regex route_82("^/locations/([^/]+)/binding$");
-    if (method == "DELETE" && std::regex_match(route_path, match, route_82)) {
+    static const std::regex route_77("^/locations/([^/]+)/binding$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_77)) {
         std::optional<std::string> argument_0;
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
@@ -1856,8 +1856,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_locations_location_id_binding"};
         }
     }
-    static const std::regex route_83("^/locations/([^/]+)/test$");
-    if (method == "POST" && std::regex_match(route_path, match, route_83)) {
+    static const std::regex route_78("^/locations/([^/]+)/test$");
+    if (method == "POST" && std::regex_match(route_path, match, route_78)) {
         std::optional<std::string> argument_0;
         try {
             argument_0.emplace(decode_path_string(match[1].str()));
@@ -1890,112 +1890,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_locations_location_id_test"};
         }
     }
-    static const std::regex route_57("^/projects/([^/]+)/git/test\\-remote$");
-    if (method == "POST" && std::regex_match(route_path, match, route_57)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<holder::api::ProjectGitTestRemoteRequest>> argument_1;
-        try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(body.empty() ? std::optional<holder::api::ProjectGitTestRemoteRequest>{} : std::optional<holder::api::ProjectGitTestRemoteRequest>(decode_body<holder::api::ProjectGitTestRemoteRequest>(body)));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_projects_project_id_git_test_remote");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_projects_project_id_git_test_remote");
-        }
-        try {
-            return response{200, rig_json::encode(holder::api::post_projects_project_id_git_test_remote(context.db, context.git_ops, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_git_test_remote"};
-        } catch (const holder::api::ProjectGitNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_git_test_remote"};
-        } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_git_test_remote"};
-        }
-    }
-    static const std::regex route_58("^/projects/([^/]+)/git/push$");
-    if (method == "POST" && std::regex_match(route_path, match, route_58)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<holder::api::ProjectGitPushRequest>> argument_1;
-        try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(body.empty() ? std::optional<holder::api::ProjectGitPushRequest>{} : std::optional<holder::api::ProjectGitPushRequest>(decode_body<holder::api::ProjectGitPushRequest>(body)));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_projects_project_id_git_push");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_projects_project_id_git_push");
-        }
-        try {
-            return response{200, rig_json::encode(holder::api::post_projects_project_id_git_push(context.db, context.git_ops, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_git_push"};
-        } catch (const holder::api::support::PrivacyRejected& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_projects_project_id_git_push"};
-        } catch (const holder::api::ProjectGitNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_git_push"};
-        } catch (const holder::api::support::PrivacyBroken& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_git_push"};
-        } catch (const holder::api::support::KeyringUnavailable& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_projects_project_id_git_push"};
-        } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_git_push"};
-        }
-    }
-    static const std::regex route_59("^/projects/([^/]+)/git/pull$");
-    if (method == "POST" && std::regex_match(route_path, match, route_59)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<holder::api::ProjectGitSyncRequest>> argument_1;
-        try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(body.empty() ? std::optional<holder::api::ProjectGitSyncRequest>{} : std::optional<holder::api::ProjectGitSyncRequest>(decode_body<holder::api::ProjectGitSyncRequest>(body)));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_projects_project_id_git_pull");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_projects_project_id_git_pull");
-        }
-        try {
-            return response{200, rig_json::encode(holder::api::post_projects_project_id_git_pull(context.db, context.git_ops, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_git_pull"};
-        } catch (const holder::api::ProjectGitNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_git_pull"};
-        } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_git_pull"};
-        }
-    }
-    static const std::regex route_60("^/projects/([^/]+)/git/sync$");
-    if (method == "POST" && std::regex_match(route_path, match, route_60)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<holder::api::ProjectGitSyncRequest>> argument_1;
-        try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(body.empty() ? std::optional<holder::api::ProjectGitSyncRequest>{} : std::optional<holder::api::ProjectGitSyncRequest>(decode_body<holder::api::ProjectGitSyncRequest>(body)));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_projects_project_id_git_sync");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_projects_project_id_git_sync");
-        }
-        try {
-            return response{200, rig_json::encode(holder::api::post_projects_project_id_git_sync(context.db, context.git_ops, std::move(*argument_0), std::move(*argument_1))), "post_projects_project_id_git_sync"};
-        } catch (const holder::api::ProjectGitNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_projects_project_id_git_sync"};
-        } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_git_sync"};
-        }
-    }
-    static const std::regex route_61("^/projects/([^/]+)/git/sync\\-status$");
-    if (method == "GET" && std::regex_match(route_path, match, route_61)) {
-        std::optional<std::string> argument_0;
-        try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_project_git_sync_status");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_project_git_sync_status");
-        }
-        try {
-            return response{200, rig_json::encode(holder::api::get_project_git_sync_status(context.db, std::move(*argument_0))), "get_project_git_sync_status"};
-        } catch (const holder::api::ProjectReadNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_project_git_sync_status"};
-        } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_project_git_sync_status"};
-        }
-    }
-    static const std::regex route_86("^/projects/([^/]+)/recovery\\-token/export$");
-    if (method == "POST" && std::regex_match(route_path, match, route_86)) {
+    static const std::regex route_81("^/projects/([^/]+)/recovery\\-token/export$");
+    if (method == "POST" && std::regex_match(route_path, match, route_81)) {
         std::optional<std::string> argument_0;
         std::optional<holder::api::ProjectRecoveryTokenExportRequest> argument_1;
         try {
@@ -2022,8 +1918,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_projects_project_id_recovery_token_export"};
         }
     }
-    static const std::regex route_87("^/projects/([^/]+)/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, match, route_87)) {
+    static const std::regex route_82("^/projects/([^/]+)/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, match, route_82)) {
         std::optional<std::string> argument_0;
         std::optional<holder::api::ProjectRecoveryTokenImportRequest> argument_1;
         try {
@@ -2301,8 +2197,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_resources_resource_id_assets_asset_id_content"};
         }
     }
-    static const std::regex route_63("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
-    if (method == "GET" && std::regex_match(route_path, match, route_63)) {
+    static const std::regex route_58("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
+    if (method == "GET" && std::regex_match(route_path, match, route_58)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -2323,8 +2219,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_projects_project_id_cards_card_id_breadcrumbs"};
         }
     }
-    static const std::regex route_97("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, match, route_97)) {
+    static const std::regex route_92("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_92)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         std::optional<std::string> argument_2;
@@ -2350,8 +2246,8 @@ inline std::optional<response> dispatch(const std::string& method,
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_projects_project_id_trash_type_id"};
         }
     }
-    static const std::regex route_96("^/trash/([^/]+)/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, match, route_96)) {
+    static const std::regex route_91("^/trash/([^/]+)/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_91)) {
         std::optional<std::string> argument_0;
         std::optional<std::string> argument_1;
         try {
@@ -2498,40 +2394,30 @@ inline std::optional<response> dispatch(const std::string& method,
     if (std::regex_match(route_path, path_59)) allowed.insert({"DELETE", "PUT"});
     static const std::regex path_60("^/locations/([^/]+)/test$");
     if (std::regex_match(route_path, path_60)) allowed.insert({"POST"});
-    static const std::regex path_61("^/projects/([^/]+)/git/test\\-remote$");
+    static const std::regex path_61("^/projects/([^/]+)/recovery\\-token/export$");
     if (std::regex_match(route_path, path_61)) allowed.insert({"POST"});
-    static const std::regex path_62("^/projects/([^/]+)/git/push$");
+    static const std::regex path_62("^/projects/([^/]+)/recovery\\-token/import$");
     if (std::regex_match(route_path, path_62)) allowed.insert({"POST"});
-    static const std::regex path_63("^/projects/([^/]+)/git/pull$");
+    static const std::regex path_63("^/locations/([^/]+)/oauth/google\\-drive/authorize$");
     if (std::regex_match(route_path, path_63)) allowed.insert({"POST"});
-    static const std::regex path_64("^/projects/([^/]+)/git/sync$");
-    if (std::regex_match(route_path, path_64)) allowed.insert({"POST"});
-    static const std::regex path_65("^/projects/([^/]+)/git/sync\\-status$");
+    static const std::regex path_64("^/locations/([^/]+)/oauth/google\\-drive/callback$");
+    if (std::regex_match(route_path, path_64)) allowed.insert({"GET"});
+    static const std::regex path_65("^/projects/([^/]+)/history/cards/([^/]+)$");
     if (std::regex_match(route_path, path_65)) allowed.insert({"GET"});
-    static const std::regex path_66("^/projects/([^/]+)/recovery\\-token/export$");
-    if (std::regex_match(route_path, path_66)) allowed.insert({"POST"});
-    static const std::regex path_67("^/projects/([^/]+)/recovery\\-token/import$");
-    if (std::regex_match(route_path, path_67)) allowed.insert({"POST"});
-    static const std::regex path_68("^/locations/([^/]+)/oauth/google\\-drive/authorize$");
+    static const std::regex path_66("^/projects/([^/]+)/history/cards/([^/]+)/compare$");
+    if (std::regex_match(route_path, path_66)) allowed.insert({"GET"});
+    static const std::regex path_67("^/projects/([^/]+)/history/cards/([^/]+)/snapshot$");
+    if (std::regex_match(route_path, path_67)) allowed.insert({"GET"});
+    static const std::regex path_68("^/projects/([^/]+)/history/cards/([^/]+)/restore$");
     if (std::regex_match(route_path, path_68)) allowed.insert({"POST"});
-    static const std::regex path_69("^/locations/([^/]+)/oauth/google\\-drive/callback$");
+    static const std::regex path_69("^/resources/([^/]+)/assets/([^/]+)/content$");
     if (std::regex_match(route_path, path_69)) allowed.insert({"GET"});
-    static const std::regex path_70("^/projects/([^/]+)/history/cards/([^/]+)$");
+    static const std::regex path_70("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
     if (std::regex_match(route_path, path_70)) allowed.insert({"GET"});
-    static const std::regex path_71("^/projects/([^/]+)/history/cards/([^/]+)/compare$");
-    if (std::regex_match(route_path, path_71)) allowed.insert({"GET"});
-    static const std::regex path_72("^/projects/([^/]+)/history/cards/([^/]+)/snapshot$");
-    if (std::regex_match(route_path, path_72)) allowed.insert({"GET"});
-    static const std::regex path_73("^/projects/([^/]+)/history/cards/([^/]+)/restore$");
-    if (std::regex_match(route_path, path_73)) allowed.insert({"POST"});
-    static const std::regex path_74("^/resources/([^/]+)/assets/([^/]+)/content$");
-    if (std::regex_match(route_path, path_74)) allowed.insert({"GET"});
-    static const std::regex path_75("^/projects/([^/]+)/cards/([^/]+)/breadcrumbs$");
-    if (std::regex_match(route_path, path_75)) allowed.insert({"GET"});
-    static const std::regex path_76("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
-    if (std::regex_match(route_path, path_76)) allowed.insert({"DELETE"});
-    static const std::regex path_77("^/trash/([^/]+)/([^/]+)$");
-    if (std::regex_match(route_path, path_77)) allowed.insert({"DELETE"});
+    static const std::regex path_71("^/projects/([^/]+)/trash/([^/]+)/([^/]+)$");
+    if (std::regex_match(route_path, path_71)) allowed.insert({"DELETE"});
+    static const std::regex path_72("^/trash/([^/]+)/([^/]+)$");
+    if (std::regex_match(route_path, path_72)) allowed.insert({"DELETE"});
     if (!allowed.empty()) {
         std::string allow;
         for (const auto allowed_method : allowed) {
@@ -2557,36 +2443,36 @@ inline bool is_public(const std::string& method, const std::string& path) {
     if (method == "GET" && std::regex_match(route_path, route_51)) return false;
     static const std::regex route_56("^/rebuild$");
     if (method == "POST" && std::regex_match(route_path, route_56)) return false;
-    static const std::regex route_65("^/cards$");
-    if (method == "GET" && std::regex_match(route_path, route_65)) return false;
-    static const std::regex route_67("^/ping$");
+    static const std::regex route_60("^/cards$");
+    if (method == "GET" && std::regex_match(route_path, route_60)) return false;
+    static const std::regex route_62("^/ping$");
+    if (method == "GET" && std::regex_match(route_path, route_62)) return true;
+    static const std::regex route_63("^/openapi\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_63)) return true;
+    static const std::regex route_64("^/openapi\\.json$");
+    if (method == "GET" && std::regex_match(route_path, route_64)) return true;
+    static const std::regex route_65("^/ai_catalog\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_65)) return true;
+    static const std::regex route_66("^/git_providers\\.yaml$");
+    if (method == "GET" && std::regex_match(route_path, route_66)) return true;
+    static const std::regex route_67("^/ai_catalog\\.json$");
     if (method == "GET" && std::regex_match(route_path, route_67)) return true;
-    static const std::regex route_68("^/openapi\\.yaml$");
+    static const std::regex route_68("^/git_providers\\.json$");
     if (method == "GET" && std::regex_match(route_path, route_68)) return true;
-    static const std::regex route_69("^/openapi\\.json$");
+    static const std::regex route_69("^/docs$");
     if (method == "GET" && std::regex_match(route_path, route_69)) return true;
-    static const std::regex route_70("^/ai_catalog\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_70)) return true;
-    static const std::regex route_71("^/git_providers\\.yaml$");
-    if (method == "GET" && std::regex_match(route_path, route_71)) return true;
-    static const std::regex route_72("^/ai_catalog\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_72)) return true;
-    static const std::regex route_73("^/git_providers\\.json$");
-    if (method == "GET" && std::regex_match(route_path, route_73)) return true;
-    static const std::regex route_74("^/docs$");
-    if (method == "GET" && std::regex_match(route_path, route_74)) return true;
-    static const std::regex route_76("^/trash$");
-    if (method == "GET" && std::regex_match(route_path, route_76)) return false;
-    static const std::regex route_77("^/imports$");
-    if (method == "POST" && std::regex_match(route_path, route_77)) return false;
-    static const std::regex route_78("^/locations$");
-    if (method == "POST" && std::regex_match(route_path, route_78)) return false;
-    static const std::regex route_88("^/reindex$");
-    if (method == "POST" && std::regex_match(route_path, route_88)) return false;
-    static const std::regex route_94("^/events$");
-    if (method == "GET" && std::regex_match(route_path, route_94)) return false;
-    static const std::regex route_95("^/trash$");
-    if (method == "DELETE" && std::regex_match(route_path, route_95)) return false;
+    static const std::regex route_71("^/trash$");
+    if (method == "GET" && std::regex_match(route_path, route_71)) return false;
+    static const std::regex route_72("^/imports$");
+    if (method == "POST" && std::regex_match(route_path, route_72)) return false;
+    static const std::regex route_73("^/locations$");
+    if (method == "POST" && std::regex_match(route_path, route_73)) return false;
+    static const std::regex route_83("^/reindex$");
+    if (method == "POST" && std::regex_match(route_path, route_83)) return false;
+    static const std::regex route_89("^/events$");
+    if (method == "GET" && std::regex_match(route_path, route_89)) return false;
+    static const std::regex route_90("^/trash$");
+    if (method == "DELETE" && std::regex_match(route_path, route_90)) return false;
     static const std::regex route_7("^/ai/messages$");
     if (method == "GET" && std::regex_match(route_path, route_7)) return false;
     static const std::regex route_11("^/ai/messages$");
@@ -2611,18 +2497,18 @@ inline bool is_public(const std::string& method, const std::string& path) {
     if (method == "POST" && std::regex_match(route_path, route_41)) return false;
     static const std::regex route_42("^/events/cursor$");
     if (method == "GET" && std::regex_match(route_path, route_42)) return false;
-    static const std::regex route_66("^/cards/context$");
-    if (method == "GET" && std::regex_match(route_path, route_66)) return false;
-    static const std::regex route_84("^/locations/preferred$");
-    if (method == "PUT" && std::regex_match(route_path, route_84)) return false;
-    static const std::regex route_85("^/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, route_85)) return false;
-    static const std::regex route_89("^/search/cards$");
-    if (method == "GET" && std::regex_match(route_path, route_89)) return false;
-    static const std::regex route_90("^/search/ai$");
-    if (method == "GET" && std::regex_match(route_path, route_90)) return false;
-    static const std::regex route_91("^/ai/runs$");
-    if (method == "POST" && std::regex_match(route_path, route_91)) return false;
+    static const std::regex route_61("^/cards/context$");
+    if (method == "GET" && std::regex_match(route_path, route_61)) return false;
+    static const std::regex route_79("^/locations/preferred$");
+    if (method == "PUT" && std::regex_match(route_path, route_79)) return false;
+    static const std::regex route_80("^/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, route_80)) return false;
+    static const std::regex route_84("^/search/cards$");
+    if (method == "GET" && std::regex_match(route_path, route_84)) return false;
+    static const std::regex route_85("^/search/ai$");
+    if (method == "GET" && std::regex_match(route_path, route_85)) return false;
+    static const std::regex route_86("^/ai/runs$");
+    if (method == "POST" && std::regex_match(route_path, route_86)) return false;
     static const std::regex route_1("^/ai/runner/pull$");
     if (method == "POST" && std::regex_match(route_path, route_1)) return false;
     static const std::regex route_2("^/ai/providers/credentials$");
@@ -2649,8 +2535,8 @@ inline bool is_public(const std::string& method, const std::string& path) {
     if (method == "DELETE" && std::regex_match(route_path, route_4)) return false;
     static const std::regex route_55("^/ai/providers/settings/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, route_55)) return false;
-    static const std::regex route_93("^/ai/runner/pull/([^/]+)/events$");
-    if (method == "GET" && std::regex_match(route_path, route_93)) return false;
+    static const std::regex route_88("^/ai/runner/pull/([^/]+)/events$");
+    if (method == "GET" && std::regex_match(route_path, route_88)) return false;
     static const std::regex route_8("^/ai/messages/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, route_8)) return false;
     static const std::regex route_12("^/ai/messages/([^/]+)$");
@@ -2685,44 +2571,34 @@ inline bool is_public(const std::string& method, const std::string& path) {
     if (method == "POST" && std::regex_match(route_path, route_19)) return false;
     static const std::regex route_27("^/ai/runners/([^/]+)/retry$");
     if (method == "POST" && std::regex_match(route_path, route_27)) return false;
-    static const std::regex route_92("^/ai/runs/([^/]+)/events$");
-    if (method == "GET" && std::regex_match(route_path, route_92)) return false;
+    static const std::regex route_87("^/ai/runs/([^/]+)/events$");
+    if (method == "GET" && std::regex_match(route_path, route_87)) return false;
     static const std::regex route_28("^/imports/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, route_28)) return false;
     static const std::regex route_52("^/locations/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, route_52)) return false;
-    static const std::regex route_75("^/docs/([^/]+)$");
-    if (method == "GET" && std::regex_match(route_path, route_75)) return true;
-    static const std::regex route_79("^/locations/([^/]+)$");
-    if (method == "PATCH" && std::regex_match(route_path, route_79)) return false;
-    static const std::regex route_80("^/locations/([^/]+)$");
-    if (method == "DELETE" && std::regex_match(route_path, route_80)) return false;
+    static const std::regex route_70("^/docs/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, route_70)) return true;
+    static const std::regex route_74("^/locations/([^/]+)$");
+    if (method == "PATCH" && std::regex_match(route_path, route_74)) return false;
+    static const std::regex route_75("^/locations/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, route_75)) return false;
     static const std::regex route_46("^/projects/([^/]+)/history$");
     if (method == "GET" && std::regex_match(route_path, route_46)) return false;
-    static const std::regex route_62("^/projects/([^/]+)/encryption\\-check$");
-    if (method == "GET" && std::regex_match(route_path, route_62)) return false;
-    static const std::regex route_64("^/projects/([^/]+)/repair\\-hierarchy$");
-    if (method == "POST" && std::regex_match(route_path, route_64)) return false;
-    static const std::regex route_81("^/locations/([^/]+)/binding$");
-    if (method == "PUT" && std::regex_match(route_path, route_81)) return false;
-    static const std::regex route_82("^/locations/([^/]+)/binding$");
-    if (method == "DELETE" && std::regex_match(route_path, route_82)) return false;
-    static const std::regex route_83("^/locations/([^/]+)/test$");
-    if (method == "POST" && std::regex_match(route_path, route_83)) return false;
-    static const std::regex route_57("^/projects/([^/]+)/git/test\\-remote$");
-    if (method == "POST" && std::regex_match(route_path, route_57)) return false;
-    static const std::regex route_58("^/projects/([^/]+)/git/push$");
-    if (method == "POST" && std::regex_match(route_path, route_58)) return false;
-    static const std::regex route_59("^/projects/([^/]+)/git/pull$");
+    static const std::regex route_57("^/projects/([^/]+)/encryption\\-check$");
+    if (method == "GET" && std::regex_match(route_path, route_57)) return false;
+    static const std::regex route_59("^/projects/([^/]+)/repair\\-hierarchy$");
     if (method == "POST" && std::regex_match(route_path, route_59)) return false;
-    static const std::regex route_60("^/projects/([^/]+)/git/sync$");
-    if (method == "POST" && std::regex_match(route_path, route_60)) return false;
-    static const std::regex route_61("^/projects/([^/]+)/git/sync\\-status$");
-    if (method == "GET" && std::regex_match(route_path, route_61)) return false;
-    static const std::regex route_86("^/projects/([^/]+)/recovery\\-token/export$");
-    if (method == "POST" && std::regex_match(route_path, route_86)) return false;
-    static const std::regex route_87("^/projects/([^/]+)/recovery\\-token/import$");
-    if (method == "POST" && std::regex_match(route_path, route_87)) return false;
+    static const std::regex route_76("^/locations/([^/]+)/binding$");
+    if (method == "PUT" && std::regex_match(route_path, route_76)) return false;
+    static const std::regex route_77("^/locations/([^/]+)/binding$");
+    if (method == "DELETE" && std::regex_match(route_path, route_77)) return false;
+    static const std::regex route_78("^/locations/([^/]+)/test$");
+    if (method == "POST" && std::regex_match(route_path, route_78)) return false;
+    static const std::regex route_81("^/projects/([^/]+)/recovery\\-token/export$");
+    if (method == "POST" && std::regex_match(route_path, route_81)) return false;
+    static const std::regex route_82("^/projects/([^/]+)/recovery\\-token/import$");
+    if (method == "POST" && std::regex_match(route_path, route_82)) return false;
     static const std::regex route_43("^/locations/([^/]+)/oauth/google\\-drive/authorize$");
     if (method == "POST" && std::regex_match(route_path, route_43)) return false;
     static const std::regex route_44("^/locations/([^/]+)/oauth/google\\-drive/callback$");

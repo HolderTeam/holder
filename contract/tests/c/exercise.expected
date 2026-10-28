@@ -42,3 +42,4 @@ create a project: status 0, p5 Garden privacy 1
 create a project with an unknown privacy mode: status 1, new_project.privacy_mode is not a holder_new_project_privacy_mode value
 list projects: status 0, 1 found
 list projects in an unknown order: status 1, order is not a holder_list_projects_order value
+sync a project with no remote: status 0, result 2, pull 3, push 1

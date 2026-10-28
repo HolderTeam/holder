@@ -194,7 +194,7 @@ public class GitSyncService : Object {
                                                                          string remote_url,
                                                                          string branch) throws Error {
         yield api.set_project_git_remote(project_id, remote_url);
-        var test_result = yield api.test_project_git_remote(project_id, remote_url, branch);
+        var test_result = yield api.test_project_git_remote(project_id, remote_url);
         GitPushResult? push_result = null;
         if (test_result.status == "reachable") {
             push_result = yield api.push_project_git(project_id, branch, true);

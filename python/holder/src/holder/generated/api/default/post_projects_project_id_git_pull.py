@@ -7,19 +7,13 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_git_sync_operation_response import (
-    ProjectGitSyncOperationResponse,
-)
-from ...models.project_git_sync_request import ProjectGitSyncRequest
-from ...types import UNSET, Response, Unset
+from ...models.sync_result_response import SyncResultResponse
+from ...types import Response
 
 
 def _get_kwargs(
     project_id: str,
-    *,
-    body: ProjectGitSyncRequest | Unset = UNSET,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -28,20 +22,14 @@ def _get_kwargs(
         ),
     }
 
-    if not isinstance(body, Unset):
-        _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectGitSyncOperationResponse | None:
+) -> ErrorResponse | SyncResultResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectGitSyncOperationResponse.from_dict(response.json())
+        response_200 = SyncResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -60,10 +48,20 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
+
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -73,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectGitSyncOperationResponse]:
+) -> Response[ErrorResponse | SyncResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -86,29 +84,28 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitSyncRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitSyncOperationResponse]:
-    """Pull and reconcile a project immediately
+) -> Response[ErrorResponse | SyncResultResponse]:
+    """Pull a project's checked-out branch from its Git remote.
 
-     Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution,
-    then reconciles the SQLite index before returning. Concurrent Git operations for the same project
-    are serialized. Git failures are reported in the result, not as HTTP errors.
+     Changes fast-forward, or merge card by card where both sides changed, and the project's index is
+    updated
+    before the result returns. A Git failure is an outcome in the result, recorded in the sync state.
+    Git work on
+    one project runs one at a time.
 
     Args:
         project_id (str):
-        body (ProjectGitSyncRequest | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitSyncOperationResponse]
+        Response[ErrorResponse | SyncResultResponse]
     """
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -122,30 +119,29 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitSyncRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitSyncOperationResponse | None:
-    """Pull and reconcile a project immediately
+) -> ErrorResponse | SyncResultResponse | None:
+    """Pull a project's checked-out branch from its Git remote.
 
-     Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution,
-    then reconciles the SQLite index before returning. Concurrent Git operations for the same project
-    are serialized. Git failures are reported in the result, not as HTTP errors.
+     Changes fast-forward, or merge card by card where both sides changed, and the project's index is
+    updated
+    before the result returns. A Git failure is an outcome in the result, recorded in the sync state.
+    Git work on
+    one project runs one at a time.
 
     Args:
         project_id (str):
-        body (ProjectGitSyncRequest | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitSyncOperationResponse
+        ErrorResponse | SyncResultResponse
     """
 
     return sync_detailed(
         project_id=project_id,
         client=client,
-        body=body,
     ).parsed
 
 
@@ -153,29 +149,28 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitSyncRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitSyncOperationResponse]:
-    """Pull and reconcile a project immediately
+) -> Response[ErrorResponse | SyncResultResponse]:
+    """Pull a project's checked-out branch from its Git remote.
 
-     Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution,
-    then reconciles the SQLite index before returning. Concurrent Git operations for the same project
-    are serialized. Git failures are reported in the result, not as HTTP errors.
+     Changes fast-forward, or merge card by card where both sides changed, and the project's index is
+    updated
+    before the result returns. A Git failure is an outcome in the result, recorded in the sync state.
+    Git work on
+    one project runs one at a time.
 
     Args:
         project_id (str):
-        body (ProjectGitSyncRequest | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitSyncOperationResponse]
+        Response[ErrorResponse | SyncResultResponse]
     """
 
     kwargs = _get_kwargs(
         project_id=project_id,
-        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -187,30 +182,29 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitSyncRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitSyncOperationResponse | None:
-    """Pull and reconcile a project immediately
+) -> ErrorResponse | SyncResultResponse | None:
+    """Pull a project's checked-out branch from its Git remote.
 
-     Fetches the configured remote, fast-forwards or applies Holder's card-level conflict resolution,
-    then reconciles the SQLite index before returning. Concurrent Git operations for the same project
-    are serialized. Git failures are reported in the result, not as HTTP errors.
+     Changes fast-forward, or merge card by card where both sides changed, and the project's index is
+    updated
+    before the result returns. A Git failure is an outcome in the result, recorded in the sync state.
+    Git work on
+    one project runs one at a time.
 
     Args:
         project_id (str):
-        body (ProjectGitSyncRequest | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitSyncOperationResponse
+        ErrorResponse | SyncResultResponse
     """
 
     return (
         await asyncio_detailed(
             project_id=project_id,
             client=client,
-            body=body,
         )
     ).parsed

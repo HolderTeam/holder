@@ -128,6 +128,7 @@ endif()
 
 set(HOLDER_CORE_SOURCES
   src/api/Cards.cpp
+  src/api/Git.cpp
   src/api/Links.cpp
   src/api/Milestones.cpp
   src/api/Projects.cpp
