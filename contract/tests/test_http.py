@@ -254,7 +254,8 @@ def daemon_document(paths):
 def test_merge_adds_the_contracts_routes_beside_the_daemons():
     card = "/projects/{project_id}/cards/{card_id}"
     merged = merge(daemon_document({card: {"put": {"responses": {"200": {}}}},
-                                    card + "/breadcrumbs": {"get": {"responses": {"200": {}}}}}), openapi())
+                                    "/projects/{project_id}/repair-hierarchy": {
+                                        "post": {"responses": {"200": {}}}}}), openapi())
     assert list(merged["paths"][card]) == ["get", "put", "patch", "delete"]
     assert merged["paths"][card]["get"]["responses"]["401"]["description"] == "Unauthorized"
     assert merged["components"]["securitySchemes"] == {"bearer": {"type": "http"}}

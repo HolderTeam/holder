@@ -99,7 +99,7 @@ from .calendar_response import CalendarResponse
 from .card import Card
 from .card_breadcrumb import CardBreadcrumb
 from .card_breadcrumb_kind import CardBreadcrumbKind
-from .card_breadcrumbs_response import CardBreadcrumbsResponse
+from .card_breadcrumb_list_response import CardBreadcrumbListResponse
 from .card_context_breadcrumb import CardContextBreadcrumb
 from .card_context_breadcrumb_type import CardContextBreadcrumbType
 from .card_context_card import CardContextCard
@@ -401,7 +401,7 @@ __all__ = (
     "Card",
     "CardBreadcrumb",
     "CardBreadcrumbKind",
-    "CardBreadcrumbsResponse",
+    "CardBreadcrumbListResponse",
     "CardContextBreadcrumb",
     "CardContextBreadcrumbType",
     "CardContextCard",

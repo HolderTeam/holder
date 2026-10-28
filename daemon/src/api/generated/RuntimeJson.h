@@ -574,14 +574,6 @@ template <> struct codec<holder::api::ProjectEncryptionCheckResponse> {
     static json encode(const holder::api::ProjectEncryptionCheckResponse& value);
     static holder::api::ProjectEncryptionCheckResponse decode(const json& value);
 };
-template <> struct codec<holder::api::CardBreadcrumb> {
-    static json encode(const holder::api::CardBreadcrumb& value);
-    static holder::api::CardBreadcrumb decode(const json& value);
-};
-template <> struct codec<holder::api::CardBreadcrumbsResponse> {
-    static json encode(const holder::api::CardBreadcrumbsResponse& value);
-    static holder::api::CardBreadcrumbsResponse decode(const json& value);
-};
 template <> struct codec<holder::api::HierarchyRepairMove> {
     static json encode(const holder::api::HierarchyRepairMove& value);
     static holder::api::HierarchyRepairMove decode(const json& value);
@@ -3267,45 +3259,6 @@ inline holder::api::ProjectEncryptionCheckResponse codec<holder::api::ProjectEnc
     return holder::api::ProjectEncryptionCheckResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ProjectEncryptionCheckResponseData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::CardBreadcrumb>::encode(const holder::api::CardBreadcrumb& value) {
-    json result = json::object();
-    if (value.kind != "project" && value.kind != "card") throw std::invalid_argument("invalid kind");
-    result["kind"] = codec<std::string>::encode(value.kind);
-    result["id"] = codec<std::string>::encode(value.id);
-    result["title"] = codec<std::string>::encode(value.title);
-    return result;
-}
-inline holder::api::CardBreadcrumb codec<holder::api::CardBreadcrumb>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardBreadcrumb");
-    if (!value.contains("kind")) throw std::invalid_argument("missing kind");
-    if (!value.contains("id")) throw std::invalid_argument("missing id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (value.at("kind") != "project" && value.at("kind") != "card") throw std::invalid_argument("invalid kind");
-    return holder::api::CardBreadcrumb{
-        codec<std::string>::decode(value.at("kind")),
-        codec<std::string>::decode(value.at("id")),
-        codec<std::string>::decode(value.at("title")),
-    };
-}
-
-inline json codec<holder::api::CardBreadcrumbsResponse>::encode(const holder::api::CardBreadcrumbsResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::CardBreadcrumb>>::encode(value.data);
-    return result;
-}
-inline holder::api::CardBreadcrumbsResponse codec<holder::api::CardBreadcrumbsResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected CardBreadcrumbsResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::CardBreadcrumbsResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::CardBreadcrumb>>::decode(value.at("data")),
     };
 }
 

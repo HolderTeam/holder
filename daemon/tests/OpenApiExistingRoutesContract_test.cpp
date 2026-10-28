@@ -304,7 +304,7 @@ TEST_CASE(
   require_json_response_ref(operation, "200", "CardListItemPageResponse");
   const auto breadcrumbs =
       document["paths"]["/projects/{project_id}/cards/{card_id}/breadcrumbs"]["get"];
-  require_json_response_ref(breadcrumbs, "200", "CardBreadcrumbsResponse");
+  require_json_response_ref(breadcrumbs, "200", "CardBreadcrumbListResponse");
   CHECK(breadcrumbs["responses"]["409"].IsDefined());
   CHECK(
       required_properties(document["components"]["schemas"]["CardListItemPage"]) ==

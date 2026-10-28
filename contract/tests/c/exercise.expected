@@ -6,6 +6,7 @@ get: status 0, Thesis, deleted_at NULL
 get a missing card: status 100, card not found: c9
 get a card in another project: status 100, card not found: c1
 get with an empty ID: status 1, card_id must not be empty
+breadcrumbs: status 0, 2 steps, Project then Thesis
 list all: status 0, 2 cards, content absent, child_count absent, next_cursor NULL
 list roots with content and counts: status 0, 1 card, 'Intro #draft', 1 child
 list children of c1, one per page: status 0, Chapter 1

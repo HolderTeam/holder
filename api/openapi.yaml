@@ -3493,26 +3493,28 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/cards/{card_id}/breadcrumbs:
     get:
-      summary: Read a live card's project-to-card breadcrumb trail
-      description: Traverses only the requested card's live ancestors. A missing or trashed card returns
-        404; a broken or cyclic ancestor chain returns 409 rather than a partial trail.
+      summary: Read a live card's path from its project root.
+      description: 'The project comes first, then live ancestor cards and the requested card. A missing
+        or trashed
+
+        card is not found; a broken or cyclic ancestor chain is invalid.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: card_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/CardId'}
       responses:
         '200':
-          description: Project and live card path
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CardBreadcrumbsResponse'}
+              schema: {$ref: '#/components/schemas/CardBreadcrumbListResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -3522,17 +3524,17 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project or card not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Card's ancestor chain is broken or cyclic
+          description: A card's ancestor chain is broken, cyclic or too deep to follow.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6971,25 +6973,29 @@ components:
       title: Card
       description: A card, with its content and tags.
     CardBreadcrumb:
-      type: object
       properties:
         kind:
           type: string
           enum: [project, card]
-        id: {type: string}
-        title: {type: string}
-      required: [kind, id, title]
-    CardBreadcrumbsResponse:
+          title: Kind
+          description: Whether this step names the project or a card.
+        id: {type: string, title: Id, description: The project or card ID.}
+        title: {type: string, title: Title, description: The project or card title.}
+      additionalProperties: false
       type: object
+      required: [kind, id, title]
+      title: CardBreadcrumb
+      description: One project or live card in a card's path from its project root.
+    CardBreadcrumbListResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
+        ok: {type: boolean, const: true, title: Ok}
         data:
-          type: array
           items: {$ref: '#/components/schemas/CardBreadcrumb'}
-          description: Project first, then live ancestor cards from root to the requested card.
+          type: array
+          title: Data
+      type: object
       required: [ok, data]
+      title: CardBreadcrumbListResponse
     CardContextBreadcrumb:
       type: object
       properties:

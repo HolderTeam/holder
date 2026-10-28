@@ -55,6 +55,11 @@ int main(void) {
     status = holder_get_card(context, "p1", "", arena, &card, &error);
     report("get with an empty ID", status, &error);
 
+    const holder_card_breadcrumb_list* breadcrumbs = NULL;
+    status = holder_get_card_breadcrumbs(context, "p1", "c1", arena, &breadcrumbs, &error);
+    printf("breadcrumbs: status %d, %zu steps, %s then %s\n", status, breadcrumbs->count,
+           breadcrumbs->items[0].title, breadcrumbs->items[1].title);
+
     const holder_card_list_item_page* page = NULL;
     holder_list_cards_parent all = {0};
     status = holder_list_cards(context, "p1", all, NULL, HOLDER_LIST_CARDS_ORDER_DEFAULT, NULL, NULL, false, false,

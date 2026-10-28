@@ -44,6 +44,13 @@ Card get_card(holder_context& context, std::string project_id, std::string card_
   return live_card(context, project_id, card_id);
 }
 
+std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id,
+                                                 std::string card_id) {
+  live_card(context, project_id, card_id);
+  return {{CardBreadcrumbKind::Project, project_id, "Project"},
+          {CardBreadcrumbKind::Card, card_id, "Thesis"}};
+}
+
 Page<CardListItem> list_cards(holder_context& context, std::string project_id, std::optional<ListCardsParent> parent,
                               std::optional<std::string> tag, ListCardsOrder order, std::int32_t limit,
                               std::optional<std::string> cursor, bool include_content, bool include_child_count) {

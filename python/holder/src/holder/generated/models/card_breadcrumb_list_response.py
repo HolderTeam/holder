@@ -11,15 +11,15 @@ if TYPE_CHECKING:
     from ..models.card_breadcrumb import CardBreadcrumb
 
 
-T = TypeVar("T", bound="CardBreadcrumbsResponse")
+T = TypeVar("T", bound="CardBreadcrumbListResponse")
 
 
 @_attrs_define
-class CardBreadcrumbsResponse:
+class CardBreadcrumbListResponse:
     """
     Attributes:
         ok (bool):
-        data (list[CardBreadcrumb]): Project first, then live ancestor cards from root to the requested card.
+        data (list[CardBreadcrumb]):
     """
 
     ok: bool
@@ -59,13 +59,13 @@ class CardBreadcrumbsResponse:
 
             data.append(data_item)
 
-        card_breadcrumbs_response = cls(
+        card_breadcrumb_list_response = cls(
             ok=ok,
             data=data,
         )
 
-        card_breadcrumbs_response.additional_properties = d
-        return card_breadcrumbs_response
+        card_breadcrumb_list_response.additional_properties = d
+        return card_breadcrumb_list_response
 
     @property
     def additional_keys(self) -> list[str]:

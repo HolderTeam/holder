@@ -26,6 +26,17 @@ class CardSummary(Record):
     """When the card was moved to the trash; null when it is not in the trash."""
 
 
+class CardBreadcrumb(Record):
+    """One project or live card in a card's path from its project root."""
+
+    kind: Literal["project", "card"]
+    """Whether this step names the project or a card."""
+    id: str
+    """The project or card ID."""
+    title: str
+    """The project or card title."""
+
+
 class CardMetadata(Record):
     """Everything about a card except its content."""
 
