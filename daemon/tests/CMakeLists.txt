@@ -176,7 +176,6 @@ add_executable(holder_daemon_tests
   ../src/api/routes/ai/runs/AiRunQueryRoutes.cpp
   ../src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
   ../src/api/CardReferenceResolve.cpp
-  ../src/api/Search.cpp
   ../src/api/StaticFiles.cpp
   ../src/api/support/PathDiscovery.cpp
   ../src/platform/InstalledDataPath.cpp

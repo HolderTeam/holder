@@ -141,7 +141,7 @@ TEST_CASE("HTTP search endpoints reject missing params", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(missing_project["ok"] == false);
-  REQUIRE(missing_project["error"]["code"] == "bad_request");
+  REQUIRE(missing_project["error"]["code"] == "invalid_argument");
   REQUIRE(missing_project["error"]["message"].is_string());
 
   const auto missing_q = http_json_request(
@@ -154,7 +154,7 @@ TEST_CASE("HTTP search endpoints reject missing params", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(missing_q["ok"] == false);
-  REQUIRE(missing_q["error"]["code"] == "bad_request");
+  REQUIRE(missing_q["error"]["code"] == "invalid_argument");
   REQUIRE(missing_q["error"]["message"].is_string());
 
   std::raise(SIGTERM);

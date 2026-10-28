@@ -38,7 +38,7 @@ TEST_CASE("Search reports an invalid FTS query as a bad request", "[search-route
     const auto [status, payload] =
         search(db, &fts, std::string(path) + "?project_id=proj-1&q=%22unbalanced");
     CHECK(status == http::status::bad_request);
-    CHECK(payload["error"]["code"] == "bad_request");
+    CHECK(payload["error"]["code"] == "invalid_argument");
   }
 }
 
@@ -69,8 +69,8 @@ TEST_CASE("Search validates its parameters", "[search-routes]") {
           http::status::bad_request);
   }
   const auto [status, payload] = search(db, nullptr, "/search/ai?project_id=proj-1&q=needle");
-  CHECK(status == http::status::not_implemented);
-  CHECK(payload["error"]["code"] == "not_implemented");
+  CHECK(status == http::status::ok);
+  CHECK(payload["data"].empty());
 }
 
 TEST_CASE("Search routes leave unrelated paths alone", "[search-routes]") {

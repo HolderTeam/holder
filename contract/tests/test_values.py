@@ -25,12 +25,13 @@ def pydantic_type(name: str):
     import interface.milestones
     import interface.projects
     import interface.resources
+    import interface.search
     import interface.trash
 
     if name == "Page":
         return interface.cards.Page[interface.cards.CardListItem]
     for module in (interface.cards, interface.git, interface.history, interface.links, interface.milestones,
-                   interface.projects, interface.resources, interface.trash):
+                   interface.projects, interface.resources, interface.search, interface.trash):
         if hasattr(module, name):
             return getattr(module, name)
     raise AttributeError(name)

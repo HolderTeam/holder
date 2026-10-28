@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -600,6 +600,14 @@ template <> struct codec<holder::contract::TrashEmptyResult> {
 template <> struct codec<holder::contract::TrashDeleteResult> {
     static json encode(const holder::contract::TrashDeleteResult& value);
     static holder::contract::TrashDeleteResult decode(const json& value);
+};
+template <> struct codec<holder::contract::SearchCard> {
+    static json encode(const holder::contract::SearchCard& value);
+    static holder::contract::SearchCard decode(const json& value);
+};
+template <> struct codec<holder::contract::SearchMessage> {
+    static json encode(const holder::contract::SearchMessage& value);
+    static holder::contract::SearchMessage decode(const json& value);
 };
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
@@ -2551,6 +2559,100 @@ inline holder::contract::TrashDeleteResult codec<holder::contract::TrashDeleteRe
     if (value.contains("message_id") && !value.at("message_id").is_null()) {
         const auto& item = value.at("message_id");
         out.message_id = check_text(decode_field<std::string>(item, "message_id"), "message_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::SearchCard>::encode(const holder::contract::SearchCard& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["snippet"] = codec<std::string>::encode(value.snippet);
+    result["rank"] = codec<double>::encode(value.rank);
+    return result;
+}
+inline holder::contract::SearchCard codec<holder::contract::SearchCard>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a SearchCard object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "title" && it.key() != "updated_at" && it.key() != "created_at" && it.key() != "snippet" && it.key() != "rank") throw std::invalid_argument("SearchCard has no field " + it.key());
+    holder::contract::SearchCard out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("snippet") && !value.at("snippet").is_null()) {
+        const auto& item = value.at("snippet");
+        out.snippet = check_text(decode_field<std::string>(item, "snippet"), "snippet", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("snippet is required and must not be null");
+    }
+    if (value.contains("rank") && !value.at("rank").is_null()) {
+        const auto& item = value.at("rank");
+        out.rank = decode_field<double>(item, "rank");
+    } else {
+        throw std::invalid_argument("rank is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::SearchMessage>::encode(const holder::contract::SearchMessage& value) {
+    json result = json::object();
+    result["message_id"] = codec<std::string>::encode(value.message_id);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["snippet"] = codec<std::string>::encode(value.snippet);
+    result["rank"] = codec<double>::encode(value.rank);
+    return result;
+}
+inline holder::contract::SearchMessage codec<holder::contract::SearchMessage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a SearchMessage object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "message_id" && it.key() != "created_at" && it.key() != "snippet" && it.key() != "rank") throw std::invalid_argument("SearchMessage has no field " + it.key());
+    holder::contract::SearchMessage out;
+    if (value.contains("message_id") && !value.at("message_id").is_null()) {
+        const auto& item = value.at("message_id");
+        out.message_id = check_text(decode_field<std::string>(item, "message_id"), "message_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("message_id is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("snippet") && !value.at("snippet").is_null()) {
+        const auto& item = value.at("snippet");
+        out.snippet = check_text(decode_field<std::string>(item, "snippet"), "snippet", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("snippet is required and must not be null");
+    }
+    if (value.contains("rank") && !value.at("rank").is_null()) {
+        const auto& item = value.at("rank");
+        out.rank = decode_field<double>(item, "rank");
+    } else {
+        throw std::invalid_argument("rank is required and must not be null");
     }
     return out;
 }

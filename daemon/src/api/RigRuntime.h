@@ -36,5 +36,4 @@
 #include "api/RecoveryToken.h"
 #include "api/Reindex.h"
 #include "api/Schemas.h"
-#include "api/Search.h"
 #include "api/Streams.h"

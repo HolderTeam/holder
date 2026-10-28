@@ -285,6 +285,15 @@ int main(void) {
                                              &removed, &error);
     printf("delete project trash item: status %d, message %s\n", status, removed->message_id);
 
+    const holder_search_card_list* search_cards = NULL;
+    status = holder_search_cards(context, project_id, "found", NULL, 0, arena, &search_cards, &error);
+    printf("search cards: status %d, %zu matches\n", status, search_cards->count);
+
+    const holder_search_message_list* search_messages = NULL;
+    status = holder_search_ai_messages(context, project_id, "found", NULL, 0, arena,
+                                       &search_messages, &error);
+    printf("search messages: status %d, %zu matches\n", status, search_messages->count);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

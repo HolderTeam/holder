@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -362,6 +362,10 @@ holder_trash_item to_c(holder_arena* arena, const contract::TrashItem& value);
 holder_trash_item_list to_c_list(holder_arena* arena, const std::vector<contract::TrashItem>& values);
 holder_trash_empty_result to_c(holder_arena* arena, const contract::TrashEmptyResult& value);
 holder_trash_delete_result to_c(holder_arena* arena, const contract::TrashDeleteResult& value);
+holder_search_card to_c(holder_arena* arena, const contract::SearchCard& value);
+holder_search_card_list to_c_list(holder_arena* arena, const std::vector<contract::SearchCard>& values);
+holder_search_message to_c(holder_arena* arena, const contract::SearchMessage& value);
+holder_search_message_list to_c_list(holder_arena* arena, const std::vector<contract::SearchMessage>& values);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -883,6 +887,38 @@ holder_trash_delete_result to_c(holder_arena* arena, const contract::TrashDelete
   out.card_id = copy_text(arena, value.card_id);
   out.message_id = copy_text(arena, value.message_id);
   return out;
+}
+
+holder_search_card to_c(holder_arena* arena, const contract::SearchCard& value) {
+  holder_search_card out{};
+  out.card_id = copy(arena, value.card_id);
+  out.title = copy(arena, value.title);
+  out.updated_at = value.updated_at;
+  out.created_at = value.created_at;
+  out.snippet = copy(arena, value.snippet);
+  out.rank = value.rank;
+  return out;
+}
+
+holder_search_card_list to_c_list(holder_arena* arena, const std::vector<contract::SearchCard>& values) {
+  auto* items = make<holder_search_card>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_search_message to_c(holder_arena* arena, const contract::SearchMessage& value) {
+  holder_search_message out{};
+  out.message_id = copy(arena, value.message_id);
+  out.created_at = value.created_at;
+  out.snippet = copy(arena, value.snippet);
+  out.rank = value.rank;
+  return out;
+}
+
+holder_search_message_list to_c_list(holder_arena* arena, const std::vector<contract::SearchMessage>& values) {
+  auto* items = make<holder_search_message>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
 }
 
 contract::NewCard from_c(const holder_new_card& value) {
@@ -1804,6 +1840,36 @@ int holder_delete_project_trash_item(holder_context* context, const char* projec
     auto* out = make<holder_trash_delete_result>(arena);
     *out = to_c(arena, contract::delete_project_trash_item(*context, project_id_value, type_value, id_value));
     *out_trash_delete_result = out;
+  });
+}
+
+int holder_search_cards(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_card_list** out_search_card_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_search_card_list != nullptr, "out_search_card_list must not be null");
+    *out_search_card_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto q_value = text(q, "q", 1, SIZE_MAX);
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, std::numeric_limits<std::int32_t>::max()) : std::int32_t{20});
+    const auto offset_value = in_range<std::int32_t>(offset, "offset", 0, std::numeric_limits<std::int32_t>::max());
+    auto* out = make<holder_search_card_list>(arena);
+    *out = to_c_list(arena, contract::search_cards(*context, project_id_value, q_value, limit_value, offset_value));
+    *out_search_card_list = out;
+  });
+}
+
+int holder_search_ai_messages(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_message_list** out_search_message_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_search_message_list != nullptr, "out_search_message_list must not be null");
+    *out_search_message_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto q_value = text(q, "q", 1, SIZE_MAX);
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, std::numeric_limits<std::int32_t>::max()) : std::int32_t{20});
+    const auto offset_value = in_range<std::int32_t>(offset, "offset", 0, std::numeric_limits<std::int32_t>::max());
+    auto* out = make<holder_search_message_list>(arena);
+    *out = to_c_list(arena, contract::search_ai_messages(*context, project_id_value, q_value, limit_value, offset_value));
+    *out_search_message_list = out;
   });
 }
 

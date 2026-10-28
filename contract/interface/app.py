@@ -40,6 +40,7 @@ from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
 from .resources import NewResource, Resource, ResourceId, ResourceUpdate
+from .search import SearchCard, SearchMessage
 from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 
 contract = Contract(statuses={
@@ -667,3 +668,23 @@ def delete_project_trash_item(
 
     Old Git revisions of cards remain available.
     """
+
+
+@contract.route("GET", "/search/cards")
+def search_cards(
+    project_id: Annotated[ProjectId, Query(description="The project to search.")],
+    q: Annotated[str, Query(min_length=1, description="An SQLite FTS5 query for card titles and bodies.")],
+    limit: Annotated[Int32, Query(ge=1)] = 20,
+    offset: Annotated[Int32, Query(ge=0)] = 0,
+) -> list[SearchCard]:
+    """Search a project's cards, ordered by relevance, best first."""
+
+
+@contract.route("GET", "/search/ai")
+def search_ai_messages(
+    project_id: Annotated[ProjectId, Query(description="The project to search.")],
+    q: Annotated[str, Query(min_length=1, description="An SQLite FTS5 query for AI message content.")],
+    limit: Annotated[Int32, Query(ge=1)] = 20,
+    offset: Annotated[Int32, Query(ge=0)] = 0,
+) -> list[SearchMessage]:
+    """Search a project's AI messages, ordered by relevance, best first."""

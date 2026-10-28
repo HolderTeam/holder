@@ -5827,34 +5827,36 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /search/ai:
     get:
-      summary: Search AI messages
-      description: q is an SQLite FTS5 query, matched against message content in one project. Results
-        are ordered by relevance, best first.
+      summary: Search a project's AI messages, ordered by relevance, best first.
+      description: Search a project's AI messages, ordered by relevance, best first.
       parameters:
       - name: project_id
         in: query
         required: true
-        schema: {type: string, minLength: 1}
+        schema: {$ref: '#/components/schemas/ProjectId', description: The project to search.}
+        description: The project to search.
       - name: q
         in: query
         required: true
-        schema: {type: string, minLength: 1}
+        schema: {type: string, minLength: 1, description: An SQLite FTS5 query for AI message content.,
+          title: Q}
+        description: An SQLite FTS5 query for AI message content.
       - name: limit
         in: query
         required: false
-        schema: {type: integer, minimum: 1, default: 20}
+        schema: {type: integer, maximum: 2147483647, minimum: 1, format: int32, default: 20, title: Limit}
       - name: offset
         in: query
         required: false
-        schema: {type: integer, minimum: 0, default: 0}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Offset}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/SearchMessagesResponse'}
+              schema: {$ref: '#/components/schemas/SearchMessageListResponse'}
         '400':
-          description: Bad request, including a q that is not a valid FTS5 query
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5864,45 +5866,42 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no search index
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /search/cards:
     get:
-      summary: Search cards
-      description: q is an SQLite FTS5 query, matched against card titles and bodies in one project. Results
-        are ordered by relevance, best first.
+      summary: Search a project's cards, ordered by relevance, best first.
+      description: Search a project's cards, ordered by relevance, best first.
       parameters:
       - name: project_id
         in: query
         required: true
-        schema: {type: string, minLength: 1}
+        schema: {$ref: '#/components/schemas/ProjectId', description: The project to search.}
+        description: The project to search.
       - name: q
         in: query
         required: true
-        schema: {type: string, minLength: 1}
+        schema: {type: string, minLength: 1, description: An SQLite FTS5 query for card titles and bodies.,
+          title: Q}
+        description: An SQLite FTS5 query for card titles and bodies.
       - name: limit
         in: query
         required: false
-        schema: {type: integer, minimum: 1, default: 20}
+        schema: {type: integer, maximum: 2147483647, minimum: 1, format: int32, default: 20, title: Limit}
       - name: offset
         in: query
         required: false
-        schema: {type: integer, minimum: 0, default: 0}
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Offset}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/SearchCardsResponse'}
+              schema: {$ref: '#/components/schemas/SearchCardListResponse'}
         '400':
-          description: Bad request, including a q that is not a valid FTS5 query
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5912,12 +5911,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no search index
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -8569,44 +8563,55 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/RunnerPullJob'}
       required: [ok, data]
-    SearchCardItem:
-      type: object
+    SearchCard:
       properties:
-        card_id: {type: string}
-        title: {type: string}
-        updated_at: {type: integer, format: int64}
-        created_at: {type: integer, format: int64}
-        snippet: {type: string}
-        rank: {type: number, format: double}
+        card_id: {type: string, title: Card Id, description: The matching card's ID.}
+        title: {type: string, title: Title, description: The card's current title.}
+        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Updated At, description: When the card was last updated.}
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the card was created.}
+        snippet: {type: string, title: Snippet, description: A highlighted excerpt from the match.}
+        rank: {type: number, format: double, title: Rank, description: The FTS relevance score; lower
+            scores rank first.}
+      additionalProperties: false
+      type: object
       required: [card_id, title, updated_at, created_at, snippet, rank]
-    SearchCardsResponse:
-      type: object
+      title: SearchCard
+      description: A card matching a full-text query.
+    SearchCardListResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
+        ok: {type: boolean, const: true, title: Ok}
         data:
+          items: {$ref: '#/components/schemas/SearchCard'}
           type: array
-          items: {$ref: '#/components/schemas/SearchCardItem'}
-      required: [ok, data]
-    SearchMessageItem:
+          title: Data
       type: object
+      required: [ok, data]
+      title: SearchCardListResponse
+    SearchMessage:
       properties:
-        message_id: {type: string}
-        created_at: {type: integer, format: int64}
-        snippet: {type: string}
-        rank: {type: number, format: double}
+        message_id: {type: string, title: Message Id, description: The matching message's ID.}
+        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Created At, description: When the message was created.}
+        snippet: {type: string, title: Snippet, description: A highlighted excerpt from the match.}
+        rank: {type: number, format: double, title: Rank, description: The FTS relevance score; lower
+            scores rank first.}
+      additionalProperties: false
+      type: object
       required: [message_id, created_at, snippet, rank]
-    SearchMessagesResponse:
-      type: object
+      title: SearchMessage
+      description: An AI message matching a full-text query.
+    SearchMessageListResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
+        ok: {type: boolean, const: true, title: Ok}
         data:
+          items: {$ref: '#/components/schemas/SearchMessage'}
           type: array
-          items: {$ref: '#/components/schemas/SearchMessageItem'}
+          title: Data
+      type: object
       required: [ok, data]
+      title: SearchMessageListResponse
     StorageLocation:
       type: object
       properties:
