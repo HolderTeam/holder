@@ -7,9 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.get_projects_project_id_history_kind import (
-    GetProjectsProjectIdHistoryKind,
-)
+from ...models.history_object_kind import HistoryObjectKind
 from ...models.project_history_page_response import ProjectHistoryPageResponse
 from ...types import UNSET, Response, Unset
 
@@ -18,20 +16,28 @@ def _get_kwargs(
     project_id: str,
     *,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
-    kind: GetProjectsProjectIdHistoryKind | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
+    kind: HistoryObjectKind | None | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["limit"] = limit
 
-    params["cursor"] = cursor
+    json_cursor: None | str | Unset
+    if isinstance(cursor, Unset):
+        json_cursor = UNSET
+    else:
+        json_cursor = cursor
+    params["cursor"] = json_cursor
 
-    json_kind: str | Unset = UNSET
-    if not isinstance(kind, Unset):
+    json_kind: None | str | Unset
+    if isinstance(kind, Unset):
+        json_kind = UNSET
+    elif isinstance(kind, HistoryObjectKind):
         json_kind = kind.value
-
+    else:
+        json_kind = kind
     params["kind"] = json_kind
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
@@ -112,19 +118,21 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
-    kind: GetProjectsProjectIdHistoryKind | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
+    kind: HistoryObjectKind | None | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectHistoryPageResponse]:
-    """List project activity history
+    """Return bounded, cursor-paginated Git activities for a project.
 
-     Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed
-    paths by recognised Holder object kind; unknown paths remain visible as unknown.
+     Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as
+    unknown.
+    A missing decryption key is HistoryKeyUnavailable; other history read failures are
+    HistoryUnavailable.
 
     Args:
         project_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
-        kind (GetProjectsProjectIdHistoryKind | Unset):
+        cursor (None | str | Unset): A full commit OID from next_cursor.
+        kind (HistoryObjectKind | None | Unset): Only activities affecting this object kind.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -153,19 +161,21 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
-    kind: GetProjectsProjectIdHistoryKind | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
+    kind: HistoryObjectKind | None | Unset = UNSET,
 ) -> ErrorResponse | ProjectHistoryPageResponse | None:
-    """List project activity history
+    """Return bounded, cursor-paginated Git activities for a project.
 
-     Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed
-    paths by recognised Holder object kind; unknown paths remain visible as unknown.
+     Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as
+    unknown.
+    A missing decryption key is HistoryKeyUnavailable; other history read failures are
+    HistoryUnavailable.
 
     Args:
         project_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
-        kind (GetProjectsProjectIdHistoryKind | Unset):
+        cursor (None | str | Unset): A full commit OID from next_cursor.
+        kind (HistoryObjectKind | None | Unset): Only activities affecting this object kind.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,19 +199,21 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
-    kind: GetProjectsProjectIdHistoryKind | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
+    kind: HistoryObjectKind | None | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectHistoryPageResponse]:
-    """List project activity history
+    """Return bounded, cursor-paginated Git activities for a project.
 
-     Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed
-    paths by recognised Holder object kind; unknown paths remain visible as unknown.
+     Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as
+    unknown.
+    A missing decryption key is HistoryKeyUnavailable; other history read failures are
+    HistoryUnavailable.
 
     Args:
         project_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
-        kind (GetProjectsProjectIdHistoryKind | Unset):
+        cursor (None | str | Unset): A full commit OID from next_cursor.
+        kind (HistoryObjectKind | None | Unset): Only activities affecting this object kind.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -228,19 +240,21 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
-    cursor: str | Unset = UNSET,
-    kind: GetProjectsProjectIdHistoryKind | Unset = UNSET,
+    cursor: None | str | Unset = UNSET,
+    kind: HistoryObjectKind | None | Unset = UNSET,
 ) -> ErrorResponse | ProjectHistoryPageResponse | None:
-    """List project activity history
+    """Return bounded, cursor-paginated Git activities for a project.
 
-     Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed
-    paths by recognised Holder object kind; unknown paths remain visible as unknown.
+     Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as
+    unknown.
+    A missing decryption key is HistoryKeyUnavailable; other history read failures are
+    HistoryUnavailable.
 
     Args:
         project_id (str):
         limit (int | Unset):  Default: 50.
-        cursor (str | Unset):
-        kind (GetProjectsProjectIdHistoryKind | Unset):
+        cursor (None | str | Unset): A full commit OID from next_cursor.
+        kind (HistoryObjectKind | None | Unset): Only activities affecting this object kind.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

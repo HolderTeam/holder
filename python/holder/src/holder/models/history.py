@@ -19,7 +19,7 @@ from ..generated.models import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode as CompareMode,
 )
 from ..generated.models import (
-    GetProjectsProjectIdHistoryKind as ActivityKind,
+    HistoryObjectKind as ActivityKind,
 )
 from ..generated.types import UNSET, Unset
 

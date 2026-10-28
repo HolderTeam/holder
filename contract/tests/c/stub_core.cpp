@@ -420,6 +420,15 @@ RemoteTestResult test_project_remote(holder_context& context, std::string projec
   project_named(context, project_id);
   return {project_id, RemoteTestResultStatus::RemoteUnset, remote.remote_url, false, std::nullopt};
 }
+
+ProjectHistoryPage list_project_history(holder_context& context, std::string project_id, std::int32_t limit,
+                                        std::optional<std::string> cursor, std::optional<ListProjectHistoryKind> kind) {
+  project_named(context, project_id);
+  (void)limit;
+  (void)cursor;
+  (void)kind;
+  return {std::nullopt, {}, std::nullopt, false};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

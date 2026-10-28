@@ -8,7 +8,6 @@
 #include "git/RepoLocks.h"
 #include "git/RevisionReferenceResolver.h"
 #include "history/CardHistory.h"
-#include "history/ProjectHistory.h"
 #include "privacy/PrivacyError.h"
 #include "project/ProjectRepo.h"
 
@@ -69,19 +68,6 @@ std::optional<std::string> history_cursor(const std::optional<std::string>& curs
   return cursor;
 }
 
-std::optional<holder::history::ProjectHistoryObjectKind> history_kind(
-    const std::optional<std::string>& kind
-) {
-  using Kind = holder::history::ProjectHistoryObjectKind;
-  if (!kind) return std::nullopt;
-  if (*kind == "card") return Kind::Card;
-  if (*kind == "resource") return Kind::Resource;
-  if (*kind == "location") return Kind::Location;
-  if (*kind == "ai_data") return Kind::AiData;
-  if (*kind == "project_settings") return Kind::ProjectSettings;
-  return Kind::Unknown;
-}
-
 void require_resolved(const holder::git::RevisionReferenceResult& result,
                       const std::string& reference,
                       const std::string& parameter) {
@@ -116,30 +102,6 @@ CardHistoryVersion version_item(const holder::history::CardVersion& version) {
   return {version.exists, version.oid, version.title, version.body};
 }
 
-ProjectHistoryActivity activity_item(const holder::history::ProjectHistoryActivity& activity) {
-  ProjectHistoryActivity item{
-      activity.oid,
-      activity.parent_oids,
-      author(activity.author_name, activity.author_email),
-      activity.authored_at,
-      activity.committed_at,
-      activity.message,
-      {},
-      activity.is_merge,
-  };
-  for (const auto& object : activity.affected_objects) {
-    ProjectHistoryAffectedObject affected{
-        holder::history::project_history_object_kind_name(object.kind), {}, {}};
-    for (const auto& path : object.items) {
-      // paths stays for existing consumers; items adds historical display details.
-      affected.paths.push_back(path.path);
-      affected.items.push_back({path.path, path.title, path.detail});
-    }
-    item.affected_objects.push_back(std::move(affected));
-  }
-  return item;
-}
-
 CardHistoryEntry entry_item(const holder::history::CardHistoryEntry& entry) {
   CardHistoryEntry item{
       entry.first_oid,
@@ -171,24 +133,6 @@ std::optional<long long> line_number(long long value) {
 bool history_key_unavailable(const holder::privacy::PrivacyError& error) {
   return error.code() == holder::privacy::PrivacyErrorCode::KeyMaterialMissing ||
          error.code() == holder::privacy::PrivacyErrorCode::KeyringUnavailable;
-}
-
-ProjectHistoryPageResponse get_project_history(holder::platform::Db& db,
-                                               std::string project_id,
-                                               int limit,
-                                               std::optional<std::string> cursor,
-                                               std::optional<std::string> kind) {
-  return guarded([&] {
-    const auto project = project_or_throw(db, project_id);
-    const auto page = holder::history::ProjectHistoryService().list(
-        project, static_cast<std::size_t>(limit), history_cursor(cursor), history_kind(kind));
-    ProjectHistoryPageResponse response{
-        true, {page.head_oid, {}, page.next_cursor, page.scan_limited}};
-    for (const auto& activity : page.activities) {
-      response.data.activities.push_back(activity_item(activity));
-    }
-    return bounded(std::move(response));
-  });
 }
 
 CardHistoryPageResponse get_card_history(holder::platform::Db& db,

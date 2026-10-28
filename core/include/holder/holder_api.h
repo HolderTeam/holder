@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -29,6 +29,12 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_DATA_CORRUPTED 104
 /* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
 #define HOLDER_ERROR_INVALID_MOVE 105
+/* The project's Git history cannot be read right now. */
+#define HOLDER_ERROR_HISTORY_UNAVAILABLE 106
+/* This device cannot use the encrypted project's key to read its history. */
+#define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 107
+/* The bounded History response would exceed 2 MiB. */
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 108
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -562,6 +568,72 @@ typedef struct holder_remote_test_result {
     const char* error_message; /* Why the remote could not be reached; null when it could. May be NULL. */
 } holder_remote_test_result;
 
+/* The author recorded on a Git commit. */
+typedef struct holder_history_author {
+    const char* name; /* The author's name. */
+    const char* email; /* The author's email address. */
+} holder_history_author;
+
+/* A changed path with any display details found in its historical version. */
+typedef struct holder_history_affected_path {
+    const char* path; /* The path relative to the project root. */
+    const char* title; /* A historical title, when available. NULL when absent. */
+    const char* detail; /* A historical detail, when available. NULL when absent. */
+} holder_history_affected_path;
+
+typedef struct holder_history_affected_path_list {
+    const holder_history_affected_path* items;
+    size_t count;
+} holder_history_affected_path_list;
+
+/* What kind of object these paths belong to. */
+typedef enum holder_history_affected_object_kind {
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_CARD = 1,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_RESOURCE = 2,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_LOCATION = 3,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_AI_DATA = 4,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_PROJECT_SETTINGS = 5,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_UNKNOWN = 6,
+    HOLDER_HISTORY_AFFECTED_OBJECT_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_history_affected_object_kind;
+
+/* Paths changed together in one commit, grouped by Holder object kind. */
+typedef struct holder_history_affected_object {
+    holder_history_affected_object_kind kind; /* What kind of object these paths belong to. */
+    holder_string_list paths; /* The changed paths, retained for existing clients. */
+    holder_history_affected_path_list items; /* The changed paths with historical display details. */
+} holder_history_affected_object;
+
+typedef struct holder_history_affected_object_list {
+    const holder_history_affected_object* items;
+    size_t count;
+} holder_history_affected_object_list;
+
+/* One Git commit affecting a project. */
+typedef struct holder_project_activity {
+    const char* oid; /* The full commit object ID. */
+    holder_string_list parent_oids; /* The commit's parents. */
+    holder_history_author author; /* The commit's author. */
+    int64_t authored_at; /* When the commit was authored. */
+    int64_t committed_at; /* When the commit was committed. */
+    const char* message; /* The commit message. */
+    holder_history_affected_object_list affected_objects; /* Changed paths grouped by Holder object kind. */
+    bool is_merge; /* Whether the commit has multiple parents. */
+} holder_project_activity;
+
+typedef struct holder_project_activity_list {
+    const holder_project_activity* items;
+    size_t count;
+} holder_project_activity_list;
+
+/* One bounded page of project activity, newest first. */
+typedef struct holder_project_history_page {
+    const char* head_oid; /* The project HEAD captured for this page; null for an empty repository. May be NULL. */
+    holder_project_activity_list activities; /* The activities on this page, newest first. */
+    const char* next_cursor; /* The cursor for another page; null at the end. May be NULL. */
+    bool scan_limited; /* Whether History reached its bounded scan before the end. */
+} holder_project_history_page;
+
 /* Fetch a card.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
@@ -924,6 +996,27 @@ int holder_sync_project(holder_context* context, const char* project_id, const h
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_test_project_remote(holder_context* context, const char* project_id, const holder_remote_test* remote, holder_arena* arena, const holder_remote_test_result** out_remote_test_result, holder_error** out_error);
+
+typedef enum holder_list_project_history_kind {
+    HOLDER_LIST_PROJECT_HISTORY_KIND_NONE = 0, /* null */
+    HOLDER_LIST_PROJECT_HISTORY_KIND_CARD = 1,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_RESOURCE = 2,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_LOCATION = 3,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_AI_DATA = 4,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_PROJECT_SETTINGS = 5,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_UNKNOWN = 6,
+    HOLDER_LIST_PROJECT_HISTORY_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_list_project_history_kind;
+
+/* Return bounded, cursor-paginated Git activities for a project.
+ * Each commit groups its changed paths by Holder object kind. Unrecognised paths remain visible as unknown.
+ * A missing decryption key is HistoryKeyUnavailable; other history read failures are HistoryUnavailable.
+ * limit: NULL for 50.
+ * cursor: A full commit OID from next_cursor. May be NULL.
+ * kind: Only activities affecting this object kind. The zero value is null.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
+ */
+int holder_list_project_history(holder_context* context, const char* project_id, const int32_t* limit, const char* cursor, holder_list_project_history_kind kind, holder_arena* arena, const holder_project_history_page** out_project_history_page, holder_error** out_error);
 
 #ifdef __cplusplus
 }

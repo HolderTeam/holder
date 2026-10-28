@@ -188,7 +188,6 @@ from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
 from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
-from .get_projects_project_id_history_kind import GetProjectsProjectIdHistoryKind
 from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
 from .google_drive_authorize_response_data import GoogleDriveAuthorizeResponseData
 from .health_data import HealthData
@@ -198,6 +197,10 @@ from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
 from .hierarchy_repair_request import HierarchyRepairRequest
 from .hierarchy_repair_response import HierarchyRepairResponse
+from .history_affected_object import HistoryAffectedObject
+from .history_affected_path import HistoryAffectedPath
+from .history_author import HistoryAuthor
+from .history_object_kind import HistoryObjectKind
 from .link import Link
 from .link_list_response import LinkListResponse
 from .link_response import LinkResponse
@@ -227,19 +230,14 @@ from .patch_locations_location_id_body_configuration import (
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
 from .privacy_mode import PrivacyMode
 from .project import Project
+from .project_activity import ProjectActivity
 from .project_encryption_check import ProjectEncryptionCheck
 from .project_encryption_check_response import ProjectEncryptionCheckResponse
 from .project_encryption_check_response_data import ProjectEncryptionCheckResponseData
 from .project_encryption_check_response_data_privacy_mode import (
     ProjectEncryptionCheckResponseDataPrivacyMode,
 )
-from .project_history_activity import ProjectHistoryActivity
-from .project_history_affected_object import ProjectHistoryAffectedObject
-from .project_history_affected_object_items_item import (
-    ProjectHistoryAffectedObjectItemsItem,
-)
-from .project_history_affected_object_kind import ProjectHistoryAffectedObjectKind
-from .project_history_page_data import ProjectHistoryPageData
+from .project_history_page import ProjectHistoryPage
 from .project_history_page_response import ProjectHistoryPageResponse
 from .project_list_item import ProjectListItem
 from .project_list_item_list_response import ProjectListItemListResponse
@@ -486,7 +484,6 @@ __all__ = (
     "GetProjectsProjectIdCardsCardIdBacklinksScope",
     "GetProjectsProjectIdCardsOrder",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
-    "GetProjectsProjectIdHistoryKind",
     "GoogleDriveAuthorizeResponse",
     "GoogleDriveAuthorizeResponseData",
     "HealthData",
@@ -496,6 +493,10 @@ __all__ = (
     "HierarchyRepairMove",
     "HierarchyRepairRequest",
     "HierarchyRepairResponse",
+    "HistoryAffectedObject",
+    "HistoryAffectedPath",
+    "HistoryAuthor",
+    "HistoryObjectKind",
     "Link",
     "LinkListResponse",
     "LinkResponse",
@@ -523,15 +524,12 @@ __all__ = (
     "PostAiRunnerPullBody",
     "PrivacyMode",
     "Project",
+    "ProjectActivity",
     "ProjectEncryptionCheck",
     "ProjectEncryptionCheckResponse",
     "ProjectEncryptionCheckResponseData",
     "ProjectEncryptionCheckResponseDataPrivacyMode",
-    "ProjectHistoryActivity",
-    "ProjectHistoryAffectedObject",
-    "ProjectHistoryAffectedObjectItemsItem",
-    "ProjectHistoryAffectedObjectKind",
-    "ProjectHistoryPageData",
+    "ProjectHistoryPage",
     "ProjectHistoryPageResponse",
     "ProjectListItem",
     "ProjectListItemListResponse",

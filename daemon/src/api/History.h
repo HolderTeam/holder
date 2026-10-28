@@ -48,22 +48,6 @@ struct HistoryUnavailable : CodedError {
 // rather than history being unavailable (503).
 bool history_key_unavailable(const holder::privacy::PrivacyError& error);
 
-RIG_ROUTE(GET, "/projects/{project_id}/history")
-RIG_SUMMARY("List project activity history")
-RIG_DESCRIPTION("Returns bounded, cursor-paginated Git activities for the project. Each activity groups its changed paths by recognised Holder object kind; unknown paths remain visible as unknown.")
-RIG_RESPONSE_DESCRIPTION("Project activity history")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid limit, cursor, or object-kind filter", std::invalid_argument)
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project not found", HistoryNotFound)
-RIG_ERROR_RESPONSE(409, ErrorResponse, "The encrypted project key is unavailable on this device", HistoryConflict)
-RIG_ERROR_RESPONSE(413, ErrorResponse, "The bounded History response would exceed 2 MiB", HistoryResponseTooLarge)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Project history is temporarily unavailable", HistoryUnavailable)
-ProjectHistoryPageResponse get_project_history(
-    holder::platform::Db& db RIG_CONTEXT,
-    std::string project_id,
-    int limit RIG_QUERY RIG_RANGE(1, 200) RIG_DEFAULT(50),
-    std::optional<std::string> cursor RIG_QUERY RIG_PARAMETER_DESCRIPTION("A full commit OID from next_cursor."),
-    std::optional<std::string> kind RIG_QUERY RIG_STRING_VALUES("card", "resource", "location", "ai_data", "project_settings", "unknown") RIG_PARAMETER_DESCRIPTION("Return only activities affecting this Holder object kind."));
-
 RIG_ROUTE(GET, "/projects/{project_id}/history/cards/{card_id}")
 RIG_SUMMARY("List saved history for a card")
 RIG_DESCRIPTION("Returns commits reachable from the captured project HEAD that changed the card. Adjacent autosaves may be grouped into one entry.")

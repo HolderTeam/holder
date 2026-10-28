@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -344,6 +344,31 @@ template <> struct codec<holder::contract::RemoteTestResultStatus> {
     }
 };
 
+template <> struct codec<holder::contract::HistoryAffectedObjectKind> {
+    static json encode(holder::contract::HistoryAffectedObjectKind value) {
+        switch (value) {
+        case holder::contract::HistoryAffectedObjectKind::Card: return "card";
+        case holder::contract::HistoryAffectedObjectKind::Resource: return "resource";
+        case holder::contract::HistoryAffectedObjectKind::Location: return "location";
+        case holder::contract::HistoryAffectedObjectKind::AiData: return "ai_data";
+        case holder::contract::HistoryAffectedObjectKind::ProjectSettings: return "project_settings";
+        case holder::contract::HistoryAffectedObjectKind::Unknown: return "unknown";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::HistoryAffectedObjectKind decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::HistoryAffectedObjectKind::Card;
+        if (text == "resource") return holder::contract::HistoryAffectedObjectKind::Resource;
+        if (text == "location") return holder::contract::HistoryAffectedObjectKind::Location;
+        if (text == "ai_data") return holder::contract::HistoryAffectedObjectKind::AiData;
+        if (text == "project_settings") return holder::contract::HistoryAffectedObjectKind::ProjectSettings;
+        if (text == "unknown") return holder::contract::HistoryAffectedObjectKind::Unknown;
+        throw std::invalid_argument("must be one of card, resource, location, ai_data, project_settings, unknown");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -494,6 +519,26 @@ template <> struct codec<holder::contract::SyncResult> {
 template <> struct codec<holder::contract::RemoteTestResult> {
     static json encode(const holder::contract::RemoteTestResult& value);
     static holder::contract::RemoteTestResult decode(const json& value);
+};
+template <> struct codec<holder::contract::HistoryAuthor> {
+    static json encode(const holder::contract::HistoryAuthor& value);
+    static holder::contract::HistoryAuthor decode(const json& value);
+};
+template <> struct codec<holder::contract::HistoryAffectedPath> {
+    static json encode(const holder::contract::HistoryAffectedPath& value);
+    static holder::contract::HistoryAffectedPath decode(const json& value);
+};
+template <> struct codec<holder::contract::HistoryAffectedObject> {
+    static json encode(const holder::contract::HistoryAffectedObject& value);
+    static holder::contract::HistoryAffectedObject decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectActivity> {
+    static json encode(const holder::contract::ProjectActivity& value);
+    static holder::contract::ProjectActivity decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectHistoryPage> {
+    static json encode(const holder::contract::ProjectHistoryPage& value);
+    static holder::contract::ProjectHistoryPage decode(const json& value);
 };
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
@@ -1760,6 +1805,202 @@ inline holder::contract::RemoteTestResult codec<holder::contract::RemoteTestResu
     if (value.contains("error_message") && !value.at("error_message").is_null()) {
         const auto& item = value.at("error_message");
         out.error_message = check_text(decode_field<std::string>(item, "error_message"), "error_message", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HistoryAuthor>::encode(const holder::contract::HistoryAuthor& value) {
+    json result = json::object();
+    result["name"] = codec<std::string>::encode(value.name);
+    result["email"] = codec<std::string>::encode(value.email);
+    return result;
+}
+inline holder::contract::HistoryAuthor codec<holder::contract::HistoryAuthor>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HistoryAuthor object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "name" && it.key() != "email") throw std::invalid_argument("HistoryAuthor has no field " + it.key());
+    holder::contract::HistoryAuthor out;
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("email") && !value.at("email").is_null()) {
+        const auto& item = value.at("email");
+        out.email = check_text(decode_field<std::string>(item, "email"), "email", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("email is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HistoryAffectedPath>::encode(const holder::contract::HistoryAffectedPath& value) {
+    json result = json::object();
+    result["path"] = codec<std::string>::encode(value.path);
+    if (value.title) result["title"] = codec<std::string>::encode(*value.title);
+    if (value.detail) result["detail"] = codec<std::string>::encode(*value.detail);
+    return result;
+}
+inline holder::contract::HistoryAffectedPath codec<holder::contract::HistoryAffectedPath>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HistoryAffectedPath object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "path" && it.key() != "title" && it.key() != "detail") throw std::invalid_argument("HistoryAffectedPath has no field " + it.key());
+    holder::contract::HistoryAffectedPath out;
+    if (value.contains("path") && !value.at("path").is_null()) {
+        const auto& item = value.at("path");
+        out.path = check_text(decode_field<std::string>(item, "path"), "path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("path is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("title")) {
+        throw std::invalid_argument("title must not be null");
+    }
+    if (value.contains("detail") && !value.at("detail").is_null()) {
+        const auto& item = value.at("detail");
+        out.detail = check_text(decode_field<std::string>(item, "detail"), "detail", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("detail")) {
+        throw std::invalid_argument("detail must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HistoryAffectedObject>::encode(const holder::contract::HistoryAffectedObject& value) {
+    json result = json::object();
+    result["kind"] = codec<holder::contract::HistoryAffectedObjectKind>::encode(value.kind);
+    result["paths"] = codec<std::vector<std::string>>::encode(value.paths);
+    result["items"] = codec<std::vector<holder::contract::HistoryAffectedPath>>::encode(value.items);
+    return result;
+}
+inline holder::contract::HistoryAffectedObject codec<holder::contract::HistoryAffectedObject>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HistoryAffectedObject object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "kind" && it.key() != "paths" && it.key() != "items") throw std::invalid_argument("HistoryAffectedObject has no field " + it.key());
+    holder::contract::HistoryAffectedObject out;
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = decode_field<holder::contract::HistoryAffectedObjectKind>(item, "kind");
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("paths") && !value.at("paths").is_null()) {
+        const auto& item = value.at("paths");
+        out.paths = [&] { auto items = decode_field<std::vector<std::string>>(item, "paths"); for (const auto& text : items) check_text(text, "paths", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("paths is required and must not be null");
+    }
+    if (value.contains("items") && !value.at("items").is_null()) {
+        const auto& item = value.at("items");
+        out.items = decode_field<std::vector<holder::contract::HistoryAffectedPath>>(item, "items");
+    } else {
+        throw std::invalid_argument("items is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectActivity>::encode(const holder::contract::ProjectActivity& value) {
+    json result = json::object();
+    result["oid"] = codec<std::string>::encode(value.oid);
+    result["parent_oids"] = codec<std::vector<std::string>>::encode(value.parent_oids);
+    result["author"] = codec<holder::contract::HistoryAuthor>::encode(value.author);
+    result["authored_at"] = codec<long long>::encode(value.authored_at);
+    result["committed_at"] = codec<long long>::encode(value.committed_at);
+    result["message"] = codec<std::string>::encode(value.message);
+    result["affected_objects"] = codec<std::vector<holder::contract::HistoryAffectedObject>>::encode(value.affected_objects);
+    result["is_merge"] = codec<bool>::encode(value.is_merge);
+    return result;
+}
+inline holder::contract::ProjectActivity codec<holder::contract::ProjectActivity>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectActivity object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "oid" && it.key() != "parent_oids" && it.key() != "author" && it.key() != "authored_at" && it.key() != "committed_at" && it.key() != "message" && it.key() != "affected_objects" && it.key() != "is_merge") throw std::invalid_argument("ProjectActivity has no field " + it.key());
+    holder::contract::ProjectActivity out;
+    if (value.contains("oid") && !value.at("oid").is_null()) {
+        const auto& item = value.at("oid");
+        out.oid = check_text(decode_field<std::string>(item, "oid"), "oid", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("oid is required and must not be null");
+    }
+    if (value.contains("parent_oids") && !value.at("parent_oids").is_null()) {
+        const auto& item = value.at("parent_oids");
+        out.parent_oids = [&] { auto items = decode_field<std::vector<std::string>>(item, "parent_oids"); for (const auto& text : items) check_text(text, "parent_oids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("parent_oids is required and must not be null");
+    }
+    if (value.contains("author") && !value.at("author").is_null()) {
+        const auto& item = value.at("author");
+        out.author = codec<holder::contract::HistoryAuthor>::decode(item);
+    } else {
+        throw std::invalid_argument("author is required and must not be null");
+    }
+    if (value.contains("authored_at") && !value.at("authored_at").is_null()) {
+        const auto& item = value.at("authored_at");
+        out.authored_at = decode_field<long long>(item, "authored_at");
+    } else {
+        throw std::invalid_argument("authored_at is required and must not be null");
+    }
+    if (value.contains("committed_at") && !value.at("committed_at").is_null()) {
+        const auto& item = value.at("committed_at");
+        out.committed_at = decode_field<long long>(item, "committed_at");
+    } else {
+        throw std::invalid_argument("committed_at is required and must not be null");
+    }
+    if (value.contains("message") && !value.at("message").is_null()) {
+        const auto& item = value.at("message");
+        out.message = check_text(decode_field<std::string>(item, "message"), "message", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("message is required and must not be null");
+    }
+    if (value.contains("affected_objects") && !value.at("affected_objects").is_null()) {
+        const auto& item = value.at("affected_objects");
+        out.affected_objects = decode_field<std::vector<holder::contract::HistoryAffectedObject>>(item, "affected_objects");
+    } else {
+        throw std::invalid_argument("affected_objects is required and must not be null");
+    }
+    if (value.contains("is_merge") && !value.at("is_merge").is_null()) {
+        const auto& item = value.at("is_merge");
+        out.is_merge = decode_field<bool>(item, "is_merge");
+    } else {
+        throw std::invalid_argument("is_merge is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectHistoryPage>::encode(const holder::contract::ProjectHistoryPage& value) {
+    json result = json::object();
+    result["head_oid"] = value.head_oid ? codec<std::string>::encode(*value.head_oid) : json(nullptr);
+    result["activities"] = codec<std::vector<holder::contract::ProjectActivity>>::encode(value.activities);
+    result["next_cursor"] = value.next_cursor ? codec<std::string>::encode(*value.next_cursor) : json(nullptr);
+    result["scan_limited"] = codec<bool>::encode(value.scan_limited);
+    return result;
+}
+inline holder::contract::ProjectHistoryPage codec<holder::contract::ProjectHistoryPage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectHistoryPage object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "head_oid" && it.key() != "activities" && it.key() != "next_cursor" && it.key() != "scan_limited") throw std::invalid_argument("ProjectHistoryPage has no field " + it.key());
+    holder::contract::ProjectHistoryPage out;
+    if (value.contains("head_oid") && !value.at("head_oid").is_null()) {
+        const auto& item = value.at("head_oid");
+        out.head_oid = check_text(decode_field<std::string>(item, "head_oid"), "head_oid", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("activities") && !value.at("activities").is_null()) {
+        const auto& item = value.at("activities");
+        out.activities = decode_field<std::vector<holder::contract::ProjectActivity>>(item, "activities");
+    } else {
+        throw std::invalid_argument("activities is required and must not be null");
+    }
+    if (value.contains("next_cursor") && !value.at("next_cursor").is_null()) {
+        const auto& item = value.at("next_cursor");
+        out.next_cursor = check_text(decode_field<std::string>(item, "next_cursor"), "next_cursor", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("scan_limited") && !value.at("scan_limited").is_null()) {
+        const auto& item = value.at("scan_limited");
+        out.scan_limited = decode_field<bool>(item, "scan_limited");
+    } else {
+        throw std::invalid_argument("scan_limited is required and must not be null");
     }
     return out;
 }
