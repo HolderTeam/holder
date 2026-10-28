@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -56,9 +57,12 @@ struct Host {
   }
 };
 
+// The registry keeps canonical paths, which may spell a directory differently, as macOS's /private/var.
 bool registered(const Host& host, const contract::Project& project) {
-  const auto roots = holder::core::ProjectRegistry(host.context.registry_path).roots();
-  return std::ranges::find(roots, std::filesystem::path(project.root_path)) != roots.end();
+  std::error_code error;
+  for (const auto& root : holder::core::ProjectRegistry(host.context.registry_path).roots())
+    if (std::filesystem::equivalent(root, project.root_path, error)) return true;
+  return false;
 }
 
 } // namespace
@@ -98,9 +102,12 @@ TEST_CASE("Project settings change one at a time, and a change of nothing writes
   REQUIRE(updated.name == "Work");
   REQUIRE(updated.updated_at > made.updated_at);
   // The remote is in the repository's own configuration.
-  std::ifstream config(std::filesystem::path(updated.root_path) / ".git" / "config");
-  const std::string text((std::istreambuf_iterator<char>(config)), std::istreambuf_iterator<char>());
-  REQUIRE(text.find("https://example.com/work.git") != std::string::npos);
+  {
+    // Closed again before the next update, which Windows would otherwise stop rewriting the file.
+    std::ifstream config(std::filesystem::path(updated.root_path) / ".git" / "config");
+    const std::string text((std::istreambuf_iterator<char>(config)), std::istreambuf_iterator<char>());
+    REQUIRE(text.find("https://example.com/work.git") != std::string::npos);
+  }
 
   contract::ProjectUpdate rename;
   rename.name = "Day job";

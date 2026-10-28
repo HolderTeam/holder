@@ -19,9 +19,9 @@ class NewProject:
     Attributes:
         name (str):
         project_id (str | Unset):
-        root_path (str | Unset): The directory for the project's repository; omit for one under this device's projects
-            directory, named
-            for the project.
+        root_path (str | Unset): The directory for the project's repository, an absolute path; omit for one under this
+            device's projects
+            directory, named for the project.
         git_remote_url (None | str | Unset): The Git remote to sync with; null or omitted for none. One Git does not
             accept is an invalid argument.
         git_provider (None | str | Unset): Who hosts the Git remote; null or omitted when unknown.
