@@ -5605,32 +5605,29 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/trash/{type}/{id}:
     delete:
-      summary: Permanently remove a trashed item from one project
-      description: The item must belong to the named project and still be in Trash. For cards, older Git
-        revisions remain available; this operation does not erase repository history.
+      summary: Permanently remove a trashed item from the named project.
+      description: Old Git revisions of cards remain available.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       - name: type
         in: path
         required: true
-        schema:
-          type: string
-          enum: [card, ai_message]
+        schema: {$ref: '#/components/schemas/TrashItemType'}
       - name: id
         in: path
         required: true
-        schema: {type: string}
+        schema: {type: string, title: Id}
       responses:
         '200':
-          description: Trashed item removed
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TrashDeleteResponse'}
+              schema: {$ref: '#/components/schemas/TrashDeleteResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5640,22 +5637,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Item not found in the named project
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Item is not in Trash (not_trashed)
+          description: The item still exists but is not in Trash, so permanent removal is refused. An
+            encrypted project's key is not on this device; the project's recovery token restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Card store unavailable
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5923,62 +5923,32 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /trash:
     get:
-      summary: List trashed items by project
+      summary: List a project's trashed cards and AI messages.
+      description: A project that is not registered has an empty Trash.
       parameters:
       - name: project_id
         in: query
         required: true
-        schema: {type: string, minLength: 1}
-      - name: type
-        in: query
-        required: false
-        schema: {type: string}
-        description: card | ai_message | all
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/TrashListResponse'}
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-    delete:
-      summary: Empty trash by project
-      description: Permanently removes the project's trashed cards, AI messages, or both (the default).
-        A project with nothing in Trash, or one that is not registered, succeeds without changes.
-      parameters:
-      - name: project_id
-        in: query
-        required: true
-        schema: {type: string, minLength: 1}
+        schema: {$ref: '#/components/schemas/ProjectId', description: The project whose Trash is listed.}
+        description: The project whose Trash is listed.
       - name: type
         in: query
         required: false
         schema:
-          type: string
-          enum: [card, ai_message, all]
-          default: all
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          description: card, ai_message, or all; an unknown type lists nothing.
+          title: Type
+        description: card, ai_message, or all; an unknown type lists nothing.
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TrashEmptyResponse'}
+              schema: {$ref: '#/components/schemas/TrashItemListResponse'}
         '400':
-          description: Missing project_id or unknown type
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5988,38 +5958,80 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Removing cards needs the card store, which the daemon does not have
+    delete:
+      summary: Permanently remove a project's trashed items.
+      description: An empty or unregistered project succeeds without changes. Old Git revisions of cards
+        remain available.
+      parameters:
+      - name: project_id
+        in: query
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId', description: The project whose Trash is emptied.}
+        description: The project whose Trash is emptied.
+      - name: type
+        in: query
+        required: false
+        schema: {$ref: '#/components/schemas/TrashFilter', description: Which item kinds to remove., default: all}
+        description: Which item kinds to remove.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TrashEmptyResultResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /trash/{type}/{id}:
     delete:
-      summary: Permanently delete a trashed item (legacy global-ID route)
-      description: The item must still be in Trash. Use the project-scoped route for new clients.
+      summary: Permanently remove a trashed item by its global ID (legacy route).
+      description: Permanently remove a trashed item by its global ID (legacy route).
       parameters:
       - name: type
         in: path
         required: true
-        schema:
-          type: string
-          enum: [card, ai_message]
+        schema: {$ref: '#/components/schemas/TrashItemType'}
       - name: id
         in: path
         required: true
-        schema: {type: string}
+        schema: {type: string, title: Id}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/TrashDeleteResponse'}
+              schema: {$ref: '#/components/schemas/TrashDeleteResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -6029,22 +6041,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Item not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
-          description: Item is not in Trash (not_trashed)
+          description: The item still exists but is not in Trash, so permanent removal is refused. An
+            encrypted project's key is not on this device; the project's recovery token restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: Card store unavailable
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -8802,57 +8817,115 @@ components:
       required: [tag, byte_start, byte_end]
       title: TagOccurrence
       description: A tag written in a card's content.
-    TrashDeleteResponse:
-      type: object
+    TrashDeleteResult:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            card_id: {type: string, description: Present when a card was removed.}
-            message_id: {type: string, description: Present when an AI message was removed.}
-      required: [ok, data]
-    TrashEmptyResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-          required: [project_id]
-      required: [ok, data]
-    TrashItem:
-      type: object
-      properties:
-        type: {type: string}
         card_id:
-          type: [string, 'null']
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Card Id
+          description: The removed card's ID, or null for a message.
         message_id:
-          type: [string, 'null']
-        thread_id:
-          type: [string, 'null']
-        project_id: {type: string}
-        title:
-          type: [string, 'null']
-        role:
-          type: [string, 'null']
-        deleted_at: {type: integer, format: int64}
-        created_at: {type: integer, format: int64}
-        rel_path:
-          type: [string, 'null']
-      required: [type]
-    TrashListResponse:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Message Id
+          description: The removed AI message's ID, or null for a card.
+      additionalProperties: false
       type: object
+      required: [card_id, message_id]
+      title: TrashDeleteResult
+      description: The ID of a permanently removed item.
+    TrashDeleteResultResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: array
-          items: {$ref: '#/components/schemas/TrashItem'}
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/TrashDeleteResult'}
+      type: object
       required: [ok, data]
+      title: TrashDeleteResultResponse
+    TrashEmptyResult:
+      properties:
+        project_id: {type: string, title: Project Id, description: 'The requested project, including when
+            it had no trashed items.'}
+      additionalProperties: false
+      type: object
+      required: [project_id]
+      title: TrashEmptyResult
+      description: The project whose Trash was emptied.
+    TrashEmptyResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/TrashEmptyResult'}
+      type: object
+      required: [ok, data]
+      title: TrashEmptyResultResponse
+    TrashFilter:
+      type: string
+      enum: [card, ai_message, all]
+    TrashItem:
+      properties:
+        type: {$ref: '#/components/schemas/TrashItemType', description: The kind of item.}
+        project_id: {type: string, title: Project Id, description: The project that owns the item.}
+        card_id:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Card Id
+          description: The card ID, present for a card.
+        message_id:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Message Id
+          description: The message ID, present for an AI message.
+        thread_id:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Thread Id
+          description: The AI thread containing a message.
+        title:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Title
+          description: The card title, if this is a card.
+        role:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Role
+          description: The AI message role, if this is a message.
+        deleted_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
+          title: Deleted At, description: When the item entered Trash.}
+        created_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Created At
+          description: When the AI message was created.
+        rel_path:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Rel Path
+          description: The card's relative file path.
+      additionalProperties: false
+      type: object
+      required: [type, project_id, card_id, message_id, thread_id, title, role, deleted_at, created_at,
+        rel_path]
+      title: TrashItem
+      description: A trashed card or AI message.
+    TrashItemListResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data:
+          items: {$ref: '#/components/schemas/TrashItem'}
+          type: array
+          title: Data
+      type: object
+      required: [ok, data]
+      title: TrashItemListResponse
+    TrashItemType:
+      type: string
+      enum: [card, ai_message]

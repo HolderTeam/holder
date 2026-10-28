@@ -173,6 +173,21 @@ TEST_CASE("OpenAPI exposes card history through the shared contract", "[openapi]
   require_json_response_ref(restore, "200", "CardHistoryRestoreResultResponse");
 }
 
+TEST_CASE("OpenAPI exposes Trash through the shared contract", "[openapi][trash]") {
+  const auto document = load_openapi();
+  const auto trash = document["paths"]["/trash"];
+  REQUIRE(trash.IsDefined());
+  require_json_response_ref(trash["get"], "200", "TrashItemListResponse");
+  require_json_response_ref(trash["delete"], "200", "TrashEmptyResultResponse");
+  REQUIRE(parameter_named(trash["get"], "project_id").IsDefined());
+
+  const auto legacy = document["paths"]["/trash/{type}/{id}"]["delete"];
+  const auto scoped = document["paths"]["/projects/{project_id}/trash/{type}/{id}"]["delete"];
+  require_json_response_ref(legacy, "200", "TrashDeleteResultResponse");
+  require_json_response_ref(scoped, "200", "TrashDeleteResultResponse");
+  require_json_response_ref(scoped, "409", "ErrorResponse");
+}
+
 TEST_CASE("OpenAPI contracts live-card tag mutations", "[openapi][holderctl-tags][tags]") {
   const auto document = load_openapi();
   const auto path = document["paths"]["/projects/{project_id}/cards/{card_id}/tags/{tag}"];

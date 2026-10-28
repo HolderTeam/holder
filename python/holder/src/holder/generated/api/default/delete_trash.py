@@ -5,16 +5,16 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.delete_trash_type import DeleteTrashType
 from ...models.error_response import ErrorResponse
-from ...models.trash_empty_response import TrashEmptyResponse
+from ...models.trash_empty_result_response import TrashEmptyResultResponse
+from ...models.trash_filter import TrashFilter
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     project_id: str,
-    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
+    type_: TrashFilter | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -40,9 +40,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | TrashEmptyResponse | None:
+) -> ErrorResponse | TrashEmptyResultResponse | None:
     if response.status_code == 200:
-        response_200 = TrashEmptyResponse.from_dict(response.json())
+        response_200 = TrashEmptyResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -56,15 +56,20 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
 
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 503:
+        response_503 = ErrorResponse.from_dict(response.json())
 
-        return response_501
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -74,7 +79,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | TrashEmptyResponse]:
+) -> Response[ErrorResponse | TrashEmptyResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -87,23 +92,23 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
-) -> Response[ErrorResponse | TrashEmptyResponse]:
-    """Empty trash by project
+    type_: TrashFilter | Unset = UNSET,
+) -> Response[ErrorResponse | TrashEmptyResultResponse]:
+    """Permanently remove a project's trashed items.
 
-     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
-    nothing in Trash, or one that is not registered, succeeds without changes.
+     An empty or unregistered project succeeds without changes. Old Git revisions of cards remain
+    available.
 
     Args:
         project_id (str):
-        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
+        type_ (TrashFilter | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashEmptyResponse]
+        Response[ErrorResponse | TrashEmptyResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -122,23 +127,23 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
-) -> ErrorResponse | TrashEmptyResponse | None:
-    """Empty trash by project
+    type_: TrashFilter | Unset = UNSET,
+) -> ErrorResponse | TrashEmptyResultResponse | None:
+    """Permanently remove a project's trashed items.
 
-     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
-    nothing in Trash, or one that is not registered, succeeds without changes.
+     An empty or unregistered project succeeds without changes. Old Git revisions of cards remain
+    available.
 
     Args:
         project_id (str):
-        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
+        type_ (TrashFilter | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashEmptyResponse
+        ErrorResponse | TrashEmptyResultResponse
     """
 
     return sync_detailed(
@@ -152,23 +157,23 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
-) -> Response[ErrorResponse | TrashEmptyResponse]:
-    """Empty trash by project
+    type_: TrashFilter | Unset = UNSET,
+) -> Response[ErrorResponse | TrashEmptyResultResponse]:
+    """Permanently remove a project's trashed items.
 
-     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
-    nothing in Trash, or one that is not registered, succeeds without changes.
+     An empty or unregistered project succeeds without changes. Old Git revisions of cards remain
+    available.
 
     Args:
         project_id (str):
-        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
+        type_ (TrashFilter | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashEmptyResponse]
+        Response[ErrorResponse | TrashEmptyResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -185,23 +190,23 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: DeleteTrashType | Unset = DeleteTrashType.ALL,
-) -> ErrorResponse | TrashEmptyResponse | None:
-    """Empty trash by project
+    type_: TrashFilter | Unset = UNSET,
+) -> ErrorResponse | TrashEmptyResultResponse | None:
+    """Permanently remove a project's trashed items.
 
-     Permanently removes the project's trashed cards, AI messages, or both (the default). A project with
-    nothing in Trash, or one that is not registered, succeeds without changes.
+     An empty or unregistered project succeeds without changes. Old Git revisions of cards remain
+    available.
 
     Args:
         project_id (str):
-        type_ (DeleteTrashType | Unset):  Default: DeleteTrashType.ALL.
+        type_ (TrashFilter | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashEmptyResponse
+        ErrorResponse | TrashEmptyResultResponse
     """
 
     return (

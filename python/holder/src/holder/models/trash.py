@@ -15,10 +15,7 @@ from ..generated.api.default import (
     post_ai_messages_message_id_restore,
     post_projects_project_id_cards_card_id_restore,
 )
-from ..generated.models import (
-    DeleteProjectsProjectIdTrashTypeIdType as TrashType,
-)
-from ..generated.models import DeleteTrashType
+from ..generated.models import TrashFilter
 from ..generated.types import Unset
 
 if TYPE_CHECKING:
@@ -102,7 +99,7 @@ class TrashItem:
         self._project._holder._call(
             delete_projects_project_id_trash_type_id,
             self.project_id,
-            TrashType(self.type),
+            self.type,
             self.id,
             write=True,
         )
@@ -139,7 +136,7 @@ class TrashCollection(Collection[TrashItem]):
         Call cards() or messages() first to limit the operation. Saved card
         revisions remain in Git history. Refresh cached listings afterwards.
         """
-        query = {key: DeleteTrashType(value) for key, value in self._query.items()}
+        query = {"type_": TrashFilter.ALL, **{key: TrashFilter(value) for key, value in self._query.items()}}
         self._holder._call(
             delete_trash, project_id=self._project.id, write=True, **query
         )

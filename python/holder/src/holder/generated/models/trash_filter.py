@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class DeleteTrashType(StrEnum):
+class TrashFilter(StrEnum):
     AI_MESSAGE = "ai_message"
     ALL = "all"
     CARD = "card"

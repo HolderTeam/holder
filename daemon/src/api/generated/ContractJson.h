@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -369,6 +369,23 @@ template <> struct codec<holder::contract::HistoryAffectedObjectKind> {
     }
 };
 
+template <> struct codec<holder::contract::TrashItemType> {
+    static json encode(holder::contract::TrashItemType value) {
+        switch (value) {
+        case holder::contract::TrashItemType::Card: return "card";
+        case holder::contract::TrashItemType::AiMessage: return "ai_message";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::TrashItemType decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::TrashItemType::Card;
+        if (text == "ai_message") return holder::contract::TrashItemType::AiMessage;
+        throw std::invalid_argument("must be one of card, ai_message");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -571,6 +588,18 @@ template <> struct codec<holder::contract::CardHistorySnapshot> {
 template <> struct codec<holder::contract::CardHistoryRestoreResult> {
     static json encode(const holder::contract::CardHistoryRestoreResult& value);
     static holder::contract::CardHistoryRestoreResult decode(const json& value);
+};
+template <> struct codec<holder::contract::TrashItem> {
+    static json encode(const holder::contract::TrashItem& value);
+    static holder::contract::TrashItem decode(const json& value);
+};
+template <> struct codec<holder::contract::TrashEmptyResult> {
+    static json encode(const holder::contract::TrashEmptyResult& value);
+    static holder::contract::TrashEmptyResult decode(const json& value);
+};
+template <> struct codec<holder::contract::TrashDeleteResult> {
+    static json encode(const holder::contract::TrashDeleteResult& value);
+    static holder::contract::TrashDeleteResult decode(const json& value);
 };
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
@@ -2413,6 +2442,115 @@ inline holder::contract::CardHistoryRestoreResult codec<holder::contract::CardHi
     if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
         const auto& item = value.at("deleted_at");
         out.deleted_at = decode_field<long long>(item, "deleted_at");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::TrashItem>::encode(const holder::contract::TrashItem& value) {
+    json result = json::object();
+    result["type"] = codec<holder::contract::TrashItemType>::encode(value.type);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = value.card_id ? codec<std::string>::encode(*value.card_id) : json(nullptr);
+    result["message_id"] = value.message_id ? codec<std::string>::encode(*value.message_id) : json(nullptr);
+    result["thread_id"] = value.thread_id ? codec<std::string>::encode(*value.thread_id) : json(nullptr);
+    result["title"] = value.title ? codec<std::string>::encode(*value.title) : json(nullptr);
+    result["role"] = value.role ? codec<std::string>::encode(*value.role) : json(nullptr);
+    result["deleted_at"] = codec<long long>::encode(value.deleted_at);
+    result["created_at"] = value.created_at ? codec<long long>::encode(*value.created_at) : json(nullptr);
+    result["rel_path"] = value.rel_path ? codec<std::string>::encode(*value.rel_path) : json(nullptr);
+    return result;
+}
+inline holder::contract::TrashItem codec<holder::contract::TrashItem>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a TrashItem object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "type" && it.key() != "project_id" && it.key() != "card_id" && it.key() != "message_id" && it.key() != "thread_id" && it.key() != "title" && it.key() != "role" && it.key() != "deleted_at" && it.key() != "created_at" && it.key() != "rel_path") throw std::invalid_argument("TrashItem has no field " + it.key());
+    holder::contract::TrashItem out;
+    if (value.contains("type") && !value.at("type").is_null()) {
+        const auto& item = value.at("type");
+        out.type = decode_field<holder::contract::TrashItemType>(item, "type");
+    } else {
+        throw std::invalid_argument("type is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("message_id") && !value.at("message_id").is_null()) {
+        const auto& item = value.at("message_id");
+        out.message_id = check_text(decode_field<std::string>(item, "message_id"), "message_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("thread_id") && !value.at("thread_id").is_null()) {
+        const auto& item = value.at("thread_id");
+        out.thread_id = check_text(decode_field<std::string>(item, "thread_id"), "thread_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("role") && !value.at("role").is_null()) {
+        const auto& item = value.at("role");
+        out.role = check_text(decode_field<std::string>(item, "role"), "role", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+        const auto& item = value.at("deleted_at");
+        out.deleted_at = decode_field<long long>(item, "deleted_at");
+    } else {
+        throw std::invalid_argument("deleted_at is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    }
+    if (value.contains("rel_path") && !value.at("rel_path").is_null()) {
+        const auto& item = value.at("rel_path");
+        out.rel_path = check_text(decode_field<std::string>(item, "rel_path"), "rel_path", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::TrashEmptyResult>::encode(const holder::contract::TrashEmptyResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::contract::TrashEmptyResult codec<holder::contract::TrashEmptyResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a TrashEmptyResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id") throw std::invalid_argument("TrashEmptyResult has no field " + it.key());
+    holder::contract::TrashEmptyResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::TrashDeleteResult>::encode(const holder::contract::TrashDeleteResult& value) {
+    json result = json::object();
+    result["card_id"] = value.card_id ? codec<std::string>::encode(*value.card_id) : json(nullptr);
+    result["message_id"] = value.message_id ? codec<std::string>::encode(*value.message_id) : json(nullptr);
+    return result;
+}
+inline holder::contract::TrashDeleteResult codec<holder::contract::TrashDeleteResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a TrashDeleteResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "message_id") throw std::invalid_argument("TrashDeleteResult has no field " + it.key());
+    holder::contract::TrashDeleteResult out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("message_id") && !value.at("message_id").is_null()) {
+        const auto& item = value.at("message_id");
+        out.message_id = check_text(decode_field<std::string>(item, "message_id"), "message_id", 0, std::numeric_limits<std::size_t>::max());
     }
     return out;
 }

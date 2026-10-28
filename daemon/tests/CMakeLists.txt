@@ -165,8 +165,6 @@ add_executable(holder_daemon_tests
   ../src/api/ProviderCredentials.cpp
   ../src/api/ProviderSettings.cpp
   ../src/api/Rebuild.cpp
-  ../src/api/TrashList.cpp
-  ../src/api/TrashWrite.cpp
   ../src/api/Listener.cpp
   ../src/api/AiNudges.cpp
   ../src/api/AssetContent.cpp

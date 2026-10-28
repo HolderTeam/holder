@@ -13,19 +13,26 @@ def trashed_items():
         {
             "type": "card",
             "card_id": "c-0000",
+            "message_id": None,
+            "thread_id": None,
             "project_id": "p-0",
             "title": "Old card",
+            "role": None,
             "deleted_at": 100,
+            "created_at": None,
             "rel_path": "c/0.md",
         },
         {
             "type": "ai_message",
             "message_id": "m-1",
+            "card_id": None,
             "thread_id": "t-1",
             "project_id": "p-0",
+            "title": None,
             "role": "assistant",
             "deleted_at": 200,
             "created_at": 50,
+            "rel_path": None,
         },
     ]
 
@@ -120,7 +127,9 @@ def test_trash_restore_and_permanent_delete_use_the_correct_routes():
             return ok(card_payload(content=True))
         if request.url.path == "/ai/messages/m-1/restore":
             return ok({"message_id": "m-1"})
-        return ok({})
+        if request.url.path.endswith("/c-0000"):
+            return ok({"card_id": "c-0000", "message_id": None})
+        return ok({"card_id": None, "message_id": "m-1"})
 
     with holder_for(respond) as holder:
         card_item, message_item = list(holder.projects.get("p-0").trash)

@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -35,8 +35,10 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 107
 /* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
 #define HOLDER_ERROR_REVISION_AMBIGUOUS 108
+/* The item still exists but is not in Trash, so permanent removal is refused. */
+#define HOLDER_ERROR_NOT_TRASHED 109
 /* The bounded History response would exceed 2 MiB. */
-#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 109
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 110
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -725,6 +727,43 @@ typedef struct holder_card_history_restore_result {
     const int64_t* deleted_at; /* When the restored card is in Trash; null when live. May be NULL. */
 } holder_card_history_restore_result;
 
+/* The kind of item. */
+typedef enum holder_trash_item_type {
+    HOLDER_TRASH_ITEM_TYPE_CARD = 1,
+    HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+    HOLDER_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_trash_item_type;
+
+/* A trashed card or AI message. */
+typedef struct holder_trash_item {
+    holder_trash_item_type type; /* The kind of item. */
+    const char* project_id; /* The project that owns the item. */
+    const char* card_id; /* The card ID, present for a card. May be NULL. */
+    const char* message_id; /* The message ID, present for an AI message. May be NULL. */
+    const char* thread_id; /* The AI thread containing a message. May be NULL. */
+    const char* title; /* The card title, if this is a card. May be NULL. */
+    const char* role; /* The AI message role, if this is a message. May be NULL. */
+    int64_t deleted_at; /* When the item entered Trash. */
+    const int64_t* created_at; /* When the AI message was created. May be NULL. */
+    const char* rel_path; /* The card's relative file path. May be NULL. */
+} holder_trash_item;
+
+typedef struct holder_trash_item_list {
+    const holder_trash_item* items;
+    size_t count;
+} holder_trash_item_list;
+
+/* The project whose Trash was emptied. */
+typedef struct holder_trash_empty_result {
+    const char* project_id; /* The requested project, including when it had no trashed items. */
+} holder_trash_empty_result;
+
+/* The ID of a permanently removed item. */
+typedef struct holder_trash_delete_result {
+    const char* card_id; /* The removed card's ID, or null for a message. May be NULL. */
+    const char* message_id; /* The removed AI message's ID, or null for a card. May be NULL. */
+} holder_trash_delete_result;
+
 /* Fetch a card.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
@@ -1150,6 +1189,52 @@ int holder_get_card_history_snapshot(holder_context* context, const char* projec
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_REVISION_AMBIGUOUS, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, HOLDER_ERROR_HISTORY_UNAVAILABLE.
  */
 int holder_restore_card_history_snapshot(holder_context* context, const char* project_id, const char* card_id, const char* oid, holder_arena* arena, const holder_card_history_restore_result** out_card_history_restore_result, holder_error** out_error);
+
+/* List a project's trashed cards and AI messages.
+ * A project that is not registered has an empty Trash.
+ * project_id: The project whose Trash is listed.
+ * type: card, ai_message, or all; an unknown type lists nothing. May be NULL.
+ */
+int holder_list_trash(holder_context* context, const char* project_id, const char* type, holder_arena* arena, const holder_trash_item_list** out_trash_item_list, holder_error** out_error);
+
+typedef enum holder_empty_trash_type {
+    HOLDER_EMPTY_TRASH_TYPE_DEFAULT = 0, /* all */
+    HOLDER_EMPTY_TRASH_TYPE_CARD = 1,
+    HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE = 2,
+    HOLDER_EMPTY_TRASH_TYPE_ALL = 3,
+    HOLDER_EMPTY_TRASH_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_empty_trash_type;
+
+/* Permanently remove a project's trashed items.
+ * An empty or unregistered project succeeds without changes. Old Git revisions of cards remain available.
+ * project_id: The project whose Trash is emptied.
+ * type: Which item kinds to remove.
+ * Errors: HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_empty_trash(holder_context* context, const char* project_id, holder_empty_trash_type type, holder_arena* arena, const holder_trash_empty_result** out_trash_empty_result, holder_error** out_error);
+
+typedef enum holder_delete_trash_item_type {
+    HOLDER_DELETE_TRASH_ITEM_TYPE_CARD = 1,
+    HOLDER_DELETE_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+    HOLDER_DELETE_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_delete_trash_item_type;
+
+/* Permanently remove a trashed item by its global ID (legacy route).
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_delete_trash_item(holder_context* context, holder_delete_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+
+typedef enum holder_delete_project_trash_item_type {
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD = 1,
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_AI_MESSAGE = 2,
+    HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_delete_project_trash_item_type;
+
+/* Permanently remove a trashed item from the named project.
+ * Old Git revisions of cards remain available.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_delete_project_trash_item(holder_context* context, const char* project_id, holder_delete_project_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
 
 #ifdef __cplusplus
 }
