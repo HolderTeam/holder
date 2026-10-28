@@ -114,8 +114,17 @@ std::string sync_project_id(
   throw CliError("not_found", "Default Home project not found.");
 }
 
+// What to do after a push that did not succeed, as the daemon used to say.
+const char* next_action(const std::string& status) {
+  if (status == "non_fast_forward") return "pull_then_retry";
+  if (status == "auth_failed") return "fix_auth_then_retry";
+  if (status == "not_found") return "fix_remote_url_then_retry";
+  if (status == "network_error" || status == "unknown_error") return "retry";
+  return nullptr;
+}
+
 void print_sync_status(const nlohmann::json& data, bool has_remote) {
-  const auto& sync = data.at("sync");
+  const auto& sync = data;
   std::cout << "Project: " << json_string(data, "project_id") << "\n";
   std::cout << "Remote: " << (has_remote ? "configured" : "none") << "\n";
   const auto changes = sync.at("uncommitted_changes_count").get<int>();
@@ -193,6 +202,8 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
       );
       auto& data = payload.at("data");
       redact_diagnostics(data);
+      if (!data.at("remote_url").is_null())
+        data["remote_url"] = safe_remote_url(json_string(data, "remote_url"));
 
       const auto& pull = data.at("pull");
       const auto& push = data.at("push");
@@ -210,11 +221,15 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
               << (push.at("attempted").get<bool>() ? json_string(push, "status") : "not_attempted")
               << "\n";
       }
-      if (!data.at("error_code").is_null()) {
-        const auto message = json_string(data, "error_message", "Git operation failed.");
+      if (json_string(data, "status") == "failed") {
+        // The phase that failed names the failure: a pull before any push.
+        const bool pull_failed = pull.at("attempted").get<bool>() && json_string(pull, "status") != "succeeded";
+        const auto code = pull_failed ? (json_string(pull, "status") == "remote_unset" ? "remote_unset" : "pull_failed")
+                                      : json_string(push, "status");
+        const auto message = json_string(pull_failed ? pull : push, "error_message", "Git operation failed.");
         human << "Failure: " << message;
         throw CliError(
-            json_string(data, "error_code"),
+            code,
             message,
             {{"result", payload}},
             human.str() // LCOV_EXCL_LINE: exception-constructor cleanup duplicate.
@@ -238,28 +253,29 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
       auto& data = payload.at("data");
       if (!data.at("remote_url").is_null())
         data["remote_url"] = safe_remote_url(json_string(data, "remote_url"));
-      redact_diagnostics(data.at("error_message"));
-      const auto status = json_string(data, "status");
+      redact_diagnostics(data);
+      // A push's outcome is its push phase; a test's is the result itself.
+      const auto& outcome = action == "push" ? data.at("push") : data;
+      const auto status = json_string(outcome, "status");
+      const bool ok = action == "test" ? status == "reachable" : json_string(data, "status") == "succeeded";
       std::ostringstream human;
       human << "Project: " << json_string(data, "project_id") << "\n";
       if (action == "test") {
-        if (data.at("error_code").is_null())
-          human << "Remote: " << json_string(data, "remote_url", "none") << "\n";
+        if (ok) human << "Remote: " << json_string(data, "remote_url", "none") << "\n";
         human << "Test: " << status << "\n";
-        if (status == "reachable")
+        if (ok)
           human << "Remote refs: " << (data.at("remote_has_head").get<bool>() ? "present" : "none")
                 << "\n";
       } else {
-        human << "Push: " << status << "\nAhead: " << data.at("ahead_count")
-              << "\nBehind: " << data.at("behind_count") << "\n";
-        if (!data.at("next_action").is_null())
-          human << "Next action: " << json_string(data, "next_action") << "\n";
+        human << "Push: " << status << "\nAhead: " << outcome.at("ahead_count")
+              << "\nBehind: " << outcome.at("behind_count") << "\n";
+        if (const auto next = next_action(status)) human << "Next action: " << next << "\n";
       }
-      if (!data.at("error_code").is_null()) {
-        const auto message = json_string(data, "error_message", "Git operation failed.");
+      if (!ok) {
+        const auto message = json_string(outcome, "error_message", "Git operation failed.");
         human << "Failure: " << message;
         throw CliError(
-            json_string(data, "error_code"),
+            status,
             message,
             {{"result", payload}},
             human.str() // LCOV_EXCL_LINE: exception-constructor cleanup duplicate.
@@ -304,7 +320,7 @@ int command_sync(const holder::core::Paths& paths, int argc, char* argv[]) {
     }
     auto payload =
         card_api_request(paths, boost::beast::http::verb::get, target + "/git/sync-status");
-    redact_diagnostics(payload.at("data").at("sync").at("last_sync_error"));
+    redact_diagnostics(payload.at("data").at("last_sync_error"));
     if (json_output) {
       std::cout << payload.dump(2) << "\n";
     } else {

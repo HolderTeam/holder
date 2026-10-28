@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -192,6 +192,17 @@ typedef struct holder_project_update {
     holder_string_change git_remote_url; /* The Git remote to sync with; null for none. Zero keeps it. */
     holder_string_change git_provider; /* Who hosts the Git remote; null when unknown. Zero keeps it. */
 } holder_project_update;
+
+/* How to push. */
+typedef struct holder_push_options {
+    const char* branch; /* The branch to push; omit for the repository's default. NULL when absent. */
+    const bool* set_upstream; /* Whether the remote branch becomes the local branch's upstream. NULL for the default, true. */
+} holder_push_options;
+
+/* A remote to test. */
+typedef struct holder_remote_test {
+    const char* remote_url; /* The Git remote to test; omit for the project's own. NULL when absent. */
+} holder_remote_test;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -448,6 +459,108 @@ typedef struct holder_project {
     int64_t created_at; /* When the project was made. */
     int64_t updated_at; /* When the project's settings last changed. */
 } holder_project;
+
+/* What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
+ * when it will retry.
+ */
+typedef struct holder_sync_state {
+    const char* project_id; /* The project. */
+    const int64_t* last_commit_at; /* When the project's repository last had a commit; null when unknown. May be NULL. */
+    const int64_t* last_push_at; /* When the project was last pushed; null when never. May be NULL. */
+    const int64_t* last_pull_at; /* When the project was last pulled; null when never. May be NULL. */
+    int32_t uncommitted_changes_count; /* Files changed and not yet committed. */
+    int32_t unpushed_commits_count; /* Commits not yet on the remote. */
+    const char* last_push_status; /* How the last push ended, as a PushStatus; null when never. May be NULL. */
+    const char* last_pull_status; /* How the last pull ended; null when never. May be NULL. */
+    const char* last_sync_error; /* The last failure's message; null when the last sync succeeded. May be NULL. */
+    const int64_t* last_sync_error_at; /* When the last failure happened; null when none is recorded. May be NULL. */
+    int32_t retry_count; /* Failed pushes in a row. */
+    const int64_t* next_retry_at; /* When a push will next be tried; null when none is waiting. May be NULL. */
+    int32_t pull_retry_count; /* Failed pulls in a row. */
+    const int64_t* next_pull_retry_at; /* When a pull will next be tried; null when none is waiting. May be NULL. */
+    const int64_t* updated_at; /* When this state was last recorded; null when nothing has been. May be NULL. */
+} holder_sync_state;
+
+/* How the pull ended. */
+typedef enum holder_pull_phase_status {
+    HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED = 1,
+    HOLDER_PULL_PHASE_STATUS_SUCCEEDED = 2,
+    HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET = 3,
+    HOLDER_PULL_PHASE_STATUS_FAILED = 4,
+    HOLDER_PULL_PHASE_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_pull_phase_status;
+
+/* What a pull did. */
+typedef struct holder_pull_phase {
+    bool attempted; /* Whether a pull was tried. */
+    holder_pull_phase_status status; /* How the pull ended. */
+    int32_t conflicts_resolved; /* Cards changed both here and on the remote, merged by Holder's card rules. */
+    int32_t hidden_cards_repaired; /* Live cards the pull left under a missing or trashed parent, made reachable again. */
+    const char* error_message; /* Why the pull failed; null when it did not. May be NULL. */
+} holder_pull_phase;
+
+/* How the push ended. */
+typedef enum holder_push_phase_status {
+    HOLDER_PUSH_PHASE_STATUS_NOT_ATTEMPTED = 1,
+    HOLDER_PUSH_PHASE_STATUS_PUSHED = 2,
+    HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE = 3,
+    HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED = 4,
+    HOLDER_PUSH_PHASE_STATUS_NOT_FOUND = 5,
+    HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR = 6,
+    HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD = 7,
+    HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET = 8,
+    HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR = 9,
+    HOLDER_PUSH_PHASE_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_push_phase_status;
+
+/* What a push did. */
+typedef struct holder_push_phase {
+    bool attempted; /* Whether a push was tried. */
+    holder_push_phase_status status; /* How the push ended. */
+    int32_t ahead_count; /* Commits here that the remote does not have. */
+    int32_t behind_count; /* Commits on the remote that are not here. */
+    const char* local_head_commit; /* The commit this device's branch is at; null when unknown. May be NULL. */
+    const char* error_message; /* Why the push failed; null when it did not. May be NULL. */
+} holder_push_phase;
+
+/* Whether every phase tried succeeded. */
+typedef enum holder_sync_result_status {
+    HOLDER_SYNC_RESULT_STATUS_SUCCEEDED = 1,
+    HOLDER_SYNC_RESULT_STATUS_FAILED = 2,
+    HOLDER_SYNC_RESULT_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_sync_result_status;
+
+/* What a pull, a push or a sync did, as recorded in the project's sync state. A Git failure is an outcome
+ * here, not an error.
+ */
+typedef struct holder_sync_result {
+    const char* project_id; /* The project. */
+    holder_sync_result_status status; /* Whether every phase tried succeeded. */
+    const char* remote_url; /* The Git remote used; null when the project has none. May be NULL. */
+    holder_pull_phase pull; /* The pull; not attempted for a push. */
+    holder_push_phase push; /* The push; not attempted for a pull, or after a pull that failed. */
+} holder_sync_result;
+
+/* What testing the remote found; remote_unset when there was none to test. */
+typedef enum holder_remote_test_result_status {
+    HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE = 1,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED = 2,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND = 3,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR = 4,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL = 5,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET = 6,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR = 7,
+    HOLDER_REMOTE_TEST_RESULT_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_remote_test_result_status;
+
+/* Whether a Git remote can be reached with this device's credentials. */
+typedef struct holder_remote_test_result {
+    const char* project_id; /* The project. */
+    holder_remote_test_result_status status; /* What testing the remote found; remote_unset when there was none to test. */
+    const char* remote_url; /* The remote tested; null when there was none. May be NULL. */
+    bool remote_has_head; /* Whether the remote has any commits. */
+    const char* error_message; /* Why the remote could not be reached; null when it could. May be NULL. */
+} holder_remote_test_result;
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.
@@ -777,6 +890,40 @@ int holder_update_project(holder_context* context, const char* project_id, const
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_delete_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+
+/* What this device last recorded about a project's sync.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_project_sync_state(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_state** out_sync_state, holder_error** out_error);
+
+/* Pull a project's checked-out branch from its Git remote.
+ * Changes fast-forward, or merge card by card where both sides changed, and the project's index is updated
+ * before the result returns. A Git failure is an outcome in the result, recorded in the sync state. Git work on
+ * one project runs one at a time.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_pull_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+
+/* Push a project to its Git remote.
+ * An encrypted project is checked first, so no plaintext card leaves the device: one whose files are not safe
+ * to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded in the
+ * sync state.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_push_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+
+/* Pull a project, then push it.
+ * The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_sync_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+
+/* Test whether a Git remote can be reached, with this device's credentials.
+ * Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository
+ * changes.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_test_project_remote(holder_context* context, const char* project_id, const holder_remote_test* remote, holder_arena* arena, const holder_remote_test_result** out_remote_test_result, holder_error** out_error);
 
 #ifdef __cplusplus
 }

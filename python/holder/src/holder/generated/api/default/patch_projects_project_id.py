@@ -9,13 +9,13 @@ from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.project_response import ProjectResponse
 from ...models.project_update import ProjectUpdate
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    body: ProjectUpdate,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -26,7 +26,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -93,7 +94,7 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdate,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectResponse]:
     """Change a project's settings.
 
@@ -105,8 +106,8 @@ def sync_detailed(
 
     Args:
         project_id (str):
-        body (ProjectUpdate): A change to a project's settings. Each field left out keeps its
-            value.
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,7 +133,7 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdate,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> ErrorResponse | ProjectResponse | None:
     """Change a project's settings.
 
@@ -144,8 +145,8 @@ def sync(
 
     Args:
         project_id (str):
-        body (ProjectUpdate): A change to a project's settings. Each field left out keeps its
-            value.
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -166,7 +167,7 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdate,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | ProjectResponse]:
     """Change a project's settings.
 
@@ -178,8 +179,8 @@ async def asyncio_detailed(
 
     Args:
         project_id (str):
-        body (ProjectUpdate): A change to a project's settings. Each field left out keeps its
-            value.
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -203,7 +204,7 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectUpdate,
+    body: ProjectUpdate | Unset = UNSET,
 ) -> ErrorResponse | ProjectResponse | None:
     """Change a project's settings.
 
@@ -215,8 +216,8 @@ async def asyncio(
 
     Args:
         project_id (str):
-        body (ProjectUpdate): A change to a project's settings. Each field left out keeps its
-            value.
+        body (ProjectUpdate | Unset): A change to a project's settings. Each field left out keeps
+            its value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -9,7 +9,7 @@ from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.milestone_response import MilestoneResponse
 from ...models.milestone_update import MilestoneUpdate
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -17,7 +17,7 @@ def _get_kwargs(
     card_id: str,
     milestone_id: str,
     *,
-    body: MilestoneUpdate,
+    body: MilestoneUpdate | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -30,7 +30,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -99,7 +100,7 @@ def sync_detailed(
     milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneUpdate,
+    body: MilestoneUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | MilestoneResponse]:
     """Change a milestone.
 
@@ -113,7 +114,8 @@ def sync_detailed(
         project_id (str):
         card_id (str):
         milestone_id (str):
-        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
+        body (MilestoneUpdate | Unset): A change to a milestone. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -143,7 +145,7 @@ def sync(
     milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneUpdate,
+    body: MilestoneUpdate | Unset = UNSET,
 ) -> ErrorResponse | MilestoneResponse | None:
     """Change a milestone.
 
@@ -157,7 +159,8 @@ def sync(
         project_id (str):
         card_id (str):
         milestone_id (str):
-        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
+        body (MilestoneUpdate | Unset): A change to a milestone. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -182,7 +185,7 @@ async def asyncio_detailed(
     milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneUpdate,
+    body: MilestoneUpdate | Unset = UNSET,
 ) -> Response[ErrorResponse | MilestoneResponse]:
     """Change a milestone.
 
@@ -196,7 +199,8 @@ async def asyncio_detailed(
         project_id (str):
         card_id (str):
         milestone_id (str):
-        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
+        body (MilestoneUpdate | Unset): A change to a milestone. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -224,7 +228,7 @@ async def asyncio(
     milestone_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: MilestoneUpdate,
+    body: MilestoneUpdate | Unset = UNSET,
 ) -> ErrorResponse | MilestoneResponse | None:
     """Change a milestone.
 
@@ -238,7 +242,8 @@ async def asyncio(
         project_id (str):
         card_id (str):
         milestone_id (str):
-        body (MilestoneUpdate): A change to a milestone. Each field left out keeps its value.
+        body (MilestoneUpdate | Unset): A change to a milestone. Each field left out keeps its
+            value.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

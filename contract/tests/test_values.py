@@ -19,6 +19,7 @@ SAMPLE = extract(CONTRACT / "tests" / "fixtures", "sample")
 
 def pydantic_type(name: str):
     import interface.cards
+    import interface.git
     import interface.links
     import interface.milestones
     import interface.projects
@@ -26,7 +27,7 @@ def pydantic_type(name: str):
 
     if name == "Page":
         return interface.cards.Page[interface.cards.CardListItem]
-    for module in (interface.cards, interface.links, interface.milestones, interface.projects, interface.resources):
+    for module in (interface.cards, interface.git, interface.links, interface.milestones, interface.projects, interface.resources):
         if hasattr(module, name):
             return getattr(module, name)
     raise AttributeError(name)

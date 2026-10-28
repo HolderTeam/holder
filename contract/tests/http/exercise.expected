@@ -120,6 +120,12 @@ GET /projects/p1/tags?verbose=1
   400 list_project_tags {"error":{"code":"invalid_argument","message":"there is no query parameter verbose"},"ok":false}
 PATCH /projects/p9 {"git_remote_url": null}
   404 update_project {"error":{"code":"not_found","message":"project not found: p9"},"ok":false}
+POST /projects/p7/git/push
+  200 push_project {"data":{"project_id":"p7","pull":{"attempted":false,"conflicts_resolved":0,"error_message":null,"hidden_cards_repaired":0,"status":"not_attempted"},"push":{"ahead_count":0,"attempted":true,"behind_count":0,"error_message":null,"local_head_commit":null,"status":"remote_unset"},"remote_url":null,"status":"failed"},"ok":true}
+POST /projects/p7/git/push {"branch": ""}
+  400 push_project {"error":{"code":"invalid_argument","message":"branch must not be empty"},"ok":false}
+GET /projects/p7/git/sync-status
+  200 get_project_sync_state {"data":{"last_commit_at":null,"last_pull_at":null,"last_pull_status":null,"last_push_at":null,"last_push_status":null,"last_sync_error":null,"last_sync_error_at":null,"next_pull_retry_at":null,"next_retry_at":null,"project_id":"p7","pull_retry_count":0,"retry_count":0,"uncommitted_changes_count":0,"unpushed_commits_count":0,"updated_at":null},"ok":true}
 GET /projects/p1/cards/c9
   404 get_card {"error":{"code":"not_found","message":"card not found: c9"},"ok":false}
 GET /projects/p2/cards/c1

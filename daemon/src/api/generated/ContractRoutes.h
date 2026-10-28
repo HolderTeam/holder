@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
@@ -101,7 +101,9 @@ inline bool decode_bool(std::string_view input, const char* name) {
 }
 // The body's JSON. A syntax error's message quotes the bytes the parser stopped at, which need not
 // be UTF-8, so it says only where; any other quotes a number, such as one too large.
-inline json decode_body(const std::string& body) {
+// A body whose record has only fields that may be left out may itself be left out, as {}.
+inline json decode_body(const std::string& body, bool optional = false) {
+    if (body.empty() && optional) return json::object();
     if (body.empty()) throw std::invalid_argument("a request body is required");
     try {
         return json::parse(body);
@@ -242,7 +244,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         try {
             check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
-            update = contract_json::decode<holder::contract::ProjectUpdate>(decode_body(body));
+            update = contract_json::decode<holder::contract::ProjectUpdate>(decode_body(body, true));
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "update_project");
         }
@@ -593,6 +595,125 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             return failure(500, "internal_error", error.what(), "list_milestones_by_instant");
         }
     }
+    static const std::regex route_35("^/projects/([^/]+)/git/sync\\-status$");
+    if (method == "GET" && std::regex_match(route_path, match, route_35)) {
+        std::string project_id{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_project_sync_state");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::get_project_sync_state(context, std::move(project_id))), "get_project_sync_state");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "get_project_sync_state");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_project_sync_state");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "get_project_sync_state");
+        }
+    }
+    static const std::regex route_36("^/projects/([^/]+)/git/pull$");
+    if (method == "POST" && std::regex_match(route_path, match, route_36)) {
+        std::string project_id{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "pull_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::pull_project(context, std::move(project_id))), "pull_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "pull_project");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "pull_project");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "pull_project");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "pull_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "pull_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "pull_project");
+        }
+    }
+    static const std::regex route_37("^/projects/([^/]+)/git/push$");
+    if (method == "POST" && std::regex_match(route_path, match, route_37)) {
+        std::string project_id{};
+        holder::contract::PushOptions options{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            options = contract_json::decode<holder::contract::PushOptions>(decode_body(body, true));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "push_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::push_project(context, std::move(project_id), std::move(options))), "push_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "push_project");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "push_project");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "push_project");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "push_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "push_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "push_project");
+        }
+    }
+    static const std::regex route_38("^/projects/([^/]+)/git/sync$");
+    if (method == "POST" && std::regex_match(route_path, match, route_38)) {
+        std::string project_id{};
+        holder::contract::PushOptions options{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            options = contract_json::decode<holder::contract::PushOptions>(decode_body(body, true));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "sync_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::sync_project(context, std::move(project_id), std::move(options))), "sync_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "sync_project");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "sync_project");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "sync_project");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "sync_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "sync_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "sync_project");
+        }
+    }
+    static const std::regex route_39("^/projects/([^/]+)/git/test\\-remote$");
+    if (method == "POST" && std::regex_match(route_path, match, route_39)) {
+        std::string project_id{};
+        holder::contract::RemoteTest remote{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            remote = contract_json::decode<holder::contract::RemoteTest>(decode_body(body, true));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "test_project_remote");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::test_project_remote(context, std::move(project_id), std::move(remote))), "test_project_remote");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "test_project_remote");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "test_project_remote");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "test_project_remote");
+        }
+    }
     static const std::regex route_0("^/projects/([^/]+)/cards/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_0)) {
         std::string project_id{};
@@ -629,7 +750,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
-            update = contract_json::decode<holder::contract::CardUpdate>(decode_body(body));
+            update = contract_json::decode<holder::contract::CardUpdate>(decode_body(body, true));
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "update_card");
         }
@@ -719,7 +840,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
-            update = contract_json::decode<holder::contract::ResourceUpdate>(decode_body(body));
+            update = contract_json::decode<holder::contract::ResourceUpdate>(decode_body(body, true));
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "update_resource");
         }
@@ -1160,7 +1281,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             milestone_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
-            update = contract_json::decode<holder::contract::MilestoneUpdate>(decode_body(body));
+            update = contract_json::decode<holder::contract::MilestoneUpdate>(decode_body(body, true));
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "update_card_milestone");
         }
@@ -1290,30 +1411,40 @@ inline std::set<std::string_view> allowed_methods(const std::string& path) {
     if (std::regex_match(route_path, path_6)) methods.insert({"GET"});
     static const std::regex path_7("^/projects/([^/]+)/milestones/instants$");
     if (std::regex_match(route_path, path_7)) methods.insert({"GET"});
-    static const std::regex path_8("^/projects/([^/]+)/cards/([^/]+)$");
-    if (std::regex_match(route_path, path_8)) methods.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_9("^/projects/([^/]+)/resources/([^/]+)$");
-    if (std::regex_match(route_path, path_9)) methods.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_10("^/projects/([^/]+)/cards/([^/]+)/restore$");
+    static const std::regex path_8("^/projects/([^/]+)/git/sync\\-status$");
+    if (std::regex_match(route_path, path_8)) methods.insert({"GET"});
+    static const std::regex path_9("^/projects/([^/]+)/git/pull$");
+    if (std::regex_match(route_path, path_9)) methods.insert({"POST"});
+    static const std::regex path_10("^/projects/([^/]+)/git/push$");
     if (std::regex_match(route_path, path_10)) methods.insert({"POST"});
-    static const std::regex path_11("^/projects/([^/]+)/cards/([^/]+)/move$");
+    static const std::regex path_11("^/projects/([^/]+)/git/sync$");
     if (std::regex_match(route_path, path_11)) methods.insert({"POST"});
-    static const std::regex path_12("^/projects/([^/]+)/cards/([^/]+)/links$");
-    if (std::regex_match(route_path, path_12)) methods.insert({"DELETE", "GET", "POST"});
-    static const std::regex path_13("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
-    if (std::regex_match(route_path, path_13)) methods.insert({"GET"});
-    static const std::regex path_14("^/projects/([^/]+)/cards/([^/]+)/milestones$");
-    if (std::regex_match(route_path, path_14)) methods.insert({"GET", "POST"});
-    static const std::regex path_15("^/projects/([^/]+)/resources/([^/]+)/backlinks$");
-    if (std::regex_match(route_path, path_15)) methods.insert({"GET"});
-    static const std::regex path_16("^/projects/([^/]+)/cards/([^/]+)/resources$");
-    if (std::regex_match(route_path, path_16)) methods.insert({"GET"});
-    static const std::regex path_17("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
-    if (std::regex_match(route_path, path_17)) methods.insert({"DELETE", "PUT"});
-    static const std::regex path_18("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
-    if (std::regex_match(route_path, path_18)) methods.insert({"DELETE", "PATCH"});
-    static const std::regex path_19("^/projects/([^/]+)/cards/([^/]+)/resources/([^/]+)$");
-    if (std::regex_match(route_path, path_19)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_12("^/projects/([^/]+)/git/test\\-remote$");
+    if (std::regex_match(route_path, path_12)) methods.insert({"POST"});
+    static const std::regex path_13("^/projects/([^/]+)/cards/([^/]+)$");
+    if (std::regex_match(route_path, path_13)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_14("^/projects/([^/]+)/resources/([^/]+)$");
+    if (std::regex_match(route_path, path_14)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_15("^/projects/([^/]+)/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_15)) methods.insert({"POST"});
+    static const std::regex path_16("^/projects/([^/]+)/cards/([^/]+)/move$");
+    if (std::regex_match(route_path, path_16)) methods.insert({"POST"});
+    static const std::regex path_17("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (std::regex_match(route_path, path_17)) methods.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_18("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_18)) methods.insert({"GET"});
+    static const std::regex path_19("^/projects/([^/]+)/cards/([^/]+)/milestones$");
+    if (std::regex_match(route_path, path_19)) methods.insert({"GET", "POST"});
+    static const std::regex path_20("^/projects/([^/]+)/resources/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_20)) methods.insert({"GET"});
+    static const std::regex path_21("^/projects/([^/]+)/cards/([^/]+)/resources$");
+    if (std::regex_match(route_path, path_21)) methods.insert({"GET"});
+    static const std::regex path_22("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
+    if (std::regex_match(route_path, path_22)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_23("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
+    if (std::regex_match(route_path, path_23)) methods.insert({"DELETE", "PATCH"});
+    static const std::regex path_24("^/projects/([^/]+)/cards/([^/]+)/resources/([^/]+)$");
+    if (std::regex_match(route_path, path_24)) methods.insert({"DELETE", "PUT"});
     return methods;
 }
 }  // namespace contract_http

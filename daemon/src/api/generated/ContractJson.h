@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -248,6 +248,102 @@ template <> struct codec<holder::contract::ProjectPrivacyMode> {
     }
 };
 
+template <> struct codec<holder::contract::PullPhaseStatus> {
+    static json encode(holder::contract::PullPhaseStatus value) {
+        switch (value) {
+        case holder::contract::PullPhaseStatus::NotAttempted: return "not_attempted";
+        case holder::contract::PullPhaseStatus::Succeeded: return "succeeded";
+        case holder::contract::PullPhaseStatus::RemoteUnset: return "remote_unset";
+        case holder::contract::PullPhaseStatus::Failed: return "failed";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::PullPhaseStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "not_attempted") return holder::contract::PullPhaseStatus::NotAttempted;
+        if (text == "succeeded") return holder::contract::PullPhaseStatus::Succeeded;
+        if (text == "remote_unset") return holder::contract::PullPhaseStatus::RemoteUnset;
+        if (text == "failed") return holder::contract::PullPhaseStatus::Failed;
+        throw std::invalid_argument("must be one of not_attempted, succeeded, remote_unset, failed");
+    }
+};
+
+template <> struct codec<holder::contract::PushPhaseStatus> {
+    static json encode(holder::contract::PushPhaseStatus value) {
+        switch (value) {
+        case holder::contract::PushPhaseStatus::NotAttempted: return "not_attempted";
+        case holder::contract::PushPhaseStatus::Pushed: return "pushed";
+        case holder::contract::PushPhaseStatus::UpToDate: return "up_to_date";
+        case holder::contract::PushPhaseStatus::AuthFailed: return "auth_failed";
+        case holder::contract::PushPhaseStatus::NotFound: return "not_found";
+        case holder::contract::PushPhaseStatus::NetworkError: return "network_error";
+        case holder::contract::PushPhaseStatus::NonFastForward: return "non_fast_forward";
+        case holder::contract::PushPhaseStatus::RemoteUnset: return "remote_unset";
+        case holder::contract::PushPhaseStatus::UnknownError: return "unknown_error";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::PushPhaseStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "not_attempted") return holder::contract::PushPhaseStatus::NotAttempted;
+        if (text == "pushed") return holder::contract::PushPhaseStatus::Pushed;
+        if (text == "up_to_date") return holder::contract::PushPhaseStatus::UpToDate;
+        if (text == "auth_failed") return holder::contract::PushPhaseStatus::AuthFailed;
+        if (text == "not_found") return holder::contract::PushPhaseStatus::NotFound;
+        if (text == "network_error") return holder::contract::PushPhaseStatus::NetworkError;
+        if (text == "non_fast_forward") return holder::contract::PushPhaseStatus::NonFastForward;
+        if (text == "remote_unset") return holder::contract::PushPhaseStatus::RemoteUnset;
+        if (text == "unknown_error") return holder::contract::PushPhaseStatus::UnknownError;
+        throw std::invalid_argument("must be one of not_attempted, pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset, unknown_error");
+    }
+};
+
+template <> struct codec<holder::contract::SyncResultStatus> {
+    static json encode(holder::contract::SyncResultStatus value) {
+        switch (value) {
+        case holder::contract::SyncResultStatus::Succeeded: return "succeeded";
+        case holder::contract::SyncResultStatus::Failed: return "failed";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::SyncResultStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "succeeded") return holder::contract::SyncResultStatus::Succeeded;
+        if (text == "failed") return holder::contract::SyncResultStatus::Failed;
+        throw std::invalid_argument("must be one of succeeded, failed");
+    }
+};
+
+template <> struct codec<holder::contract::RemoteTestResultStatus> {
+    static json encode(holder::contract::RemoteTestResultStatus value) {
+        switch (value) {
+        case holder::contract::RemoteTestResultStatus::Reachable: return "reachable";
+        case holder::contract::RemoteTestResultStatus::AuthFailed: return "auth_failed";
+        case holder::contract::RemoteTestResultStatus::NotFound: return "not_found";
+        case holder::contract::RemoteTestResultStatus::NetworkError: return "network_error";
+        case holder::contract::RemoteTestResultStatus::InvalidRemoteUrl: return "invalid_remote_url";
+        case holder::contract::RemoteTestResultStatus::RemoteUnset: return "remote_unset";
+        case holder::contract::RemoteTestResultStatus::UnknownError: return "unknown_error";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RemoteTestResultStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "reachable") return holder::contract::RemoteTestResultStatus::Reachable;
+        if (text == "auth_failed") return holder::contract::RemoteTestResultStatus::AuthFailed;
+        if (text == "not_found") return holder::contract::RemoteTestResultStatus::NotFound;
+        if (text == "network_error") return holder::contract::RemoteTestResultStatus::NetworkError;
+        if (text == "invalid_remote_url") return holder::contract::RemoteTestResultStatus::InvalidRemoteUrl;
+        if (text == "remote_unset") return holder::contract::RemoteTestResultStatus::RemoteUnset;
+        if (text == "unknown_error") return holder::contract::RemoteTestResultStatus::UnknownError;
+        throw std::invalid_argument("must be one of reachable, auth_failed, not_found, network_error, invalid_remote_url, remote_unset, unknown_error");
+    }
+};
+
 template <> struct codec<holder::contract::CardMoveIntent> {
     static json encode(holder::contract::CardMoveIntent value) {
         switch (value) {
@@ -379,6 +475,26 @@ template <> struct codec<holder::contract::Project> {
     static json encode(const holder::contract::Project& value);
     static holder::contract::Project decode(const json& value);
 };
+template <> struct codec<holder::contract::SyncState> {
+    static json encode(const holder::contract::SyncState& value);
+    static holder::contract::SyncState decode(const json& value);
+};
+template <> struct codec<holder::contract::PullPhase> {
+    static json encode(const holder::contract::PullPhase& value);
+    static holder::contract::PullPhase decode(const json& value);
+};
+template <> struct codec<holder::contract::PushPhase> {
+    static json encode(const holder::contract::PushPhase& value);
+    static holder::contract::PushPhase decode(const json& value);
+};
+template <> struct codec<holder::contract::SyncResult> {
+    static json encode(const holder::contract::SyncResult& value);
+    static holder::contract::SyncResult decode(const json& value);
+};
+template <> struct codec<holder::contract::RemoteTestResult> {
+    static json encode(const holder::contract::RemoteTestResult& value);
+    static holder::contract::RemoteTestResult decode(const json& value);
+};
 template <> struct codec<holder::contract::NewCard> {
     static json encode(const holder::contract::NewCard& value);
     static holder::contract::NewCard decode(const json& value);
@@ -418,6 +534,14 @@ template <> struct codec<holder::contract::NewProject> {
 template <> struct codec<holder::contract::ProjectUpdate> {
     static json encode(const holder::contract::ProjectUpdate& value);
     static holder::contract::ProjectUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::PushOptions> {
+    static json encode(const holder::contract::PushOptions& value);
+    static holder::contract::PushOptions decode(const json& value);
+};
+template <> struct codec<holder::contract::RemoteTest> {
+    static json encode(const holder::contract::RemoteTest& value);
+    static holder::contract::RemoteTest decode(const json& value);
 };
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
@@ -1360,6 +1484,286 @@ inline holder::contract::Project codec<holder::contract::Project>::decode(const 
     return out;
 }
 
+inline json codec<holder::contract::SyncState>::encode(const holder::contract::SyncState& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["last_commit_at"] = value.last_commit_at ? codec<long long>::encode(*value.last_commit_at) : json(nullptr);
+    result["last_push_at"] = value.last_push_at ? codec<long long>::encode(*value.last_push_at) : json(nullptr);
+    result["last_pull_at"] = value.last_pull_at ? codec<long long>::encode(*value.last_pull_at) : json(nullptr);
+    result["uncommitted_changes_count"] = codec<std::int32_t>::encode(value.uncommitted_changes_count);
+    result["unpushed_commits_count"] = codec<std::int32_t>::encode(value.unpushed_commits_count);
+    result["last_push_status"] = value.last_push_status ? codec<std::string>::encode(*value.last_push_status) : json(nullptr);
+    result["last_pull_status"] = value.last_pull_status ? codec<std::string>::encode(*value.last_pull_status) : json(nullptr);
+    result["last_sync_error"] = value.last_sync_error ? codec<std::string>::encode(*value.last_sync_error) : json(nullptr);
+    result["last_sync_error_at"] = value.last_sync_error_at ? codec<long long>::encode(*value.last_sync_error_at) : json(nullptr);
+    result["retry_count"] = codec<std::int32_t>::encode(value.retry_count);
+    result["next_retry_at"] = value.next_retry_at ? codec<long long>::encode(*value.next_retry_at) : json(nullptr);
+    result["pull_retry_count"] = codec<std::int32_t>::encode(value.pull_retry_count);
+    result["next_pull_retry_at"] = value.next_pull_retry_at ? codec<long long>::encode(*value.next_pull_retry_at) : json(nullptr);
+    result["updated_at"] = value.updated_at ? codec<long long>::encode(*value.updated_at) : json(nullptr);
+    return result;
+}
+inline holder::contract::SyncState codec<holder::contract::SyncState>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a SyncState object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "last_commit_at" && it.key() != "last_push_at" && it.key() != "last_pull_at" && it.key() != "uncommitted_changes_count" && it.key() != "unpushed_commits_count" && it.key() != "last_push_status" && it.key() != "last_pull_status" && it.key() != "last_sync_error" && it.key() != "last_sync_error_at" && it.key() != "retry_count" && it.key() != "next_retry_at" && it.key() != "pull_retry_count" && it.key() != "next_pull_retry_at" && it.key() != "updated_at") throw std::invalid_argument("SyncState has no field " + it.key());
+    holder::contract::SyncState out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("last_commit_at") && !value.at("last_commit_at").is_null()) {
+        const auto& item = value.at("last_commit_at");
+        out.last_commit_at = decode_field<long long>(item, "last_commit_at");
+    }
+    if (value.contains("last_push_at") && !value.at("last_push_at").is_null()) {
+        const auto& item = value.at("last_push_at");
+        out.last_push_at = decode_field<long long>(item, "last_push_at");
+    }
+    if (value.contains("last_pull_at") && !value.at("last_pull_at").is_null()) {
+        const auto& item = value.at("last_pull_at");
+        out.last_pull_at = decode_field<long long>(item, "last_pull_at");
+    }
+    if (value.contains("uncommitted_changes_count") && !value.at("uncommitted_changes_count").is_null()) {
+        const auto& item = value.at("uncommitted_changes_count");
+        out.uncommitted_changes_count = decode_field<std::int32_t>(item, "uncommitted_changes_count");
+    } else {
+        throw std::invalid_argument("uncommitted_changes_count is required and must not be null");
+    }
+    if (value.contains("unpushed_commits_count") && !value.at("unpushed_commits_count").is_null()) {
+        const auto& item = value.at("unpushed_commits_count");
+        out.unpushed_commits_count = decode_field<std::int32_t>(item, "unpushed_commits_count");
+    } else {
+        throw std::invalid_argument("unpushed_commits_count is required and must not be null");
+    }
+    if (value.contains("last_push_status") && !value.at("last_push_status").is_null()) {
+        const auto& item = value.at("last_push_status");
+        out.last_push_status = check_text(decode_field<std::string>(item, "last_push_status"), "last_push_status", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("last_pull_status") && !value.at("last_pull_status").is_null()) {
+        const auto& item = value.at("last_pull_status");
+        out.last_pull_status = check_text(decode_field<std::string>(item, "last_pull_status"), "last_pull_status", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("last_sync_error") && !value.at("last_sync_error").is_null()) {
+        const auto& item = value.at("last_sync_error");
+        out.last_sync_error = check_text(decode_field<std::string>(item, "last_sync_error"), "last_sync_error", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("last_sync_error_at") && !value.at("last_sync_error_at").is_null()) {
+        const auto& item = value.at("last_sync_error_at");
+        out.last_sync_error_at = decode_field<long long>(item, "last_sync_error_at");
+    }
+    if (value.contains("retry_count") && !value.at("retry_count").is_null()) {
+        const auto& item = value.at("retry_count");
+        out.retry_count = decode_field<std::int32_t>(item, "retry_count");
+    } else {
+        throw std::invalid_argument("retry_count is required and must not be null");
+    }
+    if (value.contains("next_retry_at") && !value.at("next_retry_at").is_null()) {
+        const auto& item = value.at("next_retry_at");
+        out.next_retry_at = decode_field<long long>(item, "next_retry_at");
+    }
+    if (value.contains("pull_retry_count") && !value.at("pull_retry_count").is_null()) {
+        const auto& item = value.at("pull_retry_count");
+        out.pull_retry_count = decode_field<std::int32_t>(item, "pull_retry_count");
+    } else {
+        throw std::invalid_argument("pull_retry_count is required and must not be null");
+    }
+    if (value.contains("next_pull_retry_at") && !value.at("next_pull_retry_at").is_null()) {
+        const auto& item = value.at("next_pull_retry_at");
+        out.next_pull_retry_at = decode_field<long long>(item, "next_pull_retry_at");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::PullPhase>::encode(const holder::contract::PullPhase& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    result["status"] = codec<holder::contract::PullPhaseStatus>::encode(value.status);
+    result["conflicts_resolved"] = codec<std::int32_t>::encode(value.conflicts_resolved);
+    result["hidden_cards_repaired"] = codec<std::int32_t>::encode(value.hidden_cards_repaired);
+    result["error_message"] = value.error_message ? codec<std::string>::encode(*value.error_message) : json(nullptr);
+    return result;
+}
+inline holder::contract::PullPhase codec<holder::contract::PullPhase>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a PullPhase object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "attempted" && it.key() != "status" && it.key() != "conflicts_resolved" && it.key() != "hidden_cards_repaired" && it.key() != "error_message") throw std::invalid_argument("PullPhase has no field " + it.key());
+    holder::contract::PullPhase out;
+    if (value.contains("attempted") && !value.at("attempted").is_null()) {
+        const auto& item = value.at("attempted");
+        out.attempted = decode_field<bool>(item, "attempted");
+    } else {
+        throw std::invalid_argument("attempted is required and must not be null");
+    }
+    if (value.contains("status") && !value.at("status").is_null()) {
+        const auto& item = value.at("status");
+        out.status = decode_field<holder::contract::PullPhaseStatus>(item, "status");
+    } else {
+        throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("conflicts_resolved") && !value.at("conflicts_resolved").is_null()) {
+        const auto& item = value.at("conflicts_resolved");
+        out.conflicts_resolved = decode_field<std::int32_t>(item, "conflicts_resolved");
+    } else {
+        throw std::invalid_argument("conflicts_resolved is required and must not be null");
+    }
+    if (value.contains("hidden_cards_repaired") && !value.at("hidden_cards_repaired").is_null()) {
+        const auto& item = value.at("hidden_cards_repaired");
+        out.hidden_cards_repaired = decode_field<std::int32_t>(item, "hidden_cards_repaired");
+    } else {
+        throw std::invalid_argument("hidden_cards_repaired is required and must not be null");
+    }
+    if (value.contains("error_message") && !value.at("error_message").is_null()) {
+        const auto& item = value.at("error_message");
+        out.error_message = check_text(decode_field<std::string>(item, "error_message"), "error_message", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::PushPhase>::encode(const holder::contract::PushPhase& value) {
+    json result = json::object();
+    result["attempted"] = codec<bool>::encode(value.attempted);
+    result["status"] = codec<holder::contract::PushPhaseStatus>::encode(value.status);
+    result["ahead_count"] = codec<std::int32_t>::encode(value.ahead_count);
+    result["behind_count"] = codec<std::int32_t>::encode(value.behind_count);
+    result["local_head_commit"] = value.local_head_commit ? codec<std::string>::encode(*value.local_head_commit) : json(nullptr);
+    result["error_message"] = value.error_message ? codec<std::string>::encode(*value.error_message) : json(nullptr);
+    return result;
+}
+inline holder::contract::PushPhase codec<holder::contract::PushPhase>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a PushPhase object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "attempted" && it.key() != "status" && it.key() != "ahead_count" && it.key() != "behind_count" && it.key() != "local_head_commit" && it.key() != "error_message") throw std::invalid_argument("PushPhase has no field " + it.key());
+    holder::contract::PushPhase out;
+    if (value.contains("attempted") && !value.at("attempted").is_null()) {
+        const auto& item = value.at("attempted");
+        out.attempted = decode_field<bool>(item, "attempted");
+    } else {
+        throw std::invalid_argument("attempted is required and must not be null");
+    }
+    if (value.contains("status") && !value.at("status").is_null()) {
+        const auto& item = value.at("status");
+        out.status = decode_field<holder::contract::PushPhaseStatus>(item, "status");
+    } else {
+        throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("ahead_count") && !value.at("ahead_count").is_null()) {
+        const auto& item = value.at("ahead_count");
+        out.ahead_count = decode_field<std::int32_t>(item, "ahead_count");
+    } else {
+        throw std::invalid_argument("ahead_count is required and must not be null");
+    }
+    if (value.contains("behind_count") && !value.at("behind_count").is_null()) {
+        const auto& item = value.at("behind_count");
+        out.behind_count = decode_field<std::int32_t>(item, "behind_count");
+    } else {
+        throw std::invalid_argument("behind_count is required and must not be null");
+    }
+    if (value.contains("local_head_commit") && !value.at("local_head_commit").is_null()) {
+        const auto& item = value.at("local_head_commit");
+        out.local_head_commit = check_text(decode_field<std::string>(item, "local_head_commit"), "local_head_commit", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("error_message") && !value.at("error_message").is_null()) {
+        const auto& item = value.at("error_message");
+        out.error_message = check_text(decode_field<std::string>(item, "error_message"), "error_message", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::SyncResult>::encode(const holder::contract::SyncResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["status"] = codec<holder::contract::SyncResultStatus>::encode(value.status);
+    result["remote_url"] = value.remote_url ? codec<std::string>::encode(*value.remote_url) : json(nullptr);
+    result["pull"] = codec<holder::contract::PullPhase>::encode(value.pull);
+    result["push"] = codec<holder::contract::PushPhase>::encode(value.push);
+    return result;
+}
+inline holder::contract::SyncResult codec<holder::contract::SyncResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a SyncResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "status" && it.key() != "remote_url" && it.key() != "pull" && it.key() != "push") throw std::invalid_argument("SyncResult has no field " + it.key());
+    holder::contract::SyncResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("status") && !value.at("status").is_null()) {
+        const auto& item = value.at("status");
+        out.status = decode_field<holder::contract::SyncResultStatus>(item, "status");
+    } else {
+        throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("remote_url") && !value.at("remote_url").is_null()) {
+        const auto& item = value.at("remote_url");
+        out.remote_url = check_text(decode_field<std::string>(item, "remote_url"), "remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("pull") && !value.at("pull").is_null()) {
+        const auto& item = value.at("pull");
+        out.pull = codec<holder::contract::PullPhase>::decode(item);
+    } else {
+        throw std::invalid_argument("pull is required and must not be null");
+    }
+    if (value.contains("push") && !value.at("push").is_null()) {
+        const auto& item = value.at("push");
+        out.push = codec<holder::contract::PushPhase>::decode(item);
+    } else {
+        throw std::invalid_argument("push is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RemoteTestResult>::encode(const holder::contract::RemoteTestResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["status"] = codec<holder::contract::RemoteTestResultStatus>::encode(value.status);
+    result["remote_url"] = value.remote_url ? codec<std::string>::encode(*value.remote_url) : json(nullptr);
+    result["remote_has_head"] = codec<bool>::encode(value.remote_has_head);
+    result["error_message"] = value.error_message ? codec<std::string>::encode(*value.error_message) : json(nullptr);
+    return result;
+}
+inline holder::contract::RemoteTestResult codec<holder::contract::RemoteTestResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RemoteTestResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "status" && it.key() != "remote_url" && it.key() != "remote_has_head" && it.key() != "error_message") throw std::invalid_argument("RemoteTestResult has no field " + it.key());
+    holder::contract::RemoteTestResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("status") && !value.at("status").is_null()) {
+        const auto& item = value.at("status");
+        out.status = decode_field<holder::contract::RemoteTestResultStatus>(item, "status");
+    } else {
+        throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("remote_url") && !value.at("remote_url").is_null()) {
+        const auto& item = value.at("remote_url");
+        out.remote_url = check_text(decode_field<std::string>(item, "remote_url"), "remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("remote_has_head") && !value.at("remote_has_head").is_null()) {
+        const auto& item = value.at("remote_has_head");
+        out.remote_has_head = decode_field<bool>(item, "remote_has_head");
+    } else {
+        throw std::invalid_argument("remote_has_head is required and must not be null");
+    }
+    if (value.contains("error_message") && !value.at("error_message").is_null()) {
+        const auto& item = value.at("error_message");
+        out.error_message = check_text(decode_field<std::string>(item, "error_message"), "error_message", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewCard>::encode(const holder::contract::NewCard& value) {
     json result = json::object();
     result["title"] = codec<std::string>::encode(value.title);
@@ -1793,6 +2197,51 @@ inline holder::contract::ProjectUpdate codec<holder::contract::ProjectUpdate>::d
         out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
     } else if (value.contains("git_provider")) {
         out.git_provider.emplace();
+    }
+    return out;
+}
+
+inline json codec<holder::contract::PushOptions>::encode(const holder::contract::PushOptions& value) {
+    json result = json::object();
+    if (value.branch) result["branch"] = codec<std::string>::encode(*value.branch);
+    result["set_upstream"] = codec<bool>::encode(value.set_upstream);
+    return result;
+}
+inline holder::contract::PushOptions codec<holder::contract::PushOptions>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a PushOptions object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "branch" && it.key() != "set_upstream") throw std::invalid_argument("PushOptions has no field " + it.key());
+    holder::contract::PushOptions out;
+    if (value.contains("branch") && !value.at("branch").is_null()) {
+        const auto& item = value.at("branch");
+        out.branch = check_text(decode_field<std::string>(item, "branch"), "branch", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("branch")) {
+        throw std::invalid_argument("branch must not be null");
+    }
+    if (value.contains("set_upstream") && !value.at("set_upstream").is_null()) {
+        const auto& item = value.at("set_upstream");
+        out.set_upstream = decode_field<bool>(item, "set_upstream");
+    } else if (value.contains("set_upstream")) {
+        throw std::invalid_argument("set_upstream must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RemoteTest>::encode(const holder::contract::RemoteTest& value) {
+    json result = json::object();
+    if (value.remote_url) result["remote_url"] = codec<std::string>::encode(*value.remote_url);
+    return result;
+}
+inline holder::contract::RemoteTest codec<holder::contract::RemoteTest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RemoteTest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "remote_url") throw std::invalid_argument("RemoteTest has no field " + it.key());
+    holder::contract::RemoteTest out;
+    if (value.contains("remote_url") && !value.at("remote_url").is_null()) {
+        const auto& item = value.at("remote_url");
+        out.remote_url = check_text(decode_field<std::string>(item, "remote_url"), "remote_url", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("remote_url")) {
+        throw std::invalid_argument("remote_url must not be null");
     }
     return out;
 }

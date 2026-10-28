@@ -386,6 +386,40 @@ Project delete_project(holder_context& context, std::string project_id) {
   std::erase_if(context.projects, [&](const Project& p) { return p.project_id == project_id; });
   return project;
 }
+// Git sync: the stand-in has no remotes, so every project has none.
+SyncState get_project_sync_state(holder_context& context, std::string project_id) {
+  project_named(context, project_id);
+  return {project_id, {}, {}, {}, 0, 0, {}, {}, {}, {}, 0, {}, 0, {}, {}};
+}
+
+SyncResult no_remote(holder_context& context, const std::string& project_id, bool pull, bool push) {
+  project_named(context, project_id);
+  return {project_id,
+          SyncResultStatus::Failed,
+          std::nullopt,
+          {pull, pull ? PullPhaseStatus::RemoteUnset : PullPhaseStatus::NotAttempted, 0, 0, std::nullopt},
+          {push && !pull, push && !pull ? PushPhaseStatus::RemoteUnset : PushPhaseStatus::NotAttempted, 0, 0,
+           std::nullopt, std::nullopt}};
+}
+
+SyncResult pull_project(holder_context& context, std::string project_id) {
+  return no_remote(context, project_id, true, false);
+}
+
+SyncResult push_project(holder_context& context, std::string project_id, const PushOptions& options) {
+  (void)options;
+  return no_remote(context, project_id, false, true);
+}
+
+SyncResult sync_project(holder_context& context, std::string project_id, const PushOptions& options) {
+  (void)options;
+  return no_remote(context, project_id, true, true);
+}
+
+RemoteTestResult test_project_remote(holder_context& context, std::string project_id, const RemoteTest& remote) {
+  project_named(context, project_id);
+  return {project_id, RemoteTestResultStatus::RemoteUnset, remote.remote_url, false, std::nullopt};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

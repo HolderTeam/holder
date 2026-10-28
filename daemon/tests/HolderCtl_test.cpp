@@ -434,7 +434,7 @@ TEST_CASE("holderctl sync status reports recorded state over HTTP", "[holderctl]
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
-  if (expected_failure) expected["data"]["sync"]["last_sync_error"] = *expected_failure;
+  if (expected_failure) expected["data"]["last_sync_error"] = *expected_failure;
   CHECK(result == expected);
   CHECK(result["data"]["project_id"] == project_id);
   for (const auto* secret :

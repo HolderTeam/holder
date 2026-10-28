@@ -55,11 +55,26 @@ def document(contract: Contract) -> dict[str, Any]:
             operation["responses"].pop("422", None)
             operation.pop("operationId", None)
     schemas = result["components"]["schemas"]
+    for methods in result["paths"].values():
+        for operation in methods.values():
+            optional_body(operation, schemas)
     for name in FASTAPI_ONLY:
         schemas.pop(name, None)
     schemas.update(copy.deepcopy(ERROR_SCHEMAS))
     return ordered(named_by_title(exact_bounds({"openapi": OPENAPI_VERSION, "paths": result["paths"],
                                                 "components": {"schemas": schemas}})))
+
+
+def optional_body(operation: dict[str, Any], schemas: dict[str, Any]) -> None:
+    """Mark a body whose record has no required field as one that may be left out, as the daemon
+    reads a missing one as {}."""
+    body = operation.get("requestBody")
+    if body is None:
+        return
+    ref = body["content"]["application/json"]["schema"].get("$ref", "")
+    record = schemas.get(ref.rpartition("/")[2], {})
+    if record.get("type") == "object" and not record.get("required"):
+        body["required"] = False
 
 
 def exact_bounds(value: Any) -> Any:

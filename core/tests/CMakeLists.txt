@@ -41,6 +41,7 @@ add_executable(holder_core_tests
   CApi_test.cpp
   CApiCards_test.cpp
   ContractContext_test.cpp
+  ContractGit_test.cpp
   ContractLinks_test.cpp
   ContractProjects_test.cpp
   CardFrontMatter_test.cpp

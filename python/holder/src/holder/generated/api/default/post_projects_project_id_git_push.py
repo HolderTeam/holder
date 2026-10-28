@@ -7,15 +7,15 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.project_git_push_request import ProjectGitPushRequest
-from ...models.project_git_push_response import ProjectGitPushResponse
+from ...models.push_options import PushOptions
+from ...models.sync_result_response import SyncResultResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     project_id: str,
     *,
-    body: ProjectGitPushRequest | Unset = UNSET,
+    body: PushOptions | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -37,9 +37,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ProjectGitPushResponse | None:
+) -> ErrorResponse | SyncResultResponse | None:
     if response.status_code == 200:
-        response_200 = ProjectGitPushResponse.from_dict(response.json())
+        response_200 = SyncResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -57,6 +57,11 @@ def _parse_response(
         response_404 = ErrorResponse.from_dict(response.json())
 
         return response_404
+
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
@@ -76,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ProjectGitPushResponse]:
+) -> Response[ErrorResponse | SyncResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -89,23 +94,26 @@ def sync_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitPushRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitPushResponse]:
-    """Push project repository to remote
+    body: PushOptions | Unset = UNSET,
+) -> Response[ErrorResponse | SyncResultResponse]:
+    """Push a project to its Git remote.
 
-     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
-    pushing, so no plaintext card leaves the device.
+     An encrypted project is checked first, so no plaintext card leaves the device: one whose files are
+    not safe
+    to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded
+    in the
+    sync state.
 
     Args:
         project_id (str):
-        body (ProjectGitPushRequest | Unset):
+        body (PushOptions | Unset): How to push.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitPushResponse]
+        Response[ErrorResponse | SyncResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -124,23 +132,26 @@ def sync(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitPushRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitPushResponse | None:
-    """Push project repository to remote
+    body: PushOptions | Unset = UNSET,
+) -> ErrorResponse | SyncResultResponse | None:
+    """Push a project to its Git remote.
 
-     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
-    pushing, so no plaintext card leaves the device.
+     An encrypted project is checked first, so no plaintext card leaves the device: one whose files are
+    not safe
+    to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded
+    in the
+    sync state.
 
     Args:
         project_id (str):
-        body (ProjectGitPushRequest | Unset):
+        body (PushOptions | Unset): How to push.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitPushResponse
+        ErrorResponse | SyncResultResponse
     """
 
     return sync_detailed(
@@ -154,23 +165,26 @@ async def asyncio_detailed(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitPushRequest | Unset = UNSET,
-) -> Response[ErrorResponse | ProjectGitPushResponse]:
-    """Push project repository to remote
+    body: PushOptions | Unset = UNSET,
+) -> Response[ErrorResponse | SyncResultResponse]:
+    """Push a project to its Git remote.
 
-     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
-    pushing, so no plaintext card leaves the device.
+     An encrypted project is checked first, so no plaintext card leaves the device: one whose files are
+    not safe
+    to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded
+    in the
+    sync state.
 
     Args:
         project_id (str):
-        body (ProjectGitPushRequest | Unset):
+        body (PushOptions | Unset): How to push.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ProjectGitPushResponse]
+        Response[ErrorResponse | SyncResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -187,23 +201,26 @@ async def asyncio(
     project_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ProjectGitPushRequest | Unset = UNSET,
-) -> ErrorResponse | ProjectGitPushResponse | None:
-    """Push project repository to remote
+    body: PushOptions | Unset = UNSET,
+) -> ErrorResponse | SyncResultResponse | None:
+    """Push a project to its Git remote.
 
-     Git failures are reported in the result, not as HTTP errors. An encrypted project is checked before
-    pushing, so no plaintext card leaves the device.
+     An encrypted project is checked first, so no plaintext card leaves the device: one whose files are
+    not safe
+    to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded
+    in the
+    sync state.
 
     Args:
         project_id (str):
-        body (ProjectGitPushRequest | Unset):
+        body (PushOptions | Unset): How to push.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ProjectGitPushResponse
+        ErrorResponse | SyncResultResponse
     """
 
     return (

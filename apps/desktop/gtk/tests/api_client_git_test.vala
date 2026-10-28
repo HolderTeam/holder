@@ -60,24 +60,23 @@ private void test_test_remote_and_push_success_paths() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"ok\",\"remote_has_head\":true,\"error_code\":\"\",\"error_message\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"status\":\"reachable\",\"remote_has_head\":true,\"error_message\":null}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"ok\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"status\":\"succeeded\",\"pull\":{\"attempted\":false,\"status\":\"not_attempted\",\"conflicts_resolved\":0,\"hidden_cards_repaired\":0,\"error_message\":null},\"push\":{\"attempted\":true,\"status\":\"pushed\",\"ahead_count\":0,\"behind_count\":0,\"local_head_commit\":\"abc\",\"error_message\":null}}}"
     );
     var client = make_client(transport);
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "git@github.com:me/repo.git", "cards", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "git@github.com:me/repo.git", (obj, res) => {
         try { test_result = client.test_project_git_remote.end(res); } catch (Error e) { test_result = null; }
         done_test = true;
     });
     assert(wait_for_condition(() => done_test));
     assert(test_result != null);
-    assert(test_result.status == "ok");
-    assert(test_result.branch == "cards");
+    assert(test_result.status == "reachable");
     assert(transport.last_uri.contains("/projects/p1/git/test-remote"));
 
     bool done_push = false;
@@ -88,7 +87,9 @@ private void test_test_remote_and_push_success_paths() {
     });
     assert(wait_for_condition(() => done_push));
     assert(push_result != null);
-    assert(push_result.status == "ok");
+    assert(push_result.status == "pushed");
+    assert(push_result.local_head_commit == "abc");
+    assert(push_result.next_action == "");
     assert(push_result.branch == "cards");
     assert(transport.last_uri.contains("/projects/p1/git/push"));
 }
@@ -97,24 +98,24 @@ private void test_test_remote_whitespace_remote_and_push_without_branch() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"error\",\"remote_has_head\":false,\"error_code\":\"remote_unset\",\"error_message\":\"unset\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":null,\"status\":\"remote_unset\",\"remote_has_head\":false,\"error_message\":\"unset\"}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"error\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"remote_unset\",\"error_message\":\"unset\",\"next_action\":\"set_remote\"}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":null,\"status\":\"failed\",\"pull\":{\"attempted\":false,\"status\":\"not_attempted\",\"conflicts_resolved\":0,\"hidden_cards_repaired\":0,\"error_message\":null},\"push\":{\"attempted\":true,\"status\":\"non_fast_forward\",\"ahead_count\":1,\"behind_count\":2,\"local_head_commit\":null,\"error_message\":\"pull first\"}}}"
     );
     var client = make_client(transport);
 
     bool done_test = false;
     HolderLinux.GitTestRemoteResult? test_result = null;
-    client.test_project_git_remote.begin("p1", "   ", "", (obj, res) => {
+    client.test_project_git_remote.begin("p1", "   ", (obj, res) => {
         try { test_result = client.test_project_git_remote.end(res); } catch (Error e) { test_result = null; }
         done_test = true;
     });
     assert(wait_for_condition(() => done_test));
     assert(test_result != null);
-    assert(test_result.status == "error");
-    assert(test_result.error_code == "remote_unset");
+    assert(test_result.status == "remote_unset");
+    assert(test_result.remote_url == "");
 
     bool done_push = false;
     HolderLinux.GitPushResult? push_result = null;
@@ -124,8 +125,10 @@ private void test_test_remote_whitespace_remote_and_push_without_branch() {
     });
     assert(wait_for_condition(() => done_push));
     assert(push_result != null);
-    assert(push_result.status == "error");
-    assert(push_result.error_code == "remote_unset");
+    assert(push_result.status == "non_fast_forward");
+    assert(push_result.behind_count == 2);
+    assert(push_result.error_message == "pull first");
+    assert(push_result.next_action == "pull_then_retry");
 }
 
 private void test_missing_data_errors_for_test_remote_and_push() {
@@ -136,7 +139,7 @@ private void test_missing_data_errors_for_test_remote_and_push() {
 
     bool done_test = false;
     bool got_test_protocol = false;
-    client.test_project_git_remote.begin("p1", null, "", (obj, res) => {
+    client.test_project_git_remote.begin("p1", null, (obj, res) => {
         try { client.test_project_git_remote.end(res); } catch (Error e) { got_test_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
         done_test = true;
     });

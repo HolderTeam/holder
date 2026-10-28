@@ -14,42 +14,38 @@ private Json.Object parse_json_object(string payload) {
 
 private void test_parse_git_test_remote_result_full_and_defaults() {
     var full = parse_json_object(
-        "{\"project_id\":\"p1\",\"remote_url\":\"git@example/repo.git\",\"branch\":\"main\",\"status\":\"ok\",\"remote_has_head\":true,\"error_code\":\"\",\"error_message\":\"\"}"
+        "{\"project_id\":\"p1\",\"remote_url\":\"git@example/repo.git\",\"status\":\"ok\",\"remote_has_head\":true,\"error_message\":null}"
     );
     var full_result = HolderLinux.ApiParsersGit.parse_git_test_remote_result(full);
     assert(full_result.project_id == "p1");
     assert(full_result.remote_url == "git@example/repo.git");
-    assert(full_result.branch == "main");
     assert(full_result.status == "ok");
     assert(full_result.remote_has_head);
-    assert(full_result.error_code == "");
     assert(full_result.error_message == "");
 
     var defaults = parse_json_object("{\"project_id\":\"p2\"}");
     var defaults_result = HolderLinux.ApiParsersGit.parse_git_test_remote_result(defaults);
     assert(defaults_result.project_id == "p2");
     assert(defaults_result.remote_url == "");
-    assert(defaults_result.branch == "");
     assert(defaults_result.status == "");
     assert(!defaults_result.remote_has_head);
-    assert(defaults_result.error_code == "");
     assert(defaults_result.error_message == "");
 }
 
 private void test_parse_git_push_result_full_and_defaults() {
     var full = parse_json_object(
-        "{\"project_id\":\"p1\",\"remote_url\":\"git@example/repo.git\",\"branch\":\"main\",\"status\":\"ok\",\"ahead_count\":3,\"behind_count\":1,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"none\"}"
+        "{\"project_id\":\"p1\",\"remote_url\":\"git@example/repo.git\",\"status\":\"failed\",\"push\":{\"attempted\":true,\"status\":\"auth_failed\",\"ahead_count\":3,\"behind_count\":1,\"local_head_commit\":\"abc\",\"error_message\":\"denied\"}}"
     );
-    var full_result = HolderLinux.ApiParsersGit.parse_git_push_result(full);
+    var full_result = HolderLinux.ApiParsersGit.parse_git_push_result(full, "main");
     assert(full_result.project_id == "p1");
     assert(full_result.remote_url == "git@example/repo.git");
     assert(full_result.branch == "main");
-    assert(full_result.status == "ok");
+    assert(full_result.status == "auth_failed");
     assert(full_result.ahead_count == 3);
     assert(full_result.behind_count == 1);
-    assert(full_result.error_code == "");
-    assert(full_result.error_message == "");
-    assert(full_result.next_action == "none");
+    assert(full_result.local_head_commit == "abc");
+    assert(full_result.error_message == "denied");
+    assert(full_result.next_action == "fix_auth_then_retry");
 
     var defaults = parse_json_object("{\"project_id\":\"p2\"}");
     var defaults_result = HolderLinux.ApiParsersGit.parse_git_push_result(defaults);
@@ -59,7 +55,6 @@ private void test_parse_git_push_result_full_and_defaults() {
     assert(defaults_result.remote_url == "");
     assert(defaults_result.branch == "");
     assert(defaults_result.status == "");
-    assert(defaults_result.error_code == "");
     assert(defaults_result.error_message == "");
     assert(defaults_result.next_action == "");
 }

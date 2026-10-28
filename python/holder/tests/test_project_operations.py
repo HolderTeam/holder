@@ -13,20 +13,18 @@ from holder.exceptions import APIError, ProtocolError
 def sync_data(*, succeeded=True):
     return {
         "project_id": "p-0",
-        "branch": "main",
         "remote_url": "https://example.test/repo.git",
         "status": "succeeded" if succeeded else "failed",
-        "error_code": None if succeeded else "pull_failed",
-        "error_message": None if succeeded else "Cannot pull",
         "pull": {
             "attempted": True,
             "status": "succeeded" if succeeded else "failed",
             "conflicts_resolved": 2 if succeeded else 0,
+            "hidden_cards_repaired": 0,
             "error_message": None if succeeded else "Cannot pull",
         },
         "push": {
             "attempted": succeeded,
-            "status": "up_to_date" if succeeded else None,
+            "status": "up_to_date" if succeeded else "not_attempted",
             "ahead_count": 0,
             "behind_count": 0,
             "local_head_commit": "abc" if succeeded else None,
@@ -47,31 +45,36 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
             return ok(
                 {
                     "project_id": "p-0",
-                    "branch": "main",
                     "status": "reachable",
                     "remote_has_head": True,
                     "remote_url": "https://example.test/repo.git",
+                    "error_message": None,
                 }
             )
         if path.endswith("/git/sync-status"):
-            return ok({"project_id": "p-0", "sync": SYNC_STATE})
+            return ok({"project_id": "p-0", **SYNC_STATE})
         if path.endswith("/git/push"):
-            return ok(
-                {
-                    "project_id": "p-0",
-                    "branch": "main",
-                    "status": "non_fast_forward",
-                    "ahead_count": 1,
-                    "behind_count": 2,
-                    "error_code": "non_fast_forward",
-                    "error_message": "Pull first",
-                    "next_action": "pull",
-                }
-            )
+            data = sync_data(succeeded=False)
+            data["pull"] = {
+                "attempted": False,
+                "status": "not_attempted",
+                "conflicts_resolved": 0,
+                "hidden_cards_repaired": 0,
+                "error_message": None,
+            }
+            data["push"] = {
+                "attempted": True,
+                "status": "non_fast_forward",
+                "ahead_count": 1,
+                "behind_count": 2,
+                "local_head_commit": None,
+                "error_message": "Pull first",
+            }
+            return ok(data)
         if path.endswith("/git/pull"):
             data = sync_data()
             data["push"]["attempted"] = False
-            data["push"]["status"] = None
+            data["push"]["status"] = "not_attempted"
             return ok(data)
         if path.endswith("/git/sync"):
             return ok(sync_data(succeeded=False))
@@ -81,23 +84,19 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
         project = holder.projects.get("p-0")
         assert project.git is project.git
         assert project.git.status().unpushed_commits_count == 0
-        probe = project.git.test_remote(
-            url="https://example.test/repo.git", branch="main"
-        )
+        probe = project.git.test_remote(url="https://example.test/repo.git")
         assert isinstance(probe, RemoteCheck) and probe.reachable
         push = project.git.push(branch="main", set_upstream=False)
-        assert not push.succeeded
-        assert (push.status, push.behind_count, push.next_action) == (
-            "non_fast_forward",
-            2,
-            "pull",
-        )
+        assert isinstance(push, SyncResult) and not push.succeeded
+        assert not push.pull.attempted
+        assert (push.push.status, push.push.behind_count) == ("non_fast_forward", 2)
         pulled = project.git.pull()
         assert pulled.succeeded and pulled.pull.conflicts_resolved == 2
         assert not pulled.push.attempted
         synced = project.git.sync()
         assert isinstance(synced, SyncResult) and not synced.succeeded
         assert synced.pull.status == "failed" and not synced.push.attempted
+        assert synced.push.status == "not_attempted"
     assert [(r.method, r.url.path) for r in requests] == [
         ("GET", "/projects/p-0/git/sync-status"),
         ("POST", "/projects/p-0/git/test-remote"),
@@ -106,8 +105,7 @@ def test_git_operations_use_scoped_routes_and_preserve_phase_failures():
         ("POST", "/projects/p-0/git/sync"),
     ]
     assert json.loads(requests[1].content) == {
-        "remote_url": "https://example.test/repo.git",
-        "branch": "main",
+        "remote_url": "https://example.test/repo.git"
     }
     assert json.loads(requests[2].content) == {"branch": "main", "set_upstream": False}
 
@@ -232,7 +230,7 @@ def test_project_operations_reject_cross_project_responses_and_write_failure():
     def wrong(request):
         if request.method == "GET" and request.url.path == "/projects/p-0":
             return ok(project_payload())
-        return ok({"project_id": "p-1", "sync": SYNC_STATE})
+        return ok({"project_id": "p-1", **SYNC_STATE})
 
     with holder_for(wrong) as holder, pytest.raises(ProtocolError):
         holder.projects.get("p-0").git.status()

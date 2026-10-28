@@ -15,11 +15,10 @@ from ..generated.api.default import (
     post_projects_project_id_git_test_remote,
 )
 from ..generated.models import (
-    ProjectGitPushRequest,
-    ProjectGitSyncRequest,
-    ProjectGitTestRemoteRequest,
-    ProjectSync,
     ProjectUpdate,
+    PushOptions,
+    RemoteTest,
+    SyncState,
 )
 from ..generated.types import UNSET, Unset
 
@@ -40,9 +39,7 @@ def _check_project(project: Project, data: Any) -> None:
 class RemoteCheck:
     status: str
     remote_url: str | None
-    branch: str
     remote_has_head: bool
-    error_code: str | None
     error_message: str | None
 
     @property
@@ -51,34 +48,18 @@ class RemoteCheck:
 
 
 @dataclass(frozen=True)
-class PushResult:
-    status: str
-    branch: str
-    remote_url: str | None
-    ahead_count: int
-    behind_count: int
-    local_head_commit: str | None
-    error_code: str | None
-    error_message: str | None
-    next_action: str | None
-
-    @property
-    def succeeded(self) -> bool:
-        return self.status in ("pushed", "up_to_date")
-
-
-@dataclass(frozen=True)
 class PullPhase:
     attempted: bool
     status: str
     conflicts_resolved: int
+    hidden_cards_repaired: int
     error_message: str | None
 
 
 @dataclass(frozen=True)
 class PushPhase:
     attempted: bool
-    status: str | None
+    status: str
     ahead_count: int
     behind_count: int
     local_head_commit: str | None
@@ -87,11 +68,10 @@ class PushPhase:
 
 @dataclass(frozen=True)
 class SyncResult:
+    """The outcome of a pull, a push or both; a phase not run is ``not_attempted``."""
+
     status: str
-    branch: str
     remote_url: str | None
-    error_code: str | None
-    error_message: str | None
     pull: PullPhase
     push: PushPhase
 
@@ -106,34 +86,29 @@ class ProjectGit:
     def __init__(self, project: Project) -> None:
         self._project = project
 
-    def status(self) -> ProjectSync:
+    def status(self) -> SyncState:
         """Fetch the current persisted sync state."""
         data = self._project._holder._call(
             get_projects_project_id_git_sync_status, self._project.id
         )
         _check_project(self._project, data)
-        return data.sync
+        return data
 
-    def test_remote(
-        self, *, url: str | None | Unset = UNSET, branch: str | Unset = UNSET
-    ) -> RemoteCheck:
-        """Probe a remote without changing the project or fetching from it."""
-        if not isinstance(url, Unset) and url is not None and not isinstance(url, str):
-            raise TypeError("url must be a string or None")
-        if not isinstance(branch, Unset) and not isinstance(branch, str):
-            raise TypeError("branch must be a string")
+    def test_remote(self, *, url: str | Unset = UNSET) -> RemoteCheck:
+        """Probe a remote, the project's own unless url is given, without changing
+        the project or fetching from it."""
+        if not isinstance(url, Unset) and not isinstance(url, str):
+            raise TypeError("url must be a string")
         data = self._project._holder._call(
             post_projects_project_id_git_test_remote,
             self._project.id,
-            body=ProjectGitTestRemoteRequest(remote_url=url, branch=branch),
+            body=RemoteTest(remote_url=url),
         )
         _check_project(self._project, data)
         return RemoteCheck(
             str(data.status),
             _optional(data.remote_url),
-            data.branch,
             data.remote_has_head,
-            _optional(data.error_code),
             _optional(data.error_message),
         )
 
@@ -161,27 +136,16 @@ class ProjectGit:
 
     def push(
         self, *, branch: str | Unset = UNSET, set_upstream: bool = True
-    ) -> PushResult:
-        """Push the project; inspect the result for Git failures."""
+    ) -> SyncResult:
+        """Push the project; inspect the result's push phase for Git failures."""
         self._check_push_options(branch, set_upstream)
         data = self._project._holder._call(
             post_projects_project_id_git_push,
             self._project.id,
-            body=ProjectGitPushRequest(branch=branch, set_upstream=set_upstream),
+            body=PushOptions(branch=branch, set_upstream=set_upstream),
             write=True,
         )
-        _check_project(self._project, data)
-        return PushResult(
-            str(data.status),
-            data.branch,
-            _optional(data.remote_url),
-            data.ahead_count,
-            data.behind_count,
-            _optional(data.local_head_commit),
-            _optional(data.error_code),
-            _optional(data.error_message),
-            _optional(data.next_action),
-        )
+        return self._sync_result(data)
 
     def sync(
         self, *, branch: str | Unset = UNSET, set_upstream: bool = True
@@ -191,7 +155,7 @@ class ProjectGit:
         data = self._project._holder._call(
             post_projects_project_id_git_sync,
             self._project.id,
-            body=ProjectGitSyncRequest(branch=branch, set_upstream=set_upstream),
+            body=PushOptions(branch=branch, set_upstream=set_upstream),
             write=True,
         )
         return self._sync_result(data)
@@ -207,22 +171,20 @@ class ProjectGit:
         _check_project(self._project, data)
         return SyncResult(
             str(data.status),
-            data.branch,
             _optional(data.remote_url),
-            data.error_code,
-            data.error_message,
             PullPhase(
                 data.pull.attempted,
                 str(data.pull.status),
                 data.pull.conflicts_resolved,
-                data.pull.error_message,
+                data.pull.hidden_cards_repaired,
+                _optional(data.pull.error_message),
             ),
             PushPhase(
                 data.push.attempted,
-                _optional(data.push.status),
+                str(data.push.status),
                 data.push.ahead_count,
                 data.push.behind_count,
-                data.push.local_head_commit,
-                data.push.error_message,
+                _optional(data.push.local_head_commit),
+                _optional(data.push.error_message),
             ),
         )

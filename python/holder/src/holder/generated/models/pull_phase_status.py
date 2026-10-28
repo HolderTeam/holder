@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ProjectGitSyncOperationResponseDataPullStatus(StrEnum):
+class PullPhaseStatus(StrEnum):
     FAILED = "failed"
     NOT_ATTEMPTED = "not_attempted"
     REMOTE_UNSET = "remote_unset"

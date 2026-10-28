@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_git_push_response_data import ProjectGitPushResponseData
+    from ..models.remote_test_result import RemoteTestResult
 
 
-T = TypeVar("T", bound="ProjectGitPushResponse")
+T = TypeVar("T", bound="RemoteTestResultResponse")
 
 
 @_attrs_define
-class ProjectGitPushResponse:
+class RemoteTestResultResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectGitPushResponseData):
+        data (RemoteTestResult): Whether a Git remote can be reached with this device's credentials.
     """
 
     ok: bool
-    data: ProjectGitPushResponseData
+    data: RemoteTestResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,22 +44,20 @@ class ProjectGitPushResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_git_push_response_data import (
-            ProjectGitPushResponseData,
-        )
+        from ..models.remote_test_result import RemoteTestResult
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectGitPushResponseData.from_dict(d.pop("data"))
+        data = RemoteTestResult.from_dict(d.pop("data"))
 
-        project_git_push_response = cls(
+        remote_test_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        project_git_push_response.additional_properties = d
-        return project_git_push_response
+        remote_test_result_response.additional_properties = d
+        return remote_test_result_response
 
     @property
     def additional_keys(self) -> list[str]:

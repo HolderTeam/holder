@@ -97,7 +97,7 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
         }
         yield base.push_project_git(project_id, branch, set_upstream);
         return new HolderLinux.GitPushResult(
-            project_id, "", branch, push_status, 0, 0, push_commit, "", push_error_message, push_next_action
+            project_id, "", branch, push_status, 0, 0, push_commit, push_error_message, push_next_action
         );
     }
 }

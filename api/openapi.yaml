@@ -2942,7 +2942,7 @@ paths:
         required: true
         schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: {$ref: '#/components/schemas/ProjectUpdate'}
@@ -3322,7 +3322,7 @@ paths:
         required: true
         schema: {$ref: '#/components/schemas/CardId'}
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: {$ref: '#/components/schemas/CardUpdate'}
@@ -3851,7 +3851,7 @@ paths:
         required: true
         schema: {$ref: '#/components/schemas/MilestoneId'}
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: {$ref: '#/components/schemas/MilestoneUpdate'}
@@ -4410,28 +4410,27 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/pull:
     post:
-      summary: Pull and reconcile a project immediately
-      description: Fetches the configured remote, fast-forwards or applies Holder's card-level conflict
-        resolution, then reconciles the SQLite index before returning. Concurrent Git operations for the
-        same project are serialized. Git failures are reported in the result, not as HTTP errors.
+      summary: Pull a project's checked-out branch from its Git remote.
+      description: 'Changes fast-forward, or merge card by card where both sides changed, and the project''s
+        index is updated
+
+        before the result returns. A Git failure is an outcome in the result, recorded in the sync state.
+        Git work on
+
+        one project runs one at a time.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/ProjectGitSyncRequest'}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       responses:
         '200':
-          description: Pull completed with structured status.
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectGitSyncOperationResponse'}
+              schema: {$ref: '#/components/schemas/SyncResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4441,38 +4440,56 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/push:
     post:
-      summary: Push project repository to remote
-      description: Git failures are reported in the result, not as HTTP errors. An encrypted project is
-        checked before pushing, so no plaintext card leaves the device.
+      summary: Push a project to its Git remote.
+      description: 'An encrypted project is checked first, so no plaintext card leaves the device: one
+        whose files are not safe
+
+        to push is DataCorrupted, and nothing is pushed. A Git failure is an outcome in the result, recorded
+        in the
+
+        sync state.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: false
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectGitPushRequest'}
+            schema: {$ref: '#/components/schemas/PushOptions'}
       responses:
         '200':
-          description: Push attempted with structured status.
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectGitPushResponse'}
+              schema: {$ref: '#/components/schemas/SyncResultResponse'}
         '400':
-          description: Malformed request, or an encrypted project whose cards are not safe to push
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4482,45 +4499,50 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error, including missing key material or crypt metadata for an
-            encrypted project
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: The keyring needed to check an encrypted project is unavailable
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/sync:
     post:
-      summary: Pull, reconcile, and push a project immediately
-      description: Pulls and reconciles first. Push is attempted only when pull succeeds. Concurrent Git
-        operations for the same project are serialized. Git failures are reported in the result, not as
-        HTTP errors.
+      summary: Pull a project, then push it.
+      description: The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: false
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectGitSyncRequest'}
+            schema: {$ref: '#/components/schemas/PushOptions'}
       responses:
         '200':
-          description: Forced sync completed with structured phase statuses.
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectGitSyncOperationResponse'}
+              schema: {$ref: '#/components/schemas/SyncResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4530,31 +4552,45 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/sync-status:
     get:
-      summary: Get persisted project Git sync status
+      summary: What this device last recorded about a project's sync.
+      description: What this device last recorded about a project's sync.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       responses:
         '200':
-          description: Current persisted sync state
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectGitSyncStatusResponse'}
+              schema: {$ref: '#/components/schemas/SyncStateResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4564,39 +4600,40 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/test-remote:
     post:
-      summary: Test project remote reachability/auth
-      description: Connects and lists remote refs using daemon credentials. Does not fetch, create a project
-        repository, or change stored project configuration or Git configuration. Git failures are reported
-        in the result, not as HTTP errors.
+      summary: Test whether a Git remote can be reached, with this device's credentials.
+      description: 'Lists the remote''s refs and nothing more: nothing is fetched, and neither the project
+        nor its repository
+
+        changes.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: false
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectGitTestRemoteRequest'}
+            schema: {$ref: '#/components/schemas/RemoteTest'}
       responses:
         '200':
-          description: Probe completed with structured status.
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectGitTestRemoteResponse'}
+              schema: {$ref: '#/components/schemas/RemoteTestResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4606,12 +4643,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5351,7 +5388,7 @@ paths:
         required: true
         schema: {$ref: '#/components/schemas/ResourceId'}
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema: {$ref: '#/components/schemas/ResourceUpdate'}
@@ -7895,156 +7932,6 @@ components:
             check: {$ref: '#/components/schemas/ProjectEncryptionCheck'}
           required: [project_id, privacy_mode, check]
       required: [ok, data]
-    ProjectGitPushRequest:
-      type: object
-      properties:
-        branch:
-          type: [string, 'null']
-          description: Optional branch to push. If omitted, server resolves local default branch from
-            HEAD/init.defaultBranch.
-        set_upstream:
-          type: [boolean, 'null']
-          description: Optional; defaults to true.
-    ProjectGitPushResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            remote_url:
-              type: [string, 'null']
-            branch: {type: string}
-            status:
-              type: string
-              enum: [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset,
-                unknown_error]
-            ahead_count: {type: integer}
-            behind_count: {type: integer}
-            local_head_commit:
-              type: [string, 'null']
-            error_code:
-              type: [string, 'null']
-            error_message:
-              type: [string, 'null']
-            next_action:
-              type: [string, 'null']
-          required: [project_id, branch, status, ahead_count, behind_count]
-      required: [ok, data]
-    ProjectGitSyncOperationResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            remote_url:
-              type: [string, 'null']
-            branch: {type: string}
-            status:
-              type: string
-              enum: [succeeded, failed]
-            error_code:
-              type: [string, 'null']
-              description: Stable operation failure code. Git failures are returned in a successful HTTP
-                envelope.
-            error_message:
-              type: [string, 'null']
-            pull:
-              type: object
-              properties:
-                attempted: {type: boolean}
-                status:
-                  type: string
-                  enum: [not_attempted, succeeded, remote_unset, failed]
-                conflicts_resolved: {type: integer}
-                error_message:
-                  type: [string, 'null']
-              required: [attempted, status, conflicts_resolved, error_message]
-            push:
-              type: object
-              properties:
-                attempted: {type: boolean}
-                status:
-                  anyOf:
-                  - {$ref: '#/components/schemas/ProjectGitSyncOperationResponseDataPushStatus'}
-                  - {type: 'null'}
-                ahead_count: {type: integer}
-                behind_count: {type: integer}
-                local_head_commit:
-                  type: [string, 'null']
-                error_message:
-                  type: [string, 'null']
-              required: [attempted, status, ahead_count, behind_count, local_head_commit, error_message]
-          required: [project_id, branch, status, error_code, error_message, pull, push]
-      required: [ok, data]
-    ProjectGitSyncOperationResponseDataPushStatus:
-      type: string
-      enum: [pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward, remote_unset,
-        unknown_error]
-    ProjectGitSyncRequest:
-      type: object
-      properties:
-        branch:
-          type: [string, 'null']
-          description: Optional branch to push for a full forced sync. Pull uses the checked-out branch.
-        set_upstream:
-          type: [boolean, 'null']
-          description: Optional push behavior; defaults to true.
-    ProjectGitSyncStatusResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            sync: {$ref: '#/components/schemas/ProjectSync'}
-          required: [project_id, sync]
-      required: [ok, data]
-    ProjectGitTestRemoteRequest:
-      type: object
-      properties:
-        remote_url:
-          type: [string, 'null']
-          description: Optional remote URL override for this read-only probe. Stored project configuration
-            and Git configuration are unchanged. If omitted, uses the configured URL; null probes no remote.
-        branch:
-          type: [string, 'null']
-          description: Optional branch hint, echoed in the result. If omitted, reports local_default.
-            The probe lists remote refs without resolving or fetching a branch.
-    ProjectGitTestRemoteResponse:
-      type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            remote_url:
-              type: [string, 'null']
-            branch: {type: string}
-            status:
-              type: string
-              enum: [reachable, auth_failed, not_found, network_error, invalid_remote_url, remote_unset,
-                unknown_error]
-            remote_has_head: {type: boolean}
-            error_code:
-              type: [string, 'null']
-            error_message:
-              type: [string, 'null']
-          required: [project_id, branch, status, remote_has_head]
-      required: [ok, data]
     ProjectHistoryActivity:
       type: object
       properties:
@@ -8196,43 +8083,6 @@ components:
       type: object
       required: [ok, data]
       title: ProjectResponse
-    ProjectSync:
-      type: object
-      properties:
-        last_commit_at:
-          type: [integer, 'null']
-          format: int64
-        last_push_at:
-          type: [integer, 'null']
-          format: int64
-        last_pull_at:
-          type: [integer, 'null']
-          format: int64
-        uncommitted_changes_count: {type: integer}
-        unpushed_commits_count: {type: integer}
-        last_push_status:
-          type: [string, 'null']
-        last_pull_status:
-          type: [string, 'null']
-        last_sync_error:
-          type: [string, 'null']
-        last_sync_error_at:
-          type: [integer, 'null']
-          format: int64
-        retry_count: {type: integer}
-        next_retry_at:
-          type: [integer, 'null']
-          format: int64
-        pull_retry_count: {type: integer}
-        next_pull_retry_at:
-          type: [integer, 'null']
-          format: int64
-        updated_at:
-          type: [integer, 'null']
-          format: int64
-      required: [last_commit_at, last_push_at, last_pull_at, uncommitted_changes_count, unpushed_commits_count,
-        last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count, next_retry_at,
-        pull_retry_count, next_pull_retry_at, updated_at]
     ProjectUpdate:
       properties:
         name: {$ref: '#/components/schemas/ProjectName', description: The project's name.}
@@ -8251,6 +8101,70 @@ components:
       type: object
       title: ProjectUpdate
       description: A change to a project's settings. Each field left out keeps its value.
+    PullPhase:
+      properties:
+        attempted: {type: boolean, title: Attempted, description: Whether a pull was tried.}
+        status:
+          type: string
+          enum: [not_attempted, succeeded, remote_unset, failed]
+          title: Status
+          description: How the pull ended.
+        conflicts_resolved: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Conflicts Resolved, description: 'Cards changed both here and on the remote, merged by
+            Holder''s card rules.'}
+        hidden_cards_repaired: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Hidden Cards Repaired, description: 'Live cards the pull left under a missing or trashed
+            parent, made reachable again.'}
+        error_message:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Error Message
+          description: Why the pull failed; null when it did not.
+      additionalProperties: false
+      type: object
+      required: [attempted, status, conflicts_resolved, hidden_cards_repaired, error_message]
+      title: PullPhase
+      description: What a pull did.
+    PushOptions:
+      properties:
+        branch: {type: string, minLength: 1, title: Branch, description: The branch to push; omit for
+            the repository's default.}
+        set_upstream: {type: boolean, title: Set Upstream, description: Whether the remote branch becomes
+            the local branch's upstream., default: true}
+      additionalProperties: false
+      type: object
+      title: PushOptions
+      description: How to push.
+    PushPhase:
+      properties:
+        attempted: {type: boolean, title: Attempted, description: Whether a push was tried.}
+        status: {$ref: '#/components/schemas/PushStatus', description: How the push ended.}
+        ahead_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Ahead
+            Count, description: Commits here that the remote does not have.}
+        behind_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Behind
+            Count, description: Commits on the remote that are not here.}
+        local_head_commit:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Local Head Commit
+          description: The commit this device's branch is at; null when unknown.
+        error_message:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Error Message
+          description: Why the push failed; null when it did not.
+      additionalProperties: false
+      type: object
+      required: [attempted, status, ahead_count, behind_count, local_head_commit, error_message]
+      title: PushPhase
+      description: What a push did.
+    PushStatus:
+      type: string
+      enum: [not_attempted, pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward,
+        remote_unset, unknown_error]
     RebuildData:
       type: object
       properties:
@@ -8309,6 +8223,47 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/ReindexData'}
       required: [ok, data]
+    RemoteTest:
+      properties:
+        remote_url: {$ref: '#/components/schemas/GitRemoteUrl', description: The Git remote to test; omit
+            for the project's own.}
+      additionalProperties: false
+      type: object
+      title: RemoteTest
+      description: A remote to test.
+    RemoteTestResult:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project.}
+        status:
+          type: string
+          enum: [reachable, auth_failed, not_found, network_error, invalid_remote_url, remote_unset, unknown_error]
+          title: Status
+          description: What testing the remote found; remote_unset when there was none to test.
+        remote_url:
+          anyOf:
+          - {$ref: '#/components/schemas/GitRemoteUrl'}
+          - {type: 'null'}
+          description: The remote tested; null when there was none.
+        remote_has_head: {type: boolean, title: Remote Has Head, description: Whether the remote has any
+            commits.}
+        error_message:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Error Message
+          description: Why the remote could not be reached; null when it could.
+      additionalProperties: false
+      type: object
+      required: [project_id, status, remote_url, remote_has_head, error_message]
+      title: RemoteTestResult
+      description: Whether a Git remote can be reached with this device's credentials.
+    RemoteTestResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/RemoteTestResult'}
+      type: object
+      required: [ok, data]
+      title: RemoteTestResultResponse
     Resource:
       properties:
         resource_id: {$ref: '#/components/schemas/ResourceId', description: The resource's ID.}
@@ -8570,6 +8525,125 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/StorageLocation'}
       required: [ok, data]
+    SyncResult:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project.}
+        status:
+          type: string
+          enum: [succeeded, failed]
+          title: Status
+          description: Whether every phase tried succeeded.
+        remote_url:
+          anyOf:
+          - {$ref: '#/components/schemas/GitRemoteUrl'}
+          - {type: 'null'}
+          description: The Git remote used; null when the project has none.
+        pull: {$ref: '#/components/schemas/PullPhase', description: The pull; not attempted for a push.}
+        push: {$ref: '#/components/schemas/PushPhase', description: 'The push; not attempted for a pull,
+            or after a pull that failed.'}
+      additionalProperties: false
+      type: object
+      required: [project_id, status, remote_url, pull, push]
+      title: SyncResult
+      description: 'What a pull, a push or a sync did, as recorded in the project''s sync state. A Git
+        failure is an outcome
+
+        here, not an error.'
+    SyncResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/SyncResult'}
+      type: object
+      required: [ok, data]
+      title: SyncResultResponse
+    SyncState:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project.}
+        last_commit_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Last Commit At
+          description: When the project's repository last had a commit; null when unknown.
+        last_push_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Last Push At
+          description: When the project was last pushed; null when never.
+        last_pull_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Last Pull At
+          description: When the project was last pulled; null when never.
+        uncommitted_changes_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Uncommitted Changes Count, description: Files changed and not yet committed.}
+        unpushed_commits_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32,
+          title: Unpushed Commits Count, description: Commits not yet on the remote.}
+        last_push_status:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Last Push Status
+          description: How the last push ended, as a PushStatus; null when never.
+        last_pull_status:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Last Pull Status
+          description: How the last pull ended; null when never.
+        last_sync_error:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Last Sync Error
+          description: The last failure's message; null when the last sync succeeded.
+        last_sync_error_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Last Sync Error At
+          description: When the last failure happened; null when none is recorded.
+        retry_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Retry
+            Count, description: Failed pushes in a row.}
+        next_retry_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Next Retry At
+          description: When a push will next be tried; null when none is waiting.
+        pull_retry_count: {type: integer, maximum: 2147483647, minimum: -2147483648, format: int32, title: Pull
+            Retry Count, description: Failed pulls in a row.}
+        next_pull_retry_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Next Pull Retry At
+          description: When a pull will next be tried; null when none is waiting.
+        updated_at:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Updated At
+          description: When this state was last recorded; null when nothing has been.
+      additionalProperties: false
+      type: object
+      required: [project_id, last_commit_at, last_push_at, last_pull_at, uncommitted_changes_count, unpushed_commits_count,
+        last_push_status, last_pull_status, last_sync_error, last_sync_error_at, retry_count, next_retry_at,
+        pull_retry_count, next_pull_retry_at, updated_at]
+      title: SyncState
+      description: 'What this device last recorded about a project''s sync: its last pull and push, what
+        is waiting to go, and
+
+        when it will retry.'
+    SyncStateResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/SyncState'}
+      type: object
+      required: [ok, data]
+      title: SyncStateResponse
     Tag: {type: string, minLength: 1}
     TagCount:
       properties:

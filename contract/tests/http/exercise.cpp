@@ -101,6 +101,10 @@ int main() {
   send(*context, "GET", "/projects?limit=5&count=true");
   send(*context, "GET", "/projects/p1/tags?verbose=1");
   send(*context, "PATCH", "/projects/p9", R"({"git_remote_url": null})");
+  // Git sync.
+  send(*context, "POST", "/projects/p7/git/push", "");
+  send(*context, "POST", "/projects/p7/git/push", R"({"branch": ""})");
+  send(*context, "GET", "/projects/p7/git/sync-status");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

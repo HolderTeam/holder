@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ProjectGitSyncOperationResponseDataStatus(StrEnum):
+class SyncResultStatus(StrEnum):
     FAILED = "failed"
     SUCCEEDED = "succeeded"
 

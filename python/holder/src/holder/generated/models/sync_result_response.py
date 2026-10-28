@@ -8,24 +8,24 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_git_sync_operation_response_data import (
-        ProjectGitSyncOperationResponseData,
-    )
+    from ..models.sync_result import SyncResult
 
 
-T = TypeVar("T", bound="ProjectGitSyncOperationResponse")
+T = TypeVar("T", bound="SyncResultResponse")
 
 
 @_attrs_define
-class ProjectGitSyncOperationResponse:
+class SyncResultResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectGitSyncOperationResponseData):
+        data (SyncResult): What a pull, a push or a sync did, as recorded in the project's sync state. A Git failure is
+            an outcome
+            here, not an error.
     """
 
     ok: bool
-    data: ProjectGitSyncOperationResponseData
+    data: SyncResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,22 +46,20 @@ class ProjectGitSyncOperationResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_git_sync_operation_response_data import (
-            ProjectGitSyncOperationResponseData,
-        )
+        from ..models.sync_result import SyncResult
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectGitSyncOperationResponseData.from_dict(d.pop("data"))
+        data = SyncResult.from_dict(d.pop("data"))
 
-        project_git_sync_operation_response = cls(
+        sync_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        project_git_sync_operation_response.additional_properties = d
-        return project_git_sync_operation_response
+        sync_result_response.additional_properties = d
+        return sync_result_response
 
     @property
     def additional_keys(self) -> list[str]:

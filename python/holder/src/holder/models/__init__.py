@@ -44,7 +44,6 @@ from .project_git import (
     ProjectGit,
     PullPhase,
     PushPhase,
-    PushResult,
     RemoteCheck,
     SyncResult,
 )
@@ -91,7 +90,6 @@ __all__ = [
     "Provider",
     "PullPhase",
     "PushPhase",
-    "PushResult",
     "RecoveryResult",
     "RemoteCheck",
     "RepairedCard",

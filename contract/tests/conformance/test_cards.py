@@ -1186,6 +1186,50 @@ class Cards(RuleBasedStateMachine):
             page = self.core.call("list_projects", **{**arguments, "limit": size, "offset": offset})
             assert page == listed[offset:offset + size]
 
+    # ---- git sync ---------------------------------------------------------------------------------
+
+    def a_project_without_remote(self, data) -> str:
+        """Mostly a project the run made with no Git remote, so that nothing reaches the network, and sometimes
+        one that does not exist."""
+        local = [p for p, record in self.project_records.items() if record["git_remote_url"] is None]
+        known = st.sampled_from(local) if local else st.nothing()
+        return data.draw(st.one_of(known, known, known, Values(IR).valid({"kind": "named", "name": "ProjectId"})))
+
+    @rule(data=st.data(), operation=st.sampled_from(["pull_project", "push_project", "sync_project"]))
+    def sync_without_remote(self, data, operation):
+        project_id = self.a_project_without_remote(data)
+        arguments = {"project_id": project_id}
+        if operation != "pull_project":
+            arguments["options"] = data.draw(self.values().record("PushOptions"))
+        result = self.expect(operation, set() if project_id in self.project_records else {"NotFound"}, arguments)
+        if result is None:
+            return
+        self.conforms(operation, result)
+        pull, push = operation != "push_project", operation == "push_project"
+        assert result["project_id"] == project_id
+        assert result["status"] == "failed"
+        assert result["remote_url"] is None
+        # A sync's push follows only a pull that succeeded.
+        assert result["pull"]["attempted"] == pull
+        assert result["pull"]["status"] == ("remote_unset" if pull else "not_attempted")
+        assert result["push"]["attempted"] == push
+        assert result["push"]["status"] == ("remote_unset" if push else "not_attempted")
+        state = self.core.call("get_project_sync_state", project_id=project_id)
+        self.conforms("get_project_sync_state", state)
+        assert state["project_id"] == project_id
+        if push:
+            assert state["last_push_status"] == "remote_unset"
+
+    @rule(data=st.data())
+    def test_remote_without_remote(self, data):
+        project_id = self.a_project_without_remote(data)
+        result = self.expect("test_project_remote", set() if project_id in self.project_records else {"NotFound"},
+                             {"project_id": project_id, "remote": {}})
+        if result is not None:
+            self.conforms("test_project_remote", result)
+            assert result == {"project_id": project_id, "status": "remote_unset", "remote_url": None,
+                              "remote_has_head": False, "error_message": result["error_message"]}
+
     # ---- tags -------------------------------------------------------------------------------------
 
     def a_tag(self, data, card_id: str) -> str:

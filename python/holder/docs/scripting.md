@@ -385,9 +385,11 @@ Use `project.git.set_remote(url)` to configure a remote or
 `project.git.set_remote(None)` to disconnect it. It returns whether the URL
 changed and refreshes the project. `test_remote(url=...)` only probes the given
 URL. `pull()` uses the checked-out branch; `push()` and `sync()` accept optional
-`branch` and `set_upstream` arguments. Git failures arrive as structured
-results even when the HTTP request succeeds: inspect `result.succeeded`,
-`result.status`, and the phase details. A failed pull skips the push phase.
+`branch` and `set_upstream` arguments. All three return a `SyncResult` with a
+pull phase and a push phase; a phase not run has the status `not_attempted`.
+Git failures arrive as these results even when the HTTP request succeeds:
+inspect `result.succeeded` and the phase details. A failed pull skips the push
+phase.
 
 ## Check encryption and recover a project
 
