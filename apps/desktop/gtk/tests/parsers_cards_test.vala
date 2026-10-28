@@ -383,8 +383,8 @@ private void test_parse_card_history_page_and_comparison() {
 
     var comparison_root = parse_json_object(
         "{\"data\":{" +
-        "\"from\":{\"exists\":true,\"oid\":\"old1\",\"title\":\"Old\",\"body\":\"before\"}," +
-        "\"to\":{\"exists\":true,\"oid\":\"head1\",\"title\":\"New\",\"body\":\"after\"}," +
+        "\"before\":{\"exists\":true,\"oid\":\"old1\",\"title\":\"Old\",\"body\":\"before\"}," +
+        "\"after\":{\"exists\":true,\"oid\":\"head1\",\"title\":\"New\",\"body\":\"after\"}," +
         "\"summary\":\"Changed 1 line\",\"truncated\":false,\"lines\":[" +
         "{\"origin\":\"-\",\"text\":\"before\",\"old_line\":1,\"new_line\":null}," +
         "{\"origin\":\"+\",\"text\":\"after\",\"old_line\":null,\"new_line\":1}]}}"

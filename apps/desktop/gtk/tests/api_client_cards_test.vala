@@ -428,13 +428,13 @@ private void test_card_history_endpoints() {
         "\"committed_at\":2,\"message\":\"Final save\"}]}]," +
         "\"next_cursor\":\"older\"}}");
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"from\":{\"exists\":true,\"oid\":\"old\"," +
-        "\"title\":\"Card\",\"body\":\"Before\"},\"to\":{\"exists\":true," +
+        "{\"ok\":true,\"data\":{\"before\":{\"exists\":true,\"oid\":\"old\"," +
+        "\"title\":\"Card\",\"body\":\"Before\"},\"after\":{\"exists\":true," +
         "\"oid\":\"head\",\"title\":\"Card\",\"body\":\"After\"}," +
         "\"summary\":\"Changed card\",\"lines\":[],\"truncated\":false}}");
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"from\":{\"exists\":false,\"oid\":\"\"," +
-        "\"title\":\"\",\"body\":\"\"},\"to\":{\"exists\":true," +
+        "{\"ok\":true,\"data\":{\"before\":{\"exists\":false,\"oid\":\"\"," +
+        "\"title\":\"\",\"body\":\"\"},\"after\":{\"exists\":true," +
         "\"oid\":\"created\",\"title\":\"Card\",\"body\":\"After\"}," +
         "\"summary\":\"Card created\",\"lines\":[],\"truncated\":false}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"card_id\":\"card/one\"}}");
@@ -487,8 +487,8 @@ private void test_card_history_endpoints() {
     assert(wait_for_condition(() => compare_done));
     assert(comparison != null && ((!) comparison).to_version.body == "After");
     assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/compare"));
-    assert(transport.last_uri.contains("from=old"));
-    assert(transport.last_uri.contains("to=head"));
+    assert(transport.last_uri.contains("from_oid=old"));
+    assert(transport.last_uri.contains("to_oid=head"));
     assert(transport.last_uri.contains("mode=since"));
 
     compare_done = false;
@@ -501,8 +501,8 @@ private void test_card_history_endpoints() {
     );
     assert(wait_for_condition(() => compare_done));
     assert(comparison != null);
-    assert(!transport.last_uri.contains("from="));
-    assert(transport.last_uri.contains("to=created"));
+    assert(!transport.last_uri.contains("from_oid="));
+    assert(transport.last_uri.contains("to_oid=created"));
     assert(transport.last_uri.contains("mode=change"));
 
     bool restore_done = false;
