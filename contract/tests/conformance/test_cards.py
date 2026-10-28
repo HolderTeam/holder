@@ -64,7 +64,9 @@ ORDER_KEYS = {
 METADATA = [f["name"] for f in next(r for r in IR["records"] if r["name"] == "CardMetadata")["fields"]]
 DATETIME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|([+-])([0-9]{2}):([0-9]{2}))")
 ROLE_POOL = ["start", "end", "due"]
-RESOURCE_ID = re.compile(r"[A-Za-z0-9_-]{4,40}")
+RESOURCE_ID = re.compile(r"[A-Za-z0-9_-]{4,}")
+# The contract has no maximum ID length; keep generated IDs short enough for quick stateful runs.
+NEW_RESOURCE_ID_SUFFIX = re.compile(r"[A-Za-z0-9_-]{4,32}")
 REMOTES = [None, "https://example.com/notes.git", "git@example.com:team/notes.git"]
 PROJECT_ORDERS = {
     "updated_at_desc": (lambda p: p["updated_at"], True),
@@ -873,7 +875,7 @@ class Cards(RuleBasedStateMachine):
         choice = data.draw(st.sampled_from(["none", "new", "new", "used", "bad"]))
         resource.pop("resource_id", None)
         if choice == "new":
-            resource["resource_id"] = f"run{self.run}-" + data.draw(st.from_regex(RESOURCE_ID, fullmatch=True))
+            resource["resource_id"] = f"run{self.run}-" + data.draw(st.from_regex(NEW_RESOURCE_ID_SUFFIX, fullmatch=True))
         elif choice == "used" and self.resources:
             resource["resource_id"] = data.draw(st.sampled_from(list(self.resources)))
         elif choice == "bad":
