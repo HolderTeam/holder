@@ -125,7 +125,7 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
   REQUIRE(trash_msgs["data"].size() == 1);
   REQUIRE(trash_msgs["data"][0]["type"] == "ai_message");
 
-  // Each item type keeps exactly its own fields.
+  // The contract gives every item the same nullable fields.
   auto keys = [](const nlohmann::json& item) {
     std::vector<std::string> names;
     for (const auto& [name, value] : item.items()) names.push_back(name);
@@ -134,7 +134,8 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
   const auto& trashed_card = trash_cards["data"][0];
   REQUIRE(keys(trashed_card) ==
           std::vector<std::string>{
-              "card_id", "deleted_at", "project_id", "rel_path", "title", "type"});
+              "card_id", "created_at", "deleted_at", "message_id", "project_id", "rel_path", "role",
+              "thread_id", "title", "type"});
   REQUIRE(trashed_card["card_id"] == "card-1");
   REQUIRE(trashed_card["project_id"] == "proj-1");
   REQUIRE(trashed_card["title"] == "Card");
@@ -143,7 +144,8 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
   const auto& trashed_message = trash_msgs["data"][0];
   REQUIRE(keys(trashed_message) ==
           std::vector<std::string>{
-              "created_at", "deleted_at", "message_id", "project_id", "role", "thread_id", "type"});
+              "card_id", "created_at", "deleted_at", "message_id", "project_id", "rel_path", "role",
+              "thread_id", "title", "type"});
   REQUIRE(trashed_message["message_id"] == "msg-1");
   REQUIRE(trashed_message["thread_id"] == "thread-1");
   REQUIRE(trashed_message["project_id"] == "proj-1");
@@ -174,7 +176,7 @@ TEST_CASE("HTTP trash list/empty/hard delete", "[http]") {
           "/trash?project_id=",
           nlohmann::json::object(),
           boost::beast::http::status::bad_request
-      )["error"]["code"] == "bad_request"
+      )["error"]["code"] == "invalid_argument"
   );
 
   const auto hard_deleted = http_json_request(
@@ -290,7 +292,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
-  REQUIRE(bad_get["error"]["code"] == "bad_request");
+  REQUIRE(bad_get["error"]["code"] == "invalid_argument");
 
   auto bad_delete = http_json_request(
       bound.bind,
@@ -301,7 +303,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
-  REQUIRE(bad_delete["error"]["code"] == "bad_request");
+  REQUIRE(bad_delete["error"]["code"] == "invalid_argument");
 
   auto not_found = http_json_request(
       bound.bind,
@@ -334,7 +336,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
-  REQUIRE(unknown_type["error"]["code"] == "bad_request");
+  REQUIRE(unknown_type["error"]["code"] == "invalid_argument");
 
   auto hard_delete_msg = http_json_request(
       bound.bind,
@@ -482,7 +484,7 @@ TEST_CASE("HTTP trash routes validate parameters and hard-delete variants", "[ht
   server_thread.join();
 }
 
-TEST_CASE("HTTP trash card hard-delete reports not_implemented without CardStore", "[http]") {
+TEST_CASE("HTTP trash card hard-delete works without a daemon CardStore", "[http]") {
   const auto dir = make_temp_dir();
   const auto db_path = dir / "holder.db";
 
@@ -511,9 +513,9 @@ TEST_CASE("HTTP trash card hard-delete reports not_implemented without CardStore
       boost::beast::http::verb::delete_,
       "/trash/card/abc",
       nlohmann::json::object(),
-      boost::beast::http::status::not_implemented
+      boost::beast::http::status::not_found
   );
-  REQUIRE(res["error"]["code"] == "not_implemented");
+  REQUIRE(res["error"]["code"] == "not_found");
 
   std::raise(SIGTERM);
   server_thread.join();

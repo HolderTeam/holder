@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -159,6 +159,8 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE, e.what());
   } catch (const contract::RevisionAmbiguous& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_REVISION_AMBIGUOUS, e.what());
+  } catch (const contract::NotTrashed& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_NOT_TRASHED, e.what());
   } catch (const contract::HistoryResponseTooLarge& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, e.what());
   } catch (const std::bad_alloc&) {
@@ -296,6 +298,14 @@ holder_history_affected_object_kind to_c_enum(contract::HistoryAffectedObjectKin
   throw std::logic_error("not a contract::HistoryAffectedObjectKind value");
 }
 
+holder_trash_item_type to_c_enum(contract::TrashItemType value) {
+  switch (value) {
+  case contract::TrashItemType::Card: return HOLDER_TRASH_ITEM_TYPE_CARD;
+  case contract::TrashItemType::AiMessage: return HOLDER_TRASH_ITEM_TYPE_AI_MESSAGE;
+  }
+  throw std::logic_error("not a contract::TrashItemType value");
+}
+
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -348,6 +358,10 @@ holder_card_history_diff_line_list to_c_list(holder_arena* arena, const std::vec
 holder_card_history_comparison to_c(holder_arena* arena, const contract::CardHistoryComparison& value);
 holder_card_history_snapshot to_c(holder_arena* arena, const contract::CardHistorySnapshot& value);
 holder_card_history_restore_result to_c(holder_arena* arena, const contract::CardHistoryRestoreResult& value);
+holder_trash_item to_c(holder_arena* arena, const contract::TrashItem& value);
+holder_trash_item_list to_c_list(holder_arena* arena, const std::vector<contract::TrashItem>& values);
+holder_trash_empty_result to_c(holder_arena* arena, const contract::TrashEmptyResult& value);
+holder_trash_delete_result to_c(holder_arena* arena, const contract::TrashDeleteResult& value);
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -834,6 +848,40 @@ holder_card_history_restore_result to_c(holder_arena* arena, const contract::Car
   out.title = copy(arena, value.title);
   out.updated_at = value.updated_at;
   out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  return out;
+}
+
+holder_trash_item to_c(holder_arena* arena, const contract::TrashItem& value) {
+  holder_trash_item out{};
+  out.type = to_c_enum(value.type);
+  out.project_id = copy(arena, value.project_id);
+  out.card_id = copy_text(arena, value.card_id);
+  out.message_id = copy_text(arena, value.message_id);
+  out.thread_id = copy_text(arena, value.thread_id);
+  out.title = copy_text(arena, value.title);
+  out.role = copy_text(arena, value.role);
+  out.deleted_at = value.deleted_at;
+  out.created_at = copy_value<int64_t>(arena, value.created_at);
+  out.rel_path = copy_text(arena, value.rel_path);
+  return out;
+}
+
+holder_trash_item_list to_c_list(holder_arena* arena, const std::vector<contract::TrashItem>& values) {
+  auto* items = make<holder_trash_item>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_trash_empty_result to_c(holder_arena* arena, const contract::TrashEmptyResult& value) {
+  holder_trash_empty_result out{};
+  out.project_id = copy(arena, value.project_id);
+  return out;
+}
+
+holder_trash_delete_result to_c(holder_arena* arena, const contract::TrashDeleteResult& value) {
+  holder_trash_delete_result out{};
+  out.card_id = copy_text(arena, value.card_id);
+  out.message_id = copy_text(arena, value.message_id);
   return out;
 }
 
@@ -1686,6 +1734,66 @@ int holder_restore_card_history_snapshot(holder_context* context, const char* pr
     auto* out = make<holder_card_history_restore_result>(arena);
     *out = to_c(arena, contract::restore_card_history_snapshot(*context, project_id_value, card_id_value, oid_value));
     *out_card_history_restore_result = out;
+  });
+}
+
+int holder_list_trash(holder_context* context, const char* project_id, const char* type, holder_arena* arena, const holder_trash_item_list** out_trash_item_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_trash_item_list != nullptr, "out_trash_item_list must not be null");
+    *out_trash_item_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto type_value = optional_text(type, "type", 0, SIZE_MAX);
+    auto* out = make<holder_trash_item_list>(arena);
+    *out = to_c_list(arena, contract::list_trash(*context, project_id_value, type_value));
+    *out_trash_item_list = out;
+  });
+}
+
+int holder_empty_trash(holder_context* context, const char* project_id, holder_empty_trash_type type, holder_arena* arena, const holder_trash_empty_result** out_trash_empty_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_trash_empty_result != nullptr, "out_trash_empty_result must not be null");
+    *out_trash_empty_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    contract::EmptyTrashType type_value;
+    switch (type) {
+    case HOLDER_EMPTY_TRASH_TYPE_DEFAULT: type_value = contract::EmptyTrashType::All; break;
+    case HOLDER_EMPTY_TRASH_TYPE_CARD: type_value = contract::EmptyTrashType::Card; break;
+    case HOLDER_EMPTY_TRASH_TYPE_AI_MESSAGE: type_value = contract::EmptyTrashType::AiMessage; break;
+    case HOLDER_EMPTY_TRASH_TYPE_ALL: type_value = contract::EmptyTrashType::All; break;
+    default: throw ArgumentError("type is not a holder_empty_trash_type value");
+    }
+    auto* out = make<holder_trash_empty_result>(arena);
+    *out = to_c(arena, contract::empty_trash(*context, project_id_value, type_value));
+    *out_trash_empty_result = out;
+  });
+}
+
+int holder_delete_trash_item(holder_context* context, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_trash_delete_result != nullptr, "out_trash_delete_result must not be null");
+    *out_trash_delete_result = nullptr;
+    const auto type_value = text(type, "type", 0, SIZE_MAX);
+    const auto id_value = text(id, "id", 0, SIZE_MAX);
+    auto* out = make<holder_trash_delete_result>(arena);
+    *out = to_c(arena, contract::delete_trash_item(*context, type_value, id_value));
+    *out_trash_delete_result = out;
+  });
+}
+
+int holder_delete_project_trash_item(holder_context* context, const char* project_id, const char* type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_trash_delete_result != nullptr, "out_trash_delete_result must not be null");
+    *out_trash_delete_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto type_value = text(type, "type", 0, SIZE_MAX);
+    const auto id_value = text(id, "id", 0, SIZE_MAX);
+    auto* out = make<holder_trash_delete_result>(arena);
+    *out = to_c(arena, contract::delete_project_trash_item(*context, project_id_value, type_value, id_value));
+    *out_trash_delete_result = out;
   });
 }
 

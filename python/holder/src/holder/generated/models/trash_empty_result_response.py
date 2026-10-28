@@ -8,31 +8,28 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.trash_item import TrashItem
+    from ..models.trash_empty_result import TrashEmptyResult
 
 
-T = TypeVar("T", bound="TrashListResponse")
+T = TypeVar("T", bound="TrashEmptyResultResponse")
 
 
 @_attrs_define
-class TrashListResponse:
+class TrashEmptyResultResponse:
     """
     Attributes:
         ok (bool):
-        data (list[TrashItem]):
+        data (TrashEmptyResult): The project whose Trash was emptied.
     """
 
     ok: bool
-    data: list[TrashItem]
+    data: TrashEmptyResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
 
-        data = []
-        for data_item_data in self.data:
-            data_item = data_item_data.to_dict()
-            data.append(data_item)
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -47,25 +44,20 @@ class TrashListResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.trash_item import TrashItem
+        from ..models.trash_empty_result import TrashEmptyResult
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = []
-        _data = d.pop("data")
-        for data_item_data in _data:
-            data_item = TrashItem.from_dict(data_item_data)
+        data = TrashEmptyResult.from_dict(d.pop("data"))
 
-            data.append(data_item)
-
-        trash_list_response = cls(
+        trash_empty_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        trash_list_response.additional_properties = d
-        return trash_list_response
+        trash_empty_result_response.additional_properties = d
+        return trash_empty_result_response
 
     @property
     def additional_keys(self) -> list[str]:

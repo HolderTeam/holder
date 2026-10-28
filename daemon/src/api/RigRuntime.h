@@ -31,7 +31,6 @@
 #include "api/CardRead.h"
 #include "api/Ping.h"
 #include "api/StaticFiles.h"
-#include "api/TrashList.h"
 #include "api/AssetImportWrite.h"
 #include "api/LocationWrite.h"
 #include "api/RecoveryToken.h"
@@ -39,4 +38,3 @@
 #include "api/Schemas.h"
 #include "api/Search.h"
 #include "api/Streams.h"
-#include "api/TrashWrite.h"

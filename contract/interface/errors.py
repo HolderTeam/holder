@@ -43,5 +43,9 @@ class RevisionAmbiguous(HolderError):
     """A commit ID prefix matches more than one revision; use a longer prefix or the full ID."""
 
 
+class NotTrashed(HolderError):
+    """The item still exists but is not in Trash, so permanent removal is refused."""
+
+
 class HistoryResponseTooLarge(HolderError):
     """The bounded History response would exceed 2 MiB."""

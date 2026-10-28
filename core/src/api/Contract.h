@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -73,6 +73,11 @@ struct HistoryKeyUnavailable : Error {
 
 /// A commit ID prefix matches more than one revision; use a longer prefix or the full ID.
 struct RevisionAmbiguous : Error {
+  using Error::Error;
+};
+
+/// The item still exists but is not in Trash, so permanent removal is refused.
+struct NotTrashed : Error {
   using Error::Error;
 };
 
@@ -530,6 +535,34 @@ struct CardHistoryRestoreResult {
   std::optional<long long> deleted_at;  ///< When the restored card is in Trash; null when live.
 };
 
+/// The kind of item.
+enum class TrashItemType { Card, AiMessage };
+
+/// A trashed card or AI message.
+struct TrashItem {
+  TrashItemType type;  ///< The kind of item.
+  std::string project_id;  ///< The project that owns the item.
+  std::optional<std::string> card_id;  ///< The card ID, present for a card.
+  std::optional<std::string> message_id;  ///< The message ID, present for an AI message.
+  std::optional<std::string> thread_id;  ///< The AI thread containing a message.
+  std::optional<std::string> title;  ///< The card title, if this is a card.
+  std::optional<std::string> role;  ///< The AI message role, if this is a message.
+  long long deleted_at{};  ///< When the item entered Trash.
+  std::optional<long long> created_at;  ///< When the AI message was created.
+  std::optional<std::string> rel_path;  ///< The card's relative file path.
+};
+
+/// The project whose Trash was emptied.
+struct TrashEmptyResult {
+  std::string project_id;  ///< The requested project, including when it had no trashed items.
+};
+
+/// The ID of a permanently removed item.
+struct TrashDeleteResult {
+  std::optional<std::string> card_id;  ///< The removed card's ID, or null for a message.
+  std::optional<std::string> message_id;  ///< The removed AI message's ID, or null for a card.
+};
+
 /// Fetch a card.
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
@@ -850,6 +883,30 @@ CardHistorySnapshot get_card_history_snapshot(holder_context& context, std::stri
 /// @param oid The revision containing the snapshot to restore.
 /// @throws NotFound, RevisionAmbiguous, HistoryKeyUnavailable, HistoryUnavailable
 CardHistoryRestoreResult restore_card_history_snapshot(holder_context& context, std::string project_id, std::string card_id, std::string oid);
+
+/// List a project's trashed cards and AI messages.
+/// A project that is not registered has an empty Trash.
+/// @param project_id The project whose Trash is listed.
+/// @param type card, ai_message, or all; an unknown type lists nothing.
+std::vector<TrashItem> list_trash(holder_context& context, std::string project_id, std::optional<std::string> type);
+
+enum class EmptyTrashType { Card, AiMessage, All };
+
+/// Permanently remove a project's trashed items.
+/// An empty or unregistered project succeeds without changes. Old Git revisions of cards remain available.
+/// @param project_id The project whose Trash is emptied.
+/// @param type Which item kinds to remove.
+/// @throws KeyringUnavailable, KeyMissing, DataCorrupted
+TrashEmptyResult empty_trash(holder_context& context, std::string project_id, EmptyTrashType type);
+
+/// Permanently remove a trashed item by its global ID (legacy route).
+/// @throws NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted
+TrashDeleteResult delete_trash_item(holder_context& context, std::string type, std::string id);
+
+/// Permanently remove a trashed item from the named project.
+/// Old Git revisions of cards remain available.
+/// @throws NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted
+TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id, std::string type, std::string id);
 
 namespace detail {
 

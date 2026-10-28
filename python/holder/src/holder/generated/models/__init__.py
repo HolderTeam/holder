@@ -149,11 +149,6 @@ from .change_event_data_entity import ChangeEventDataEntity
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
-from .delete_projects_project_id_trash_type_id_type import (
-    DeleteProjectsProjectIdTrashTypeIdType,
-)
-from .delete_trash_type import DeleteTrashType
-from .delete_trash_type_id_type import DeleteTrashTypeIdType
 from .error import Error
 from .error_response import ErrorResponse
 from .event_checkpoint import EventCheckpoint
@@ -305,12 +300,14 @@ from .sync_state_response import SyncStateResponse
 from .tag_count import TagCount
 from .tag_count_list_response import TagCountListResponse
 from .tag_occurrence import TagOccurrence
-from .trash_delete_response import TrashDeleteResponse
-from .trash_delete_response_data import TrashDeleteResponseData
-from .trash_empty_response import TrashEmptyResponse
-from .trash_empty_response_data import TrashEmptyResponseData
+from .trash_delete_result import TrashDeleteResult
+from .trash_delete_result_response import TrashDeleteResultResponse
+from .trash_empty_result import TrashEmptyResult
+from .trash_empty_result_response import TrashEmptyResultResponse
+from .trash_filter import TrashFilter
 from .trash_item import TrashItem
-from .trash_list_response import TrashListResponse
+from .trash_item_list_response import TrashItemListResponse
+from .trash_item_type import TrashItemType
 
 __all__ = (
     "AiLocalModelConfigData",
@@ -452,9 +449,6 @@ __all__ = (
     "ChangeEventData",
     "ChangeEventDataEntity",
     "DeleteProjectsProjectIdCardsCardIdChildren",
-    "DeleteProjectsProjectIdTrashTypeIdType",
-    "DeleteTrashType",
-    "DeleteTrashTypeIdType",
     "Error",
     "ErrorResponse",
     "EventCheckpoint",
@@ -586,10 +580,12 @@ __all__ = (
     "TagCount",
     "TagCountListResponse",
     "TagOccurrence",
-    "TrashDeleteResponse",
-    "TrashDeleteResponseData",
-    "TrashEmptyResponse",
-    "TrashEmptyResponseData",
+    "TrashDeleteResult",
+    "TrashDeleteResultResponse",
+    "TrashEmptyResult",
+    "TrashEmptyResultResponse",
+    "TrashFilter",
     "TrashItem",
-    "TrashListResponse",
+    "TrashItemListResponse",
+    "TrashItemType",
 )

@@ -48,3 +48,7 @@ list card history: status 0, 0 entries
 compare card history: status 0, after deadbeef
 card history snapshot: status 0, exists 0
 restore card history: status 0, title restored
+list trash: status 0, 0 items
+empty trash: status 0, project p5
+delete trash item: status 0, card card-one
+delete project trash item: status 0, message message-one

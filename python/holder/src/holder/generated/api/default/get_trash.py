@@ -6,21 +6,26 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.trash_list_response import TrashListResponse
+from ...models.trash_item_list_response import TrashItemListResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     project_id: str,
-    type_: str | Unset = UNSET,
+    type_: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["project_id"] = project_id
 
-    params["type"] = type_
+    json_type_: None | str | Unset
+    if isinstance(type_, Unset):
+        json_type_ = UNSET
+    else:
+        json_type_ = type_
+    params["type"] = json_type_
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -35,9 +40,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | TrashListResponse | None:
+) -> ErrorResponse | TrashItemListResponse | None:
     if response.status_code == 200:
-        response_200 = TrashListResponse.from_dict(response.json())
+        response_200 = TrashItemListResponse.from_dict(response.json())
 
         return response_200
 
@@ -64,7 +69,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | TrashListResponse]:
+) -> Response[ErrorResponse | TrashItemListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -77,20 +82,22 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> Response[ErrorResponse | TrashListResponse]:
-    """List trashed items by project
+    type_: None | str | Unset = UNSET,
+) -> Response[ErrorResponse | TrashItemListResponse]:
+    """List a project's trashed cards and AI messages.
+
+     A project that is not registered has an empty Trash.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (None | str | Unset): card, ai_message, or all; an unknown type lists nothing.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashListResponse]
+        Response[ErrorResponse | TrashItemListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -109,20 +116,22 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> ErrorResponse | TrashListResponse | None:
-    """List trashed items by project
+    type_: None | str | Unset = UNSET,
+) -> ErrorResponse | TrashItemListResponse | None:
+    """List a project's trashed cards and AI messages.
+
+     A project that is not registered has an empty Trash.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (None | str | Unset): card, ai_message, or all; an unknown type lists nothing.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashListResponse
+        ErrorResponse | TrashItemListResponse
     """
 
     return sync_detailed(
@@ -136,20 +145,22 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> Response[ErrorResponse | TrashListResponse]:
-    """List trashed items by project
+    type_: None | str | Unset = UNSET,
+) -> Response[ErrorResponse | TrashItemListResponse]:
+    """List a project's trashed cards and AI messages.
+
+     A project that is not registered has an empty Trash.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (None | str | Unset): card, ai_message, or all; an unknown type lists nothing.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | TrashListResponse]
+        Response[ErrorResponse | TrashItemListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -166,20 +177,22 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    type_: str | Unset = UNSET,
-) -> ErrorResponse | TrashListResponse | None:
-    """List trashed items by project
+    type_: None | str | Unset = UNSET,
+) -> ErrorResponse | TrashItemListResponse | None:
+    """List a project's trashed cards and AI messages.
+
+     A project that is not registered has an empty Trash.
 
     Args:
         project_id (str):
-        type_ (str | Unset):
+        type_ (None | str | Unset): card, ai_message, or all; an unknown type lists nothing.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | TrashListResponse
+        ErrorResponse | TrashItemListResponse
     """
 
     return (

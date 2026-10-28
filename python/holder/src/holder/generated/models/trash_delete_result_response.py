@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.trash_delete_response_data import TrashDeleteResponseData
+    from ..models.trash_delete_result import TrashDeleteResult
 
 
-T = TypeVar("T", bound="TrashDeleteResponse")
+T = TypeVar("T", bound="TrashDeleteResultResponse")
 
 
 @_attrs_define
-class TrashDeleteResponse:
+class TrashDeleteResultResponse:
     """
     Attributes:
         ok (bool):
-        data (TrashDeleteResponseData):
+        data (TrashDeleteResult): The ID of a permanently removed item.
     """
 
     ok: bool
-    data: TrashDeleteResponseData
+    data: TrashDeleteResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,22 +44,20 @@ class TrashDeleteResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.trash_delete_response_data import (
-            TrashDeleteResponseData,
-        )
+        from ..models.trash_delete_result import TrashDeleteResult
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = TrashDeleteResponseData.from_dict(d.pop("data"))
+        data = TrashDeleteResult.from_dict(d.pop("data"))
 
-        trash_delete_response = cls(
+        trash_delete_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        trash_delete_response.additional_properties = d
-        return trash_delete_response
+        trash_delete_result_response.additional_properties = d
+        return trash_delete_result_response
 
     @property
     def additional_keys(self) -> list[str]:

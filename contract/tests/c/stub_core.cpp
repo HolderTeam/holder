@@ -461,6 +461,31 @@ CardHistoryRestoreResult restore_card_history_snapshot(holder_context& context, 
   project_named(context, project_id);
   return {card_id, oid, oid, "restored", 1, std::nullopt};
 }
+
+std::vector<TrashItem> list_trash(holder_context& context, std::string project_id,
+                                  std::optional<std::string> type) {
+  project_named(context, project_id);
+  (void)type;
+  return {};
+}
+
+TrashEmptyResult empty_trash(holder_context& context, std::string project_id, EmptyTrashType type) {
+  project_named(context, project_id);
+  (void)type;
+  return {project_id};
+}
+
+TrashDeleteResult delete_trash_item(holder_context& context, std::string type, std::string id) {
+  (void)context;
+  return type == "card" ? TrashDeleteResult{id, std::nullopt}
+                        : TrashDeleteResult{std::nullopt, id};
+}
+
+TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id,
+                                             std::string type, std::string id) {
+  project_named(context, project_id);
+  return delete_trash_item(context, type, id);
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

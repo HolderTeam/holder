@@ -268,6 +268,22 @@ int main(void) {
                                                   &restored, &error);
     printf("restore card history: status %d, title %s\n", status, restored->title);
 
+    const holder_trash_item_list* trash = NULL;
+    status = holder_list_trash(context, project_id, NULL, arena, &trash, &error);
+    printf("list trash: status %d, %zu items\n", status, trash->count);
+
+    const holder_trash_empty_result* emptied = NULL;
+    status = holder_empty_trash(context, project_id, HOLDER_EMPTY_TRASH_TYPE_ALL, arena, &emptied, &error);
+    printf("empty trash: status %d, project %s\n", status, emptied->project_id);
+
+    const holder_trash_delete_result* removed = NULL;
+    status = holder_delete_trash_item(context, "card", "card-one", arena, &removed, &error);
+    printf("delete trash item: status %d, card %s\n", status, removed->card_id);
+
+    status = holder_delete_project_trash_item(context, project_id, "ai_message", "message-one", arena,
+                                             &removed, &error);
+    printf("delete project trash item: status %d, message %s\n", status, removed->message_id);
+
     holder_arena_free(arena);
     stub_context_free(context);
     return 0;

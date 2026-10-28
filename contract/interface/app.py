@@ -23,6 +23,7 @@ from .errors import (
     KeyMissing,
     KeyringUnavailable,
     NotFound,
+    NotTrashed,
     RevisionAmbiguous,
 )
 from .git import PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
@@ -39,6 +40,7 @@ from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
 from .resources import NewResource, Resource, ResourceId, ResourceUpdate
+from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem
 
 contract = Contract(statuses={
     NotFound: 404,
@@ -52,6 +54,7 @@ contract = Contract(statuses={
     HistoryResponseTooLarge: 413,
     HistoryKeyUnavailable: 409,
     RevisionAmbiguous: 409,
+    NotTrashed: 409,
     HistoryUnavailable: 503,
 })
 # What every write to a card's file may fail with, besides its own errors: an encrypted project's key.
@@ -619,4 +622,48 @@ def restore_card_history_snapshot(
     Restores the complete snapshot as a new commit, preserving the old history. Lifecycle rules still apply:
     restoring a trashed snapshot promotes live children, and restoring a live snapshot places the card under a
     reachable parent.
+    """
+
+
+@contract.route("GET", "/trash")
+def list_trash(
+    project_id: Annotated[ProjectId, Query(description="The project whose Trash is listed.")],
+    type: Annotated[str | None, Query(description="card, ai_message, or all; an unknown type lists nothing.")] = None,
+) -> list[TrashItem]:
+    """List a project's trashed cards and AI messages.
+
+    A project that is not registered has an empty Trash.
+    """
+
+
+@contract.route("DELETE", "/trash", errors=[KeyringUnavailable, KeyMissing, DataCorrupted])
+def empty_trash(
+    project_id: Annotated[ProjectId, Query(description="The project whose Trash is emptied.")],
+    type: Annotated[TrashFilter, Query(description="Which item kinds to remove.")] = "all",
+) -> TrashEmptyResult:
+    """Permanently remove a project's trashed items.
+
+    An empty or unregistered project succeeds without changes. Old Git revisions of cards remain available.
+    """
+
+
+@contract.route("DELETE", "/trash/{type}/{id}",
+                errors=[NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted])
+def delete_trash_item(
+    type: Annotated[str, Path()],
+    id: Annotated[str, Path()],
+) -> TrashDeleteResult:
+    """Permanently remove a trashed item by its global ID (legacy route)."""
+
+
+@contract.route("DELETE", "/projects/{project_id}/trash/{type}/{id}",
+                errors=[NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted])
+def delete_project_trash_item(
+    project_id: Annotated[ProjectId, Path()],
+    type: Annotated[str, Path()],
+    id: Annotated[str, Path()],
+) -> TrashDeleteResult:
+    """Permanently remove a trashed item from the named project.
+
+    Old Git revisions of cards remain available.
     """

@@ -53,17 +53,16 @@ TEST_CASE("Trash deletes validate requests and report missing services", "[trash
     CAPTURE(target);
     const auto rejected = route(db, fts, &card_store, target);
     REQUIRE(rejected.status == http::status::bad_request);
-    REQUIRE(rejected.body["error"]["code"] == "bad_request");
+    REQUIRE(rejected.body["error"]["code"] == "invalid_argument");
   }
   // An empty ID matches no route, so the router answers 404.
   REQUIRE_FALSE(route(db, fts, &card_store, "/trash/card/").handled);
 
-  // Cards need the card store; AI messages do not.
-  REQUIRE(route(db, fts, nullptr, "/trash?project_id=proj-1").status ==
-          http::status::not_implemented);
+  // Core can construct a card store from the request context.
+  REQUIRE(route(db, fts, nullptr, "/trash?project_id=proj-1").status == http::status::ok);
   REQUIRE(route(db, fts, nullptr, "/trash?project_id=proj-1&type=ai_message").status ==
           http::status::ok);
-  REQUIRE(route(db, fts, nullptr, "/trash/card/" + live).status == http::status::not_implemented);
+  REQUIRE(route(db, fts, nullptr, "/trash/card/" + live).status == http::status::conflict);
 
   const auto not_trashed = route(db, fts, &card_store, "/projects/proj-1/trash/card/" + live);
   REQUIRE(not_trashed.status == http::status::conflict);
@@ -76,7 +75,7 @@ TEST_CASE("Trash deletes validate requests and report missing services", "[trash
   card_store.trash(live, 20);
   const auto removed = route(db, fts, &card_store, "/trash/card/" + live);
   REQUIRE(removed.status == http::status::ok);
-  REQUIRE(removed.body == nlohmann::json{{"ok", true}, {"data", {{"card_id", live}}}});
+  REQUIRE(removed.body == nlohmann::json{{"ok", true}, {"data", {{"card_id", live}, {"message_id", nullptr}}}});
   const auto emptied = route(db, fts, &card_store, "/trash?project_id=proj-1&type=all");
   REQUIRE(emptied.body == nlohmann::json{{"ok", true}, {"data", {{"project_id", "proj-1"}}}});
 }
