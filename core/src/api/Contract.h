@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -149,6 +149,28 @@ struct ResourceUpdate {
   std::optional<long long> updated_at;  ///< When the resource was changed, for imports; omit for now.
 };
 
+/// How the project's files are stored.
+enum class NewProjectPrivacyMode { EncryptedGit, Plain };
+
+/// A project to make.
+struct NewProject {
+  std::optional<std::string> project_id;  ///< The project's ID, for imports; omit for a new one.
+  std::string name;  ///< The project's name.
+  std::optional<std::string> root_path;  ///< The directory for the project's repository, an absolute path; omit for one under this device's projects directory, named for the project.
+  std::optional<std::string> git_remote_url;  ///< The Git remote to sync with; null or omitted for none. One Git does not accept is an invalid argument.
+  std::optional<std::string> git_provider;  ///< Who hosts the Git remote; null or omitted when unknown.
+  NewProjectPrivacyMode privacy_mode = NewProjectPrivacyMode::EncryptedGit;  ///< How the project's files are stored.
+  std::optional<long long> created_at;  ///< When the project was made, for imports, after the epoch; omit for now.
+  std::optional<long long> updated_at;  ///< When the project's settings last changed, for imports, after the epoch; omit for when it was made.
+};
+
+/// A change to a project's settings. Each field left out keeps its value.
+struct ProjectUpdate {
+  std::optional<std::string> name;  ///< The project's name.
+  Change<std::string> git_remote_url;  ///< The Git remote to sync with; null for none.
+  Change<std::string> git_provider;  ///< Who hosts the Git remote; null when unknown.
+};
+
 /// A tag written in a card's content.
 struct TagOccurrence {
   std::string tag;  ///< The normalized tag.
@@ -266,6 +288,28 @@ struct Resource {
   std::vector<ResourceAsset> assets;  ///< The resource's files.
   long long created_at{};  ///< When the resource was made.
   long long updated_at{};  ///< When the resource was last changed.
+};
+
+/// How the project's files are stored.
+enum class ProjectPrivacyMode { EncryptedGit, Plain };
+
+/// A project on this device.
+struct Project {
+  std::string project_id;  ///< The project's ID.
+  std::string name;  ///< The project's name.
+  std::string root_path;  ///< The directory that holds the project's repository on this device.
+  std::optional<std::string> git_remote_url;  ///< The Git remote the project syncs with; null when it has none.
+  std::optional<std::string> git_provider;  ///< Who hosts the Git remote, such as github; null when unknown.
+  ProjectPrivacyMode privacy_mode;  ///< How the project's files are stored.
+  std::optional<std::string> project_key_id;  ///< The ID of an encrypted project's key; null for a plain project.
+  long long created_at{};  ///< When the project was made.
+  long long updated_at{};  ///< When the project's settings last changed.
+};
+
+/// A project in a listing.
+struct ProjectListItem : Project {
+  std::optional<std::int32_t> card_count;  ///< The project's live cards; present when asked for.
+  std::optional<std::int32_t> root_card_count;  ///< The project's live root cards; present when asked for.
 };
 
 /// Fetch a card.
@@ -482,6 +526,41 @@ std::vector<Resource> attach_card_resource(holder_context& context, std::string 
 /// in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 std::vector<Resource> detach_card_resource(holder_context& context, std::string project_id, std::string card_id, std::string resource_id);
+
+enum class ListProjectsOrder { UpdatedAtDesc, UpdatedAtAsc, CreatedAtDesc, CreatedAtAsc, NameDesc, NameAsc };
+
+/// List the projects on this device.
+/// Filters combine. Projects that tie in the order keep the order they were stored in.
+/// @param name Only projects whose name contains this text.
+/// @param updated_after Only projects last changed at or after this instant.
+/// @param updated_before Only projects last changed at or before this instant.
+/// @param order Omit for Home first, then the latest changed.
+/// @param offset How many of the ordered projects to skip.
+/// @param include_card_counts Include each project's counts of live cards.
+std::vector<ProjectListItem> list_projects(holder_context& context, std::optional<std::string> name, std::optional<long long> updated_after, std::optional<long long> updated_before, std::optional<ListProjectsOrder> order, std::int32_t limit, std::int32_t offset, bool include_card_counts);
+
+/// Fetch a project.
+/// @throws NotFound
+Project get_project(holder_context& context, std::string project_id);
+
+/// Make a project.
+/// Its repository is made, with its settings, and an encrypted project's key. An ID a project on this device has
+/// is a Conflict. Making a project that was removed from this device makes it known here again.
+/// @throws Conflict, KeyringUnavailable, KeyMissing, DataCorrupted
+Project create_project(holder_context& context, const NewProject& project);
+
+/// Change a project's settings.
+/// Each field left out keeps its value, and an update that changes nothing writes nothing. The settings are
+/// committed to the project's repository; a Git remote is set there before it is stored, and one Git does not
+/// accept is an invalid argument.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update);
+
+/// Remove a project from this device.
+/// The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
+/// bring it back; making it again does. Returns the project as it was.
+/// @throws NotFound
+Project delete_project(holder_context& context, std::string project_id);
 
 namespace detail {
 

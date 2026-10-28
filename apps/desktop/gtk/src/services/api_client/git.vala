@@ -9,8 +9,7 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
 
     public static async void set_project_git_remote(ApiClient client, // LCOV_EXCL_BR_LINE: async signature branch artifact
                                                     string project_id,
-                                                    string? git_remote_url,
-                                                    int64 updated_at) throws Error {
+                                                    string? git_remote_url) throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("git_remote_url");
@@ -19,8 +18,6 @@ public class ApiClientGitEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration 
         } else {
             body.add_string_value(git_remote_url);
         }
-        body.set_member_name("updated_at");
-        body.add_int_value(updated_at);
         body.end_object();
 
         yield client.request_json( // LCOV_EXCL_BR_LINE: async yield branch artifact

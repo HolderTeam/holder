@@ -164,6 +164,15 @@ inline std::map<std::string, std::string> decode_query(std::string_view input) {
     }
     return values;
 }
+// A query parameter the operation does not have is refused, so that a caller who sends one learns it
+// was not used, as the JSON codec does for a record's fields.
+inline void check_query_names(const std::map<std::string, std::string>& values,
+                              std::initializer_list<std::string_view> names) {
+    for (const auto& [key, value] : values) {
+        if (std::find(names.begin(), names.end(), key) == names.end())
+            throw std::invalid_argument("there is no query parameter " + key);
+    }
+}
 template <typename T>
 T decode_integer(std::string_view input, const char* name) {
     T value;
@@ -258,8 +267,12 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
     lines = [f"    static const std::regex route_{index}({json.dumps(pattern)});",
              f'    if (method == "{binding["method"]}" && std::regex_match(route_path, match, route_{index})) {{']
     declarations, decodes, arguments = [], [], []
+    names = ", ".join(json.dumps(n) for n in binding["query"])
     if binding["query"]:
-        decodes.append("            const auto query_values = decode_query(query_string);")
+        decodes += ["            const auto query_values = decode_query(query_string);",
+                    f"            check_query_names(query_values, {{{names}}});"]
+    else:
+        decodes.append("            check_query_names(decode_query(query_string), {});")
     for parameter in op["parameters"]:
         param = c_param(model, op, parameter)
         decl, _ = cpp_param(model, op, param)
@@ -313,6 +326,8 @@ def generate_routes(model: Model, codec_header: str) -> str:
              "#pragma once",
              f'#include "{codec_header}"',
              "#include <charconv>",
+             "#include <algorithm>",
+             "#include <initializer_list>",
              "#include <map>",
              "#include <optional>",
              "#include <regex>",

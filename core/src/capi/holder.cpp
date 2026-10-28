@@ -67,9 +67,7 @@
 
 namespace {
 
-std::filesystem::path rebuild_readiness_path(const std::filesystem::path& data_dir) {
-  return data_dir / "server" / "database-rebuild-ready.json";
-}
+using holder::capi::rebuild_readiness_path;
 
 bool looks_like_project(const std::filesystem::path& root) {
   return std::filesystem::is_directory(root) &&
@@ -1207,6 +1205,7 @@ int holder_context_open(
     auto context = std::make_unique<holder_context>();
     context->data_dir = std::filesystem::path(data_dir);
     context->db_path = context->data_dir / "server" / "holder.db";
+    context->projects_root = context->data_dir / "projects";
     std::filesystem::create_directories(context->db_path.parent_path());
 
     const auto health = holder::platform::inspect_database_health(context->db_path);

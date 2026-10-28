@@ -93,6 +93,14 @@ int main() {
   send(*context, "PUT", "/projects/p1/cards/c1/resources/res-1");
   send(*context, "GET", "/projects/p1/resources/res-9");
   send(*context, "DELETE", "/projects/p1/resources/res-1");
+  // Projects.
+  send(*context, "POST", "/projects", R"({"name": "Garden", "privacy_mode": "plain"})");
+  send(*context, "POST", "/projects", R"({"name": "Shed", "project_key_id": "k1"})");
+  send(*context, "GET", "/projects?name=Gard&order=name_asc&limit=5&include_card_counts=true");
+  send(*context, "GET", "/projects?order=sideways");
+  send(*context, "GET", "/projects?limit=5&count=true");
+  send(*context, "GET", "/projects/p1/tags?verbose=1");
+  send(*context, "PATCH", "/projects/p9", R"({"git_remote_url": null})");
   // Not found.
   send(*context, "GET", "/projects/p1/cards/c9");
   send(*context, "GET", "/projects/p2/cards/c1");

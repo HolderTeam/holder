@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ProjectCreateRequestPrivacyMode(StrEnum):
+class PrivacyMode(StrEnum):
     ENCRYPTED_GIT = "encrypted_git"
     PLAIN = "plain"
 

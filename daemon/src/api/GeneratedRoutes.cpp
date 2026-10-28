@@ -1,10 +1,12 @@
 #include "api/GeneratedRoutes.h"
 
+
 #include "api/RigRuntime.h"
 #include "api/generated/ContractRoutes.h"
 #include "api/generated/RuntimeRoutes.h"
 #include "capi/Context.h"
 #include "index/FtsIndexer.h"
+#include "platform/Paths.h"
 #include "api/support/HttpResponses.h"
 #include "api/support/StreamServer.h"
 #include "privacy/SecretStore.h"
@@ -150,6 +152,9 @@ bool dispatch_generated_routes(
       // refers to its database, so a caller without one gets one on the same database.
       std::optional<holder::index::FtsIndexer> own_fts;
       holder_context core(db, fts != nullptr ? *fts : own_fts.emplace(db), git_ops);
+      const auto paths = holder::core::Paths::resolve("holder");
+      core.projects_root = holder::core::default_projects_root();
+      core.registry_path = paths.project_registry_path();
       if (const auto answered = contract_http::dispatch(method, path, req.body(), core)) {
         res = support::json_response(static_cast<http::status>(answered->status), answered->body);
         return true;

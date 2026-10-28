@@ -91,6 +91,7 @@ private void test_core_domain_methods_smoke_delegation() {
 
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"P\",\"privacy_mode\":\"encrypted_git\"}]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\"}]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
@@ -216,7 +217,7 @@ private void test_core_git_mutation_methods_delegate() {
 
     bool done_set = false;
     bool set_ok = false;
-    client.set_project_git_remote.begin("p1", "https://example/repo.git", 10, (obj, res) => {
+    client.set_project_git_remote.begin("p1", "https://example/repo.git", (obj, res) => {
         try {
             client.set_project_git_remote.end(res);
             set_ok = true;

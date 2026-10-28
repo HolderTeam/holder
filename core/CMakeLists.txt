@@ -130,6 +130,7 @@ set(HOLDER_CORE_SOURCES
   src/api/Cards.cpp
   src/api/Links.cpp
   src/api/Milestones.cpp
+  src/api/Projects.cpp
   src/api/Resources.cpp
   src/api/ContractGlue.cpp
   src/capi/holder.cpp
@@ -188,6 +189,7 @@ set(HOLDER_CORE_SOURCES
   src/project/ProjectManifest.cpp
   src/project/ProjectImport.cpp
   src/project/ProjectRepo.cpp
+  src/project/ProjectRegistry.cpp
   src/project/ProjectStore.cpp
   src/project/ProjectSyncRepo.cpp
   src/project/Rebuilder.cpp

@@ -47,7 +47,7 @@ def test_project_order_and_counts_compose_with_filters_and_pagination():
         assert request.url.path == "/projects"
         assert request.url.params["name"] == "Research"
         assert request.url.params["order"] == "name_desc"
-        assert request.url.params["count"] == "true"
+        assert request.url.params["include_card_counts"] == "true"
         assert request.url.params["limit"] == "100"
         assert request.url.params["offset"] == str((len(requests) - 1) * 100)
         first = (len(requests) - 1) * 100
@@ -66,7 +66,7 @@ def test_project_order_and_counts_compose_with_filters_and_pagination():
         assert projects[0].card_count == 4
         assert projects[0].root_card_count == 2
         assert len(requests) == 2
-        assert "count" not in original._query
+        assert "include_card_counts" not in original._query
         assert "order" not in original._query
 
 

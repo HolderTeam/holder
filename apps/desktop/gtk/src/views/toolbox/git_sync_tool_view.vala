@@ -619,11 +619,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         }
         git_configured_disconnect_btn.set_sensitive(false);
         try {
-            yield api.set_project_git_remote(
-                project.project_id,
-                null,
-                new DateTime.now_utc().to_unix()
-            );
+            yield api.set_project_git_remote(project.project_id, null);
             project_state.mark_disconnected(project.project_id);
             var selected = current_project();
             if (selected != null && selected.project_id == project.project_id) {

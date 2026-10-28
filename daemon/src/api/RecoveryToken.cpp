@@ -4,7 +4,7 @@
 #include "git/GitOps.h"
 #include "git/RepoSyncMetrics.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "privacy/ProjectPrivacy.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectPaths.h"

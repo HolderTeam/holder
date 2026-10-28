@@ -4,8 +4,10 @@
 #include <catch2/catch.hpp>
 #endif
 
-#include "http_test_helpers.h"
-#include "platform/ProjectRegistry.h"
+#include "core_test_helpers.h"
+#include "project/ProjectRegistry.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <filesystem>

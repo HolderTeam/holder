@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class GetProjectsOrder(StrEnum):
+class GetProjectsOrderType0(StrEnum):
     CREATED_AT_ASC = "created_at_asc"
     CREATED_AT_DESC = "created_at_desc"
     NAME_ASC = "name_asc"

@@ -18,31 +18,35 @@ from holder.exceptions import (
     ProtocolError,
 )
 
+SYNC_STATE = {
+    "last_commit_at": None,
+    "last_push_at": None,
+    "last_pull_at": None,
+    "uncommitted_changes_count": 0,
+    "unpushed_commits_count": 0,
+    "last_push_status": None,
+    "last_pull_status": None,
+    "last_sync_error": None,
+    "last_sync_error_at": None,
+    "retry_count": 0,
+    "next_retry_at": None,
+    "pull_retry_count": 0,
+    "next_pull_retry_at": None,
+    "updated_at": None,
+}
+
 
 def project_payload(index=0):
     return {
         "project_id": f"p-{index}",
         "name": f"Project {index}",
         "root_path": f"/p/{index}",
+        "git_remote_url": None,
+        "git_provider": None,
         "privacy_mode": "plain",
+        "project_key_id": None,
         "created_at": 1,
         "updated_at": 2,
-        "sync": {
-            "last_commit_at": None,
-            "last_push_at": None,
-            "last_pull_at": None,
-            "uncommitted_changes_count": 0,
-            "unpushed_commits_count": 0,
-            "last_push_status": None,
-            "last_pull_status": None,
-            "last_sync_error": None,
-            "last_sync_error_at": None,
-            "retry_count": 0,
-            "next_retry_at": None,
-            "pull_retry_count": 0,
-            "next_pull_retry_at": None,
-            "updated_at": None,
-        },
     }
 
 
@@ -112,7 +116,8 @@ def test_project_create_defaults_hydration_and_listing_cache():
         assert project.created_at == 1
         assert list(h.projects) == []
         assert h.projects.refresh()[0].id == project.id
-        assert [r.method for r in requests] == ["GET", "POST", "GET", "GET"]
+        # The created project comes back from the write; it is not fetched again.
+        assert [r.method for r in requests] == ["GET", "POST", "GET"]
 
 
 def test_project_create_explicit_options_and_rename(tmp_path):
@@ -128,10 +133,9 @@ def test_project_create_explicit_options_and_rename(tmp_path):
             return created(stored)
         if request.method == "PATCH":
             body = json.loads(request.content)
-            assert set(body) == {"name", "updated_at"}
-            assert isinstance(body["updated_at"], int)
+            assert body == {"name": "Renamed"}
             stored.update(body)
-            return ok({"project_id": "p-0"})
+            return ok(stored)
         return ok(stored)
 
     with holder_for(respond) as h:
@@ -198,10 +202,10 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
                 raise httpx.ReadError("Interrupted", request=request)
             if error == "validation":
                 return failure(400)
+            # A response that is not the record written, so reading it fails after the write.
             if operation == "project_create":
-                return created(project_payload())
+                return created({"project_id": "p-0"})
             if operation == "card_create":
-                # A response that is not a card, so reading it fails after the write.
                 return created({"card_id": "c-0000"})
             return ok({"project_id": "p-0"})
         if writes:
@@ -212,11 +216,9 @@ def test_new_writes_are_never_retried(monkeypatch, operation, error):
         "auth": AuthenticationError,
         "transport": ConnectionError,
         "validation": APIError,
-        "hydrate": NotFoundError,
+        # Each write returns its record, so a bad response fails as a protocol error.
+        "hydrate": ProtocolError,
     }[error]
-    if (operation, error) == ("card_create", "hydrate"):
-        # A card's create returns the card, so a bad response fails as a protocol error.
-        exception = ProtocolError
     with Holder(transport=httpx.MockTransport(respond)) as h:
         with pytest.raises(exception):
             if operation == "project_create":

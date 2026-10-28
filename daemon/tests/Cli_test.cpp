@@ -12,7 +12,7 @@
 #include "platform/LockFile.h"
 #include "platform/Migrations.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectRepo.h"
 

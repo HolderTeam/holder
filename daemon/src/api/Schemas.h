@@ -139,20 +139,6 @@ struct RIG_OPEN_RECORD ProjectSync {
   std::optional<long long> updated_at RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD Project {
-  std::string project_id;
-  std::string name;
-  std::string root_path;
-  std::optional<std::optional<std::string>> git_remote_url RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::optional<std::optional<std::string>> git_provider RIG_OMIT_EMPTY RIG_NULLABLE;
-  std::string privacy_mode RIG_STRING_VALUES("encrypted_git", "plain");
-  std::optional<std::optional<std::string>> project_key_id RIG_OMIT_EMPTY RIG_NULLABLE;
-  long long created_at;
-  long long updated_at;
-  std::optional<int> card_count RIG_FIELD_DESCRIPTION("Present when count=true.") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
-  std::optional<int> root_card_count RIG_FIELD_DESCRIPTION("Present when count=true.") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
-  ProjectSync sync;
-};
 
 // A card in GET /cards and GET /cards/context. The contract's CardListItem replaces it when those
 // routes move to the contract.

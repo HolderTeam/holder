@@ -369,8 +369,8 @@ of these live notifications.
 
 ## Sync a project and check its remote
 
-`project.git` runs live Git operations. `project.sync` is the status snapshot
-loaded with the project; use `project.git.status()` for current persisted state.
+`project.git` runs live Git operations, and `project.git.status()` reads the
+project's recorded sync state.
 
 ```python
 probe = project.git.test_remote()  # or test_remote(url="https://example.org/repo.git")

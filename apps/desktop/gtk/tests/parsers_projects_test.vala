@@ -28,15 +28,8 @@ private void test_parse_projects_missing_data_is_protocol_error() {
 private void test_parse_projects_full_and_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
-        "{\"project_id\":\"p1\",\"name\":\"Project One\",\"privacy_mode\":\"encrypted_git\",\"root_path\":\"/tmp/p1\",\"created_at\":11,\"updated_at\":12,\"git_remote_url\":\"git@example/repo.git\",\"card_count\":7,\"root_card_count\":3," +
-        "\"sync\":{" +
-        "\"last_commit_at\":100,\"last_push_at\":101,\"last_pull_at\":102," +
-        "\"uncommitted_changes_count\":1,\"unpushed_commits_count\":2," +
-        "\"last_push_status\":\"ok\",\"last_pull_status\":\"ok\",\"last_sync_error\":\"\"," +
-        "\"last_sync_error_at\":103,\"retry_count\":4,\"next_retry_at\":104," +
-        "\"pull_retry_count\":5,\"next_pull_retry_at\":105,\"updated_at\":106" +
-        "}}," +
-        "{\"project_id\":\"p2\",\"name\":\"Project Two\",\"sync\":null}," +
+        "{\"project_id\":\"p1\",\"name\":\"Project One\",\"privacy_mode\":\"encrypted_git\",\"root_path\":\"/tmp/p1\",\"created_at\":11,\"updated_at\":12,\"git_remote_url\":\"git@example/repo.git\",\"card_count\":7,\"root_card_count\":3}," +
+        "{\"project_id\":\"p2\",\"name\":\"Project Two\"}," +
         "{\"project_id\":\"p3\",\"name\":\"Project Three\"}" +
         "]}"
     );
@@ -60,6 +53,21 @@ private void test_parse_projects_full_and_defaults() {
     assert(p1.git_remote_url == "git@example/repo.git");
     assert(p1.card_count == 7);
     assert(p1.root_card_count == 3);
+    // A project's sync state is read on its own.
+    assert(!p1.sync.has_last_commit_at);
+    var status = parse_json_object(
+        "{\"data\":{\"project_id\":\"p1\",\"sync\":{" +
+        "\"last_commit_at\":100,\"last_push_at\":101,\"last_pull_at\":102," +
+        "\"uncommitted_changes_count\":1,\"unpushed_commits_count\":2," +
+        "\"last_push_status\":\"ok\",\"last_pull_status\":\"ok\",\"last_sync_error\":\"\"," +
+        "\"last_sync_error_at\":103,\"retry_count\":4,\"next_retry_at\":104," +
+        "\"pull_retry_count\":5,\"next_pull_retry_at\":105,\"updated_at\":106}}}"
+    );
+    try {
+        p1.sync = HolderLinux.ApiParsersProjects.parse_project_sync_status(status);
+    } catch (Error e) {
+        assert_not_reached();
+    }
     assert(p1.sync.has_last_commit_at);
     assert(p1.sync.last_commit_at == 100);
     assert(p1.sync.has_last_push_at);

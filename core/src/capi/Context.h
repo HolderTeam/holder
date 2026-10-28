@@ -32,6 +32,12 @@ struct holder_context {
 
   std::filesystem::path data_dir;
   std::filesystem::path db_path;
+  // Where new projects go when their caller names no directory: data_dir/projects for
+  // holder_context_open; a host gives its own.
+  std::filesystem::path projects_root;
+  // The host's project registry (project/ProjectRegistry.h), which finds projects outside
+  // projects_root and remembers removals; empty for none.
+  std::filesystem::path registry_path;
 
  private:
   std::unique_ptr<holder::platform::Db> owned_db;
@@ -44,6 +50,15 @@ struct holder_context {
   holder::git::GitOps* git = nullptr;
   std::shared_ptr<holder::git::GitCredentialProvider> credential_provider; // nullable
 };
+
+namespace holder::capi {
+
+// Marks a data directory whose database may be rebuilt from its managed projects alone.
+inline std::filesystem::path rebuild_readiness_path(const std::filesystem::path& data_dir) {
+  return data_dir / "server" / "database-rebuild-ready.json";
+}
+
+} // namespace holder::capi
 
 struct holder_error {
   std::string message;

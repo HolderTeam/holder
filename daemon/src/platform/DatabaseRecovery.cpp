@@ -6,7 +6,7 @@
 #include "api/support/CloudQuota.h"
 #include "platform/DeviceConfigStore.h"
 #include "platform/Migrations.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 
 #include <sqlite3.h>
 

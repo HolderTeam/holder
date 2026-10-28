@@ -45,7 +45,7 @@ std::string api_error_message(const HttpJsonResponse& response, const std::strin
 
 nlohmann::json list_projects_payload(const holder::core::Paths& paths, bool include_count) {
   const auto connection = read_secure_daemon_connection(paths);
-  const std::string target = include_count ? "/projects?count=true" : "/projects";
+  const std::string target = include_count ? "/projects?include_card_counts=true" : "/projects";
   const auto response = http_json_request(
       connection,
       boost::beast::http::verb::get,

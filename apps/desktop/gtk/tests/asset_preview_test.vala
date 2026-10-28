@@ -264,8 +264,7 @@ private class FakeHolderApi : Object, HolderLinux.IHolderApi {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async void set_project_git_remote(string project_id,
-                                             string? git_remote_url,
-                                             int64 updated_at) throws Error {
+                                             string? git_remote_url) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,

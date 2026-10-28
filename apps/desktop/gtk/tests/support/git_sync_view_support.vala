@@ -34,14 +34,13 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     }
 
     public override async void set_project_git_remote(string project_id,
-                                                      string? git_remote_url,
-                                                      int64 updated_at) throws Error {
+                                                      string? git_remote_url) throws Error {
         if (stall_next_set_remote) {
             stall_next_set_remote = false;
             stalled_set_remote = set_project_git_remote.callback;
             yield;
         }
-        yield base.set_project_git_remote(project_id, git_remote_url, updated_at);
+        yield base.set_project_git_remote(project_id, git_remote_url);
     }
 
     public bool has_stalled_list() {

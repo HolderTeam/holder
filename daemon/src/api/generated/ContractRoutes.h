@@ -1,10 +1,12 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/resources.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The daemon's HTTP routes for the contract's operations; contract/holder_contract/http_routes.py says how they behave.
 #pragma once
 #include "api/generated/ContractJson.h"
 #include <charconv>
+#include <algorithm>
+#include <initializer_list>
 #include <map>
 #include <optional>
 #include <regex>
@@ -75,6 +77,15 @@ inline std::map<std::string, std::string> decode_query(std::string_view input) {
     }
     return values;
 }
+// A query parameter the operation does not have is refused, so that a caller who sends one learns it
+// was not used, as the JSON codec does for a record's fields.
+inline void check_query_names(const std::map<std::string, std::string>& values,
+                              std::initializer_list<std::string_view> names) {
+    for (const auto& [key, value] : values) {
+        if (std::find(names.begin(), names.end(), key) == names.end())
+            throw std::invalid_argument("there is no query parameter " + key);
+    }
+}
 template <typename T>
 T decode_integer(std::string_view input, const char* name) {
     T value;
@@ -110,6 +121,166 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     std::smatch match;
     (void)body;
     (void)context;
+    static const std::regex route_30("^/projects$");
+    if (method == "GET" && std::regex_match(route_path, match, route_30)) {
+        std::optional<std::string> name{};
+        std::optional<long long> updated_after{};
+        std::optional<long long> updated_before{};
+        std::optional<holder::contract::ListProjectsOrder> order{};
+        std::int32_t limit{};
+        std::int32_t offset{};
+        bool include_card_counts{};
+        try {
+            const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"name", "updated_after", "updated_before", "order", "limit", "offset", "include_card_counts"});
+            const auto query_name = query_values.find("name");
+            if (query_name != query_values.end()) {
+                const auto& text = query_name->second;
+                name = contract_json::check_text(text, "name", 1, std::numeric_limits<std::size_t>::max());
+            }
+            const auto query_updated_after = query_values.find("updated_after");
+            if (query_updated_after != query_values.end()) {
+                const auto& text = query_updated_after->second;
+                updated_after = decode_integer<long long>(text, "updated_after");
+            }
+            const auto query_updated_before = query_values.find("updated_before");
+            if (query_updated_before != query_values.end()) {
+                const auto& text = query_updated_before->second;
+                updated_before = decode_integer<long long>(text, "updated_before");
+            }
+            const auto query_order = query_values.find("order");
+            if (query_order != query_values.end()) {
+                const auto& text = query_order->second;
+                if (text == "updated_at_desc") order = holder::contract::ListProjectsOrder::UpdatedAtDesc;
+                else if (text == "updated_at_asc") order = holder::contract::ListProjectsOrder::UpdatedAtAsc;
+                else if (text == "created_at_desc") order = holder::contract::ListProjectsOrder::CreatedAtDesc;
+                else if (text == "created_at_asc") order = holder::contract::ListProjectsOrder::CreatedAtAsc;
+                else if (text == "name_desc") order = holder::contract::ListProjectsOrder::NameDesc;
+                else if (text == "name_asc") order = holder::contract::ListProjectsOrder::NameAsc;
+                else throw std::invalid_argument("order must be one of updated_at_desc, updated_at_asc, created_at_desc, created_at_asc, name_desc, name_asc");
+            }
+            const auto query_limit = query_values.find("limit");
+            if (query_limit != query_values.end()) {
+                const auto& text = query_limit->second;
+                limit = contract_json::check_range<std::int32_t>(decode_integer<std::int32_t>(text, "limit"), "limit", 1, 1000);
+            } else {
+                limit = 100;
+            }
+            const auto query_offset = query_values.find("offset");
+            if (query_offset != query_values.end()) {
+                const auto& text = query_offset->second;
+                offset = contract_json::check_range<std::int32_t>(decode_integer<std::int32_t>(text, "offset"), "offset", 0, std::numeric_limits<std::int32_t>::max());
+            } else {
+                offset = 0;
+            }
+            const auto query_include_card_counts = query_values.find("include_card_counts");
+            if (query_include_card_counts != query_values.end()) {
+                const auto& text = query_include_card_counts->second;
+                include_card_counts = decode_bool(text, "include_card_counts");
+            } else {
+                include_card_counts = false;
+            }
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_projects");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::list_projects(context, std::move(name), std::move(updated_after), std::move(updated_before), std::move(order), std::move(limit), std::move(offset), std::move(include_card_counts))), "list_projects");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "list_projects");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "list_projects");
+        }
+    }
+    static const std::regex route_32("^/projects$");
+    if (method == "POST" && std::regex_match(route_path, match, route_32)) {
+        holder::contract::NewProject project{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project = contract_json::decode<holder::contract::NewProject>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "create_project");
+        }
+        try {
+            return success(201, contract_json::encode(holder::contract::create_project(context, std::move(project))), "create_project");
+        } catch (const holder::contract::Conflict& error) {
+            return failure(409, "conflict", error.what(), "create_project");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "create_project");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "create_project");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "create_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "create_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "create_project");
+        }
+    }
+    static const std::regex route_31("^/projects/([^/]+)$");
+    if (method == "GET" && std::regex_match(route_path, match, route_31)) {
+        std::string project_id{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::get_project(context, std::move(project_id))), "get_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "get_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "get_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "get_project");
+        }
+    }
+    static const std::regex route_33("^/projects/([^/]+)$");
+    if (method == "PATCH" && std::regex_match(route_path, match, route_33)) {
+        std::string project_id{};
+        holder::contract::ProjectUpdate update{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+            update = contract_json::decode<holder::contract::ProjectUpdate>(decode_body(body));
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::update_project(context, std::move(project_id), std::move(update))), "update_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "update_project");
+        } catch (const holder::contract::KeyringUnavailable& error) {
+            return failure(503, "keyring_unavailable", error.what(), "update_project");
+        } catch (const holder::contract::KeyMissing& error) {
+            return failure(409, "key_missing", error.what(), "update_project");
+        } catch (const holder::contract::DataCorrupted& error) {
+            return failure(500, "data_corrupted", error.what(), "update_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "update_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "update_project");
+        }
+    }
+    static const std::regex route_34("^/projects/([^/]+)$");
+    if (method == "DELETE" && std::regex_match(route_path, match, route_34)) {
+        std::string project_id{};
+        try {
+            check_query_names(decode_query(query_string), {});
+            project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
+        } catch (const std::invalid_argument& error) {
+            return failure(400, "invalid_argument", error.what(), "delete_project");
+        }
+        try {
+            return success(200, contract_json::encode(holder::contract::delete_project(context, std::move(project_id))), "delete_project");
+        } catch (const holder::contract::NotFound& error) {
+            return failure(404, "not_found", error.what(), "delete_project");
+        } catch (const holder::contract::InvalidArgument& error) {
+            return failure(400, "invalid_argument", error.what(), "delete_project");
+        } catch (const std::exception& error) {
+            return failure(500, "internal_error", error.what(), "delete_project");
+        }
+    }
     static const std::regex route_1("^/projects/([^/]+)/cards$");
     if (method == "GET" && std::regex_match(route_path, match, route_1)) {
         std::string project_id{};
@@ -122,6 +293,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         bool include_child_count{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"parent", "tag", "order", "limit", "cursor", "include_content", "include_child_count"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_parent = query_values.find("parent");
             if (query_parent != query_values.end()) {
@@ -194,6 +366,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         holder::contract::NewCard card{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card = contract_json::decode<holder::contract::NewCard>(decode_body(body));
         } catch (const std::invalid_argument& error) {
@@ -221,6 +394,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     if (method == "GET" && std::regex_match(route_path, match, route_9)) {
         std::string project_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "list_project_tags");
@@ -244,6 +418,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string last_day{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"first_instant", "last_instant", "first_day", "last_day"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_first_instant = query_values.find("first_instant");
             if (query_first_instant != query_values.end()) {
@@ -290,6 +465,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
     if (method == "GET" && std::regex_match(route_path, match, route_21)) {
         std::string project_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
             return failure(400, "invalid_argument", error.what(), "list_resources");
@@ -309,6 +485,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         holder::contract::NewResource resource{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource = contract_json::decode<holder::contract::NewResource>(decode_body(body));
         } catch (const std::invalid_argument& error) {
@@ -340,6 +517,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::optional<std::string> role{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"first_day", "last_day", "role"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_first_day = query_values.find("first_day");
             if (query_first_day != query_values.end()) {
@@ -381,6 +559,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::optional<std::string> role{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"first_instant", "last_instant", "role"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_first_instant = query_values.find("first_instant");
             if (query_first_instant != query_values.end()) {
@@ -419,6 +598,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string card_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -446,6 +626,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         holder::contract::CardUpdate update{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             update = contract_json::decode<holder::contract::CardUpdate>(decode_body(body));
@@ -477,6 +658,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         holder::contract::TrashCardChildren children{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"children"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_children = query_values.find("children");
@@ -512,6 +694,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string resource_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -533,6 +716,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string resource_id{};
         holder::contract::ResourceUpdate update{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
             update = contract_json::decode<holder::contract::ResourceUpdate>(decode_body(body));
@@ -560,6 +744,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string resource_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -586,6 +771,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string card_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -615,6 +801,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         holder::contract::CardMove move{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             move = contract_json::decode<holder::contract::CardMove>(decode_body(body));
@@ -646,6 +833,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         bool include_deleted{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"include_deleted"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_include_deleted = query_values.find("include_deleted");
@@ -676,6 +864,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         bool include_deleted{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"scope", "include_deleted"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_scope = query_values.find("scope");
@@ -714,6 +903,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         holder::contract::NewLink link{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             link = contract_json::decode<holder::contract::NewLink>(decode_body(body));
@@ -746,6 +936,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::optional<std::string> target_project_id{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"target_type", "target_id", "kind", "target_project_id"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             const auto query_target_type = query_values.find("target_type");
@@ -802,6 +993,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string card_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -823,6 +1015,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         holder::contract::NewMilestone milestone{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             milestone = contract_json::decode<holder::contract::NewMilestone>(decode_body(body));
@@ -852,6 +1045,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         bool include_deleted{};
         try {
             const auto query_values = decode_query(query_string);
+            check_query_names(query_values, {"include_deleted"});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
             const auto query_include_deleted = query_values.find("include_deleted");
@@ -879,6 +1073,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string project_id{};
         std::string card_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
         } catch (const std::invalid_argument& error) {
@@ -900,6 +1095,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         std::string tag{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             tag = contract_json::check_text(decode_uri_component(match[3].str(), false), "tag", 1, std::numeric_limits<std::size_t>::max());
@@ -928,6 +1124,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         std::string tag{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             tag = contract_json::check_text(decode_uri_component(match[3].str(), false), "tag", 1, std::numeric_limits<std::size_t>::max());
@@ -959,6 +1156,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string milestone_id{};
         holder::contract::MilestoneUpdate update{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             milestone_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
@@ -988,6 +1186,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         std::string milestone_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             milestone_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "milestone_id", 1, std::numeric_limits<std::size_t>::max());
@@ -1016,6 +1215,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         std::string resource_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
@@ -1044,6 +1244,7 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
         std::string card_id{};
         std::string resource_id{};
         try {
+            check_query_names(decode_query(query_string), {});
             project_id = contract_json::check_text(decode_uri_component(match[1].str(), false), "project_id", 1, std::numeric_limits<std::size_t>::max());
             card_id = contract_json::check_text(decode_uri_component(match[2].str(), false), "card_id", 1, std::numeric_limits<std::size_t>::max());
             resource_id = contract_json::check_text(decode_uri_component(match[3].str(), false), "resource_id", 4, std::numeric_limits<std::size_t>::max());
@@ -1073,42 +1274,46 @@ inline std::optional<response> dispatch(const std::string& method, const std::st
 inline std::set<std::string_view> allowed_methods(const std::string& path) {
     const auto route_path = path.substr(0, path.find('?'));
     std::set<std::string_view> methods;
-    static const std::regex path_0("^/projects/([^/]+)/cards$");
+    static const std::regex path_0("^/projects$");
     if (std::regex_match(route_path, path_0)) methods.insert({"GET", "POST"});
-    static const std::regex path_1("^/projects/([^/]+)/tags$");
-    if (std::regex_match(route_path, path_1)) methods.insert({"GET"});
-    static const std::regex path_2("^/projects/([^/]+)/calendar$");
-    if (std::regex_match(route_path, path_2)) methods.insert({"GET"});
-    static const std::regex path_3("^/projects/([^/]+)/resources$");
-    if (std::regex_match(route_path, path_3)) methods.insert({"GET", "POST"});
-    static const std::regex path_4("^/projects/([^/]+)/milestones/days$");
+    static const std::regex path_1("^/projects/([^/]+)$");
+    if (std::regex_match(route_path, path_1)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_2("^/projects/([^/]+)/cards$");
+    if (std::regex_match(route_path, path_2)) methods.insert({"GET", "POST"});
+    static const std::regex path_3("^/projects/([^/]+)/tags$");
+    if (std::regex_match(route_path, path_3)) methods.insert({"GET"});
+    static const std::regex path_4("^/projects/([^/]+)/calendar$");
     if (std::regex_match(route_path, path_4)) methods.insert({"GET"});
-    static const std::regex path_5("^/projects/([^/]+)/milestones/instants$");
-    if (std::regex_match(route_path, path_5)) methods.insert({"GET"});
-    static const std::regex path_6("^/projects/([^/]+)/cards/([^/]+)$");
-    if (std::regex_match(route_path, path_6)) methods.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_7("^/projects/([^/]+)/resources/([^/]+)$");
-    if (std::regex_match(route_path, path_7)) methods.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_8("^/projects/([^/]+)/cards/([^/]+)/restore$");
-    if (std::regex_match(route_path, path_8)) methods.insert({"POST"});
-    static const std::regex path_9("^/projects/([^/]+)/cards/([^/]+)/move$");
-    if (std::regex_match(route_path, path_9)) methods.insert({"POST"});
-    static const std::regex path_10("^/projects/([^/]+)/cards/([^/]+)/links$");
-    if (std::regex_match(route_path, path_10)) methods.insert({"DELETE", "GET", "POST"});
-    static const std::regex path_11("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
-    if (std::regex_match(route_path, path_11)) methods.insert({"GET"});
-    static const std::regex path_12("^/projects/([^/]+)/cards/([^/]+)/milestones$");
-    if (std::regex_match(route_path, path_12)) methods.insert({"GET", "POST"});
-    static const std::regex path_13("^/projects/([^/]+)/resources/([^/]+)/backlinks$");
+    static const std::regex path_5("^/projects/([^/]+)/resources$");
+    if (std::regex_match(route_path, path_5)) methods.insert({"GET", "POST"});
+    static const std::regex path_6("^/projects/([^/]+)/milestones/days$");
+    if (std::regex_match(route_path, path_6)) methods.insert({"GET"});
+    static const std::regex path_7("^/projects/([^/]+)/milestones/instants$");
+    if (std::regex_match(route_path, path_7)) methods.insert({"GET"});
+    static const std::regex path_8("^/projects/([^/]+)/cards/([^/]+)$");
+    if (std::regex_match(route_path, path_8)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_9("^/projects/([^/]+)/resources/([^/]+)$");
+    if (std::regex_match(route_path, path_9)) methods.insert({"DELETE", "GET", "PATCH"});
+    static const std::regex path_10("^/projects/([^/]+)/cards/([^/]+)/restore$");
+    if (std::regex_match(route_path, path_10)) methods.insert({"POST"});
+    static const std::regex path_11("^/projects/([^/]+)/cards/([^/]+)/move$");
+    if (std::regex_match(route_path, path_11)) methods.insert({"POST"});
+    static const std::regex path_12("^/projects/([^/]+)/cards/([^/]+)/links$");
+    if (std::regex_match(route_path, path_12)) methods.insert({"DELETE", "GET", "POST"});
+    static const std::regex path_13("^/projects/([^/]+)/cards/([^/]+)/backlinks$");
     if (std::regex_match(route_path, path_13)) methods.insert({"GET"});
-    static const std::regex path_14("^/projects/([^/]+)/cards/([^/]+)/resources$");
-    if (std::regex_match(route_path, path_14)) methods.insert({"GET"});
-    static const std::regex path_15("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
-    if (std::regex_match(route_path, path_15)) methods.insert({"DELETE", "PUT"});
-    static const std::regex path_16("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
-    if (std::regex_match(route_path, path_16)) methods.insert({"DELETE", "PATCH"});
-    static const std::regex path_17("^/projects/([^/]+)/cards/([^/]+)/resources/([^/]+)$");
+    static const std::regex path_14("^/projects/([^/]+)/cards/([^/]+)/milestones$");
+    if (std::regex_match(route_path, path_14)) methods.insert({"GET", "POST"});
+    static const std::regex path_15("^/projects/([^/]+)/resources/([^/]+)/backlinks$");
+    if (std::regex_match(route_path, path_15)) methods.insert({"GET"});
+    static const std::regex path_16("^/projects/([^/]+)/cards/([^/]+)/resources$");
+    if (std::regex_match(route_path, path_16)) methods.insert({"GET"});
+    static const std::regex path_17("^/projects/([^/]+)/cards/([^/]+)/tags/([^/]+)$");
     if (std::regex_match(route_path, path_17)) methods.insert({"DELETE", "PUT"});
+    static const std::regex path_18("^/projects/([^/]+)/cards/([^/]+)/milestones/([^/]+)$");
+    if (std::regex_match(route_path, path_18)) methods.insert({"DELETE", "PATCH"});
+    static const std::regex path_19("^/projects/([^/]+)/cards/([^/]+)/resources/([^/]+)$");
+    if (std::regex_match(route_path, path_19)) methods.insert({"DELETE", "PUT"});
     return methods;
 }
 }  // namespace contract_http

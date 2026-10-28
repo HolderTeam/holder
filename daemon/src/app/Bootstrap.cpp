@@ -2,7 +2,7 @@
 
 #include "platform/InstalledDataPath.h"
 #include "platform/Paths.h"
-#include "platform/ProjectRegistry.h"
+#include "project/ProjectRegistry.h"
 #include "project/DefaultProject.h"
 #include "project/ProjectRepo.h"
 #include "project/StartupRecovery.h"
