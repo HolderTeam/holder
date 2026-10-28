@@ -4,22 +4,22 @@ from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="SearchCardItem")
+T = TypeVar("T", bound="SearchCard")
 
 
 @_attrs_define
-class SearchCardItem:
-    """
+class SearchCard:
+    """A card matching a full-text query.
+
     Attributes:
-        card_id (str):
-        title (str):
-        updated_at (int):
-        created_at (int):
-        snippet (str):
-        rank (float):
+        card_id (str): The matching card's ID.
+        title (str): The card's current title.
+        updated_at (int): When the card was last updated.
+        created_at (int): When the card was created.
+        snippet (str): A highlighted excerpt from the match.
+        rank (float): The FTS relevance score; lower scores rank first.
     """
 
     card_id: str
@@ -28,7 +28,6 @@ class SearchCardItem:
     created_at: int
     snippet: str
     rank: float
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         card_id = self.card_id
@@ -44,7 +43,7 @@ class SearchCardItem:
         rank = self.rank
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "card_id": card_id,
@@ -73,7 +72,7 @@ class SearchCardItem:
 
         rank = d.pop("rank")
 
-        search_card_item = cls(
+        search_card = cls(
             card_id=card_id,
             title=title,
             updated_at=updated_at,
@@ -82,21 +81,4 @@ class SearchCardItem:
             rank=rank,
         )
 
-        search_card_item.additional_properties = d
-        return search_card_item
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return search_card

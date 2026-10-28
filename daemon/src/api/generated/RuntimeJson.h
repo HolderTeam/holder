@@ -698,22 +698,6 @@ template <> struct codec<holder::api::ReindexResponse> {
     static json encode(const holder::api::ReindexResponse& value);
     static holder::api::ReindexResponse decode(const json& value);
 };
-template <> struct codec<holder::api::SearchCardItem> {
-    static json encode(const holder::api::SearchCardItem& value);
-    static holder::api::SearchCardItem decode(const json& value);
-};
-template <> struct codec<holder::api::SearchCardsResponse> {
-    static json encode(const holder::api::SearchCardsResponse& value);
-    static holder::api::SearchCardsResponse decode(const json& value);
-};
-template <> struct codec<holder::api::SearchMessageItem> {
-    static json encode(const holder::api::SearchMessageItem& value);
-    static holder::api::SearchMessageItem decode(const json& value);
-};
-template <> struct codec<holder::api::SearchMessagesResponse> {
-    static json encode(const holder::api::SearchMessagesResponse& value);
-    static holder::api::SearchMessagesResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiStreamResyncData> {
     static json encode(const holder::api::AiStreamResyncData& value);
     static holder::api::AiStreamResyncData decode(const json& value);
@@ -3872,92 +3856,6 @@ inline holder::api::ReindexResponse codec<holder::api::ReindexResponse>::decode(
     return holder::api::ReindexResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::ReindexData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::SearchCardItem>::encode(const holder::api::SearchCardItem& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["snippet"] = codec<std::string>::encode(value.snippet);
-    result["rank"] = codec<double>::encode(value.rank);
-    return result;
-}
-inline holder::api::SearchCardItem codec<holder::api::SearchCardItem>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected SearchCardItem");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("title")) throw std::invalid_argument("missing title");
-    if (!value.contains("updated_at")) throw std::invalid_argument("missing updated_at");
-    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
-    if (!value.contains("snippet")) throw std::invalid_argument("missing snippet");
-    if (!value.contains("rank")) throw std::invalid_argument("missing rank");
-    return holder::api::SearchCardItem{
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("title")),
-        codec<long long>::decode(value.at("updated_at")),
-        codec<long long>::decode(value.at("created_at")),
-        codec<std::string>::decode(value.at("snippet")),
-        codec<double>::decode(value.at("rank")),
-    };
-}
-
-inline json codec<holder::api::SearchCardsResponse>::encode(const holder::api::SearchCardsResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::SearchCardItem>>::encode(value.data);
-    return result;
-}
-inline holder::api::SearchCardsResponse codec<holder::api::SearchCardsResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected SearchCardsResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::SearchCardsResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::SearchCardItem>>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::SearchMessageItem>::encode(const holder::api::SearchMessageItem& value) {
-    json result = json::object();
-    result["message_id"] = codec<std::string>::encode(value.message_id);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["snippet"] = codec<std::string>::encode(value.snippet);
-    result["rank"] = codec<double>::encode(value.rank);
-    return result;
-}
-inline holder::api::SearchMessageItem codec<holder::api::SearchMessageItem>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected SearchMessageItem");
-    if (!value.contains("message_id")) throw std::invalid_argument("missing message_id");
-    if (!value.contains("created_at")) throw std::invalid_argument("missing created_at");
-    if (!value.contains("snippet")) throw std::invalid_argument("missing snippet");
-    if (!value.contains("rank")) throw std::invalid_argument("missing rank");
-    return holder::api::SearchMessageItem{
-        codec<std::string>::decode(value.at("message_id")),
-        codec<long long>::decode(value.at("created_at")),
-        codec<std::string>::decode(value.at("snippet")),
-        codec<double>::decode(value.at("rank")),
-    };
-}
-
-inline json codec<holder::api::SearchMessagesResponse>::encode(const holder::api::SearchMessagesResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<std::vector<holder::api::SearchMessageItem>>::encode(value.data);
-    return result;
-}
-inline holder::api::SearchMessagesResponse codec<holder::api::SearchMessagesResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected SearchMessagesResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::SearchMessagesResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<std::vector<holder::api::SearchMessageItem>>::decode(value.at("data")),
     };
 }
 

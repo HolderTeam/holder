@@ -188,6 +188,20 @@ TEST_CASE("OpenAPI exposes Trash through the shared contract", "[openapi][trash]
   require_json_response_ref(scoped, "409", "ErrorResponse");
 }
 
+TEST_CASE("OpenAPI exposes Search through the shared contract", "[openapi][search]") {
+  const auto document = load_openapi();
+  const auto cards = document["paths"]["/search/cards"]["get"];
+  const auto messages = document["paths"]["/search/ai"]["get"];
+  require_json_response_ref(cards, "200", "SearchCardListResponse");
+  require_json_response_ref(messages, "200", "SearchMessageListResponse");
+  for (const auto& operation : {cards, messages}) {
+    REQUIRE(parameter_named(operation, "project_id").IsDefined());
+    REQUIRE(parameter_named(operation, "q").IsDefined());
+    REQUIRE(parameter_named(operation, "limit").IsDefined());
+    REQUIRE(parameter_named(operation, "offset").IsDefined());
+  }
+}
+
 TEST_CASE("OpenAPI contracts live-card tag mutations", "[openapi][holderctl-tags][tags]") {
   const auto document = load_openapi();
   const auto path = document["paths"]["/projects/{project_id}/cards/{card_id}/tags/{tag}"];

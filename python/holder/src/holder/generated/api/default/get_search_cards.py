@@ -6,7 +6,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.search_cards_response import SearchCardsResponse
+from ...models.search_card_list_response import SearchCardListResponse
 from ...types import UNSET, Response, Unset
 
 
@@ -41,9 +41,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | SearchCardsResponse | None:
+) -> ErrorResponse | SearchCardListResponse | None:
     if response.status_code == 200:
-        response_200 = SearchCardsResponse.from_dict(response.json())
+        response_200 = SearchCardListResponse.from_dict(response.json())
 
         return response_200
 
@@ -62,11 +62,6 @@ def _parse_response(
 
         return response_500
 
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
-
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -75,7 +70,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | SearchCardsResponse]:
+) -> Response[ErrorResponse | SearchCardListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -91,15 +86,14 @@ def sync_detailed(
     q: str,
     limit: int | Unset = 20,
     offset: int | Unset = 0,
-) -> Response[ErrorResponse | SearchCardsResponse]:
-    """Search cards
+) -> Response[ErrorResponse | SearchCardListResponse]:
+    """Search a project's cards, ordered by relevance, best first.
 
-     q is an SQLite FTS5 query, matched against card titles and bodies in one project. Results are
-    ordered by relevance, best first.
+     Search a project's cards, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
+        q (str): An SQLite FTS5 query for card titles and bodies.
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
 
@@ -108,7 +102,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | SearchCardsResponse]
+        Response[ErrorResponse | SearchCardListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -132,15 +126,14 @@ def sync(
     q: str,
     limit: int | Unset = 20,
     offset: int | Unset = 0,
-) -> ErrorResponse | SearchCardsResponse | None:
-    """Search cards
+) -> ErrorResponse | SearchCardListResponse | None:
+    """Search a project's cards, ordered by relevance, best first.
 
-     q is an SQLite FTS5 query, matched against card titles and bodies in one project. Results are
-    ordered by relevance, best first.
+     Search a project's cards, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
+        q (str): An SQLite FTS5 query for card titles and bodies.
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
 
@@ -149,7 +142,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | SearchCardsResponse
+        ErrorResponse | SearchCardListResponse
     """
 
     return sync_detailed(
@@ -168,15 +161,14 @@ async def asyncio_detailed(
     q: str,
     limit: int | Unset = 20,
     offset: int | Unset = 0,
-) -> Response[ErrorResponse | SearchCardsResponse]:
-    """Search cards
+) -> Response[ErrorResponse | SearchCardListResponse]:
+    """Search a project's cards, ordered by relevance, best first.
 
-     q is an SQLite FTS5 query, matched against card titles and bodies in one project. Results are
-    ordered by relevance, best first.
+     Search a project's cards, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
+        q (str): An SQLite FTS5 query for card titles and bodies.
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
 
@@ -185,7 +177,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | SearchCardsResponse]
+        Response[ErrorResponse | SearchCardListResponse]
     """
 
     kwargs = _get_kwargs(
@@ -207,15 +199,14 @@ async def asyncio(
     q: str,
     limit: int | Unset = 20,
     offset: int | Unset = 0,
-) -> ErrorResponse | SearchCardsResponse | None:
-    """Search cards
+) -> ErrorResponse | SearchCardListResponse | None:
+    """Search a project's cards, ordered by relevance, best first.
 
-     q is an SQLite FTS5 query, matched against card titles and bodies in one project. Results are
-    ordered by relevance, best first.
+     Search a project's cards, ordered by relevance, best first.
 
     Args:
         project_id (str):
-        q (str):
+        q (str): An SQLite FTS5 query for card titles and bodies.
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
 
@@ -224,7 +215,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | SearchCardsResponse
+        ErrorResponse | SearchCardListResponse
     """
 
     return (

@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.search_message_item import SearchMessageItem
+    from ..models.search_card import SearchCard
 
 
-T = TypeVar("T", bound="SearchMessagesResponse")
+T = TypeVar("T", bound="SearchCardListResponse")
 
 
 @_attrs_define
-class SearchMessagesResponse:
+class SearchCardListResponse:
     """
     Attributes:
         ok (bool):
-        data (list[SearchMessageItem]):
+        data (list[SearchCard]):
     """
 
     ok: bool
-    data: list[SearchMessageItem]
+    data: list[SearchCard]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -47,7 +47,7 @@ class SearchMessagesResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.search_message_item import SearchMessageItem
+        from ..models.search_card import SearchCard
 
         d = dict(src_dict)
         ok = d.pop("ok")
@@ -55,17 +55,17 @@ class SearchMessagesResponse:
         data = []
         _data = d.pop("data")
         for data_item_data in _data:
-            data_item = SearchMessageItem.from_dict(data_item_data)
+            data_item = SearchCard.from_dict(data_item_data)
 
             data.append(data_item)
 
-        search_messages_response = cls(
+        search_card_list_response = cls(
             ok=ok,
             data=data,
         )
 
-        search_messages_response.additional_properties = d
-        return search_messages_response
+        search_card_list_response.additional_properties = d
+        return search_card_list_response
 
     @property
     def additional_keys(self) -> list[str]:

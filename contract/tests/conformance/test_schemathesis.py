@@ -44,6 +44,7 @@ def stated_in_words(case) -> bool:
     query or the path, a page with content holds at most 1000 cards, and a day and an instant have
     forms, and a milestone's date holds exactly one of them (see interface/milestones.py), and a
     resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
+    Search q must also be valid SQLite FTS5 syntax (see interface/app.py).
     """
     query = case.query or {}
     path = case.path_parameters or {}
@@ -52,7 +53,7 @@ def stated_in_words(case) -> bool:
     return "cursor" in query or "tag" in query or "tag" in path or "resource_id" in path or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
         "first_day" in query or "last_day" in query or "dates" in body or "resource_id" in body
-        or "metadata" in body)
+        or "metadata" in body) or (case.operation.path in ("/search/cards", "/search/ai") and "q" in query)
 
 
 def invalid_only_unsent(case) -> bool:

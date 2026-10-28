@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -563,6 +563,24 @@ struct TrashDeleteResult {
   std::optional<std::string> message_id;  ///< The removed AI message's ID, or null for a card.
 };
 
+/// A card matching a full-text query.
+struct SearchCard {
+  std::string card_id;  ///< The matching card's ID.
+  std::string title;  ///< The card's current title.
+  long long updated_at{};  ///< When the card was last updated.
+  long long created_at{};  ///< When the card was created.
+  std::string snippet;  ///< A highlighted excerpt from the match.
+  double rank{};  ///< The FTS relevance score; lower scores rank first.
+};
+
+/// An AI message matching a full-text query.
+struct SearchMessage {
+  std::string message_id;  ///< The matching message's ID.
+  long long created_at{};  ///< When the message was created.
+  std::string snippet;  ///< A highlighted excerpt from the match.
+  double rank{};  ///< The FTS relevance score; lower scores rank first.
+};
+
 /// Fetch a card.
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
@@ -911,6 +929,16 @@ enum class DeleteProjectTrashItemType { Card, AiMessage };
 /// Old Git revisions of cards remain available.
 /// @throws NotFound, NotTrashed, KeyringUnavailable, KeyMissing, DataCorrupted
 TrashDeleteResult delete_project_trash_item(holder_context& context, std::string project_id, DeleteProjectTrashItemType type, std::string id);
+
+/// Search a project's cards, ordered by relevance, best first.
+/// @param project_id The project to search.
+/// @param q An SQLite FTS5 query for card titles and bodies.
+std::vector<SearchCard> search_cards(holder_context& context, std::string project_id, std::string q, std::int32_t limit, std::int32_t offset);
+
+/// Search a project's AI messages, ordered by relevance, best first.
+/// @param project_id The project to search.
+/// @param q An SQLite FTS5 query for AI message content.
+std::vector<SearchMessage> search_ai_messages(holder_context& context, std::string project_id, std::string q, std::int32_t limit, std::int32_t offset);
 
 namespace detail {
 

@@ -280,10 +280,10 @@ from .runner_pull_progress import RunnerPullProgress
 from .runner_pull_start_response import RunnerPullStartResponse
 from .runner_pull_start_response_data import RunnerPullStartResponseData
 from .runner_pull_status_response import RunnerPullStatusResponse
-from .search_card_item import SearchCardItem
-from .search_cards_response import SearchCardsResponse
-from .search_message_item import SearchMessageItem
-from .search_messages_response import SearchMessagesResponse
+from .search_card import SearchCard
+from .search_card_list_response import SearchCardListResponse
+from .search_message import SearchMessage
+from .search_message_list_response import SearchMessageListResponse
 from .storage_location import StorageLocation
 from .storage_location_configuration import StorageLocationConfiguration
 from .storage_location_list_response import StorageLocationListResponse
@@ -560,10 +560,10 @@ __all__ = (
     "RunnerPullStartResponse",
     "RunnerPullStartResponseData",
     "RunnerPullStatusResponse",
-    "SearchCardItem",
-    "SearchCardsResponse",
-    "SearchMessageItem",
-    "SearchMessagesResponse",
+    "SearchCard",
+    "SearchCardListResponse",
+    "SearchMessage",
+    "SearchMessageListResponse",
     "StorageLocation",
     "StorageLocationConfiguration",
     "StorageLocationListResponse",

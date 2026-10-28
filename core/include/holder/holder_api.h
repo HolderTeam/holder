@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -764,6 +764,34 @@ typedef struct holder_trash_delete_result {
     const char* message_id; /* The removed AI message's ID, or null for a card. May be NULL. */
 } holder_trash_delete_result;
 
+/* A card matching a full-text query. */
+typedef struct holder_search_card {
+    const char* card_id; /* The matching card's ID. */
+    const char* title; /* The card's current title. */
+    int64_t updated_at; /* When the card was last updated. */
+    int64_t created_at; /* When the card was created. */
+    const char* snippet; /* A highlighted excerpt from the match. */
+    double rank; /* The FTS relevance score; lower scores rank first. */
+} holder_search_card;
+
+typedef struct holder_search_card_list {
+    const holder_search_card* items;
+    size_t count;
+} holder_search_card_list;
+
+/* An AI message matching a full-text query. */
+typedef struct holder_search_message {
+    const char* message_id; /* The matching message's ID. */
+    int64_t created_at; /* When the message was created. */
+    const char* snippet; /* A highlighted excerpt from the match. */
+    double rank; /* The FTS relevance score; lower scores rank first. */
+} holder_search_message;
+
+typedef struct holder_search_message_list {
+    const holder_search_message* items;
+    size_t count;
+} holder_search_message_list;
+
 /* Fetch a card.
  * A card in the trash or in another project is not found.
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
@@ -1235,6 +1263,20 @@ typedef enum holder_delete_project_trash_item_type {
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_NOT_TRASHED, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_delete_project_trash_item(holder_context* context, const char* project_id, holder_delete_project_trash_item_type type, const char* id, holder_arena* arena, const holder_trash_delete_result** out_trash_delete_result, holder_error** out_error);
+
+/* Search a project's cards, ordered by relevance, best first.
+ * project_id: The project to search.
+ * q: An SQLite FTS5 query for card titles and bodies.
+ * limit: NULL for 20.
+ */
+int holder_search_cards(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_card_list** out_search_card_list, holder_error** out_error);
+
+/* Search a project's AI messages, ordered by relevance, best first.
+ * project_id: The project to search.
+ * q: An SQLite FTS5 query for AI message content.
+ * limit: NULL for 20.
+ */
+int holder_search_ai_messages(holder_context* context, const char* project_id, const char* q, const int32_t* limit, int32_t offset, holder_arena* arena, const holder_search_message_list** out_search_message_list, holder_error** out_error);
 
 #ifdef __cplusplus
 }

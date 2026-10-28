@@ -487,6 +487,24 @@ TrashDeleteResult delete_project_trash_item(holder_context& context, std::string
   return delete_trash_item(context, type == DeleteProjectTrashItemType::Card
                                        ? DeleteTrashItemType::Card : DeleteTrashItemType::AiMessage, id);
 }
+
+std::vector<SearchCard> search_cards(holder_context& context, std::string project_id, std::string q,
+                                     std::int32_t limit, std::int32_t offset) {
+  project_named(context, project_id);
+  (void)q;
+  (void)limit;
+  (void)offset;
+  return {{"card-one", "Found card", 2, 1, "[found]", -1.0}};
+}
+
+std::vector<SearchMessage> search_ai_messages(holder_context& context, std::string project_id, std::string q,
+                                               std::int32_t limit, std::int32_t offset) {
+  project_named(context, project_id);
+  (void)q;
+  (void)limit;
+  (void)offset;
+  return {{"message-one", 3, "[found]", -1.0}};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }
