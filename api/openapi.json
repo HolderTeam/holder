@@ -4154,21 +4154,21 @@
     },
     "/imports": {
       "post": {
-        "summary": "Start a local-file asset import",
-        "description": "The location and its credentials are checked before the job is queued; failures after that are reported by polling GET /imports/{job_id}.",
+        "summary": "Start a local-file asset import.",
+        "description": "The location and its credentials are checked before the job is queued. Poll the job for later failures.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AssetImportRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "202": {
-            "description": "Import queued",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4178,7 +4178,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, or the source is not a readable regular file",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4198,7 +4198,7 @@
             }
           },
           "404": {
-            "description": "Storage location not found in the project",
+            "description": "Storage location not found in the project.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4208,7 +4208,7 @@
             }
           },
           "409": {
-            "description": "The storage location has no credentials on this device (storage_binding_required)",
+            "description": "Storage binding required on this device.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4218,7 +4218,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4228,7 +4228,7 @@
             }
           },
           "501": {
-            "description": "The daemon cannot import assets",
+            "description": "The daemon cannot import assets.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4238,7 +4238,7 @@
             }
           },
           "503": {
-            "description": "Secret store unavailable",
+            "description": "Secret store unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4252,21 +4252,22 @@
     },
     "/imports/{job_id}": {
       "get": {
-        "summary": "Poll an asset import job",
-        "description": "Jobs are held in memory, so a job queued before the daemon restarted is not found.",
+        "summary": "Poll an asset import job.",
+        "description": "A job queued before the daemon restarted is not found.",
         "parameters": [
           {
             "name": "job_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Job Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Current job state",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4276,7 +4277,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4296,7 +4297,7 @@
             }
           },
           "404": {
-            "description": "Job not found",
+            "description": "Job not found; jobs are held in daemon memory.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4306,7 +4307,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6309,6 +6310,16 @@
               }
             }
           },
+          "422": {
+            "description": "A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "A project's stored data is damaged or unsafe: an encrypted file does not decrypt, or holds plaintext. Unexpected failure.",
             "content": {
@@ -7433,6 +7444,16 @@
           },
           "409": {
             "description": "An encrypted project's key is not on this device; the project's recovery token restores it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10593,15 +10614,16 @@
     },
     "/resources/{resource_id}/assets/{asset_id}/content": {
       "get": {
-        "summary": "Stream verified asset content",
-        "description": "Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.",
+        "summary": "Stream verified asset content.",
+        "description": "This authenticated download returns raw bytes. Content-Type preserves the asset media type and\nContent-Disposition contains a sanitized original filename. Without placement_id the daemon selects a\nstored placement.",
         "parameters": [
           {
             "name": "resource_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Resource Id"
             }
           },
           {
@@ -10609,7 +10631,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Asset Id"
             }
           },
           {
@@ -10617,13 +10640,21 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Placement Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Recovered plaintext asset",
+            "description": "Successful Response",
             "content": {
               "application/octet-stream": {}
             },
@@ -10635,7 +10666,7 @@
                 }
               },
               "Content-Disposition": {
-                "description": "Attachment disposition with sanitized quoted original filename.",
+                "description": "Attachment with sanitized filename.",
                 "schema": {
                   "type": "string"
                 }
@@ -10643,7 +10674,7 @@
             }
           },
           "400": {
-            "description": "Invalid configuration, missing key, or unclassified retrieval/integrity failure",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10663,7 +10694,7 @@
             }
           },
           "404": {
-            "description": "Resource, asset, or placement not found",
+            "description": "Resource, asset, or placement not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10673,7 +10704,7 @@
             }
           },
           "409": {
-            "description": "Storage binding required or storage conflict",
+            "description": "Storage binding required or storage conflict.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10683,7 +10714,17 @@
             }
           },
           "422": {
-            "description": "Asset integrity verification failed",
+            "description": "Asset integrity verification failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10693,7 +10734,7 @@
             }
           },
           "502": {
-            "description": "Storage authentication or permission failure",
+            "description": "Storage authentication or permission failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10703,7 +10744,7 @@
             }
           },
           "503": {
-            "description": "Storage unavailable or transient failure",
+            "description": "Storage unavailable or transient failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10713,7 +10754,7 @@
             }
           },
           "507": {
-            "description": "Storage capacity exceeded",
+            "description": "Storage capacity exceeded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13061,10 +13102,11 @@
         ]
       },
       "AssetImportJob": {
-        "type": "object",
         "properties": {
           "job_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Job Id",
+            "description": "The job's ID."
           },
           "status": {
             "type": "string",
@@ -13075,33 +13117,59 @@
               "committing",
               "completed",
               "failed"
-            ]
+            ],
+            "title": "Status",
+            "description": "The import stage."
           },
           "resource_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id",
+            "description": "The resource created or reused, when known."
           },
           "asset_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id",
+            "description": "The asset created or reused, when known."
           },
           "duplicate_reused": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Duplicate Reused",
+            "description": "Whether an existing asset was reused."
           },
           "link_created": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Link Created",
+            "description": "Whether an attachment link was made."
           },
           "error": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "The failure message, when the job failed."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "job_id",
           "status",
@@ -13110,49 +13178,60 @@
           "duplicate_reused",
           "link_created",
           "error"
-        ]
+        ],
+        "title": "AssetImportJob",
+        "description": "The current state of an asset import job, held in daemon memory."
       },
       "AssetImportJobResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
             "$ref": "#/components/schemas/AssetImportJob"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AssetImportJobResponse"
       },
       "AssetImportRequest": {
-        "type": "object",
         "properties": {
           "project_id": {
-            "type": "string"
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project that will own the asset."
           },
           "card_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Card Id",
+            "description": "The card to attach the imported resource to."
           },
           "location_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Location Id",
+            "description": "The storage location to receive the asset."
           },
           "source_path": {
             "type": "string",
-            "description": "Local readable regular file; never persisted into project metadata."
+            "title": "Source Path",
+            "description": "A local readable regular file; its path is never saved in project metadata."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "project_id",
           "card_id",
           "location_id",
           "source_path"
-        ]
+        ],
+        "title": "AssetImportRequest",
+        "description": "Start importing a local file into a project resource."
       },
       "AssetPlacement": {
         "properties": {

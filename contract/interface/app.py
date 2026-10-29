@@ -10,7 +10,8 @@ from typing import Annotated, Literal
 
 from fastapi import Body, Path, Query
 
-from holder_contract import Contract, Field, Int32, Timestamp
+from holder_contract import Bytes, Contract, Field, Int32, Timestamp
+from holder_contract.routes import ErrorResponse
 
 from .card_references import CardReferenceResolveData, CardReferenceResolveRequest
 from .cards import (
@@ -70,7 +71,7 @@ from .recovery import (
     RecoveryTokenGlobalImportResult,
     RecoveryTokenImportRequest,
 )
-from .resources import NewResource, Resource, ResourceId, ResourceUpdate
+from .resources import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate
 from .search import SearchCard, SearchMessage
 from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 
@@ -525,6 +526,54 @@ def detach_card_resource(
     The resource itself is kept. A card without the attachment is left as it is, and a resource that no longer
     exists can still be detached. Returns the card's attached resources, as list_card_resources lists them. A card
     in the trash or in another project is not found.
+    """
+
+
+@contract.route("POST", "/imports", status=202, core=False, responses={
+    404: {"model": ErrorResponse, "description": "Storage location not found in the project."},
+    409: {"model": ErrorResponse, "description": "Storage binding required on this device."},
+    501: {"model": ErrorResponse, "description": "The daemon cannot import assets."},
+    503: {"model": ErrorResponse, "description": "Secret store unavailable."},
+})
+def start_asset_import(request: Annotated[AssetImportRequest, Body()]) -> AssetImportJob:
+    """Start a local-file asset import.
+
+    The location and its credentials are checked before the job is queued. Poll the job for later failures.
+    """
+
+
+@contract.route("GET", "/imports/{job_id}", core=False, responses={
+    404: {"model": ErrorResponse, "description": "Job not found; jobs are held in daemon memory."},
+})
+def get_asset_import_job(job_id: Annotated[str, Path()]) -> AssetImportJob:
+    """Poll an asset import job.
+
+    A job queued before the daemon restarted is not found.
+    """
+
+
+@contract.route("GET", "/resources/{resource_id}/assets/{asset_id}/content", core=False, responses={
+    200: {"headers": {
+        "Content-Type": {"description": "Stored asset media type.", "schema": {"type": "string"}},
+        "Content-Disposition": {"description": "Attachment with sanitized filename.",
+                                "schema": {"type": "string"}},
+    }},
+    404: {"model": ErrorResponse, "description": "Resource, asset, or placement not found."},
+    409: {"model": ErrorResponse, "description": "Storage binding required or storage conflict."},
+    422: {"model": ErrorResponse, "description": "Asset integrity verification failed."},
+    502: {"model": ErrorResponse, "description": "Storage authentication or permission failure."},
+    503: {"model": ErrorResponse, "description": "Storage unavailable or transient failure."},
+    507: {"model": ErrorResponse, "description": "Storage capacity exceeded."},
+})
+def get_resource_asset_content(
+    resource_id: Annotated[str, Path()], asset_id: Annotated[str, Path()],
+    placement_id: Annotated[str | None, Query()] = None,
+) -> Bytes:
+    """Stream verified asset content.
+
+    This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects a
+    stored placement.
     """
 
 

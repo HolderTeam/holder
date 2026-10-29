@@ -234,13 +234,17 @@ class Core:
                 raise Unrepresentable(f"no value for {slot.name}")
             name = map_c_name(slot.type)
             entries = self.ffi.new(f"{name}_entry[]", max(len(value), 1))
+            string_values = self.model.resolve(slot.type["values"])["kind"] == "string"
             for i, (key, values) in enumerate(value.items()):
                 entries[i].key = self.text(key, keep)
-                strings = self.ffi.new("const char*[]", max(len(values), 1))
-                for k, text in enumerate(values):
-                    strings[k] = self.text(text, keep)
-                entries[i].values = {"items": strings, "count": len(values)}
-                keep.append(strings)
+                if string_values:
+                    entries[i].values = self.text(values, keep)
+                else:
+                    strings = self.ffi.new("const char*[]", max(len(values), 1))
+                    for k, text in enumerate(values):
+                        strings[k] = self.text(text, keep)
+                    entries[i].values = {"items": strings, "count": len(values)}
+                    keep.append(strings)
             mapped = self.ffi.new(f"{name}*", {"items": entries, "count": len(value)})
             keep += [entries, mapped]
             return mapped if slot.optional else mapped[0]
@@ -275,8 +279,11 @@ class Core:
             elif kind == "list":
                 value = self.from_c_list(slot.type["items"], value)
             elif kind == "map":
+                string_values = self.model.resolve(slot.type["values"])["kind"] == "string"
                 value = {self.ffi.string(value.items[i].key).decode():
-                         self.from_c_list({"kind": "string"}, value.items[i].values) for i in range(value.count)}
+                         (self.ffi.string(value.items[i].values).decode() if string_values
+                          else self.from_c_list({"kind": "string"}, value.items[i].values))
+                         for i in range(value.count)}
             elif kind == "named":
                 value = self.from_c(self.model.instance(slot.type, {}), value)
             out[slot.name] = bool(value) if kind == "bool" else value

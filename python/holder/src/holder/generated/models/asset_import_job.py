@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 from ..models.asset_import_job_status import AssetImportJobStatus
@@ -14,15 +13,16 @@ T = TypeVar("T", bound="AssetImportJob")
 
 @_attrs_define
 class AssetImportJob:
-    """
+    """The current state of an asset import job, held in daemon memory.
+
     Attributes:
-        job_id (str):
-        status (AssetImportJobStatus):
-        resource_id (None | str):
-        asset_id (None | str):
-        duplicate_reused (bool):
-        link_created (bool):
-        error (None | str):
+        job_id (str): The job's ID.
+        status (AssetImportJobStatus): The import stage.
+        resource_id (None | str): The resource created or reused, when known.
+        asset_id (None | str): The asset created or reused, when known.
+        duplicate_reused (bool): Whether an existing asset was reused.
+        link_created (bool): Whether an attachment link was made.
+        error (None | str): The failure message, when the job failed.
     """
 
     job_id: str
@@ -32,7 +32,6 @@ class AssetImportJob:
     duplicate_reused: bool
     link_created: bool
     error: None | str
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         job_id = self.job_id
@@ -53,7 +52,7 @@ class AssetImportJob:
         error = self.error
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "job_id": job_id,
@@ -110,21 +109,4 @@ class AssetImportJob:
             error=error,
         )
 
-        asset_import_job.additional_properties = d
         return asset_import_job
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

@@ -1,5 +1,8 @@
 #include "api/GeneratedRoutes.h"
 
+#include "api/AssetContent.h"
+#include "api/AssetImportRead.h"
+#include "api/AssetImportWrite.h"
 
 #include "api/RigRuntime.h"
 #include "api/generated/ContractRoutes.h"
@@ -16,7 +19,9 @@
 
 #include <chrono>
 #include <exception>
+#include <limits>
 #include <optional>
+#include <regex>
 #include <set>
 #include <string>
 #include <utility>
@@ -78,10 +83,144 @@ ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
 
 namespace {
 
+// Daemon-only contract routes use the same URL and JSON checks as core-backed routes.
+// Their implementations need daemon services or a live socket, so they are dispatched here.
+const std::regex import_job_path("^/imports/([^/]+)$");
+const std::regex asset_content_path("^/resources/([^/]+)/assets/([^/]+)/content$");
+
+nlohmann::json import_job_data(const AssetImportJob& job) {
+  const auto optional_string = [](const std::optional<std::string>& value) -> nlohmann::json {
+    return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
+  };
+  return {{"job_id", job.job_id}, {"status", job.status},
+          {"resource_id", optional_string(job.resource_id)},
+          {"asset_id", optional_string(job.asset_id)},
+          {"duplicate_reused", job.duplicate_reused}, {"link_created", job.link_created},
+          {"error", optional_string(job.error)}};
+}
+
+void resource_error(GeneratedResponse& res, int status, const std::exception& error) {
+  const auto* coded = dynamic_cast<const CodedError*>(&error);
+  const std::string code = coded ? coded->code :
+      dynamic_cast<const std::invalid_argument*>(&error) ? "invalid_argument" :
+      status == 500 ? "internal_error" : error_code(status);
+  res = support::json_response(static_cast<http::status>(status),
+                               {{"ok", false}, {"error", {{"code", code},
+                                                            {"message", utf8_message(error.what())}}}});
+}
+
+std::string import_field(const nlohmann::json& body, const char* name) {
+  if (!body.contains(name) || !body[name].is_string())
+    throw std::invalid_argument(std::string(name) + " must be a string");
+  return contract_json::check_text(body[name].get<std::string>(), name, 0,
+                                   std::numeric_limits<std::size_t>::max());
+}
+
+bool dispatch_resource_contract_route(const std::string& method, const std::string& path,
+                                      const GeneratedRequest& req, GeneratedResponse& res,
+                                      Context& context, support::StreamServer* stream) {
+  const auto query_start = path.find('?');
+  const auto route_path = path.substr(0, query_start);
+  const auto query = query_start == std::string::npos ? std::string_view{} :
+      std::string_view(path).substr(query_start + 1);
+  std::smatch match;
+  if (method == "POST" && route_path == "/imports") {
+    try {
+      contract_http::check_query_names(contract_http::decode_query(query), {});
+      const auto body = contract_http::decode_body(req.body());
+      if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
+      for (const auto& [name, value] : body.items()) {
+        if (name != "project_id" && name != "card_id" && name != "location_id" && name != "source_path")
+          throw std::invalid_argument("there is no field " + name);
+      }
+      AssetImportRequest request{import_field(body, "project_id"), import_field(body, "card_id"),
+                                 import_field(body, "location_id"), import_field(body, "source_path")};
+      const auto result = post_imports(context.db, context.secret_store, context.git_ops,
+                                       context.uuid_v4, std::move(request));
+      res = support::json_response(http::status::accepted,
+                                   {{"ok", true}, {"data", import_job_data(result.data)}});
+    } catch (const AssetImportLocationNotFound& error) {
+      resource_error(res, 404, error);
+    } catch (const support::StorageBindingRequired& error) {
+      resource_error(res, 409, error);
+    } catch (const AssetImportUnavailable& error) {
+      resource_error(res, 501, error);
+    } catch (const SecretStoreUnavailable& error) {
+      resource_error(res, 503, error);
+    } catch (const std::invalid_argument& error) {
+      resource_error(res, 400, error);
+    } catch (const std::exception& error) {
+      resource_error(res, 500, error);
+    }
+    return true;
+  }
+  if (method == "GET" && std::regex_match(route_path, match, import_job_path)) {
+    try {
+      contract_http::check_query_names(contract_http::decode_query(query), {});
+      const auto job_id = contract_http::decode_uri_component(match[1].str(), false);
+      const auto result = get_import_job(contract_json::check_text(job_id, "job_id", 0,
+          std::numeric_limits<std::size_t>::max()));
+      res = support::json_response(http::status::ok,
+                                   {{"ok", true}, {"data", import_job_data(result.data)}});
+    } catch (const AssetImportJobNotFound& error) {
+      resource_error(res, 404, error);
+    } catch (const std::invalid_argument& error) {
+      resource_error(res, 400, error);
+    } catch (const std::exception& error) {
+      resource_error(res, 500, error);
+    }
+    return true;
+  }
+  if (method == "GET" && std::regex_match(route_path, match, asset_content_path)) {
+    try {
+      const auto values = contract_http::decode_query(query);
+      contract_http::check_query_names(values, {"placement_id"});
+      const auto resource_id = contract_http::decode_uri_component(match[1].str(), false);
+      const auto asset_id = contract_http::decode_uri_component(match[2].str(), false);
+      contract_json::check_text(resource_id, "resource_id", 0, std::numeric_limits<std::size_t>::max());
+      contract_json::check_text(asset_id, "asset_id", 0, std::numeric_limits<std::size_t>::max());
+      std::optional<std::string> placement_id;
+      if (const auto found = values.find("placement_id"); found != values.end())
+        placement_id = contract_json::check_text(found->second, "placement_id", 0,
+                                                  std::numeric_limits<std::size_t>::max());
+      auto outcome = get_resources_resource_id_assets_asset_id_content(
+          context.db, context.secret_store, context.git_ops, context.uuid_v4,
+          resource_id, asset_id, placement_id);
+      if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
+      *stream = std::move(outcome.second);
+    } catch (const support::StorageConflict& error) {
+      resource_error(res, 409, error);
+    } catch (const support::StorageBindingRequired& error) {
+      resource_error(res, 409, error);
+    } catch (const support::StorageIntegrityFailed& error) {
+      resource_error(res, 422, error);
+    } catch (const support::StorageGatewayFailure& error) {
+      resource_error(res, 502, error);
+    } catch (const support::StorageUnavailable& error) {
+      resource_error(res, 503, error);
+    } catch (const support::StorageCapacityExceeded& error) {
+      resource_error(res, 507, error);
+    } catch (const AssetContentNotFound& error) {
+      resource_error(res, 404, error);
+    } catch (const support::StorageBadRequest& error) {
+      resource_error(res, 400, error);
+    } catch (const std::exception& error) {
+      resource_error(res, 400, error);
+    }
+    return true;
+  }
+  return false;
+}
+
 // The methods both dispatchers serve on a path, for a 405's Allow header.
 std::string allowed_methods(const std::string& path, const std::string& rig_allow) {
   std::set<std::string> methods;
   for (const auto method : contract_http::allowed_methods(path)) methods.emplace(method);
+  const auto route_path = path.substr(0, path.find('?'));
+  if (route_path == "/imports") methods.emplace("POST");
+  std::smatch match;
+  if (std::regex_match(route_path, match, import_job_path) ||
+      std::regex_match(route_path, match, asset_content_path)) methods.emplace("GET");
   for (std::size_t start = 0; start < rig_allow.size();) {
     const auto end = rig_allow.find(", ", start);
     methods.insert(rig_allow.substr(start, end - start));
@@ -137,6 +276,7 @@ bool dispatch_generated_routes(
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
   try {
+    if (dispatch_resource_contract_route(method, path, req, res, context, stream)) return true;
     // RIG's routes first, so that a literal segment in one of RIG's keeps its place before a
     // parameter in one of the contract's; the contract's tooling checks that no RIG route hides
     // one of the contract's. Then the contract's, for a request RIG has no route for or

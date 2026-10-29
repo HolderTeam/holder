@@ -160,18 +160,18 @@ struct RIG_OPEN_RECORD EventResyncData : EventCheckpoint {
   std::optional<std::string> last_revision RIG_NULLABLE;
 };
 
-struct RIG_OPEN_RECORD AssetImportJob {
+struct AssetImportJob {
   std::string job_id;
-  std::string status RIG_STRING_VALUES("queued", "staging", "storing", "committing", "completed", "failed");
-  std::optional<std::string> resource_id RIG_NULLABLE;
-  std::optional<std::string> asset_id RIG_NULLABLE;
+  std::string status;
+  std::optional<std::string> resource_id;
+  std::optional<std::string> asset_id;
   bool duplicate_reused;
   bool link_created;
-  std::optional<std::string> error RIG_NULLABLE;
+  std::optional<std::string> error;
 };
 
-struct RIG_OPEN_RECORD AssetImportJobResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AssetImportJobResponse {
+  bool ok;
   AssetImportJob data;
 };
 

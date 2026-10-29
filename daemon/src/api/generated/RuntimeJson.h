@@ -262,14 +262,6 @@ template <> struct codec<holder::api::EventResyncData> {
     static json encode(const holder::api::EventResyncData& value);
     static holder::api::EventResyncData decode(const json& value);
 };
-template <> struct codec<holder::api::AssetImportJob> {
-    static json encode(const holder::api::AssetImportJob& value);
-    static holder::api::AssetImportJob decode(const json& value);
-};
-template <> struct codec<holder::api::AssetImportJobResponse> {
-    static json encode(const holder::api::AssetImportJobResponse& value);
-    static holder::api::AssetImportJobResponse decode(const json& value);
-};
 template <> struct codec<holder::api::AiLocalModelConfigUpdateRequest> {
     static json encode(const holder::api::AiLocalModelConfigUpdateRequest& value);
     static holder::api::AiLocalModelConfigUpdateRequest decode(const json& value);
@@ -525,10 +517,6 @@ template <> struct codec<holder::api::AiProviderSettingDeleteData> {
 template <> struct codec<holder::api::AiProviderSettingDeleteResponse> {
     static json encode(const holder::api::AiProviderSettingDeleteResponse& value);
     static holder::api::AiProviderSettingDeleteResponse decode(const json& value);
-};
-template <> struct codec<holder::api::AssetImportRequest> {
-    static json encode(const holder::api::AssetImportRequest& value);
-    static holder::api::AssetImportRequest decode(const json& value);
 };
 template <> struct codec<holder::api::LocationActionResponseData> {
     static json encode(const holder::api::LocationActionResponseData& value);
@@ -1356,57 +1344,6 @@ inline holder::api::EventResyncData codec<holder::api::EventResyncData>::decode(
         codec<holder::api::EventCheckpoint>::decode(base),
         codec<std::string>::decode(value.at("reason")),
         codec<std::optional<std::string>>::decode(value.at("last_revision")),
-    };
-}
-
-inline json codec<holder::api::AssetImportJob>::encode(const holder::api::AssetImportJob& value) {
-    json result = json::object();
-    result["job_id"] = codec<std::string>::encode(value.job_id);
-    if (value.status != "queued" && value.status != "staging" && value.status != "storing" && value.status != "committing" && value.status != "completed" && value.status != "failed") throw std::invalid_argument("invalid status");
-    result["status"] = codec<std::string>::encode(value.status);
-    result["resource_id"] = codec<std::optional<std::string>>::encode(value.resource_id);
-    result["asset_id"] = codec<std::optional<std::string>>::encode(value.asset_id);
-    result["duplicate_reused"] = codec<bool>::encode(value.duplicate_reused);
-    result["link_created"] = codec<bool>::encode(value.link_created);
-    result["error"] = codec<std::optional<std::string>>::encode(value.error);
-    return result;
-}
-inline holder::api::AssetImportJob codec<holder::api::AssetImportJob>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AssetImportJob");
-    if (!value.contains("job_id")) throw std::invalid_argument("missing job_id");
-    if (!value.contains("status")) throw std::invalid_argument("missing status");
-    if (!value.contains("resource_id")) throw std::invalid_argument("missing resource_id");
-    if (!value.contains("asset_id")) throw std::invalid_argument("missing asset_id");
-    if (!value.contains("duplicate_reused")) throw std::invalid_argument("missing duplicate_reused");
-    if (!value.contains("link_created")) throw std::invalid_argument("missing link_created");
-    if (!value.contains("error")) throw std::invalid_argument("missing error");
-    if (value.at("status") != "queued" && value.at("status") != "staging" && value.at("status") != "storing" && value.at("status") != "committing" && value.at("status") != "completed" && value.at("status") != "failed") throw std::invalid_argument("invalid status");
-    return holder::api::AssetImportJob{
-        codec<std::string>::decode(value.at("job_id")),
-        codec<std::string>::decode(value.at("status")),
-        codec<std::optional<std::string>>::decode(value.at("resource_id")),
-        codec<std::optional<std::string>>::decode(value.at("asset_id")),
-        codec<bool>::decode(value.at("duplicate_reused")),
-        codec<bool>::decode(value.at("link_created")),
-        codec<std::optional<std::string>>::decode(value.at("error")),
-    };
-}
-
-inline json codec<holder::api::AssetImportJobResponse>::encode(const holder::api::AssetImportJobResponse& value) {
-    json result = json::object();
-    if (value.ok != true) throw std::invalid_argument("invalid ok");
-    result["ok"] = codec<bool>::encode(value.ok);
-    result["data"] = codec<holder::api::AssetImportJob>::encode(value.data);
-    return result;
-}
-inline holder::api::AssetImportJobResponse codec<holder::api::AssetImportJobResponse>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AssetImportJobResponse");
-    if (!value.contains("ok")) throw std::invalid_argument("missing ok");
-    if (!value.contains("data")) throw std::invalid_argument("missing data");
-    if (value.at("ok") != true) throw std::invalid_argument("invalid ok");
-    return holder::api::AssetImportJobResponse{
-        codec<bool>::decode(value.at("ok")),
-        codec<holder::api::AssetImportJob>::decode(value.at("data")),
     };
 }
 
@@ -2857,28 +2794,6 @@ inline holder::api::AiProviderSettingDeleteResponse codec<holder::api::AiProvide
     return holder::api::AiProviderSettingDeleteResponse{
         codec<bool>::decode(value.at("ok")),
         codec<holder::api::AiProviderSettingDeleteData>::decode(value.at("data")),
-    };
-}
-
-inline json codec<holder::api::AssetImportRequest>::encode(const holder::api::AssetImportRequest& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["location_id"] = codec<std::string>::encode(value.location_id);
-    result["source_path"] = codec<std::string>::encode(value.source_path);
-    return result;
-}
-inline holder::api::AssetImportRequest codec<holder::api::AssetImportRequest>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected AssetImportRequest");
-    if (!value.contains("project_id")) throw std::invalid_argument("missing project_id");
-    if (!value.contains("card_id")) throw std::invalid_argument("missing card_id");
-    if (!value.contains("location_id")) throw std::invalid_argument("missing location_id");
-    if (!value.contains("source_path")) throw std::invalid_argument("missing source_path");
-    return holder::api::AssetImportRequest{
-        codec<std::string>::decode(value.at("project_id")),
-        codec<std::string>::decode(value.at("card_id")),
-        codec<std::string>::decode(value.at("location_id")),
-        codec<std::string>::decode(value.at("source_path")),
     };
 }
 

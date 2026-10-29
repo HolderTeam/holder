@@ -52,7 +52,19 @@ def document(contract: Contract) -> dict[str, Any]:
     result = copy.deepcopy(contract.app.openapi())
     for methods in result["paths"].values():
         for operation in methods.values():
-            operation["responses"].pop("422", None)
+            validation = operation["responses"].get("422", {}).get("content", {}).get("application/json", {})
+            if validation.get("schema", {}).get("$ref") == "#/components/schemas/HTTPValidationError":
+                operation["responses"].pop("422")
+            for status, response in operation["responses"].items():
+                binary = response.get("content", {}).get("application/octet-stream")
+                if binary is None:
+                    continue
+                if status.startswith("2"):
+                    # OpenAPI 3.2 describes raw bytes by their media type alone.
+                    binary.pop("schema", None)
+                else:
+                    # FastAPI inherits the success response class for declared errors.
+                    response["content"]["application/json"] = response["content"].pop("application/octet-stream")
             operation.pop("operationId", None)
     schemas = result["components"]["schemas"]
     for methods in result["paths"].values():

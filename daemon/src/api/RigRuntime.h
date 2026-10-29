@@ -1,6 +1,6 @@
 #pragma once
 
-// Every operation the daemon serves, all dispatched by the checked-in RIG dispatcher.
+// Operations still dispatched by the checked-in RIG dispatcher.
 #include "api/AiLocalModelConfig.h"
 #include "api/AiMessageRead.h"
 #include "api/AiMessageWrite.h"
@@ -8,12 +8,10 @@
 #include "api/AiProviderCatalog.h"
 #include "api/AiRunnerRead.h"
 #include "api/AiRunnerWrite.h"
-#include "api/AssetImportRead.h"
 #include "api/AiRuns.h"
 #include "api/AiStatus.h"
 #include "api/AiThreadRead.h"
 #include "api/AiThreadWrite.h"
-#include "api/AssetContent.h"
 #include "api/Alive.h"
 #include "api/Bye.h"
 #include "api/CardLinks.h"
@@ -26,7 +24,6 @@
 #include "api/RunnerPull.h"
 #include "api/Ping.h"
 #include "api/StaticFiles.h"
-#include "api/AssetImportWrite.h"
 #include "api/LocationWrite.h"
 #include "api/Schemas.h"
 #include "api/Streams.h"

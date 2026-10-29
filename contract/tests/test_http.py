@@ -117,9 +117,19 @@ def test_fastapis_validation_responses_and_operation_ids_are_left_out():
     result = openapi()
     for methods in result["paths"].values():
         for operation in methods.values():
-            assert "422" not in operation["responses"]
+            if "422" in operation["responses"]:
+                assert operation["responses"]["422"]["content"]["application/json"]["schema"] == {
+                    "$ref": "#/components/schemas/ErrorResponse"}
             assert "operationId" not in operation
     assert not {"HTTPValidationError", "ValidationError"} & set(result["components"]["schemas"])
+
+
+def test_binary_asset_response_has_raw_bytes_and_json_errors():
+    responses = openapi()["paths"]["/resources/{resource_id}/assets/{asset_id}/content"]["get"]["responses"]
+    assert responses["200"]["content"]["application/octet-stream"] == {}
+    for status in ("400", "404", "409", "422", "500", "502", "503", "507"):
+        assert responses[status]["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorResponse"}
 
 
 def test_parameters_come_from_fastapis_analysis_of_the_routes():
