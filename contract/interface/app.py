@@ -38,6 +38,7 @@ from .errors import (
     KeyringUnavailable,
     NotFound,
     NotTrashed,
+    RebuildFailed,
     RecoveryTokenInvalid,
     RevisionAmbiguous,
 )
@@ -55,6 +56,7 @@ from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .maintenance import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
+from .rebuild import RebuildRequest, RebuildResult, ReindexResult
 from .recovery import (
     ProjectRecoveryTokenExportResult,
     ProjectRecoveryTokenImportResult,
@@ -82,6 +84,7 @@ contract = Contract(statuses={
     NotTrashed: 409,
     HistoryUnavailable: 503,
     RecoveryTokenInvalid: 400,
+    RebuildFailed: 400,
 })
 # What every write to a card's file may fail with, besides its own errors: an encrypted project's key.
 KEYS = [KeyringUnavailable, KeyMissing, DataCorrupted]
@@ -595,6 +598,19 @@ def import_recovery_token_global(request: Annotated[RecoveryTokenImportRequest, 
     If the token names a Git remote, configure it and attempt a pull. Remote and pull failures
     are reported in the result. Returns 201 when the project was created, otherwise 200.
     """
+
+
+@contract.route("POST", "/rebuild", errors=[NotFound, RebuildFailed])
+def rebuild_project(request: Annotated[RebuildRequest, Body()]) -> RebuildResult:
+    """Rebuild a project's database state from its files.
+
+    A missing project is NotFound. Files that cannot be read back give RebuildFailed.
+    """
+
+
+@contract.route("POST", "/reindex")
+def reindex_search() -> ReindexResult:
+    """Rebuild all search indexes from database state."""
 
 
 @contract.route("GET", "/projects/{project_id}/git/sync-status", errors=[NotFound])

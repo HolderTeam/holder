@@ -562,6 +562,16 @@ RecoveryTokenGlobalImportResult import_recovery_token_global(
   return {{"project-one"}, request.recovery_token == "new", false, false, std::nullopt,
           RecoveryTokenGlobalImportResultPullStatus::NotAttempted, std::nullopt};
 }
+
+RebuildResult rebuild_project(holder_context& context, const RebuildRequest& request) {
+  project_named(context, request.project_id);
+  return {request.project_id, 1, 2, 3, 4};
+}
+
+ReindexResult reindex_search(holder_context& context) {
+  (void)context;
+  return {"Reindex complete."};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

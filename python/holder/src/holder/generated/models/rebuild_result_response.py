@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.reindex_data import ReindexData
+    from ..models.rebuild_result import RebuildResult
 
 
-T = TypeVar("T", bound="ReindexResponse")
+T = TypeVar("T", bound="RebuildResultResponse")
 
 
 @_attrs_define
-class ReindexResponse:
+class RebuildResultResponse:
     """
     Attributes:
         ok (bool):
-        data (ReindexData):
+        data (RebuildResult): The numbers of entities restored from a project's files.
     """
 
     ok: bool
-    data: ReindexData
+    data: RebuildResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,20 +44,20 @@ class ReindexResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.reindex_data import ReindexData
+        from ..models.rebuild_result import RebuildResult
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ReindexData.from_dict(d.pop("data"))
+        data = RebuildResult.from_dict(d.pop("data"))
 
-        reindex_response = cls(
+        rebuild_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        reindex_response.additional_properties = d
-        return reindex_response
+        rebuild_result_response.additional_properties = d
+        return rebuild_result_response
 
     @property
     def additional_keys(self) -> list[str]:

@@ -10397,30 +10397,31 @@
     },
     "/rebuild": {
       "post": {
-        "summary": "Rebuild database state from project files",
+        "summary": "Rebuild a project's database state from its files.",
+        "description": "A missing project is NotFound. Files that cannot be read back give RebuildFailed.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RebuildRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RebuildResponse"
+                  "$ref": "#/components/schemas/RebuildResultResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument. A project's files cannot be read back into the database.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10440,7 +10441,7 @@
             }
           },
           "404": {
-            "description": "Project not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10450,7 +10451,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10542,14 +10543,25 @@
     },
     "/reindex": {
       "post": {
-        "summary": "Rebuild search indexes from database state",
+        "summary": "Rebuild all search indexes from database state.",
+        "description": "Rebuild all search indexes from database state.",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReindexResponse"
+                  "$ref": "#/components/schemas/ReindexResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10565,7 +10577,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16544,61 +16556,89 @@
           "unknown_error"
         ]
       },
-      "RebuildData": {
-        "type": "object",
+      "RebuildRequest": {
         "properties": {
           "project_id": {
-            "type": "string"
-          },
-          "cards": {
-            "type": "integer"
-          },
-          "ai_messages": {
-            "type": "integer"
-          },
-          "ai_threads": {
-            "type": "integer"
-          },
-          "links": {
-            "type": "integer"
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project to rebuild."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id"
+        ],
+        "title": "RebuildRequest",
+        "description": "The project whose files should be read into the database."
+      },
+      "RebuildResult": {
+        "properties": {
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The project rebuilt."
+          },
+          "cards": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "format": "int32",
+            "title": "Cards",
+            "description": "Cards restored."
+          },
+          "ai_messages": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "format": "int32",
+            "title": "Ai Messages",
+            "description": "AI messages restored."
+          },
+          "ai_threads": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "format": "int32",
+            "title": "Ai Threads",
+            "description": "AI threads restored."
+          },
+          "links": {
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "format": "int32",
+            "title": "Links",
+            "description": "Links restored."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "project_id",
           "cards",
           "ai_messages",
           "ai_threads",
           "links"
-        ]
+        ],
+        "title": "RebuildResult",
+        "description": "The numbers of entities restored from a project's files."
       },
-      "RebuildRequest": {
-        "type": "object",
-        "properties": {
-          "project_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "project_id"
-        ]
-      },
-      "RebuildResponse": {
-        "type": "object",
+      "RebuildResultResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
-            "$ref": "#/components/schemas/RebuildData"
+            "$ref": "#/components/schemas/RebuildResult"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "RebuildResultResponse"
       },
       "RecoveryTokenExportRequest": {
         "properties": {
@@ -16729,34 +16769,39 @@
         "title": "RecoveryTokenImportRequest",
         "description": "PIN and serialized .hrk token to restore."
       },
-      "ReindexData": {
-        "type": "object",
+      "ReindexResult": {
         "properties": {
           "message": {
-            "type": "string"
+            "type": "string",
+            "title": "Message",
+            "description": "A short completion message."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "message"
-        ]
+        ],
+        "title": "ReindexResult",
+        "description": "Completion of a full database search-index rebuild."
       },
-      "ReindexResponse": {
-        "type": "object",
+      "ReindexResultResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "const": true,
+            "title": "Ok"
           },
           "data": {
-            "$ref": "#/components/schemas/ReindexData"
+            "$ref": "#/components/schemas/ReindexResult"
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "ReindexResultResponse"
       },
       "RemoteTest": {
         "properties": {
