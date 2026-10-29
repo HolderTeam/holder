@@ -105,7 +105,8 @@ class Contract:
         return app
 
     def route(self, method: str, path: str, *, errors: list[type[HolderError]] = (), status: int = 200,
-              core: bool = True, created_when: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+              core: bool = True, created_when: str | None = None,
+              responses: dict[int, dict[str, Any]] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare an operation the daemon serves at method and path, answering status on success."""
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -120,6 +121,8 @@ class Contract:
             else:
                 options = {"response_model": Envelope[returns]}
             options["responses"] = self.error_responses(errors)
+            if responses:
+                options["responses"].update(responses)
             if created_when is not None:
                 if status != 200:
                     raise ValueError("created_when requires status 200")

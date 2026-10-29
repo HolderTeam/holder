@@ -65,7 +65,8 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
   };
   for (const auto& test : {Case{"/projects/proj-1/cards", "invalid_argument"},
                            Case{"/locations", "invalid_argument"},
-                           Case{"/imports", "bad_request"}}) {
+                           Case{"/imports", "invalid_argument"},
+                           Case{"/ai/runners", "bad_request"}}) {
     const auto res = post(test.target, "{");
     CHECK(res.result() == http::status::bad_request);
 

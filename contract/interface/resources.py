@@ -104,3 +104,35 @@ class ResourceUpdate(Record):
     names left out are kept."""
     updated_at: Timestamp | MISSING = MISSING
     """When the resource was changed, for imports; omit for now."""
+
+
+class AssetImportRequest(Record):
+    """Start importing a local file into a project resource."""
+
+    project_id: ProjectId
+    """The project that will own the asset."""
+    card_id: str
+    """The card to attach the imported resource to."""
+    location_id: str
+    """The storage location to receive the asset."""
+    source_path: str
+    """A local readable regular file; its path is never saved in project metadata."""
+
+
+class AssetImportJob(Record):
+    """The current state of an asset import job, held in daemon memory."""
+
+    job_id: str
+    """The job's ID."""
+    status: Literal["queued", "staging", "storing", "committing", "completed", "failed"]
+    """The import stage."""
+    resource_id: str | None
+    """The resource created or reused, when known."""
+    asset_id: str | None
+    """The asset created or reused, when known."""
+    duplicate_reused: bool
+    """Whether an existing asset was reused."""
+    link_created: bool
+    """Whether an attachment link was made."""
+    error: str | None
+    """The failure message, when the job failed."""

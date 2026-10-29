@@ -78,7 +78,7 @@ void stream_file_response(
 
 } // namespace
 
-rig::host_value get_resources_resource_id_assets_asset_id_content(
+std::pair<int, support::StreamServer> get_resources_resource_id_assets_asset_id_content(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,
