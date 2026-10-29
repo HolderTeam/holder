@@ -12,6 +12,7 @@ from fastapi import Body, Path, Query
 
 from holder_contract import Contract, Field, Int32, Timestamp
 
+from .card_references import CardReferenceResolveData, CardReferenceResolveRequest
 from .cards import (
     Card,
     CardBreadcrumb,
@@ -96,6 +97,13 @@ def get_card_breadcrumbs(
     The project comes first, then live ancestor cards and the requested card. A missing or trashed
     card is not found; a broken or cyclic ancestor chain is invalid.
     """
+
+
+@contract.route("POST", "/card-references/resolve", errors=[NotFound])
+def resolve_card_reference(
+    request: Annotated[CardReferenceResolveRequest, Body()],
+) -> CardReferenceResolveData:
+    """Resolve a card reference within a project and deletion scope."""
 
 
 @contract.route("GET", "/projects/{project_id}/cards",

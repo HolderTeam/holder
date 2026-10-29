@@ -83,7 +83,7 @@ TEST_CASE("CardReferenceRoutes validates its request", "[card-reference-routes]"
     REQUIRE(res.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(res.body());
     REQUIRE(payload["ok"] == false);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   };
 
   SECTION("invalid JSON") { call_raw("{"); }
@@ -186,7 +186,7 @@ TEST_CASE(
     const auto res = resolve(db, body);
     REQUIRE(res.result() == http::status::internal_server_error);
     const auto payload = nlohmann::json::parse(res.body());
-    REQUIRE(payload["error"]["code"] == "error");
+    REQUIRE(payload["error"]["code"] == "internal_error");
   }
 }
 
@@ -239,7 +239,7 @@ TEST_CASE("HTTP card reference resolution uses the generated route",
       bound.bind, bound.port, token, http::verb::post, "/card-references/resolve",
       {{"project_id", "proj-1"}, {"reference", "Missing"}, {"scope", "all"}});
   REQUIRE(invalid.status == http::status::bad_request);
-  REQUIRE(nlohmann::json::parse(invalid.body)["error"]["code"] == "bad_request");
+  REQUIRE(nlohmann::json::parse(invalid.body)["error"]["code"] == "invalid_argument");
 
   const auto denied = holder::test::http_request_raw(
       bound.bind, bound.port, "wrong-token", http::verb::post,
@@ -260,5 +260,5 @@ TEST_CASE("OpenAPI documents card reference resolution", "[openapi][card-referen
   REQUIRE(document.find("required: [project_id, reference, scope]") != std::string::npos);
   REQUIRE(document.find("enum: [live, trashed, either]") != std::string::npos);
   REQUIRE(document.find("enum: [resolved, ambiguous, not_found]") != std::string::npos);
-  REQUIRE(document.find("enum: [full_id, id_prefix, exact_title]") != std::string::npos);
+  REQUIRE(document.find("id_prefix or exact_title") != std::string::npos);
 }

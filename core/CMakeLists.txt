@@ -129,6 +129,7 @@ endif()
 set(HOLDER_CORE_SOURCES
   src/api/Cards.cpp
   src/api/Breadcrumbs.cpp
+  src/api/CardReference.cpp
   src/api/Git.cpp
   src/api/History.cpp
   src/api/Trash.cpp

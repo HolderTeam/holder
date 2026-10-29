@@ -132,11 +132,10 @@ from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
 from .card_reference_candidate import CardReferenceCandidate
 from .card_reference_resolve_data import CardReferenceResolveData
-from .card_reference_resolve_data_match_kind import CardReferenceResolveDataMatchKind
+from .card_reference_resolve_data_response import CardReferenceResolveDataResponse
 from .card_reference_resolve_data_status import CardReferenceResolveDataStatus
 from .card_reference_resolve_request import CardReferenceResolveRequest
 from .card_reference_resolve_request_scope import CardReferenceResolveRequestScope
-from .card_reference_resolve_response import CardReferenceResolveResponse
 from .card_response import CardResponse
 from .card_update import CardUpdate
 from .card_view_item import CardViewItem
@@ -434,11 +433,10 @@ __all__ = (
     "CardMoveIntent",
     "CardReferenceCandidate",
     "CardReferenceResolveData",
-    "CardReferenceResolveDataMatchKind",
+    "CardReferenceResolveDataResponse",
     "CardReferenceResolveDataStatus",
     "CardReferenceResolveRequest",
     "CardReferenceResolveRequestScope",
-    "CardReferenceResolveResponse",
     "CardResponse",
     "CardUpdate",
     "CardViewItem",

@@ -422,7 +422,6 @@ add_executable(holderd
   src/api/routes/ai/runs/AiRunPostRoute.cpp
   src/api/routes/ai/runs/AiRunQueryRoutes.cpp
   src/api/routes/ai/runner/AiRunnerPullEventRoutes.cpp
-  src/api/CardReferenceResolve.cpp
   src/api/StaticFiles.cpp
   src/api/support/PathDiscovery.cpp
   src/api/support/CloudConfig.cpp

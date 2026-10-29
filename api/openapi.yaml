@@ -1734,20 +1734,21 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /card-references/resolve:
     post:
-      summary: Resolve a card reference within a project and deletion scope
+      summary: Resolve a card reference within a project and deletion scope.
+      description: Resolve a card reference within a project and deletion scope.
       requestBody:
-        required: true
         content:
           application/json:
             schema: {$ref: '#/components/schemas/CardReferenceResolveRequest'}
+        required: true
       responses:
         '200':
-          description: Resolved, ambiguous, or not-found result
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CardReferenceResolveResponse'}
+              schema: {$ref: '#/components/schemas/CardReferenceResolveDataResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -1757,12 +1758,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -7408,51 +7409,63 @@ components:
       title: CardMove
       description: Where to move a card, relative to another card or among its siblings.
     CardReferenceCandidate:
-      type: object
       properties:
-        card_id: {type: string, description: Canonical full card UUID.}
-        title: {type: string}
+        card_id: {$ref: '#/components/schemas/CardId', description: The card's canonical full UUID.}
+        title: {type: string, title: Title, description: The card's title.}
         deleted_at:
-          type: [integer, 'null']
-          format: int64
-      required: [card_id, title, deleted_at]
-    CardReferenceResolveData:
+          anyOf:
+          - {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64}
+          - {type: 'null'}
+          title: Deleted At
+          description: When the card entered Trash, or null while live.
+      additionalProperties: false
       type: object
+      required: [card_id, title, deleted_at]
+      title: CardReferenceCandidate
+      description: A card that matches a reference.
+    CardReferenceResolveData:
       properties:
         status:
           type: string
           enum: [resolved, ambiguous, not_found]
-        match_kind:
-          type: string
-          enum: [full_id, id_prefix, exact_title]
-          description: Present for resolved and ambiguous results.
-        card:
-          allOf:
-          - {$ref: '#/components/schemas/CardReferenceCandidate'}
-          description: Present for a resolved result.
+          title: Status
+          description: The resolution outcome.
+        match_kind: {type: string, title: Match Kind, description: 'How a reference matched: full_id,
+            id_prefix or exact_title. Absent when no card matched.'}
+        card: {$ref: '#/components/schemas/CardReferenceCandidate', description: The matching card for
+            a resolved reference.}
         candidates:
-          type: array
           items: {$ref: '#/components/schemas/CardReferenceCandidate'}
-          description: Present for an ambiguous result and contains two candidates.
-      required: [status]
-    CardReferenceResolveRequest:
+          type: array
+          title: Candidates
+          description: Two candidate cards for an ambiguous reference.
+      additionalProperties: false
       type: object
+      required: [status]
+      title: CardReferenceResolveData
+      description: A resolved, ambiguous, or absent card reference.
+    CardReferenceResolveDataResponse:
       properties:
-        project_id: {type: string}
-        reference: {type: string, description: 'Full canonical UUID, eligible UUID prefix, or exact card
-            title.'}
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/CardReferenceResolveData'}
+      type: object
+      required: [ok, data]
+      title: CardReferenceResolveDataResponse
+    CardReferenceResolveRequest:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project to search.}
+        reference: {type: string, minLength: 1, title: Reference, description: 'A full canonical UUID,
+            eligible UUID prefix, or exact card title.'}
         scope:
           type: string
           enum: [live, trashed, either]
-      required: [project_id, reference, scope]
-    CardReferenceResolveResponse:
+          title: Scope
+          description: Which cards may match.
+      additionalProperties: false
       type: object
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/CardReferenceResolveData'}
-      required: [ok, data]
+      required: [project_id, reference, scope]
+      title: CardReferenceResolveRequest
+      description: A reference to resolve among one project's cards.
     CardResponse:
       properties:
         ok: {type: boolean, const: true, title: Ok}

@@ -642,6 +642,14 @@ const C* copy_value(holder_arena* arena, const std::optional<T>& value) {
   return out;
 }
 
+template <class C, class T, class Convert>
+const C* copy_optional(holder_arena* arena, const std::optional<T>& value, Convert convert) {
+  if (!value) return nullptr;
+  C* out = make<C>(arena);
+  *out = convert(*value);
+  return out;
+}
+
 const char* copy_text(holder_arena* arena, const std::optional<std::string>& value) {
   return value ? copy(arena, *value) : nullptr;
 }
@@ -774,14 +782,17 @@ def to_c_value(model: Model, slot: Slot, source: str) -> str:
         return f"copy_value<{SCALARS_C[t['kind']]}>(arena, {source})" if optional else source
     if t["kind"] == "list":
         items = model.resolve(t["items"])
+        convert = "copy_strings" if items["kind"] == "string" else "to_c_list"
         if optional:
-            raise Unsupported(f"{slot.name}: optional lists")
-        if items["kind"] == "string":
-            return f"copy_strings(arena, {source})"
-        return f"to_c_list(arena, {source})"
+            name = list_c_name(model, t["items"])
+            return (f"copy_optional<{name}>(arena, {source}, "
+                    f"[&](const auto& items) {{ return {convert}(arena, items); }})")
+        return f"{convert}(arena, {source})"
     if t["kind"] == "named":
         if optional:
-            raise Unsupported(f"{slot.name}: optional records")
+            name = model.instance(t, {}).c_name
+            return (f"copy_optional<{name}>(arena, {source}, "
+                    "[&](const auto& item) { return to_c(arena, item); })")
         return f"to_c(arena, {source})"
     if t["kind"] == "map":
         if optional:

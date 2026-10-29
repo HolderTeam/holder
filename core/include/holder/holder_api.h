@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -75,6 +75,21 @@ typedef struct holder_string_change {
     holder_change change;
     const char* value; /* Read when change is HOLDER_SET. */
 } holder_string_change;
+
+/* Which cards may match. */
+typedef enum holder_card_reference_resolve_request_scope {
+    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE = 1,
+    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED = 2,
+    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER = 3,
+    HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_card_reference_resolve_request_scope;
+
+/* A reference to resolve among one project's cards. */
+typedef struct holder_card_reference_resolve_request {
+    const char* project_id; /* The project to search. */
+    const char* reference; /* A full canonical UUID, eligible UUID prefix, or exact card title. */
+    holder_card_reference_resolve_request_scope scope; /* Which cards may match. */
+} holder_card_reference_resolve_request;
 
 /* A card to create. */
 typedef struct holder_new_card {
@@ -262,6 +277,34 @@ typedef struct holder_card_breadcrumb_list {
     const holder_card_breadcrumb* items;
     size_t count;
 } holder_card_breadcrumb_list;
+
+/* A card that matches a reference. */
+typedef struct holder_card_reference_candidate {
+    const char* card_id; /* The card's canonical full UUID. */
+    const char* title; /* The card's title. */
+    const int64_t* deleted_at; /* When the card entered Trash, or null while live. May be NULL. */
+} holder_card_reference_candidate;
+
+typedef struct holder_card_reference_candidate_list {
+    const holder_card_reference_candidate* items;
+    size_t count;
+} holder_card_reference_candidate_list;
+
+/* The resolution outcome. */
+typedef enum holder_card_reference_resolve_data_status {
+    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED = 1,
+    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS = 2,
+    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND = 3,
+    HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_card_reference_resolve_data_status;
+
+/* A resolved, ambiguous, or absent card reference. */
+typedef struct holder_card_reference_resolve_data {
+    holder_card_reference_resolve_data_status status; /* The resolution outcome. */
+    const char* match_kind; /* How a reference matched: full_id, id_prefix or exact_title. Absent when no card matched. NULL when absent. */
+    const holder_card_reference_candidate* card; /* The matching card for a resolved reference. NULL when absent. */
+    const holder_card_reference_candidate_list* candidates; /* Two candidate cards for an ambiguous reference. NULL when absent. */
+} holder_card_reference_resolve_data;
 
 /* A card in a listing. */
 typedef struct holder_card_list_item {
@@ -825,6 +868,11 @@ int holder_get_card(holder_context* context, const char* project_id, const char*
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HIERARCHY_INVALID.
  */
 int holder_get_card_breadcrumbs(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_breadcrumb_list** out_card_breadcrumb_list, holder_error** out_error);
+
+/* Resolve a card reference within a project and deletion scope.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_resolve_card_reference(holder_context* context, const holder_card_reference_resolve_request* request, holder_arena* arena, const holder_card_reference_resolve_data** out_card_reference_resolve_data, holder_error** out_error);
 
 typedef enum holder_list_cards_parent_kind {
     HOLDER_LIST_CARDS_PARENT_NONE = 0,
