@@ -4,11 +4,10 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.health_data_privacy import HealthDataPrivacy
+    from ..models.health_privacy import HealthPrivacy
 
 
 T = TypeVar("T", bound="HealthData")
@@ -16,14 +15,15 @@ T = TypeVar("T", bound="HealthData")
 
 @_attrs_define
 class HealthData:
-    """
+    """Current health and version information.
+
     Attributes:
-        db_ok (bool):
+        db_ok (bool): Whether the database is available.
         uptime_ms (int): Milliseconds since the HTTP server started.
-        api_version (str):
-        server_version (str):
-        pid (int):
-        privacy (HealthDataPrivacy):
+        api_version (str): The API version.
+        server_version (str): The daemon version.
+        pid (int): The daemon process ID.
+        privacy (HealthPrivacy): The daemon's project encryption support.
     """
 
     db_ok: bool
@@ -31,8 +31,7 @@ class HealthData:
     api_version: str
     server_version: str
     pid: int
-    privacy: HealthDataPrivacy
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+    privacy: HealthPrivacy
 
     def to_dict(self) -> dict[str, Any]:
         db_ok = self.db_ok
@@ -48,7 +47,7 @@ class HealthData:
         privacy = self.privacy.to_dict()
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "db_ok": db_ok,
@@ -64,7 +63,7 @@ class HealthData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.health_data_privacy import HealthDataPrivacy
+        from ..models.health_privacy import HealthPrivacy
 
         d = dict(src_dict)
         db_ok = d.pop("db_ok")
@@ -77,7 +76,7 @@ class HealthData:
 
         pid = d.pop("pid")
 
-        privacy = HealthDataPrivacy.from_dict(d.pop("privacy"))
+        privacy = HealthPrivacy.from_dict(d.pop("privacy"))
 
         health_data = cls(
             db_ok=db_ok,
@@ -88,21 +87,4 @@ class HealthData:
             privacy=privacy,
         )
 
-        health_data.additional_properties = d
         return health_data
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

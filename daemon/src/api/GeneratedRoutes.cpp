@@ -3,6 +3,16 @@
 #include "api/AssetContent.h"
 #include "api/AssetImportRead.h"
 #include "api/AssetImportWrite.h"
+#include "api/Alive.h"
+#include "api/Bye.h"
+#include "api/EventCursor.h"
+#include "api/GoogleDriveOAuth.h"
+#include "api/Health.h"
+#include "api/LocationRead.h"
+#include "api/LocationWrite.h"
+#include "api/Ping.h"
+#include "api/StaticFiles.h"
+#include "api/Streams.h"
 
 #include "api/RigRuntime.h"
 #include "api/generated/ContractRoutes.h"
@@ -97,6 +107,79 @@ nlohmann::json import_job_data(const AssetImportJob& job) {
           {"asset_id", optional_string(job.asset_id)},
           {"duplicate_reused", job.duplicate_reused}, {"link_created", job.link_created},
           {"error", optional_string(job.error)}};
+}
+
+nlohmann::json daemon_json(const AliveResponse& value) { return {{"ok", value.ok}}; }
+nlohmann::json daemon_json(const ByeResponse& value) { return {{"ok", value.ok}}; }
+nlohmann::json daemon_json(const HealthResponse& value) {
+  const auto& data = value.data;
+  return {{"ok", value.ok}, {"data", {{"db_ok", data.db_ok}, {"uptime_ms", data.uptime_ms},
+          {"api_version", data.api_version}, {"server_version", data.server_version}, {"pid", data.pid},
+          {"privacy", {{"backend", data.privacy.backend},
+                       {"project_mode_supported", data.privacy.project_mode_supported}}}}}};
+}
+nlohmann::json daemon_json(const StorageLocationListResponse& value) {
+  nlohmann::json data = nlohmann::json::array();
+  for (const auto& item : value.data) {
+    data.push_back({{"location_id", item.location_id}, {"project_id", item.project_id},
+                    {"name", item.name}, {"provider", item.provider},
+                    {"configuration", item.configuration}, {"bound", item.bound},
+                    {"binding_preview", item.binding_preview ? nlohmann::json(*item.binding_preview)
+                                                              : nlohmann::json(nullptr)},
+                    {"created_at", item.created_at}, {"updated_at", item.updated_at}});
+  }
+  return {{"ok", value.ok}, {"data", std::move(data)},
+          {"preferred_location_id", value.preferred_location_id
+                                        ? nlohmann::json(*value.preferred_location_id)
+                                        : nlohmann::json(nullptr)}};
+}
+nlohmann::json daemon_json(const LocationActionResponse& value) {
+  nlohmann::json data = {{"location_id", value.data.location_id}};
+  if (value.data.bound) data["bound"] = *value.data.bound;
+  if (value.data.binding_preview) {
+    data["binding_preview"] = *value.data.binding_preview
+                                  ? nlohmann::json(**value.data.binding_preview)
+                                  : nlohmann::json(nullptr);
+  }
+  return {{"ok", value.ok}, {"data", std::move(data)}};
+}
+nlohmann::json daemon_json(const LocationTestResponse& value) {
+  return {{"ok", value.ok}, {"data", {{"available", value.data.available}}}};
+}
+nlohmann::json daemon_json(const GoogleDriveAuthorizeResponse& value) {
+  return {{"ok", value.ok}, {"data", {{"authorization_url", value.data.authorization_url}}}};
+}
+nlohmann::json daemon_json(const EventCheckpointResponse& value) {
+  nlohmann::json revisions = nlohmann::json::object();
+  for (const auto& [project, revision] : value.data.git_revisions)
+    revisions[project] = revision ? nlohmann::json(*revision) : nlohmann::json(nullptr);
+  return {{"ok", value.ok}, {"data", {{"cursor", value.data.cursor},
+          {"git_revisions", std::move(revisions)}, {"history_urls", value.data.history_urls}}}};
+}
+
+std::string import_field(const nlohmann::json& body, const char* name);
+
+LocationBindingRequest decode_location_binding(const nlohmann::json& body) {
+  if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
+  for (const auto& [name, value] : body.items())
+    if (name != "values" && name != "preview") throw std::invalid_argument("there is no field " + name);
+  if (!body.contains("values") || !body["values"].is_object())
+    throw std::invalid_argument("values must be an object");
+  LocationBindingRequest request;
+  for (const auto& [name, value] : body["values"].items()) {
+    if (!value.is_string()) throw std::invalid_argument("binding values must be strings");
+    request.values[name] = value.get<std::string>();
+  }
+  if (body.contains("preview")) request.preview = import_field(body, "preview");
+  return request;
+}
+
+PutLocationsPreferredRequest decode_preferred_location(const nlohmann::json& body) {
+  if (!body.is_object()) throw std::invalid_argument("the request body must be an object");
+  for (const auto& [name, value] : body.items())
+    if (name != "project_id" && name != "location_id")
+      throw std::invalid_argument("there is no field " + name);
+  return {import_field(body, "project_id"), import_field(body, "location_id")};
 }
 
 void resource_error(GeneratedResponse& res, int status, const std::exception& error) {
@@ -212,6 +295,185 @@ bool dispatch_resource_contract_route(const std::string& method, const std::stri
   return false;
 }
 
+bool dispatch_misc_contract_route(const std::string& method, const std::string& path,
+                                  const GeneratedRequest& req, GeneratedResponse& res,
+                                  Context& context, support::StreamServer* stream) {
+  const auto split = path.find('?');
+  const auto route_path = path.substr(0, split);
+  const auto query_text = split == std::string::npos ? std::string_view{} :
+      std::string_view(path).substr(split + 1);
+  static const std::regex location_binding("^/locations/([^/]+)/binding$");
+  static const std::regex location_test("^/locations/([^/]+)/test$");
+  static const std::regex google_authorize("^/locations/([^/]+)/oauth/google-drive/authorize$");
+  static const std::regex google_callback("^/locations/([^/]+)/oauth/google-drive/callback$");
+  static const std::regex docs_file("^/docs/([^/]+)$");
+  std::smatch match;
+  bool matched = false;
+  bool authorize = false;
+  const auto no_query = [&] { contract_http::check_query_names(contract_http::decode_query(query_text), {}); };
+  const auto path_text = [&](std::size_t index) { return contract_http::decode_uri_component(match[index].str(), false); };
+  const auto respond = [&](const auto& value) {
+    res = support::json_response(http::status::ok, daemon_json(value));
+  };
+  const auto raw = [&](std::string content, const char* media_type) {
+    res = {http::status::ok, 11};
+    res.set(http::field::content_type, media_type);
+    res.keep_alive(false);
+    res.body() = std::move(content);
+    res.prepare_payload();
+  };
+  const auto hosted = [&](rig::host_value outcome) {
+    if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
+    *stream = std::any_cast<support::StreamServer>(std::move(outcome.value));
+  };
+  try {
+    if (method == "GET" && route_path == "/alive") {
+      matched = true;
+      no_query();
+      respond(check_alive());
+    } else if (method == "GET" && route_path == "/ping") {
+      matched = true;
+      no_query();
+      raw(get_ping(), "text/plain");
+    } else if (method == "GET" && route_path == "/health") {
+      matched = true;
+      no_query();
+      respond(get_health(context.db, context.started_at));
+    } else if (method == "POST" && route_path == "/bye") {
+      matched = true;
+      no_query();
+      respond(say_goodbye());
+    } else if (method == "GET" && route_path == "/locations") {
+      matched = true;
+      const auto values = contract_http::decode_query(query_text);
+      contract_http::check_query_names(values, {"project_id"});
+      const auto found = values.find("project_id");
+      if (found == values.end()) throw std::invalid_argument("missing query parameter: project_id");
+      contract_json::check_text(found->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+      respond(get_locations(context.db, context.secret_store, found->second));
+    } else if (method == "PUT" && route_path == "/locations/preferred") {
+      matched = true;
+      no_query();
+      const auto body = contract_http::decode_body(req.body());
+      respond(put_locations_preferred(context.db, context.secret_store,
+          decode_preferred_location(body)));
+    } else if (method == "PUT" && std::regex_match(route_path, match, location_binding)) {
+      matched = true;
+      no_query();
+      const auto body = contract_http::decode_body(req.body());
+      respond(put_locations_location_id_binding(context.db, context.secret_store, path_text(1),
+          decode_location_binding(body)));
+    } else if (method == "DELETE" && std::regex_match(route_path, match, location_binding)) {
+      matched = true;
+      no_query();
+      respond(delete_locations_location_id_binding(context.db, context.secret_store, path_text(1)));
+    } else if (method == "POST" && std::regex_match(route_path, match, location_test)) {
+      matched = true;
+      no_query();
+      respond(post_locations_location_id_test(context.db, context.secret_store,
+                                               context.uuid_v4, path_text(1)));
+    } else if (method == "POST" && std::regex_match(route_path, match, google_authorize)) {
+      matched = true;
+      authorize = true;
+      no_query();
+      respond(post_locations_location_id_oauth_google_drive_authorize(context.db, context.host,
+                                                                       path_text(1)));
+    } else if (method == "GET" && std::regex_match(route_path, match, google_callback)) {
+      matched = true;
+      const auto values = contract_http::decode_query(query_text);
+      contract_http::check_query_names(values, {"code", "state", "error"});
+      const auto optional = [&](const char* name) -> std::optional<std::string> {
+        const auto found = values.find(name);
+        return found == values.end() ? std::nullopt : std::optional<std::string>(found->second);
+      };
+      hosted(get_locations_location_id_oauth_google_drive_callback(
+          context.db, context.secret_store, context.git_ops, context.host, path_text(1),
+          optional("code"), optional("state"), optional("error")));
+    } else if (method == "GET" && route_path == "/events/cursor") {
+      matched = true;
+      const auto values = contract_http::decode_query(query_text);
+      contract_http::check_query_names(values, {"project_id"});
+      std::optional<std::string> project_id;
+      if (const auto found = values.find("project_id"); found != values.end()) {
+        contract_json::check_text(found->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+        project_id = found->second;
+      }
+      respond(get_events_cursor(context.db, context.events, project_id));
+    } else if (method == "GET" && route_path == "/events") {
+      matched = true;
+      const auto values = contract_http::decode_query(query_text);
+      contract_http::check_query_names(values, {"project_id", "last_revision"});
+      std::optional<std::string> project_id;
+      std::optional<std::string> last_revision;
+      if (const auto found = values.find("project_id"); found != values.end()) {
+        project_id = found->second;
+      }
+      if (const auto found = values.find("last_revision"); found != values.end()) {
+        static const std::regex revision("^[0-9a-f]{40}$");
+        if (!std::regex_match(found->second, revision)) throw std::invalid_argument("invalid last_revision");
+        last_revision = found->second;
+      }
+      const auto header = req.find("Last-Event-ID");
+      const std::optional<std::string> last_event_id = header == req.end() ? std::nullopt :
+          std::optional<std::string>(std::string(header->value()));
+      hosted(get_events(context.db, context.events, project_id, last_revision, last_event_id));
+    } else if (method == "GET" && route_path == "/openapi.yaml") {
+      matched = true;
+      no_query();
+      raw(download_openapi_yaml(), "application/yaml");
+    } else if (method == "GET" && route_path == "/openapi.json") {
+      matched = true;
+      no_query();
+      res = support::json_response(http::status::ok, download_openapi_json());
+    } else if (method == "GET" && route_path == "/ai_catalog.yaml") {
+      matched = true;
+      no_query();
+      raw(download_ai_catalog_yaml(), "application/yaml");
+    } else if (method == "GET" && route_path == "/ai_catalog.json") {
+      matched = true;
+      no_query();
+      auto catalog = download_ai_catalog_json();
+      if (!catalog.is_object()) throw std::runtime_error("ai_catalog.yaml must contain an object");
+      res = support::json_response(http::status::ok, catalog);
+    } else if (method == "GET" && route_path == "/git_providers.yaml") {
+      matched = true;
+      no_query();
+      raw(download_git_providers_yaml(), "application/yaml");
+    } else if (method == "GET" && route_path == "/git_providers.json") {
+      matched = true;
+      no_query();
+      res = support::json_response(http::status::ok, download_git_providers_json());
+    } else if (method == "GET" && route_path == "/docs") {
+      matched = true;
+      no_query();
+      hosted(get_docs());
+    } else if (method == "GET" && std::regex_match(route_path, match, docs_file)) {
+      matched = true;
+      no_query();
+      hosted(get_docs_file(path_text(1)));
+    }
+  } catch (const std::exception& error) {
+    int status = 500;
+    if (dynamic_cast<const LocationNotFound*>(&error) ||
+        dynamic_cast<const EventCursorProjectNotFound*>(&error) ||
+        dynamic_cast<const StaticFileNotFound*>(&error)) status = 404;
+    else if (dynamic_cast<const support::StorageConflict*>(&error) ||
+             dynamic_cast<const support::StorageBindingRequired*>(&error)) status = 409;
+    else if (dynamic_cast<const support::StorageIntegrityFailed*>(&error)) status = 422;
+    else if (dynamic_cast<const support::StorageGatewayFailure*>(&error)) status = 502;
+    else if (dynamic_cast<const support::StorageBadRequest*>(&error)) status = 400;
+    else if (dynamic_cast<const support::StorageCapacityExceeded*>(&error)) status = 507;
+    else if (dynamic_cast<const support::StorageUnavailable*>(&error) ||
+             dynamic_cast<const SecretStoreUnavailable*>(&error) ||
+             dynamic_cast<const ChangeFeedUnavailable*>(&error) ||
+             dynamic_cast<const ProjectUnavailable*>(&error)) status = 503;
+    else if (authorize || dynamic_cast<const std::invalid_argument*>(&error) ||
+             dynamic_cast<const std::out_of_range*>(&error)) status = 400;
+    resource_error(res, status, error);
+  }
+  return matched;
+}
+
 // The methods both dispatchers serve on a path, for a 405's Allow header.
 std::string allowed_methods(const std::string& path, const std::string& rig_allow) {
   std::set<std::string> methods;
@@ -236,8 +498,9 @@ std::string allowed_methods(const std::string& path, const std::string& rig_allo
 
 bool is_public_generated_route(const GeneratedRequest& req) {
   const auto target = req.target();
-  return rig_http::is_public(std::string(req.method_string()),
-                             std::string(target.data(), target.size()));
+  const std::string method(req.method_string());
+  const std::string path(target.data(), target.size());
+  return rig_http::is_public(method, path) || contract_http::is_public(method, path);
 }
 
 bool dispatch_generated_routes(
@@ -276,7 +539,8 @@ bool dispatch_generated_routes(
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
   try {
-    if (dispatch_resource_contract_route(method, path, req, res, context, stream)) return true;
+    if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
+        dispatch_misc_contract_route(method, path, req, res, context, stream)) return true;
     // RIG's routes first, so that a literal segment in one of RIG's keeps its place before a
     // parameter in one of the contract's; the contract's tooling checks that no RIG route hides
     // one of the contract's. Then the contract's, for a request RIG has no route for or

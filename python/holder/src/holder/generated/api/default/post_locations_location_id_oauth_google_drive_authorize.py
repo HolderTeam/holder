@@ -43,6 +43,11 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -65,10 +70,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | GoogleDriveAuthorizeResponse]:
-    """Start connecting a Google Drive location
+    """Start connecting a Google Drive location.
 
-     Returns the Google authorization URL for the user to open in a browser. Google then redirects the
-    browser to this location's callback, on the host and port this request used.
+     The returned URL redirects to this daemon's callback on the host and port the request used.
 
     Args:
         location_id (str):
@@ -97,10 +101,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | GoogleDriveAuthorizeResponse | None:
-    """Start connecting a Google Drive location
+    """Start connecting a Google Drive location.
 
-     Returns the Google authorization URL for the user to open in a browser. Google then redirects the
-    browser to this location's callback, on the host and port this request used.
+     The returned URL redirects to this daemon's callback on the host and port the request used.
 
     Args:
         location_id (str):
@@ -124,10 +127,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | GoogleDriveAuthorizeResponse]:
-    """Start connecting a Google Drive location
+    """Start connecting a Google Drive location.
 
-     Returns the Google authorization URL for the user to open in a browser. Google then redirects the
-    browser to this location's callback, on the host and port this request used.
+     The returned URL redirects to this daemon's callback on the host and port the request used.
 
     Args:
         location_id (str):
@@ -154,10 +156,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | GoogleDriveAuthorizeResponse | None:
-    """Start connecting a Google Drive location
+    """Start connecting a Google Drive location.
 
-     Returns the Google authorization URL for the user to open in a browser. Google then redirects the
-    browser to this location's callback, on the host and port this request used.
+     The returned URL redirects to this daemon's callback on the host and port the request used.
 
     Args:
         location_id (str):

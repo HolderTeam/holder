@@ -1,5 +1,5 @@
 #include "api/support/ChangeFeed.h"
-#include "api/generated/RuntimeJson.h"
+#include "api/Schemas.h"
 #include "git/GitRepo.h"
 
 #include <openssl/evp.h>
@@ -14,16 +14,18 @@
 namespace holder::api::support {
 namespace {
 
-// Each kind of entity has its own declared event.
+// Every change-feed entity has the same invalidation data.
 rig::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
-  if (data.entity == "project") return rig_events::project_changed(data);
-  if (data.entity == "card") return rig_events::card_changed(data);
-  if (data.entity == "resource") return rig_events::resource_changed(data);
-  if (data.entity == "location") return rig_events::location_changed(data);
-  if (data.entity == "thread") return rig_events::thread_changed(data);
-  if (data.entity == "message") return rig_events::message_changed(data);
-  if (data.entity == "run") return rig_events::run_changed(data);
-  throw std::logic_error("undeclared change event entity: " + data.entity);
+  static const std::set<std::string> kinds = {"project", "card", "resource", "location",
+                                               "thread", "message", "run"};
+  if (!kinds.contains(data.entity)) throw std::logic_error("unknown change event entity: " + data.entity);
+  const auto nullable = [](const std::optional<std::string>& value) -> nlohmann::json {
+    return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
+  };
+  return {data.entity + ".changed",
+          {{"entity", data.entity}, {"entity_id", data.entity_id},
+           {"project_id", nullable(data.project_id)}, {"deleted", data.deleted},
+           {"git_revision", nullable(data.git_revision)}}};
 }
 
 using Statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;

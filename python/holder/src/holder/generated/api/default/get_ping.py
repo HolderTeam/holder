@@ -28,6 +28,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
@@ -54,7 +59,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | GetPingResponse200]:
-    """Liveness check, unauthenticated
+    """Liveness check returning plain text, unauthenticated.
+
+     Liveness check returning plain text, unauthenticated.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -77,7 +84,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | GetPingResponse200 | None:
-    """Liveness check, unauthenticated
+    """Liveness check returning plain text, unauthenticated.
+
+     Liveness check returning plain text, unauthenticated.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -96,7 +105,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | GetPingResponse200]:
-    """Liveness check, unauthenticated
+    """Liveness check returning plain text, unauthenticated.
+
+     Liveness check returning plain text, unauthenticated.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -117,7 +128,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | GetPingResponse200 | None:
-    """Liveness check, unauthenticated
+    """Liveness check returning plain text, unauthenticated.
+
+     Liveness check returning plain text, unauthenticated.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

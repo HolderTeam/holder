@@ -336,8 +336,9 @@ def generate_routes(model: Model, codec_header: str) -> str:
     if not re.fullmatch(r"[A-Za-z_0-9/.-]+", codec_header):
         raise ValueError("invalid codec header path")
     operations = {op["name"]: op for op in model.operations}
-    bindings = [b for b in model.ir["http"] if b["operation"] in operations]
-    validate_routes(bindings)
+    all_bindings = model.ir["http"]
+    bindings = [b for b in all_bindings if b["operation"] in operations]
+    validate_routes(all_bindings)
     statuses = {e["error"]: e["status"] for e in model.ir["http_errors"]}
     lines = [*header_lines(model.ir, "The daemon's HTTP routes for the contract's operations; "
                                      "contract/holder_contract/http_routes.py says how they behave.", "cpp"),
@@ -376,11 +377,18 @@ def generate_routes(model: Model, codec_header: str) -> str:
               "    const auto route_path = path.substr(0, path.find('?'));",
               "    std::set<std::string_view> methods;"]
     patterns: dict[str, set[str]] = {}
-    for _, binding in ordered:
+    for binding in all_bindings:
         patterns.setdefault(route_pattern(binding["path"])[0], set()).add(binding["method"])
     for position, (pattern, methods) in enumerate(patterns.items()):
         listed = ", ".join(json.dumps(m) for m in sorted(methods))
         lines += [f"    static const std::regex path_{position}({json.dumps(pattern)});",
                   f"    if (std::regex_match(route_path, path_{position})) methods.insert({{{listed}}});"]
-    lines += ["    return methods;", "}", f"}}  // namespace {NAMESPACE}", ""]
+    lines += ["    return methods;", "}",
+              "// Public routes do not require the daemon's bearer token.",
+              "inline bool is_public(const std::string& method, const std::string& path) {",
+              "    const auto route_path = path.substr(0, path.find('?'));"]
+    for position, binding in enumerate(b for b in all_bindings if b.get("public")):
+        lines += [f'    static const std::regex public_{position}({json.dumps(route_pattern(binding["path"])[0])});',
+                  f'    if (method == "{binding["method"]}" && std::regex_match(route_path, public_{position})) return true;']
+    lines += ["    return false;", "}", f"}}  // namespace {NAMESPACE}", ""]
     return "\n".join(lines)

@@ -75,7 +75,9 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
 ) -> Response[ErrorResponse | StorageLocationListResponse]:
-    """List project storage locations
+    """List project storage locations and this device's preferred location.
+
+     List project storage locations and this device's preferred location.
 
     Args:
         project_id (str):
@@ -104,7 +106,9 @@ def sync(
     client: AuthenticatedClient | Client,
     project_id: str,
 ) -> ErrorResponse | StorageLocationListResponse | None:
-    """List project storage locations
+    """List project storage locations and this device's preferred location.
+
+     List project storage locations and this device's preferred location.
 
     Args:
         project_id (str):
@@ -128,7 +132,9 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     project_id: str,
 ) -> Response[ErrorResponse | StorageLocationListResponse]:
-    """List project storage locations
+    """List project storage locations and this device's preferred location.
+
+     List project storage locations and this device's preferred location.
 
     Args:
         project_id (str):
@@ -155,7 +161,9 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     project_id: str,
 ) -> ErrorResponse | StorageLocationListResponse | None:
-    """List project storage locations
+    """List project storage locations and this device's preferred location.
+
+     List project storage locations and this device's preferred location.
 
     Args:
         project_id (str):

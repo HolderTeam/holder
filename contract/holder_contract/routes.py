@@ -26,15 +26,16 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, reduce
+from operator import or_
 from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter, FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel
 
-from .vocabulary import Bytes, HolderError, Stream
+from .vocabulary import Bytes, HolderError, Record, Stream
 
 
 class Envelope[T](BaseModel):
@@ -84,6 +85,9 @@ class Operation:
     core: bool = True  # whether core's C API has it
     route: bool = True  # whether the daemon serves it over HTTP
     created_when: str | None = None  # boolean result field selecting 201 instead of 200
+    public: bool = False
+    operation_id: str | None = None
+    sse_events: dict[str, type] | None = None
 
 
 @dataclass
@@ -106,7 +110,10 @@ class Contract:
 
     def route(self, method: str, path: str, *, errors: list[type[HolderError]] = (), status: int = 200,
               core: bool = True, created_when: str | None = None,
-              responses: dict[int, dict[str, Any]] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+              responses: dict[int, dict[str, Any]] | None = None, public: bool = False,
+              raw_media_type: str | None = None,
+              operation_id: str | None = None,
+              sse_events: dict[str, type] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare an operation the daemon serves at method and path, answering status on success."""
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -114,7 +121,12 @@ class Contract:
             returns = get_type_hints(function, include_extras=True).get("return")
             options: dict[str, Any] = {}
             origin = getattr(returns, "__origin__", None)
-            if origin is Stream:
+            if raw_media_type is not None:
+                base = StreamingResponse if returns is Bytes else Response
+                response_class = type("RawContractResponse", (base,), {"media_type": raw_media_type})
+                options = {"response_class": response_class,
+                           "response_model": None if returns is Bytes else returns}
+            elif origin is Stream:
                 options = {"response_class": EventSourceResponse, "response_model": None}
             elif returns is Bytes:
                 options = {"response_class": OctetStream, "response_model": None}
@@ -123,14 +135,23 @@ class Contract:
             options["responses"] = self.error_responses(errors)
             if responses:
                 options["responses"].update(responses)
+            if sse_events:
+                options["responses"][status] = {"model": reduce(or_, sse_events.values())}
+            if raw_media_type == "application/json" and isinstance(returns, type) and issubclass(returns, Record):
+                options["responses"][status] = {"model": returns}
+            elif raw_media_type and get_origin(returns) is Literal:
+                options["responses"][status] = {
+                    "content": {raw_media_type: {"schema": {"type": "string", "enum": list(get_args(returns))}}}
+                }
             if created_when is not None:
                 if status != 200:
                     raise ValueError("created_when requires status 200")
                 options["responses"][201] = {"model": Envelope[returns], "description": "Created."}
             self.router.add_api_route(path, function, methods=[method], status_code=status,
                                       summary=summary.strip() or None, description=description.strip() or None,
-                                      operation_id=function.__name__, **options)
-            self.operations.append(Operation(function, list(errors), core=core, created_when=created_when))
+                                      operation_id=operation_id or function.__name__, **options)
+            self.operations.append(Operation(function, list(errors), core=core, created_when=created_when,
+                                             public=public, operation_id=operation_id, sse_events=sse_events))
             return function
 
         return register

@@ -254,7 +254,7 @@ class _Builder:
             entry["daemon_only"] = not operation.core
             self.ir["operations"].append(entry)
             if operation.route:
-                self.bind(function, routes[function], operation.created_when)
+                self.bind(function, routes[function], operation.created_when, operation.public)
         self.where = (self.app_source, 1)
         for error, status in contract.statuses.items():
             self.bind_error(error, status)
@@ -289,7 +289,8 @@ class _Builder:
         return {"name": where.rpartition(".")[2], "summary": summary.strip() or None,
                 "description": description.strip() or None, "parameters": parameters, "returns": returns}
 
-    def bind(self, function: Any, route: APIRoute, created_when: str | None = None) -> None:
+    def bind(self, function: Any, route: APIRoute, created_when: str | None = None,
+             public: bool = False) -> None:
         name = function.__name__
         method = next(iter(route.methods))
         if method not in METHODS:
@@ -301,7 +302,7 @@ class _Builder:
                            if isinstance(m, params.Param | params.Body)), None)
             if marker is None:
                 self.problem(f"{name}({parameter}): say where it comes from, with Path(), Query() or Body()")
-            elif isinstance(marker, params.Header | params.Cookie):
+            elif isinstance(marker, params.Cookie):
                 self.problem(f"{name}({parameter}): {type(marker).__name__.lower()} parameters are not supported yet")
             markers[parameter] = marker
         in_path = PLACEHOLDER.findall(route.path)
@@ -324,6 +325,11 @@ class _Builder:
         entry = {"operation": name, "method": method, "path": route.path, "path_parameters": in_path,
                  "query": [p for p, m in markers.items() if isinstance(m, params.Query)],
                  "status": route.status_code}
+        headers = [p for p, m in markers.items() if isinstance(m, params.Header)]
+        if headers:
+            entry["headers"] = headers
+        if public:
+            entry["public"] = True
         if created_when is not None:
             result = next((op["returns"] for op in self.ir["operations"] if op["name"] == name), None)
             record = next((item for item in self.ir["records"]

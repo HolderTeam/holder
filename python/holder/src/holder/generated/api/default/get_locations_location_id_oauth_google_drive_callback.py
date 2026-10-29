@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 
 import httpx
@@ -13,18 +13,33 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     location_id: str,
     *,
-    code: str | Unset = UNSET,
-    state: str | Unset = UNSET,
-    error: str | Unset = UNSET,
+    code: None | str | Unset = UNSET,
+    state: None | str | Unset = UNSET,
+    error: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["code"] = code
+    json_code: None | str | Unset
+    if isinstance(code, Unset):
+        json_code = UNSET
+    else:
+        json_code = code
+    params["code"] = json_code
 
-    params["state"] = state
+    json_state: None | str | Unset
+    if isinstance(state, Unset):
+        json_state = UNSET
+    else:
+        json_state = state
+    params["state"] = json_state
 
-    params["error"] = error
+    json_error: None | str | Unset
+    if isinstance(error, Unset):
+        json_error = UNSET
+    else:
+        json_error = error
+    params["error"] = json_error
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -41,10 +56,14 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | str | None:
+) -> Any | ErrorResponse | str | None:
     if response.status_code == 200:
         response_200 = response.text
         return response_200
+
+    if response.status_code == 400:
+        response_400 = cast(Any, None)
+        return response_400
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
@@ -59,7 +78,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | str]:
+) -> Response[Any | ErrorResponse | str]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -72,29 +91,28 @@ def sync_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    code: str | Unset = UNSET,
-    state: str | Unset = UNSET,
-    error: str | Unset = UNSET,
-) -> Response[ErrorResponse | str]:
-    """Finish connecting a Google Drive location
+    code: None | str | Unset = UNSET,
+    state: None | str | Unset = UNSET,
+    error: None | str | Unset = UNSET,
+) -> Response[Any | ErrorResponse | str]:
+    """Finish connecting a Google Drive location.
 
-     Google redirects the user's browser here after authorization, so the request carries no token; the
-    state from the authorize call authenticates it instead. The daemon exchanges the code, creates the
-    location's Drive folder if needed, and binds the location. A failure is answered with 400 and an
-    HTML page that explains it.
+     Google redirects the browser here without a bearer token. The authorize state authenticates the
+    callback.
+    A failure returns an explanatory HTML page.
 
     Args:
         location_id (str):
-        code (str | Unset):
-        state (str | Unset):
-        error (str | Unset):
+        code (None | str | Unset):
+        state (None | str | Unset):
+        error (None | str | Unset): Set by Google on denial or failure.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse | str]
     """
 
     kwargs = _get_kwargs(
@@ -115,29 +133,28 @@ def sync(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    code: str | Unset = UNSET,
-    state: str | Unset = UNSET,
-    error: str | Unset = UNSET,
-) -> ErrorResponse | str | None:
-    """Finish connecting a Google Drive location
+    code: None | str | Unset = UNSET,
+    state: None | str | Unset = UNSET,
+    error: None | str | Unset = UNSET,
+) -> Any | ErrorResponse | str | None:
+    """Finish connecting a Google Drive location.
 
-     Google redirects the user's browser here after authorization, so the request carries no token; the
-    state from the authorize call authenticates it instead. The daemon exchanges the code, creates the
-    location's Drive folder if needed, and binds the location. A failure is answered with 400 and an
-    HTML page that explains it.
+     Google redirects the browser here without a bearer token. The authorize state authenticates the
+    callback.
+    A failure returns an explanatory HTML page.
 
     Args:
         location_id (str):
-        code (str | Unset):
-        state (str | Unset):
-        error (str | Unset):
+        code (None | str | Unset):
+        state (None | str | Unset):
+        error (None | str | Unset): Set by Google on denial or failure.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse | str
     """
 
     return sync_detailed(
@@ -153,29 +170,28 @@ async def asyncio_detailed(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    code: str | Unset = UNSET,
-    state: str | Unset = UNSET,
-    error: str | Unset = UNSET,
-) -> Response[ErrorResponse | str]:
-    """Finish connecting a Google Drive location
+    code: None | str | Unset = UNSET,
+    state: None | str | Unset = UNSET,
+    error: None | str | Unset = UNSET,
+) -> Response[Any | ErrorResponse | str]:
+    """Finish connecting a Google Drive location.
 
-     Google redirects the user's browser here after authorization, so the request carries no token; the
-    state from the authorize call authenticates it instead. The daemon exchanges the code, creates the
-    location's Drive folder if needed, and binds the location. A failure is answered with 400 and an
-    HTML page that explains it.
+     Google redirects the browser here without a bearer token. The authorize state authenticates the
+    callback.
+    A failure returns an explanatory HTML page.
 
     Args:
         location_id (str):
-        code (str | Unset):
-        state (str | Unset):
-        error (str | Unset):
+        code (None | str | Unset):
+        state (None | str | Unset):
+        error (None | str | Unset): Set by Google on denial or failure.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse | str]
     """
 
     kwargs = _get_kwargs(
@@ -194,29 +210,28 @@ async def asyncio(
     location_id: str,
     *,
     client: AuthenticatedClient | Client,
-    code: str | Unset = UNSET,
-    state: str | Unset = UNSET,
-    error: str | Unset = UNSET,
-) -> ErrorResponse | str | None:
-    """Finish connecting a Google Drive location
+    code: None | str | Unset = UNSET,
+    state: None | str | Unset = UNSET,
+    error: None | str | Unset = UNSET,
+) -> Any | ErrorResponse | str | None:
+    """Finish connecting a Google Drive location.
 
-     Google redirects the user's browser here after authorization, so the request carries no token; the
-    state from the authorize call authenticates it instead. The daemon exchanges the code, creates the
-    location's Drive folder if needed, and binds the location. A failure is answered with 400 and an
-    HTML page that explains it.
+     Google redirects the browser here without a bearer token. The authorize state authenticates the
+    callback.
+    A failure returns an explanatory HTML page.
 
     Args:
         location_id (str):
-        code (str | Unset):
-        state (str | Unset):
-        error (str | Unset):
+        code (None | str | Unset):
+        state (None | str | Unset):
+        error (None | str | Unset): Set by Google on denial or failure.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse | str
     """
 
     return (

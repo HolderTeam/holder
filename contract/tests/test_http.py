@@ -113,14 +113,14 @@ def openapi():
     return document(holder_contract())
 
 
-def test_fastapis_validation_responses_and_operation_ids_are_left_out():
+def test_fastapis_validation_responses_and_automatic_operation_ids_are_left_out():
     result = openapi()
     for methods in result["paths"].values():
         for operation in methods.values():
             if "422" in operation["responses"]:
                 assert operation["responses"]["422"]["content"]["application/json"]["schema"] == {
                     "$ref": "#/components/schemas/ErrorResponse"}
-            assert "operationId" not in operation
+            assert operation.get("operationId") in (None, "stream_changes", "get_event_cursor")
     assert not {"HTTPValidationError", "ValidationError"} & set(result["components"]["schemas"])
 
 

@@ -50,12 +50,27 @@ FORMAT_RANGES = {"int32": (-(2**31), 2**31 - 1), "int64": (-(2**63), 2**63 - 1)}
 def document(contract: Contract) -> dict[str, Any]:
     """The OpenAPI paths and schemas of the contract's routes."""
     result = copy.deepcopy(contract.app.openapi())
-    for methods in result["paths"].values():
-        for operation in methods.values():
+    public_endpoints = {operation.function for operation in contract.operations if operation.public}
+    explicit_ids = {operation.function for operation in contract.operations if operation.operation_id}
+    for route in contract.router.routes:
+        if route.endpoint in public_endpoints:
+            for method in route.methods:
+                result["paths"][route.path][method.lower()]["security"] = []
+    for path, methods in result["paths"].items():
+        for method, operation in methods.items():
             validation = operation["responses"].get("422", {}).get("content", {}).get("application/json", {})
             if validation.get("schema", {}).get("$ref") == "#/components/schemas/HTTPValidationError":
                 operation["responses"].pop("422")
             for status, response in operation["responses"].items():
+                for media in response.get("content", {}).values():
+                    schema = media.get("schema", {})
+                    if "$ref" in schema and schema.get("type") == "string":
+                        schema.pop("type")
+                if not status.startswith("2"):
+                    for media_type, media in list(response.get("content", {}).items()):
+                        if media_type != "application/json" and media.get("schema", {}).get("$ref") == \
+                                "#/components/schemas/ErrorResponse":
+                            response["content"]["application/json"] = response["content"].pop(media_type)
                 binary = response.get("content", {}).get("application/octet-stream")
                 if binary is None:
                     continue
@@ -65,8 +80,38 @@ def document(contract: Contract) -> dict[str, Any]:
                 else:
                     # FastAPI inherits the success response class for declared errors.
                     response["content"]["application/json"] = response["content"].pop("application/octet-stream")
-            operation.pop("operationId", None)
+            if not any(route.endpoint in explicit_ids and route.path == path and method.upper() in route.methods
+                       for route in contract.router.routes):
+                operation.pop("operationId", None)
     schemas = result["components"]["schemas"]
+    for route in contract.router.routes:
+        declared = next((op for op in contract.operations if op.function is route.endpoint), None)
+        if declared is None or not declared.sse_events:
+            continue
+        for method in route.methods:
+            response = result["paths"][route.path][method.lower()]["responses"]["200"]
+            item_schema = {"oneOf": []}
+            for name, model in declared.sse_events.items():
+                item_schema["oneOf"].append({
+                    "type": "object",
+                    "properties": {
+                        "event": {"const": name},
+                        "data": {"type": "string", "contentMediaType": "application/json",
+                                 "contentSchema": {"$ref": f"#/components/schemas/{model.__name__}"}},
+                        "id": {"type": "string"},
+                        "retry": {"type": "integer", "minimum": 0},
+                    },
+                    "required": ["event", "data"],
+                })
+            response["content"] = {"text/event-stream": {"itemSchema": item_schema}}
+    for methods in result["paths"].values():
+        for operation in methods.values():
+            for parameter in operation.get("parameters", []):
+                schema = parameter["schema"]
+                for branch in schema.get("anyOf", []):
+                    name = branch.get("$ref", "").rpartition("/")[2]
+                    if name and "pattern" in schemas.get(name, {}):
+                        schema["pattern"] = schemas[name]["pattern"]
     for methods in result["paths"].values():
         for operation in methods.values():
             optional_body(operation, schemas)
@@ -196,7 +241,7 @@ def merge(daemon: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
             if method in target:
                 raise ValueError(f"{method.upper()} {path} is both a daemon route and a contract operation")
             operation = copy.deepcopy(operation)
-            if out.get("security"):
+            if out.get("security") and operation.get("security") != []:
                 operation["responses"]["401"] = copy.deepcopy(UNAUTHORIZED)
             target[method] = operation
     schemas = out["components"].setdefault("schemas", {})

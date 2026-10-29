@@ -4,13 +4,10 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.google_drive_authorize_response_data import (
-        GoogleDriveAuthorizeResponseData,
-    )
+    from ..models.google_drive_authorization import GoogleDriveAuthorization
 
 
 T = TypeVar("T", bound="GoogleDriveAuthorizeResponse")
@@ -18,15 +15,15 @@ T = TypeVar("T", bound="GoogleDriveAuthorizeResponse")
 
 @_attrs_define
 class GoogleDriveAuthorizeResponse:
-    """
+    """The URL to start Google Drive authorization.
+
     Attributes:
-        ok (bool):
-        data (GoogleDriveAuthorizeResponseData):
+        ok (bool): Whether the request succeeded.
+        data (GoogleDriveAuthorization): Where to send the user to authorize Google Drive.
     """
 
     ok: bool
-    data: GoogleDriveAuthorizeResponseData
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+    data: GoogleDriveAuthorization
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
@@ -34,7 +31,7 @@ class GoogleDriveAuthorizeResponse:
         data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "ok": ok,
@@ -46,35 +43,18 @@ class GoogleDriveAuthorizeResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.google_drive_authorize_response_data import (
-            GoogleDriveAuthorizeResponseData,
+        from ..models.google_drive_authorization import (
+            GoogleDriveAuthorization,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = GoogleDriveAuthorizeResponseData.from_dict(d.pop("data"))
+        data = GoogleDriveAuthorization.from_dict(d.pop("data"))
 
         google_drive_authorize_response = cls(
             ok=ok,
             data=data,
         )
 
-        google_drive_authorize_response.additional_properties = d
         return google_drive_authorize_response
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

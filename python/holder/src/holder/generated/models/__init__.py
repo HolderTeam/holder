@@ -148,8 +148,9 @@ from .event_checkpoint_git_revisions import EventCheckpointGitRevisions
 from .event_checkpoint_history_urls import EventCheckpointHistoryUrls
 from .event_checkpoint_response import EventCheckpointResponse
 from .event_resync_data import EventResyncData
+from .event_resync_data_git_revisions import EventResyncDataGitRevisions
+from .event_resync_data_history_urls import EventResyncDataHistoryUrls
 from .event_resync_data_reason import EventResyncDataReason
-from .get_ai_catalog_json_response_200 import GetAiCatalogJsonResponse200
 from .get_ai_messages_include_deleted import GetAiMessagesIncludeDeleted
 from .get_ai_messages_message_id_backlinks_include_deleted import (
     GetAiMessagesMessageIdBacklinksIncludeDeleted,
@@ -157,8 +158,6 @@ from .get_ai_messages_message_id_backlinks_include_deleted import (
 from .get_ai_messages_message_id_links_include_deleted import (
     GetAiMessagesMessageIdLinksIncludeDeleted,
 )
-from .get_git_providers_json_response_200 import GetGitProvidersJsonResponse200
-from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
 from .get_ping_response_200 import GetPingResponse200
 from .get_projects_order_type_0 import GetProjectsOrderType0
 from .get_projects_project_id_cards_card_id_backlinks_scope import (
@@ -168,10 +167,10 @@ from .get_projects_project_id_cards_order import GetProjectsProjectIdCardsOrder
 from .get_projects_project_id_history_cards_card_id_compare_mode import (
     GetProjectsProjectIdHistoryCardsCardIdCompareMode,
 )
+from .google_drive_authorization import GoogleDriveAuthorization
 from .google_drive_authorize_response import GoogleDriveAuthorizeResponse
-from .google_drive_authorize_response_data import GoogleDriveAuthorizeResponseData
 from .health_data import HealthData
-from .health_data_privacy import HealthDataPrivacy
+from .health_privacy import HealthPrivacy
 from .health_response import HealthResponse
 from .hierarchy_repair import HierarchyRepair
 from .hierarchy_repair_move import HierarchyRepairMove
@@ -187,16 +186,16 @@ from .link_response import LinkResponse
 from .link_source_type import LinkSourceType
 from .link_target_type import LinkTargetType
 from .local_model import LocalModel
+from .location_action import LocationAction
 from .location_action_response import LocationActionResponse
-from .location_action_response_data import LocationActionResponseData
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
 from .location_configuration import LocationConfiguration
 from .location_delete_result import LocationDeleteResult
 from .location_delete_result_response import LocationDeleteResultResponse
 from .location_provider import LocationProvider
+from .location_test import LocationTest
 from .location_test_response import LocationTestResponse
-from .location_test_response_data import LocationTestResponseData
 from .milestone import Milestone
 from .milestone_date import MilestoneDate
 from .milestone_list_response import MilestoneListResponse
@@ -209,6 +208,7 @@ from .new_project import NewProject
 from .new_resource import NewResource
 from .new_storage_location import NewStorageLocation
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
+from .preferred_location_request import PreferredLocationRequest
 from .privacy_mode import PrivacyMode
 from .project import Project
 from .project_activity import ProjectActivity
@@ -235,7 +235,6 @@ from .pull_phase_status import PullPhaseStatus
 from .push_options import PushOptions
 from .push_phase import PushPhase
 from .push_status import PushStatus
-from .put_locations_preferred_body import PutLocationsPreferredBody
 from .rebuild_request import RebuildRequest
 from .rebuild_result import RebuildResult
 from .rebuild_result_response import RebuildResultResponse
@@ -432,22 +431,21 @@ __all__ = (
     "EventCheckpointHistoryUrls",
     "EventCheckpointResponse",
     "EventResyncData",
+    "EventResyncDataGitRevisions",
+    "EventResyncDataHistoryUrls",
     "EventResyncDataReason",
-    "GetAiCatalogJsonResponse200",
     "GetAiMessagesIncludeDeleted",
     "GetAiMessagesMessageIdBacklinksIncludeDeleted",
     "GetAiMessagesMessageIdLinksIncludeDeleted",
-    "GetGitProvidersJsonResponse200",
-    "GetOpenapiJsonResponse200",
     "GetPingResponse200",
     "GetProjectsOrderType0",
     "GetProjectsProjectIdCardsCardIdBacklinksScope",
     "GetProjectsProjectIdCardsOrder",
     "GetProjectsProjectIdHistoryCardsCardIdCompareMode",
+    "GoogleDriveAuthorization",
     "GoogleDriveAuthorizeResponse",
-    "GoogleDriveAuthorizeResponseData",
     "HealthData",
-    "HealthDataPrivacy",
+    "HealthPrivacy",
     "HealthResponse",
     "HierarchyRepair",
     "HierarchyRepairMove",
@@ -463,16 +461,16 @@ __all__ = (
     "LinkSourceType",
     "LinkTargetType",
     "LocalModel",
+    "LocationAction",
     "LocationActionResponse",
-    "LocationActionResponseData",
     "LocationBindingRequest",
     "LocationBindingRequestValues",
     "LocationConfiguration",
     "LocationDeleteResult",
     "LocationDeleteResultResponse",
     "LocationProvider",
+    "LocationTest",
     "LocationTestResponse",
-    "LocationTestResponseData",
     "Milestone",
     "MilestoneDate",
     "MilestoneListResponse",
@@ -485,6 +483,7 @@ __all__ = (
     "NewResource",
     "NewStorageLocation",
     "PostAiRunnerPullBody",
+    "PreferredLocationRequest",
     "PrivacyMode",
     "Project",
     "ProjectActivity",
@@ -507,7 +506,6 @@ __all__ = (
     "PushOptions",
     "PushPhase",
     "PushStatus",
-    "PutLocationsPreferredBody",
     "RebuildRequest",
     "RebuildResult",
     "RebuildResultResponse",

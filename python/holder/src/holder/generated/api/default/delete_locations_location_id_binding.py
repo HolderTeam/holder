@@ -80,7 +80,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Remove this device's private binding
+    """Remove this device's private binding.
 
      Also clears the preferred location if it was this one.
 
@@ -111,7 +111,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Remove this device's private binding
+    """Remove this device's private binding.
 
      Also clears the preferred location if it was this one.
 
@@ -137,7 +137,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Remove this device's private binding
+    """Remove this device's private binding.
 
      Also clears the preferred location if it was this one.
 
@@ -166,7 +166,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Remove this device's private binding
+    """Remove this device's private binding.
 
      Also clears the preferred location if it was this one.
 

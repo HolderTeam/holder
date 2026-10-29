@@ -12,12 +12,17 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    project_id: str | Unset = UNSET,
+    project_id: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["project_id"] = project_id
+    json_project_id: None | str | Unset
+    if isinstance(project_id, Unset):
+        json_project_id = UNSET
+    else:
+        json_project_id = project_id
+    params["project_id"] = json_project_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -83,15 +88,14 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    project_id: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | EventCheckpointResponse]:
-    """Get a change-feed checkpoint before fetching a live snapshot
+    """Get a change-feed checkpoint before fetching a live snapshot.
 
      Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID.
-    Replayed invalidations close the race between snapshot reads and subscription.
 
     Args:
-        project_id (str | Unset):
+        project_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -115,15 +119,14 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    project_id: None | str | Unset = UNSET,
 ) -> ErrorResponse | EventCheckpointResponse | None:
-    """Get a change-feed checkpoint before fetching a live snapshot
+    """Get a change-feed checkpoint before fetching a live snapshot.
 
      Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID.
-    Replayed invalidations close the race between snapshot reads and subscription.
 
     Args:
-        project_id (str | Unset):
+        project_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -142,15 +145,14 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    project_id: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | EventCheckpointResponse]:
-    """Get a change-feed checkpoint before fetching a live snapshot
+    """Get a change-feed checkpoint before fetching a live snapshot.
 
      Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID.
-    Replayed invalidations close the race between snapshot reads and subscription.
 
     Args:
-        project_id (str | Unset):
+        project_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,15 +174,14 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    project_id: str | Unset = UNSET,
+    project_id: None | str | Unset = UNSET,
 ) -> ErrorResponse | EventCheckpointResponse | None:
-    """Get a change-feed checkpoint before fetching a live snapshot
+    """Get a change-feed checkpoint before fetching a live snapshot.
 
      Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID.
-    Replayed invalidations close the race between snapshot reads and subscription.
 
     Args:
-        project_id (str | Unset):
+        project_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

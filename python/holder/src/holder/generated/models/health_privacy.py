@@ -4,23 +4,22 @@ from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="HealthDataPrivacy")
+T = TypeVar("T", bound="HealthPrivacy")
 
 
 @_attrs_define
-class HealthDataPrivacy:
-    """
+class HealthPrivacy:
+    """The daemon's project encryption support.
+
     Attributes:
         backend (str): Encryption used for encrypted projects.
-        project_mode_supported (bool): Whether this daemon supports per-project encryption.
+        project_mode_supported (bool): Whether the daemon supports per-project encryption.
     """
 
     backend: str
     project_mode_supported: bool
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         backend = self.backend
@@ -28,7 +27,7 @@ class HealthDataPrivacy:
         project_mode_supported = self.project_mode_supported
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "backend": backend,
@@ -45,26 +44,9 @@ class HealthDataPrivacy:
 
         project_mode_supported = d.pop("project_mode_supported")
 
-        health_data_privacy = cls(
+        health_privacy = cls(
             backend=backend,
             project_mode_supported=project_mode_supported,
         )
 
-        health_data_privacy.additional_properties = d
-        return health_data_privacy
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return health_privacy

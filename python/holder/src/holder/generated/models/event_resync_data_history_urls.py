@@ -7,52 +7,38 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="LocationTestResponseData")
+T = TypeVar("T", bound="EventResyncDataHistoryUrls")
 
 
 @_attrs_define
-class LocationTestResponseData:
-    """
-    Attributes:
-        available (bool):
-    """
+class EventResyncDataHistoryUrls:
+    """Project history endpoints for durable recovery."""
 
-    available: bool
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+    additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        available = self.available
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "available": available,
-            }
-        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        available = d.pop("available")
+        event_resync_data_history_urls = cls()
 
-        location_test_response_data = cls(
-            available=available,
-        )
-
-        location_test_response_data.additional_properties = d
-        return location_test_response_data
+        event_resync_data_history_urls.additional_properties = d
+        return event_resync_data_history_urls
 
     @property
     def additional_keys(self) -> list[str]:
         return list(self.additional_properties.keys())
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> str:
         return self.additional_properties[key]
 
-    def __setitem__(self, key: str, value: Any) -> None:
+    def __setitem__(self, key: str, value: str) -> None:
         self.additional_properties[key] = value
 
     def __delitem__(self, key: str) -> None:
