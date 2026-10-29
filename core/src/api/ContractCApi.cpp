@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -267,6 +267,14 @@ holder_project_privacy_mode to_c_enum(contract::ProjectPrivacyMode value) {
   throw std::logic_error("not a contract::ProjectPrivacyMode value");
 }
 
+holder_project_encryption_check_privacy_mode to_c_enum(contract::ProjectEncryptionCheckPrivacyMode value) {
+  switch (value) {
+  case contract::ProjectEncryptionCheckPrivacyMode::EncryptedGit: return HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_ENCRYPTED_GIT;
+  case contract::ProjectEncryptionCheckPrivacyMode::Plain: return HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN;
+  }
+  throw std::logic_error("not a contract::ProjectEncryptionCheckPrivacyMode value");
+}
+
 holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
   switch (value) {
   case contract::PullPhaseStatus::NotAttempted: return HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED;
@@ -366,6 +374,11 @@ holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value);
 holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values);
 holder_project to_c(holder_arena* arena, const contract::Project& value);
+holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value);
+holder_project_encryption_check to_c(holder_arena* arena, const contract::ProjectEncryptionCheck& value);
+holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value);
+holder_hierarchy_repair_move_list to_c_list(holder_arena* arena, const std::vector<contract::HierarchyRepairMove>& values);
+holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepair& value);
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
@@ -697,6 +710,46 @@ holder_project to_c(holder_arena* arena, const contract::Project& value) {
   out.project_key_id = copy_text(arena, value.project_key_id);
   out.created_at = value.created_at;
   out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value) {
+  holder_encryption_safety_check out{};
+  out.ok = value.ok;
+  out.checked_files = value.checked_files;
+  out.unsafe_files = value.unsafe_files;
+  out.unsafe_paths = copy_strings(arena, value.unsafe_paths);
+  out.message = copy(arena, value.message);
+  return out;
+}
+
+holder_project_encryption_check to_c(holder_arena* arena, const contract::ProjectEncryptionCheck& value) {
+  holder_project_encryption_check out{};
+  out.project_id = copy(arena, value.project_id);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.check = to_c(arena, value.check);
+  return out;
+}
+
+holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value) {
+  holder_hierarchy_repair_move out{};
+  out.card_id = copy(arena, value.card_id);
+  out.parent_card_id = copy_text(arena, value.parent_card_id);
+  return out;
+}
+
+holder_hierarchy_repair_move_list to_c_list(holder_arena* arena, const std::vector<contract::HierarchyRepairMove>& values) {
+  auto* items = make<holder_hierarchy_repair_move>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepair& value) {
+  holder_hierarchy_repair out{};
+  out.applied = value.applied;
+  out.moved = to_c_list(arena, value.moved);
+  out.changed_card_count = value.changed_card_count;
+  out.cycle_card_ids = copy_strings(arena, value.cycle_card_ids);
   return out;
 }
 
@@ -1134,6 +1187,12 @@ contract::ProjectUpdate from_c(const holder_project_update& value) {
   out.name = optional_text(value.name, "project_update.name", 1, SIZE_MAX);
   out.git_remote_url = changed_text(value.git_remote_url, "project_update.git_remote_url", 1, SIZE_MAX);
   out.git_provider = changed_text(value.git_provider, "project_update.git_provider", 0, SIZE_MAX);
+  return out;
+}
+
+contract::HierarchyRepairRequest from_c(const holder_hierarchy_repair_request& value) {
+  contract::HierarchyRepairRequest out;
+  out.apply = (value.apply ? *value.apply : bool{false});
   return out;
 }
 
@@ -1722,6 +1781,32 @@ int holder_delete_project(holder_context* context, const char* project_id, holde
     auto* out = make<holder_project>(arena);
     *out = to_c(arena, contract::delete_project(*context, project_id_value));
     *out_project = out;
+  });
+}
+
+int holder_check_project_encryption(holder_context* context, const char* project_id, holder_arena* arena, const holder_project_encryption_check** out_project_encryption_check, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_encryption_check != nullptr, "out_project_encryption_check must not be null");
+    *out_project_encryption_check = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_project_encryption_check>(arena);
+    *out = to_c(arena, contract::check_project_encryption(*context, project_id_value));
+    *out_project_encryption_check = out;
+  });
+}
+
+int holder_repair_project_hierarchy(holder_context* context, const char* project_id, const holder_hierarchy_repair_request* request, holder_arena* arena, const holder_hierarchy_repair** out_hierarchy_repair, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_hierarchy_repair != nullptr, "out_hierarchy_repair must not be null");
+    *out_hierarchy_repair = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_hierarchy_repair>(arena);
+    *out = to_c(arena, contract::repair_project_hierarchy(*context, project_id_value, request_value));
+    *out_hierarchy_repair = out;
   });
 }
 

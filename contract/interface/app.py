@@ -51,6 +51,7 @@ from .history import (
     RevisionRef,
 )
 from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
+from .maintenance import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
 from .resources import NewResource, Resource, ResourceId, ResourceUpdate
@@ -538,6 +539,25 @@ def delete_project(project_id: Annotated[ProjectId, Path()]) -> Project:
 
     The project's files and keys are kept, and its removal is remembered, so that looking for projects does not
     bring it back; making it again does. Returns the project as it was.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/encryption-check", errors=[NotFound])
+def check_project_encryption(project_id: Annotated[ProjectId, Path()]) -> ProjectEncryptionCheck:
+    """Check whether an encrypted project's card files are safe to push.
+
+    A plain project needs no check and reports a successful result with zero files.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/repair-hierarchy", errors=[NotFound, *KEYS])
+def repair_project_hierarchy(
+    project_id: Annotated[ProjectId, Path()], request: Annotated[HierarchyRepairRequest, Body()],
+) -> HierarchyRepair:
+    """Find hidden live card branches, and optionally move them into the reachable tree.
+
+    An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+    ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
     """
 
 

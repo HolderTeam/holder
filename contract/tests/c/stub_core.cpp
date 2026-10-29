@@ -407,6 +407,22 @@ Project delete_project(holder_context& context, std::string project_id) {
   std::erase_if(context.projects, [&](const Project& p) { return p.project_id == project_id; });
   return project;
 }
+
+ProjectEncryptionCheck check_project_encryption(holder_context& context, std::string project_id) {
+  const auto& project = project_named(context, project_id);
+  const auto mode = project.privacy_mode == ProjectPrivacyMode::Plain
+                        ? ProjectEncryptionCheckPrivacyMode::Plain
+                        : ProjectEncryptionCheckPrivacyMode::EncryptedGit;
+  return {project_id, mode, {true, 0, 0, {}, "No unsafe files."}};
+}
+
+HierarchyRepair repair_project_hierarchy(holder_context& context, std::string project_id,
+                                         const HierarchyRepairRequest& request) {
+  (void)request;
+  project_named(context, project_id);
+  return {false, {}, 0, {}};
+}
+
 // Git sync: the stand-in has no remotes, so every project has none.
 SyncState get_project_sync_state(holder_context& context, std::string project_id) {
   project_named(context, project_id);

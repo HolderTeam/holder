@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
@@ -16,19 +15,19 @@ T = TypeVar("T", bound="HierarchyRepair")
 
 @_attrs_define
 class HierarchyRepair:
-    """
+    """A plan to make hidden live cards reachable, and whether it was applied.
+
     Attributes:
-        applied (bool): True when changes were written.
-        moved (list[HierarchyRepairMove]):
-        changed_card_count (int): Cards whose placement changes, counting siblings re-spaced to make room.
-        cycle_card_ids (list[str]): Live cards whose parent chain loops. They are left alone and need moving by hand.
+        applied (bool): Whether changes were written.
+        moved (list[HierarchyRepairMove]): The hidden branches whose top cards move.
+        changed_card_count (int): Cards moved or re-spaced to make room.
+        cycle_card_ids (list[str]): Cards in parent cycles; left for manual repair.
     """
 
     applied: bool
     moved: list[HierarchyRepairMove]
     changed_card_count: int
     cycle_card_ids: list[str]
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         applied = self.applied
@@ -43,7 +42,7 @@ class HierarchyRepair:
         cycle_card_ids = self.cycle_card_ids
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "applied": applied,
@@ -80,21 +79,4 @@ class HierarchyRepair:
             cycle_card_ids=cycle_card_ids,
         )
 
-        hierarchy_repair.additional_properties = d
         return hierarchy_repair
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties

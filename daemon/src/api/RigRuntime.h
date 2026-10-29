@@ -25,8 +25,6 @@
 #include "api/ProviderSettings.h"
 #include "api/Rebuild.h"
 #include "api/RunnerPull.h"
-#include "api/ProjectRead.h"
-#include "api/ProjectCards.h"
 #include "api/Ping.h"
 #include "api/StaticFiles.h"
 #include "api/AssetImportWrite.h"

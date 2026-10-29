@@ -58,15 +58,15 @@ def _parse_response(
 
         return response_404
 
+    if response.status_code == 409:
+        response_409 = ErrorResponse.from_dict(response.json())
+
+        return response_409
+
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
 
         return response_500
-
-    if response.status_code == 501:
-        response_501 = ErrorResponse.from_dict(response.json())
-
-        return response_501
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -96,19 +96,14 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: HierarchyRepairRequest | Unset = UNSET,
 ) -> Response[ErrorResponse | HierarchyRepairResponse]:
-    """Find, and optionally fix, cards hidden under missing or trashed parents
+    """Find hidden live card branches, and optionally move them into the reachable tree.
 
-     A live card whose parent is missing or trashed cannot be reached by browsing from the project's top
-    level. This can happen after an older client trashed a parent, a card file was removed by hand, or a
-    sync brought either in. Without apply, this only reports, reading the database alone (so it works on
-    a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable
-    ancestor (or the top level), into the place its trashed ancestor held, with its descendants still
-    attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are
-    reported and left alone. The daemon also repairs at startup and core repairs after every pull.
+     An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+    ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
 
     Args:
         project_id (str):
-        body (HierarchyRepairRequest | Unset):
+        body (HierarchyRepairRequest | Unset): Ask for a repair plan, or apply it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -136,19 +131,14 @@ def sync(
     client: AuthenticatedClient | Client,
     body: HierarchyRepairRequest | Unset = UNSET,
 ) -> ErrorResponse | HierarchyRepairResponse | None:
-    """Find, and optionally fix, cards hidden under missing or trashed parents
+    """Find hidden live card branches, and optionally move them into the reachable tree.
 
-     A live card whose parent is missing or trashed cannot be reached by browsing from the project's top
-    level. This can happen after an older client trashed a parent, a card file was removed by hand, or a
-    sync brought either in. Without apply, this only reports, reading the database alone (so it works on
-    a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable
-    ancestor (or the top level), into the place its trashed ancestor held, with its descendants still
-    attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are
-    reported and left alone. The daemon also repairs at startup and core repairs after every pull.
+     An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+    ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
 
     Args:
         project_id (str):
-        body (HierarchyRepairRequest | Unset):
+        body (HierarchyRepairRequest | Unset): Ask for a repair plan, or apply it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -171,19 +161,14 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: HierarchyRepairRequest | Unset = UNSET,
 ) -> Response[ErrorResponse | HierarchyRepairResponse]:
-    """Find, and optionally fix, cards hidden under missing or trashed parents
+    """Find hidden live card branches, and optionally move them into the reachable tree.
 
-     A live card whose parent is missing or trashed cannot be reached by browsing from the project's top
-    level. This can happen after an older client trashed a parent, a card file was removed by hand, or a
-    sync brought either in. Without apply, this only reports, reading the database alone (so it works on
-    a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable
-    ancestor (or the top level), into the place its trashed ancestor held, with its descendants still
-    attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are
-    reported and left alone. The daemon also repairs at startup and core repairs after every pull.
+     An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+    ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
 
     Args:
         project_id (str):
-        body (HierarchyRepairRequest | Unset):
+        body (HierarchyRepairRequest | Unset): Ask for a repair plan, or apply it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -209,19 +194,14 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: HierarchyRepairRequest | Unset = UNSET,
 ) -> ErrorResponse | HierarchyRepairResponse | None:
-    """Find, and optionally fix, cards hidden under missing or trashed parents
+    """Find hidden live card branches, and optionally move them into the reachable tree.
 
-     A live card whose parent is missing or trashed cannot be reached by browsing from the project's top
-    level. This can happen after an older client trashed a parent, a card file was removed by hand, or a
-    sync brought either in. Without apply, this only reports, reading the database alone (so it works on
-    a locked encrypted project). With apply, each hidden branch moves to its nearest live, reachable
-    ancestor (or the top level), into the place its trashed ancestor held, with its descendants still
-    attached, in one commit. Applying twice changes nothing the second time. Cards in parent cycles are
-    reported and left alone. The daemon also repairs at startup and core repairs after every pull.
+     An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+    ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
 
     Args:
         project_id (str):
-        body (HierarchyRepairRequest | Unset):
+        body (HierarchyRepairRequest | Unset): Ask for a repair plan, or apply it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -280,6 +280,23 @@ template <> struct codec<holder::contract::ProjectPrivacyMode> {
         const auto& text = value.get_ref<const std::string&>();
         if (text == "encrypted_git") return holder::contract::ProjectPrivacyMode::EncryptedGit;
         if (text == "plain") return holder::contract::ProjectPrivacyMode::Plain;
+        throw std::invalid_argument("must be one of encrypted_git, plain");
+    }
+};
+
+template <> struct codec<holder::contract::ProjectEncryptionCheckPrivacyMode> {
+    static json encode(holder::contract::ProjectEncryptionCheckPrivacyMode value) {
+        switch (value) {
+        case holder::contract::ProjectEncryptionCheckPrivacyMode::EncryptedGit: return "encrypted_git";
+        case holder::contract::ProjectEncryptionCheckPrivacyMode::Plain: return "plain";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::ProjectEncryptionCheckPrivacyMode decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "encrypted_git") return holder::contract::ProjectEncryptionCheckPrivacyMode::EncryptedGit;
+        if (text == "plain") return holder::contract::ProjectEncryptionCheckPrivacyMode::Plain;
         throw std::invalid_argument("must be one of encrypted_git, plain");
     }
 };
@@ -584,6 +601,22 @@ template <> struct codec<holder::contract::Project> {
     static json encode(const holder::contract::Project& value);
     static holder::contract::Project decode(const json& value);
 };
+template <> struct codec<holder::contract::EncryptionSafetyCheck> {
+    static json encode(const holder::contract::EncryptionSafetyCheck& value);
+    static holder::contract::EncryptionSafetyCheck decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectEncryptionCheck> {
+    static json encode(const holder::contract::ProjectEncryptionCheck& value);
+    static holder::contract::ProjectEncryptionCheck decode(const json& value);
+};
+template <> struct codec<holder::contract::HierarchyRepairMove> {
+    static json encode(const holder::contract::HierarchyRepairMove& value);
+    static holder::contract::HierarchyRepairMove decode(const json& value);
+};
+template <> struct codec<holder::contract::HierarchyRepair> {
+    static json encode(const holder::contract::HierarchyRepair& value);
+    static holder::contract::HierarchyRepair decode(const json& value);
+};
 template <> struct codec<holder::contract::SyncState> {
     static json encode(const holder::contract::SyncState& value);
     static holder::contract::SyncState decode(const json& value);
@@ -719,6 +752,10 @@ template <> struct codec<holder::contract::NewProject> {
 template <> struct codec<holder::contract::ProjectUpdate> {
     static json encode(const holder::contract::ProjectUpdate& value);
     static holder::contract::ProjectUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::HierarchyRepairRequest> {
+    static json encode(const holder::contract::HierarchyRepairRequest& value);
+    static holder::contract::HierarchyRepairRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::PushOptions> {
     static json encode(const holder::contract::PushOptions& value);
@@ -1769,6 +1806,150 @@ inline holder::contract::Project codec<holder::contract::Project>::decode(const 
         out.updated_at = decode_field<long long>(item, "updated_at");
     } else {
         throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::EncryptionSafetyCheck>::encode(const holder::contract::EncryptionSafetyCheck& value) {
+    json result = json::object();
+    result["ok"] = codec<bool>::encode(value.ok);
+    result["checked_files"] = codec<std::int32_t>::encode(value.checked_files);
+    result["unsafe_files"] = codec<std::int32_t>::encode(value.unsafe_files);
+    result["unsafe_paths"] = codec<std::vector<std::string>>::encode(value.unsafe_paths);
+    result["message"] = codec<std::string>::encode(value.message);
+    return result;
+}
+inline holder::contract::EncryptionSafetyCheck codec<holder::contract::EncryptionSafetyCheck>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a EncryptionSafetyCheck object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "ok" && it.key() != "checked_files" && it.key() != "unsafe_files" && it.key() != "unsafe_paths" && it.key() != "message") throw std::invalid_argument("EncryptionSafetyCheck has no field " + it.key());
+    holder::contract::EncryptionSafetyCheck out;
+    if (value.contains("ok") && !value.at("ok").is_null()) {
+        const auto& item = value.at("ok");
+        out.ok = decode_field<bool>(item, "ok");
+    } else {
+        throw std::invalid_argument("ok is required and must not be null");
+    }
+    if (value.contains("checked_files") && !value.at("checked_files").is_null()) {
+        const auto& item = value.at("checked_files");
+        out.checked_files = check_range<std::int32_t>(decode_field<std::int32_t>(item, "checked_files"), "checked_files", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("checked_files is required and must not be null");
+    }
+    if (value.contains("unsafe_files") && !value.at("unsafe_files").is_null()) {
+        const auto& item = value.at("unsafe_files");
+        out.unsafe_files = check_range<std::int32_t>(decode_field<std::int32_t>(item, "unsafe_files"), "unsafe_files", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("unsafe_files is required and must not be null");
+    }
+    if (value.contains("unsafe_paths") && !value.at("unsafe_paths").is_null()) {
+        const auto& item = value.at("unsafe_paths");
+        out.unsafe_paths = [&] { auto items = decode_field<std::vector<std::string>>(item, "unsafe_paths"); for (const auto& text : items) check_text(text, "unsafe_paths", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("unsafe_paths is required and must not be null");
+    }
+    if (value.contains("message") && !value.at("message").is_null()) {
+        const auto& item = value.at("message");
+        out.message = check_text(decode_field<std::string>(item, "message"), "message", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("message is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectEncryptionCheck>::encode(const holder::contract::ProjectEncryptionCheck& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["privacy_mode"] = codec<holder::contract::ProjectEncryptionCheckPrivacyMode>::encode(value.privacy_mode);
+    result["check"] = codec<holder::contract::EncryptionSafetyCheck>::encode(value.check);
+    return result;
+}
+inline holder::contract::ProjectEncryptionCheck codec<holder::contract::ProjectEncryptionCheck>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectEncryptionCheck object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "privacy_mode" && it.key() != "check") throw std::invalid_argument("ProjectEncryptionCheck has no field " + it.key());
+    holder::contract::ProjectEncryptionCheck out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::ProjectEncryptionCheckPrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("check") && !value.at("check").is_null()) {
+        const auto& item = value.at("check");
+        out.check = codec<holder::contract::EncryptionSafetyCheck>::decode(item);
+    } else {
+        throw std::invalid_argument("check is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HierarchyRepairMove>::encode(const holder::contract::HierarchyRepairMove& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
+    return result;
+}
+inline holder::contract::HierarchyRepairMove codec<holder::contract::HierarchyRepairMove>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HierarchyRepairMove object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "parent_card_id") throw std::invalid_argument("HierarchyRepairMove has no field " + it.key());
+    holder::contract::HierarchyRepairMove out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HierarchyRepair>::encode(const holder::contract::HierarchyRepair& value) {
+    json result = json::object();
+    result["applied"] = codec<bool>::encode(value.applied);
+    result["moved"] = codec<std::vector<holder::contract::HierarchyRepairMove>>::encode(value.moved);
+    result["changed_card_count"] = codec<std::int32_t>::encode(value.changed_card_count);
+    result["cycle_card_ids"] = codec<std::vector<std::string>>::encode(value.cycle_card_ids);
+    return result;
+}
+inline holder::contract::HierarchyRepair codec<holder::contract::HierarchyRepair>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HierarchyRepair object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "applied" && it.key() != "moved" && it.key() != "changed_card_count" && it.key() != "cycle_card_ids") throw std::invalid_argument("HierarchyRepair has no field " + it.key());
+    holder::contract::HierarchyRepair out;
+    if (value.contains("applied") && !value.at("applied").is_null()) {
+        const auto& item = value.at("applied");
+        out.applied = decode_field<bool>(item, "applied");
+    } else {
+        throw std::invalid_argument("applied is required and must not be null");
+    }
+    if (value.contains("moved") && !value.at("moved").is_null()) {
+        const auto& item = value.at("moved");
+        out.moved = decode_field<std::vector<holder::contract::HierarchyRepairMove>>(item, "moved");
+    } else {
+        throw std::invalid_argument("moved is required and must not be null");
+    }
+    if (value.contains("changed_card_count") && !value.at("changed_card_count").is_null()) {
+        const auto& item = value.at("changed_card_count");
+        out.changed_card_count = check_range<std::int32_t>(decode_field<std::int32_t>(item, "changed_card_count"), "changed_card_count", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("changed_card_count is required and must not be null");
+    }
+    if (value.contains("cycle_card_ids") && !value.at("cycle_card_ids").is_null()) {
+        const auto& item = value.at("cycle_card_ids");
+        out.cycle_card_ids = [&] { auto items = decode_field<std::vector<std::string>>(item, "cycle_card_ids"); for (const auto& text : items) check_text(text, "cycle_card_ids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("cycle_card_ids is required and must not be null");
     }
     return out;
 }
@@ -3298,6 +3479,25 @@ inline holder::contract::ProjectUpdate codec<holder::contract::ProjectUpdate>::d
         out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
     } else if (value.contains("git_provider")) {
         out.git_provider.emplace();
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HierarchyRepairRequest>::encode(const holder::contract::HierarchyRepairRequest& value) {
+    json result = json::object();
+    result["apply"] = codec<bool>::encode(value.apply);
+    return result;
+}
+inline holder::contract::HierarchyRepairRequest codec<holder::contract::HierarchyRepairRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HierarchyRepairRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "apply") throw std::invalid_argument("HierarchyRepairRequest has no field " + it.key());
+    holder::contract::HierarchyRepairRequest out;
+    if (value.contains("apply") && !value.at("apply").is_null()) {
+        const auto& item = value.at("apply");
+        out.apply = decode_field<bool>(item, "apply");
+    } else if (value.contains("apply")) {
+        throw std::invalid_argument("apply must not be null");
     }
     return out;
 }

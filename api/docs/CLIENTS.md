@@ -97,6 +97,7 @@ Project/card clients usually use:
 - `POST /projects/{project_id}/git/push`
 - `GET /projects/{project_id}/git/sync-status`
 - `GET /projects/{project_id}/encryption-check`
+- `POST /projects/{project_id}/repair-hierarchy`
 - `POST /projects/{project_id}/recovery-token/export`
 - `POST /projects/{project_id}/recovery-token/import`
 - `POST /recovery-token/import`

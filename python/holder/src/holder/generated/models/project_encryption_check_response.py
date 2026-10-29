@@ -8,9 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_encryption_check_response_data import (
-        ProjectEncryptionCheckResponseData,
-    )
+    from ..models.project_encryption_check import ProjectEncryptionCheck
 
 
 T = TypeVar("T", bound="ProjectEncryptionCheckResponse")
@@ -21,11 +19,11 @@ class ProjectEncryptionCheckResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectEncryptionCheckResponseData):
+        data (ProjectEncryptionCheck): A project's privacy mode and the result of checking its files.
     """
 
     ok: bool
-    data: ProjectEncryptionCheckResponseData
+    data: ProjectEncryptionCheck
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,14 +44,14 @@ class ProjectEncryptionCheckResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_encryption_check_response_data import (
-            ProjectEncryptionCheckResponseData,
+        from ..models.project_encryption_check import (
+            ProjectEncryptionCheck,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectEncryptionCheckResponseData.from_dict(d.pop("data"))
+        data = ProjectEncryptionCheck.from_dict(d.pop("data"))
 
         project_encryption_check_response = cls(
             ok=ok,
