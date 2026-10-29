@@ -762,7 +762,7 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
 
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
-    const std::string save_request = "PATCH /cards/save-test HTTP/1.1\r\n"
+    const std::string save_request = "PATCH /projects/proj-1/cards/save-test HTTP/1.1\r\n"
                                      "Host: " +
                                      bound.bind +
                                      "\r\n"

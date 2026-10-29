@@ -317,7 +317,7 @@ TEST_CASE("Session write_prepared_response cancel hook terminates in-flight writ
 TEST_CASE("Session prepare_request classifies card writes as save lane", "[session]") {
   for (const std::string target :
        {"/projects/project-123/cards/card-123", "/projects/project-123/cards",
-        "/cards/card-123/tags"}) {
+        "/projects/project-123/cards/card-123/tags/work"}) {
     CAPTURE(target);
     SocketPair pair;
     const std::string req = "PATCH " + target +
@@ -339,7 +339,7 @@ TEST_CASE("Session prepare_request classifies card writes as save lane", "[sessi
 TEST_CASE("Session prepare_request classifies links reads as background lane", "[session]") {
   SocketPair pair;
 
-  const std::string req = "GET /cards/card-123/links HTTP/1.1\r\n"
+  const std::string req = "GET /projects/project-123/cards/card-123/links HTTP/1.1\r\n"
                           "Host: localhost\r\n"
                           "Connection: close\r\n"
                           "\r\n";
@@ -347,7 +347,7 @@ TEST_CASE("Session prepare_request classifies links reads as background lane", "
 
   auto prepared = holder::api::Session::prepare_request(std::move(pair.server));
   REQUIRE(prepared.has_value());
-  REQUIRE(prepared->path == "/cards/card-123/links");
+  REQUIRE(prepared->path == "/projects/project-123/cards/card-123/links");
   REQUIRE(prepared->lane == holder::api::Session::RequestLane::Background);
 }
 
