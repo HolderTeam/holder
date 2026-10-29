@@ -1,14 +1,16 @@
 # The generated HTTP routes
 
-`interface/app.py` declares the contract's operations as FastAPI routes, and the daemon's generators turn them into three files:
+`interface/app.py` declares the contract's operations as FastAPI routes, and the daemon's generators turn them into the route and codec files and the API document:
 
 - **`ContractRoutes.h`:** `contract_http::dispatch`, which matches a request to an operation, decodes and checks its arguments, calls core's C++ function for it with the caller's `holder_context`, and encodes the result.
 - **`ContractJson.h`:** the JSON codec for the contract's C++ types (`core/src/api/Contract.h`).
+- **`AiRoutes.h`:** dispatch for daemon owned AI handlers, with paths, arguments and status codes from the Python contract.
+- **`AiJson.h`:** the JSON codec for the daemon's AI records (`interface/ai.py`).
 - **`openapi.json`:** the operations' OpenAPI paths and the schemas they use: FastAPI's document of `app.py`, with FastAPI's own 422 validation responses and the operation IDs removed, the daemon's error schemas, and each schema named by its title, so that a generic record's use is `CardListItemPage` rather than Pydantic's `Page_CardListItem_` (`openapi.py`).
 
-`make -C contract update` writes the first two into `daemon/src/api/generated/` and merges the third with `api/openapi-base.json`, which supplies API metadata and security, to write `api/openapi.yaml` and `api/openapi.json`. `make -C contract check` fails when any generated file is out of date. `python -m holder_contract generate --output <directory>` writes every generated file, including core's C API files, into one directory.
+`make -C contract update` writes the four C++ headers into `daemon/src/api/generated/` and merges the OpenAPI paths with `api/openapi-base.json`, which supplies API metadata and security, to write `api/openapi.yaml` and `api/openapi.json`. `make -C contract check` fails when any generated file is out of date. `python -m holder_contract generate --output <directory>` writes every generated file, including core's C API files, into one directory.
 
-The daemon's AI handlers use a retained C++ dispatcher and codec (`AiRoutes.h` and `AiJson.h`); a contract test verifies that its route inventory matches `interface/app.py`. Other routes are dispatched directly or through `contract_http::dispatch` (`daemon/src/api/GeneratedRoutes.cpp`). Core-backed requests run with a `holder_context` on the worker's database, full-text indexer and Git service. The contract's routes and codec generators were ported from [RIG](https://github.com/zeth/rig) at `e32ea68`; they now read the Python contract's IR. `tests/http/` compiles the routes against the stand-in for core in `tests/c/` and sends them requests.
+The daemon's AI handlers use `AiRoutes.h` and `AiJson.h`, generated from `interface/app.py` and `interface/ai.py`. A contract test verifies their route inventory. Other routes are dispatched directly or through `contract_http::dispatch` (`daemon/src/api/GeneratedRoutes.cpp`). Core-backed requests run with a `holder_context` on the worker's database, full-text indexer and Git service. The contract's routes and codec generators were ported from [RIG](https://github.com/zeth/rig) at `e32ea68`; they now read the Python contract's IR. `tests/http/` compiles the routes against the stand-in for core in `tests/c/` and sends them requests.
 
 ## Routes
 

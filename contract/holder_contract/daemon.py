@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .ai_codec import generate_ai_codec
+from .ai_routes import generate_ai_routes
 from .generate import Model
 from .http_routes import generate_routes
 from .json_codec import generate_codec
@@ -17,7 +19,9 @@ API_HEADER = "api/Contract.h"
 CODEC_HEADER = "api/generated/ContractJson.h"
 # Where make -C contract update writes them, relative to the repository.
 DAEMON_PATHS = {"ContractJson.h": "daemon/src/api/generated/ContractJson.h",
-                "ContractRoutes.h": "daemon/src/api/generated/ContractRoutes.h"}
+                "ContractRoutes.h": "daemon/src/api/generated/ContractRoutes.h",
+                "AiJson.h": "daemon/src/api/generated/AiJson.h",
+                "AiRoutes.h": "daemon/src/api/generated/AiRoutes.h"}
 # The API's metadata and security, shared by every route in the contract.
 OPENAPI_BASE = "api/openapi-base.json"
 OPENAPI_PATHS = {"openapi.yaml": "api/openapi.yaml", "openapi.json": "api/openapi.json"}
@@ -30,6 +34,8 @@ def generate_daemon(ir: dict[str, Any], contract: Contract) -> dict[str, str]:
     model = Model(ir)
     return {"ContractJson.h": generate_codec(model, API_HEADER),
             "ContractRoutes.h": generate_routes(model, CODEC_HEADER),
+            "AiJson.h": generate_ai_codec(ir, contract),
+            "AiRoutes.h": generate_ai_routes(ir),
             "openapi.json": dumps(document(contract))}
 
 

@@ -1,7 +1,7 @@
 """Schemathesis against the daemon, on the routes the contract describes.
 
 Schemathesis reads api/openapi.json, the daemon's whole document, and tests the contract's
-operations in it: those that have moved from RIG to the contract. It sends each one requests both
+operations in it. It sends each one requests both
 valid and invalid by the document, and checks that the daemon accepts the valid ones, rejects the
 invalid ones with a 4xx, asks for its token, never fails with a 500, and answers only with
 statuses, media types, headers and bodies the document declares. The Hypothesis state machine in
@@ -57,6 +57,9 @@ def stated_in_words(case) -> bool:
     path = case.path_parameters or {}
     limit = str(query.get("limit", 200))
     body = case.body if isinstance(case.body, dict) else {}
+    # AI writes and reads depend on runner, provider, database, or reference state that a generated
+    # request cannot establish. Their documented semantic failures are still checked by the
+    # response schema and the HTTP integration tests.
     return case.operation.path.startswith("/ai/") or "cursor" in query or "tag" in query or (
         "tag" in path or "resource_id" in path) or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
@@ -73,9 +76,7 @@ def invalid_mutation_not_observed(case) -> bool:
     """Whether every schema violation is lost or ignored before response validation.
 
     The test sends its own token in place of the Authorization header Schemathesis makes, and an
-    extra query parameter whose value is an empty list is not sent at all. The retained AI
-    dispatcher also ignores unknown query names and receives query values as strings, so a
-    generated query type mutation can become valid on the wire.
+    extra query parameter whose value is an empty list is not sent at all.
     """
     mutations = getattr(case.meta.phase.data, "mutations", None) if case.meta else None
     if not case.meta or not case.meta.generation.mode.is_negative or not mutations:
@@ -84,9 +85,7 @@ def invalid_mutation_not_observed(case) -> bool:
     extras = [value for name, value in (case.query or {}).items() if name not in declared]
     return all(m.parameter == "Authorization" or (
         m.parameter_location is not None and m.parameter_location.name == "QUERY"
-        and ("additionalProperties" in m.keywords and (
-            case.operation.path.startswith("/ai/") or all(value in ([], None) for value in extras))
-            or case.operation.path.startswith("/ai/") and "type" in m.keywords))
+        and "additionalProperties" in m.keywords and all(value in ([], None) for value in extras))
         for m in mutations)
 
 

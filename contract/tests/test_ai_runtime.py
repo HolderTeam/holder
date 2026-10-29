@@ -1,4 +1,4 @@
-"""The retained AI dispatcher serves exactly the AI routes declared by the Python contract."""
+"""The generated AI dispatcher serves exactly the AI routes declared by the Python contract."""
 
 import json
 import re

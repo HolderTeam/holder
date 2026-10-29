@@ -26,9 +26,9 @@ daemon, in [`daemon/docs/`](../daemon/docs/).
 
 Every endpoint is declared in Holder's Python [`contract/`](../contract/). Run
 `make -C contract update` after changing a route, model or API metadata; it generates
-`openapi.yaml`, `openapi.json` and the contract's C++ files. The daemon's AI handlers retain
-their C++ dispatcher and JSON codec in `daemon/src/api/generated/AiRoutes.h` and `AiJson.h`.
-The contract test checks that the dispatcher's routes match the Python declarations.
+`openapi.yaml`, `openapi.json` and the contract's C++ files. This includes the AI dispatcher and
+JSON codec in `daemon/src/api/generated/AiRoutes.h` and `AiJson.h`. The contract test checks that
+the generated dispatcher serves the Python declarations' AI route inventory.
 `Contract / Check` verifies the generated files are current.
 
 Holder's own clients (the desktop app, `holderctl`, the Python client) are clients like any
