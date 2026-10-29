@@ -1,33 +1,44 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="ProjectRecoveryTokenExportRequest")
+if TYPE_CHECKING:
+    from ..models.project_recovery_token_export_result import (
+        ProjectRecoveryTokenExportResult,
+    )
+
+
+T = TypeVar("T", bound="ProjectRecoveryTokenExportResultResponse")
 
 
 @_attrs_define
-class ProjectRecoveryTokenExportRequest:
+class ProjectRecoveryTokenExportResultResponse:
     """
     Attributes:
-        pin (str): User-provided PIN used to wrap the project key.
+        ok (bool):
+        data (ProjectRecoveryTokenExportResult): A portable encrypted project key.
     """
 
-    pin: str
+    ok: bool
+    data: ProjectRecoveryTokenExportResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        pin = self.pin
+        ok = self.ok
+
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "pin": pin,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -35,15 +46,22 @@ class ProjectRecoveryTokenExportRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        pin = d.pop("pin")
-
-        project_recovery_token_export_request = cls(
-            pin=pin,
+        from ..models.project_recovery_token_export_result import (
+            ProjectRecoveryTokenExportResult,
         )
 
-        project_recovery_token_export_request.additional_properties = d
-        return project_recovery_token_export_request
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = ProjectRecoveryTokenExportResult.from_dict(d.pop("data"))
+
+        project_recovery_token_export_result_response = cls(
+            ok=ok,
+            data=data,
+        )
+
+        project_recovery_token_export_result_response.additional_properties = d
+        return project_recovery_token_export_result_response
 
     @property
     def additional_keys(self) -> list[str]:

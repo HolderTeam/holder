@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -41,6 +41,8 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_NOT_TRASHED 110
 /* The bounded History response would exceed 2 MiB. */
 #define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 111
+/* The recovery token or its PIN is invalid, or the token belongs to another project. */
+#define HOLDER_ERROR_RECOVERY_TOKEN_INVALID 112
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -224,6 +226,17 @@ typedef struct holder_project_update {
 typedef struct holder_hierarchy_repair_request {
     const bool* apply; /* Apply the repair. Without it, only report. NULL for the default, false. */
 } holder_hierarchy_repair_request;
+
+/* PIN used to wrap the project key. */
+typedef struct holder_recovery_token_export_request {
+    const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
+} holder_recovery_token_export_request;
+
+/* PIN and serialized .hrk token to restore. */
+typedef struct holder_recovery_token_import_request {
+    const char* pin; /* User-provided PIN used to wrap or unwrap the key. */
+    const char* recovery_token; /* Serialized .hrk token JSON. */
+} holder_recovery_token_import_request;
 
 /* How to push. */
 typedef struct holder_push_options {
@@ -580,6 +593,37 @@ typedef struct holder_hierarchy_repair {
     int32_t changed_card_count; /* Cards moved or re-spaced to make room. */
     holder_string_list cycle_card_ids; /* Cards in parent cycles; left for manual repair. */
 } holder_hierarchy_repair;
+
+/* A portable encrypted project key. */
+typedef struct holder_project_recovery_token_export_result {
+    const char* project_id; /* The project whose key was exported. */
+    const char* key_id; /* The encrypted project's key ID. */
+    const char* recovery_token; /* Serialized .hrk token JSON. */
+} holder_project_recovery_token_export_result;
+
+/* The project whose key was restored. */
+typedef struct holder_project_recovery_token_import_result {
+    const char* project_id; /* The project whose key was restored. */
+} holder_project_recovery_token_import_result;
+
+/* Outcome of the attempted pull. */
+typedef enum holder_recovery_token_global_import_result_pull_status {
+    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED = 1,
+    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED = 2,
+    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED = 3,
+    HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_recovery_token_global_import_result_pull_status;
+
+/* The result of restoring a token to this device. */
+typedef struct holder_recovery_token_global_import_result {
+    const char* project_id; /* The project whose key was restored. */
+    bool project_created; /* Whether this device made the project from the token. */
+    bool remote_hint_present; /* Whether the token names a Git remote. */
+    bool remote_configured; /* Whether that remote was configured. */
+    const char* remote_error; /* Why remote configuration failed, or null. May be NULL. */
+    holder_recovery_token_global_import_result_pull_status pull_status; /* Outcome of the attempted pull. */
+    const char* pull_error; /* Why pulling failed, or null. May be NULL. */
+} holder_recovery_token_global_import_result;
 
 /* What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
  * when it will retry.
@@ -1256,6 +1300,23 @@ int holder_check_project_encryption(holder_context* context, const char* project
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_repair_project_hierarchy(holder_context* context, const char* project_id, const holder_hierarchy_repair_request* request, holder_arena* arena, const holder_hierarchy_repair** out_hierarchy_repair, holder_error** out_error);
+
+/* Wrap an encrypted project's key in a portable token protected by a PIN.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_export_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_export_request* request, holder_arena* arena, const holder_project_recovery_token_export_result** out_project_recovery_token_export_result, holder_error** out_error);
+
+/* Restore an encrypted project's key from a token for that project.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_import_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_project_recovery_token_import_result** out_project_recovery_token_import_result, holder_error** out_error);
+
+/* Restore a token, finding its project here or making one from the token's metadata.
+ * If the token names a Git remote, configure it and attempt a pull. Remote and pull failures
+ * are reported in the result. Returns 201 when the project was created, otherwise 200.
+ * Errors: HOLDER_ERROR_RECOVERY_TOKEN_INVALID, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_import_recovery_token_global(holder_context* context, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_recovery_token_global_import_result** out_recovery_token_global_import_result, holder_error** out_error);
 
 /* What this device last recorded about a project's sync.
  * Errors: HOLDER_ERROR_NOT_FOUND.

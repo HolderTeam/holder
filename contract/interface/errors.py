@@ -53,3 +53,7 @@ class NotTrashed(HolderError):
 
 class HistoryResponseTooLarge(HolderError):
     """The bounded History response would exceed 2 MiB."""
+
+
+class RecoveryTokenInvalid(HolderError):
+    """The recovery token or its PIN is invalid, or the token belongs to another project."""

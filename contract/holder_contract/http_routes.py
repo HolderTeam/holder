@@ -313,8 +313,13 @@ def operation_lines(model: Model, op: dict[str, Any], binding: dict[str, Any], i
                   f'            return failure({status}, "{code}", error.what(), "{name}");',
                   "        }"]
     call = f"holder::contract::{name}(context{''.join(', ' + a for a in arguments)})"
-    lines += ["        try {",
-              f'            return success({binding["status"]}, contract_json::encode({call}), "{name}");']
+    lines.append("        try {")
+    if created_when := binding.get("created_when"):
+        lines += [f"            auto result = {call};",
+                  (f'            return success(result.{created_when} ? 201 : {binding["status"]}, '
+                   f'contract_json::encode(result), "{name}");')]
+    else:
+        lines.append(f'            return success({binding["status"]}, contract_json::encode({call}), "{name}");')
     for error in op["errors"]:
         lines += [f"        }} catch (const holder::contract::{error}& error) {{",
                   f'            return failure({statuses[error]}, "{snake(error)}", error.what(), "{name}");']

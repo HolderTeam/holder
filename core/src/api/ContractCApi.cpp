@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -173,6 +173,8 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_NOT_TRASHED, e.what());
   } catch (const contract::HistoryResponseTooLarge& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE, e.what());
+  } catch (const contract::RecoveryTokenInvalid& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_RECOVERY_TOKEN_INVALID, e.what());
   } catch (const std::bad_alloc&) {
     return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
   } catch (const std::exception& e) {
@@ -273,6 +275,15 @@ holder_project_encryption_check_privacy_mode to_c_enum(contract::ProjectEncrypti
   case contract::ProjectEncryptionCheckPrivacyMode::Plain: return HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN;
   }
   throw std::logic_error("not a contract::ProjectEncryptionCheckPrivacyMode value");
+}
+
+holder_recovery_token_global_import_result_pull_status to_c_enum(contract::RecoveryTokenGlobalImportResultPullStatus value) {
+  switch (value) {
+  case contract::RecoveryTokenGlobalImportResultPullStatus::NotAttempted: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED;
+  case contract::RecoveryTokenGlobalImportResultPullStatus::Succeeded: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED;
+  case contract::RecoveryTokenGlobalImportResultPullStatus::Failed: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED;
+  }
+  throw std::logic_error("not a contract::RecoveryTokenGlobalImportResultPullStatus value");
 }
 
 holder_pull_phase_status to_c_enum(contract::PullPhaseStatus value) {
@@ -379,6 +390,9 @@ holder_project_encryption_check to_c(holder_arena* arena, const contract::Projec
 holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value);
 holder_hierarchy_repair_move_list to_c_list(holder_arena* arena, const std::vector<contract::HierarchyRepairMove>& values);
 holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepair& value);
+holder_project_recovery_token_export_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenExportResult& value);
+holder_project_recovery_token_import_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenImportResult& value);
+holder_recovery_token_global_import_result to_c(holder_arena* arena, const contract::RecoveryTokenGlobalImportResult& value);
 holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
@@ -750,6 +764,32 @@ holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepai
   out.moved = to_c_list(arena, value.moved);
   out.changed_card_count = value.changed_card_count;
   out.cycle_card_ids = copy_strings(arena, value.cycle_card_ids);
+  return out;
+}
+
+holder_project_recovery_token_export_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenExportResult& value) {
+  holder_project_recovery_token_export_result out{};
+  out.project_id = copy(arena, value.project_id);
+  out.key_id = copy(arena, value.key_id);
+  out.recovery_token = copy(arena, value.recovery_token);
+  return out;
+}
+
+holder_project_recovery_token_import_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenImportResult& value) {
+  holder_project_recovery_token_import_result out{};
+  out.project_id = copy(arena, value.project_id);
+  return out;
+}
+
+holder_recovery_token_global_import_result to_c(holder_arena* arena, const contract::RecoveryTokenGlobalImportResult& value) {
+  holder_recovery_token_global_import_result out{};
+  out.project_id = copy(arena, value.project_id);
+  out.project_created = value.project_created;
+  out.remote_hint_present = value.remote_hint_present;
+  out.remote_configured = value.remote_configured;
+  out.remote_error = copy_text(arena, value.remote_error);
+  out.pull_status = to_c_enum(value.pull_status);
+  out.pull_error = copy_text(arena, value.pull_error);
   return out;
 }
 
@@ -1193,6 +1233,19 @@ contract::ProjectUpdate from_c(const holder_project_update& value) {
 contract::HierarchyRepairRequest from_c(const holder_hierarchy_repair_request& value) {
   contract::HierarchyRepairRequest out;
   out.apply = (value.apply ? *value.apply : bool{false});
+  return out;
+}
+
+contract::RecoveryTokenExportRequest from_c(const holder_recovery_token_export_request& value) {
+  contract::RecoveryTokenExportRequest out;
+  out.pin = text(value.pin, "recovery_token_export_request.pin", 1, SIZE_MAX);
+  return out;
+}
+
+contract::RecoveryTokenImportRequest from_c(const holder_recovery_token_import_request& value) {
+  contract::RecoveryTokenImportRequest out;
+  out.pin = text(value.pin, "recovery_token_import_request.pin", 1, SIZE_MAX);
+  out.recovery_token = text(value.recovery_token, "recovery_token_import_request.recovery_token", 1, SIZE_MAX);
   return out;
 }
 
@@ -1807,6 +1860,47 @@ int holder_repair_project_hierarchy(holder_context* context, const char* project
     auto* out = make<holder_hierarchy_repair>(arena);
     *out = to_c(arena, contract::repair_project_hierarchy(*context, project_id_value, request_value));
     *out_hierarchy_repair = out;
+  });
+}
+
+int holder_export_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_export_request* request, holder_arena* arena, const holder_project_recovery_token_export_result** out_project_recovery_token_export_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_recovery_token_export_result != nullptr, "out_project_recovery_token_export_result must not be null");
+    *out_project_recovery_token_export_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_project_recovery_token_export_result>(arena);
+    *out = to_c(arena, contract::export_project_recovery_token(*context, project_id_value, request_value));
+    *out_project_recovery_token_export_result = out;
+  });
+}
+
+int holder_import_project_recovery_token(holder_context* context, const char* project_id, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_project_recovery_token_import_result** out_project_recovery_token_import_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_recovery_token_import_result != nullptr, "out_project_recovery_token_import_result must not be null");
+    *out_project_recovery_token_import_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_project_recovery_token_import_result>(arena);
+    *out = to_c(arena, contract::import_project_recovery_token(*context, project_id_value, request_value));
+    *out_project_recovery_token_import_result = out;
+  });
+}
+
+int holder_import_recovery_token_global(holder_context* context, const holder_recovery_token_import_request* request, holder_arena* arena, const holder_recovery_token_global_import_result** out_recovery_token_global_import_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_recovery_token_global_import_result != nullptr, "out_recovery_token_global_import_result must not be null");
+    *out_recovery_token_global_import_result = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_recovery_token_global_import_result>(arena);
+    *out = to_c(arena, contract::import_recovery_token_global(*context, request_value));
+    *out_recovery_token_global_import_result = out;
   });
 }
 

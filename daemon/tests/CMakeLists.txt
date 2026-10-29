@@ -156,7 +156,6 @@ add_executable(holder_daemon_tests
   ../src/api/AiStatus.cpp
   ../src/api/AiThreadRead.cpp
   ../src/api/AiThreadWrite.cpp
-  ../src/api/RecoveryToken.cpp
   ../src/api/Reindex.cpp
   ../src/api/AssetImportWrite.cpp
   ../src/api/ProviderCredentials.cpp

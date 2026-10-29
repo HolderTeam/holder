@@ -254,7 +254,7 @@ class _Builder:
             entry["daemon_only"] = not operation.core
             self.ir["operations"].append(entry)
             if operation.route:
-                self.bind(function, routes[function])
+                self.bind(function, routes[function], operation.created_when)
         self.where = (self.app_source, 1)
         for error, status in contract.statuses.items():
             self.bind_error(error, status)
@@ -289,7 +289,7 @@ class _Builder:
         return {"name": where.rpartition(".")[2], "summary": summary.strip() or None,
                 "description": description.strip() or None, "parameters": parameters, "returns": returns}
 
-    def bind(self, function: Any, route: APIRoute) -> None:
+    def bind(self, function: Any, route: APIRoute, created_when: str | None = None) -> None:
         name = function.__name__
         method = next(iter(route.methods))
         if method not in METHODS:
@@ -324,6 +324,14 @@ class _Builder:
         entry = {"operation": name, "method": method, "path": route.path, "path_parameters": in_path,
                  "query": [p for p, m in markers.items() if isinstance(m, params.Query)],
                  "status": route.status_code}
+        if created_when is not None:
+            result = next((op["returns"] for op in self.ir["operations"] if op["name"] == name), None)
+            record = next((item for item in self.ir["records"]
+                           if result == {"kind": "named", "name": item["name"]}), None)
+            if record is None or not any(slot["name"] == created_when and slot["type"] == {"kind": "bool"}
+                                         for slot in record.get("fields", [])):
+                self.problem(f"{name}: created_when must name a boolean field in the result record")
+            entry["created_when"] = created_when
         if body:
             entry["body"] = body[0]
         self.ir["http"].append(entry)

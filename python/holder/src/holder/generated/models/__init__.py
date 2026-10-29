@@ -217,15 +217,13 @@ from .project_history_page import ProjectHistoryPage
 from .project_history_page_response import ProjectHistoryPageResponse
 from .project_list_item import ProjectListItem
 from .project_list_item_list_response import ProjectListItemListResponse
-from .project_recovery_token_export_request import ProjectRecoveryTokenExportRequest
-from .project_recovery_token_export_response import ProjectRecoveryTokenExportResponse
-from .project_recovery_token_export_response_data import (
-    ProjectRecoveryTokenExportResponseData,
+from .project_recovery_token_export_result import ProjectRecoveryTokenExportResult
+from .project_recovery_token_export_result_response import (
+    ProjectRecoveryTokenExportResultResponse,
 )
-from .project_recovery_token_import_request import ProjectRecoveryTokenImportRequest
-from .project_recovery_token_import_response import ProjectRecoveryTokenImportResponse
-from .project_recovery_token_import_response_data import (
-    ProjectRecoveryTokenImportResponseData,
+from .project_recovery_token_import_result import ProjectRecoveryTokenImportResult
+from .project_recovery_token_import_result_response import (
+    ProjectRecoveryTokenImportResultResponse,
 )
 from .project_response import ProjectResponse
 from .project_update import ProjectUpdate
@@ -238,13 +236,15 @@ from .put_locations_preferred_body import PutLocationsPreferredBody
 from .rebuild_data import RebuildData
 from .rebuild_request import RebuildRequest
 from .rebuild_response import RebuildResponse
-from .recovery_token_import_auto_response import RecoveryTokenImportAutoResponse
-from .recovery_token_import_auto_response_data import (
-    RecoveryTokenImportAutoResponseData,
+from .recovery_token_export_request import RecoveryTokenExportRequest
+from .recovery_token_global_import_result import RecoveryTokenGlobalImportResult
+from .recovery_token_global_import_result_pull_status import (
+    RecoveryTokenGlobalImportResultPullStatus,
 )
-from .recovery_token_import_auto_response_data_pull_status import (
-    RecoveryTokenImportAutoResponseDataPullStatus,
+from .recovery_token_global_import_result_response import (
+    RecoveryTokenGlobalImportResultResponse,
 )
+from .recovery_token_import_request import RecoveryTokenImportRequest
 from .reindex_data import ReindexData
 from .reindex_response import ReindexResponse
 from .remote_test import RemoteTest
@@ -491,12 +491,10 @@ __all__ = (
     "ProjectHistoryPageResponse",
     "ProjectListItem",
     "ProjectListItemListResponse",
-    "ProjectRecoveryTokenExportRequest",
-    "ProjectRecoveryTokenExportResponse",
-    "ProjectRecoveryTokenExportResponseData",
-    "ProjectRecoveryTokenImportRequest",
-    "ProjectRecoveryTokenImportResponse",
-    "ProjectRecoveryTokenImportResponseData",
+    "ProjectRecoveryTokenExportResult",
+    "ProjectRecoveryTokenExportResultResponse",
+    "ProjectRecoveryTokenImportResult",
+    "ProjectRecoveryTokenImportResultResponse",
     "ProjectResponse",
     "ProjectUpdate",
     "PullPhase",
@@ -508,9 +506,11 @@ __all__ = (
     "RebuildData",
     "RebuildRequest",
     "RebuildResponse",
-    "RecoveryTokenImportAutoResponse",
-    "RecoveryTokenImportAutoResponseData",
-    "RecoveryTokenImportAutoResponseDataPullStatus",
+    "RecoveryTokenExportRequest",
+    "RecoveryTokenGlobalImportResult",
+    "RecoveryTokenGlobalImportResultPullStatus",
+    "RecoveryTokenGlobalImportResultResponse",
+    "RecoveryTokenImportRequest",
     "ReindexData",
     "ReindexResponse",
     "RemoteTest",

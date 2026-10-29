@@ -3,6 +3,7 @@
 // exercise.expected.
 #include "api/generated/ContractRoutes.h"
 
+#include <cassert>
 #include <iostream>
 #include <string>
 
@@ -101,6 +102,12 @@ int main() {
   send(*context, "GET", "/projects?limit=5&count=true");
   send(*context, "GET", "/projects/p1/tags?verbose=1");
   send(*context, "PATCH", "/projects/p9", R"({"git_remote_url": null})");
+  const auto new_recovery = contract_http::dispatch(
+      "POST", "/recovery-token/import", R"({"pin":"1234","recovery_token":"new"})", *context);
+  assert(new_recovery && new_recovery->status == 201);
+  const auto existing_recovery = contract_http::dispatch(
+      "POST", "/recovery-token/import", R"({"pin":"1234","recovery_token":"old"})", *context);
+  assert(existing_recovery && existing_recovery->status == 200);
   // Git sync.
   send(*context, "POST", "/projects/p7/git/push", "");
   send(*context, "POST", "/projects/p7/git/push", R"({"branch": ""})");
