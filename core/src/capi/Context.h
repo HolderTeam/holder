@@ -12,6 +12,7 @@
 #include <string>
 
 namespace holder::git { class GitOps; }
+namespace holder::privacy { class SecretStore; }
 
 // The services operations run with. holder_context_open makes a context that owns its database
 // and indexer; a host with its own, such as a daemon worker, makes one on them instead, and they
@@ -49,6 +50,8 @@ struct holder_context {
   // Git work for cards; null for core's own. A daemon passes the one its workers share.
   holder::git::GitOps* git = nullptr;
   std::shared_ptr<holder::git::GitCredentialProvider> credential_provider; // nullable
+  // A host can supply its device keyring for location binding metadata.
+  holder::privacy::SecretStore* secret_store = nullptr;
 };
 
 namespace holder::capi {

@@ -4376,30 +4376,31 @@
         }
       },
       "post": {
-        "summary": "Create a storage location declaration",
+        "summary": "Create a project's portable storage declaration.",
+        "description": "Create a project's portable storage declaration.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StorageLocationRequest"
+                "$ref": "#/components/schemas/NewStorageLocation"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
+                  "$ref": "#/components/schemas/ProjectStorageLocationResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request, including a project that does not exist",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4418,8 +4419,18 @@
               }
             }
           },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4522,30 +4533,33 @@
     },
     "/locations/{location_id}": {
       "get": {
-        "summary": "Get a storage location",
+        "summary": "Get a storage declaration and this device's binding status.",
+        "description": "Get a storage declaration and this device's binding status.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "title": "Location Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
+                  "$ref": "#/components/schemas/ProjectStorageLocationResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4565,7 +4579,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4575,7 +4589,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4587,57 +4601,43 @@
         }
       },
       "patch": {
-        "summary": "Update a storage location declaration",
+        "summary": "Change a storage declaration; configuration replaces the whole map.",
+        "description": "Change a storage declaration; configuration replaces the whole map.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "title": "Location Id"
             }
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "configuration": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "description": "Replaces the whole configuration."
-                  },
-                  "updated_at": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "Optional; server uses current time if omitted."
-                  }
-                }
+                "$ref": "#/components/schemas/StorageLocationUpdate"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
+                  "$ref": "#/components/schemas/ProjectStorageLocationResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4657,7 +4657,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4667,7 +4667,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4679,31 +4679,33 @@
         }
       },
       "delete": {
-        "summary": "Delete an unused storage location declaration",
-        "description": "Also removes this device's binding, and the preferred location if it was this one.",
+        "summary": "Delete an unused declaration, its binding and its preferred setting on this device.",
+        "description": "Delete an unused declaration, its binding and its preferred setting on this device.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "title": "Location Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Deleted",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LocationActionResponse"
+                  "$ref": "#/components/schemas/LocationDeleteResultResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4723,7 +4725,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "The thing asked for does not exist, or is in the trash.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4733,7 +4735,7 @@
             }
           },
           "409": {
-            "description": "A live placement still uses the location",
+            "description": "The request conflicts with what exists: what would be created already exists, such as a card with the same ID or file, or the thing to change is not in the state the request needs, such as restoring a card that is not in the trash, or removing a tag that a card would still carry in its prose.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4743,7 +4745,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15384,6 +15386,57 @@
           "values"
         ]
       },
+      "LocationConfiguration": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "LocationDeleteResult": {
+        "properties": {
+          "location_id": {
+            "$ref": "#/components/schemas/LocationId",
+            "description": "The affected location ID."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "location_id"
+        ],
+        "title": "LocationDeleteResult",
+        "description": "The location affected by an action."
+      },
+      "LocationDeleteResultResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LocationDeleteResult"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "LocationDeleteResultResponse"
+      },
+      "LocationId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "LocationProvider": {
+        "type": "string",
+        "enum": [
+          "local_directory",
+          "s3_compatible",
+          "google-drive"
+        ]
+      },
       "LocationTestResponse": {
         "type": "object",
         "properties": {
@@ -15858,6 +15911,58 @@
         ],
         "title": "NewResource",
         "description": "A resource to make."
+      },
+      "NewStorageLocation": {
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "title": "Location Id",
+            "description": "Optional imported ID; Holder makes one when omitted or empty."
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The owning project."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Display name."
+          },
+          "provider": {
+            "$ref": "#/components/schemas/LocationProvider",
+            "description": "Storage provider kind."
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/LocationConfiguration",
+            "description": "Portable non-secret provider configuration; empty when omitted."
+          },
+          "created_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "Imported creation time; current time when omitted."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "Imported update time; creation time when omitted."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "provider"
+        ],
+        "title": "NewStorageLocation",
+        "description": "A portable location declaration to create."
       },
       "PrivacyMode": {
         "type": "string",
@@ -16362,6 +16467,98 @@
           "data"
         ],
         "title": "ProjectResponse"
+      },
+      "ProjectStorageLocation": {
+        "properties": {
+          "location_id": {
+            "$ref": "#/components/schemas/LocationId",
+            "description": "The location's ID."
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId",
+            "description": "The owning project."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Display name."
+          },
+          "provider": {
+            "$ref": "#/components/schemas/LocationProvider",
+            "description": "Storage provider kind."
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/LocationConfiguration",
+            "description": "Portable non-secret provider configuration."
+          },
+          "bound": {
+            "type": "boolean",
+            "title": "Bound",
+            "description": "Whether this device has a private binding."
+          },
+          "binding_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Preview",
+            "description": "Safe binding display text, or null; credentials are never returned."
+          },
+          "created_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "When the declaration was created."
+          },
+          "updated_at": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "When the declaration was last updated."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "location_id",
+          "project_id",
+          "name",
+          "provider",
+          "configuration",
+          "bound",
+          "binding_preview",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectStorageLocation",
+        "description": "A portable declaration with this device's binding status."
+      },
+      "ProjectStorageLocationResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectStorageLocation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "ProjectStorageLocationResponse"
       },
       "ProjectUpdate": {
         "properties": {
@@ -17534,67 +17731,31 @@
           "preferred_location_id"
         ]
       },
-      "StorageLocationRequest": {
-        "type": "object",
+      "StorageLocationUpdate": {
         "properties": {
-          "location_id": {
-            "type": "string",
-            "description": "Optional; server generates if omitted or empty."
-          },
-          "project_id": {
-            "type": "string"
-          },
           "name": {
-            "type": "string"
-          },
-          "provider": {
             "type": "string",
-            "enum": [
-              "local_directory",
-              "s3_compatible",
-              "google-drive"
-            ]
+            "minLength": 1,
+            "title": "Name",
+            "description": "Replacement display name."
           },
           "configuration": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional; server uses current time if omitted."
+            "$ref": "#/components/schemas/LocationConfiguration",
+            "description": "Replacement configuration map."
           },
           "updated_at": {
             "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "format": "int64",
-            "description": "Optional; server uses created_at if omitted."
+            "title": "Updated At",
+            "description": "Update time; current time when omitted."
           }
         },
-        "required": [
-          "project_id",
-          "name",
-          "provider"
-        ]
-      },
-      "StorageLocationResponse": {
+        "additionalProperties": false,
         "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/StorageLocation"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
+        "title": "StorageLocationUpdate",
+        "description": "Changes to a portable location declaration."
       },
       "SyncResult": {
         "properties": {

@@ -23,6 +23,7 @@ def pydantic_type(name: str):
     import interface.git
     import interface.history
     import interface.links
+    import interface.locations
     import interface.maintenance
     import interface.milestones
     import interface.projects
@@ -37,6 +38,7 @@ def pydantic_type(name: str):
     for module in (interface.card_references, interface.cards, interface.git, interface.history,
                    interface.links, interface.maintenance, interface.milestones,
                    interface.projects, interface.rebuild, interface.recovery, interface.resources, interface.search,
+                   interface.locations,
                    interface.trash):
         if hasattr(module, name):
             return getattr(module, name)

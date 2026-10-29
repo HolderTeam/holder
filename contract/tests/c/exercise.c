@@ -237,6 +237,25 @@ int main(void) {
     status = holder_attach_card_resource(context, "p1", "c1", "res-1", arena, &attached, &error);
     printf("attach a resource: status %d, %zu attached\n", status, attached->count);
 
+    holder_location_configuration_entry config_entries[] = {{"bucket", "photos"}};
+    holder_location_configuration config = {config_entries, 1};
+    holder_new_storage_location new_location = {0};
+    new_location.location_id = "loc-1";
+    new_location.project_id = "p1";
+    new_location.name = "Photos";
+    new_location.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
+    new_location.configuration = &config;
+    const holder_project_storage_location* location = NULL;
+    status = holder_create_storage_location(context, &new_location, arena, &location, &error);
+    printf("create location: status %d, %s=%s\n", status, location->configuration.items[0].key,
+           location->configuration.items[0].values);
+    holder_location_configuration_entry repeated_config[] = {{"bucket", "a"}, {"bucket", "b"}};
+    holder_location_configuration bad_config = {repeated_config, 2};
+    holder_storage_location_update location_update = {0};
+    location_update.configuration = &bad_config;
+    status = holder_update_storage_location(context, "loc-1", &location_update, arena, &location, &error);
+    report("update location with a repeated option", status, &error);
+
     holder_new_project new_project = {0};
     new_project.name = "Garden";
     const holder_project* project = NULL;

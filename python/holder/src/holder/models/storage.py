@@ -21,12 +21,11 @@ from ..generated.api.default import (
 from ..generated.models import (
     LocationBindingRequest,
     LocationBindingRequestValues,
-    PatchLocationsLocationIdBody,
-    PatchLocationsLocationIdBodyConfiguration,
+    LocationConfiguration,
+    LocationProvider,
+    NewStorageLocation,
     PutLocationsPreferredBody,
-    StorageLocationRequest,
-    StorageLocationRequestConfiguration,
-    StorageLocationRequestProvider,
+    StorageLocationUpdate,
 )
 from ..generated.types import UNSET, Unset
 
@@ -91,14 +90,14 @@ class StorageLocation:
             raise TypeError("name must be a string")
         config = UNSET
         if not isinstance(configuration, Unset):
-            config = PatchLocationsLocationIdBodyConfiguration.from_dict(
+            config = LocationConfiguration.from_dict(
                 _values(configuration)
             )
         self._project.storage_locations.get(self.id)
         self._project._holder._call(
             patch_locations_location_id,
             self.id,
-            body=PatchLocationsLocationIdBody(name=name, configuration=config),
+            body=StorageLocationUpdate(name=name, configuration=config),
             write=True,
         )
         return self.refresh()
@@ -181,17 +180,17 @@ class StorageLocationCollection(Collection[StorageLocation]):
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a nonempty string")
         try:
-            selected = StorageLocationRequestProvider(provider)
+            selected = LocationProvider(provider)
         except ValueError:
             raise ValueError(f"Unsupported storage provider: {provider}") from None
         row = self._holder._call(
             post_locations,
-            body=StorageLocationRequest(
+            body=NewStorageLocation(
                 project_id=self._project.id,
                 name=name,
                 provider=selected,
                 configuration=(
-                    StorageLocationRequestConfiguration.from_dict(
+                    LocationConfiguration.from_dict(
                         _values(configuration)
                     )
                     if configuration is not None

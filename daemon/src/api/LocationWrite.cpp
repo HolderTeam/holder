@@ -3,11 +3,9 @@
 #include "api/support/StorageProviders.h"
 #include "api/support/Time.h"
 #include "platform/Paths.h"
-#include "project/ProjectRepo.h"
 #include "resource/AssetEnvelope.h"
 #include "resource/LocationBindingStore.h"
 #include "resource/LocationRepo.h"
-#include "resource/LocationStore.h"
 
 #include <filesystem>
 #include <fstream>
@@ -16,13 +14,6 @@
 
 namespace holder::api {
 namespace {
-
-std::unique_ptr<holder::resource::LocationBindingStore> binding_store(
-    holder::privacy::SecretStore* secret_store
-) {
-  if (secret_store == nullptr) return nullptr;
-  return std::make_unique<holder::resource::LocationBindingStore>(*secret_store);
-}
 
 holder::resource::LocationBindingStore require_bindings(holder::privacy::SecretStore* secret_store) {
   if (secret_store == nullptr) throw SecretStoreUnavailable{};
@@ -33,16 +24,6 @@ holder::model::Location find_location(holder::platform::Db& db, const std::strin
   auto location = holder::resource::LocationRepo(db).get(location_id);
   if (!location) throw LocationNotFound{};
   return std::move(*location);
-}
-
-// Declarations are committed to the project's Git repository when the daemon has one.
-void save_location(holder::platform::Db& db,
-                   holder::git::GitOps* git_ops,
-                   const holder::model::Location& location) {
-  if (git_ops != nullptr)
-    holder::resource::LocationStore(db, nullptr, git_ops).put(location);
-  else
-    holder::resource::LocationRepo(db).put(location);
 }
 
 // Writes a probe object, checks it is there and removes it, removing it on failure too.
@@ -78,62 +59,6 @@ void probe(holder::resource::StorageProvider& provider,
 }
 
 } // namespace
-
-StorageLocationResponse post_locations(holder::platform::Db& db,
-                                       holder::privacy::SecretStore* secret_store,
-                                       holder::git::GitOps* git_ops,
-                                       const std::function<std::string()>& uuid_v4,
-                                       StorageLocationRequest request) {
-  holder::model::Location location;
-  location.location_id = request.location_id.value_or("");
-  if (location.location_id.empty()) location.location_id = uuid_v4();
-  location.project_id = std::move(request.project_id);
-  location.name = std::move(request.name);
-  location.provider = std::move(request.provider);
-  location.configuration = request.configuration.value_or(std::map<std::string, std::string>{});
-  location.created_at = request.created_at.value_or(support::now_epoch_seconds());
-  location.updated_at = request.updated_at.value_or(location.created_at);
-  if (!holder::project::ProjectRepo(db).get(location.project_id))
-    throw std::invalid_argument("Project not found.");
-  save_location(db, git_ops, location);
-  const auto bindings = binding_store(secret_store);
-  return {true, location_item(location, bindings.get())};
-}
-
-StorageLocationResponse patch_locations_location_id(holder::platform::Db& db,
-                                                    holder::privacy::SecretStore* secret_store,
-                                                    holder::git::GitOps* git_ops,
-                                                    std::string location_id,
-                                                    PatchLocationsLocationIdRequest request) {
-  auto location = find_location(db, location_id);
-  if (request.name) location.name = std::move(*request.name);
-  if (request.configuration) location.configuration = std::move(*request.configuration);
-  location.updated_at = request.updated_at.value_or(support::now_epoch_seconds());
-  save_location(db, git_ops, location);
-  const auto bindings = binding_store(secret_store);
-  return {true, location_item(location, bindings.get())};
-}
-
-LocationActionResponse delete_locations_location_id(holder::platform::Db& db,
-                                                    holder::privacy::SecretStore* secret_store,
-                                                    holder::git::GitOps* git_ops,
-                                                    std::string location_id) {
-  const auto location = find_location(db, location_id);
-  if (git_ops != nullptr) {
-    holder::resource::LocationStore(db, nullptr, git_ops).remove(location_id);
-  } else {
-    holder::resource::LocationRepo repo(db);
-    if (repo.is_in_use(location_id))
-      throw holder::model::ConflictError("storage location is in use by an asset placement");
-    repo.remove(location_id);
-  }
-  if (const auto bindings = binding_store(secret_store)) {
-    if (bindings->preferred(location.project_id) == location_id)
-      bindings->clear_preferred(location.project_id);
-    bindings->unbind(location.project_id, location_id);
-  }
-  return {true, {std::move(location_id), std::nullopt, std::nullopt}};
-}
 
 LocationActionResponse put_locations_location_id_binding(holder::platform::Db& db,
                                                          holder::privacy::SecretStore* secret_store,

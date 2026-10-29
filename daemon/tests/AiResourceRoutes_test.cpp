@@ -67,7 +67,7 @@ struct LocationRouteFixture {
     std::string target = path;
     if (method == http::verb::get) {
       std::map<std::string, std::string> query = params;
-      if (!project.empty()) query.emplace("project_id", project);
+      if (path == "/locations" && !project.empty()) query.emplace("project_id", project);
       char separator = '?';
       for (const auto& [key, value] : query) {
         target += separator + key + "=" + value;
@@ -171,7 +171,7 @@ TEST_CASE("Location routes validate missing services fields and records", "[reso
   for (auto method : {http::verb::get, http::verb::patch, http::verb::delete_}) {
     CHECK(f.call(method, "/locations/missing", body_for(method)).result() == http::status::not_found);
   }
-  CHECK(f.call(http::verb::patch, "/locations/missing").result() == http::status::bad_request);
+  CHECK(f.call(http::verb::patch, "/locations/missing").result() == http::status::not_found);
   for (auto method : {http::verb::put, http::verb::delete_}) {
     CHECK(
         f.call(method, "/locations/missing/binding", body_for(method)).result() ==

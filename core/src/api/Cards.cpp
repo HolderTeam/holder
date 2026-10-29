@@ -33,7 +33,7 @@ namespace {
 constexpr int MAX_CONTENT_PAGE = 1000;
 
 
-Card full_card(holder_context& context, holder::card::CardStore& store, const holder::model::Card& card) {
+Card full_card(holder::card::CardStore& store, const holder::model::Card& card) {
   auto content = store.get_content(card);
   if (!content) throw NotFound("card content missing: " + card.card_id);
   // Tags are read from the content, so a card in the trash, which the tag index leaves out, has them too.
@@ -105,7 +105,7 @@ const char* order_name(ListCardsOrder order) {
 
 Card find_card(holder_context& context, const std::string& project_id, const std::string& card_id) {
   auto store = card_store(context);
-  return full_card(context, store, live_card(store, project_id, card_id));
+  return full_card(store, live_card(store, project_id, card_id));
 }
 
 Page<CardListItem> list_page(holder_context& context, const std::string& project_id,
@@ -193,7 +193,7 @@ Card create(holder_context& context, const std::string& project_id, const NewCar
   }
   const auto created = store.get(card.card_id);
   if (!created) throw Error("the created card cannot be read back: " + card.card_id);
-  return full_card(context, store, *created);
+  return full_card(store, *created);
 }
 
 // Whether parent is the card itself or one of its descendants: a parent the card cannot go under.
@@ -220,10 +220,10 @@ void check_parent(holder::card::CardStore& store, const holder::model::Card& car
 }
 
 // The card as a write left it.
-Card read_back(holder_context& context, holder::card::CardStore& store, const std::string& card_id) {
+Card read_back(holder::card::CardStore& store, const std::string& card_id) {
   const auto card = store.get(card_id);
   if (!card) throw Error("the card cannot be read back: " + card_id);
-  return full_card(context, store, *card);
+  return full_card(store, *card);
 }
 
 // A placement core refuses, as the contract's error kinds. A target or parent in another project is
@@ -272,7 +272,7 @@ Card update(holder_context& context, const std::string& project_id, const std::s
   } catch (const holder::card::CardPlacementError& error) {
     placement_failed(error);
   }
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 Card trash(holder_context& context, const std::string& project_id, const std::string& card_id,
@@ -282,7 +282,7 @@ Card trash(holder_context& context, const std::string& project_id, const std::st
   store.trash(card_id, now_epoch_seconds(),
               children == TrashCardChildren::TrashSubtree ? holder::card::TrashChildren::TrashSubtree
                                                           : holder::card::TrashChildren::Promote);
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 Card restore(holder_context& context, const std::string& project_id, const std::string& card_id) {
@@ -291,7 +291,7 @@ Card restore(holder_context& context, const std::string& project_id, const std::
   if (!card) throw NotFound("card not found: " + card_id);
   if (!card->deleted_at) throw Conflict("the card is not in the trash: " + card_id);
   store.restore(card_id, now_epoch_seconds());
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 holder::card::CardPlacementIntent placement_intent(CardMoveIntent intent) {
@@ -337,7 +337,7 @@ Card move(holder_context& context, const std::string& project_id, const std::str
   } catch (const holder::card::CardPlacementError& error) {
     placement_failed(error);
   }
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 // A tag, checked before anything is read: an argument that is not a tag is invalid whatever the card.
@@ -353,7 +353,7 @@ Card add_tag(holder_context& context, const std::string& project_id, const std::
   live_card(store, project_id, card_id);
   // A card that already carries the tag, anywhere in its content, is left as it is.
   store.add_tag(card_id, tag, now_epoch_seconds());
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 Card remove_tag(holder_context& context, const std::string& project_id, const std::string& card_id,
@@ -369,12 +369,12 @@ Card remove_tag(holder_context& context, const std::string& project_id, const st
     const auto tags = holder::core::extract_tags(body);
     return std::find(tags.begin(), tags.end(), normalized) != tags.end();
   };
-  if (!carries(*content)) return read_back(context, store, card_id);
+  if (!carries(*content)) return read_back(store, card_id);
   if (carries(holder::core::remove_from_trailing_tag_line(*content, normalized).new_body))
     throw Conflict("the card carries #" + normalized +
                    " in its prose, which Holder does not rewrite; edit its content to remove it");
   store.remove_tag(card_id, tag, now_epoch_seconds());
-  return read_back(context, store, card_id);
+  return read_back(store, card_id);
 }
 
 std::vector<TagCount> project_tags(holder_context& context, const std::string& project_id) {

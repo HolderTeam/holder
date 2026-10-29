@@ -53,6 +53,12 @@ from .history import (
     RevisionRef,
 )
 from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
+from .locations import (
+    LocationDeleteResult,
+    NewStorageLocation,
+    ProjectStorageLocation,
+    StorageLocationUpdate,
+)
 from .maintenance import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
@@ -89,6 +95,28 @@ contract = Contract(statuses={
 # What every write to a card's file may fail with, besides its own errors: an encrypted project's key.
 KEYS = [KeyringUnavailable, KeyMissing, DataCorrupted]
 app = contract.app
+
+
+@contract.route("GET", "/locations/{location_id}", errors=[NotFound])
+def get_storage_location(location_id: Annotated[str, Path(min_length=1)]) -> ProjectStorageLocation:
+    """Get a storage declaration and this device's binding status."""
+
+
+@contract.route("POST", "/locations", status=201, errors=[NotFound])
+def create_storage_location(request: Annotated[NewStorageLocation, Body()]) -> ProjectStorageLocation:
+    """Create a project's portable storage declaration."""
+
+
+@contract.route("PATCH", "/locations/{location_id}", errors=[NotFound])
+def update_storage_location(
+    location_id: Annotated[str, Path(min_length=1)], request: Annotated[StorageLocationUpdate, Body()],
+) -> ProjectStorageLocation:
+    """Change a storage declaration; configuration replaces the whole map."""
+
+
+@contract.route("DELETE", "/locations/{location_id}", errors=[NotFound, Conflict])
+def delete_storage_location(location_id: Annotated[str, Path(min_length=1)]) -> LocationDeleteResult:
+    """Delete an unused declaration, its binding and its preferred setting on this device."""
 
 
 @contract.route("GET", "/projects/{project_id}/cards/{card_id}",

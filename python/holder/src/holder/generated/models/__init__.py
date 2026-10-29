@@ -191,6 +191,10 @@ from .location_action_response import LocationActionResponse
 from .location_action_response_data import LocationActionResponseData
 from .location_binding_request import LocationBindingRequest
 from .location_binding_request_values import LocationBindingRequestValues
+from .location_configuration import LocationConfiguration
+from .location_delete_result import LocationDeleteResult
+from .location_delete_result_response import LocationDeleteResultResponse
+from .location_provider import LocationProvider
 from .location_test_response import LocationTestResponse
 from .location_test_response_data import LocationTestResponseData
 from .milestone import Milestone
@@ -203,10 +207,7 @@ from .new_link import NewLink
 from .new_milestone import NewMilestone
 from .new_project import NewProject
 from .new_resource import NewResource
-from .patch_locations_location_id_body import PatchLocationsLocationIdBody
-from .patch_locations_location_id_body_configuration import (
-    PatchLocationsLocationIdBodyConfiguration,
-)
+from .new_storage_location import NewStorageLocation
 from .post_ai_runner_pull_body import PostAiRunnerPullBody
 from .privacy_mode import PrivacyMode
 from .project import Project
@@ -226,6 +227,8 @@ from .project_recovery_token_import_result_response import (
     ProjectRecoveryTokenImportResultResponse,
 )
 from .project_response import ProjectResponse
+from .project_storage_location import ProjectStorageLocation
+from .project_storage_location_response import ProjectStorageLocationResponse
 from .project_update import ProjectUpdate
 from .pull_phase import PullPhase
 from .pull_phase_status import PullPhaseStatus
@@ -272,10 +275,7 @@ from .storage_location import StorageLocation
 from .storage_location_configuration import StorageLocationConfiguration
 from .storage_location_list_response import StorageLocationListResponse
 from .storage_location_provider import StorageLocationProvider
-from .storage_location_request import StorageLocationRequest
-from .storage_location_request_configuration import StorageLocationRequestConfiguration
-from .storage_location_request_provider import StorageLocationRequestProvider
-from .storage_location_response import StorageLocationResponse
+from .storage_location_update import StorageLocationUpdate
 from .sync_result import SyncResult
 from .sync_result_response import SyncResultResponse
 from .sync_result_status import SyncResultStatus
@@ -467,6 +467,10 @@ __all__ = (
     "LocationActionResponseData",
     "LocationBindingRequest",
     "LocationBindingRequestValues",
+    "LocationConfiguration",
+    "LocationDeleteResult",
+    "LocationDeleteResultResponse",
+    "LocationProvider",
     "LocationTestResponse",
     "LocationTestResponseData",
     "Milestone",
@@ -479,8 +483,7 @@ __all__ = (
     "NewMilestone",
     "NewProject",
     "NewResource",
-    "PatchLocationsLocationIdBody",
-    "PatchLocationsLocationIdBodyConfiguration",
+    "NewStorageLocation",
     "PostAiRunnerPullBody",
     "PrivacyMode",
     "Project",
@@ -496,6 +499,8 @@ __all__ = (
     "ProjectRecoveryTokenImportResult",
     "ProjectRecoveryTokenImportResultResponse",
     "ProjectResponse",
+    "ProjectStorageLocation",
+    "ProjectStorageLocationResponse",
     "ProjectUpdate",
     "PullPhase",
     "PullPhaseStatus",
@@ -538,10 +543,7 @@ __all__ = (
     "StorageLocationConfiguration",
     "StorageLocationListResponse",
     "StorageLocationProvider",
-    "StorageLocationRequest",
-    "StorageLocationRequestConfiguration",
-    "StorageLocationRequestProvider",
-    "StorageLocationResponse",
+    "StorageLocationUpdate",
     "SyncResult",
     "SyncResultResponse",
     "SyncResultStatus",

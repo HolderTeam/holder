@@ -4,42 +4,39 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..models.storage_location_request_provider import StorageLocationRequestProvider
+from ..models.location_provider import LocationProvider
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.storage_location_request_configuration import (
-        StorageLocationRequestConfiguration,
-    )
+    from ..models.location_configuration import LocationConfiguration
 
 
-T = TypeVar("T", bound="StorageLocationRequest")
+T = TypeVar("T", bound="NewStorageLocation")
 
 
 @_attrs_define
-class StorageLocationRequest:
-    """
+class NewStorageLocation:
+    """A portable location declaration to create.
+
     Attributes:
         project_id (str):
-        name (str):
-        provider (StorageLocationRequestProvider):
-        location_id (str | Unset): Optional; server generates if omitted or empty.
-        configuration (StorageLocationRequestConfiguration | Unset):
-        created_at (int | Unset): Optional; server uses current time if omitted.
-        updated_at (int | Unset): Optional; server uses created_at if omitted.
+        name (str): Display name.
+        provider (LocationProvider):
+        location_id (str | Unset): Optional imported ID; Holder makes one when omitted or empty.
+        configuration (LocationConfiguration | Unset):
+        created_at (int | Unset): Imported creation time; current time when omitted.
+        updated_at (int | Unset): Imported update time; creation time when omitted.
     """
 
     project_id: str
     name: str
-    provider: StorageLocationRequestProvider
+    provider: LocationProvider
     location_id: str | Unset = UNSET
-    configuration: StorageLocationRequestConfiguration | Unset = UNSET
+    configuration: LocationConfiguration | Unset = UNSET
     created_at: int | Unset = UNSET
     updated_at: int | Unset = UNSET
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         project_id = self.project_id
@@ -59,7 +56,7 @@ class StorageLocationRequest:
         updated_at = self.updated_at
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "project_id": project_id,
@@ -80,8 +77,8 @@ class StorageLocationRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.storage_location_request_configuration import (
-            StorageLocationRequestConfiguration,
+        from ..models.location_configuration import (
+            LocationConfiguration,
         )
 
         d = dict(src_dict)
@@ -89,24 +86,22 @@ class StorageLocationRequest:
 
         name = d.pop("name")
 
-        provider = StorageLocationRequestProvider(d.pop("provider"))
+        provider = LocationProvider(d.pop("provider"))
 
         location_id = d.pop("location_id", UNSET)
 
         _configuration = d.pop("configuration", UNSET)
-        configuration: StorageLocationRequestConfiguration | Unset
+        configuration: LocationConfiguration | Unset
         if isinstance(_configuration, Unset):
             configuration = UNSET
         else:
-            configuration = StorageLocationRequestConfiguration.from_dict(
-                _configuration
-            )
+            configuration = LocationConfiguration.from_dict(_configuration)
 
         created_at = d.pop("created_at", UNSET)
 
         updated_at = d.pop("updated_at", UNSET)
 
-        storage_location_request = cls(
+        new_storage_location = cls(
             project_id=project_id,
             name=name,
             provider=provider,
@@ -116,21 +111,4 @@ class StorageLocationRequest:
             updated_at=updated_at,
         )
 
-        storage_location_request.additional_properties = d
-        return storage_location_request
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
+        return new_storage_location

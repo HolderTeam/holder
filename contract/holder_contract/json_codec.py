@@ -219,6 +219,10 @@ def field_decoder(model: Model, slot: Slot, label: str) -> str:
         raise Unsupported(f"{label}: bounds on a float64")
     if kind == "map":
         # Each key and each value is checked as text.
+        if model.resolve(t["values"])["kind"] == "string":
+            return (f'[&] {{ auto entries = {value}; for (const auto& [key, text] : entries) {{ '
+                    f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
+                    f'check_text(text, "{label}", 0, std::numeric_limits<std::size_t>::max()); }} return entries; }}()')
         return (f'[&] {{ auto entries = {value}; for (const auto& [key, values] : entries) {{ '
                 f'check_text(key, "{label} key", 0, std::numeric_limits<std::size_t>::max()); '
                 f'for (const auto& text : values) '

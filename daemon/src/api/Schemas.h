@@ -136,11 +136,6 @@ struct RIG_OPEN_RECORD StorageLocation {
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD StorageLocationResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  StorageLocation data;
-};
-
 struct RIG_OPEN_RECORD EventCheckpoint {
   std::string cursor RIG_FIELD_DESCRIPTION("Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID.");
   std::map<std::string, std::optional<std::string>> git_revisions RIG_FIELD_DESCRIPTION("Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state.");

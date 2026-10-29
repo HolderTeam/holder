@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -106,6 +106,27 @@ template <class T>
 struct Page {
   std::vector<T> items;  ///< The page's items.
   std::optional<std::string> next_cursor;  ///< Pass back to get the next page; null on the last page.
+};
+
+/// Storage provider kind.
+enum class NewStorageLocationProvider { LocalDirectory, S3Compatible, GoogleDrive };
+
+/// A portable location declaration to create.
+struct NewStorageLocation {
+  std::optional<std::string> location_id;  ///< Optional imported ID; Holder makes one when omitted or empty.
+  std::string project_id;  ///< The owning project.
+  std::string name;  ///< Display name.
+  NewStorageLocationProvider provider;  ///< Storage provider kind.
+  std::optional<std::map<std::string, std::string>> configuration;  ///< Portable non-secret provider configuration; empty when omitted.
+  std::optional<long long> created_at;  ///< Imported creation time; current time when omitted.
+  std::optional<long long> updated_at;  ///< Imported update time; creation time when omitted.
+};
+
+/// Changes to a portable location declaration.
+struct StorageLocationUpdate {
+  std::optional<std::string> name;  ///< Replacement display name.
+  std::optional<std::map<std::string, std::string>> configuration;  ///< Replacement configuration map.
+  std::optional<long long> updated_at;  ///< Update time; current time when omitted.
 };
 
 /// Which cards may match.
@@ -250,6 +271,27 @@ struct PushOptions {
 /// A remote to test.
 struct RemoteTest {
   std::optional<std::string> remote_url;  ///< The Git remote to test; omit for the project's own.
+};
+
+/// Storage provider kind.
+enum class ProjectStorageLocationProvider { LocalDirectory, S3Compatible, GoogleDrive };
+
+/// A portable declaration with this device's binding status.
+struct ProjectStorageLocation {
+  std::string location_id;  ///< The location's ID.
+  std::string project_id;  ///< The owning project.
+  std::string name;  ///< Display name.
+  ProjectStorageLocationProvider provider;  ///< Storage provider kind.
+  std::map<std::string, std::string> configuration;  ///< Portable non-secret provider configuration.
+  bool bound{};  ///< Whether this device has a private binding.
+  std::optional<std::string> binding_preview;  ///< Safe binding display text, or null; credentials are never returned.
+  long long created_at{};  ///< When the declaration was created.
+  long long updated_at{};  ///< When the declaration was last updated.
+};
+
+/// The location affected by an action.
+struct LocationDeleteResult {
+  std::string location_id;  ///< The affected location ID.
 };
 
 /// A tag written in a card's content.
@@ -725,6 +767,22 @@ struct SearchMessage {
   std::string snippet;  ///< A highlighted excerpt from the match.
   double rank{};  ///< The FTS relevance score; lower scores rank first.
 };
+
+/// Get a storage declaration and this device's binding status.
+/// @throws NotFound
+ProjectStorageLocation get_storage_location(holder_context& context, std::string location_id);
+
+/// Create a project's portable storage declaration.
+/// @throws NotFound
+ProjectStorageLocation create_storage_location(holder_context& context, const NewStorageLocation& request);
+
+/// Change a storage declaration; configuration replaces the whole map.
+/// @throws NotFound
+ProjectStorageLocation update_storage_location(holder_context& context, std::string location_id, const StorageLocationUpdate& request);
+
+/// Delete an unused declaration, its binding and its preferred setting on this device.
+/// @throws NotFound, Conflict
+LocationDeleteResult delete_storage_location(holder_context& context, std::string location_id);
 
 /// Fetch a card.
 /// A card in the trash or in another project is not found.

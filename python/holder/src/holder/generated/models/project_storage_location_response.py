@@ -8,22 +8,22 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.storage_location import StorageLocation
+    from ..models.project_storage_location import ProjectStorageLocation
 
 
-T = TypeVar("T", bound="StorageLocationResponse")
+T = TypeVar("T", bound="ProjectStorageLocationResponse")
 
 
 @_attrs_define
-class StorageLocationResponse:
+class ProjectStorageLocationResponse:
     """
     Attributes:
         ok (bool):
-        data (StorageLocation):
+        data (ProjectStorageLocation): A portable declaration with this device's binding status.
     """
 
     ok: bool
-    data: StorageLocation
+    data: ProjectStorageLocation
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,20 +44,22 @@ class StorageLocationResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.storage_location import StorageLocation
+        from ..models.project_storage_location import (
+            ProjectStorageLocation,
+        )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = StorageLocation.from_dict(d.pop("data"))
+        data = ProjectStorageLocation.from_dict(d.pop("data"))
 
-        storage_location_response = cls(
+        project_storage_location_response = cls(
             ok=ok,
             data=data,
         )
 
-        storage_location_response.additional_properties = d
-        return storage_location_response
+        project_storage_location_response.additional_properties = d
+        return project_storage_location_response
 
     @property
     def additional_keys(self) -> list[str]:

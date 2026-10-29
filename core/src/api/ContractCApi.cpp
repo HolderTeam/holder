@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -197,6 +197,25 @@ contract::Change<std::string> changed_text(const holder_string_change& value, co
   }
 }
 
+holder_location_configuration to_c_location_configuration(holder_arena* arena, const std::map<std::string, std::string>& value) {
+  auto* items = make<holder_location_configuration_entry>(arena, value.size());
+  std::size_t i = 0;
+  for (const auto& [key, text] : value) items[i++] = {copy(arena, key), copy(arena, text)};
+  return {items, value.size()};
+}
+
+std::map<std::string, std::string> from_c_location_configuration(const holder_location_configuration& value, const char* name) {
+  require(value.items != nullptr || value.count == 0, std::string(name) + ".items must not be null");
+  std::map<std::string, std::string> out;
+  for (std::size_t i = 0; i < value.count; ++i) {
+    const auto& entry = value.items[i];
+    auto key = text(entry.key, (std::string(name) + " key").c_str(), 0, SIZE_MAX);
+    auto value_text = text(entry.values, (std::string(name) + "." + key).c_str(), 0, SIZE_MAX);
+    require(out.emplace(std::move(key), std::move(value_text)).second, std::string(name) + " repeats a key");
+  }
+  return out;
+}
+
 holder_resource_metadata to_c_resource_metadata(holder_arena* arena, const std::map<std::string, std::vector<std::string>>& value) {
   auto* items = make<holder_resource_metadata_entry>(arena, value.size());
   std::size_t i = 0;
@@ -218,6 +237,15 @@ std::map<std::string, std::vector<std::string>> from_c_resource_metadata(const h
     require(out.emplace(std::move(key), std::move(values)).second, std::string(name) + " repeats a key");
   }
   return out;
+}
+
+holder_project_storage_location_provider to_c_enum(contract::ProjectStorageLocationProvider value) {
+  switch (value) {
+  case contract::ProjectStorageLocationProvider::LocalDirectory: return HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY;
+  case contract::ProjectStorageLocationProvider::S3Compatible: return HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE;
+  case contract::ProjectStorageLocationProvider::GoogleDrive: return HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE;
+  }
+  throw std::logic_error("not a contract::ProjectStorageLocationProvider value");
 }
 
 holder_card_breadcrumb_kind to_c_enum(contract::CardBreadcrumbKind value) {
@@ -354,6 +382,8 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
   throw std::logic_error("not a contract::TrashItemType value");
 }
 
+holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value);
+holder_location_delete_result to_c(holder_arena* arena, const contract::LocationDeleteResult& value);
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
@@ -429,6 +459,26 @@ holder_search_card to_c(holder_arena* arena, const contract::SearchCard& value);
 holder_search_card_list to_c_list(holder_arena* arena, const std::vector<contract::SearchCard>& values);
 holder_search_message to_c(holder_arena* arena, const contract::SearchMessage& value);
 holder_search_message_list to_c_list(holder_arena* arena, const std::vector<contract::SearchMessage>& values);
+
+holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value) {
+  holder_project_storage_location out{};
+  out.location_id = copy(arena, value.location_id);
+  out.project_id = copy(arena, value.project_id);
+  out.name = copy(arena, value.name);
+  out.provider = to_c_enum(value.provider);
+  out.configuration = to_c_location_configuration(arena, value.configuration);
+  out.bound = value.bound;
+  out.binding_preview = copy_text(arena, value.binding_preview);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_location_delete_result to_c(holder_arena* arena, const contract::LocationDeleteResult& value) {
+  holder_location_delete_result out{};
+  out.location_id = copy(arena, value.location_id);
+  return out;
+}
 
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value) {
   holder_tag_occurrence out{};
@@ -1103,6 +1153,31 @@ holder_search_message_list to_c_list(holder_arena* arena, const std::vector<cont
   return {items, values.size()};
 }
 
+contract::NewStorageLocation from_c(const holder_new_storage_location& value) {
+  contract::NewStorageLocation out;
+  out.location_id = optional_text(value.location_id, "new_storage_location.location_id", 0, SIZE_MAX);
+  out.project_id = text(value.project_id, "new_storage_location.project_id", 1, SIZE_MAX);
+  out.name = text(value.name, "new_storage_location.name", 1, SIZE_MAX);
+  switch (value.provider) {
+  case HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY: out.provider = contract::NewStorageLocationProvider::LocalDirectory; break;
+  case HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE: out.provider = contract::NewStorageLocationProvider::S3Compatible; break;
+  case HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE: out.provider = contract::NewStorageLocationProvider::GoogleDrive; break;
+  default: throw ArgumentError("new_storage_location.provider is not a holder_new_storage_location_provider value");
+  }
+  out.configuration = (value.configuration ? std::optional<std::map<std::string, std::string>>(from_c_location_configuration(*value.configuration, "new_storage_location.configuration")) : std::nullopt);
+  out.created_at = (value.created_at ? std::optional<long long>(*value.created_at) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
+  return out;
+}
+
+contract::StorageLocationUpdate from_c(const holder_storage_location_update& value) {
+  contract::StorageLocationUpdate out;
+  out.name = optional_text(value.name, "storage_location_update.name", 1, SIZE_MAX);
+  out.configuration = (value.configuration ? std::optional<std::map<std::string, std::string>>(from_c_location_configuration(*value.configuration, "storage_location_update.configuration")) : std::nullopt);
+  out.updated_at = (value.updated_at ? std::optional<long long>(*value.updated_at) : std::nullopt);
+  return out;
+}
+
 contract::CardReferenceResolveRequest from_c(const holder_card_reference_resolve_request& value) {
   contract::CardReferenceResolveRequest out;
   out.project_id = text(value.project_id, "card_reference_resolve_request.project_id", 1, SIZE_MAX);
@@ -1294,6 +1369,57 @@ extern "C" {
 
 holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }
 void holder_arena_free(holder_arena* arena) { delete arena; }
+
+int holder_get_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_storage_location != nullptr, "out_project_storage_location must not be null");
+    *out_project_storage_location = nullptr;
+    const auto location_id_value = text(location_id, "location_id", 1, SIZE_MAX);
+    auto* out = make<holder_project_storage_location>(arena);
+    *out = to_c(arena, contract::get_storage_location(*context, location_id_value));
+    *out_project_storage_location = out;
+  });
+}
+
+int holder_create_storage_location(holder_context* context, const holder_new_storage_location* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_storage_location != nullptr, "out_project_storage_location must not be null");
+    *out_project_storage_location = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_project_storage_location>(arena);
+    *out = to_c(arena, contract::create_storage_location(*context, request_value));
+    *out_project_storage_location = out;
+  });
+}
+
+int holder_update_storage_location(holder_context* context, const char* location_id, const holder_storage_location_update* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project_storage_location != nullptr, "out_project_storage_location must not be null");
+    *out_project_storage_location = nullptr;
+    const auto location_id_value = text(location_id, "location_id", 1, SIZE_MAX);
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_project_storage_location>(arena);
+    *out = to_c(arena, contract::update_storage_location(*context, location_id_value, request_value));
+    *out_project_storage_location = out;
+  });
+}
+
+int holder_delete_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_location_delete_result** out_location_delete_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_location_delete_result != nullptr, "out_location_delete_result must not be null");
+    *out_location_delete_result = nullptr;
+    const auto location_id_value = text(location_id, "location_id", 1, SIZE_MAX);
+    auto* out = make<holder_location_delete_result>(arena);
+    *out = to_c(arena, contract::delete_storage_location(*context, location_id_value));
+    *out_location_delete_result = out;
+  });
+}
 
 int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error) {
   return guarded(arena, out_error, [&] {

@@ -75,8 +75,9 @@ def test_a_literal_segment_is_tried_before_a_parameter():
     get_card["path_parameters"] = ["project_id"]
     get_card["query"] = ["card_id"]
     routes = generate_routes(Model(ir), "codec.h")
-    assert (routes.index('regex route_1("^/projects/([^/]+)/cards/latest$")')
-            < routes.index('regex route_0("^/projects/([^/]+)/cards/([^/]+)$")'))
+    literal = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/latest\$"\)', routes)
+    parameter = re.search(r'regex route_\d+\("\^/projects/\(\[\^/\]\+\)/cards/\(\[\^/\]\+\)\$"\)', routes)
+    assert literal and parameter and literal.start() < parameter.start()
 
 
 # ---- generated files ---------------------------------------------------------------------------

@@ -6,14 +6,14 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.storage_location_request import StorageLocationRequest
-from ...models.storage_location_response import StorageLocationResponse
+from ...models.new_storage_location import NewStorageLocation
+from ...models.project_storage_location_response import ProjectStorageLocationResponse
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: StorageLocationRequest,
+    body: NewStorageLocation,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -32,9 +32,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | StorageLocationResponse | None:
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
     if response.status_code == 201:
-        response_201 = StorageLocationResponse.from_dict(response.json())
+        response_201 = ProjectStorageLocationResponse.from_dict(response.json())
 
         return response_201
 
@@ -47,6 +47,11 @@ def _parse_response(
         response_401 = ErrorResponse.from_dict(response.json())
 
         return response_401
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
 
     if response.status_code == 500:
         response_500 = ErrorResponse.from_dict(response.json())
@@ -61,7 +66,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | StorageLocationResponse]:
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -73,19 +78,21 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: StorageLocationRequest,
-) -> Response[ErrorResponse | StorageLocationResponse]:
-    """Create a storage location declaration
+    body: NewStorageLocation,
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
+    """Create a project's portable storage declaration.
+
+     Create a project's portable storage declaration.
 
     Args:
-        body (StorageLocationRequest):
+        body (NewStorageLocation): A portable location declaration to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | StorageLocationResponse]
+        Response[ErrorResponse | ProjectStorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -102,19 +109,21 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: StorageLocationRequest,
-) -> ErrorResponse | StorageLocationResponse | None:
-    """Create a storage location declaration
+    body: NewStorageLocation,
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
+    """Create a project's portable storage declaration.
+
+     Create a project's portable storage declaration.
 
     Args:
-        body (StorageLocationRequest):
+        body (NewStorageLocation): A portable location declaration to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | StorageLocationResponse
+        ErrorResponse | ProjectStorageLocationResponse
     """
 
     return sync_detailed(
@@ -126,19 +135,21 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: StorageLocationRequest,
-) -> Response[ErrorResponse | StorageLocationResponse]:
-    """Create a storage location declaration
+    body: NewStorageLocation,
+) -> Response[ErrorResponse | ProjectStorageLocationResponse]:
+    """Create a project's portable storage declaration.
+
+     Create a project's portable storage declaration.
 
     Args:
-        body (StorageLocationRequest):
+        body (NewStorageLocation): A portable location declaration to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | StorageLocationResponse]
+        Response[ErrorResponse | ProjectStorageLocationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -153,19 +164,21 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: StorageLocationRequest,
-) -> ErrorResponse | StorageLocationResponse | None:
-    """Create a storage location declaration
+    body: NewStorageLocation,
+) -> ErrorResponse | ProjectStorageLocationResponse | None:
+    """Create a project's portable storage declaration.
+
+     Create a project's portable storage declaration.
 
     Args:
-        body (StorageLocationRequest):
+        body (NewStorageLocation): A portable location declaration to create.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | StorageLocationResponse
+        ErrorResponse | ProjectStorageLocationResponse
     """
 
     return (
