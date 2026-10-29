@@ -19,7 +19,7 @@ class AssetImportJobResponse:
     """
     Attributes:
         ok (bool):
-        data (AssetImportJob):
+        data (AssetImportJob): The current state of an asset import job, held in daemon memory.
     """
 
     ok: bool

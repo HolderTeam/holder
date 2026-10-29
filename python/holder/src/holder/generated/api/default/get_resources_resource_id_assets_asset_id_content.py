@@ -15,12 +15,17 @@ def _get_kwargs(
     resource_id: str,
     asset_id: str,
     *,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["placement_id"] = placement_id
+    json_placement_id: None | str | Unset
+    if isinstance(placement_id, Unset):
+        json_placement_id = UNSET
+    else:
+        json_placement_id = placement_id
+    params["placement_id"] = json_placement_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -68,6 +73,11 @@ def _parse_response(
 
         return response_422
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if response.status_code == 502:
         response_502 = ErrorResponse.from_dict(response.json())
 
@@ -105,18 +115,19 @@ def sync_detailed(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -144,18 +155,19 @@ def sync(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -178,18 +190,19 @@ async def asyncio_detailed(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -215,18 +228,19 @@ async def asyncio(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -251,18 +265,19 @@ def stream(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> ByteStream:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -288,18 +303,19 @@ def astream(
     asset_id: str,
     *,
     client: AuthenticatedClient | Client,
-    placement_id: str | Unset = UNSET,
+    placement_id: None | str | Unset = UNSET,
 ) -> AsyncByteStream:
-    """Stream verified asset content
+    """Stream verified asset content.
 
-     Authenticated binary download. Content-Type preserves the asset media type and Content-Disposition
-    contains a sanitized quoted original filename. Successful content is arbitrary bytes, not a JSON
-    envelope; failures use ErrorResponse. Without placement_id the daemon selects a stored placement.
+     This authenticated download returns raw bytes. Content-Type preserves the asset media type and
+    Content-Disposition contains a sanitized original filename. Without placement_id the daemon selects
+    a
+    stored placement.
 
     Args:
         resource_id (str):
         asset_id (str):
-        placement_id (str | Unset):
+        placement_id (None | str | Unset):
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.

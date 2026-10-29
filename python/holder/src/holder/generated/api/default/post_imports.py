@@ -95,13 +95,13 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: AssetImportRequest,
 ) -> Response[AssetImportJobResponse | ErrorResponse]:
-    """Start a local-file asset import
+    """Start a local-file asset import.
 
-     The location and its credentials are checked before the job is queued; failures after that are
-    reported by polling GET /imports/{job_id}.
+     The location and its credentials are checked before the job is queued. Poll the job for later
+    failures.
 
     Args:
-        body (AssetImportRequest):
+        body (AssetImportRequest): Start importing a local file into a project resource.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -127,13 +127,13 @@ def sync(
     client: AuthenticatedClient | Client,
     body: AssetImportRequest,
 ) -> AssetImportJobResponse | ErrorResponse | None:
-    """Start a local-file asset import
+    """Start a local-file asset import.
 
-     The location and its credentials are checked before the job is queued; failures after that are
-    reported by polling GET /imports/{job_id}.
+     The location and its credentials are checked before the job is queued. Poll the job for later
+    failures.
 
     Args:
-        body (AssetImportRequest):
+        body (AssetImportRequest): Start importing a local file into a project resource.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -154,13 +154,13 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: AssetImportRequest,
 ) -> Response[AssetImportJobResponse | ErrorResponse]:
-    """Start a local-file asset import
+    """Start a local-file asset import.
 
-     The location and its credentials are checked before the job is queued; failures after that are
-    reported by polling GET /imports/{job_id}.
+     The location and its credentials are checked before the job is queued. Poll the job for later
+    failures.
 
     Args:
-        body (AssetImportRequest):
+        body (AssetImportRequest): Start importing a local file into a project resource.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -184,13 +184,13 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: AssetImportRequest,
 ) -> AssetImportJobResponse | ErrorResponse | None:
-    """Start a local-file asset import
+    """Start a local-file asset import.
 
-     The location and its credentials are checked before the job is queued; failures after that are
-    reported by polling GET /imports/{job_id}.
+     The location and its credentials are checked before the job is queued. Poll the job for later
+    failures.
 
     Args:
-        body (AssetImportRequest):
+        body (AssetImportRequest): Start importing a local file into a project resource.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

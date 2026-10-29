@@ -75,9 +75,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AssetImportJobResponse | ErrorResponse]:
-    """Poll an asset import job
+    """Poll an asset import job.
 
-     Jobs are held in memory, so a job queued before the daemon restarted is not found.
+     A job queued before the daemon restarted is not found.
 
     Args:
         job_id (str):
@@ -106,9 +106,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> AssetImportJobResponse | ErrorResponse | None:
-    """Poll an asset import job
+    """Poll an asset import job.
 
-     Jobs are held in memory, so a job queued before the daemon restarted is not found.
+     A job queued before the daemon restarted is not found.
 
     Args:
         job_id (str):
@@ -132,9 +132,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AssetImportJobResponse | ErrorResponse]:
-    """Poll an asset import job
+    """Poll an asset import job.
 
-     Jobs are held in memory, so a job queued before the daemon restarted is not found.
+     A job queued before the daemon restarted is not found.
 
     Args:
         job_id (str):
@@ -161,9 +161,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> AssetImportJobResponse | ErrorResponse | None:
-    """Poll an asset import job
+    """Poll an asset import job.
 
-     Jobs are held in memory, so a job queued before the daemon restarted is not found.
+     A job queued before the daemon restarted is not found.
 
     Args:
         job_id (str):
