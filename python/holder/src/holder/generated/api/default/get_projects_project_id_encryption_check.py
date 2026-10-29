@@ -75,7 +75,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | ProjectEncryptionCheckResponse]:
-    """Check encrypted project card blobs before push/sync
+    """Check whether an encrypted project's card files are safe to push.
+
+     A plain project needs no check and reports a successful result with zero files.
 
     Args:
         project_id (str):
@@ -104,7 +106,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | ProjectEncryptionCheckResponse | None:
-    """Check encrypted project card blobs before push/sync
+    """Check whether an encrypted project's card files are safe to push.
+
+     A plain project needs no check and reports a successful result with zero files.
 
     Args:
         project_id (str):
@@ -128,7 +132,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | ProjectEncryptionCheckResponse]:
-    """Check encrypted project card blobs before push/sync
+    """Check whether an encrypted project's card files are safe to push.
+
+     A plain project needs no check and reports a successful result with zero files.
 
     Args:
         project_id (str):
@@ -155,7 +161,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | ProjectEncryptionCheckResponse | None:
-    """Check encrypted project card blobs before push/sync
+    """Check whether an encrypted project's card files are safe to push.
+
+     A plain project needs no check and reports a successful result with zero files.
 
     Args:
         project_id (str):

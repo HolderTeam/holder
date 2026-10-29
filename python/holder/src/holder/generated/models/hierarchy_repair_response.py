@@ -19,7 +19,7 @@ class HierarchyRepairResponse:
     """
     Attributes:
         ok (bool):
-        data (HierarchyRepair):
+        data (HierarchyRepair): A plan to make hidden live cards reachable, and whether it was applied.
     """
 
     ok: bool

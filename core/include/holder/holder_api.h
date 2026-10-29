@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -219,6 +219,11 @@ typedef struct holder_project_update {
     holder_string_change git_remote_url; /* The Git remote to sync with; null for none. Zero keeps it. */
     holder_string_change git_provider; /* Who hosts the Git remote; null when unknown. Zero keeps it. */
 } holder_project_update;
+
+/* Ask for a repair plan, or apply it. */
+typedef struct holder_hierarchy_repair_request {
+    const bool* apply; /* Apply the repair. Without it, only report. NULL for the default, false. */
+} holder_hierarchy_repair_request;
 
 /* How to push. */
 typedef struct holder_push_options {
@@ -533,6 +538,48 @@ typedef struct holder_project {
     int64_t created_at; /* When the project was made. */
     int64_t updated_at; /* When the project's settings last changed. */
 } holder_project;
+
+/* Whether an encrypted project's card files are safe to push. */
+typedef struct holder_encryption_safety_check {
+    bool ok; /* Whether every checked file passed. */
+    int32_t checked_files; /* Card files examined. */
+    int32_t unsafe_files; /* Card files that failed the safety check. */
+    holder_string_list unsafe_paths; /* Project-relative paths of unsafe files. */
+    const char* message; /* A short explanation of the result. */
+} holder_encryption_safety_check;
+
+/* How the project's files are stored. */
+typedef enum holder_project_encryption_check_privacy_mode {
+    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_ENCRYPTED_GIT = 1,
+    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN = 2,
+    HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_project_encryption_check_privacy_mode;
+
+/* A project's privacy mode and the result of checking its files. */
+typedef struct holder_project_encryption_check {
+    const char* project_id; /* The project checked. */
+    holder_project_encryption_check_privacy_mode privacy_mode; /* How the project's files are stored. */
+    holder_encryption_safety_check check; /* The safety check's result. */
+} holder_project_encryption_check;
+
+/* A hidden branch's top card and its new parent. */
+typedef struct holder_hierarchy_repair_move {
+    const char* card_id; /* The hidden branch's top card. */
+    const char* parent_card_id; /* Its new parent, or null for a project root. May be NULL. */
+} holder_hierarchy_repair_move;
+
+typedef struct holder_hierarchy_repair_move_list {
+    const holder_hierarchy_repair_move* items;
+    size_t count;
+} holder_hierarchy_repair_move_list;
+
+/* A plan to make hidden live cards reachable, and whether it was applied. */
+typedef struct holder_hierarchy_repair {
+    bool applied; /* Whether changes were written. */
+    holder_hierarchy_repair_move_list moved; /* The hidden branches whose top cards move. */
+    int32_t changed_card_count; /* Cards moved or re-spaced to make room. */
+    holder_string_list cycle_card_ids; /* Cards in parent cycles; left for manual repair. */
+} holder_hierarchy_repair;
 
 /* What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
  * when it will retry.
@@ -1196,6 +1243,19 @@ int holder_update_project(holder_context* context, const char* project_id, const
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_delete_project(holder_context* context, const char* project_id, holder_arena* arena, const holder_project** out_project, holder_error** out_error);
+
+/* Check whether an encrypted project's card files are safe to push.
+ * A plain project needs no check and reports a successful result with zero files.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_check_project_encryption(holder_context* context, const char* project_id, holder_arena* arena, const holder_project_encryption_check** out_project_encryption_check, holder_error** out_error);
+
+/* Find hidden live card branches, and optionally move them into the reachable tree.
+ * An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+ * ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_repair_project_hierarchy(holder_context* context, const char* project_id, const holder_hierarchy_repair_request* request, holder_arena* arena, const holder_hierarchy_repair** out_hierarchy_repair, holder_error** out_error);
 
 /* What this device last recorded about a project's sync.
  * Errors: HOLDER_ERROR_NOT_FOUND.

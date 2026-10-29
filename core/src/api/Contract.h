@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -211,6 +211,11 @@ struct ProjectUpdate {
   Change<std::string> git_provider;  ///< Who hosts the Git remote; null when unknown.
 };
 
+/// Ask for a repair plan, or apply it.
+struct HierarchyRepairRequest {
+  bool apply = false;  ///< Apply the repair. Without it, only report.
+};
+
 /// How to push.
 struct PushOptions {
   std::optional<std::string> branch;  ///< The branch to push; omit for the repository's default.
@@ -389,6 +394,39 @@ struct Project {
 struct ProjectListItem : Project {
   std::optional<std::int32_t> card_count;  ///< The project's live cards; present when asked for.
   std::optional<std::int32_t> root_card_count;  ///< The project's live root cards; present when asked for.
+};
+
+/// Whether an encrypted project's card files are safe to push.
+struct EncryptionSafetyCheck {
+  bool ok{};  ///< Whether every checked file passed.
+  std::int32_t checked_files{};  ///< Card files examined.
+  std::int32_t unsafe_files{};  ///< Card files that failed the safety check.
+  std::vector<std::string> unsafe_paths;  ///< Project-relative paths of unsafe files.
+  std::string message;  ///< A short explanation of the result.
+};
+
+/// How the project's files are stored.
+enum class ProjectEncryptionCheckPrivacyMode { EncryptedGit, Plain };
+
+/// A project's privacy mode and the result of checking its files.
+struct ProjectEncryptionCheck {
+  std::string project_id;  ///< The project checked.
+  ProjectEncryptionCheckPrivacyMode privacy_mode;  ///< How the project's files are stored.
+  EncryptionSafetyCheck check;  ///< The safety check's result.
+};
+
+/// A hidden branch's top card and its new parent.
+struct HierarchyRepairMove {
+  std::string card_id;  ///< The hidden branch's top card.
+  std::optional<std::string> parent_card_id;  ///< Its new parent, or null for a project root.
+};
+
+/// A plan to make hidden live cards reachable, and whether it was applied.
+struct HierarchyRepair {
+  bool applied{};  ///< Whether changes were written.
+  std::vector<HierarchyRepairMove> moved;  ///< The hidden branches whose top cards move.
+  std::int32_t changed_card_count{};  ///< Cards moved or re-spaced to make room.
+  std::vector<std::string> cycle_card_ids;  ///< Cards in parent cycles; left for manual repair.
 };
 
 /// What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
@@ -883,6 +921,17 @@ Project update_project(holder_context& context, std::string project_id, const Pr
 /// bring it back; making it again does. Returns the project as it was.
 /// @throws NotFound
 Project delete_project(holder_context& context, std::string project_id);
+
+/// Check whether an encrypted project's card files are safe to push.
+/// A plain project needs no check and reports a successful result with zero files.
+/// @throws NotFound
+ProjectEncryptionCheck check_project_encryption(holder_context& context, std::string project_id);
+
+/// Find hidden live card branches, and optionally move them into the reachable tree.
+/// An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
+/// ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+HierarchyRepair repair_project_hierarchy(holder_context& context, std::string project_id, const HierarchyRepairRequest& request);
 
 /// What this device last recorded about a project's sync.
 /// @throws NotFound

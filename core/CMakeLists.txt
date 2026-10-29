@@ -136,6 +136,7 @@ set(HOLDER_CORE_SOURCES
   src/api/Links.cpp
   src/api/Milestones.cpp
   src/api/Projects.cpp
+  src/api/ProjectMaintenance.cpp
   src/api/Resources.cpp
   src/api/Search.cpp
   src/api/ContractCApi.cpp

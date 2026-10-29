@@ -327,5 +327,6 @@ TEST_CASE("Project hierarchy repair reports and fixes hidden cards", "[card-page
   http::request<http::string_body> no_store{http::verb::post, "/projects/p/repair-hierarchy", 11};
   http::response<http::string_body> res;
   REQUIRE(holder::api::dispatch_generated_routes(no_store, res, db));
-  CHECK(res.result() == http::status::not_implemented);
+  CHECK(res.result() == http::status::ok);
+  CHECK(nlohmann::json::parse(res.body())["data"]["changed_card_count"] == 0);
 }

@@ -4249,20 +4249,21 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/encryption-check:
     get:
-      summary: Check encrypted project card blobs before push/sync
+      summary: Check whether an encrypted project's card files are safe to push.
+      description: A plain project needs no check and reports a successful result with zero files.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ProjectEncryptionCheckResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -4272,12 +4273,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5095,20 +5096,16 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/repair-hierarchy:
     post:
-      summary: Find, and optionally fix, cards hidden under missing or trashed parents
-      description: A live card whose parent is missing or trashed cannot be reached by browsing from the
-        project's top level. This can happen after an older client trashed a parent, a card file was removed
-        by hand, or a sync brought either in. Without apply, this only reports, reading the database alone
-        (so it works on a locked encrypted project). With apply, each hidden branch moves to its nearest
-        live, reachable ancestor (or the top level), into the place its trashed ancestor held, with its
-        descendants still attached, in one commit. Applying twice changes nothing the second time. Cards
-        in parent cycles are reported and left alone. The daemon also repairs at startup and core repairs
-        after every pull.
+      summary: Find hidden live card branches, and optionally move them into the reachable tree.
+      description: 'An empty body plans without writing. Applying moves each hidden branch to its nearest
+        reachable
+
+        ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.'
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: false
         content:
@@ -5116,12 +5113,12 @@ paths:
             schema: {$ref: '#/components/schemas/HierarchyRepairRequest'}
       responses:
         '200':
-          description: The plan, and whether it was applied
+          description: Successful Response
           content:
             application/json:
               schema: {$ref: '#/components/schemas/HierarchyRepairResponse'}
         '400':
-          description: Invalid body, or a privacy error applying to an encrypted project
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5131,22 +5128,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ErrorResponse'}
-        '501':
-          description: The daemon has no card store
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: The keyring needed to write an encrypted project is unavailable
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -7350,6 +7350,24 @@ components:
       required: [entity, entity_id, project_id, deleted, git_revision]
     DateTime: {type: string, maxLength: 25, minLength: 20}
     Day: {type: string, maxLength: 10, minLength: 10}
+    EncryptionSafetyCheck:
+      properties:
+        ok: {type: boolean, title: Ok, description: Whether every checked file passed.}
+        checked_files: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Checked
+            Files, description: Card files examined.}
+        unsafe_files: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Unsafe Files,
+          description: Card files that failed the safety check.}
+        unsafe_paths:
+          items: {type: string}
+          type: array
+          title: Unsafe Paths
+          description: Project-relative paths of unsafe files.
+        message: {type: string, title: Message, description: A short explanation of the result.}
+      additionalProperties: false
+      type: object
+      required: [ok, checked_files, unsafe_files, unsafe_paths, message]
+      title: EncryptionSafetyCheck
+      description: Whether an encrypted project's card files are safe to push.
     Error:
       type: object
       properties:
@@ -7438,40 +7456,53 @@ components:
         data: {$ref: '#/components/schemas/HealthData'}
       required: [ok, data]
     HierarchyRepair:
-      type: object
       properties:
-        applied: {type: boolean, description: True when changes were written.}
+        applied: {type: boolean, title: Applied, description: Whether changes were written.}
         moved:
-          type: array
           items: {$ref: '#/components/schemas/HierarchyRepairMove'}
-        changed_card_count: {type: integer, description: 'Cards whose placement changes, counting siblings
-            re-spaced to make room.', minimum: 0}
-        cycle_card_ids:
           type: array
+          title: Moved
+          description: The hidden branches whose top cards move.
+        changed_card_count: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Changed
+            Card Count, description: Cards moved or re-spaced to make room.}
+        cycle_card_ids:
           items: {type: string}
-          description: Live cards whose parent chain loops. They are left alone and need moving by hand.
+          type: array
+          title: Cycle Card Ids
+          description: Cards in parent cycles; left for manual repair.
+      additionalProperties: false
+      type: object
       required: [applied, moved, changed_card_count, cycle_card_ids]
+      title: HierarchyRepair
+      description: A plan to make hidden live cards reachable, and whether it was applied.
     HierarchyRepairMove:
-      type: object
       properties:
-        card_id: {type: string, description: A hidden branch's top card. Its descendants stay attached
-            and move with it.}
+        card_id: {$ref: '#/components/schemas/CardId', description: The hidden branch's top card.}
         parent_card_id:
-          type: [string, 'null']
-          description: Where it goes, or null for the project's top level.
+          anyOf:
+          - {$ref: '#/components/schemas/CardId'}
+          - {type: 'null'}
+          description: Its new parent, or null for a project root.
+      additionalProperties: false
+      type: object
       required: [card_id, parent_card_id]
+      title: HierarchyRepairMove
+      description: A hidden branch's top card and its new parent.
     HierarchyRepairRequest:
-      type: object
       properties:
-        apply: {type: boolean, description: 'Apply the repair. Without it, only report.', default: false}
+        apply: {type: boolean, title: Apply, description: 'Apply the repair. Without it, only report.',
+          default: false}
+      additionalProperties: false
+      type: object
+      title: HierarchyRepairRequest
+      description: Ask for a repair plan, or apply it.
     HierarchyRepairResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
+        ok: {type: boolean, const: true, title: Ok}
         data: {$ref: '#/components/schemas/HierarchyRepair'}
+      type: object
       required: [ok, data]
+      title: HierarchyRepairResponse
     HistoryAffectedObject:
       properties:
         kind: {$ref: '#/components/schemas/HistoryObjectKind', description: What kind of object these
@@ -7883,32 +7914,23 @@ components:
       title: ProjectActivity
       description: One Git commit affecting a project.
     ProjectEncryptionCheck:
-      type: object
       properties:
-        ok: {type: boolean}
-        checked_files: {type: integer}
-        unsafe_files: {type: integer}
-        unsafe_paths:
-          type: array
-          items: {type: string}
-        message: {type: string}
-      required: [ok, checked_files, unsafe_files, unsafe_paths, message]
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project checked.}
+        privacy_mode: {$ref: '#/components/schemas/PrivacyMode', description: How the project's files
+            are stored.}
+        check: {$ref: '#/components/schemas/EncryptionSafetyCheck', description: The safety check's result.}
+      additionalProperties: false
+      type: object
+      required: [project_id, privacy_mode, check]
+      title: ProjectEncryptionCheck
+      description: A project's privacy mode and the result of checking its files.
     ProjectEncryptionCheckResponse:
-      type: object
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            privacy_mode:
-              type: string
-              enum: [encrypted_git, plain]
-            check: {$ref: '#/components/schemas/ProjectEncryptionCheck'}
-          required: [project_id, privacy_mode, check]
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ProjectEncryptionCheck'}
+      type: object
       required: [ok, data]
+      title: ProjectEncryptionCheckResponse
     ProjectHistoryPage:
       properties:
         head_oid:
