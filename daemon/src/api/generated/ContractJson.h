@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -648,6 +648,14 @@ template <> struct codec<holder::contract::RecoveryTokenGlobalImportResult> {
     static json encode(const holder::contract::RecoveryTokenGlobalImportResult& value);
     static holder::contract::RecoveryTokenGlobalImportResult decode(const json& value);
 };
+template <> struct codec<holder::contract::RebuildResult> {
+    static json encode(const holder::contract::RebuildResult& value);
+    static holder::contract::RebuildResult decode(const json& value);
+};
+template <> struct codec<holder::contract::ReindexResult> {
+    static json encode(const holder::contract::ReindexResult& value);
+    static holder::contract::ReindexResult decode(const json& value);
+};
 template <> struct codec<holder::contract::SyncState> {
     static json encode(const holder::contract::SyncState& value);
     static holder::contract::SyncState decode(const json& value);
@@ -795,6 +803,10 @@ template <> struct codec<holder::contract::RecoveryTokenExportRequest> {
 template <> struct codec<holder::contract::RecoveryTokenImportRequest> {
     static json encode(const holder::contract::RecoveryTokenImportRequest& value);
     static holder::contract::RecoveryTokenImportRequest decode(const json& value);
+};
+template <> struct codec<holder::contract::RebuildRequest> {
+    static json encode(const holder::contract::RebuildRequest& value);
+    static holder::contract::RebuildRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::PushOptions> {
     static json encode(const holder::contract::PushOptions& value);
@@ -2098,6 +2110,72 @@ inline holder::contract::RecoveryTokenGlobalImportResult codec<holder::contract:
     if (value.contains("pull_error") && !value.at("pull_error").is_null()) {
         const auto& item = value.at("pull_error");
         out.pull_error = check_text(decode_field<std::string>(item, "pull_error"), "pull_error", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RebuildResult>::encode(const holder::contract::RebuildResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["cards"] = codec<std::int32_t>::encode(value.cards);
+    result["ai_messages"] = codec<std::int32_t>::encode(value.ai_messages);
+    result["ai_threads"] = codec<std::int32_t>::encode(value.ai_threads);
+    result["links"] = codec<std::int32_t>::encode(value.links);
+    return result;
+}
+inline holder::contract::RebuildResult codec<holder::contract::RebuildResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RebuildResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "cards" && it.key() != "ai_messages" && it.key() != "ai_threads" && it.key() != "links") throw std::invalid_argument("RebuildResult has no field " + it.key());
+    holder::contract::RebuildResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("cards") && !value.at("cards").is_null()) {
+        const auto& item = value.at("cards");
+        out.cards = check_range<std::int32_t>(decode_field<std::int32_t>(item, "cards"), "cards", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("cards is required and must not be null");
+    }
+    if (value.contains("ai_messages") && !value.at("ai_messages").is_null()) {
+        const auto& item = value.at("ai_messages");
+        out.ai_messages = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_messages"), "ai_messages", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_messages is required and must not be null");
+    }
+    if (value.contains("ai_threads") && !value.at("ai_threads").is_null()) {
+        const auto& item = value.at("ai_threads");
+        out.ai_threads = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_threads"), "ai_threads", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_threads is required and must not be null");
+    }
+    if (value.contains("links") && !value.at("links").is_null()) {
+        const auto& item = value.at("links");
+        out.links = check_range<std::int32_t>(decode_field<std::int32_t>(item, "links"), "links", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("links is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ReindexResult>::encode(const holder::contract::ReindexResult& value) {
+    json result = json::object();
+    result["message"] = codec<std::string>::encode(value.message);
+    return result;
+}
+inline holder::contract::ReindexResult codec<holder::contract::ReindexResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ReindexResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "message") throw std::invalid_argument("ReindexResult has no field " + it.key());
+    holder::contract::ReindexResult out;
+    if (value.contains("message") && !value.at("message").is_null()) {
+        const auto& item = value.at("message");
+        out.message = check_text(decode_field<std::string>(item, "message"), "message", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("message is required and must not be null");
     }
     return out;
 }
@@ -3691,6 +3769,25 @@ inline holder::contract::RecoveryTokenImportRequest codec<holder::contract::Reco
         out.recovery_token = check_text(decode_field<std::string>(item, "recovery_token"), "recovery_token", 1, std::numeric_limits<std::size_t>::max());
     } else {
         throw std::invalid_argument("recovery_token is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RebuildRequest>::encode(const holder::contract::RebuildRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::contract::RebuildRequest codec<holder::contract::RebuildRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RebuildRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id") throw std::invalid_argument("RebuildRequest has no field " + it.key());
+    holder::contract::RebuildRequest out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
     }
     return out;
 }

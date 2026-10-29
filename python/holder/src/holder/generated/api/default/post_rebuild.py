@@ -7,7 +7,7 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.rebuild_request import RebuildRequest
-from ...models.rebuild_response import RebuildResponse
+from ...models.rebuild_result_response import RebuildResultResponse
 from ...types import Response
 
 
@@ -32,9 +32,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | RebuildResponse | None:
+) -> ErrorResponse | RebuildResultResponse | None:
     if response.status_code == 200:
-        response_200 = RebuildResponse.from_dict(response.json())
+        response_200 = RebuildResultResponse.from_dict(response.json())
 
         return response_200
 
@@ -66,7 +66,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | RebuildResponse]:
+) -> Response[ErrorResponse | RebuildResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -79,18 +79,20 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: RebuildRequest,
-) -> Response[ErrorResponse | RebuildResponse]:
-    """Rebuild database state from project files
+) -> Response[ErrorResponse | RebuildResultResponse]:
+    """Rebuild a project's database state from its files.
+
+     A missing project is NotFound. Files that cannot be read back give RebuildFailed.
 
     Args:
-        body (RebuildRequest):
+        body (RebuildRequest): The project whose files should be read into the database.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | RebuildResponse]
+        Response[ErrorResponse | RebuildResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -108,18 +110,20 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: RebuildRequest,
-) -> ErrorResponse | RebuildResponse | None:
-    """Rebuild database state from project files
+) -> ErrorResponse | RebuildResultResponse | None:
+    """Rebuild a project's database state from its files.
+
+     A missing project is NotFound. Files that cannot be read back give RebuildFailed.
 
     Args:
-        body (RebuildRequest):
+        body (RebuildRequest): The project whose files should be read into the database.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | RebuildResponse
+        ErrorResponse | RebuildResultResponse
     """
 
     return sync_detailed(
@@ -132,18 +136,20 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: RebuildRequest,
-) -> Response[ErrorResponse | RebuildResponse]:
-    """Rebuild database state from project files
+) -> Response[ErrorResponse | RebuildResultResponse]:
+    """Rebuild a project's database state from its files.
+
+     A missing project is NotFound. Files that cannot be read back give RebuildFailed.
 
     Args:
-        body (RebuildRequest):
+        body (RebuildRequest): The project whose files should be read into the database.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | RebuildResponse]
+        Response[ErrorResponse | RebuildResultResponse]
     """
 
     kwargs = _get_kwargs(
@@ -159,18 +165,20 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: RebuildRequest,
-) -> ErrorResponse | RebuildResponse | None:
-    """Rebuild database state from project files
+) -> ErrorResponse | RebuildResultResponse | None:
+    """Rebuild a project's database state from its files.
+
+     A missing project is NotFound. Files that cannot be read back give RebuildFailed.
 
     Args:
-        body (RebuildRequest):
+        body (RebuildRequest): The project whose files should be read into the database.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | RebuildResponse
+        ErrorResponse | RebuildResultResponse
     """
 
     return (

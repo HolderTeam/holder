@@ -5545,20 +5545,21 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /rebuild:
     post:
-      summary: Rebuild database state from project files
+      summary: Rebuild a project's database state from its files.
+      description: A missing project is NotFound. Files that cannot be read back give RebuildFailed.
       requestBody:
-        required: true
         content:
           application/json:
             schema: {$ref: '#/components/schemas/RebuildRequest'}
+        required: true
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/RebuildResponse'}
+              schema: {$ref: '#/components/schemas/RebuildResultResponse'}
         '400':
-          description: Bad request
+          description: Invalid argument. A project's files cannot be read back into the database.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5568,12 +5569,12 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5625,20 +5626,26 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /reindex:
     post:
-      summary: Rebuild search indexes from database state
+      summary: Rebuild all search indexes from database state.
+      description: Rebuild all search indexes from database state.
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ReindexResponse'}
+              schema: {$ref: '#/components/schemas/ReindexResultResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
           description: Unauthorized
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error
+          description: Unexpected failure.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -8151,28 +8158,37 @@ components:
       type: string
       enum: [not_attempted, pushed, up_to_date, auth_failed, not_found, network_error, non_fast_forward,
         remote_unset, unknown_error]
-    RebuildData:
-      type: object
-      properties:
-        project_id: {type: string}
-        cards: {type: integer}
-        ai_messages: {type: integer}
-        ai_threads: {type: integer}
-        links: {type: integer}
-      required: [project_id, cards, ai_messages, ai_threads, links]
     RebuildRequest:
-      type: object
       properties:
-        project_id: {type: string}
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project to rebuild.}
+      additionalProperties: false
+      type: object
       required: [project_id]
-    RebuildResponse:
-      type: object
+      title: RebuildRequest
+      description: The project whose files should be read into the database.
+    RebuildResult:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/RebuildData'}
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project rebuilt.}
+        cards: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Cards, description: Cards
+            restored.}
+        ai_messages: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Ai Messages,
+          description: AI messages restored.}
+        ai_threads: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Ai Threads,
+          description: AI threads restored.}
+        links: {type: integer, maximum: 2147483647, minimum: 0, format: int32, title: Links, description: Links
+            restored.}
+      additionalProperties: false
+      type: object
+      required: [project_id, cards, ai_messages, ai_threads, links]
+      title: RebuildResult
+      description: The numbers of entities restored from a project's files.
+    RebuildResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/RebuildResult'}
+      type: object
       required: [ok, data]
+      title: RebuildResultResponse
     RecoveryTokenExportRequest:
       properties:
         pin: {type: string, minLength: 1, title: Pin, description: User-provided PIN used to wrap or unwrap
@@ -8232,19 +8248,21 @@ components:
       required: [pin, recovery_token]
       title: RecoveryTokenImportRequest
       description: PIN and serialized .hrk token to restore.
-    ReindexData:
-      type: object
+    ReindexResult:
       properties:
-        message: {type: string}
+        message: {type: string, title: Message, description: A short completion message.}
+      additionalProperties: false
+      type: object
       required: [message]
-    ReindexResponse:
-      type: object
+      title: ReindexResult
+      description: Completion of a full database search-index rebuild.
+    ReindexResultResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data: {$ref: '#/components/schemas/ReindexData'}
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ReindexResult'}
+      type: object
       required: [ok, data]
+      title: ReindexResultResponse
     RemoteTest:
       properties:
         remote_url: {$ref: '#/components/schemas/GitRemoteUrl', description: The Git remote to test; omit

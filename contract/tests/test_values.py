@@ -26,6 +26,7 @@ def pydantic_type(name: str):
     import interface.maintenance
     import interface.milestones
     import interface.projects
+    import interface.rebuild
     import interface.recovery
     import interface.resources
     import interface.search
@@ -35,7 +36,7 @@ def pydantic_type(name: str):
         return interface.cards.Page[interface.cards.CardListItem]
     for module in (interface.card_references, interface.cards, interface.git, interface.history,
                    interface.links, interface.maintenance, interface.milestones,
-                   interface.projects, interface.recovery, interface.resources, interface.search,
+                   interface.projects, interface.rebuild, interface.recovery, interface.resources, interface.search,
                    interface.trash):
         if hasattr(module, name):
             return getattr(module, name)
@@ -98,6 +99,8 @@ def test_arguments_conform_and_invalid_arguments_break_one(operation, data):
     assert {name for name, p in parameters.items() if "default" not in p} <= arguments.keys()
     for name, value in arguments.items():
         assert values.problems(parameters[name]["type"], value) == []
+    if not parameters:
+        return
     broken, name = data.draw(values.invalid_arguments(operation))
     assert [n for n, v in broken.items() if values.problems(parameters[n]["type"], v)] == [name]
 

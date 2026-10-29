@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -93,6 +93,11 @@ struct HistoryResponseTooLarge : Error {
 
 /// The recovery token or its PIN is invalid, or the token belongs to another project.
 struct RecoveryTokenInvalid : Error {
+  using Error::Error;
+};
+
+/// A project's files cannot be read back into the database.
+struct RebuildFailed : Error {
   using Error::Error;
 };
 
@@ -229,6 +234,11 @@ struct RecoveryTokenExportRequest {
 /// PIN and serialized .hrk token to restore.
 struct RecoveryTokenImportRequest : RecoveryTokenExportRequest {
   std::string recovery_token;  ///< Serialized .hrk token JSON.
+};
+
+/// The project whose files should be read into the database.
+struct RebuildRequest {
+  std::string project_id;  ///< The project to rebuild.
 };
 
 /// How to push.
@@ -467,6 +477,20 @@ struct RecoveryTokenGlobalImportResult : ProjectRecoveryTokenImportResult {
   std::optional<std::string> remote_error;  ///< Why remote configuration failed, or null.
   RecoveryTokenGlobalImportResultPullStatus pull_status;  ///< Outcome of the attempted pull.
   std::optional<std::string> pull_error;  ///< Why pulling failed, or null.
+};
+
+/// The numbers of entities restored from a project's files.
+struct RebuildResult {
+  std::string project_id;  ///< The project rebuilt.
+  std::int32_t cards{};  ///< Cards restored.
+  std::int32_t ai_messages{};  ///< AI messages restored.
+  std::int32_t ai_threads{};  ///< AI threads restored.
+  std::int32_t links{};  ///< Links restored.
+};
+
+/// Completion of a full database search-index rebuild.
+struct ReindexResult {
+  std::string message;  ///< A short completion message.
 };
 
 /// What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
@@ -986,6 +1010,14 @@ ProjectRecoveryTokenImportResult import_project_recovery_token(holder_context& c
 /// are reported in the result. Returns 201 when the project was created, otherwise 200.
 /// @throws RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted
 RecoveryTokenGlobalImportResult import_recovery_token_global(holder_context& context, const RecoveryTokenImportRequest& request);
+
+/// Rebuild a project's database state from its files.
+/// A missing project is NotFound. Files that cannot be read back give RebuildFailed.
+/// @throws NotFound, RebuildFailed
+RebuildResult rebuild_project(holder_context& context, const RebuildRequest& request);
+
+/// Rebuild all search indexes from database state.
+ReindexResult reindex_search(holder_context& context);
 
 /// What this device last recorded about a project's sync.
 /// @throws NotFound

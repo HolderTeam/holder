@@ -6,7 +6,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.reindex_response import ReindexResponse
+from ...models.reindex_result_response import ReindexResultResponse
 from ...types import Response
 
 
@@ -22,11 +22,16 @@ def _get_kwargs() -> dict[str, Any]:
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | ReindexResponse | None:
+) -> ErrorResponse | ReindexResultResponse | None:
     if response.status_code == 200:
-        response_200 = ReindexResponse.from_dict(response.json())
+        response_200 = ReindexResultResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
@@ -46,7 +51,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | ReindexResponse]:
+) -> Response[ErrorResponse | ReindexResultResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -58,15 +63,17 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ReindexResponse]:
-    """Rebuild search indexes from database state
+) -> Response[ErrorResponse | ReindexResultResponse]:
+    """Rebuild all search indexes from database state.
+
+     Rebuild all search indexes from database state.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ReindexResponse]
+        Response[ErrorResponse | ReindexResultResponse]
     """
 
     kwargs = _get_kwargs()
@@ -81,15 +88,17 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ReindexResponse | None:
-    """Rebuild search indexes from database state
+) -> ErrorResponse | ReindexResultResponse | None:
+    """Rebuild all search indexes from database state.
+
+     Rebuild all search indexes from database state.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ReindexResponse
+        ErrorResponse | ReindexResultResponse
     """
 
     return sync_detailed(
@@ -100,15 +109,17 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | ReindexResponse]:
-    """Rebuild search indexes from database state
+) -> Response[ErrorResponse | ReindexResultResponse]:
+    """Rebuild all search indexes from database state.
+
+     Rebuild all search indexes from database state.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | ReindexResponse]
+        Response[ErrorResponse | ReindexResultResponse]
     """
 
     kwargs = _get_kwargs()
@@ -121,15 +132,17 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | ReindexResponse | None:
-    """Rebuild search indexes from database state
+) -> ErrorResponse | ReindexResultResponse | None:
+    """Rebuild all search indexes from database state.
+
+     Rebuild all search indexes from database state.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | ReindexResponse
+        ErrorResponse | ReindexResultResponse
     """
 
     return (

@@ -233,9 +233,9 @@ from .push_options import PushOptions
 from .push_phase import PushPhase
 from .push_status import PushStatus
 from .put_locations_preferred_body import PutLocationsPreferredBody
-from .rebuild_data import RebuildData
 from .rebuild_request import RebuildRequest
-from .rebuild_response import RebuildResponse
+from .rebuild_result import RebuildResult
+from .rebuild_result_response import RebuildResultResponse
 from .recovery_token_export_request import RecoveryTokenExportRequest
 from .recovery_token_global_import_result import RecoveryTokenGlobalImportResult
 from .recovery_token_global_import_result_pull_status import (
@@ -245,8 +245,8 @@ from .recovery_token_global_import_result_response import (
     RecoveryTokenGlobalImportResultResponse,
 )
 from .recovery_token_import_request import RecoveryTokenImportRequest
-from .reindex_data import ReindexData
-from .reindex_response import ReindexResponse
+from .reindex_result import ReindexResult
+from .reindex_result_response import ReindexResultResponse
 from .remote_test import RemoteTest
 from .remote_test_result import RemoteTestResult
 from .remote_test_result_response import RemoteTestResultResponse
@@ -503,16 +503,16 @@ __all__ = (
     "PushPhase",
     "PushStatus",
     "PutLocationsPreferredBody",
-    "RebuildData",
     "RebuildRequest",
-    "RebuildResponse",
+    "RebuildResult",
+    "RebuildResultResponse",
     "RecoveryTokenExportRequest",
     "RecoveryTokenGlobalImportResult",
     "RecoveryTokenGlobalImportResultPullStatus",
     "RecoveryTokenGlobalImportResultResponse",
     "RecoveryTokenImportRequest",
-    "ReindexData",
-    "ReindexResponse",
+    "ReindexResult",
+    "ReindexResultResponse",
     "RemoteTest",
     "RemoteTestResult",
     "RemoteTestResultResponse",

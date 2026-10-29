@@ -57,3 +57,7 @@ class HistoryResponseTooLarge(HolderError):
 
 class RecoveryTokenInvalid(HolderError):
     """The recovery token or its PIN is invalid, or the token belongs to another project."""
+
+
+class RebuildFailed(HolderError):
+    """A project's files cannot be read back into the database."""
