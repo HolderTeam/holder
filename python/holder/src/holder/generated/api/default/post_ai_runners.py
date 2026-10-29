@@ -77,8 +77,10 @@ def sync_detailed(
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Configure a local model runner
 
+     Configure a local model runner
+
     Args:
-        body (AiRunnerCreateRequest):
+        body (AiRunnerCreateRequest): AI RunnerCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -106,8 +108,10 @@ def sync(
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Configure a local model runner
 
+     Configure a local model runner
+
     Args:
-        body (AiRunnerCreateRequest):
+        body (AiRunnerCreateRequest): AI RunnerCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -130,8 +134,10 @@ async def asyncio_detailed(
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Configure a local model runner
 
+     Configure a local model runner
+
     Args:
-        body (AiRunnerCreateRequest):
+        body (AiRunnerCreateRequest): AI RunnerCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -157,8 +163,10 @@ async def asyncio(
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Configure a local model runner
 
+     Configure a local model runner
+
     Args:
-        body (AiRunnerCreateRequest):
+        body (AiRunnerCreateRequest): AI RunnerCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

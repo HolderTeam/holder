@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiThreadListResponse | ErrorResponse]:
     """List AI threads by project
 
+     List AI threads by project
+
     Args:
         project_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiThreadListResponse | ErrorResponse | None:
     """List AI threads by project
 
+     List AI threads by project
+
     Args:
         project_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     project_id: str,
 ) -> Response[AiThreadListResponse | ErrorResponse]:
     """List AI threads by project
+
+     List AI threads by project
 
     Args:
         project_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     project_id: str,
 ) -> AiThreadListResponse | ErrorResponse | None:
     """List AI threads by project
+
+     List AI threads by project
 
     Args:
         project_id (str):

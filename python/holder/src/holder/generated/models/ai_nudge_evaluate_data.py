@@ -11,17 +11,18 @@ if TYPE_CHECKING:
     from ..models.ai_nudge import AiNudge
 
 
-T = TypeVar("T", bound="AiNudgeEvaluateResponseData")
+T = TypeVar("T", bound="AiNudgeEvaluateData")
 
 
 @_attrs_define
-class AiNudgeEvaluateResponseData:
-    """
+class AiNudgeEvaluateData:
+    """AI NudgeEvaluateData.
+
     Attributes:
-        kind (str):
-        accepted (bool):
-        should_nudge (bool):
-        reason (str):
+        kind (str): The kind.
+        accepted (bool): The accepted.
+        should_nudge (bool): The should nudge.
+        reason (str): The reason.
         nudge (AiNudge | None): The recorded nudge, or null when there is nothing to show.
     """
 
@@ -91,7 +92,7 @@ class AiNudgeEvaluateResponseData:
 
         nudge = _parse_nudge(d.pop("nudge"))
 
-        ai_nudge_evaluate_response_data = cls(
+        ai_nudge_evaluate_data = cls(
             kind=kind,
             accepted=accepted,
             should_nudge=should_nudge,
@@ -99,8 +100,8 @@ class AiNudgeEvaluateResponseData:
             nudge=nudge,
         )
 
-        ai_nudge_evaluate_response_data.additional_properties = d
-        return ai_nudge_evaluate_response_data
+        ai_nudge_evaluate_data.additional_properties = d
+        return ai_nudge_evaluate_data
 
     @property
     def additional_keys(self) -> list[str]:

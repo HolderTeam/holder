@@ -87,9 +87,11 @@ def sync_detailed(
 ) -> Response[CardLinkCreateResponse | ErrorResponse]:
     """Create or update a link from an AI message
 
+     Create or update a link from an AI message
+
     Args:
         message_id (str):
-        body (CardLinkCreateRequest):
+        body (CardLinkCreateRequest): CardLinkCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -119,9 +121,11 @@ def sync(
 ) -> CardLinkCreateResponse | ErrorResponse | None:
     """Create or update a link from an AI message
 
+     Create or update a link from an AI message
+
     Args:
         message_id (str):
-        body (CardLinkCreateRequest):
+        body (CardLinkCreateRequest): CardLinkCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -146,9 +150,11 @@ async def asyncio_detailed(
 ) -> Response[CardLinkCreateResponse | ErrorResponse]:
     """Create or update a link from an AI message
 
+     Create or update a link from an AI message
+
     Args:
         message_id (str):
-        body (CardLinkCreateRequest):
+        body (CardLinkCreateRequest): CardLinkCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -176,9 +182,11 @@ async def asyncio(
 ) -> CardLinkCreateResponse | ErrorResponse | None:
     """Create or update a link from an AI message
 
+     Create or update a link from an AI message
+
     Args:
         message_id (str):
-        body (CardLinkCreateRequest):
+        body (CardLinkCreateRequest): CardLinkCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

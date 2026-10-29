@@ -58,7 +58,7 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
     return res;
   };
 
-  // Contract routes report invalid_argument; the remaining RIG route reports bad_request.
+  // Core contract routes report invalid_argument; this daemon route reports bad_request.
   struct Case {
     const char* target;
     const char* error_code;

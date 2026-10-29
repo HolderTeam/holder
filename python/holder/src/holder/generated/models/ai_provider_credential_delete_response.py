@@ -18,10 +18,11 @@ T = TypeVar("T", bound="AiProviderCredentialDeleteResponse")
 
 @_attrs_define
 class AiProviderCredentialDeleteResponse:
-    """
+    """AI ProviderCredentialDelete response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderCredentialDeleteResponseData):
+        ok (bool): The ok.
+        data (AiProviderCredentialDeleteResponseData): AI ProviderCredentialDelete responseData.
     """
 
     ok: bool

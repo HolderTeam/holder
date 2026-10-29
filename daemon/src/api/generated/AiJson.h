@@ -1,4 +1,4 @@
-// Generated from RIG IR; do not edit.
+// Retained AI JSON codec. AI route schemas are declared in contract/interface/.
 #pragma once
 #include "api/AiRuntime.h"
 #include <nlohmann/json.hpp>

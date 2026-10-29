@@ -12,11 +12,12 @@ T = TypeVar("T", bound="AiProviderSetting")
 
 @_attrs_define
 class AiProviderSetting:
-    """
+    """AI ProviderSetting.
+
     Attributes:
-        provider (str):
-        enabled (bool):
-        updated_at (int):
+        provider (str): The provider.
+        enabled (bool): The enabled.
+        updated_at (int): The updated at.
     """
 
     provider: str

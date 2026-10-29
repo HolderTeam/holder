@@ -170,7 +170,7 @@ def test_success_is_enveloped_with_the_routes_status_and_failures_have_the_daemo
         "that is not in the trash, or removing a tag that a card would still carry in its prose. "
         "An encrypted project's key is not on this device; the project's recovery token restores it.")
     assert responses["404"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
-    # The same error schemas as RIG's document, so that the two merge.
+    # Shared error schemas remain stable in the full API document.
     assert {k: result["components"]["schemas"][k] for k in ERROR_SCHEMAS} == ERROR_SCHEMAS
 
 

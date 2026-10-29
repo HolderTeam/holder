@@ -1,58 +1,64 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..types import UNSET, Unset
+if TYPE_CHECKING:
+    from ..models.ai_nudge import AiNudge
 
-T = TypeVar("T", bound="AiProviderCatalogProviderApi")
+
+T = TypeVar("T", bound="AiNudgeListData")
 
 
 @_attrs_define
-class AiProviderCatalogProviderApi:
-    """
+class AiNudgeListData:
+    """AI NudgeListData.
+
     Attributes:
-        base_url (str | Unset):
-        kind (str | Unset):
+        nudges (list[AiNudge]): The nudges.
     """
 
-    base_url: str | Unset = UNSET
-    kind: str | Unset = UNSET
+    nudges: list[AiNudge]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        base_url = self.base_url
-
-        kind = self.kind
+        nudges = []
+        for nudges_item_data in self.nudges:
+            nudges_item = nudges_item_data.to_dict()
+            nudges.append(nudges_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({})
-        if base_url is not UNSET:
-            field_dict["base_url"] = base_url
-        if kind is not UNSET:
-            field_dict["kind"] = kind
+        field_dict.update(
+            {
+                "nudges": nudges,
+            }
+        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.ai_nudge import AiNudge
+
         d = dict(src_dict)
-        base_url = d.pop("base_url", UNSET)
+        nudges = []
+        _nudges = d.pop("nudges")
+        for nudges_item_data in _nudges:
+            nudges_item = AiNudge.from_dict(nudges_item_data)
 
-        kind = d.pop("kind", UNSET)
+            nudges.append(nudges_item)
 
-        ai_provider_catalog_provider_api = cls(
-            base_url=base_url,
-            kind=kind,
+        ai_nudge_list_data = cls(
+            nudges=nudges,
         )
 
-        ai_provider_catalog_provider_api.additional_properties = d
-        return ai_provider_catalog_provider_api
+        ai_nudge_list_data.additional_properties = d
+        return ai_nudge_list_data
 
     @property
     def additional_keys(self) -> list[str]:

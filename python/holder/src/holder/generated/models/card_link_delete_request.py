@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -14,29 +14,46 @@ T = TypeVar("T", bound="CardLinkDeleteRequest")
 
 @_attrs_define
 class CardLinkDeleteRequest:
-    """
+    """CardLinkDeleteRequest.
+
     Attributes:
-        to_card_id (str | Unset):
-        target_project_id (str | Unset): Selects the target project. Requires to_card_id, to_type and kind; use it to
-            distinguish equal card IDs in different projects.
-        to_type (str | Unset):
-        kind (str | Unset):
+        to_card_id (None | str | Unset): The to card id.
+        target_project_id (None | str | Unset): Selects the target project. Requires to_card_id, to_type and kind; use
+            it to distinguish equal card IDs in different projects.
+        to_type (None | str | Unset): The to type.
+        kind (None | str | Unset): The kind.
     """
 
-    to_card_id: str | Unset = UNSET
-    target_project_id: str | Unset = UNSET
-    to_type: str | Unset = UNSET
-    kind: str | Unset = UNSET
+    to_card_id: None | str | Unset = UNSET
+    target_project_id: None | str | Unset = UNSET
+    to_type: None | str | Unset = UNSET
+    kind: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        to_card_id = self.to_card_id
+        to_card_id: None | str | Unset
+        if isinstance(self.to_card_id, Unset):
+            to_card_id = UNSET
+        else:
+            to_card_id = self.to_card_id
 
-        target_project_id = self.target_project_id
+        target_project_id: None | str | Unset
+        if isinstance(self.target_project_id, Unset):
+            target_project_id = UNSET
+        else:
+            target_project_id = self.target_project_id
 
-        to_type = self.to_type
+        to_type: None | str | Unset
+        if isinstance(self.to_type, Unset):
+            to_type = UNSET
+        else:
+            to_type = self.to_type
 
-        kind = self.kind
+        kind: None | str | Unset
+        if isinstance(self.kind, Unset):
+            kind = UNSET
+        else:
+            kind = self.kind
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -55,13 +72,42 @@ class CardLinkDeleteRequest:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        to_card_id = d.pop("to_card_id", UNSET)
 
-        target_project_id = d.pop("target_project_id", UNSET)
+        def _parse_to_card_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        to_type = d.pop("to_type", UNSET)
+        to_card_id = _parse_to_card_id(d.pop("to_card_id", UNSET))
 
-        kind = d.pop("kind", UNSET)
+        def _parse_target_project_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        target_project_id = _parse_target_project_id(d.pop("target_project_id", UNSET))
+
+        def _parse_to_type(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        to_type = _parse_to_type(d.pop("to_type", UNSET))
+
+        def _parse_kind(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        kind = _parse_kind(d.pop("kind", UNSET))
 
         card_link_delete_request = cls(
             to_card_id=to_card_id,

@@ -1125,7 +1125,8 @@ def put_local_model_config(
 @contract.route('GET', '/ai/messages', core=False, raw_media_type="application/json")
 def get_ai_messages(
     thread_id: Annotated[str, Query(min_length=1)],
-    include_deleted: Annotated[Literal[0, 1] | None, Query(description='Set to 1 to include deleted messages.')] = None,
+    # None means the query parameter is absent; a sent value is always 0 or 1.
+    include_deleted: Annotated[Literal[0, 1], Query(description='Set to 1 to include deleted messages.')] = None,  # noqa: RUF013
 ) -> ai.AiMessageListResponse:
     """List AI messages by thread"""
 
@@ -1142,7 +1143,7 @@ def get_ai_message(
 @contract.route('GET', '/ai/messages/{message_id}/links', core=False, raw_media_type="application/json", responses={404: {"model": ErrorResponse, "description": 'Not found'}})
 def get_ai_message_links(
     message_id: Annotated[str, Path()],
-    include_deleted: Annotated[Literal[0, 1] | None, Query(description='Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.')] = None,
+    include_deleted: Annotated[Literal[0, 1], Query(description='Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.')] = None,  # noqa: RUF013
 ) -> ai.CardLinkListResponse:
     """List outgoing links for an AI message"""
 
@@ -1150,7 +1151,7 @@ def get_ai_message_links(
 @contract.route('GET', '/ai/messages/{message_id}/backlinks', core=False, raw_media_type="application/json", responses={404: {"model": ErrorResponse, "description": 'Not found'}})
 def get_ai_message_backlinks(
     message_id: Annotated[str, Path()],
-    include_deleted: Annotated[Literal[0, 1] | None, Query(description='Include backlinks from deleted sources.')] = None,
+    include_deleted: Annotated[Literal[0, 1], Query(description='Include backlinks from deleted sources.')] = None,  # noqa: RUF013
 ) -> ai.CardLinkListResponse:
     """List backlinks to an AI message"""
 

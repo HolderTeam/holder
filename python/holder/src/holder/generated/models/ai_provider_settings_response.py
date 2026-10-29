@@ -8,9 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.ai_provider_settings_response_data import (
-        AiProviderSettingsResponseData,
-    )
+    from ..models.ai_provider_settings_data import AiProviderSettingsData
 
 
 T = TypeVar("T", bound="AiProviderSettingsResponse")
@@ -18,14 +16,15 @@ T = TypeVar("T", bound="AiProviderSettingsResponse")
 
 @_attrs_define
 class AiProviderSettingsResponse:
-    """
+    """AI ProviderSettings response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderSettingsResponseData):
+        ok (bool): The ok.
+        data (AiProviderSettingsData): AI ProviderSettingsData.
     """
 
     ok: bool
-    data: AiProviderSettingsResponseData
+    data: AiProviderSettingsData
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,14 +45,14 @@ class AiProviderSettingsResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.ai_provider_settings_response_data import (
-            AiProviderSettingsResponseData,
+        from ..models.ai_provider_settings_data import (
+            AiProviderSettingsData,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = AiProviderSettingsResponseData.from_dict(d.pop("data"))
+        data = AiProviderSettingsData.from_dict(d.pop("data"))
 
         ai_provider_settings_response = cls(
             ok=ok,

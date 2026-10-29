@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -14,20 +14,21 @@ T = TypeVar("T", bound="RunnerPullStartResponseData")
 
 @_attrs_define
 class RunnerPullStartResponseData:
-    """
+    """RunnerPullStart responseData.
+
     Attributes:
-        job_id (str):
-        model (str):
-        status (str):
-        runner_id (str | Unset):
-        model_ref (str | Unset):
+        job_id (str): The job id.
+        model (str): The model.
+        status (str): The status.
+        runner_id (None | str | Unset): The runner id.
+        model_ref (None | str | Unset): The model ref.
     """
 
     job_id: str
     model: str
     status: str
-    runner_id: str | Unset = UNSET
-    model_ref: str | Unset = UNSET
+    runner_id: None | str | Unset = UNSET
+    model_ref: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,9 +38,17 @@ class RunnerPullStartResponseData:
 
         status = self.status
 
-        runner_id = self.runner_id
+        runner_id: None | str | Unset
+        if isinstance(self.runner_id, Unset):
+            runner_id = UNSET
+        else:
+            runner_id = self.runner_id
 
-        model_ref = self.model_ref
+        model_ref: None | str | Unset
+        if isinstance(self.model_ref, Unset):
+            model_ref = UNSET
+        else:
+            model_ref = self.model_ref
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -66,9 +75,23 @@ class RunnerPullStartResponseData:
 
         status = d.pop("status")
 
-        runner_id = d.pop("runner_id", UNSET)
+        def _parse_runner_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        model_ref = d.pop("model_ref", UNSET)
+        runner_id = _parse_runner_id(d.pop("runner_id", UNSET))
+
+        def _parse_model_ref(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        model_ref = _parse_model_ref(d.pop("model_ref", UNSET))
 
         runner_pull_start_response_data = cls(
             job_id=job_id,

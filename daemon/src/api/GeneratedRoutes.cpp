@@ -475,7 +475,7 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
 }
 
 // The methods both dispatchers serve on a path, for a 405's Allow header.
-std::string allowed_methods(const std::string& path, const std::string& rig_allow) {
+std::string allowed_methods(const std::string& path, const std::string& ai_allow) {
   std::set<std::string> methods;
   for (const auto method : contract_http::allowed_methods(path)) methods.emplace(method);
   const auto route_path = path.substr(0, path.find('?'));
@@ -483,9 +483,9 @@ std::string allowed_methods(const std::string& path, const std::string& rig_allo
   std::smatch match;
   if (std::regex_match(route_path, match, import_job_path) ||
       std::regex_match(route_path, match, asset_content_path)) methods.emplace("GET");
-  for (std::size_t start = 0; methods.empty() && start < rig_allow.size();) {
-    const auto end = rig_allow.find(", ", start);
-    methods.insert(rig_allow.substr(start, end - start));
+  for (std::size_t start = 0; methods.empty() && start < ai_allow.size();) {
+    const auto end = ai_allow.find(", ", start);
+    methods.insert(ai_allow.substr(start, end - start));
     if (end == std::string::npos) break;
     start = end + 2;
   }
@@ -541,10 +541,8 @@ bool dispatch_generated_routes(
   try {
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
         dispatch_misc_contract_route(method, path, req, res, context, stream)) return true;
-    // RIG's routes first, so that a literal segment in one of RIG's keeps its place before a
-    // parameter in one of the contract's; the contract's tooling checks that no RIG route hides
-    // one of the contract's. Then the contract's, for a request RIG has no route for or
-    // would answer with a 405.
+    // AI requests use their retained C++ dispatcher; other generated routes use core's contract
+    // dispatcher. The Python contract owns the paths and response schemas for both.
     auto generated = ai_http::dispatch(
         method, path, req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {
           const auto field = req.find(boost::beast::string_view(name.data(), name.size()));

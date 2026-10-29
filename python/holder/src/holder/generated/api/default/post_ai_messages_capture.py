@@ -91,7 +91,7 @@ def sync_detailed(
     model, url and context.
 
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -123,7 +123,7 @@ def sync(
     model, url and context.
 
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -150,7 +150,7 @@ async def asyncio_detailed(
     model, url and context.
 
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -180,7 +180,7 @@ async def asyncio(
     model, url and context.
 
     Args:
-        body (AiMessageCaptureRequest):
+        body (AiMessageCaptureRequest): AI MessageCaptureRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

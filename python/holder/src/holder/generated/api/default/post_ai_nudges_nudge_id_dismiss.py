@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiNudgeDismissResponse | ErrorResponse]:
     """Dismiss a nudge
 
+     Dismiss a nudge
+
     Args:
         nudge_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiNudgeDismissResponse | ErrorResponse | None:
     """Dismiss a nudge
 
+     Dismiss a nudge
+
     Args:
         nudge_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiNudgeDismissResponse | ErrorResponse]:
     """Dismiss a nudge
+
+     Dismiss a nudge
 
     Args:
         nudge_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiNudgeDismissResponse | ErrorResponse | None:
     """Dismiss a nudge
+
+     Dismiss a nudge
 
     Args:
         nudge_id (str):

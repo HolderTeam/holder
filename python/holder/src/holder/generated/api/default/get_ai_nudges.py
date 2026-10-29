@@ -13,14 +13,19 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     project_id: str,
-    card_id: str | Unset = UNSET,
+    card_id: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["project_id"] = project_id
 
-    params["card_id"] = card_id
+    json_card_id: None | str | Unset
+    if isinstance(card_id, Unset):
+        json_card_id = UNSET
+    else:
+        json_card_id = card_id
+    params["card_id"] = json_card_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -77,7 +82,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    card_id: str | Unset = UNSET,
+    card_id: None | str | Unset = UNSET,
 ) -> Response[AiNudgeListResponse | ErrorResponse]:
     """List a project's current nudges
 
@@ -85,7 +90,7 @@ def sync_detailed(
 
     Args:
         project_id (str):
-        card_id (str | Unset):
+        card_id (None | str | Unset): Only this card's nudges; empty means every card's.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -111,7 +116,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    card_id: str | Unset = UNSET,
+    card_id: None | str | Unset = UNSET,
 ) -> AiNudgeListResponse | ErrorResponse | None:
     """List a project's current nudges
 
@@ -119,7 +124,7 @@ def sync(
 
     Args:
         project_id (str):
-        card_id (str | Unset):
+        card_id (None | str | Unset): Only this card's nudges; empty means every card's.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -140,7 +145,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    card_id: str | Unset = UNSET,
+    card_id: None | str | Unset = UNSET,
 ) -> Response[AiNudgeListResponse | ErrorResponse]:
     """List a project's current nudges
 
@@ -148,7 +153,7 @@ async def asyncio_detailed(
 
     Args:
         project_id (str):
-        card_id (str | Unset):
+        card_id (None | str | Unset): Only this card's nudges; empty means every card's.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,7 +177,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     project_id: str,
-    card_id: str | Unset = UNSET,
+    card_id: None | str | Unset = UNSET,
 ) -> AiNudgeListResponse | ErrorResponse | None:
     """List a project's current nudges
 
@@ -180,7 +185,7 @@ async def asyncio(
 
     Args:
         project_id (str):
-        card_id (str | Unset):
+        card_id (None | str | Unset): Only this card's nudges; empty means every card's.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiRunListResponse")
 
 @_attrs_define
 class AiRunListResponse:
-    """
+    """AI RunList response.
+
     Attributes:
-        ok (bool):
-        data (list[AiRunItem]):
+        ok (bool): The ok.
+        data (list[AiRunItem]): The data.
     """
 
     ok: bool

@@ -21,10 +21,11 @@ T = TypeVar("T", bound="RunnerCapabilitiesData")
 
 @_attrs_define
 class RunnerCapabilitiesData:
-    """
+    """RunnerCapabilitiesData.
+
     Attributes:
-        local_model_config (AiLocalModelConfigData):
-        runners (list[AiRunner]):
+        local_model_config (AiLocalModelConfigData): AI LocalModelConfigData.
+        runners (list[AiRunner]): The runners.
         recommended_models (list[CasteRecommendedModel]): Catalog models this machine's caste can run, best first.
         recommended_install (list[CasteRecommendedModel]): The recommended models that the selected runner has not
             installed.

@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiThreadGetResponse")
 
 @_attrs_define
 class AiThreadGetResponse:
-    """
+    """AI ThreadGet response.
+
     Attributes:
-        ok (bool):
-        data (AiThread):
+        ok (bool): The ok.
+        data (AiThread): AI Thread.
     """
 
     ok: bool

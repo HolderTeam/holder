@@ -16,17 +16,18 @@ T = TypeVar("T", bound="AiRunner")
 
 @_attrs_define
 class AiRunner:
-    """
+    """AI Runner.
+
     Attributes:
-        runner_id (str):
-        name (str):
-        kind (str):
-        base_url (None | str):
-        source (str):
-        enabled (bool):
-        created_at (int):
-        updated_at (int):
-        runtime (AiRunnerRuntime):
+        runner_id (str): The runner id.
+        name (str): The name.
+        kind (str): The kind.
+        base_url (None | str): The base url.
+        source (str): The source.
+        enabled (bool): The enabled.
+        created_at (int): The created at.
+        updated_at (int): The updated at.
+        runtime (AiRunnerRuntime): AI RunnerRuntime.
     """
 
     runner_id: str

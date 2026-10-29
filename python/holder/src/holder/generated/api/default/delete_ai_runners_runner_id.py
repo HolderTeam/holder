@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiRunnerDeleteResponse | ErrorResponse]:
     """Remove a configured local model runner
 
+     Remove a configured local model runner
+
     Args:
         runner_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiRunnerDeleteResponse | ErrorResponse | None:
     """Remove a configured local model runner
 
+     Remove a configured local model runner
+
     Args:
         runner_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiRunnerDeleteResponse | ErrorResponse]:
     """Remove a configured local model runner
+
+     Remove a configured local model runner
 
     Args:
         runner_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiRunnerDeleteResponse | ErrorResponse | None:
     """Remove a configured local model runner
+
+     Remove a configured local model runner
 
     Args:
         runner_id (str):

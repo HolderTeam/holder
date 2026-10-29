@@ -12,9 +12,10 @@ T = TypeVar("T", bound="AiMessageCreateResponseData")
 
 @_attrs_define
 class AiMessageCreateResponseData:
-    """
+    """AI MessageCreate responseData.
+
     Attributes:
-        message_id (str):
+        message_id (str): The message id.
     """
 
     message_id: str

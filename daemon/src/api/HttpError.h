@@ -40,7 +40,7 @@ struct SecretStoreUnavailable : CodedError {
 };
 
 // Generated dispatch builds the body for each exception named by an
-// operation's RIG_ERROR_RESPONSE; the PrivacyError and CodedError overloads keep their codes.
+// operation's declared error response; the PrivacyError and CodedError overloads keep their codes.
 ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
                              const std::exception& error);
 ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,

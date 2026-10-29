@@ -8,9 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.ai_provider_setting_delete_response_data import (
-        AiProviderSettingDeleteResponseData,
-    )
+    from ..models.ai_provider_setting_delete_data import AiProviderSettingDeleteData
 
 
 T = TypeVar("T", bound="AiProviderSettingDeleteResponse")
@@ -18,14 +16,15 @@ T = TypeVar("T", bound="AiProviderSettingDeleteResponse")
 
 @_attrs_define
 class AiProviderSettingDeleteResponse:
-    """
+    """AI ProviderSettingDelete response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderSettingDeleteResponseData):
+        ok (bool): The ok.
+        data (AiProviderSettingDeleteData): AI ProviderSettingDeleteData.
     """
 
     ok: bool
-    data: AiProviderSettingDeleteResponseData
+    data: AiProviderSettingDeleteData
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,14 +45,14 @@ class AiProviderSettingDeleteResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.ai_provider_setting_delete_response_data import (
-            AiProviderSettingDeleteResponseData,
+        from ..models.ai_provider_setting_delete_data import (
+            AiProviderSettingDeleteData,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = AiProviderSettingDeleteResponseData.from_dict(d.pop("data"))
+        data = AiProviderSettingDeleteData.from_dict(d.pop("data"))
 
         ai_provider_setting_delete_response = cls(
             ok=ok,

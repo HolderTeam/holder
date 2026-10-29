@@ -14,28 +14,29 @@ T = TypeVar("T", bound="AiMessageCreateRequest")
 
 @_attrs_define
 class AiMessageCreateRequest:
-    """
+    """AI MessageCreateRequest.
+
     Attributes:
-        thread_id (str):
-        role (str):
-        source (str):
-        content (str):
-        message_id (str | Unset): Optional; server generates if omitted.
-        provider (None | str | Unset):
-        model (None | str | Unset):
-        created_at (int | Unset): Optional; server uses current time if omitted or 0.
-        prompt_hash (None | str | Unset):
-        meta_json (None | str | Unset):
+        thread_id (str): The thread id.
+        role (str): The role.
+        source (str): The source.
+        content (str): The content.
+        message_id (None | str | Unset): Optional; server generates if omitted.
+        provider (None | str | Unset): The provider.
+        model (None | str | Unset): The model.
+        created_at (int | None | Unset): Optional; server uses current time if omitted or 0.
+        prompt_hash (None | str | Unset): The prompt hash.
+        meta_json (None | str | Unset): The meta json.
     """
 
     thread_id: str
     role: str
     source: str
     content: str
-    message_id: str | Unset = UNSET
+    message_id: None | str | Unset = UNSET
     provider: None | str | Unset = UNSET
     model: None | str | Unset = UNSET
-    created_at: int | Unset = UNSET
+    created_at: int | None | Unset = UNSET
     prompt_hash: None | str | Unset = UNSET
     meta_json: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -49,7 +50,11 @@ class AiMessageCreateRequest:
 
         content = self.content
 
-        message_id = self.message_id
+        message_id: None | str | Unset
+        if isinstance(self.message_id, Unset):
+            message_id = UNSET
+        else:
+            message_id = self.message_id
 
         provider: None | str | Unset
         if isinstance(self.provider, Unset):
@@ -63,7 +68,11 @@ class AiMessageCreateRequest:
         else:
             model = self.model
 
-        created_at = self.created_at
+        created_at: int | None | Unset
+        if isinstance(self.created_at, Unset):
+            created_at = UNSET
+        else:
+            created_at = self.created_at
 
         prompt_hash: None | str | Unset
         if isinstance(self.prompt_hash, Unset):
@@ -113,7 +122,14 @@ class AiMessageCreateRequest:
 
         content = d.pop("content")
 
-        message_id = d.pop("message_id", UNSET)
+        def _parse_message_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        message_id = _parse_message_id(d.pop("message_id", UNSET))
 
         def _parse_provider(data: object) -> None | str | Unset:
             if data is None:
@@ -133,7 +149,14 @@ class AiMessageCreateRequest:
 
         model = _parse_model(d.pop("model", UNSET))
 
-        created_at = d.pop("created_at", UNSET)
+        def _parse_created_at(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        created_at = _parse_created_at(d.pop("created_at", UNSET))
 
         def _parse_prompt_hash(data: object) -> None | str | Unset:
             if data is None:

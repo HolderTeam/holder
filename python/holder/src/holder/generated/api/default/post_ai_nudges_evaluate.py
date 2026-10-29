@@ -81,7 +81,7 @@ def sync_detailed(
     candidate the daemon does not know is answered, not rejected.
 
     Args:
-        body (AiNudgeCandidate):
+        body (AiNudgeCandidate): AI NudgeCandidate.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -113,7 +113,7 @@ def sync(
     candidate the daemon does not know is answered, not rejected.
 
     Args:
-        body (AiNudgeCandidate):
+        body (AiNudgeCandidate): AI NudgeCandidate.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -140,7 +140,7 @@ async def asyncio_detailed(
     candidate the daemon does not know is answered, not rejected.
 
     Args:
-        body (AiNudgeCandidate):
+        body (AiNudgeCandidate): AI NudgeCandidate.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -170,7 +170,7 @@ async def asyncio(
     candidate the daemon does not know is answered, not rejected.
 
     Args:
-        body (AiNudgeCandidate):
+        body (AiNudgeCandidate): AI NudgeCandidate.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

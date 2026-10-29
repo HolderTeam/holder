@@ -17,14 +17,15 @@ T = TypeVar("T", bound="AiStatusData")
 
 @_attrs_define
 class AiStatusData:
-    """
+    """AI StatusData.
+
     Attributes:
-        checked_at (int):
+        checked_at (int): The checked at.
         active_runs (int): Runs still in progress across every project.
         active_pull_jobs (int): Active pulls across every runner.
-        runners (list[AiRunner]):
-        cloud (list[AiProviderCredential]):
-        cloud_configured_providers (int):
+        runners (list[AiRunner]): The runners.
+        cloud (list[AiProviderCredential]): The cloud.
+        cloud_configured_providers (int): The cloud configured providers.
     """
 
     checked_at: int

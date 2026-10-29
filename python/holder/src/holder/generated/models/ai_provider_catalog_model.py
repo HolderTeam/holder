@@ -16,14 +16,15 @@ T = TypeVar("T", bound="AiProviderCatalogModel")
 
 @_attrs_define
 class AiProviderCatalogModel:
-    """
+    """AI ProviderCatalogModel.
+
     Attributes:
-        id (str):
-        endpoint (str):
-        role (None | str):
-        cost_tier (None | str):
-        default_for_low_budget (bool):
-        limits (AiProviderCatalogModelLimits):
+        id (str): The id.
+        endpoint (str): The endpoint.
+        role (None | str): The role.
+        cost_tier (None | str): The cost tier.
+        default_for_low_budget (bool): The default for low budget.
+        limits (AiProviderCatalogModelLimits): AI ProviderCatalogModelLimits.
     """
 
     id: str

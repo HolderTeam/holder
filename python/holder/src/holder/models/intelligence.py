@@ -412,7 +412,7 @@ class MessageLinkCollection(Collection[CardLink]):
             ),
         )
         return [
-            CardLink._from_rig_message_route(
+            CardLink._from_ai_message_route(
                 row, self._message._project.id, "ai_message"
             )
             for row in rows
@@ -444,7 +444,7 @@ class MessageLinkCollection(Collection[CardLink]):
             write=True,
         )
         self.refresh()
-        return CardLink._from_rig_message_route(
+        return CardLink._from_ai_message_route(
             row, self._message._project.id, "ai_message"
         )
 
@@ -482,9 +482,9 @@ class MessageBacklinkCollection(MessageLinkCollection):
                 int(self._include_deleted)
             ),
         )
-        # RIG's route does not say what each source is; a card, until it moves.
+        # The AI backlink route omits the source kind; use card here.
         return [
-            CardLink._from_rig_message_route(row, self._message._project.id, "card")
+            CardLink._from_ai_message_route(row, self._message._project.id, "card")
             for row in rows
         ], None
 

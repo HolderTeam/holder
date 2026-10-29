@@ -1,4 +1,4 @@
-// Generated from RIG IR; do not edit.
+// Retained AI dispatcher. contract/tests/test_ai_runtime.py checks its route inventory.
 #pragma once
 #include "api/generated/AiJson.h"
 #include <any>

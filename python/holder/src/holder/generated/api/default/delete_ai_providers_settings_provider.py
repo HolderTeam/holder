@@ -74,6 +74,8 @@ def sync_detailed(
 ) -> Response[AiProviderSettingDeleteResponse | ErrorResponse]:
     """Remove a cloud provider enabled override
 
+     Remove a cloud provider enabled override
+
     Args:
         provider (str):
 
@@ -103,6 +105,8 @@ def sync(
 ) -> AiProviderSettingDeleteResponse | ErrorResponse | None:
     """Remove a cloud provider enabled override
 
+     Remove a cloud provider enabled override
+
     Args:
         provider (str):
 
@@ -126,6 +130,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiProviderSettingDeleteResponse | ErrorResponse]:
     """Remove a cloud provider enabled override
+
+     Remove a cloud provider enabled override
 
     Args:
         provider (str):
@@ -153,6 +159,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiProviderSettingDeleteResponse | ErrorResponse | None:
     """Remove a cloud provider enabled override
+
+     Remove a cloud provider enabled override
 
     Args:
         provider (str):

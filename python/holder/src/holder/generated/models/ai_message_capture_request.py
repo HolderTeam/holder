@@ -20,18 +20,19 @@ T = TypeVar("T", bound="AiMessageCaptureRequest")
 
 @_attrs_define
 class AiMessageCaptureRequest:
-    """
+    """AI MessageCaptureRequest.
+
     Attributes:
-        project_id (str):
-        prompt (str):
-        response (str):
+        project_id (str): The project id.
+        prompt (str): The prompt.
+        response (str): The response.
         thread_id (None | str | Unset): An existing thread in the project; when omitted or null a new thread is created,
             titled from the prompt.
         source (None | str | Unset): Optional; defaults to manual_paste.
-        provider (None | str | Unset):
-        model (None | str | Unset):
-        url (None | str | Unset):
-        context (AiMessageCaptureRequestContextType0 | None | Unset):
+        provider (None | str | Unset): The provider.
+        model (None | str | Unset): The model.
+        url (None | str | Unset): The url.
+        context (AiMessageCaptureRequestContextType0 | None | Unset): The context.
         created_at (int | None | Unset): Optional; server uses current time if omitted or null.
     """
 

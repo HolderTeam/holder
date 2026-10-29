@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiMessageCaptureResponse")
 
 @_attrs_define
 class AiMessageCaptureResponse:
-    """
+    """AI MessageCapture response.
+
     Attributes:
-        ok (bool):
-        data (AiMessageCaptureResponseData):
+        ok (bool): The ok.
+        data (AiMessageCaptureResponseData): AI MessageCapture responseData.
     """
 
     ok: bool

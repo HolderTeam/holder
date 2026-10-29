@@ -14,14 +14,15 @@ T = TypeVar("T", bound="AiMessageUpdateRequest")
 
 @_attrs_define
 class AiMessageUpdateRequest:
-    """
+    """AI MessageUpdateRequest.
+
     Attributes:
         role (None | str | Unset): Omit or send null to leave it unchanged.
         source (None | str | Unset): Omit or send null to leave it unchanged.
         provider (None | str | Unset): Omit to leave it unchanged; null clears it.
         model (None | str | Unset): Omit to leave it unchanged; null clears it.
         content (None | str | Unset): Omit or send null to leave it unchanged.
-        created_at (int | Unset): Omit to leave it unchanged.
+        created_at (int | None | Unset): Omit to leave it unchanged.
         prompt_hash (None | str | Unset): Omit to leave it unchanged; null clears it.
         meta_json (None | str | Unset): Omit to leave it unchanged; null clears it.
     """
@@ -31,7 +32,7 @@ class AiMessageUpdateRequest:
     provider: None | str | Unset = UNSET
     model: None | str | Unset = UNSET
     content: None | str | Unset = UNSET
-    created_at: int | Unset = UNSET
+    created_at: int | None | Unset = UNSET
     prompt_hash: None | str | Unset = UNSET
     meta_json: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -67,7 +68,11 @@ class AiMessageUpdateRequest:
         else:
             content = self.content
 
-        created_at = self.created_at
+        created_at: int | None | Unset
+        if isinstance(self.created_at, Unset):
+            created_at = UNSET
+        else:
+            created_at = self.created_at
 
         prompt_hash: None | str | Unset
         if isinstance(self.prompt_hash, Unset):
@@ -152,7 +157,14 @@ class AiMessageUpdateRequest:
 
         content = _parse_content(d.pop("content", UNSET))
 
-        created_at = d.pop("created_at", UNSET)
+        def _parse_created_at(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        created_at = _parse_created_at(d.pop("created_at", UNSET))
 
         def _parse_prompt_hash(data: object) -> None | str | Unset:
             if data is None:

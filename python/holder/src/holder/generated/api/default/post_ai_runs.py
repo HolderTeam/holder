@@ -89,7 +89,7 @@ def sync_detailed(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -123,7 +123,7 @@ def sync(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -152,7 +152,7 @@ async def asyncio_detailed(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -184,7 +184,7 @@ async def asyncio(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -285,7 +285,7 @@ def stream(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -319,7 +319,7 @@ def astream(
     cancel execution; terminal events follow persisted status.
 
     Args:
-        body (AiRunCreateRequest):
+        body (AiRunCreateRequest): AI RunCreateRequest.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.

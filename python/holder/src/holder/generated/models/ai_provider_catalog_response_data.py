@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiProviderCatalogResponseData")
 
 @_attrs_define
 class AiProviderCatalogResponseData:
-    """
+    """AI ProviderCatalog responseData.
+
     Attributes:
-        default_provider (None | str):
-        providers (list[AiProviderCatalogProvider]):
+        default_provider (None | str): The default provider.
+        providers (list[AiProviderCatalogProvider]): The providers.
     """
 
     default_provider: None | str

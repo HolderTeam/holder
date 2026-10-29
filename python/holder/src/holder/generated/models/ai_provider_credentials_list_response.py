@@ -8,9 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.ai_provider_credentials_list_response_data import (
-        AiProviderCredentialsListResponseData,
-    )
+    from ..models.ai_provider_credentials_list_data import AiProviderCredentialsListData
 
 
 T = TypeVar("T", bound="AiProviderCredentialsListResponse")
@@ -18,14 +16,15 @@ T = TypeVar("T", bound="AiProviderCredentialsListResponse")
 
 @_attrs_define
 class AiProviderCredentialsListResponse:
-    """
+    """AI ProviderCredentialsList response.
+
     Attributes:
-        ok (bool):
-        data (AiProviderCredentialsListResponseData):
+        ok (bool): The ok.
+        data (AiProviderCredentialsListData): AI ProviderCredentialsListData.
     """
 
     ok: bool
-    data: AiProviderCredentialsListResponseData
+    data: AiProviderCredentialsListData
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,14 +45,14 @@ class AiProviderCredentialsListResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.ai_provider_credentials_list_response_data import (
-            AiProviderCredentialsListResponseData,
+        from ..models.ai_provider_credentials_list_data import (
+            AiProviderCredentialsListData,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = AiProviderCredentialsListResponseData.from_dict(d.pop("data"))
+        data = AiProviderCredentialsListData.from_dict(d.pop("data"))
 
         ai_provider_credentials_list_response = cls(
             ok=ok,

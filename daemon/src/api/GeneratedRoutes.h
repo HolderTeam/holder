@@ -21,7 +21,7 @@ namespace holder::api {
 using GeneratedRequest = boost::beast::http::request<boost::beast::http::string_body>;
 using GeneratedResponse = boost::beast::http::response<boost::beast::http::string_body>;
 
-// Whether the generated operation for this request is declared RIG_PUBLIC.
+// Whether this request may reach a public operation without a bearer token.
 bool is_public_generated_route(const GeneratedRequest& req);
 
 // Returns false only when no generated operation matches the request. A route the daemon

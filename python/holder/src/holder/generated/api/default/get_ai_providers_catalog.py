@@ -66,6 +66,8 @@ def sync_detailed(
 ) -> Response[AiProviderCatalogResponse | ErrorResponse]:
     """Get provider-agnostic cloud catalog with configured flags
 
+     Get provider-agnostic cloud catalog with configured flags
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -89,6 +91,8 @@ def sync(
 ) -> AiProviderCatalogResponse | ErrorResponse | None:
     """Get provider-agnostic cloud catalog with configured flags
 
+     Get provider-agnostic cloud catalog with configured flags
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -107,6 +111,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiProviderCatalogResponse | ErrorResponse]:
     """Get provider-agnostic cloud catalog with configured flags
+
+     Get provider-agnostic cloud catalog with configured flags
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -128,6 +134,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiProviderCatalogResponse | ErrorResponse | None:
     """Get provider-agnostic cloud catalog with configured flags
+
+     Get provider-agnostic cloud catalog with configured flags
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

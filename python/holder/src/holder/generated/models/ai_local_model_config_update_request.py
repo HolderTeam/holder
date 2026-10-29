@@ -14,12 +14,12 @@ T = TypeVar("T", bound="AiLocalModelConfigUpdateRequest")
 
 @_attrs_define
 class AiLocalModelConfigUpdateRequest:
-    """Replaces the whole configuration: an omitted, null or empty model clears it.
+    """Replaces the whole configuration: an omitted, null or empty model clears it..
 
     Attributes:
-        fast_model (None | str | Unset):
-        strong_model (None | str | Unset):
-        deep_model (None | str | Unset):
+        fast_model (None | str | Unset): The fast model.
+        strong_model (None | str | Unset): The strong model.
+        deep_model (None | str | Unset): The deep model.
         updated_at (int | None | Unset): Optional; server uses current time if omitted or null.
     """
 

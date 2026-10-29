@@ -18,26 +18,27 @@ T = TypeVar("T", bound="AiRunItem")
 
 @_attrs_define
 class AiRunItem:
-    """
+    """AI RunItem.
+
     Attributes:
-        run_id (str):
-        mode (str):
-        prompt (str):
-        status (str):
-        created_at (int):
-        updated_at (int):
-        project_id (None | str | Unset):
-        thread_id (None | str | Unset):
-        message_id (None | str | Unset):
-        context_json (None | str | Unset):
-        router_model (None | str | Unset):
+        run_id (str): The run id.
+        mode (str): The mode.
+        prompt (str): The prompt.
+        status (str): The status.
+        created_at (int): The created at.
+        updated_at (int): The updated at.
+        project_id (None | str | Unset): The project id.
+        thread_id (None | str | Unset): The thread id.
+        message_id (None | str | Unset): The message id.
+        context_json (None | str | Unset): The context json.
+        router_model (None | str | Unset): The router model.
         router_runner_id (None | str | Unset): The runner named by router_model's reference, or null.
-        ranked_json (None | str | Unset):
-        policy_trace_json (None | str | Unset):
-        policy_trace (AiRunItemPolicyTraceType0 | None | Unset):
-        chosen_model (None | str | Unset):
+        ranked_json (None | str | Unset): The ranked json.
+        policy_trace_json (None | str | Unset): The policy trace json.
+        policy_trace (AiRunItemPolicyTraceType0 | None | Unset): The policy trace.
+        chosen_model (None | str | Unset): The chosen model.
         chosen_runner_id (None | str | Unset): The runner named by chosen_model's reference, or null.
-        error (None | str | Unset):
+        error (None | str | Unset): The error.
     """
 
     run_id: str

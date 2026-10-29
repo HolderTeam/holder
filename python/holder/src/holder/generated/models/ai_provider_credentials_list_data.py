@@ -11,14 +11,15 @@ if TYPE_CHECKING:
     from ..models.ai_provider_credential import AiProviderCredential
 
 
-T = TypeVar("T", bound="AiProviderCredentialsListResponseData")
+T = TypeVar("T", bound="AiProviderCredentialsListData")
 
 
 @_attrs_define
-class AiProviderCredentialsListResponseData:
-    """
+class AiProviderCredentialsListData:
+    """AI ProviderCredentialsListData.
+
     Attributes:
-        providers (list[AiProviderCredential]):
+        providers (list[AiProviderCredential]): The providers.
     """
 
     providers: list[AiProviderCredential]
@@ -54,12 +55,12 @@ class AiProviderCredentialsListResponseData:
 
             providers.append(providers_item)
 
-        ai_provider_credentials_list_response_data = cls(
+        ai_provider_credentials_list_data = cls(
             providers=providers,
         )
 
-        ai_provider_credentials_list_response_data.additional_properties = d
-        return ai_provider_credentials_list_response_data
+        ai_provider_credentials_list_data.additional_properties = d
+        return ai_provider_credentials_list_data
 
     @property
     def additional_keys(self) -> list[str]:

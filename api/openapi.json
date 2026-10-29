@@ -210,18 +210,11 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    0,
-                    1
-                  ],
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                0,
+                1
               ],
+              "type": "integer",
               "description": "Set to 1 to include deleted messages.",
               "title": "Include Deleted"
             },
@@ -648,18 +641,11 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    0,
-                    1
-                  ],
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                0,
+                1
               ],
+              "type": "integer",
               "description": "Include backlinks from deleted sources.",
               "title": "Include Deleted"
             },
@@ -739,18 +725,11 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    0,
-                    1
-                  ],
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                0,
+                1
               ],
+              "type": "integer",
               "description": "Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.",
               "title": "Include Deleted"
             },

@@ -14,76 +14,134 @@ T = TypeVar("T", bound="AiRunEventData")
 
 @_attrs_define
 class AiRunEventData:
-    """Named run events share run_id. Fields vary by event and provider.
+    """Named run events share run_id. Fields vary by event and provider..
 
     Attributes:
-        run_id (str):
-        status (str | Unset):
-        created_at (int | Unset):
-        delta (str | Unset):
-        message (str | Unset):
-        error (str | Unset):
-        runner_id (str | Unset):
-        model_ref (str | Unset):
-        model (str | Unset):
-        provider (str | Unset):
-        context_compacted (bool | Unset): On a cloud progress event: whether the thread was summarized to fit the
+        run_id (str): The run id.
+        status (None | str | Unset): The status.
+        created_at (int | None | Unset): The created at.
+        delta (None | str | Unset): The delta.
+        message (None | str | Unset): The message.
+        error (None | str | Unset): The error.
+        runner_id (None | str | Unset): The runner id.
+        model_ref (None | str | Unset): The model ref.
+        model (None | str | Unset): The model.
+        provider (None | str | Unset): The provider.
+        context_compacted (bool | None | Unset): On a cloud progress event: whether the thread was summarized to fit the
             model's context.
-        cooldown_until (int | Unset): On a cloud fallback: when the failed model may be tried again, in epoch seconds.
-        router_model (str | Unset): On router_result: the model that ranked the candidates.
-        ranked (list[str] | Unset): On router_result: the candidate models, best first.
-        partial (bool | Unset): On a local fallback: whether the failed model had already streamed some output.
+        cooldown_until (int | None | Unset): On a cloud fallback: when the failed model may be tried again, in epoch
+            seconds.
+        router_model (None | str | Unset): On router_result: the model that ranked the candidates.
+        ranked (list[str] | None | Unset): On router_result: the candidate models, best first.
+        partial (bool | None | Unset): On a local fallback: whether the failed model had already streamed some output.
     """
 
     run_id: str
-    status: str | Unset = UNSET
-    created_at: int | Unset = UNSET
-    delta: str | Unset = UNSET
-    message: str | Unset = UNSET
-    error: str | Unset = UNSET
-    runner_id: str | Unset = UNSET
-    model_ref: str | Unset = UNSET
-    model: str | Unset = UNSET
-    provider: str | Unset = UNSET
-    context_compacted: bool | Unset = UNSET
-    cooldown_until: int | Unset = UNSET
-    router_model: str | Unset = UNSET
-    ranked: list[str] | Unset = UNSET
-    partial: bool | Unset = UNSET
+    status: None | str | Unset = UNSET
+    created_at: int | None | Unset = UNSET
+    delta: None | str | Unset = UNSET
+    message: None | str | Unset = UNSET
+    error: None | str | Unset = UNSET
+    runner_id: None | str | Unset = UNSET
+    model_ref: None | str | Unset = UNSET
+    model: None | str | Unset = UNSET
+    provider: None | str | Unset = UNSET
+    context_compacted: bool | None | Unset = UNSET
+    cooldown_until: int | None | Unset = UNSET
+    router_model: None | str | Unset = UNSET
+    ranked: list[str] | None | Unset = UNSET
+    partial: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         run_id = self.run_id
 
-        status = self.status
+        status: None | str | Unset
+        if isinstance(self.status, Unset):
+            status = UNSET
+        else:
+            status = self.status
 
-        created_at = self.created_at
+        created_at: int | None | Unset
+        if isinstance(self.created_at, Unset):
+            created_at = UNSET
+        else:
+            created_at = self.created_at
 
-        delta = self.delta
+        delta: None | str | Unset
+        if isinstance(self.delta, Unset):
+            delta = UNSET
+        else:
+            delta = self.delta
 
-        message = self.message
+        message: None | str | Unset
+        if isinstance(self.message, Unset):
+            message = UNSET
+        else:
+            message = self.message
 
-        error = self.error
+        error: None | str | Unset
+        if isinstance(self.error, Unset):
+            error = UNSET
+        else:
+            error = self.error
 
-        runner_id = self.runner_id
+        runner_id: None | str | Unset
+        if isinstance(self.runner_id, Unset):
+            runner_id = UNSET
+        else:
+            runner_id = self.runner_id
 
-        model_ref = self.model_ref
+        model_ref: None | str | Unset
+        if isinstance(self.model_ref, Unset):
+            model_ref = UNSET
+        else:
+            model_ref = self.model_ref
 
-        model = self.model
+        model: None | str | Unset
+        if isinstance(self.model, Unset):
+            model = UNSET
+        else:
+            model = self.model
 
-        provider = self.provider
+        provider: None | str | Unset
+        if isinstance(self.provider, Unset):
+            provider = UNSET
+        else:
+            provider = self.provider
 
-        context_compacted = self.context_compacted
+        context_compacted: bool | None | Unset
+        if isinstance(self.context_compacted, Unset):
+            context_compacted = UNSET
+        else:
+            context_compacted = self.context_compacted
 
-        cooldown_until = self.cooldown_until
+        cooldown_until: int | None | Unset
+        if isinstance(self.cooldown_until, Unset):
+            cooldown_until = UNSET
+        else:
+            cooldown_until = self.cooldown_until
 
-        router_model = self.router_model
+        router_model: None | str | Unset
+        if isinstance(self.router_model, Unset):
+            router_model = UNSET
+        else:
+            router_model = self.router_model
 
-        ranked: list[str] | Unset = UNSET
-        if not isinstance(self.ranked, Unset):
+        ranked: list[str] | None | Unset
+        if isinstance(self.ranked, Unset):
+            ranked = UNSET
+        elif isinstance(self.ranked, list):
             ranked = self.ranked
 
-        partial = self.partial
+        else:
+            ranked = self.ranked
+
+        partial: bool | None | Unset
+        if isinstance(self.partial, Unset):
+            partial = UNSET
+        else:
+            partial = self.partial
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -128,33 +186,139 @@ class AiRunEventData:
         d = dict(src_dict)
         run_id = d.pop("run_id")
 
-        status = d.pop("status", UNSET)
+        def _parse_status(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        created_at = d.pop("created_at", UNSET)
+        status = _parse_status(d.pop("status", UNSET))
 
-        delta = d.pop("delta", UNSET)
+        def _parse_created_at(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
 
-        message = d.pop("message", UNSET)
+        created_at = _parse_created_at(d.pop("created_at", UNSET))
 
-        error = d.pop("error", UNSET)
+        def _parse_delta(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        runner_id = d.pop("runner_id", UNSET)
+        delta = _parse_delta(d.pop("delta", UNSET))
 
-        model_ref = d.pop("model_ref", UNSET)
+        def _parse_message(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        model = d.pop("model", UNSET)
+        message = _parse_message(d.pop("message", UNSET))
 
-        provider = d.pop("provider", UNSET)
+        def _parse_error(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        context_compacted = d.pop("context_compacted", UNSET)
+        error = _parse_error(d.pop("error", UNSET))
 
-        cooldown_until = d.pop("cooldown_until", UNSET)
+        def _parse_runner_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        router_model = d.pop("router_model", UNSET)
+        runner_id = _parse_runner_id(d.pop("runner_id", UNSET))
 
-        ranked = cast(list[str], d.pop("ranked", UNSET))
+        def _parse_model_ref(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        partial = d.pop("partial", UNSET)
+        model_ref = _parse_model_ref(d.pop("model_ref", UNSET))
+
+        def _parse_model(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        model = _parse_model(d.pop("model", UNSET))
+
+        def _parse_provider(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        provider = _parse_provider(d.pop("provider", UNSET))
+
+        def _parse_context_compacted(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        context_compacted = _parse_context_compacted(d.pop("context_compacted", UNSET))
+
+        def _parse_cooldown_until(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        cooldown_until = _parse_cooldown_until(d.pop("cooldown_until", UNSET))
+
+        def _parse_router_model(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        router_model = _parse_router_model(d.pop("router_model", UNSET))
+
+        def _parse_ranked(data: object) -> list[str] | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, list):
+                    raise TypeError()
+                ranked_type_0 = cast(list[str], data)
+
+                return ranked_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(list[str] | None | Unset, data)
+
+        ranked = _parse_ranked(d.pop("ranked", UNSET))
+
+        def _parse_partial(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        partial = _parse_partial(d.pop("partial", UNSET))
 
         ai_run_event_data = cls(
             run_id=run_id,
