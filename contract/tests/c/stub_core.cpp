@@ -542,6 +542,26 @@ std::vector<SearchMessage> search_ai_messages(holder_context& context, std::stri
   (void)offset;
   return {{"message-one", 3, "[found]", -1.0}};
 }
+
+ProjectRecoveryTokenExportResult export_project_recovery_token(
+    holder_context& context, std::string project_id, const RecoveryTokenExportRequest& request) {
+  project_named(context, project_id);
+  return {project_id, "key-one", "token-for-" + request.pin};
+}
+
+ProjectRecoveryTokenImportResult import_project_recovery_token(
+    holder_context& context, std::string project_id, const RecoveryTokenImportRequest& request) {
+  project_named(context, project_id);
+  (void)request;
+  return {project_id};
+}
+
+RecoveryTokenGlobalImportResult import_recovery_token_global(
+    holder_context& context, const RecoveryTokenImportRequest& request) {
+  (void)context;
+  return {{"project-one"}, request.recovery_token == "new", false, false, std::nullopt,
+          RecoveryTokenGlobalImportResultPullStatus::NotAttempted, std::nullopt};
+}
 }  // namespace holder::contract
 
 extern "C" holder_context* stub_context_new(void) { return new holder_context; }

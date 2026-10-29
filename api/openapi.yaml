@@ -5006,25 +5006,26 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/recovery-token/export:
     post:
-      summary: Export project recovery token
+      summary: Wrap an encrypted project's key in a portable token protected by a PIN.
+      description: Wrap an encrypted project's key in a portable token protected by a PIN.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectRecoveryTokenExportRequest'}
+            schema: {$ref: '#/components/schemas/RecoveryTokenExportRequest'}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectRecoveryTokenExportResponse'}
+              schema: {$ref: '#/components/schemas/ProjectRecoveryTokenExportResultResponse'}
         '400':
-          description: Malformed request, a project with no key material, or a privacy error
+          description: Invalid argument.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5034,43 +5035,51 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error, including missing key material or crypt metadata
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Keyring unavailable
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/recovery-token/import:
     post:
-      summary: Import project recovery token
-      description: The token must be for this project.
+      summary: Restore an encrypted project's key from a token for that project.
+      description: Restore an encrypted project's key from a token for that project.
       parameters:
       - name: project_id
         in: path
         required: true
-        schema: {type: string}
+        schema: {$ref: '#/components/schemas/ProjectId'}
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportRequest'}
+            schema: {$ref: '#/components/schemas/RecoveryTokenImportRequest'}
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportResponse'}
+              schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportResultResponse'}
         '400':
-          description: Malformed request, or an invalid token or PIN, including one for another project
-            (recovery_token_invalid)
+          description: Invalid argument. The recovery token or its PIN is invalid, or the token belongs
+            to another project.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5080,17 +5089,19 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
-          description: Project not found
+          description: The thing asked for does not exist, or is in the trash.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error, including missing key material or crypt metadata
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Keyring unavailable
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5568,28 +5579,30 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /recovery-token/import:
     post:
-      summary: Import recovery token and auto-match/create project
-      description: Matches the token's project_id to a local project, or creates one from the token's
-        metadata; the status and project_created say which. When the token names a remote, it is configured
-        and pulled; failures there are reported in the result, not as HTTP errors.
+      summary: Restore a token, finding its project here or making one from the token's metadata.
+      description: 'If the token names a Git remote, configure it and attempt a pull. Remote and pull
+        failures
+
+        are reported in the result. Returns 201 when the project was created, otherwise 200.'
       requestBody:
-        required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ProjectRecoveryTokenImportRequest'}
+            schema: {$ref: '#/components/schemas/RecoveryTokenImportRequest'}
+        required: true
       responses:
         '200':
-          description: Imported and matched an existing local project
+          description: Successful Response
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/RecoveryTokenImportAutoResponse'}
+              schema: {$ref: '#/components/schemas/RecoveryTokenGlobalImportResultResponse'}
         '201':
-          description: Imported and created a new local project from the token's metadata
+          description: Created.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/RecoveryTokenImportAutoResponse'}
+              schema: {$ref: '#/components/schemas/RecoveryTokenGlobalImportResultResponse'}
         '400':
-          description: Malformed request, or an invalid token or PIN (recovery_token_invalid)
+          description: Invalid argument. The recovery token or its PIN is invalid, or the token belongs
+            to another project.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -5599,12 +5612,14 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '500':
-          description: Internal server error, including missing key material or crypt metadata
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '503':
-          description: Keyring unavailable
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -8015,43 +8030,38 @@ components:
       required: [ok, data]
       title: ProjectListItemListResponse
     ProjectName: {type: string, minLength: 1}
-    ProjectRecoveryTokenExportRequest:
-      type: object
+    ProjectRecoveryTokenExportResult:
       properties:
-        pin: {type: string, description: User-provided PIN used to wrap the project key., minLength: 1}
-      required: [pin]
-    ProjectRecoveryTokenExportResponse:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project whose key was exported.}
+        key_id: {type: string, title: Key Id, description: The encrypted project's key ID.}
+        recovery_token: {type: string, title: Recovery Token, description: Serialized .hrk token JSON.}
+      additionalProperties: false
       type: object
+      required: [project_id, key_id, recovery_token]
+      title: ProjectRecoveryTokenExportResult
+      description: A portable encrypted project key.
+    ProjectRecoveryTokenExportResultResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            key_id: {type: string}
-            recovery_token: {type: string, description: Serialized `.hrk` recovery token JSON payload.}
-          required: [project_id, key_id, recovery_token]
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ProjectRecoveryTokenExportResult'}
+      type: object
       required: [ok, data]
-    ProjectRecoveryTokenImportRequest:
-      type: object
+      title: ProjectRecoveryTokenExportResultResponse
+    ProjectRecoveryTokenImportResult:
       properties:
-        pin: {type: string}
-        recovery_token: {type: string, description: Serialized `.hrk` recovery token JSON payload.}
-      required: [pin, recovery_token]
-    ProjectRecoveryTokenImportResponse:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project whose key was restored.}
+      additionalProperties: false
       type: object
+      required: [project_id]
+      title: ProjectRecoveryTokenImportResult
+      description: The project whose key was restored.
+    ProjectRecoveryTokenImportResultResponse:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-          required: [project_id]
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/ProjectRecoveryTokenImportResult'}
+      type: object
       required: [ok, data]
+      title: ProjectRecoveryTokenImportResultResponse
     ProjectResponse:
       properties:
         ok: {type: boolean, const: true, title: Ok}
@@ -8163,29 +8173,65 @@ components:
           enum: [true]
         data: {$ref: '#/components/schemas/RebuildData'}
       required: [ok, data]
-    RecoveryTokenImportAutoResponse:
-      type: object
+    RecoveryTokenExportRequest:
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            project_id: {type: string}
-            project_created: {type: boolean, description: 'True when no local project had the token''s
-                project_id, so one was created from the token''s metadata.'}
-            remote_hint_present: {type: boolean}
-            remote_configured: {type: boolean}
-            remote_error:
-              type: [string, 'null']
-            pull_status:
-              type: string
-              enum: [not_attempted, succeeded, failed]
-            pull_error:
-              type: [string, 'null']
-          required: [project_id, project_created, remote_hint_present, remote_configured, pull_status]
+        pin: {type: string, minLength: 1, title: Pin, description: User-provided PIN used to wrap or unwrap
+            the key.}
+      additionalProperties: false
+      type: object
+      required: [pin]
+      title: RecoveryTokenExportRequest
+      description: PIN used to wrap the project key.
+    RecoveryTokenGlobalImportResult:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project whose key was restored.}
+        project_created: {type: boolean, title: Project Created, description: Whether this device made
+            the project from the token.}
+        remote_hint_present: {type: boolean, title: Remote Hint Present, description: Whether the token
+            names a Git remote.}
+        remote_configured: {type: boolean, title: Remote Configured, description: Whether that remote
+            was configured.}
+        remote_error:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Remote Error
+          description: Why remote configuration failed, or null.
+        pull_status:
+          type: string
+          enum: [not_attempted, succeeded, failed]
+          title: Pull Status
+          description: Outcome of the attempted pull.
+        pull_error:
+          anyOf:
+          - {type: string}
+          - {type: 'null'}
+          title: Pull Error
+          description: Why pulling failed, or null.
+      additionalProperties: false
+      type: object
+      required: [project_id, project_created, remote_hint_present, remote_configured, remote_error, pull_status,
+        pull_error]
+      title: RecoveryTokenGlobalImportResult
+      description: The result of restoring a token to this device.
+    RecoveryTokenGlobalImportResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/RecoveryTokenGlobalImportResult'}
+      type: object
       required: [ok, data]
+      title: RecoveryTokenGlobalImportResultResponse
+    RecoveryTokenImportRequest:
+      properties:
+        pin: {type: string, minLength: 1, title: Pin, description: User-provided PIN used to wrap or unwrap
+            the key.}
+        recovery_token: {type: string, minLength: 1, title: Recovery Token, description: Serialized .hrk
+            token JSON.}
+      additionalProperties: false
+      type: object
+      required: [pin, recovery_token]
+      title: RecoveryTokenImportRequest
+      description: PIN and serialized .hrk token to restore.
     ReindexData:
       type: object
       properties:

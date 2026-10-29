@@ -23,7 +23,7 @@ def create_card(project_id: Annotated[ProjectId, Path()], card: Annotated[NewCar
 ```
 
 - Each parameter says where it comes from: `Path()`, `Query()`, or `Body()` for at most one, a record, as the JSON request body.
-- `status` is the success status, 200 unless given; it must be a 2xx with a body.
+- `status` is the success status, 200 unless given; it must be a 2xx with a body. `created_when` names a boolean result field that selects 201 when true and 200 when false.
 - `statuses` gives each error kind its HTTP status. Every error kind of a route needs one. The error kinds name conditions, such as `NotFound`; only `app.py` says what they are in HTTP.
 
 ## Conventions

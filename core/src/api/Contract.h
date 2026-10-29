@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C++ declarations core implements: one function per operation. A missing implementation fails to link.
@@ -88,6 +88,11 @@ struct NotTrashed : Error {
 
 /// The bounded History response would exceed 2 MiB.
 struct HistoryResponseTooLarge : Error {
+  using Error::Error;
+};
+
+/// The recovery token or its PIN is invalid, or the token belongs to another project.
+struct RecoveryTokenInvalid : Error {
   using Error::Error;
 };
 
@@ -214,6 +219,16 @@ struct ProjectUpdate {
 /// Ask for a repair plan, or apply it.
 struct HierarchyRepairRequest {
   bool apply = false;  ///< Apply the repair. Without it, only report.
+};
+
+/// PIN used to wrap the project key.
+struct RecoveryTokenExportRequest {
+  std::string pin;  ///< User-provided PIN used to wrap or unwrap the key.
+};
+
+/// PIN and serialized .hrk token to restore.
+struct RecoveryTokenImportRequest : RecoveryTokenExportRequest {
+  std::string recovery_token;  ///< Serialized .hrk token JSON.
 };
 
 /// How to push.
@@ -427,6 +442,31 @@ struct HierarchyRepair {
   std::vector<HierarchyRepairMove> moved;  ///< The hidden branches whose top cards move.
   std::int32_t changed_card_count{};  ///< Cards moved or re-spaced to make room.
   std::vector<std::string> cycle_card_ids;  ///< Cards in parent cycles; left for manual repair.
+};
+
+/// A portable encrypted project key.
+struct ProjectRecoveryTokenExportResult {
+  std::string project_id;  ///< The project whose key was exported.
+  std::string key_id;  ///< The encrypted project's key ID.
+  std::string recovery_token;  ///< Serialized .hrk token JSON.
+};
+
+/// The project whose key was restored.
+struct ProjectRecoveryTokenImportResult {
+  std::string project_id;  ///< The project whose key was restored.
+};
+
+/// Outcome of the attempted pull.
+enum class RecoveryTokenGlobalImportResultPullStatus { NotAttempted, Succeeded, Failed };
+
+/// The result of restoring a token to this device.
+struct RecoveryTokenGlobalImportResult : ProjectRecoveryTokenImportResult {
+  bool project_created{};  ///< Whether this device made the project from the token.
+  bool remote_hint_present{};  ///< Whether the token names a Git remote.
+  bool remote_configured{};  ///< Whether that remote was configured.
+  std::optional<std::string> remote_error;  ///< Why remote configuration failed, or null.
+  RecoveryTokenGlobalImportResultPullStatus pull_status;  ///< Outcome of the attempted pull.
+  std::optional<std::string> pull_error;  ///< Why pulling failed, or null.
 };
 
 /// What this device last recorded about a project's sync: its last pull and push, what is waiting to go, and
@@ -932,6 +972,20 @@ ProjectEncryptionCheck check_project_encryption(holder_context& context, std::st
 /// ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 HierarchyRepair repair_project_hierarchy(holder_context& context, std::string project_id, const HierarchyRepairRequest& request);
+
+/// Wrap an encrypted project's key in a portable token protected by a PIN.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+ProjectRecoveryTokenExportResult export_project_recovery_token(holder_context& context, std::string project_id, const RecoveryTokenExportRequest& request);
+
+/// Restore an encrypted project's key from a token for that project.
+/// @throws NotFound, RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted
+ProjectRecoveryTokenImportResult import_project_recovery_token(holder_context& context, std::string project_id, const RecoveryTokenImportRequest& request);
+
+/// Restore a token, finding its project here or making one from the token's metadata.
+/// If the token names a Git remote, configure it and attempt a pull. Remote and pull failures
+/// are reported in the result. Returns 201 when the project was created, otherwise 200.
+/// @throws RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted
+RecoveryTokenGlobalImportResult import_recovery_token_global(holder_context& context, const RecoveryTokenImportRequest& request);
 
 /// What this device last recorded about a project's sync.
 /// @throws NotFound

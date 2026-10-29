@@ -95,7 +95,7 @@ TEST_CASE("HTTP project recovery token export/import round-trip", "[http]") {
       boost::beast::http::status::bad_request
   );
   REQUIRE(bad_import["ok"] == false);
-  REQUIRE(bad_import["error"]["code"] == "privacy_recovery_token_invalid");
+  REQUIRE(bad_import["error"]["code"] == "recovery_token_invalid");
 
   const auto imported = http_json_request(
       bound.bind,

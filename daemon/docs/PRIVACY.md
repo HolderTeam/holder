@@ -128,7 +128,7 @@ The flow is a release.
 - Recovery token export/import is supported via API:
   - export wraps project key material under user PIN-derived wrapping key.
   - import validates token/project and restores key material into keyring.
-- Wrong PIN / invalid token returns typed `privacy_recovery_token_invalid`.
+- Wrong PIN / invalid token returns HTTP error `recovery_token_invalid`.
 - Detailed restore scenarios and proposed `.hrk` evolution are documented in:
   - `docs/PRIVACY_RECOVERY.md`
 

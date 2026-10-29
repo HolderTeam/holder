@@ -163,7 +163,7 @@ TEST_CASE("ProjectRoutes global recovery import validates required fields", "[pr
   REQUIRE(res.result() == http::status::bad_request);
   const auto payload = nlohmann::json::parse(res.body());
   REQUIRE(payload["ok"] == false);
-  REQUIRE(payload["error"]["code"] == "bad_request");
+  REQUIRE(payload["error"]["code"] == "invalid_argument");
 }
 
 TEST_CASE("ProjectRoutes leave an empty project id segment unrouted", "[project-routes]") {
@@ -206,7 +206,7 @@ TEST_CASE("ProjectRoutes covers additional uncovered branches", "[project-routes
   SECTION("global recovery import missing fields path") {
     auto [status, payload] = call(http::verb::post, "/recovery-token/import", {{"x", 1}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 
   SECTION("generated projects list returns an internal error with closed db") {
@@ -808,7 +808,7 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/recovery-token/export", {{"x", 1}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 
   SECTION("project recovery import missing fields") {
@@ -825,6 +825,6 @@ TEST_CASE("ProjectRoutes create and recovery required field branches", "[project
     auto [status, payload] =
         call(http::verb::post, "/projects/proj-1/recovery-token/import", {{"pin", "1234"}});
     REQUIRE(status == http::status::bad_request);
-    REQUIRE(payload["error"]["code"] == "bad_request");
+    REQUIRE(payload["error"]["code"] == "invalid_argument");
   }
 }

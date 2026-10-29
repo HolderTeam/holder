@@ -27,9 +27,9 @@ from ..generated.models import (
     HierarchyRepairRequest,
     NewProject,
     PrivacyMode,
-    ProjectRecoveryTokenExportRequest,
-    ProjectRecoveryTokenImportRequest,
     ProjectUpdate,
+    RecoveryTokenExportRequest,
+    RecoveryTokenImportRequest,
 )
 from ..generated.types import UNSET, Unset
 from .card import CardCollection
@@ -56,7 +56,7 @@ class ProjectCollection(Collection["Project"]):
         _check_recovery_inputs(token, pin)
         data = self._holder._call(
             post_recovery_token_import,
-            body=ProjectRecoveryTokenImportRequest(pin=pin, recovery_token=token),
+            body=RecoveryTokenImportRequest(pin=pin, recovery_token=token),
             write=True,
         )
         return RecoveryResult(
@@ -373,7 +373,7 @@ class Project:
         data = self._holder._call(
             post_projects_project_id_recovery_token_export,
             self.id,
-            body=ProjectRecoveryTokenExportRequest(pin=pin),
+            body=RecoveryTokenExportRequest(pin=pin),
             write=True,
         )
         if data.project_id != self.id:
@@ -386,7 +386,7 @@ class Project:
         data = self._holder._call(
             post_projects_project_id_recovery_token_import,
             self.id,
-            body=ProjectRecoveryTokenImportRequest(pin=pin, recovery_token=token),
+            body=RecoveryTokenImportRequest(pin=pin, recovery_token=token),
             write=True,
         )
         if data.project_id != self.id:

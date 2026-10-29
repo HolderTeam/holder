@@ -8,24 +8,24 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.project_recovery_token_export_response_data import (
-        ProjectRecoveryTokenExportResponseData,
+    from ..models.recovery_token_global_import_result import (
+        RecoveryTokenGlobalImportResult,
     )
 
 
-T = TypeVar("T", bound="ProjectRecoveryTokenExportResponse")
+T = TypeVar("T", bound="RecoveryTokenGlobalImportResultResponse")
 
 
 @_attrs_define
-class ProjectRecoveryTokenExportResponse:
+class RecoveryTokenGlobalImportResultResponse:
     """
     Attributes:
         ok (bool):
-        data (ProjectRecoveryTokenExportResponseData):
+        data (RecoveryTokenGlobalImportResult): The result of restoring a token to this device.
     """
 
     ok: bool
-    data: ProjectRecoveryTokenExportResponseData
+    data: RecoveryTokenGlobalImportResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,22 +46,22 @@ class ProjectRecoveryTokenExportResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.project_recovery_token_export_response_data import (
-            ProjectRecoveryTokenExportResponseData,
+        from ..models.recovery_token_global_import_result import (
+            RecoveryTokenGlobalImportResult,
         )
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = ProjectRecoveryTokenExportResponseData.from_dict(d.pop("data"))
+        data = RecoveryTokenGlobalImportResult.from_dict(d.pop("data"))
 
-        project_recovery_token_export_response = cls(
+        recovery_token_global_import_result_response = cls(
             ok=ok,
             data=data,
         )
 
-        project_recovery_token_export_response.additional_properties = d
-        return project_recovery_token_export_response
+        recovery_token_global_import_result_response.additional_properties = d
+        return recovery_token_global_import_result_response
 
     @property
     def additional_keys(self) -> list[str]:

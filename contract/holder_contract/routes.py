@@ -83,6 +83,7 @@ class Operation:
     errors: list[type[HolderError]]
     core: bool = True  # whether core's C API has it
     route: bool = True  # whether the daemon serves it over HTTP
+    created_when: str | None = None  # boolean result field selecting 201 instead of 200
 
 
 @dataclass
@@ -104,7 +105,7 @@ class Contract:
         return app
 
     def route(self, method: str, path: str, *, errors: list[type[HolderError]] = (), status: int = 200,
-              core: bool = True) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+              core: bool = True, created_when: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare an operation the daemon serves at method and path, answering status on success."""
 
         def register(function: Callable[..., Any]) -> Callable[..., Any]:
@@ -119,10 +120,14 @@ class Contract:
             else:
                 options = {"response_model": Envelope[returns]}
             options["responses"] = self.error_responses(errors)
+            if created_when is not None:
+                if status != 200:
+                    raise ValueError("created_when requires status 200")
+                options["responses"][201] = {"model": Envelope[returns], "description": "Created."}
             self.router.add_api_route(path, function, methods=[method], status_code=status,
                                       summary=summary.strip() or None, description=description.strip() or None,
                                       operation_id=function.__name__, **options)
-            self.operations.append(Operation(function, list(errors), core=core))
+            self.operations.append(Operation(function, list(errors), core=core, created_when=created_when))
             return function
 
         return register

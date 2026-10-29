@@ -1,38 +1,44 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="ProjectRecoveryTokenImportRequest")
+if TYPE_CHECKING:
+    from ..models.project_recovery_token_import_result import (
+        ProjectRecoveryTokenImportResult,
+    )
+
+
+T = TypeVar("T", bound="ProjectRecoveryTokenImportResultResponse")
 
 
 @_attrs_define
-class ProjectRecoveryTokenImportRequest:
+class ProjectRecoveryTokenImportResultResponse:
     """
     Attributes:
-        pin (str):
-        recovery_token (str): Serialized `.hrk` recovery token JSON payload.
+        ok (bool):
+        data (ProjectRecoveryTokenImportResult): The project whose key was restored.
     """
 
-    pin: str
-    recovery_token: str
+    ok: bool
+    data: ProjectRecoveryTokenImportResult
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        pin = self.pin
+        ok = self.ok
 
-        recovery_token = self.recovery_token
+        data = self.data.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "pin": pin,
-                "recovery_token": recovery_token,
+                "ok": ok,
+                "data": data,
             }
         )
 
@@ -40,18 +46,22 @@ class ProjectRecoveryTokenImportRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        d = dict(src_dict)
-        pin = d.pop("pin")
-
-        recovery_token = d.pop("recovery_token")
-
-        project_recovery_token_import_request = cls(
-            pin=pin,
-            recovery_token=recovery_token,
+        from ..models.project_recovery_token_import_result import (
+            ProjectRecoveryTokenImportResult,
         )
 
-        project_recovery_token_import_request.additional_properties = d
-        return project_recovery_token_import_request
+        d = dict(src_dict)
+        ok = d.pop("ok")
+
+        data = ProjectRecoveryTokenImportResult.from_dict(d.pop("data"))
+
+        project_recovery_token_import_result_response = cls(
+            ok=ok,
+            data=data,
+        )
+
+        project_recovery_token_import_result_response.additional_properties = d
+        return project_recovery_token_import_result_response
 
     @property
     def additional_keys(self) -> list[str]:

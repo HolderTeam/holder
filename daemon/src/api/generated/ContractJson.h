@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -298,6 +298,25 @@ template <> struct codec<holder::contract::ProjectEncryptionCheckPrivacyMode> {
         if (text == "encrypted_git") return holder::contract::ProjectEncryptionCheckPrivacyMode::EncryptedGit;
         if (text == "plain") return holder::contract::ProjectEncryptionCheckPrivacyMode::Plain;
         throw std::invalid_argument("must be one of encrypted_git, plain");
+    }
+};
+
+template <> struct codec<holder::contract::RecoveryTokenGlobalImportResultPullStatus> {
+    static json encode(holder::contract::RecoveryTokenGlobalImportResultPullStatus value) {
+        switch (value) {
+        case holder::contract::RecoveryTokenGlobalImportResultPullStatus::NotAttempted: return "not_attempted";
+        case holder::contract::RecoveryTokenGlobalImportResultPullStatus::Succeeded: return "succeeded";
+        case holder::contract::RecoveryTokenGlobalImportResultPullStatus::Failed: return "failed";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoveryTokenGlobalImportResultPullStatus decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "not_attempted") return holder::contract::RecoveryTokenGlobalImportResultPullStatus::NotAttempted;
+        if (text == "succeeded") return holder::contract::RecoveryTokenGlobalImportResultPullStatus::Succeeded;
+        if (text == "failed") return holder::contract::RecoveryTokenGlobalImportResultPullStatus::Failed;
+        throw std::invalid_argument("must be one of not_attempted, succeeded, failed");
     }
 };
 
@@ -617,6 +636,18 @@ template <> struct codec<holder::contract::HierarchyRepair> {
     static json encode(const holder::contract::HierarchyRepair& value);
     static holder::contract::HierarchyRepair decode(const json& value);
 };
+template <> struct codec<holder::contract::ProjectRecoveryTokenExportResult> {
+    static json encode(const holder::contract::ProjectRecoveryTokenExportResult& value);
+    static holder::contract::ProjectRecoveryTokenExportResult decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectRecoveryTokenImportResult> {
+    static json encode(const holder::contract::ProjectRecoveryTokenImportResult& value);
+    static holder::contract::ProjectRecoveryTokenImportResult decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoveryTokenGlobalImportResult> {
+    static json encode(const holder::contract::RecoveryTokenGlobalImportResult& value);
+    static holder::contract::RecoveryTokenGlobalImportResult decode(const json& value);
+};
 template <> struct codec<holder::contract::SyncState> {
     static json encode(const holder::contract::SyncState& value);
     static holder::contract::SyncState decode(const json& value);
@@ -756,6 +787,14 @@ template <> struct codec<holder::contract::ProjectUpdate> {
 template <> struct codec<holder::contract::HierarchyRepairRequest> {
     static json encode(const holder::contract::HierarchyRepairRequest& value);
     static holder::contract::HierarchyRepairRequest decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoveryTokenExportRequest> {
+    static json encode(const holder::contract::RecoveryTokenExportRequest& value);
+    static holder::contract::RecoveryTokenExportRequest decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoveryTokenImportRequest> {
+    static json encode(const holder::contract::RecoveryTokenImportRequest& value);
+    static holder::contract::RecoveryTokenImportRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::PushOptions> {
     static json encode(const holder::contract::PushOptions& value);
@@ -1950,6 +1989,115 @@ inline holder::contract::HierarchyRepair codec<holder::contract::HierarchyRepair
         out.cycle_card_ids = [&] { auto items = decode_field<std::vector<std::string>>(item, "cycle_card_ids"); for (const auto& text : items) check_text(text, "cycle_card_ids", 0, std::numeric_limits<std::size_t>::max()); return items; }();
     } else {
         throw std::invalid_argument("cycle_card_ids is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectRecoveryTokenExportResult>::encode(const holder::contract::ProjectRecoveryTokenExportResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["key_id"] = codec<std::string>::encode(value.key_id);
+    result["recovery_token"] = codec<std::string>::encode(value.recovery_token);
+    return result;
+}
+inline holder::contract::ProjectRecoveryTokenExportResult codec<holder::contract::ProjectRecoveryTokenExportResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectRecoveryTokenExportResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "key_id" && it.key() != "recovery_token") throw std::invalid_argument("ProjectRecoveryTokenExportResult has no field " + it.key());
+    holder::contract::ProjectRecoveryTokenExportResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("key_id") && !value.at("key_id").is_null()) {
+        const auto& item = value.at("key_id");
+        out.key_id = check_text(decode_field<std::string>(item, "key_id"), "key_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("key_id is required and must not be null");
+    }
+    if (value.contains("recovery_token") && !value.at("recovery_token").is_null()) {
+        const auto& item = value.at("recovery_token");
+        out.recovery_token = check_text(decode_field<std::string>(item, "recovery_token"), "recovery_token", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("recovery_token is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::ProjectRecoveryTokenImportResult>::encode(const holder::contract::ProjectRecoveryTokenImportResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    return result;
+}
+inline holder::contract::ProjectRecoveryTokenImportResult codec<holder::contract::ProjectRecoveryTokenImportResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectRecoveryTokenImportResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id") throw std::invalid_argument("ProjectRecoveryTokenImportResult has no field " + it.key());
+    holder::contract::ProjectRecoveryTokenImportResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoveryTokenGlobalImportResult>::encode(const holder::contract::RecoveryTokenGlobalImportResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["project_created"] = codec<bool>::encode(value.project_created);
+    result["remote_hint_present"] = codec<bool>::encode(value.remote_hint_present);
+    result["remote_configured"] = codec<bool>::encode(value.remote_configured);
+    result["remote_error"] = value.remote_error ? codec<std::string>::encode(*value.remote_error) : json(nullptr);
+    result["pull_status"] = codec<holder::contract::RecoveryTokenGlobalImportResultPullStatus>::encode(value.pull_status);
+    result["pull_error"] = value.pull_error ? codec<std::string>::encode(*value.pull_error) : json(nullptr);
+    return result;
+}
+inline holder::contract::RecoveryTokenGlobalImportResult codec<holder::contract::RecoveryTokenGlobalImportResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoveryTokenGlobalImportResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "project_created" && it.key() != "remote_hint_present" && it.key() != "remote_configured" && it.key() != "remote_error" && it.key() != "pull_status" && it.key() != "pull_error") throw std::invalid_argument("RecoveryTokenGlobalImportResult has no field " + it.key());
+    holder::contract::RecoveryTokenGlobalImportResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("project_created") && !value.at("project_created").is_null()) {
+        const auto& item = value.at("project_created");
+        out.project_created = decode_field<bool>(item, "project_created");
+    } else {
+        throw std::invalid_argument("project_created is required and must not be null");
+    }
+    if (value.contains("remote_hint_present") && !value.at("remote_hint_present").is_null()) {
+        const auto& item = value.at("remote_hint_present");
+        out.remote_hint_present = decode_field<bool>(item, "remote_hint_present");
+    } else {
+        throw std::invalid_argument("remote_hint_present is required and must not be null");
+    }
+    if (value.contains("remote_configured") && !value.at("remote_configured").is_null()) {
+        const auto& item = value.at("remote_configured");
+        out.remote_configured = decode_field<bool>(item, "remote_configured");
+    } else {
+        throw std::invalid_argument("remote_configured is required and must not be null");
+    }
+    if (value.contains("remote_error") && !value.at("remote_error").is_null()) {
+        const auto& item = value.at("remote_error");
+        out.remote_error = check_text(decode_field<std::string>(item, "remote_error"), "remote_error", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("pull_status") && !value.at("pull_status").is_null()) {
+        const auto& item = value.at("pull_status");
+        out.pull_status = decode_field<holder::contract::RecoveryTokenGlobalImportResultPullStatus>(item, "pull_status");
+    } else {
+        throw std::invalid_argument("pull_status is required and must not be null");
+    }
+    if (value.contains("pull_error") && !value.at("pull_error").is_null()) {
+        const auto& item = value.at("pull_error");
+        out.pull_error = check_text(decode_field<std::string>(item, "pull_error"), "pull_error", 0, std::numeric_limits<std::size_t>::max());
     }
     return out;
 }
@@ -3498,6 +3646,51 @@ inline holder::contract::HierarchyRepairRequest codec<holder::contract::Hierarch
         out.apply = decode_field<bool>(item, "apply");
     } else if (value.contains("apply")) {
         throw std::invalid_argument("apply must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoveryTokenExportRequest>::encode(const holder::contract::RecoveryTokenExportRequest& value) {
+    json result = json::object();
+    result["pin"] = codec<std::string>::encode(value.pin);
+    return result;
+}
+inline holder::contract::RecoveryTokenExportRequest codec<holder::contract::RecoveryTokenExportRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoveryTokenExportRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "pin") throw std::invalid_argument("RecoveryTokenExportRequest has no field " + it.key());
+    holder::contract::RecoveryTokenExportRequest out;
+    if (value.contains("pin") && !value.at("pin").is_null()) {
+        const auto& item = value.at("pin");
+        out.pin = check_text(decode_field<std::string>(item, "pin"), "pin", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("pin is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoveryTokenImportRequest>::encode(const holder::contract::RecoveryTokenImportRequest& value) {
+    json result = json::object();
+    result["pin"] = codec<std::string>::encode(value.pin);
+    result["recovery_token"] = codec<std::string>::encode(value.recovery_token);
+    return result;
+}
+inline holder::contract::RecoveryTokenImportRequest codec<holder::contract::RecoveryTokenImportRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoveryTokenImportRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "pin" && it.key() != "recovery_token") throw std::invalid_argument("RecoveryTokenImportRequest has no field " + it.key());
+    holder::contract::RecoveryTokenImportRequest out;
+    if (value.contains("pin") && !value.at("pin").is_null()) {
+        const auto& item = value.at("pin");
+        out.pin = check_text(decode_field<std::string>(item, "pin"), "pin", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("pin is required and must not be null");
+    }
+    if (value.contains("recovery_token") && !value.at("recovery_token").is_null()) {
+        const auto& item = value.at("recovery_token");
+        out.recovery_token = check_text(decode_field<std::string>(item, "recovery_token"), "recovery_token", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("recovery_token is required and must not be null");
     }
     return out;
 }

@@ -38,6 +38,7 @@ from .errors import (
     KeyringUnavailable,
     NotFound,
     NotTrashed,
+    RecoveryTokenInvalid,
     RevisionAmbiguous,
 )
 from .git import PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
@@ -54,6 +55,13 @@ from .links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .maintenance import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from .milestones import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 from .projects import NewProject, Project, ProjectListItem, ProjectUpdate
+from .recovery import (
+    ProjectRecoveryTokenExportResult,
+    ProjectRecoveryTokenImportResult,
+    RecoveryTokenExportRequest,
+    RecoveryTokenGlobalImportResult,
+    RecoveryTokenImportRequest,
+)
 from .resources import NewResource, Resource, ResourceId, ResourceUpdate
 from .search import SearchCard, SearchMessage
 from .trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
@@ -73,6 +81,7 @@ contract = Contract(statuses={
     RevisionAmbiguous: 409,
     NotTrashed: 409,
     HistoryUnavailable: 503,
+    RecoveryTokenInvalid: 400,
 })
 # What every write to a card's file may fail with, besides its own errors: an encrypted project's key.
 KEYS = [KeyringUnavailable, KeyMissing, DataCorrupted]
@@ -558,6 +567,33 @@ def repair_project_hierarchy(
 
     An empty body plans without writing. Applying moves each hidden branch to its nearest reachable
     ancestor in one commit; a second apply changes nothing. Parent cycles are reported and left alone.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/recovery-token/export",
+                errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
+def export_project_recovery_token(
+    project_id: Annotated[ProjectId, Path()], request: Annotated[RecoveryTokenExportRequest, Body()],
+) -> ProjectRecoveryTokenExportResult:
+    """Wrap an encrypted project's key in a portable token protected by a PIN."""
+
+
+@contract.route("POST", "/projects/{project_id}/recovery-token/import",
+                errors=[NotFound, RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted])
+def import_project_recovery_token(
+    project_id: Annotated[ProjectId, Path()], request: Annotated[RecoveryTokenImportRequest, Body()],
+) -> ProjectRecoveryTokenImportResult:
+    """Restore an encrypted project's key from a token for that project."""
+
+
+@contract.route("POST", "/recovery-token/import",
+                errors=[RecoveryTokenInvalid, KeyringUnavailable, DataCorrupted],
+                created_when="project_created")
+def import_recovery_token_global(request: Annotated[RecoveryTokenImportRequest, Body()]) -> RecoveryTokenGlobalImportResult:
+    """Restore a token, finding its project here or making one from the token's metadata.
+
+    If the token names a Git remote, configure it and attempt a pull. Remote and pull failures
+    are reported in the result. Returns 201 when the project was created, otherwise 200.
     """
 
 

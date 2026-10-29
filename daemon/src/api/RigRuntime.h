@@ -29,7 +29,6 @@
 #include "api/StaticFiles.h"
 #include "api/AssetImportWrite.h"
 #include "api/LocationWrite.h"
-#include "api/RecoveryToken.h"
 #include "api/Reindex.h"
 #include "api/Schemas.h"
 #include "api/Streams.h"

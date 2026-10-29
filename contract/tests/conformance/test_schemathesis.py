@@ -53,7 +53,8 @@ def stated_in_words(case) -> bool:
     return "cursor" in query or "tag" in query or "tag" in path or "resource_id" in path or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
         "first_day" in query or "last_day" in query or "dates" in body or "resource_id" in body
-        or "metadata" in body) or (case.operation.path in ("/search/cards", "/search/ai") and "q" in query)
+        or "metadata" in body or "recovery_token" in body) or (
+        case.operation.path in ("/search/cards", "/search/ai") and "q" in query)
 
 
 def invalid_only_unsent(case) -> bool:

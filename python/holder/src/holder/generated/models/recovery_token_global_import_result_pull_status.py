@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class RecoveryTokenImportAutoResponseDataPullStatus(StrEnum):
+class RecoveryTokenGlobalImportResultPullStatus(StrEnum):
     FAILED = "failed"
     NOT_ATTEMPTED = "not_attempted"
     SUCCEEDED = "succeeded"
