@@ -88,6 +88,7 @@ class Operation:
     public: bool = False
     operation_id: str | None = None
     sse_events: dict[str, type] | None = None
+    raw_schema: dict[str, Any] | None = None
 
 
 @dataclass
@@ -112,6 +113,7 @@ class Contract:
               core: bool = True, created_when: str | None = None,
               responses: dict[int, dict[str, Any]] | None = None, public: bool = False,
               raw_media_type: str | None = None,
+              raw_schema: dict[str, Any] | None = None,
               operation_id: str | None = None,
               sse_events: dict[str, type] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Declare an operation the daemon serves at method and path, answering status on success."""
@@ -151,7 +153,8 @@ class Contract:
                                       summary=summary.strip() or None, description=description.strip() or None,
                                       operation_id=operation_id or function.__name__, **options)
             self.operations.append(Operation(function, list(errors), core=core, created_when=created_when,
-                                             public=public, operation_id=operation_id, sse_events=sse_events))
+                                             public=public, operation_id=operation_id, sse_events=sse_events,
+                                             raw_schema=raw_schema))
             return function
 
         return register

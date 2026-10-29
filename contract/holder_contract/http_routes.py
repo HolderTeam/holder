@@ -376,13 +376,17 @@ def generate_routes(model: Model, codec_header: str) -> str:
               "inline std::set<std::string_view> allowed_methods(const std::string& path) {",
               "    const auto route_path = path.substr(0, path.find('?'));",
               "    std::set<std::string_view> methods;"]
-    patterns: dict[str, set[str]] = {}
+    patterns: dict[str, tuple[str, set[str]]] = {}
     for binding in all_bindings:
-        patterns.setdefault(route_pattern(binding["path"])[0], set()).add(binding["method"])
-    for position, (pattern, methods) in enumerate(patterns.items()):
+        pattern = route_pattern(binding["path"])[0]
+        if pattern not in patterns:
+            patterns[pattern] = (binding["path"], set())
+        patterns[pattern][1].add(binding["method"])
+    for position, (pattern, (_, methods)) in enumerate(
+            sorted(patterns.items(), key=lambda item: route_priority({"path": item[1][0]}))):
         listed = ", ".join(json.dumps(m) for m in sorted(methods))
         lines += [f"    static const std::regex path_{position}({json.dumps(pattern)});",
-                  f"    if (std::regex_match(route_path, path_{position})) methods.insert({{{listed}}});"]
+                  f"    if (std::regex_match(route_path, path_{position})) return {{{listed}}};"]
     lines += ["    return methods;", "}",
               "// Public routes do not require the daemon's bearer token.",
               "inline bool is_public(const std::string& method, const std::string& path) {",

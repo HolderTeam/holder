@@ -966,7 +966,9 @@ def authorize_google_drive_location(location_id: Annotated[str, Path()]) -> Goog
 
 @contract.route("GET", "/locations/{location_id}/oauth/google-drive/callback", core=False, public=True,
                 raw_media_type="text/html", responses={400: {"description": "Authorization failed.",
-                                                        "content": {"text/html": {}}}})
+                                                        "content": {"text/html": {},
+                                                                    "application/json": {"schema": {
+                                                                        "$ref": "#/components/schemas/ErrorResponse"}}}}})
 def finish_google_drive_location(
     location_id: Annotated[str, Path()], code: Annotated[str | None, Query()] = None,
     state: Annotated[str | None, Query()] = None,
@@ -1015,35 +1017,41 @@ def stream_changes(
     """
 
 
-@contract.route("GET", "/openapi.yaml", core=False, public=True, raw_media_type="application/yaml")
+@contract.route("GET", "/openapi.yaml", core=False, public=True, raw_media_type="application/yaml",
+                raw_schema={})
 def get_openapi_yaml() -> str:
     """Download the OpenAPI specification."""
 
 
-@contract.route("GET", "/openapi.json", core=False, public=True, raw_media_type="application/json")
+@contract.route("GET", "/openapi.json", core=False, public=True, raw_media_type="application/json",
+                raw_schema={})
 def get_openapi_json() -> JsonValue:
     """Download the OpenAPI specification as JSON."""
 
 
 @contract.route("GET", "/ai_catalog.yaml", core=False, public=True, raw_media_type="application/yaml",
+                raw_schema={},
                 responses={404: {"model": ErrorResponse, "description": "Catalog not found."}})
 def get_ai_catalog_yaml() -> str:
     """Download the canonical AI catalog config."""
 
 
 @contract.route("GET", "/ai_catalog.json", core=False, public=True, raw_media_type="application/json",
+                raw_schema={},
                 responses={404: {"model": ErrorResponse, "description": "Catalog not found."}})
 def get_ai_catalog_json() -> JsonValue:
     """Download the canonical AI catalog config as JSON."""
 
 
 @contract.route("GET", "/git_providers.yaml", core=False, public=True, raw_media_type="application/yaml",
+                raw_schema={},
                 responses={404: {"model": ErrorResponse, "description": "Config not found."}})
 def get_git_providers_yaml() -> str:
     """Download the Git provider UI and runtime config."""
 
 
 @contract.route("GET", "/git_providers.json", core=False, public=True, raw_media_type="application/json",
+                raw_schema={},
                 responses={404: {"model": ErrorResponse, "description": "Config not found."}})
 def get_git_providers_json() -> JsonValue:
     """Download the Git provider UI and runtime config as JSON."""

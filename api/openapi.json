@@ -3342,9 +3342,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -3391,9 +3389,7 @@
             "description": "Successful Response",
             "content": {
               "application/yaml": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -4148,9 +4144,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -4197,9 +4191,7 @@
             "description": "Successful Response",
             "content": {
               "application/yaml": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -5186,7 +5178,12 @@
           "400": {
             "description": "Authorization failed.",
             "content": {
-              "text/html": {}
+              "text/html": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
             }
           },
           "500": {
@@ -5331,9 +5328,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -5370,9 +5365,7 @@
             "description": "Successful Response",
             "content": {
               "application/yaml": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },

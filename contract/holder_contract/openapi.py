@@ -86,9 +86,15 @@ def document(contract: Contract) -> dict[str, Any]:
     schemas = result["components"]["schemas"]
     for route in contract.router.routes:
         declared = next((op for op in contract.operations if op.function is route.endpoint), None)
-        if declared is None or not declared.sse_events:
+        if declared is None:
             continue
         for method in route.methods:
+            if declared.raw_schema is not None:
+                response = result["paths"][route.path][method.lower()]["responses"][str(route.status_code)]
+                for media in response.get("content", {}).values():
+                    media["schema"] = copy.deepcopy(declared.raw_schema)
+            if not declared.sse_events:
+                continue
             response = result["paths"][route.path][method.lower()]["responses"]["200"]
             item_schema = {"oneOf": []}
             for name, model in declared.sse_events.items():
