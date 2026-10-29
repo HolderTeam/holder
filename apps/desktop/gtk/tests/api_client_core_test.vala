@@ -92,7 +92,7 @@ private void test_core_domain_methods_smoke_delegation() {
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"P\",\"privacy_mode\":\"encrypted_git\"}]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"sync\":{\"uncommitted_changes_count\":0,\"unpushed_commits_count\":0,\"retry_count\":0,\"pull_retry_count\":0}}}");
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\"}]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\"}],\"next_cursor\":null}}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
     transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");

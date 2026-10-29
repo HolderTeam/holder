@@ -132,13 +132,15 @@ int command_tags(const holder::core::Paths& paths, int argc, char* argv[]) {
     std::string normalized_tag;
     if (options.tag.has_value()) {
       normalized_tag = lower_ascii(options.tag.value());
-      target = "/cards?project_id=" + url_encode_component(project_id) +
-               "&tag=" + url_encode_component(normalized_tag);
+      target = "/projects/" + url_encode_component(project_id) +
+               "/cards?order=updated_desc&tag=" + url_encode_component(normalized_tag);
     } else {
       target = "/projects/" + url_encode_component(project_id) + "/tags";
     }
 
-    const auto payload = card_api_request(paths, boost::beast::http::verb::get, target);
+    const auto payload = options.tag.has_value()
+                             ? list_project_cards_payload(paths, target)
+                             : card_api_request(paths, boost::beast::http::verb::get, target);
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";
       return 0;

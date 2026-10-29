@@ -20,11 +20,15 @@ private void test_list_cards_and_context_and_get_card() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card One\",\"rel_path\":\"cards/c1.md\",\"sort_key\":1.0,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card One\",\"rel_path\":\"cards/c1.md\",\"sort_key\":1.0,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":2}],\"next_cursor\":null}}"
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project\":{\"project_id\":\"p1\",\"name\":\"Project One\"},\"current_parent_card_id\":null,\"breadcrumbs\":[],\"cards\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card One\",\"rel_path\":\"cards/c1.md\",\"sort_key\":1.0,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":2,\"child_count\":0}]}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"name\":\"Project One\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card One\",\"rel_path\":\"cards/c1.md\",\"sort_key\":1.0,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":2,\"child_count\":0}],\"next_cursor\":null}}"
     );
     transport.enqueue_read(
         200,
@@ -42,9 +46,8 @@ private void test_list_cards_and_context_and_get_card() {
     assert(cards != null);
     assert(cards.size == 1);
     assert(cards[0].card_id == "c1");
-    assert(transport.last_uri.contains("/cards"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("view=tree"));
+    assert(transport.last_uri.contains("/projects/p1/cards"));
+    assert(transport.last_uri.contains("parent=roots"));
     assert(transport.last_uri.contains("limit=10"));
 
     bool done_ctx = false;
@@ -57,8 +60,8 @@ private void test_list_cards_and_context_and_get_card() {
     assert(ctx != null);
     assert(ctx.project.project_id == "p1");
     assert(ctx.cards.size == 1);
-    assert(transport.last_uri.contains("/cards/context"));
-    assert(transport.last_uri.contains("count=true"));
+    assert(transport.last_uri.contains("/projects/p1/cards"));
+    assert(transport.last_uri.contains("include_child_count=true"));
 
     bool done_card = false;
     HolderLinux.CardDetail? card = null;
@@ -71,6 +74,25 @@ private void test_list_cards_and_context_and_get_card() {
     assert(transport.last_uri.contains("/projects/p1/cards/c1"));
     assert(card.card_id == "c1");
     assert(card.content == "Hello");
+}
+
+private void test_tree_listing_follows_cursor() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"One\"}],\"next_cursor\":\"page two\"}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Two\"}],\"next_cursor\":null}}");
+    var client = make_client(transport);
+    bool done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards.begin("p1", "tree", null, 0, (obj, res) => {
+        try { cards = client.list_cards.end(res); } catch (Error e) { cards = null; }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(cards != null && cards.size == 2);
+    assert(cards[1].card_id == "c2");
+    assert(transport.last_uri.contains("cursor=page%20two"));
 }
 
 private void test_links_create_delete_and_list() {
@@ -254,7 +276,7 @@ private void test_project_tags_and_cards_with_tag() {
     );
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Tagged\",\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Tagged\",\"updated_at\":2}],\"next_cursor\":null}}"
     );
     var client = make_client(transport);
 
@@ -278,6 +300,7 @@ private void test_project_tags_and_cards_with_tag() {
     assert(wait_for_condition(() => cards_done));
     assert(cards != null && cards.size == 1);
     assert(cards[0].title == "Tagged");
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
     assert(transport.last_uri.contains("tag=android%2Fmobile"));
 }
 
@@ -598,6 +621,7 @@ public static int main(string[] args) {
     Test.add_func("/api_client_cards/milestone_body_keeps_other_dates", test_milestone_body_keeps_other_dates);
     Test.add_func("/api_client_cards/list_cards_and_context_and_get_card",
                   test_list_cards_and_context_and_get_card);
+    Test.add_func("/api_client_cards/tree_listing_follows_cursor", test_tree_listing_follows_cursor);
     Test.add_func("/api_client_cards/links_create_delete_and_list",
                   test_links_create_delete_and_list);
     Test.add_func("/api_client_cards/create_link_missing_data_and_move_missing_data_are_protocol_errors",

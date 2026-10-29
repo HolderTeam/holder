@@ -258,7 +258,7 @@ private void test_list_cards_parses_non_null_parent_card_id() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T1\",\"parent_card_id\":\"p-root\"}]}"
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T1\",\"parent_card_id\":\"p-root\"}],\"next_cursor\":null}}"
     );
     var client = make_client(transport);
 
@@ -283,7 +283,7 @@ private void test_list_cards_parses_data_and_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T1\",\"rel_path\":\"cards/t1.md\",\"created_at\":1,\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T1\",\"rel_path\":\"cards/t1.md\",\"created_at\":1,\"updated_at\":2}],\"next_cursor\":null}}"
     );
     var client = make_client(transport);
 
@@ -306,14 +306,14 @@ private void test_list_cards_parses_data_and_query() {
     assert(cards.size == 1);
     assert(cards[0].card_id == "c1");
     assert(cards[0].rel_path == "cards/t1.md");
-    assert(transport.last_uri.contains("/cards?"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("view=tree"));
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
+    assert(transport.last_uri.contains("parent=roots"));
+    assert(transport.last_uri.contains("order=sort_key_asc"));
 }
 
 private void test_list_cards_with_parent_query() {
     var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[],\"next_cursor\":null}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -326,15 +326,13 @@ private void test_list_cards_with_parent_query() {
     });
 
     assert(wait_for_condition(() => done));
-    assert(transport.last_uri.contains("/cards?"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("view=tree"));
-    assert(transport.last_uri.contains("parent_card_id=parent-1"));
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
+    assert(transport.last_uri.contains("parent=parent-1"));
 }
 
 private void test_list_cards_ignores_blank_parent_query() {
     var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"items\":[],\"next_cursor\":null}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -347,10 +345,8 @@ private void test_list_cards_ignores_blank_parent_query() {
     });
 
     assert(wait_for_condition(() => done));
-    assert(transport.last_uri.contains("/cards?"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("view=tree"));
-    assert(!transport.last_uri.contains("parent_card_id="));
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
+    assert(transport.last_uri.contains("parent=roots"));
 }
 
 private void test_resources_crud_and_parse() {
@@ -1705,7 +1701,15 @@ private void test_get_card_context_parses_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"project\":{\"project_id\":\"proj-1\",\"name\":\"Project One\"},\"current_parent_card_id\":\"a1\",\"breadcrumbs\":[{\"type\":\"project\",\"title\":\"Project One\",\"project_id\":\"proj-1\",\"card_id\":null},{\"type\":\"card\",\"title\":\"A\",\"project_id\":null,\"card_id\":\"a1\"}],\"cards\":[{\"card_id\":\"b1\",\"project_id\":\"proj-1\",\"title\":\"B\",\"rel_path\":\"cards/b1.md\",\"sort_key\":42,\"parent_card_id\":\"a1\",\"created_at\":10,\"updated_at\":11,\"child_count\":3}]}}"
+        "{\"ok\":true,\"data\":{\"project_id\":\"proj-1\",\"name\":\"Project One\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"kind\":\"project\",\"id\":\"proj-1\",\"title\":\"Project One\"},{\"kind\":\"card\",\"id\":\"a1\",\"title\":\"A\"}]}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"b1\",\"project_id\":\"proj-1\",\"title\":\"B\",\"rel_path\":\"cards/b1.md\",\"sort_key\":42,\"parent_card_id\":\"a1\",\"created_at\":10,\"updated_at\":11,\"child_count\":3}],\"next_cursor\":null}}"
     );
     var client = make_client(transport);
 
@@ -1731,10 +1735,9 @@ private void test_get_card_context_parses_response() {
     assert(result.cards[0].card_id == "b1");
     assert(result.cards[0].child_count == 3);
     assert(transport.last_method == "GET");
-    assert(transport.last_uri.contains("/cards/context?"));
-    assert(transport.last_uri.contains("count=true"));
-    assert(transport.last_uri.contains("project_id=proj-1"));
-    assert(transport.last_uri.contains("parent_card_id=a1"));
+    assert(transport.last_uri.contains("/projects/proj-1/cards?"));
+    assert(transport.last_uri.contains("include_child_count=true"));
+    assert(transport.last_uri.contains("parent=a1"));
 }
 
 private void test_get_card_context_missing_data_is_protocol_error() {
@@ -1763,7 +1766,7 @@ private void test_get_card_context_missing_project_is_protocol_error() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"current_parent_card_id\":null,\"breadcrumbs\":[],\"cards\":[]}}"
+        "{\"ok\":true,\"data\":{\"name\":\"Project One\"}}"
     );
     var client = make_client(transport);
 
@@ -1786,7 +1789,7 @@ private void test_list_cards_recent_view_calls_cards_endpoint() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card 1\",\"rel_path\":\"c1.md\",\"sort_key\":1,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":99,\"deleted_at\":null}]}"
+        "{\"ok\":true,\"data\":{\"items\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card 1\",\"rel_path\":\"c1.md\",\"sort_key\":1,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":99,\"deleted_at\":null}],\"next_cursor\":null}}"
     );
     var client = make_client(transport);
 
@@ -1806,9 +1809,8 @@ private void test_list_cards_recent_view_calls_cards_endpoint() {
     assert(cards.size == 1);
     assert(cards[0].card_id == "c1");
     assert(transport.last_method == "GET");
-    assert(transport.last_uri.contains("/cards?"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("view=recent"));
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
+    assert(transport.last_uri.contains("order=updated_desc"));
     assert(transport.last_uri.contains("limit=123"));
 }
 

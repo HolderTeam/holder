@@ -331,7 +331,7 @@ TEST_CASE("Listener worker-owned DB handles support concurrent mixed request loa
         bound.port,
         token,
         http::verb::get,
-        "/cards?project_id=proj-1"
+        "/projects/proj-1/cards?parent=roots"
     );
   });
   auto project_future = std::async(std::launch::async, [&]() {
@@ -396,7 +396,7 @@ TEST_CASE("Listener worker-owned DB handles support concurrent mixed request loa
   const auto card = nlohmann::json::parse(card_response.body);
 
   REQUIRE(listed["ok"] == true);
-  REQUIRE(listed["data"].is_array());
+  REQUIRE(listed["data"]["items"].is_array());
   REQUIRE(projects["ok"] == true);
   REQUIRE(projects["data"].is_array());
   REQUIRE(status["ok"] == true);
@@ -762,7 +762,7 @@ TEST_CASE("Listener stop closes queued save requests and queued responses", "[li
 
     boost::asio::io_context ioc;
     auto socket = connect_test_socket(ioc, bound.bind, bound.port);
-    const std::string save_request = "PATCH /cards/save-test HTTP/1.1\r\n"
+    const std::string save_request = "PATCH /projects/proj-1/cards/save-test HTTP/1.1\r\n"
                                      "Host: " +
                                      bound.bind +
                                      "\r\n"

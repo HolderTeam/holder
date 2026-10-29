@@ -403,7 +403,6 @@ add_executable(holderd
   src/api/AiStatus.cpp
   src/api/AiThreadRead.cpp
   src/api/AiThreadWrite.cpp
-  src/api/CardRead.cpp
   src/api/ProjectRead.cpp
   src/api/RecoveryToken.cpp
   src/api/Reindex.cpp

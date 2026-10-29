@@ -67,5 +67,8 @@ nlohmann::json card_api_request(
     const nlohmann::json& body = nlohmann::json::object(),
     boost::beast::http::status success = boost::beast::http::status::ok
 );
+// Collect a contract card listing, preserving the CLI's array-shaped data output.
+nlohmann::json list_project_cards_payload(
+    const holder::core::Paths& paths, const std::string& target, std::size_t max_items = 0);
 
 } // namespace holder::cli

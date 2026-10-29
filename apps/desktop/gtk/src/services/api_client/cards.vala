@@ -22,29 +22,86 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                                               string? parent_card_id = null,
                                                               int limit = 0) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
-        query.insert("view", view);
-        if (parent_card_id != null && parent_card_id.strip().length > 0) {
-            query.insert("parent_card_id", parent_card_id);
-        }
+        if (view == "tree") query.insert("parent", parent_card_id != null && ((!) parent_card_id).strip().length > 0
+            ? (!) parent_card_id : "roots");
+        query.insert("order", view == "recent" ? "updated_desc" : "sort_key_asc");
         if (limit > 0) {
             query.insert("limit", limit.to_string());
         }
-        var root = yield client.request_json("GET", "/cards", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
-        return ApiParsersCards.parse_cards(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        var path = "/projects/%s/cards".printf(Uri.escape_string(project_id));
+        var cards = new Gee.ArrayList<CardSummary>();
+        do {
+            var root = yield client.request_json("GET", path, null, query);
+            cards.add_all(ApiParsersCards.parse_cards(root));
+            var page = root.get_object_member("data");
+            var cursor = ApiParsersCommon.nullable_string_member_or_null(page, "next_cursor");
+            if (view == "recent" || cursor == null) break;
+            query.insert("cursor", (!) cursor);
+        } while (true);
+        return cards;
     }
 
     public static async CardContextData get_card_context(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                          string project_id,
                                                          string? parent_card_id = null) throws Error {
-        var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
-        query.insert("count", "true");
-        if (parent_card_id != null && parent_card_id.strip().length > 0) {
-            query.insert("parent_card_id", parent_card_id);
+        string? parent = parent_card_id != null && ((!) parent_card_id).strip().length > 0
+            ? ((!) parent_card_id).strip() : null;
+        var project_path = "/projects/%s".printf(Uri.escape_string(project_id));
+        var project_root = yield client.request_json("GET", project_path, null, null);
+        if (!project_root.has_member("data")) throw new ApiError.PROTOCOL("Missing project data");
+        var project_data = project_root.get_object_member("data");
+        if (!project_data.has_member("project_id") || !project_data.has_member("name")) {
+            throw new ApiError.PROTOCOL("Missing project for cards context response");
         }
-        var root = yield client.request_json("GET", "/cards/context", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
-        return ApiParsersCards.parse_card_context(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
+        var project = new CardContextProject(
+            project_data.get_string_member("project_id"), project_data.get_string_member("name")
+        );
+        var breadcrumbs = new Gee.ArrayList<CardContextBreadcrumb>();
+        if (parent != null) {
+            var root = yield client.request_json(
+                "GET", card_path(project_id, (!) parent) + "/breadcrumbs", null, null
+            );
+            if (!root.has_member("data")) throw new ApiError.PROTOCOL("Missing breadcrumbs data");
+            var crumbs = root.get_array_member("data");
+            for (uint i = 0; i < crumbs.get_length(); i++) {
+                var crumb = crumbs.get_object_element(i);
+                var kind = crumb.get_string_member("kind");
+                var id = crumb.get_string_member("id");
+                breadcrumbs.add(new CardContextBreadcrumb(
+                    kind, crumb.get_string_member("title"), kind == "project" ? id : null,
+                    kind == "card" ? id : null
+                ));
+            }
+        } else {
+            breadcrumbs.add(new CardContextBreadcrumb("project", project.name, project.project_id));
+        }
+
+        var cards = new Gee.ArrayList<CardContextCard>();
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("parent", parent != null ? (!) parent : "roots");
+        query.insert("order", "sort_key_asc");
+        query.insert("include_child_count", "true");
+        do {
+            var root = yield client.request_json("GET", project_path + "/cards", null, query);
+            if (!root.has_member("data")) throw new ApiError.PROTOCOL("Missing cards data");
+            var page = root.get_object_member("data");
+            var items = page.get_array_member("items");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var item = items.get_object_element(i);
+                cards.add(new CardContextCard(
+                    item.get_string_member("card_id"), item.get_string_member("project_id"),
+                    item.get_string_member("title"), item.get_string_member("rel_path"),
+                    item.get_double_member("sort_key"),
+                    ApiParsersCommon.nullable_string_member_or_null(item, "parent_card_id"),
+                    item.get_int_member("created_at"), item.get_int_member("updated_at"),
+                    (int) item.get_int_member("child_count")
+                ));
+            }
+            var cursor = ApiParsersCommon.nullable_string_member_or_null(page, "next_cursor");
+            if (cursor == null) break;
+            query.insert("cursor", (!) cursor);
+        } while (true);
+        return new CardContextData(project, parent, breadcrumbs, cards);
     }
 
     // A card's path, under its project.
@@ -278,10 +335,20 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
                                                                        string project_id,
                                                                        string tag) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
         query.insert("tag", tag);
-        var root = yield client.request_json("GET", "/cards", null, query);
-        return ApiParsersCards.parse_cards(root);
+        query.insert("order", "updated_desc");
+        var cards = new Gee.ArrayList<CardSummary>();
+        var path = "/projects/%s/cards".printf(Uri.escape_string(project_id));
+        do {
+            var root = yield client.request_json("GET", path, null, query);
+            cards.add_all(ApiParsersCards.parse_cards(root));
+            var cursor = ApiParsersCommon.nullable_string_member_or_null(
+                root.get_object_member("data"), "next_cursor"
+            );
+            if (cursor == null) break;
+            query.insert("cursor", (!) cursor);
+        } while (true);
+        return cards;
     }
 
     public static async Gee.ArrayList<CardLink> list_card_links(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact

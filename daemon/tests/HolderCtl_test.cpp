@@ -4543,6 +4543,10 @@ TEST_CASE(
             200,
             R"({"ok":true,"data":{"status":"resolved","card":{"card_id":"card-one"}}})"
         );
+      if (request.target().starts_with("/projects/project/cards?"))
+        return Server::response(200, Json{{"ok", true}, {"data", {
+            {"items", item.response}, {"next_cursor", nullptr}
+        }}}.dump());
       return Server::response(200, Json{{"ok", true}, {"data", item.response}}.dump());
     });
     write_server_info(xdg / "data/holder/server/holder.json", 12345, server.address().port());
