@@ -297,7 +297,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         }
 
         var out_list = new Gee.ArrayList<CardSummary>();
-        var data = root.get_array_member("data"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
+        var page = root.get_object_member("data");
+        var data = page.get_array_member("items"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
         for (uint i = 0; i < data.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
             var item = data.get_object_element(i); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
             out_list.add(new CardSummary( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
@@ -366,62 +367,6 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             ));
         }
         return tags;
-    }
-
-    public static CardContextData parse_card_context(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for cards context response");
-        }
-
-        var data = root.get_object_member("data");
-        if (!data.has_member("project")) {
-            throw new ApiError.PROTOCOL("Missing project for cards context response"); // LCOV_EXCL_BR_LINE: throw edge branch artifact
-        }
-        var project_obj = data.get_object_member("project");
-        var project = new CardContextProject(
-            ApiParsersCommon.string_member_or_empty(project_obj, "project_id"),
-            ApiParsersCommon.string_member_or_empty(project_obj, "name")
-        );
-
-        var breadcrumbs = new Gee.ArrayList<CardContextBreadcrumb>();
-        if (data.has_member("breadcrumbs")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-            var crumbs = data.get_array_member("breadcrumbs");
-            for (uint i = 0; i < crumbs.get_length(); i++) {
-                var crumb = crumbs.get_object_element(i);
-                breadcrumbs.add(new CardContextBreadcrumb( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
-                    ApiParsersCommon.string_member_or_empty(crumb, "type"),
-                    ApiParsersCommon.string_member_or_empty(crumb, "title"),
-                    ApiParsersCommon.nullable_string_member_or_null(crumb, "project_id"),
-                    ApiParsersCommon.nullable_string_member_or_null(crumb, "card_id")
-                ));
-            }
-        }
-
-        var cards = new Gee.ArrayList<CardContextCard>();
-        if (data.has_member("cards")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-            var items = data.get_array_member("cards");
-            for (uint i = 0; i < items.get_length(); i++) {
-                var item = items.get_object_element(i);
-                cards.add(new CardContextCard( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
-                    ApiParsersCommon.string_member_or_empty(item, "card_id"),
-                    ApiParsersCommon.string_member_or_empty(item, "project_id"),
-                    ApiParsersCommon.string_member_or_empty(item, "title"),
-                    ApiParsersCommon.string_member_or_empty(item, "rel_path"),
-                    item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0, // LCOV_EXCL_BR_LINE: json member error edge artifact
-                    ApiParsersCommon.nullable_string_member_or_null(item, "parent_card_id"),
-                    item.has_member("created_at") ? item.get_int_member("created_at") : 0, // LCOV_EXCL_BR_LINE: json member error edge artifact
-                    item.has_member("updated_at") ? item.get_int_member("updated_at") : 0, // LCOV_EXCL_BR_LINE: json member error edge artifact
-                    item.has_member("child_count") ? (int) item.get_int_member("child_count") : 0 // LCOV_EXCL_BR_LINE: json member error edge artifact
-                ));
-            }
-        }
-
-        return new CardContextData( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
-            project,
-            ApiParsersCommon.nullable_string_member_or_null(data, "current_parent_card_id"),
-            breadcrumbs,
-            cards
-        );
     }
 
     public static Gee.ArrayList<CardLink> parse_card_links(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact

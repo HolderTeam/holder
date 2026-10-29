@@ -141,14 +141,13 @@ TEST_CASE(
       "#/components/schemas/TagCount"
   );
 
-  const auto list_cards = document["paths"]["/cards"]["get"];
+  const auto list_cards = document["paths"]["/projects/{project_id}/cards"]["get"];
   const auto tag = parameter_named(list_cards, "tag");
   REQUIRE(tag.IsDefined());
   CHECK(tag["in"].as<std::string>() == "query");
   CHECK_FALSE(tag["required"].as<bool>());
-  CHECK(tag["schema"]["type"].as<std::string>() == "string");
-  CHECK(tag["description"].as<std::string>().find("Exact normalized tag") != std::string::npos);
-  require_json_response_ref(list_cards, "200", "CardListResponse");
+  CHECK(tag["schema"]["anyOf"][0]["$ref"].as<std::string>() == "#/components/schemas/Tag");
+  require_json_response_ref(list_cards, "200", "CardListItemPageResponse");
 }
 
 TEST_CASE("OpenAPI exposes card history through the shared contract", "[openapi][history]") {
@@ -274,17 +273,12 @@ TEST_CASE("OpenAPI contracts the goodbye hint", "[openapi][idle]") {
 }
 
 TEST_CASE(
-    "OpenAPI separates project card pages from the existing display route",
+    "OpenAPI exposes project card pages without legacy display routes",
     "[openapi][card-pages]"
 ) {
   const auto document = load_openapi();
-  const auto display = document["paths"]["/cards"]["get"];
-  CHECK(
-      parameter_named(display, "view")["schema"]["enum"].as<std::vector<std::string>>() ==
-      std::vector<std::string>{"tree", "recent"}
-  );
-  for (const auto& param : display["parameters"])
-    CHECK(param["name"].as<std::string>() != "after_card_id");
+  CHECK_FALSE(document["paths"]["/cards"].IsDefined());
+  CHECK_FALSE(document["paths"]["/cards/context"].IsDefined());
   const auto operation = document["paths"]["/projects/{project_id}/cards"]["get"];
   CHECK(parameter_named(operation, "project_id")["in"].as<std::string>() == "path");
   CHECK(parameter_named(operation, "project_id")["required"].as<bool>());

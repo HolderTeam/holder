@@ -281,7 +281,7 @@ private void test_request_json_unwrapped_appends_query_params() {
         "http://127.0.0.1:8080",
         "token-123",
         "GET",
-        "/cards",
+        "/projects/p1/cards",
         null,
         query,
         (obj, res) => {
@@ -294,7 +294,7 @@ private void test_request_json_unwrapped_appends_query_params() {
     );
 
     assert(wait_for_condition(() => done));
-    assert(transport.last_uri.contains("/cards?"));
+    assert(transport.last_uri.contains("/projects/p1/cards?"));
     assert(transport.last_uri.contains("project%20id=abc%20123"));
 }
 

@@ -88,14 +88,14 @@ TEST_CASE("HTTP first-run flow creates project and card", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=" + project_id,
+      "/projects/" + project_id + "/cards?parent=roots",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   REQUIRE(listed_cards["ok"] == true);
-  REQUIRE(listed_cards["data"].is_array());
-  REQUIRE(listed_cards["data"].size() == 1);
-  REQUIRE(listed_cards["data"][0]["card_id"] == card_id);
+  REQUIRE(listed_cards["data"]["items"].is_array());
+  REQUIRE(listed_cards["data"]["items"].size() == 1);
+  REQUIRE(listed_cards["data"]["items"][0]["card_id"] == card_id);
 
   const auto fetched = http_json_request(
       bound.bind,

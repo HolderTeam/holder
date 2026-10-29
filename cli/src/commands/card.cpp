@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -310,17 +311,19 @@ int command_cards(const holder::core::Paths& paths, int argc, char* argv[]) {
           CardReferenceScope::Live
       );
     }
-    std::string target = "/cards?project_id=" + url_encode_component(project_id) + "&count=true";
+    std::string target = "/projects/" + url_encode_component(project_id) +
+                         "/cards?include_child_count=true";
     if (options.recent) {
-      target += "&view=recent&limit=" + std::to_string(options.limit);
+      target += "&order=updated_desc&limit=" + std::to_string(std::min(options.limit, 5000));
     } else {
-      target += "&view=tree";
+      target += "&order=sort_key_asc&parent=";
       if (parent_card_id.has_value()) {
-        target += "&parent_card_id=" + url_encode_component(parent_card_id.value());
-      }
+        target += url_encode_component(parent_card_id.value());
+      } else target += "roots";
     }
 
-    const auto payload = card_api_request(paths, boost::beast::http::verb::get, target);
+    const auto payload = list_project_cards_payload(
+        paths, target, options.recent ? static_cast<std::size_t>(options.limit) : 0);
     if (options.json_output) {
       std::cout << payload.dump(2) << "\n";
       return 0;

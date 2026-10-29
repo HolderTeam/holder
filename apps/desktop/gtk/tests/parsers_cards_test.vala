@@ -14,11 +14,11 @@ private Json.Object parse_json_object(string payload) {
 
 private void test_parse_cards_full_and_defaults() {
     var root = parse_json_object(
-        "{\"data\":[" +
+        "{\"data\":{\"items\":[" +
         "{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"One\",\"rel_path\":\"a.md\",\"sort_key\":1.5,\"parent_card_id\":\"p\",\"created_at\":10,\"updated_at\":11}," +
         "{\"card_id\":\"c2\",\"project_id\":\"p1\",\"title\":\"Two\",\"parent_card_id\":null}," +
         "{\"card_id\":\"c3\",\"project_id\":\"p2\",\"title\":\"Three\"}" +
-        "]}"
+        "],\"next_cursor\":null}}"
     );
 
     Gee.ArrayList<HolderLinux.CardSummary> cards;
@@ -127,67 +127,6 @@ private void test_parse_card_detail_missing_data_is_protocol_error() {
         got_protocol = e.message.contains("Missing data for card response");
     }
     assert(got_protocol);
-}
-
-private void test_parse_card_context_full_and_defaults() {
-    var root_full = parse_json_object(
-        "{\"data\":{" +
-        "\"project\":{\"project_id\":\"p1\",\"name\":\"Project One\"}," +
-        "\"current_parent_card_id\":\"parent\"," +
-        "\"breadcrumbs\":[{\"type\":\"project\",\"title\":\"Project One\",\"project_id\":\"p1\"}]," +
-        "\"cards\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"A\",\"rel_path\":\"a.md\",\"sort_key\":2.5,\"parent_card_id\":\"parent\",\"created_at\":1,\"updated_at\":2,\"child_count\":3}]" +
-        "}}"
-    );
-
-    HolderLinux.CardContextData full;
-    try {
-        full = HolderLinux.ApiParsersCards.parse_card_context(root_full);
-    } catch (Error e) {
-        assert_not_reached();
-    }
-    assert(full.project.project_id == "p1");
-    assert(full.project.name == "Project One");
-    assert(full.current_parent_card_id == "parent");
-    assert(full.breadcrumbs.size == 1);
-    assert(full.breadcrumbs[0].crumb_type == "project");
-    assert(full.cards.size == 1);
-    assert(full.cards[0].card_id == "c1");
-    assert(full.cards[0].sort_key == 2.5);
-    assert(full.cards[0].parent_card_id == "parent");
-    assert(full.cards[0].child_count == 3);
-
-    var root_default = parse_json_object(
-        "{\"data\":{\"project\":{\"project_id\":\"p2\",\"name\":\"P2\"}}}"
-    );
-    HolderLinux.CardContextData defaults;
-    try {
-        defaults = HolderLinux.ApiParsersCards.parse_card_context(root_default);
-    } catch (Error e) {
-        assert_not_reached();
-    }
-    assert(defaults.current_parent_card_id == null);
-    assert(defaults.breadcrumbs.size == 0);
-    assert(defaults.cards.size == 0);
-}
-
-private void test_parse_card_context_errors() {
-    var no_data = parse_json_object("{\"ok\":true}");
-    bool no_data_protocol = false;
-    try {
-        HolderLinux.ApiParsersCards.parse_card_context(no_data);
-    } catch (Error e) {
-        no_data_protocol = e.message.contains("Missing data for cards context response");
-    }
-    assert(no_data_protocol);
-
-    var no_project = parse_json_object("{\"data\":{}}");
-    bool no_project_protocol = false;
-    try {
-        HolderLinux.ApiParsersCards.parse_card_context(no_project);
-    } catch (Error e) {
-        no_project_protocol = e.message.contains("Missing project for cards context response");
-    }
-    assert(no_project_protocol);
 }
 
 private void test_parse_card_links_and_link_defaults() {
@@ -503,8 +442,6 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/card-detail-full-and-default", test_parse_card_detail_full_and_default);
     Test.add_func("/parsers/cards/project-tags", test_parse_project_tags);
     Test.add_func("/parsers/cards/card-detail-missing-data-protocol-error", test_parse_card_detail_missing_data_is_protocol_error);
-    Test.add_func("/parsers/cards/card-context-full-and-defaults", test_parse_card_context_full_and_defaults);
-    Test.add_func("/parsers/cards/card-context-errors", test_parse_card_context_errors);
     Test.add_func("/parsers/cards/card-links-and-link-defaults", test_parse_card_links_and_link_defaults);
     Test.add_func("/parsers/cards/card-links-missing-data-protocol-error", test_parse_card_links_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-move-result-full-and-defaults", test_parse_card_move_result_full_and_defaults);

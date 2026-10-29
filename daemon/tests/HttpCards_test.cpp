@@ -110,16 +110,16 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=proj-1",
+      "/projects/proj-1/cards?parent=roots",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   REQUIRE(listed["ok"] == true);
-  REQUIRE(listed["data"].is_array());
-  REQUIRE(listed["data"].size() >= 2);
+  REQUIRE(listed["data"]["items"].is_array());
+  REQUIRE(listed["data"]["items"].size() >= 2);
   bool found_first = false;
   bool found_auto = false;
-  for (const auto& item : listed["data"]) {
+  for (const auto& item : listed["data"]["items"]) {
     if (item["card_id"] == first_id) {
       found_first = true;
     }
@@ -135,13 +135,13 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=tree&parent_card_id=" + first_id,
+      "/projects/proj-1/cards?parent=" + first_id,
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   REQUIRE(children_empty["ok"] == true);
-  REQUIRE(children_empty["data"].is_array());
-  REQUIRE(children_empty["data"].empty());
+  REQUIRE(children_empty["data"]["items"].is_array());
+  REQUIRE(children_empty["data"]["items"].empty());
 
   nlohmann::json update_body = {
       {"title", "First Updated"},
@@ -203,12 +203,12 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent",
+      "/projects/proj-1/cards?order=updated_desc",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   bool found_nested_in_all = false;
-  for (const auto& item : listed_all["data"]) {
+  for (const auto& item : listed_all["data"]["items"]) {
     if (item["card_id"] == first_id) {
       found_nested_in_all = true;
       REQUIRE(item["parent_card_id"] == auto_id);
@@ -221,12 +221,12 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=tree",
+      "/projects/proj-1/cards?parent=roots",
       nlohmann::json::object(),
       boost::beast::http::status::ok
   );
   bool found_nested_in_root = false;
-  for (const auto& item : listed_root["data"]) {
+  for (const auto& item : listed_root["data"]["items"]) {
     if (item["card_id"] == first_id) {
       found_nested_in_root = true;
     }
@@ -258,16 +258,16 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
   REQUIRE(fetched_reparented["data"]["parent_card_id"].is_null());
   REQUIRE(fetched_reparented["data"]["updated_at"] == 31);
 
-  const auto invalid_view = http_json_request(
+  const auto invalid_order = http_json_request(
       bound.bind,
       bound.port,
       token,
       boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=bogus",
+      "/projects/proj-1/cards?order=bogus",
       nlohmann::json::object(),
       boost::beast::http::status::bad_request
   );
-  REQUIRE(invalid_view["ok"] == false);
+  REQUIRE(invalid_order["ok"] == false);
 
   const auto deleted = http_json_request(
       bound.bind,
@@ -279,24 +279,6 @@ TEST_CASE("HTTP card create/get/patch", "[http]") {
       boost::beast::http::status::ok
   );
   REQUIRE(deleted["ok"] == true);
-
-  const auto listed_deleted = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&include_deleted=1",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  bool found_deleted = false;
-  for (const auto& item : listed_deleted["data"]) {
-    if (item["card_id"] == first_id) {
-      found_deleted = true;
-      REQUIRE(item["deleted_at"].is_number());
-    }
-  }
-  REQUIRE(found_deleted);
 
   const auto restored = http_json_request(
       bound.bind,
@@ -403,467 +385,6 @@ TEST_CASE("HTTP card content stays plaintext over API for encrypted project", "[
   REQUIRE(raw.find("this is secret plaintext") == std::string::npos);
 
   server_thread.stop();
-}
-
-TEST_CASE("HTTP card context endpoint", "[http]") {
-  const auto dir = make_temp_dir();
-  const auto db_path = dir / "holder.db";
-
-  auto db = open_db_with_schema(db_path);
-  const auto project_root = dir / "project_repo";
-  create_project(db, "proj-1", project_root.string());
-  ensure_uuid_seeded();
-
-  holder::index::FtsIndexer fts(db);
-  holder::card::CardStore card_store(db, &fts);
-
-  const std::string token = "testtoken";
-  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
-  holder::api::HttpServer::BoundInfo bound;
-  try {
-    bound = server.start();
-  } catch (const std::exception& ex) {
-    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
-  }
-
-  holder::core::SignalHandler signals;
-  std::thread server_thread([&server, &signals]() {
-    server.run(signals);
-  });
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  auto create_card = [&](const std::string& id,
-                         const std::string& title,
-                         int t,
-                         const std::optional<std::string>& parent = std::nullopt) {
-    holder::test::create_card_fixture(card_store, id, "proj-1", title, title, t, parent);
-    return nlohmann::json{{"ok", true}};
-  };
-
-  REQUIRE(create_card("11111111-1111-4111-8111-111111111111", "A", 10)["ok"] == true);
-  REQUIRE(create_card("22222222-2222-4222-8222-222222222222", "B", 11)["ok"] == true);
-  REQUIRE(
-      create_card(
-          "33333333-3333-4333-8333-333333333333",
-          "C",
-          12,
-          "11111111-1111-4111-8111-111111111111"
-      )["ok"] == true
-  );
-  REQUIRE(
-      create_card(
-          "44444444-4444-4444-8444-444444444444",
-          "D",
-          13,
-          "33333333-3333-4333-8333-333333333333"
-      )["ok"] == true
-  );
-
-  const auto root_ctx = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&count=true",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(root_ctx["ok"] == true);
-  REQUIRE(root_ctx["data"]["project"]["project_id"] == "proj-1");
-  REQUIRE(root_ctx["data"]["project"]["name"] == "Project");
-  REQUIRE(root_ctx["data"]["current_parent_card_id"].is_null());
-  REQUIRE(root_ctx["data"]["breadcrumbs"].is_array());
-  REQUIRE(root_ctx["data"]["breadcrumbs"].size() == 1);
-  REQUIRE(root_ctx["data"]["breadcrumbs"][0]["type"] == "project");
-  REQUIRE(root_ctx["data"]["cards"].is_array());
-  REQUIRE(root_ctx["data"]["cards"].size() == 2);
-  bool root_has_a = false;
-  bool root_has_b = false;
-  for (const auto& card : root_ctx["data"]["cards"]) {
-    if (card["card_id"] == "11111111-1111-4111-8111-111111111111") {
-      root_has_a = true;
-      REQUIRE(card["child_count"] == 1);
-    }
-    if (card["card_id"] == "22222222-2222-4222-8222-222222222222") {
-      root_has_b = true;
-      REQUIRE(card["child_count"] == 0);
-    }
-  }
-  REQUIRE(root_has_a);
-  REQUIRE(root_has_b);
-
-  const auto child_ctx = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&parent_card_id=11111111-1111-4111-8111-111111111111&count=true",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(child_ctx["ok"] == true);
-  REQUIRE(child_ctx["data"]["current_parent_card_id"] == "11111111-1111-4111-8111-111111111111");
-  REQUIRE(child_ctx["data"]["breadcrumbs"].size() == 2);
-  REQUIRE(child_ctx["data"]["breadcrumbs"][1]["type"] == "card");
-  REQUIRE(child_ctx["data"]["breadcrumbs"][1]["card_id"] == "11111111-1111-4111-8111-111111111111");
-  REQUIRE(child_ctx["data"]["cards"].size() == 1);
-  REQUIRE(child_ctx["data"]["cards"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-  REQUIRE(child_ctx["data"]["cards"][0]["child_count"] == 1);
-
-  const auto missing_parent = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&parent_card_id=does-not-exist&count=true",
-      nlohmann::json::object(),
-      boost::beast::http::status::not_found
-  );
-  REQUIRE(missing_parent["ok"] == false);
-  REQUIRE(missing_parent["error"]["code"] == "not_found");
-
-  std::raise(SIGTERM);
-  server_thread.join();
-}
-
-TEST_CASE("HTTP cards view=recent listing", "[http]") {
-  const auto dir = make_temp_dir();
-  const auto db_path = dir / "holder.db";
-
-  auto db = open_db_with_schema(db_path);
-  const auto project_root = dir / "project_repo";
-  create_project(db, "proj-1", project_root.string());
-  ensure_uuid_seeded();
-
-  holder::index::FtsIndexer fts(db);
-  holder::card::CardStore card_store(db, &fts);
-
-  const std::string token = "testtoken";
-  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
-  holder::api::HttpServer::BoundInfo bound;
-  try {
-    bound = server.start();
-  } catch (const std::exception& ex) {
-    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
-  }
-
-  holder::core::SignalHandler signals;
-  std::thread server_thread([&server, &signals]() {
-    server.run(signals);
-  });
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  auto create_card = [&](const std::string& id, const std::string& title, int t) {
-    holder::test::create_card_fixture(card_store, id, "proj-1", title, title, t);
-    return nlohmann::json{{"ok", true}};
-  };
-
-  REQUIRE(create_card("11111111-1111-4111-8111-111111111111", "First", 10)["ok"] == true);
-  REQUIRE(create_card("22222222-2222-4222-8222-222222222222", "Second", 20)["ok"] == true);
-  REQUIRE(create_card("33333333-3333-4333-8333-333333333333", "Third", 30)["ok"] == true);
-
-  const auto deleted = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::delete_,
-      "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(deleted["ok"] == true);
-
-  const auto overview = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(overview["ok"] == true);
-  REQUIRE(overview["data"].is_array());
-  REQUIRE(overview["data"].size() == 2);
-  REQUIRE(overview["data"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-  REQUIRE(overview["data"][1]["card_id"] == "11111111-1111-4111-8111-111111111111");
-
-  const auto overview_limit = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent&limit=1",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(overview_limit["ok"] == true);
-  REQUIRE(overview_limit["data"].is_array());
-  REQUIRE(overview_limit["data"].size() == 1);
-  REQUIRE(overview_limit["data"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-
-  const auto missing_project = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?view=recent",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(missing_project["ok"] == false);
-  REQUIRE(missing_project["error"]["code"] == "bad_request");
-
-  const auto bad_limit = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent&limit=abc",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(bad_limit["ok"] == false);
-  REQUIRE(bad_limit["error"]["code"] == "bad_request");
-
-  std::raise(SIGTERM);
-  server_thread.join();
-}
-
-TEST_CASE("HTTP cards/context support explicit order parameter", "[http]") {
-  const auto dir = make_temp_dir();
-  const auto db_path = dir / "holder.db";
-
-  auto db = open_db_with_schema(db_path);
-  const auto project_root = dir / "project_repo";
-  create_project(db, "proj-1", project_root.string());
-
-  holder::index::FtsIndexer fts(db);
-  holder::card::CardStore card_store(db, &fts);
-
-  const std::string token = "testtoken";
-  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
-  holder::api::HttpServer::BoundInfo bound;
-  try {
-    bound = server.start();
-  } catch (const std::exception& ex) {
-    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
-  }
-
-  holder::core::SignalHandler signals;
-  std::thread server_thread([&server, &signals]() {
-    server.run(signals);
-  });
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  auto create_card = [&](const std::string& id, const std::string& title, int t) {
-    holder::test::create_card_fixture(card_store, id, "proj-1", title, title, t);
-    return nlohmann::json{{"ok", true}};
-  };
-
-  REQUIRE(create_card("11111111-1111-4111-8111-111111111111", "Zulu", 10)["ok"] == true);
-  REQUIRE(create_card("22222222-2222-4222-8222-222222222222", "Alpha", 20)["ok"] == true);
-  REQUIRE(create_card("33333333-3333-4333-8333-333333333333", "Mike", 30)["ok"] == true);
-
-  const auto tree_by_updated = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=tree&order=updated_desc",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(tree_by_updated["ok"] == true);
-  REQUIRE(tree_by_updated["data"].size() == 3);
-  REQUIRE(tree_by_updated["data"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-  REQUIRE(tree_by_updated["data"][1]["card_id"] == "22222222-2222-4222-8222-222222222222");
-  REQUIRE(tree_by_updated["data"][2]["card_id"] == "11111111-1111-4111-8111-111111111111");
-
-  const auto recent_by_title = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent&order=title_asc",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(recent_by_title["ok"] == true);
-  REQUIRE(recent_by_title["data"].size() == 3);
-  REQUIRE(recent_by_title["data"][0]["title"] == "Alpha");
-  REQUIRE(recent_by_title["data"][1]["title"] == "Mike");
-  REQUIRE(recent_by_title["data"][2]["title"] == "Zulu");
-
-  const auto context_by_title = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&order=title_asc",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(context_by_title["ok"] == true);
-  REQUIRE(context_by_title["data"]["cards"].size() == 3);
-  REQUIRE(context_by_title["data"]["cards"][0]["title"] == "Alpha");
-  REQUIRE(context_by_title["data"]["cards"][1]["title"] == "Mike");
-  REQUIRE(context_by_title["data"]["cards"][2]["title"] == "Zulu");
-  REQUIRE(!context_by_title["data"]["cards"][0].contains("child_count"));
-
-  const auto context_with_counts = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&order=title_asc&count=true",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(context_with_counts["ok"] == true);
-  REQUIRE(context_with_counts["data"]["cards"][0].contains("child_count"));
-
-  const auto bad_order = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=tree&order=bogus",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(bad_order["ok"] == false);
-  REQUIRE(bad_order["error"]["code"] == "bad_request");
-
-  const auto bad_context_order = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards/context?project_id=proj-1&order=bogus",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(bad_context_order["ok"] == false);
-  REQUIRE(bad_context_order["error"]["code"] == "bad_request");
-
-  const auto bad_count = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=tree&count=maybe",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(bad_count["ok"] == false);
-  REQUIRE(bad_count["error"]["code"] == "bad_request");
-
-  std::raise(SIGTERM);
-  server_thread.join();
-}
-
-TEST_CASE("HTTP cards view=recent listing (alias coverage)", "[http]") {
-  const auto dir = make_temp_dir();
-  const auto db_path = dir / "holder.db";
-
-  auto db = open_db_with_schema(db_path);
-  const auto project_root = dir / "project_repo";
-  create_project(db, "proj-1", project_root.string());
-
-  holder::index::FtsIndexer fts(db);
-  holder::card::CardStore card_store(db, &fts);
-
-  const std::string token = "testtoken";
-  holder::api::HttpServer server("127.0.0.1", 0, db, token, &card_store, &fts);
-  holder::api::HttpServer::BoundInfo bound;
-  try {
-    bound = server.start();
-  } catch (const std::exception& ex) {
-    SKIP(std::string("Socket bind not available in test environment: ") + ex.what());
-  }
-
-  holder::core::SignalHandler signals;
-  std::thread server_thread([&server, &signals]() {
-    server.run(signals);
-  });
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  auto create_card = [&](const std::string& id, const std::string& title, int t) {
-    holder::test::create_card_fixture(card_store, id, "proj-1", title, title, t);
-    return nlohmann::json{{"ok", true}};
-  };
-
-  REQUIRE(create_card("11111111-1111-4111-8111-111111111111", "First", 10)["ok"] == true);
-  REQUIRE(create_card("22222222-2222-4222-8222-222222222222", "Second", 20)["ok"] == true);
-  REQUIRE(create_card("33333333-3333-4333-8333-333333333333", "Third", 30)["ok"] == true);
-
-  const auto deleted = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::delete_,
-      "/projects/proj-1/cards/22222222-2222-4222-8222-222222222222",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(deleted["ok"] == true);
-
-  const auto recent = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(recent["ok"] == true);
-  REQUIRE(recent["data"].is_array());
-  REQUIRE(recent["data"].size() == 2);
-  REQUIRE(recent["data"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-  REQUIRE(recent["data"][1]["card_id"] == "11111111-1111-4111-8111-111111111111");
-
-  const auto recent_limit = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent&limit=1",
-      nlohmann::json::object(),
-      boost::beast::http::status::ok
-  );
-  REQUIRE(recent_limit["ok"] == true);
-  REQUIRE(recent_limit["data"].is_array());
-  REQUIRE(recent_limit["data"].size() == 1);
-  REQUIRE(recent_limit["data"][0]["card_id"] == "33333333-3333-4333-8333-333333333333");
-
-  const auto missing_project = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?view=recent",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(missing_project["ok"] == false);
-  REQUIRE(missing_project["error"]["code"] == "bad_request");
-
-  const auto bad_limit = http_json_request(
-      bound.bind,
-      bound.port,
-      token,
-      boost::beast::http::verb::get,
-      "/cards?project_id=proj-1&view=recent&limit=abc",
-      nlohmann::json::object(),
-      boost::beast::http::status::bad_request
-  );
-  REQUIRE(bad_limit["ok"] == false);
-  REQUIRE(bad_limit["error"]["code"] == "bad_request");
-
-  std::raise(SIGTERM);
-  server_thread.join();
 }
 
 TEST_CASE("HTTP card create rejects caller-supplied card_id", "[http]") {

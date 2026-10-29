@@ -124,21 +124,6 @@ struct RIG_OPEN_RECORD AiThread {
 
 
 
-// A card in GET /cards and GET /cards/context. The contract's CardListItem replaces it when those
-// routes move to the contract.
-struct RIG_OPEN_RECORD CardViewItem {
-  std::string card_id;
-  std::string project_id;
-  std::string title;
-  std::string rel_path;
-  double sort_key;
-  long long created_at;
-  long long updated_at;
-  std::optional<std::string> parent_card_id RIG_NULLABLE;
-  std::optional<long long> deleted_at RIG_NULLABLE;
-  std::optional<int> child_count RIG_FIELD_DESCRIPTION("Live children, present when requested (count=true, or include_child_count=true on project card pages).") RIG_MINIMUM(0) RIG_OMIT_EMPTY;
-};
-
 struct RIG_OPEN_RECORD StorageLocation {
   std::string location_id;
   std::string project_id;

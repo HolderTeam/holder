@@ -18,7 +18,7 @@ from holder.generated import AuthenticatedClient, Client
 from holder.generated.api.default import (
     get_ai_runner_pull_job_id_events,
     get_ai_runs_run_id_events,
-    get_cards,
+    get_projects_project_id_cards,
     get_event_cursor,
     get_health,
     get_openapi_yaml,
@@ -291,9 +291,9 @@ def test_authenticated_health_response():
 
 def test_card_query_and_error_envelope():
     def respond(request):
-        assert request.url.params["project_id"] == "project & one"
+        assert request.url.path == "/projects/project & one/cards"
         assert request.url.params["tag"] == "hello world"
-        assert "parent_card_id" not in request.url.params
+        assert "parent" not in request.url.params
         return httpx.Response(
             401,
             json={
@@ -311,7 +311,7 @@ def test_card_query_and_error_envelope():
             "transport": httpx.MockTransport(respond),
         },
     ) as client:
-        result = get_cards.sync(
+        result = get_projects_project_id_cards.sync(
             client=client, project_id="project & one", tag="hello world"
         )
     assert isinstance(result, ErrorResponse)

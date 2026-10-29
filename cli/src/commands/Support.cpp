@@ -592,4 +592,22 @@ nlohmann::json card_api_request(
   return response.payload;
 }
 
+nlohmann::json list_project_cards_payload(const holder::core::Paths& paths,
+                                          const std::string& target,
+                                          std::size_t max_items) {
+  nlohmann::json result = {{"ok", true}, {"data", nlohmann::json::array()}};
+  std::string cursor;
+  do {
+    const auto page_target = target + (cursor.empty() ? "" : "&cursor=" + url_encode_component(cursor));
+    const auto payload = card_api_request(paths, boost::beast::http::verb::get, page_target);
+    const auto& page = payload.at("data");
+    for (const auto& item : page.at("items")) {
+      result["data"].push_back(item);
+      if (max_items != 0 && result["data"].size() >= max_items) return result;
+    }
+    cursor = page.at("next_cursor").is_null() ? "" : page.at("next_cursor").get<std::string>();
+  } while (!cursor.empty());
+  return result;
+}
+
 } // namespace holder::cli

@@ -50,7 +50,7 @@ std::pair<http::status, nlohmann::json> route_project_cards(
 } // namespace
 
 TEST_CASE(
-    "Project card collection pages combine filters and preserve display behaviour",
+    "Project card collection pages combine filters and exclude trashed cards",
     "[card-pages]"
 ) {
   const auto dir = holder::test::make_temp_dir();
@@ -117,30 +117,6 @@ TEST_CASE(
   CHECK(call({{"parent", "bad"}}).second["data"]["items"].empty());
   CHECK(call({}, "/projects/missing/cards").first == http::status::not_found);
   CHECK(call({}, "/projects/p/cards", http::verb::put).first == http::status::method_not_allowed);
-
-  // The display endpoint retains its original hierarchy, recent mode and tag precedence.
-  auto display = [&](Params params) {
-    params["project_id"] = "p";
-    std::string target = "/cards";
-    char separator = '?';
-    for (const auto& [key, value] : params) {
-      target += separator + key + "=" + value;
-      separator = '&';
-    }
-    http::request<http::string_body> req{http::verb::get, target, 11};
-    http::response<http::string_body> res;
-    REQUIRE(holder::api::dispatch_generated_routes(
-        req, res, db, nullptr, &fts, nullptr, nullptr, {}, {}, &store
-    ));
-    return std::make_pair(res.result(), nlohmann::json::parse(res.body()));
-  };
-  CHECK(display({}).second["data"].size() == 1);
-  CHECK(display({{"parent_card_id", first}}).second["data"].size() == 2);
-  CHECK(display({{"tag", "work"}, {"parent_card_id", first}}).second["data"].size() == 3);
-  CHECK(display({{"view", "recent"}, {"limit", "2"}}).second["data"].size() == 2);
-  CHECK(display({{"view", "recent"}, {"limit", "2junk"}}).first == http::status::bad_request);
-  CHECK(display({{"view", "all"}}).first == http::status::bad_request);
-  CHECK(display({{"after_card_id", third}}).second["data"].size() == 1);
 
   // Real trash promotes live children to roots; flat pages still expose them.
   store.trash(first, 70);
@@ -253,46 +229,6 @@ TEST_CASE(
   const auto broken = call(path);
   CHECK(broken.first == http::status::conflict);
   CHECK(broken.second["error"]["code"] == "hierarchy_invalid");
-}
-
-TEST_CASE("Generated dispatch decodes query names and values once", "[http-query]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  const std::pair<std::string, std::string> cases[] = {
-      {"project_id=space+project", "space project"},
-      {"project_id=space%20project", "space project"},
-      {"project_id=literal%2Bplus", "literal+plus"},
-      {"project_id=caf%C3%A9%20%26%2B", "café &+"},
-      {"project_id=%252B", "%2B"},
-      {"project%5Fid=literal%2Bplus", "literal+plus"},
-      {"other_project_id=wrong&project_id=literal%2Bplus", "literal+plus"},
-  };
-  for (const auto& id : {"space project", "literal+plus", "café &+", "%2B"}) {
-    holder::test::create_project(db, id, (dir / id).string());
-  }
-  for (const auto& [query, expected] : cases) {
-    INFO(query);
-    // This non-search endpoint receives its decoded project ID from generated dispatch.
-    const auto [status, payload] = route_project_cards(db, nullptr, "/cards/context?" + query);
-    REQUIRE(status == http::status::ok);
-    CHECK(payload["data"]["project"]["project_id"] == expected);
-  }
-}
-
-TEST_CASE("Generated dispatch rejects malformed escapes and duplicate query names", "[http-query]") {
-  const auto dir = holder::test::make_temp_dir();
-  auto db = holder::test::open_db_with_schema(dir / "holder.db");
-  holder::test::create_project(db, "p", (dir / "repo").string());
-  for (const auto& query : {
-           "project_id=%", "project_id=%2", "project_id=%GG", "project_id=%2G",
-           "project%GGid=p", "project_id=p&project_id=p", "project_id=p&project%5Fid=p",
-           "project_id=p&unused=%GG"}) {
-    INFO(query);
-    const auto [status, payload] = route_project_cards(
-        db, nullptr, std::string("/cards/context?") + query);
-    REQUIRE(status == http::status::bad_request);
-    CHECK(payload["error"]["code"] == "bad_request");
-  }
 }
 
 TEST_CASE("Project card collection pages can include card content", "[card-pages]") {

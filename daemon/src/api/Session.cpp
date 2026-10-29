@@ -217,14 +217,13 @@ AsyncWriteResult async_write_response(
   return future.get();
 }
 
-// /cards and below, or a project's cards: /projects/{project_id}/cards and below.
+// A project's cards: /projects/{project_id}/cards and below.
 bool is_card_path(std::string_view path) {
   constexpr std::string_view projects = "/projects/";
-  if (path.starts_with(projects)) {
-    const auto slash = path.find('/', projects.size());
-    if (slash == std::string_view::npos) return false;
-    path.remove_prefix(slash);
-  }
+  if (!path.starts_with(projects)) return false;
+  const auto slash = path.find('/', projects.size());
+  if (slash == std::string_view::npos) return false;
+  path.remove_prefix(slash);
   return path == "/cards" || path.starts_with("/cards/");
 }
 
