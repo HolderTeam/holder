@@ -58,18 +58,23 @@ TEST_CASE("HTTP endpoints reject invalid JSON bodies", "[http]") {
     return res;
   };
 
-  // The contract's create_card, then one of RIG's routes.
-  const std::string create_card = "/projects/proj-1/cards";
-  for (const std::string target : {create_card, std::string("/locations")}) {
-    const auto res = post(target, "{");
+  // Contract routes report invalid_argument; the remaining RIG route reports bad_request.
+  struct Case {
+    const char* target;
+    const char* error_code;
+  };
+  for (const auto& test : {Case{"/projects/proj-1/cards", "invalid_argument"},
+                           Case{"/locations", "invalid_argument"},
+                           Case{"/imports", "bad_request"}}) {
+    const auto res = post(test.target, "{");
     CHECK(res.result() == http::status::bad_request);
 
     // The parser's message quotes bytes that are not UTF-8; the failure is still a JSON 400.
-    const auto not_utf8 = post(target, "\xff\xfe{");
+    const auto not_utf8 = post(test.target, "\xff\xfe{");
     CHECK(not_utf8.result() == http::status::bad_request);
     const auto payload = nlohmann::json::parse(not_utf8.body());
     CHECK(payload["ok"] == false);
-    CHECK(payload["error"]["code"] == (target == create_card ? "invalid_argument" : "bad_request"));
+    CHECK(payload["error"]["code"] == test.error_code);
   }
 
   std::raise(SIGTERM);
