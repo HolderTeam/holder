@@ -61,6 +61,11 @@ struct InvalidMove : Error {
   using Error::Error;
 };
 
+/// A card's ancestor chain is broken, cyclic or too deep to follow.
+struct HierarchyInvalid : Error {
+  using Error::Error;
+};
+
 /// The project's Git history cannot be read right now.
 struct HistoryUnavailable : Error {
   using Error::Error;
@@ -232,6 +237,16 @@ struct Card : CardMetadata {
   std::string content;  ///< The card's body.
   std::vector<std::string> tags;  ///< The card's normalized tags.
   std::vector<TagOccurrence> tag_occurrences;  ///< Each tag written in the content, in order.
+};
+
+/// Whether this step names the project or a card.
+enum class CardBreadcrumbKind { Project, Card };
+
+/// One project or live card in a card's path from its project root.
+struct CardBreadcrumb {
+  CardBreadcrumbKind kind;  ///< Whether this step names the project or a card.
+  std::string id;  ///< The project or card ID.
+  std::string title;  ///< The project or card title.
 };
 
 /// A card in a listing.
@@ -585,6 +600,12 @@ struct SearchMessage {
 /// A card in the trash or in another project is not found.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 Card get_card(holder_context& context, std::string project_id, std::string card_id);
+
+/// Read a live card's path from its project root.
+/// The project comes first, then live ancestor cards and the requested card. A missing or trashed
+/// card is not found; a broken or cyclic ancestor chain is invalid.
+/// @throws NotFound, HierarchyInvalid
+std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id, std::string card_id);
 
 struct ListCardsParentRoots {};
 using ListCardsParent = std::variant<ListCardsParentRoots, std::string>;

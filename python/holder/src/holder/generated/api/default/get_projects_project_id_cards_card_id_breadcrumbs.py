@@ -6,7 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.card_breadcrumbs_response import CardBreadcrumbsResponse
+from ...models.card_breadcrumb_list_response import CardBreadcrumbListResponse
 from ...models.error_response import ErrorResponse
 from ...types import Response
 
@@ -29,9 +29,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CardBreadcrumbsResponse | ErrorResponse | None:
+) -> CardBreadcrumbListResponse | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = CardBreadcrumbsResponse.from_dict(response.json())
+        response_200 = CardBreadcrumbListResponse.from_dict(response.json())
 
         return response_200
 
@@ -68,7 +68,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CardBreadcrumbsResponse | ErrorResponse]:
+) -> Response[CardBreadcrumbListResponse | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -82,11 +82,11 @@ def sync_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardBreadcrumbsResponse | ErrorResponse]:
-    """Read a live card's project-to-card breadcrumb trail
+) -> Response[CardBreadcrumbListResponse | ErrorResponse]:
+    """Read a live card's path from its project root.
 
-     Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken
-    or cyclic ancestor chain returns 409 rather than a partial trail.
+     The project comes first, then live ancestor cards and the requested card. A missing or trashed
+    card is not found; a broken or cyclic ancestor chain is invalid.
 
     Args:
         project_id (str):
@@ -97,7 +97,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardBreadcrumbsResponse | ErrorResponse]
+        Response[CardBreadcrumbListResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -117,11 +117,11 @@ def sync(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardBreadcrumbsResponse | ErrorResponse | None:
-    """Read a live card's project-to-card breadcrumb trail
+) -> CardBreadcrumbListResponse | ErrorResponse | None:
+    """Read a live card's path from its project root.
 
-     Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken
-    or cyclic ancestor chain returns 409 rather than a partial trail.
+     The project comes first, then live ancestor cards and the requested card. A missing or trashed
+    card is not found; a broken or cyclic ancestor chain is invalid.
 
     Args:
         project_id (str):
@@ -132,7 +132,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardBreadcrumbsResponse | ErrorResponse
+        CardBreadcrumbListResponse | ErrorResponse
     """
 
     return sync_detailed(
@@ -147,11 +147,11 @@ async def asyncio_detailed(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CardBreadcrumbsResponse | ErrorResponse]:
-    """Read a live card's project-to-card breadcrumb trail
+) -> Response[CardBreadcrumbListResponse | ErrorResponse]:
+    """Read a live card's path from its project root.
 
-     Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken
-    or cyclic ancestor chain returns 409 rather than a partial trail.
+     The project comes first, then live ancestor cards and the requested card. A missing or trashed
+    card is not found; a broken or cyclic ancestor chain is invalid.
 
     Args:
         project_id (str):
@@ -162,7 +162,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CardBreadcrumbsResponse | ErrorResponse]
+        Response[CardBreadcrumbListResponse | ErrorResponse]
     """
 
     kwargs = _get_kwargs(
@@ -180,11 +180,11 @@ async def asyncio(
     card_id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CardBreadcrumbsResponse | ErrorResponse | None:
-    """Read a live card's project-to-card breadcrumb trail
+) -> CardBreadcrumbListResponse | ErrorResponse | None:
+    """Read a live card's path from its project root.
 
-     Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken
-    or cyclic ancestor chain returns 409 rather than a partial trail.
+     The project comes first, then live ancestor cards and the requested card. A missing or trashed
+    card is not found; a broken or cyclic ancestor chain is invalid.
 
     Args:
         project_id (str):
@@ -195,7 +195,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CardBreadcrumbsResponse | ErrorResponse
+        CardBreadcrumbListResponse | ErrorResponse
     """
 
     return (

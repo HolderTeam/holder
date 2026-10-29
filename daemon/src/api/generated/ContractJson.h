@@ -176,6 +176,23 @@ template <typename T> struct codec<std::map<std::string, T>> {
     }
 };
 
+template <> struct codec<holder::contract::CardBreadcrumbKind> {
+    static json encode(holder::contract::CardBreadcrumbKind value) {
+        switch (value) {
+        case holder::contract::CardBreadcrumbKind::Project: return "project";
+        case holder::contract::CardBreadcrumbKind::Card: return "card";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::CardBreadcrumbKind decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "project") return holder::contract::CardBreadcrumbKind::Project;
+        if (text == "card") return holder::contract::CardBreadcrumbKind::Card;
+        throw std::invalid_argument("must be one of project, card");
+    }
+};
+
 template <> struct codec<holder::contract::LinkSourceType> {
     static json encode(holder::contract::LinkSourceType value) {
         switch (value) {
@@ -460,6 +477,10 @@ template <> struct codec<holder::contract::TagOccurrence> {
 template <> struct codec<holder::contract::Card> {
     static json encode(const holder::contract::Card& value);
     static holder::contract::Card decode(const json& value);
+};
+template <> struct codec<holder::contract::CardBreadcrumb> {
+    static json encode(const holder::contract::CardBreadcrumb& value);
+    static holder::contract::CardBreadcrumb decode(const json& value);
 };
 template <> struct codec<holder::contract::CardListItem> {
     static json encode(const holder::contract::CardListItem& value);
@@ -779,6 +800,39 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
         out.tag_occurrences = decode_field<std::vector<holder::contract::TagOccurrence>>(item, "tag_occurrences");
     } else {
         throw std::invalid_argument("tag_occurrences is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardBreadcrumb>::encode(const holder::contract::CardBreadcrumb& value) {
+    json result = json::object();
+    result["kind"] = codec<holder::contract::CardBreadcrumbKind>::encode(value.kind);
+    result["id"] = codec<std::string>::encode(value.id);
+    result["title"] = codec<std::string>::encode(value.title);
+    return result;
+}
+inline holder::contract::CardBreadcrumb codec<holder::contract::CardBreadcrumb>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardBreadcrumb object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "kind" && it.key() != "id" && it.key() != "title") throw std::invalid_argument("CardBreadcrumb has no field " + it.key());
+    holder::contract::CardBreadcrumb out;
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = decode_field<holder::contract::CardBreadcrumbKind>(item, "kind");
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("id") && !value.at("id").is_null()) {
+        const auto& item = value.at("id");
+        out.id = check_text(decode_field<std::string>(item, "id"), "id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("id is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
     }
     return out;
 }

@@ -29,16 +29,18 @@ typedef struct holder_arena holder_arena;
 #define HOLDER_ERROR_DATA_CORRUPTED 104
 /* A card cannot go where it was asked to: under itself or one of its descendants, beside a card that cannot be its sibling, or up a level from the top. */
 #define HOLDER_ERROR_INVALID_MOVE 105
+/* A card's ancestor chain is broken, cyclic or too deep to follow. */
+#define HOLDER_ERROR_HIERARCHY_INVALID 106
 /* The project's Git history cannot be read right now. */
-#define HOLDER_ERROR_HISTORY_UNAVAILABLE 106
+#define HOLDER_ERROR_HISTORY_UNAVAILABLE 107
 /* This device cannot use the encrypted project's key to read its history. */
-#define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 107
+#define HOLDER_ERROR_HISTORY_KEY_UNAVAILABLE 108
 /* A commit ID prefix matches more than one revision; use a longer prefix or the full ID. */
-#define HOLDER_ERROR_REVISION_AMBIGUOUS 108
+#define HOLDER_ERROR_REVISION_AMBIGUOUS 109
 /* The item still exists but is not in Trash, so permanent removal is refused. */
-#define HOLDER_ERROR_NOT_TRASHED 109
+#define HOLDER_ERROR_NOT_TRASHED 110
 /* The bounded History response would exceed 2 MiB. */
-#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 110
+#define HOLDER_ERROR_HISTORY_RESPONSE_TOO_LARGE 111
 
 holder_arena* holder_arena_new(void);
 void holder_arena_free(holder_arena* arena);
@@ -241,6 +243,25 @@ typedef struct holder_card {
     holder_string_list tags; /* The card's normalized tags. */
     holder_tag_occurrence_list tag_occurrences; /* Each tag written in the content, in order. */
 } holder_card;
+
+/* Whether this step names the project or a card. */
+typedef enum holder_card_breadcrumb_kind {
+    HOLDER_CARD_BREADCRUMB_KIND_PROJECT = 1,
+    HOLDER_CARD_BREADCRUMB_KIND_CARD = 2,
+    HOLDER_CARD_BREADCRUMB_KIND_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_card_breadcrumb_kind;
+
+/* One project or live card in a card's path from its project root. */
+typedef struct holder_card_breadcrumb {
+    holder_card_breadcrumb_kind kind; /* Whether this step names the project or a card. */
+    const char* id; /* The project or card ID. */
+    const char* title; /* The project or card title. */
+} holder_card_breadcrumb;
+
+typedef struct holder_card_breadcrumb_list {
+    const holder_card_breadcrumb* items;
+    size_t count;
+} holder_card_breadcrumb_list;
 
 /* A card in a listing. */
 typedef struct holder_card_list_item {
@@ -797,6 +818,13 @@ typedef struct holder_search_message_list {
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Read a live card's path from its project root.
+ * The project comes first, then live ancestor cards and the requested card. A missing or trashed
+ * card is not found; a broken or cyclic ancestor chain is invalid.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_HIERARCHY_INVALID.
+ */
+int holder_get_card_breadcrumbs(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_breadcrumb_list** out_card_breadcrumb_list, holder_error** out_error);
 
 typedef enum holder_list_cards_parent_kind {
     HOLDER_LIST_CARDS_PARENT_NONE = 0,

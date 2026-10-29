@@ -153,6 +153,8 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
     return contract::detail::fail(out_error, HOLDER_ERROR_DATA_CORRUPTED, e.what());
   } catch (const contract::InvalidMove& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_MOVE, e.what());
+  } catch (const contract::HierarchyInvalid& e) {
+    return contract::detail::fail(out_error, HOLDER_ERROR_HIERARCHY_INVALID, e.what());
   } catch (const contract::HistoryUnavailable& e) {
     return contract::detail::fail(out_error, HOLDER_ERROR_HISTORY_UNAVAILABLE, e.what());
   } catch (const contract::HistoryKeyUnavailable& e) {
@@ -204,6 +206,14 @@ std::map<std::string, std::vector<std::string>> from_c_resource_metadata(const h
     require(out.emplace(std::move(key), std::move(values)).second, std::string(name) + " repeats a key");
   }
   return out;
+}
+
+holder_card_breadcrumb_kind to_c_enum(contract::CardBreadcrumbKind value) {
+  switch (value) {
+  case contract::CardBreadcrumbKind::Project: return HOLDER_CARD_BREADCRUMB_KIND_PROJECT;
+  case contract::CardBreadcrumbKind::Card: return HOLDER_CARD_BREADCRUMB_KIND_CARD;
+  }
+  throw std::logic_error("not a contract::CardBreadcrumbKind value");
 }
 
 holder_link_source_type to_c_enum(contract::LinkSourceType value) {
@@ -309,6 +319,8 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
+holder_card_breadcrumb to_c(holder_arena* arena, const contract::CardBreadcrumb& value);
+holder_card_breadcrumb_list to_c_list(holder_arena* arena, const std::vector<contract::CardBreadcrumb>& values);
 holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value);
 holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::CardListItem>& values);
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
@@ -396,6 +408,20 @@ holder_card to_c(holder_arena* arena, const contract::Card& value) {
   out.tags = copy_strings(arena, value.tags);
   out.tag_occurrences = to_c_list(arena, value.tag_occurrences);
   return out;
+}
+
+holder_card_breadcrumb to_c(holder_arena* arena, const contract::CardBreadcrumb& value) {
+  holder_card_breadcrumb out{};
+  out.kind = to_c_enum(value.kind);
+  out.id = copy(arena, value.id);
+  out.title = copy(arena, value.title);
+  return out;
+}
+
+holder_card_breadcrumb_list to_c_list(holder_arena* arena, const std::vector<contract::CardBreadcrumb>& values) {
+  auto* items = make<holder_card_breadcrumb>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
 }
 
 holder_card_list_item to_c(holder_arena* arena, const contract::CardListItem& value) {
@@ -1085,6 +1111,19 @@ int holder_get_card(holder_context* context, const char* project_id, const char*
     auto* out = make<holder_card>(arena);
     *out = to_c(arena, contract::get_card(*context, project_id_value, card_id_value));
     *out_card = out;
+  });
+}
+
+int holder_get_card_breadcrumbs(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_breadcrumb_list** out_card_breadcrumb_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_breadcrumb_list != nullptr, "out_card_breadcrumb_list must not be null");
+    *out_card_breadcrumb_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_card_breadcrumb_list>(arena);
+    *out = to_c_list(arena, contract::get_card_breadcrumbs(*context, project_id_value, card_id_value));
+    *out_card_breadcrumb_list = out;
   });
 }
 

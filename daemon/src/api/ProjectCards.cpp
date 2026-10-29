@@ -1,44 +1,15 @@
 #include "api/ProjectCards.h"
 
 #include "api/support/Time.h"
-#include "card/CardRepo.h"
 #include "card/CardStore.h"
 #include "project/ProjectRepo.h"
 
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace holder::api {
-
-CardBreadcrumbsResponse get_projects_project_id_cards_card_id_breadcrumbs(
-    holder::platform::Db& db, std::string project_id, std::string card_id) {
-  const auto project = holder::project::ProjectRepo(db).get(project_id);
-  if (!project) throw ProjectCardsNotFound("Project not found.");
-  holder::card::CardRepo cards(db);
-  std::vector<holder::model::Card> chain;
-  std::unordered_set<std::string> visited;
-  std::optional<std::string> current = card_id;
-  while (current) {
-    if (chain.size() >= 1024 || !visited.insert(*current).second)
-      throw CardHierarchyInvalid("Card ancestry is cyclic or too deep.");
-    const auto card = cards.find_by_id(project_id, *current, holder::model::CardScope::Live);
-    if (!card) {
-      if (chain.empty()) throw ProjectCardsNotFound("Card not found in this project.");
-      throw CardHierarchyInvalid("Card ancestry is broken.");
-    }
-    chain.push_back(*card);
-    current = card->parent_card_id;
-    if (current && current->empty()) current = std::nullopt;
-  }
-  CardBreadcrumbsResponse response{true, {}};
-  response.data.push_back({"project", project_id, project->name});
-  for (auto it = chain.rbegin(); it != chain.rend(); ++it)
-    response.data.push_back({"card", it->card_id, it->title});
-  return response;
-}
 
 HierarchyRepairResponse post_projects_project_id_repair_hierarchy(
     holder::platform::Db& db,

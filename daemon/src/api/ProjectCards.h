@@ -15,17 +15,6 @@ namespace holder::card { class CardStore; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD CardBreadcrumb {
-  std::string kind RIG_STRING_VALUES("project", "card");
-  std::string id;
-  std::string title;
-};
-
-struct RIG_OPEN_RECORD CardBreadcrumbsResponse {
-  bool ok RIG_BOOL_VALUE(true);
-  std::vector<CardBreadcrumb> data RIG_FIELD_DESCRIPTION("Project first, then live ancestor cards from root to the requested card.");
-};
-
 struct RIG_OPEN_RECORD HierarchyRepairMove {
   std::string card_id RIG_FIELD_DESCRIPTION("A hidden branch's top card. Its descendants stay attached and move with it.");
   std::optional<std::string> parent_card_id RIG_FIELD_DESCRIPTION("Where it goes, or null for the project's top level.") RIG_NULLABLE;
@@ -50,23 +39,6 @@ struct RIG_OPEN_RECORD HierarchyRepairRequest {
 struct ProjectCardsNotFound : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
-
-struct CardHierarchyInvalid : CodedError {
-  explicit CardHierarchyInvalid(const std::string& message)
-      : CodedError("hierarchy_invalid", message) {}
-};
-
-
-RIG_ROUTE(GET, "/projects/{project_id}/cards/{card_id}/breadcrumbs")
-RIG_SUMMARY("Read a live card's project-to-card breadcrumb trail")
-RIG_DESCRIPTION("Traverses only the requested card's live ancestors. A missing or trashed card returns 404; a broken or cyclic ancestor chain returns 409 rather than a partial trail.")
-RIG_RESPONSE_DESCRIPTION("Project and live card path")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Project or card not found", ProjectCardsNotFound)
-RIG_ERROR_RESPONSE(409, ErrorResponse, "Card's ancestor chain is broken or cyclic", CardHierarchyInvalid)
-CardBreadcrumbsResponse get_projects_project_id_cards_card_id_breadcrumbs(
-    holder::platform::Db& db RIG_CONTEXT,
-    std::string project_id,
-    std::string card_id);
 
 RIG_ROUTE(POST, "/projects/{project_id}/repair-hierarchy")
 RIG_SUMMARY("Find, and optionally fix, cards hidden under missing or trashed parents")

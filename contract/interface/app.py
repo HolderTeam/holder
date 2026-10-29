@@ -12,10 +12,23 @@ from fastapi import Body, Path, Query
 
 from holder_contract import Contract, Field, Int32, Timestamp
 
-from .cards import Card, CardId, CardListItem, CardMove, CardUpdate, NewCard, Page, ProjectId, Tag, TagCount
+from .cards import (
+    Card,
+    CardBreadcrumb,
+    CardId,
+    CardListItem,
+    CardMove,
+    CardUpdate,
+    NewCard,
+    Page,
+    ProjectId,
+    Tag,
+    TagCount,
+)
 from .errors import (
     Conflict,
     DataCorrupted,
+    HierarchyInvalid,
     HistoryKeyUnavailable,
     HistoryResponseTooLarge,
     HistoryUnavailable,
@@ -52,6 +65,7 @@ contract = Contract(statuses={
     # Not something the caller can fix; the code names the condition.
     DataCorrupted: 500,
     InvalidMove: 422,
+    HierarchyInvalid: 409,
     HistoryResponseTooLarge: 413,
     HistoryKeyUnavailable: 409,
     RevisionAmbiguous: 409,
@@ -69,6 +83,18 @@ def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId
     """Fetch a card.
 
     A card in the trash or in another project is not found.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}/breadcrumbs",
+                errors=[NotFound, HierarchyInvalid])
+def get_card_breadcrumbs(
+    project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()],
+) -> list[CardBreadcrumb]:
+    """Read a live card's path from its project root.
+
+    The project comes first, then live ancestor cards and the requested card. A missing or trashed
+    card is not found; a broken or cyclic ancestor chain is invalid.
     """
 
 

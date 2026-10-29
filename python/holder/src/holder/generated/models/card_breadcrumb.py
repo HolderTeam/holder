@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
-from attrs import field as _attrs_field
 from typing_extensions import Self
 
 from ..models.card_breadcrumb_kind import CardBreadcrumbKind
@@ -14,17 +13,17 @@ T = TypeVar("T", bound="CardBreadcrumb")
 
 @_attrs_define
 class CardBreadcrumb:
-    """
+    """One project or live card in a card's path from its project root.
+
     Attributes:
-        kind (CardBreadcrumbKind):
-        id (str):
-        title (str):
+        kind (CardBreadcrumbKind): Whether this step names the project or a card.
+        id (str): The project or card ID.
+        title (str): The project or card title.
     """
 
     kind: CardBreadcrumbKind
     id: str
     title: str
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         kind = self.kind.value
@@ -34,7 +33,7 @@ class CardBreadcrumb:
         title = self.title
 
         field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+
         field_dict.update(
             {
                 "kind": kind,
@@ -60,21 +59,4 @@ class CardBreadcrumb:
             title=title,
         )
 
-        card_breadcrumb.additional_properties = d
         return card_breadcrumb
-
-    @property
-    def additional_keys(self) -> list[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
