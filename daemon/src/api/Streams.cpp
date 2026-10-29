@@ -1,6 +1,6 @@
 #include "api/Streams.h"
 
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include "api/routes/ai/runner/AiRunnerPullEventRoutes.h"
 #include "api/routes/ai/runs/AiRunPostRoute.h"
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
@@ -17,7 +17,7 @@ std::shared_ptr<support::SseRegistry> registry_of(support::EventService* events)
 
 } // namespace
 
-rig::host_value post_ai_runs(
+api_runtime::host_value post_ai_runs(
     holder::api::support::RequestSocket* socket,
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts,
@@ -31,7 +31,7 @@ rig::host_value post_ai_runs(
   // A run streams as it executes, in this worker, so it runs here: a failure before the
   // stream starts throws, and dispatch answers it with its declared status.
   if (!routes::ai::runs::execute_ai_run(
-           rig_json::encode(request).dump(),
+           ai_json::encode(request).dump(),
            socket->socket,
            db,
            fts,
@@ -53,7 +53,7 @@ rig::host_value post_ai_runs(
   };
 }
 
-rig::host_value get_ai_runs_run_id_events(
+api_runtime::host_value get_ai_runs_run_id_events(
     holder::platform::Db& db,
     holder::api::support::EventService* events,
     std::optional<std::string> last_event_id,
@@ -67,7 +67,7 @@ rig::host_value get_ai_runs_run_id_events(
   );
 }
 
-rig::host_value get_ai_runner_pull_job_id_events(
+api_runtime::host_value get_ai_runner_pull_job_id_events(
     holder::llm::RunnerRegistry* registry,
     holder::api::support::EventService* events,
     std::optional<std::string> runner_id,
@@ -83,7 +83,7 @@ rig::host_value get_ai_runner_pull_job_id_events(
   );
 }
 
-rig::host_value get_events(
+api_runtime::host_value get_events(
     holder::platform::Db& db,
     holder::api::support::EventService* events,
     std::optional<std::string> project_id,

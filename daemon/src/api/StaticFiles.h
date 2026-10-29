@@ -2,7 +2,7 @@
 
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <nlohmann/json.hpp>
 
@@ -33,8 +33,8 @@ nlohmann::json download_git_providers_json();
 
 // Swagger UI, served from the daemon's documentation assets. Each file has its own media
 // type, so the route's support::StreamServer writes the response.
-rig::host_value get_docs();
+api_runtime::host_value get_docs();
 
-rig::host_value get_docs_file(std::string file);
+api_runtime::host_value get_docs_file(std::string file);
 
 } // namespace holder::api

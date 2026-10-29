@@ -24,7 +24,6 @@ using GeneratedResponse = boost::beast::http::response<boost::beast::http::strin
 // Whether the generated operation for this request is declared RIG_PUBLIC.
 bool is_public_generated_route(const GeneratedRequest& req);
 
-
 // Returns false only when no generated operation matches the request. A route the daemon
 // writes itself, such as an event stream, leaves res alone and its server in *stream.
 bool dispatch_generated_routes(const GeneratedRequest& req, GeneratedResponse& res,

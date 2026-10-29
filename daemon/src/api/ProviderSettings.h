@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <optional>
 #include <stdexcept>
@@ -12,58 +12,47 @@ namespace holder::platform { class Db; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD AiProviderSetting {
+struct AiProviderSetting {
   std::string provider;
   bool enabled;
   long long updated_at;
 };
 
-struct RIG_OPEN_RECORD AiProviderSettingUpdateRequest {
+struct AiProviderSettingUpdateRequest {
   std::string provider;
   bool enabled;
-  std::optional<long long> updated_at RIG_OMIT_EMPTY;
+  std::optional<long long> updated_at;
 };
 
-struct RIG_OPEN_RECORD AiProviderSettingResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AiProviderSettingResponse {
+  bool ok;
   AiProviderSetting data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderSettingsData {
+struct AiProviderSettingsData {
   std::vector<AiProviderSetting> providers;
 };
 
-struct RIG_OPEN_RECORD AiProviderSettingsResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AiProviderSettingsResponse {
+  bool ok;
   AiProviderSettingsData data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD AiProviderSettingDeleteData {
+struct AiProviderSettingDeleteData {
   std::string provider;
 };
 
-struct RIG_OPEN_RECORD AiProviderSettingDeleteResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AiProviderSettingDeleteResponse {
+  bool ok;
   AiProviderSettingDeleteData data;
 };
 
-RIG_ROUTE(GET, "/ai/providers/settings")
-RIG_SUMMARY("List cloud provider enabled settings")
-RIG_RESPONSE_DESCRIPTION("OK")
-AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db RIG_CONTEXT);
+AiProviderSettingsResponse list_provider_settings(holder::platform::Db& db);
 
-RIG_ROUTE(PUT, "/ai/providers/settings")
-RIG_SUMMARY("Set whether a cloud provider is enabled")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request or an invalid provider name", std::invalid_argument)
-AiProviderSettingResponse set_provider_setting(holder::platform::Db& db RIG_CONTEXT,
+AiProviderSettingResponse set_provider_setting(holder::platform::Db& db,
                                                AiProviderSettingUpdateRequest request);
 
-RIG_ROUTE(DELETE, "/ai/providers/settings/{provider}")
-RIG_SUMMARY("Remove a cloud provider enabled override")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Invalid provider name", std::invalid_argument)
-AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db RIG_CONTEXT,
+AiProviderSettingDeleteResponse delete_provider_setting(holder::platform::Db& db,
                                                          std::string provider);
 
 } // namespace holder::api

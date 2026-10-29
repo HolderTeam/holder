@@ -25,7 +25,7 @@ from pydantic_core import PydanticUndefined
 
 from .routes import Contract
 from .rules import Declarations, Problem, check_file
-from .vocabulary import Bytes, HolderError, Native, Record, Stream
+from .vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
 
 IR_VERSION = 1
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
@@ -169,10 +169,13 @@ class _Builder:
     def record(self, cls: type[Record], source: str) -> None:
         if not _doc(cls):
             self.problem(f"{cls.__name__} has no docstring")
-        bases = [b for b in cls.__bases__ if issubclass(b, Record) and b is not Record and not _is_generic_base(b)]
+        bases = [b for b in cls.__bases__ if issubclass(b, Record) and b not in (Record, OpenRecord)
+                 and not _is_generic_base(b)]
         if len(bases) > 1:
             self.problem(f"{cls.__name__} extends more than one record")
         entry: dict[str, Any] = {"name": cls.__name__, "source": source, "doc": _doc(cls)}
+        if issubclass(cls, OpenRecord):
+            entry["open"] = True
         if bases:
             if not self.in_contract(bases[0]):
                 self.problem(f"{cls.__name__} extends {bases[0].__name__}, which is not declared in the contract")
@@ -254,7 +257,8 @@ class _Builder:
             entry["daemon_only"] = not operation.core
             self.ir["operations"].append(entry)
             if operation.route:
-                self.bind(function, routes[function], operation.created_when, operation.public)
+                self.bind(function, routes[function], operation.created_when, operation.public,
+                          operation.core)
         self.where = (self.app_source, 1)
         for error, status in contract.statuses.items():
             self.bind_error(error, status)
@@ -290,7 +294,7 @@ class _Builder:
                 "description": description.strip() or None, "parameters": parameters, "returns": returns}
 
     def bind(self, function: Any, route: APIRoute, created_when: str | None = None,
-             public: bool = False) -> None:
+             public: bool = False, core: bool = True) -> None:
         name = function.__name__
         method = next(iter(route.methods))
         if method not in METHODS:
@@ -315,7 +319,7 @@ class _Builder:
         body = [p for p, m in markers.items() if isinstance(m, params.Body)]
         if len(body) > 1:
             self.problem(f"{name}: {', '.join(body)} are all Body(); a route has at most one body")
-        if body and method in ("GET", "DELETE"):
+        if body and (method == "GET" or (method == "DELETE" and core)):
             self.problem(f"{name}: a {method} has no body, but {body[0]} is Body()")
         for existing in self.ir["http"]:
             if (existing["method"], existing["path"]) == (method, route.path):

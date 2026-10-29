@@ -57,7 +57,7 @@ std::string read_config(const std::optional<std::filesystem::path>& path, const 
 }
 
 // Writes a documentation file with the media type its extension implies.
-rig::host_value serve_docs_file(const std::filesystem::path& relative) {
+api_runtime::host_value serve_docs_file(const std::filesystem::path& relative) {
   const auto docs_root = support::find_docs_root();
   if (!docs_root.has_value()) throw StaticFileNotFound("Docs assets not found.");
   if (!support::is_safe_relpath(relative)) throw StaticFileNotFound("Not found.");
@@ -106,8 +106,8 @@ nlohmann::json download_git_providers_json() {
   return yaml_to_json(YAML::Load(download_git_providers_yaml()));
 }
 
-rig::host_value get_docs() { return serve_docs_file("index.html"); }
+api_runtime::host_value get_docs() { return serve_docs_file("index.html"); }
 
-rig::host_value get_docs_file(std::string file) { return serve_docs_file(file); }
+api_runtime::host_value get_docs_file(std::string file) { return serve_docs_file(file); }
 
 } // namespace holder::api

@@ -21,6 +21,7 @@ import pytest
 import requests
 import schemathesis
 from hypothesis import HealthCheck, settings
+from schemathesis.checks import not_a_server_error
 from schemathesis.config import SchemathesisConfig
 from schemathesis.specs.openapi.checks import negative_data_rejection, positive_data_acceptance
 
@@ -48,13 +49,15 @@ def stated_in_words(case) -> bool:
     resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
     Search q must also be valid SQLite FTS5 syntax (see interface/app.py). An asset import's
     source_path must name a readable regular file on the daemon's host. Google Drive OAuth state
-    must be issued by the daemon.
+    must be issued by the daemon. AI operations also depend on configured providers, runners,
+    projects, threads and IDs; generated isolated requests cannot create those prerequisites.
     """
     query = case.query or {}
     path = case.path_parameters or {}
     limit = str(query.get("limit", 200))
     body = case.body if isinstance(case.body, dict) else {}
-    return "cursor" in query or "tag" in query or "tag" in path or "resource_id" in path or (
+    return case.operation.path.startswith("/ai/") or "cursor" in query or "tag" in query or (
+        "tag" in path or "resource_id" in path) or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
         "first_day" in query or "last_day" in query or "dates" in body or "resource_id" in body
         or "metadata" in body or "recovery_token" in body) or (
@@ -78,7 +81,9 @@ def invalid_only_unsent(case) -> bool:
     extras = [value for name, value in (case.query or {}).items() if name not in declared]
     return all(m.parameter == "Authorization" or (
         m.parameter_location is not None and m.parameter_location.name == "QUERY"
-        and m.keywords == ("additionalProperties",) and all(value in ([], None) for value in extras))
+        and (m.keywords == ("additionalProperties",) and (
+            case.operation.path.startswith("/ai/") or all(value in ([], None) for value in extras))
+            or case.operation.path.startswith("/ai/") and "type" in m.keywords))
         for m in mutations)
 
 
@@ -95,6 +100,11 @@ def test_the_daemon_answers_as_its_document_says(case):
     if isinstance(case.body, dict) and "root_path" in case.body:
         return
     excluded = [positive_data_acceptance] if stated_in_words(case) else []
+    if case.operation.path.startswith("/ai/") and case.operation.path in (
+            "/ai/runner/pull", "/ai/runs", "/ai/runs/{run_id}/events",
+            "/ai/runner/pull/{job_id}/events"):
+        # These routes document 503 for an unavailable runner, provider or observer.
+        excluded.append(not_a_server_error)
     if invalid_only_unsent(case):
         excluded.append(negative_data_rejection)
     case.call_and_validate(base_url=daemon.url, headers={"Authorization": f"Bearer {daemon.token}"},

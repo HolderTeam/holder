@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 
 #include <optional>
@@ -19,10 +19,10 @@ namespace holder::api {
 StorageLocation location_item(const holder::model::Location& location,
                               const holder::resource::LocationBindingStore* bindings);
 
-struct RIG_OPEN_RECORD StorageLocationListResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct StorageLocationListResponse {
+  bool ok;
   std::vector<StorageLocation> data;
-  std::optional<std::string> preferred_location_id RIG_NULLABLE;
+  std::optional<std::string> preferred_location_id;
 };
 
 struct LocationNotFound : std::runtime_error {
@@ -30,8 +30,8 @@ struct LocationNotFound : std::runtime_error {
       : std::runtime_error(message) {}
 };
 
-StorageLocationListResponse get_locations(holder::platform::Db& db RIG_CONTEXT,
-                                          holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-                                          std::string project_id RIG_QUERY RIG_MIN_LENGTH(1));
+StorageLocationListResponse get_locations(holder::platform::Db& db,
+                                          holder::privacy::SecretStore* secret_store,
+                                          std::string project_id);
 
 } // namespace holder::api

@@ -12,7 +12,7 @@ GoogleDriveAuthorizeResponse post_locations_location_id_oauth_google_drive_autho
   return {true, {routes::start_google_drive_authorization(db, location_id, host)}};
 }
 
-rig::host_value get_locations_location_id_oauth_google_drive_callback(
+api_runtime::host_value get_locations_location_id_oauth_google_drive_callback(
     holder::platform::Db& db,
     holder::privacy::SecretStore* secret_store,
     holder::git::GitOps* git_ops,

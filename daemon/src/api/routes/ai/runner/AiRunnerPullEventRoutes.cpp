@@ -1,7 +1,7 @@
 #include "api/routes/ai/runner/AiRunnerPullEventRoutes.h"
 
 #include "api/RunnerPull.h"
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include "api/support/StreamServer.h"
 #include "llm/LocalModelRunner.h"
 #include "llm/RunnerModelRef.h"
@@ -16,7 +16,7 @@
 
 namespace holder::api::routes::ai::runner {
 
-rig::host_value get_ai_runner_pull_job_id_events_stream(
+api_runtime::host_value get_ai_runner_pull_job_id_events_stream(
     holder::llm::RunnerRegistry* runner_registry,
     std::shared_ptr<support::SseRegistry> streams,
     const std::optional<std::string>& requested_runner_id,
@@ -44,14 +44,14 @@ rig::host_value get_ai_runner_pull_job_id_events_stream(
       ) mutable {
         if (const auto current_job = runner->get_pull(job_id)) {
           const auto status = pull_job_status(*current_job, runner_id);
-          auto progress = rig_events::progress(status);
+          auto progress = ai_events::progress(status);
           const auto current = progress.data.dump();
           if (current != previous) {
             journal->append(std::move(progress));
             if (current_job->status == "completed") {
-              journal->append(rig_events::completed(status), true);
+              journal->append(ai_events::completed(status), true);
             } else if (current_job->status == "failed") {
-              journal->append(rig_events::failed(status), true);
+              journal->append(ai_events::failed(status), true);
             }
             previous = current;
           }

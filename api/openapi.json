@@ -21,20 +21,30 @@
     "/ai/capabilities": {
       "get": {
         "summary": "Get local model runner capabilities",
+        "description": "Get local model runner capabilities",
         "parameters": [
           {
             "name": "runner_id",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The runner whose installed models decide recommended_install; defaults to auto-local.",
+              "title": "Runner Id"
             },
             "description": "The runner whose installed models decide recommended_install; defaults to auto-local."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -44,7 +54,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -64,7 +74,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -79,13 +89,24 @@
     "/ai/local-models/config": {
       "get": {
         "summary": "Get local model configuration",
+        "description": "Get local model configuration",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiLocalModelConfigResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -101,7 +122,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -114,19 +135,20 @@
       },
       "put": {
         "summary": "Set or clear local model configuration",
+        "description": "Set or clear local model configuration",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiLocalModelConfigUpdateRequest"
               }
             }
-          }
+          },
+          "required": false
         },
         "responses": {
           "200": {
-            "description": "The stored configuration",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -136,7 +158,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -156,7 +178,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -171,6 +193,7 @@
     "/ai/messages": {
       "get": {
         "summary": "List AI messages by thread",
+        "description": "List AI messages by thread",
         "parameters": [
           {
             "name": "thread_id",
@@ -178,7 +201,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "title": "Thread Id"
             }
           },
           {
@@ -186,18 +210,27 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "enum": [
-                0,
-                1
-              ]
+              "anyOf": [
+                {
+                  "enum": [
+                    0,
+                    1
+                  ],
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Set to 1 to include deleted messages.",
+              "title": "Include Deleted"
             },
             "description": "Set to 1 to include deleted messages."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -207,7 +240,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -227,7 +260,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -240,6 +273,7 @@
       },
       "post": {
         "summary": "Create an AI message",
+        "description": "Create an AI message",
         "requestBody": {
           "required": true,
           "content": {
@@ -252,7 +286,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -262,7 +296,7 @@
             }
           },
           "400": {
-            "description": "Bad request, including a thread that does not exist",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,7 +326,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -309,18 +343,18 @@
         "summary": "Capture prompt/response pair with provenance",
         "description": "Appends the prompt as a user message and the response as an assistant message carrying provider, model, url and context.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiMessageCaptureRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -330,7 +364,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, or a thread in another project",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -370,7 +404,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -392,13 +426,14 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -408,7 +443,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -438,7 +473,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -451,18 +486,20 @@
       },
       "patch": {
         "summary": "Update an AI message",
+        "description": "Update an AI message",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -473,7 +510,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -483,7 +520,7 @@
             }
           },
           "400": {
-            "description": "Bad request, including a message in the trash",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -513,7 +550,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -526,19 +563,21 @@
       },
       "delete": {
         "summary": "Move an AI message to trash",
+        "description": "Move an AI message to trash",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -548,7 +587,7 @@
             }
           },
           "400": {
-            "description": "The message is already in the trash",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -578,7 +617,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -593,13 +632,15 @@
     "/ai/messages/{message_id}/backlinks": {
       "get": {
         "summary": "List backlinks to an AI message",
+        "description": "List backlinks to an AI message",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           },
           {
@@ -607,18 +648,27 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "enum": [
-                0,
-                1
-              ]
+              "anyOf": [
+                {
+                  "enum": [
+                    0,
+                    1
+                  ],
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Include backlinks from deleted sources.",
+              "title": "Include Deleted"
             },
             "description": "Include backlinks from deleted sources."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -628,7 +678,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -658,7 +708,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -673,13 +723,15 @@
     "/ai/messages/{message_id}/links": {
       "get": {
         "summary": "List outgoing links for an AI message",
+        "description": "List outgoing links for an AI message",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           },
           {
@@ -687,18 +739,27 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "enum": [
-                0,
-                1
-              ]
+              "anyOf": [
+                {
+                  "enum": [
+                    0,
+                    1
+                  ],
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed.",
+              "title": "Include Deleted"
             },
             "description": "Include links to deleted local targets. External card links remain listed even when their targets are unavailable or trashed."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -708,7 +769,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -738,7 +799,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -751,13 +812,15 @@
       },
       "post": {
         "summary": "Create or update a link from an AI message",
+        "description": "Create or update a link from an AI message",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
@@ -773,7 +836,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -783,7 +846,7 @@
             }
           },
           "400": {
-            "description": "Bad request, including an invalid link target",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -813,7 +876,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -833,23 +896,24 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
         "requestBody": {
-          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CardLinkDeleteRequest"
               }
             }
-          }
+          },
+          "required": false
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -859,7 +923,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -889,7 +953,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -904,19 +968,21 @@
     "/ai/messages/{message_id}/restore": {
       "post": {
         "summary": "Restore an AI message from trash",
+        "description": "Restore an AI message from trash",
         "parameters": [
           {
             "name": "message_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Message Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -926,7 +992,7 @@
             }
           },
           "400": {
-            "description": "The message is not in the trash",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -956,7 +1022,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -979,7 +1045,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "title": "Project Id"
             }
           },
           {
@@ -987,14 +1054,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this card's nudges; empty means every card's.",
+              "title": "Card Id"
             },
             "description": "Only this card's nudges; empty means every card's."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1004,7 +1080,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1024,7 +1100,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1041,18 +1117,18 @@
         "summary": "Evaluate a nudge candidate and record the nudge it warrants",
         "description": "Answers whether the candidate is accepted and whether it warrants a nudge, with the reason. A candidate the daemon does not know is answered, not rejected.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiNudgeCandidate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1062,7 +1138,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1082,7 +1158,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1097,19 +1173,21 @@
     "/ai/nudges/{nudge_id}/dismiss": {
       "post": {
         "summary": "Dismiss a nudge",
+        "description": "Dismiss a nudge",
         "parameters": [
           {
             "name": "nudge_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Nudge Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1119,7 +1197,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1149,7 +1227,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1164,9 +1242,10 @@
     "/ai/providers/catalog": {
       "get": {
         "summary": "Get provider-agnostic cloud catalog with configured flags",
+        "description": "Get provider-agnostic cloud catalog with configured flags",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1176,7 +1255,7 @@
             }
           },
           "400": {
-            "description": "The AI catalog could not be found",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1196,7 +1275,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1211,13 +1290,24 @@
     "/ai/providers/credentials": {
       "get": {
         "summary": "List configured cloud provider credentials",
+        "description": "List configured cloud provider credentials",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiProviderCredentialsListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1233,7 +1323,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1246,19 +1336,20 @@
       },
       "put": {
         "summary": "Create or update a cloud provider API key",
+        "description": "Create or update a cloud provider API key",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiProviderCredentialUpsertRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1268,7 +1359,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, an invalid provider name, or an empty api_key",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1288,7 +1379,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1320,13 +1411,14 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Provider"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1336,7 +1428,7 @@
             }
           },
           "400": {
-            "description": "Invalid provider name",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1356,7 +1448,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1381,13 +1473,24 @@
     "/ai/providers/settings": {
       "get": {
         "summary": "List cloud provider enabled settings",
+        "description": "List cloud provider enabled settings",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiProviderSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1403,7 +1506,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1416,19 +1519,20 @@
       },
       "put": {
         "summary": "Set whether a cloud provider is enabled",
+        "description": "Set whether a cloud provider is enabled",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiProviderSettingUpdateRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1438,7 +1542,7 @@
             }
           },
           "400": {
-            "description": "Malformed request or an invalid provider name",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1458,7 +1562,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1473,19 +1577,21 @@
     "/ai/providers/settings/{provider}": {
       "delete": {
         "summary": "Remove a cloud provider enabled override",
+        "description": "Remove a cloud provider enabled override",
         "parameters": [
           {
             "name": "provider",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Provider"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1495,7 +1601,7 @@
             }
           },
           "400": {
-            "description": "Invalid provider name",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1515,7 +1621,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1532,29 +1638,18 @@
         "summary": "Start pulling a local model",
         "description": "Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET /ai/runner/pull/{job_id} or its events stream.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
-                  },
-                  "runner_id": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "model"
-                ]
+                "$ref": "#/components/schemas/PostAiRunnerPullRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1564,7 +1659,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, or the runner rejected the pull",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1594,7 +1689,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1619,27 +1714,37 @@
     "/ai/runner/pull/{job_id}": {
       "get": {
         "summary": "Fetch pull job status",
+        "description": "Fetch pull job status",
         "parameters": [
-          {
-            "name": "runner_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "job_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "runner_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Runner Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1649,7 +1754,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1679,7 +1784,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1697,33 +1802,52 @@
         "description": "Streams the job's progress snapshot whenever it changes; completed or failed closes the stream. A reconnect receives the current snapshot, and once the pull has finished it is answered with 204, the event-stream standard's signal to stop reconnecting. Disconnecting does not cancel the pull.",
         "parameters": [
           {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
             "name": "runner_id",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Runner Id"
             }
           },
           {
             "name": "Last-Event-ID",
             "in": "header",
+            "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque SSE event ID, sent by a reconnecting client.",
+              "title": "Last-Event-Id"
             },
             "description": "Opaque SSE event ID, sent by a reconnecting client."
-          },
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -1815,7 +1939,7 @@
             "description": "The pull has finished: stop reconnecting"
           },
           "400": {
-            "description": "Invalid query or cursor",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1845,7 +1969,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1870,13 +1994,24 @@
     "/ai/runners": {
       "get": {
         "summary": "List configured local model runners",
+        "description": "List configured local model runners",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiRunnerListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1892,7 +2027,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1905,19 +2040,20 @@
       },
       "post": {
         "summary": "Configure a local model runner",
+        "description": "Configure a local model runner",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AiRunnerCreateRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1927,7 +2063,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, an empty name, or a base_url that is not http://host:port",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1947,7 +2083,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1962,19 +2098,21 @@
     "/ai/runners/{runner_id}": {
       "get": {
         "summary": "Get a local model runner",
+        "description": "Get a local model runner",
         "parameters": [
           {
             "name": "runner_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Runner Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1984,7 +2122,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2014,7 +2152,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2027,18 +2165,20 @@
       },
       "patch": {
         "summary": "Update a local model runner",
+        "description": "Update a local model runner",
         "parameters": [
           {
             "name": "runner_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Runner Id"
             }
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -2049,7 +2189,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2059,7 +2199,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, an empty name, a base_url that is not http://host:port, or the auto-local runner",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2089,7 +2229,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2102,19 +2242,21 @@
       },
       "delete": {
         "summary": "Remove a configured local model runner",
+        "description": "Remove a configured local model runner",
         "parameters": [
           {
             "name": "runner_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Runner Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2124,7 +2266,7 @@
             }
           },
           "400": {
-            "description": "The auto-local runner cannot be removed",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2154,7 +2296,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2169,19 +2311,21 @@
     "/ai/runners/{runner_id}/retry": {
       "post": {
         "summary": "Retry one local model runner",
+        "description": "Retry one local model runner",
         "parameters": [
           {
             "name": "runner_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Runner Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2191,7 +2335,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2221,7 +2365,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2243,7 +2387,15 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
             }
           },
           {
@@ -2251,13 +2403,21 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thread Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2267,7 +2427,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2287,7 +2447,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2313,7 +2473,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -2532,7 +2692,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2552,7 +2712,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2577,19 +2737,21 @@
     "/ai/runs/{run_id}": {
       "get": {
         "summary": "Fetch an AI run",
+        "description": "Fetch an AI run",
         "parameters": [
           {
             "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Run Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2599,7 +2761,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2629,7 +2791,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2647,25 +2809,36 @@
         "description": "Replays bounded retained run events with absolute event IDs; done or failed closes the stream. Missing in-memory history can recover persisted terminal status. An expired or foreign cursor emits resync_required; fetch the run before reconnecting. A reconnect after the stream's last event is answered with 204, the event-stream standard's signal to stop reconnecting.",
         "parameters": [
           {
-            "name": "Last-Event-ID",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Opaque SSE event ID; unavailable history emits resync_required and closes."
-          },
-          {
             "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Run Id"
             }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque SSE event ID; unavailable history emits resync_required and closes.",
+              "title": "Last-Event-Id"
+            },
+            "description": "Opaque SSE event ID; unavailable history emits resync_required and closes."
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -2913,7 +3086,7 @@
             "description": "The run has finished and Last-Event-ID is past its last event: stop reconnecting"
           },
           "400": {
-            "description": "Invalid query or cursor",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2943,7 +3116,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2968,13 +3141,24 @@
     "/ai/status": {
       "get": {
         "summary": "Get live AI runtime status",
+        "description": "Get live AI runtime status",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2990,7 +3174,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3005,6 +3189,7 @@
     "/ai/threads": {
       "get": {
         "summary": "List AI threads by project",
+        "description": "List AI threads by project",
         "parameters": [
           {
             "name": "project_id",
@@ -3012,13 +3197,14 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "title": "Project Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3028,7 +3214,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3048,7 +3234,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3061,6 +3247,7 @@
       },
       "post": {
         "summary": "Create an AI thread",
+        "description": "Create an AI thread",
         "requestBody": {
           "required": true,
           "content": {
@@ -3073,7 +3260,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3083,7 +3270,7 @@
             }
           },
           "400": {
-            "description": "Bad request, including a project or card that does not exist",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3113,7 +3300,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3128,19 +3315,21 @@
     "/ai/threads/{thread_id}": {
       "get": {
         "summary": "Fetch an AI thread",
+        "description": "Fetch an AI thread",
         "parameters": [
           {
             "name": "thread_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Thread Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3150,7 +3339,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3180,7 +3369,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3193,13 +3382,15 @@
       },
       "patch": {
         "summary": "Update AI thread metadata",
+        "description": "Update AI thread metadata",
         "parameters": [
           {
             "name": "thread_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Thread Id"
             }
           }
         ],
@@ -3215,7 +3406,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3225,7 +3416,7 @@
             }
           },
           "400": {
-            "description": "Bad request, including a card that does not exist",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3255,7 +3446,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3268,19 +3459,21 @@
       },
       "delete": {
         "summary": "Delete an AI thread",
+        "description": "Delete an AI thread",
         "parameters": [
           {
             "name": "thread_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Thread Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3290,7 +3483,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3320,7 +3513,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11433,145 +11626,247 @@
     },
     "schemas": {
       "AiLocalModelConfigData": {
-        "type": "object",
         "properties": {
           "fast_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast Model",
+            "description": "The fast model."
           },
           "strong_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strong Model",
+            "description": "The strong model."
           },
           "deep_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Model",
+            "description": "The deep model."
           },
           "updated_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64"
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "fast_model",
           "strong_model",
           "deep_model",
           "updated_at"
-        ]
+        ],
+        "title": "AiLocalModelConfigData",
+        "description": "AI LocalModelConfigData."
       },
       "AiLocalModelConfigResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiLocalModelConfigData"
+            "$ref": "#/components/schemas/AiLocalModelConfigData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiLocalModelConfigResponse",
+        "description": "AI LocalModelConfig response."
       },
       "AiLocalModelConfigUpdateRequest": {
-        "type": "object",
         "properties": {
           "fast_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast Model",
+            "description": "The fast model."
           },
           "strong_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strong Model",
+            "description": "The strong model."
           },
           "deep_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Model",
+            "description": "The deep model."
           },
           "updated_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64",
+            "title": "Updated At",
             "description": "Optional; server uses current time if omitted or null."
           }
         },
-        "description": "Replaces the whole configuration: an omitted, null or empty model clears it."
+        "type": "object",
+        "title": "AiLocalModelConfigUpdateRequest",
+        "description": "Replaces the whole configuration: an omitted, null or empty model clears it.."
       },
       "AiMessage": {
-        "type": "object",
         "properties": {
           "message_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Message Id",
+            "description": "The message id."
           },
           "thread_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "title": "Role",
+            "description": "The role."
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "title": "Source",
+            "description": "The source."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The provider."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The model."
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "title": "Content",
+            "description": "The content."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "deleted_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64"
+            "title": "Deleted At",
+            "description": "The deleted at."
           },
           "prompt_hash": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Hash",
+            "description": "The prompt hash."
           },
           "meta_json": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta Json",
+            "description": "The meta json."
           }
         },
+        "type": "object",
         "required": [
           "message_id",
           "thread_id",
@@ -11584,367 +11879,598 @@
           "deleted_at",
           "prompt_hash",
           "meta_json"
-        ]
+        ],
+        "title": "AiMessage",
+        "description": "AI Message."
       },
       "AiMessageCaptureRequest": {
-        "type": "object",
         "properties": {
           "project_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Project Id",
+            "description": "The project id."
           },
           "thread_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Thread Id",
             "description": "An existing thread in the project; when omitted or null a new thread is created, titled from the prompt."
           },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "title": "Prompt",
+            "description": "The prompt."
           },
           "response": {
-            "type": "string"
+            "type": "string",
+            "title": "Response",
+            "description": "The response."
           },
           "source": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Source",
             "description": "Optional; defaults to manual_paste."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The provider."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The model."
           },
           "url": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "The url."
           },
           "context": {
-            "type": [
-              "object",
-              "null"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "additionalProperties": true
+            "title": "Context",
+            "description": "The context."
           },
           "created_at": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "format": "int64",
+            "title": "Created At",
             "description": "Optional; server uses current time if omitted or null."
           }
         },
+        "type": "object",
         "required": [
           "project_id",
           "prompt",
           "response"
-        ]
+        ],
+        "title": "AiMessageCaptureRequest",
+        "description": "AI MessageCaptureRequest."
       },
       "AiMessageCaptureResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "thread_id": {
-                "type": "string"
-              },
-              "user_message_id": {
-                "type": "string"
-              },
-              "assistant_message_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "thread_id",
-              "user_message_id",
-              "assistant_message_id"
-            ]
+            "$ref": "#/components/schemas/AiMessageCaptureResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiMessageCaptureResponse",
+        "description": "AI MessageCapture response."
+      },
+      "AiMessageCaptureResponseData": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
+          },
+          "user_message_id": {
+            "type": "string",
+            "title": "User Message Id",
+            "description": "The user message id."
+          },
+          "assistant_message_id": {
+            "type": "string",
+            "title": "Assistant Message Id",
+            "description": "The assistant message id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "user_message_id",
+          "assistant_message_id"
+        ],
+        "title": "AiMessageCaptureResponseData",
+        "description": "AI MessageCapture responseData."
       },
       "AiMessageCreateRequest": {
-        "type": "object",
         "properties": {
           "message_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id",
             "description": "Optional; server generates if omitted."
           },
           "thread_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "title": "Role",
+            "description": "The role."
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "title": "Source",
+            "description": "The source."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The provider."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The model."
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "title": "Content",
+            "description": "The content."
           },
           "created_at": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
             "description": "Optional; server uses current time if omitted or 0."
           },
           "prompt_hash": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Hash",
+            "description": "The prompt hash."
           },
           "meta_json": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta Json",
+            "description": "The meta json."
           }
         },
+        "type": "object",
         "required": [
           "thread_id",
           "role",
           "source",
           "content"
-        ]
+        ],
+        "title": "AiMessageCreateRequest",
+        "description": "AI MessageCreateRequest."
       },
       "AiMessageCreateResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "message_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "message_id"
-            ]
+            "$ref": "#/components/schemas/AiMessageCreateResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiMessageCreateResponse",
+        "description": "AI MessageCreate response."
+      },
+      "AiMessageCreateResponseData": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id",
+            "description": "The message id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id"
+        ],
+        "title": "AiMessageCreateResponseData",
+        "description": "AI MessageCreate responseData."
       },
       "AiMessageGetResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiMessage"
+            "$ref": "#/components/schemas/AiMessage",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiMessageGetResponse",
+        "description": "AI MessageGet response."
       },
       "AiMessageListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiMessage"
-            }
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiMessageListResponse",
+        "description": "AI MessageList response."
       },
       "AiMessageUpdateRequest": {
-        "type": "object",
         "properties": {
           "role": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Role",
             "description": "Omit or send null to leave it unchanged."
           },
           "source": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Source",
             "description": "Omit or send null to leave it unchanged."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Provider",
             "description": "Omit to leave it unchanged; null clears it."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Model",
             "description": "Omit to leave it unchanged; null clears it."
           },
           "content": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Content",
             "description": "Omit or send null to leave it unchanged."
           },
           "created_at": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
             "description": "Omit to leave it unchanged."
           },
           "prompt_hash": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Prompt Hash",
             "description": "Omit to leave it unchanged; null clears it."
           },
           "meta_json": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Meta Json",
             "description": "Omit to leave it unchanged; null clears it."
           }
-        }
+        },
+        "type": "object",
+        "title": "AiMessageUpdateRequest",
+        "description": "AI MessageUpdateRequest."
       },
       "AiMessageUpdateResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "message_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "message_id"
-            ]
+            "$ref": "#/components/schemas/AiMessageUpdateResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiMessageUpdateResponse",
+        "description": "AI MessageUpdate response."
+      },
+      "AiMessageUpdateResponseData": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id",
+            "description": "The message id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id"
+        ],
+        "title": "AiMessageUpdateResponseData",
+        "description": "AI MessageUpdate responseData."
       },
       "AiNudge": {
-        "type": "object",
         "properties": {
           "nudge_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Nudge Id",
+            "description": "The nudge id."
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind."
           },
           "project_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Project Id",
+            "description": "The project id."
           },
           "card_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Id",
+            "description": "The card id."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "title": "Title",
+            "description": "The title."
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "title": "Body",
+            "description": "The body."
           },
           "meta_json": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
             "type": "object",
-            "additionalProperties": true,
+            "title": "Meta Json",
             "description": "The evidence and details the nudge was built from."
           },
           "basis_fingerprint": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Fingerprint",
+            "description": "The basis fingerprint."
           },
           "basis_commit": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Commit",
+            "description": "The basis commit."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "suggestions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestions",
             "description": "Suggested titles, for a card.title_suggestion nudge."
           }
         },
+        "type": "object",
         "required": [
           "nudge_id",
           "kind",
@@ -11956,208 +12482,364 @@
           "basis_fingerprint",
           "basis_commit",
           "created_at"
-        ]
+        ],
+        "title": "AiNudge",
+        "description": "AI Nudge."
       },
       "AiNudgeCandidate": {
-        "type": "object",
         "properties": {
           "kind": {
             "type": "string",
-            "description": "The candidate's kind, such as card.title_only; an unknown kind is not accepted.",
-            "minLength": 1
+            "minLength": 1,
+            "title": "Kind",
+            "description": "The candidate's kind, such as card.title_only; an unknown kind is not accepted."
           },
           "project_id": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "title": "Project Id",
+            "description": "The project id."
           },
           "card_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Id",
+            "description": "The card id."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "basis_fingerprint": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Fingerprint",
+            "description": "The basis fingerprint."
           },
           "basis_commit": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Commit",
+            "description": "The basis commit."
           },
           "facts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
             "type": "object",
-            "additionalProperties": true,
+            "title": "Facts",
             "description": "The evidence for the candidate, which depends on its kind."
           }
         },
+        "type": "object",
         "required": [
           "kind",
           "project_id",
           "created_at",
           "facts"
-        ]
+        ],
+        "title": "AiNudgeCandidate",
+        "description": "AI NudgeCandidate."
+      },
+      "AiNudgeDismissData": {
+        "properties": {
+          "nudge_id": {
+            "type": "string",
+            "title": "Nudge Id",
+            "description": "The nudge id."
+          },
+          "dismissed": {
+            "type": "boolean",
+            "title": "Dismissed",
+            "description": "The dismissed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "nudge_id",
+          "dismissed"
+        ],
+        "title": "AiNudgeDismissData",
+        "description": "AI NudgeDismissData."
       },
       "AiNudgeDismissResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "nudge_id": {
-                "type": "string"
-              },
-              "dismissed": {
-                "type": "boolean",
-                "enum": [
-                  true
-                ]
-              }
-            },
-            "required": [
-              "nudge_id",
-              "dismissed"
-            ]
+            "$ref": "#/components/schemas/AiNudgeDismissData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiNudgeDismissResponse",
+        "description": "AI NudgeDismiss response."
+      },
+      "AiNudgeEvaluateData": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind."
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted",
+            "description": "The accepted."
+          },
+          "should_nudge": {
+            "type": "boolean",
+            "title": "Should Nudge",
+            "description": "The should nudge."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "The reason."
+          },
+          "nudge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiNudge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recorded nudge, or null when there is nothing to show."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "accepted",
+          "should_nudge",
+          "reason",
+          "nudge"
+        ],
+        "title": "AiNudgeEvaluateData",
+        "description": "AI NudgeEvaluateData."
       },
       "AiNudgeEvaluateResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string"
-              },
-              "accepted": {
-                "type": "boolean"
-              },
-              "should_nudge": {
-                "type": "boolean"
-              },
-              "reason": {
-                "type": "string"
-              },
-              "nudge": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AiNudge"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "The recorded nudge, or null when there is nothing to show."
-              }
-            },
-            "required": [
-              "kind",
-              "accepted",
-              "should_nudge",
-              "reason",
-              "nudge"
-            ]
+            "$ref": "#/components/schemas/AiNudgeEvaluateData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiNudgeEvaluateResponse",
+        "description": "AI NudgeEvaluate response."
+      },
+      "AiNudgeListData": {
+        "properties": {
+          "nudges": {
+            "items": {
+              "$ref": "#/components/schemas/AiNudge"
+            },
+            "type": "array",
+            "title": "Nudges",
+            "description": "The nudges."
+          }
+        },
+        "type": "object",
+        "required": [
+          "nudges"
+        ],
+        "title": "AiNudgeListData",
+        "description": "AI NudgeListData."
       },
       "AiNudgeListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "nudges": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AiNudge"
-                }
-              }
-            },
-            "required": [
-              "nudges"
-            ]
+            "$ref": "#/components/schemas/AiNudgeListData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiNudgeListResponse",
+        "description": "AI NudgeList response."
       },
-      "AiProviderCatalogModel": {
-        "type": "object",
+      "AiProviderCatalogApi": {
         "properties": {
-          "id": {
-            "type": "string"
-          },
-          "endpoint": {
-            "type": "string"
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cost_tier": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "default_for_low_budget": {
-            "type": "boolean"
-          },
-          "limits": {
-            "type": "object",
-            "properties": {
-              "rpm": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Requests per minute; 0 when unlimited or unknown."
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "tpm": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Tokens per minute; 0 when unlimited or unknown."
-              },
-              "rpd": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Requests per day; 0 when unlimited or unknown."
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "rpm",
-              "tpm",
-              "rpd"
-            ]
+            ],
+            "title": "Base Url",
+            "description": "The base url."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
+            "description": "The kind."
           }
         },
+        "type": "object",
+        "title": "AiProviderCatalogApi",
+        "description": "AI ProviderCatalogApi."
+      },
+      "AiProviderCatalogAuth": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type",
+            "description": "The type."
+          },
+          "key_param": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Param",
+            "description": "The key param."
+          },
+          "header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Name",
+            "description": "The header name."
+          },
+          "bearer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bearer Prefix",
+            "description": "The bearer prefix."
+          }
+        },
+        "type": "object",
+        "title": "AiProviderCatalogAuth",
+        "description": "AI ProviderCatalogAuth."
+      },
+      "AiProviderCatalogModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The id."
+          },
+          "endpoint": {
+            "type": "string",
+            "title": "Endpoint",
+            "description": "The endpoint."
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "The role."
+          },
+          "cost_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Tier",
+            "description": "The cost tier."
+          },
+          "default_for_low_budget": {
+            "type": "boolean",
+            "title": "Default For Low Budget",
+            "description": "The default for low budget."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AiProviderCatalogModelLimits",
+            "description": "The limits."
+          }
+        },
+        "type": "object",
         "required": [
           "id",
           "endpoint",
@@ -12165,90 +12847,146 @@
           "cost_tier",
           "default_for_low_budget",
           "limits"
-        ]
+        ],
+        "title": "AiProviderCatalogModel",
+        "description": "AI ProviderCatalogModel."
+      },
+      "AiProviderCatalogModelLimits": {
+        "properties": {
+          "rpm": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Rpm",
+            "description": "Requests per minute; 0 when unlimited or unknown."
+          },
+          "tpm": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Tpm",
+            "description": "Tokens per minute; 0 when unlimited or unknown."
+          },
+          "rpd": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Rpd",
+            "description": "Requests per day; 0 when unlimited or unknown."
+          }
+        },
+        "type": "object",
+        "required": [
+          "rpm",
+          "tpm",
+          "rpd"
+        ],
+        "title": "AiProviderCatalogModelLimits",
+        "description": "AI ProviderCatalogModelLimits."
       },
       "AiProviderCatalogProvider": {
-        "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "title": "Id",
+            "description": "The id."
           },
           "display_name": {
-            "type": "string"
+            "type": "string",
+            "title": "Display Name",
+            "description": "The display name."
           },
           "enabled": {
             "type": "boolean",
+            "title": "Enabled",
             "description": "This device's setting, or the catalog default without one."
           },
           "configured": {
             "type": "boolean",
+            "title": "Configured",
             "description": "Whether this device has an API key for the provider."
           },
           "cost_tier": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Tier",
+            "description": "The cost tier."
           },
           "setup_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Url",
+            "description": "The setup url."
           },
           "docs_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docs Url",
+            "description": "The docs url."
           },
           "api_key_label": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Label",
+            "description": "The api key label."
           },
           "api_key_hint": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Hint",
+            "description": "The api key hint."
           },
           "api": {
-            "type": "object",
-            "properties": {
-              "base_url": {
-                "type": "string"
-              },
-              "kind": {
-                "type": "string"
-              }
-            }
+            "$ref": "#/components/schemas/AiProviderCatalogApi",
+            "description": "The api."
           },
           "auth": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string"
-              },
-              "key_param": {
-                "type": "string"
-              },
-              "header_name": {
-                "type": "string"
-              },
-              "bearer_prefix": {
-                "type": "string"
-              }
-            }
+            "$ref": "#/components/schemas/AiProviderCatalogAuth",
+            "description": "The auth."
           },
           "models": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiProviderCatalogModel"
-            }
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "The models."
           }
         },
+        "type": "object",
         "required": [
           "id",
           "display_name",
@@ -12262,516 +13000,895 @@
           "api",
           "auth",
           "models"
-        ]
+        ],
+        "title": "AiProviderCatalogProvider",
+        "description": "AI ProviderCatalogProvider."
       },
       "AiProviderCatalogResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "default_provider": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "providers": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AiProviderCatalogProvider"
-                }
-              }
-            },
-            "required": [
-              "default_provider",
-              "providers"
-            ]
+            "$ref": "#/components/schemas/AiProviderCatalogResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiProviderCatalogResponse",
+        "description": "AI ProviderCatalog response."
+      },
+      "AiProviderCatalogResponseData": {
+        "properties": {
+          "default_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Provider",
+            "description": "The default provider."
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AiProviderCatalogProvider"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "The providers."
+          }
+        },
+        "type": "object",
+        "required": [
+          "default_provider",
+          "providers"
+        ],
+        "title": "AiProviderCatalogResponseData",
+        "description": "AI ProviderCatalog responseData."
       },
       "AiProviderCredential": {
-        "type": "object",
         "properties": {
           "provider": {
-            "type": "string"
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
           },
           "configured": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Configured",
+            "description": "The configured."
           },
           "api_key_preview": {
-            "type": "string"
+            "type": "string",
+            "title": "Api Key Preview",
+            "description": "The api key preview."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "provider",
           "configured",
           "api_key_preview",
           "created_at",
           "updated_at"
-        ]
+        ],
+        "title": "AiProviderCredential",
+        "description": "AI ProviderCredential."
       },
       "AiProviderCredentialDeleteResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "provider": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "provider"
-            ]
+            "$ref": "#/components/schemas/AiProviderCredentialDeleteResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiProviderCredentialDeleteResponse",
+        "description": "AI ProviderCredentialDelete response."
       },
-      "AiProviderCredentialUpsertRequest": {
-        "type": "object",
+      "AiProviderCredentialDeleteResponseData": {
         "properties": {
           "provider": {
-            "type": "string"
-          },
-          "api_key": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
           }
         },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "AiProviderCredentialDeleteResponseData",
+        "description": "AI ProviderCredentialDelete responseData."
+      },
+      "AiProviderCredentialUpsertRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "The api key."
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "The updated at."
+          }
+        },
+        "type": "object",
         "required": [
           "provider",
           "api_key"
-        ]
+        ],
+        "title": "AiProviderCredentialUpsertRequest",
+        "description": "AI ProviderCredentialUpsertRequest."
       },
       "AiProviderCredentialUpsertResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiProviderCredential"
+            "$ref": "#/components/schemas/AiProviderCredential",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiProviderCredentialUpsertResponse",
+        "description": "AI ProviderCredentialUpsert response."
+      },
+      "AiProviderCredentialsListData": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AiProviderCredential"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "The providers."
+          }
+        },
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "title": "AiProviderCredentialsListData",
+        "description": "AI ProviderCredentialsListData."
       },
       "AiProviderCredentialsListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "providers": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AiProviderCredential"
-                }
-              }
-            },
-            "required": [
-              "providers"
-            ]
+            "$ref": "#/components/schemas/AiProviderCredentialsListData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiProviderCredentialsListResponse",
+        "description": "AI ProviderCredentialsList response."
       },
       "AiProviderSetting": {
-        "type": "object",
         "properties": {
           "provider": {
-            "type": "string"
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
           },
           "enabled": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "The enabled."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "provider",
           "enabled",
           "updated_at"
-        ]
+        ],
+        "title": "AiProviderSetting",
+        "description": "AI ProviderSetting."
       },
-      "AiProviderSettingDeleteResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "provider": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "provider"
-            ]
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "AiProviderSettingResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/AiProviderSetting"
-          }
-        },
-        "required": [
-          "ok",
-          "data"
-        ]
-      },
-      "AiProviderSettingUpdateRequest": {
-        "type": "object",
+      "AiProviderSettingDeleteData": {
         "properties": {
           "provider": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "updated_at": {
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
           }
         },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "AiProviderSettingDeleteData",
+        "description": "AI ProviderSettingDeleteData."
+      },
+      "AiProviderSettingDeleteResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "The ok."
+          },
+          "data": {
+            "$ref": "#/components/schemas/AiProviderSettingDeleteData",
+            "description": "The data."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "AiProviderSettingDeleteResponse",
+        "description": "AI ProviderSettingDelete response."
+      },
+      "AiProviderSettingResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "The ok."
+          },
+          "data": {
+            "$ref": "#/components/schemas/AiProviderSetting",
+            "description": "The data."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "AiProviderSettingResponse",
+        "description": "AI ProviderSetting response."
+      },
+      "AiProviderSettingUpdateRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "The enabled."
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "The updated at."
+          }
+        },
+        "type": "object",
         "required": [
           "provider",
           "enabled"
-        ]
+        ],
+        "title": "AiProviderSettingUpdateRequest",
+        "description": "AI ProviderSettingUpdateRequest."
+      },
+      "AiProviderSettingsData": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AiProviderSetting"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "The providers."
+          }
+        },
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "title": "AiProviderSettingsData",
+        "description": "AI ProviderSettingsData."
       },
       "AiProviderSettingsResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "providers": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AiProviderSetting"
-                }
-              }
-            },
-            "required": [
-              "providers"
-            ]
+            "$ref": "#/components/schemas/AiProviderSettingsData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiProviderSettingsResponse",
+        "description": "AI ProviderSettings response."
       },
       "AiRunCreateRequest": {
-        "type": "object",
         "properties": {
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "title": "Prompt",
+            "description": "The prompt."
           },
           "mode": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode",
             "description": "auto or model"
           },
           "model": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Model",
             "description": "Optional explicit model id; interpreted for local or cloud selected provider."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Provider",
             "description": "Optional cloud provider id when local runner is unavailable."
           },
           "project_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id",
+            "description": "The project id."
           },
           "thread_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
+            "description": "The thread id."
           },
           "context": {
-            "type": [
-              "object",
-              "null"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "additionalProperties": true
+            "title": "Context",
+            "description": "The context."
           },
           "runner_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Runner Id",
             "description": "The local runner to use; defaults to the automatic local runner."
           }
         },
+        "type": "object",
         "required": [
           "prompt"
-        ]
+        ],
+        "title": "AiRunCreateRequest",
+        "description": "AI RunCreateRequest."
       },
       "AiRunEventData": {
-        "type": "object",
         "properties": {
           "run_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Run Id",
+            "description": "The run id."
           },
           "status": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "The status."
           },
           "created_at": {
-            "type": "integer",
-            "format": "int64"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "The created at."
           },
           "delta": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta",
+            "description": "The delta."
           },
           "message": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "The message."
           },
           "error": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "The error."
           },
           "runner_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Id",
+            "description": "The runner id."
           },
           "model_ref": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ref",
+            "description": "The model ref."
           },
           "model": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "The model."
           },
           "provider": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The provider."
           },
           "context_compacted": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Compacted",
             "description": "On a cloud progress event: whether the thread was summarized to fit the model's context."
           },
           "cooldown_until": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Until",
             "description": "On a cloud fallback: when the failed model may be tried again, in epoch seconds."
           },
           "router_model": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Model",
             "description": "On router_result: the model that ranked the candidates."
           },
           "ranked": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranked",
             "description": "On router_result: the candidate models, best first."
           },
           "partial": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial",
             "description": "On a local fallback: whether the failed model had already streamed some output."
           }
         },
+        "type": "object",
         "required": [
           "run_id"
         ],
-        "description": "Named run events share run_id. Fields vary by event and provider."
+        "title": "AiRunEventData",
+        "description": "Named run events share run_id. Fields vary by event and provider.."
       },
       "AiRunGetResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiRunItem"
+            "$ref": "#/components/schemas/AiRunItem",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiRunGetResponse",
+        "description": "AI RunGet response."
       },
       "AiRunItem": {
-        "type": "object",
         "properties": {
           "run_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Run Id",
+            "description": "The run id."
           },
           "project_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id",
+            "description": "The project id."
           },
           "thread_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
+            "description": "The thread id."
           },
           "message_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id",
+            "description": "The message id."
           },
           "mode": {
-            "type": "string"
+            "type": "string",
+            "title": "Mode",
+            "description": "The mode."
           },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "title": "Prompt",
+            "description": "The prompt."
           },
           "context_json": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Json",
+            "description": "The context json."
           },
           "router_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Model",
+            "description": "The router model."
           },
           "router_runner_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Router Runner Id",
             "description": "The runner named by router_model's reference, or null."
           },
           "ranked_json": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranked Json",
+            "description": "The ranked json."
           },
           "policy_trace_json": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Trace Json",
+            "description": "The policy trace json."
           },
           "policy_trace": {
-            "type": [
-              "object",
-              "null"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "additionalProperties": true
+            "title": "Policy Trace",
+            "description": "The policy trace."
           },
           "chosen_model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Model",
+            "description": "The chosen model."
           },
           "chosen_runner_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Chosen Runner Id",
             "description": "The runner named by chosen_model's reference, or null."
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "title": "Status",
+            "description": "The status."
           },
           "error": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "The error."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "run_id",
           "mode",
@@ -12779,65 +13896,95 @@
           "status",
           "created_at",
           "updated_at"
-        ]
+        ],
+        "title": "AiRunItem",
+        "description": "AI RunItem."
       },
       "AiRunListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiRunItem"
-            }
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiRunListResponse",
+        "description": "AI RunList response."
       },
       "AiRunner": {
-        "type": "object",
         "properties": {
           "runner_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Runner Id",
+            "description": "The runner id."
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "title": "Name",
+            "description": "The name."
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind."
           },
           "base_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "The base url."
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "title": "Source",
+            "description": "The source."
           },
           "enabled": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "The enabled."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           },
           "runtime": {
-            "$ref": "#/components/schemas/AiRunnerRuntime"
+            "$ref": "#/components/schemas/AiRunnerRuntime",
+            "description": "The runtime."
           }
         },
+        "type": "object",
         "required": [
           "runner_id",
           "name",
@@ -12848,149 +13995,210 @@
           "created_at",
           "updated_at",
           "runtime"
-        ]
+        ],
+        "title": "AiRunner",
+        "description": "AI Runner."
       },
       "AiRunnerCreateRequest": {
-        "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "title": "Name",
+            "description": "The name."
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "ollama"
-            ]
+            "const": "ollama",
+            "title": "Kind",
+            "description": "The kind."
           },
           "base_url": {
             "type": "string",
+            "title": "Base Url",
             "description": "http://host:port"
           },
           "enabled": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
             "description": "Optional; defaults to true."
           }
         },
+        "type": "object",
         "required": [
           "name",
           "kind",
           "base_url"
-        ]
+        ],
+        "title": "AiRunnerCreateRequest",
+        "description": "AI RunnerCreateRequest."
       },
       "AiRunnerDeleteResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "runner_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "runner_id"
-            ]
+            "$ref": "#/components/schemas/AiRunnerDeleteResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiRunnerDeleteResponse",
+        "description": "AI RunnerDelete response."
+      },
+      "AiRunnerDeleteResponseData": {
+        "properties": {
+          "runner_id": {
+            "type": "string",
+            "title": "Runner Id",
+            "description": "The runner id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "runner_id"
+        ],
+        "title": "AiRunnerDeleteResponseData",
+        "description": "AI RunnerDelete responseData."
       },
       "AiRunnerListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "runners": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AiRunner"
-                }
-              }
-            },
-            "required": [
-              "runners"
-            ]
+            "$ref": "#/components/schemas/AiRunnerListResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiRunnerListResponse",
+        "description": "AI RunnerList response."
+      },
+      "AiRunnerListResponseData": {
+        "properties": {
+          "runners": {
+            "items": {
+              "$ref": "#/components/schemas/AiRunner"
+            },
+            "type": "array",
+            "title": "Runners",
+            "description": "The runners."
+          }
+        },
+        "type": "object",
+        "required": [
+          "runners"
+        ],
+        "title": "AiRunnerListResponseData",
+        "description": "AI RunnerList responseData."
       },
       "AiRunnerResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiRunner"
+            "$ref": "#/components/schemas/AiRunner",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiRunnerResponse",
+        "description": "AI Runner response."
       },
       "AiRunnerRuntime": {
-        "type": "object",
         "properties": {
           "configured": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Configured",
+            "description": "The configured."
           },
           "available": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Available",
+            "description": "The available."
           },
           "spawn_attempted": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Spawn Attempted",
+            "description": "The spawn attempted."
           },
           "last_checked": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Last Checked",
+            "description": "The last checked."
           },
           "version": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version",
+            "description": "The version."
           },
           "error": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "The error."
           },
           "models": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/LocalModel"
-            }
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "The models."
           },
           "pulls": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/RunnerPullJob"
-            }
+            },
+            "type": "array",
+            "title": "Pulls",
+            "description": "The pulls."
           }
         },
+        "type": "object",
         "required": [
           "configured",
           "available",
@@ -13000,60 +14208,105 @@
           "error",
           "models",
           "pulls"
-        ]
+        ],
+        "title": "AiRunnerRuntime",
+        "description": "AI RunnerRuntime."
       },
       "AiRunnerUpdateRequest": {
-        "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "The name."
           },
           "base_url": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Base Url",
             "description": "http://host:port, or null to clear it."
           },
           "enabled": {
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "The enabled."
           }
-        }
+        },
+        "type": "object",
+        "title": "AiRunnerUpdateRequest",
+        "description": "AI RunnerUpdateRequest."
       },
       "AiStatusData": {
-        "type": "object",
         "properties": {
           "checked_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Checked At",
+            "description": "The checked at."
           },
           "active_runs": {
             "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "format": "int64",
+            "title": "Active Runs",
             "description": "Runs still in progress across every project."
           },
           "active_pull_jobs": {
             "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "format": "int64",
+            "title": "Active Pull Jobs",
             "description": "Active pulls across every runner."
           },
           "runners": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiRunner"
-            }
+            },
+            "type": "array",
+            "title": "Runners",
+            "description": "The runners."
           },
           "cloud": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiProviderCredential"
-            }
+            },
+            "type": "array",
+            "title": "Cloud",
+            "description": "The cloud."
           },
           "cloud_configured_providers": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Cloud Configured Providers",
+            "description": "The cloud configured providers."
           }
         },
+        "type": "object",
         "required": [
           "checked_at",
           "active_runs",
@@ -13061,227 +14314,333 @@
           "runners",
           "cloud",
           "cloud_configured_providers"
-        ]
+        ],
+        "title": "AiStatusData",
+        "description": "AI StatusData."
       },
       "AiStatusResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiStatusData"
+            "$ref": "#/components/schemas/AiStatusData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiStatusResponse",
+        "description": "AI Status response."
       },
       "AiStreamResyncData": {
-        "type": "object",
         "properties": {
           "reason": {
             "type": "string",
-            "enum": [
-              "history_unavailable"
-            ],
+            "const": "history_unavailable",
+            "title": "Reason",
             "description": "The stream's retained history no longer covers Last-Event-ID, for example after a daemon restart: fetch the run, then reconnect without Last-Event-ID."
           }
         },
+        "type": "object",
         "required": [
           "reason"
-        ]
+        ],
+        "title": "AiStreamResyncData",
+        "description": "AI StreamResyncData."
       },
       "AiThread": {
-        "type": "object",
         "properties": {
           "thread_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
           },
           "project_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Project Id",
+            "description": "The project id."
           },
           "card_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Id",
+            "description": "The card id."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "title": "Title",
+            "description": "The title."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "thread_id",
           "project_id",
           "title",
           "created_at",
           "updated_at"
-        ]
+        ],
+        "title": "AiThread",
+        "description": "AI Thread."
       },
       "AiThreadCreateRequest": {
-        "type": "object",
         "properties": {
           "thread_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
             "description": "Optional; server generates if omitted."
           },
           "project_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Project Id",
+            "description": "The project id."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "title": "Title",
+            "description": "The title."
           },
           "card_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Id",
+            "description": "The card id."
           },
           "created_at": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
             "description": "Optional; server uses current time if omitted or 0."
           },
           "updated_at": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
             "description": "Optional; server uses created_at if omitted or 0."
           }
         },
+        "type": "object",
         "required": [
           "project_id",
           "title"
-        ]
+        ],
+        "title": "AiThreadCreateRequest",
+        "description": "AI ThreadCreateRequest."
       },
       "AiThreadCreateResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "thread_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "thread_id"
-            ]
+            "$ref": "#/components/schemas/AiThreadCreateResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiThreadCreateResponse",
+        "description": "AI ThreadCreate response."
+      },
+      "AiThreadCreateResponseData": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id"
+        ],
+        "title": "AiThreadCreateResponseData",
+        "description": "AI ThreadCreate responseData."
       },
       "AiThreadGetResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/AiThread"
+            "$ref": "#/components/schemas/AiThread",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiThreadGetResponse",
+        "description": "AI ThreadGet response."
       },
       "AiThreadListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiThread"
-            }
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiThreadListResponse",
+        "description": "AI ThreadList response."
       },
       "AiThreadPatchResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "thread_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "thread_id"
-            ]
+            "$ref": "#/components/schemas/AiThreadPatchResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "AiThreadPatchResponse",
+        "description": "AI ThreadPatch response."
+      },
+      "AiThreadPatchResponseData": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The thread id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id"
+        ],
+        "title": "AiThreadPatchResponseData",
+        "description": "AI ThreadPatch responseData."
       },
       "AiThreadUpdateRequest": {
-        "type": "object",
         "properties": {
           "title": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Title",
             "description": "Omit or send null to leave it unchanged."
           },
           "card_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Card Id",
             "description": "Omit to leave it unchanged; null detaches the thread from its card."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           }
         },
+        "type": "object",
         "required": [
           "updated_at"
-        ]
+        ],
+        "title": "AiThreadUpdateRequest",
+        "description": "AI ThreadUpdateRequest."
       },
       "AliveResponse": {
         "properties": {
@@ -14282,138 +15641,259 @@
         "minLength": 1
       },
       "CardLink": {
-        "type": "object",
         "properties": {
           "from_card_id": {
-            "type": "string"
+            "type": "string",
+            "title": "From Card Id",
+            "description": "The from card id."
           },
           "to_card_id": {
-            "type": "string"
+            "type": "string",
+            "title": "To Card Id",
+            "description": "The to card id."
           },
           "target_project_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Project Id",
             "description": "Present for a card target in another project; omitted for a local target. The link grants no access to the target."
           },
           "source_project_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Project Id",
             "description": "Present on a cross-project backlink; identifies the available project that owns the link."
           },
           "to_type": {
             "type": "string",
+            "title": "To Type",
             "description": "Target type (card, ai_message, ai_thread, resource)."
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind."
           },
           "label": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "The label."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "The created at."
           }
         },
+        "type": "object",
         "required": [
           "from_card_id",
           "to_card_id",
           "to_type",
           "kind",
           "created_at"
-        ]
+        ],
+        "title": "CardLink",
+        "description": "CardLink."
       },
       "CardLinkCreateRequest": {
-        "type": "object",
         "properties": {
           "to_card_id": {
-            "type": "string"
+            "type": "string",
+            "title": "To Card Id",
+            "description": "The to card id."
           },
           "target_project_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Project Id",
             "description": "Optional for card targets. A named external target project need not be loaded locally."
           },
           "to_type": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Type",
             "description": "Optional; defaults to \"card\"."
           },
           "kind": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
             "description": "Optional; defaults to \"ref\"."
           },
           "label": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "The label."
           },
           "created_at": {
-            "type": "integer",
-            "format": "int64",
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
             "description": "Optional; server uses current time if omitted or 0."
           }
         },
+        "type": "object",
         "required": [
           "to_card_id"
-        ]
+        ],
+        "title": "CardLinkCreateRequest",
+        "description": "CardLinkCreateRequest."
       },
       "CardLinkCreateResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/CardLink"
+            "$ref": "#/components/schemas/CardLink",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "CardLinkCreateResponse",
+        "description": "CardLinkCreate response."
       },
       "CardLinkDeleteRequest": {
-        "type": "object",
         "properties": {
           "to_card_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Card Id",
+            "description": "The to card id."
           },
           "target_project_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Project Id",
             "description": "Selects the target project. Requires to_card_id, to_type and kind; use it to distinguish equal card IDs in different projects."
           },
           "to_type": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Type",
+            "description": "The to type."
           },
           "kind": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
+            "description": "The kind."
           }
-        }
+        },
+        "type": "object",
+        "title": "CardLinkDeleteRequest",
+        "description": "CardLinkDeleteRequest."
       },
       "CardLinkListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/CardLink"
-            }
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "CardLinkListResponse",
+        "description": "CardLinkList response."
       },
       "CardListItem": {
         "properties": {
@@ -14877,7 +16357,6 @@
         "description": "Changes to a card. Each field left out keeps its value."
       },
       "CasteInfo": {
-        "type": "object",
         "properties": {
           "name": {
             "type": "string",
@@ -14887,43 +16366,73 @@
               "developer",
               "workstation",
               "rig"
-            ]
+            ],
+            "title": "Name",
+            "description": "The name."
           },
           "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "The reason."
           }
         },
+        "type": "object",
         "required": [
           "name",
           "reason"
-        ]
+        ],
+        "title": "CasteInfo",
+        "description": "CasteInfo."
       },
       "CasteRecommendedModel": {
-        "type": "object",
         "properties": {
           "tag": {
-            "type": "string"
+            "type": "string",
+            "title": "Tag",
+            "description": "The tag."
           },
           "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The provider."
           },
           "engine": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine",
+            "description": "The engine."
           },
           "category": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category",
+            "description": "The category."
           },
           "required_caste": {
             "type": "string",
@@ -14933,12 +16442,17 @@
               "developer",
               "workstation",
               "rig"
-            ]
+            ],
+            "title": "Required Caste",
+            "description": "The required caste."
           },
           "installed": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Installed",
+            "description": "The installed."
           }
         },
+        "type": "object",
         "required": [
           "tag",
           "provider",
@@ -14946,7 +16460,9 @@
           "category",
           "required_caste",
           "installed"
-        ]
+        ],
+        "title": "CasteRecommendedModel",
+        "description": "CasteRecommendedModel."
       },
       "ChangeEventData": {
         "properties": {
@@ -15695,33 +17211,82 @@
         ]
       },
       "LocalModel": {
-        "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "title": "Name",
+            "description": "The name."
           },
           "runner_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Id",
             "description": "The runner that has this model."
           },
           "model_ref": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ref",
             "description": "The runner-qualified model reference to request it by."
           },
           "digest": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest",
+            "description": "The digest."
           },
           "size": {
-            "type": "integer",
-            "format": "int64"
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808,
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size",
+            "description": "The size."
           },
           "modified_at": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At",
+            "description": "The modified at."
           }
         },
+        "type": "object",
         "required": [
           "name"
-        ]
+        ],
+        "title": "LocalModel",
+        "description": "LocalModel."
       },
       "LocationAction": {
         "properties": {
@@ -16389,6 +17954,33 @@
         ],
         "title": "NewStorageLocation",
         "description": "A portable location declaration to create."
+      },
+      "PostAiRunnerPullRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "The model."
+          },
+          "runner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Id",
+            "description": "The runner id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "PostAiRunnerPullRequest",
+        "description": "PostAI RunnerPullRequest."
       },
       "PreferredLocationRequest": {
         "properties": {
@@ -17767,10 +19359,10 @@
         "minLength": 8
       },
       "RunnerCapabilitiesData": {
-        "type": "object",
         "properties": {
           "local_model_config": {
-            "$ref": "#/components/schemas/AiLocalModelConfigData"
+            "$ref": "#/components/schemas/AiLocalModelConfigData",
+            "description": "The local model config."
           },
           "caste": {
             "anyOf": [
@@ -17784,87 +19376,132 @@
             "description": "This machine's hardware caste, or null when it cannot be detected."
           },
           "runners": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/AiRunner"
-            }
+            },
+            "type": "array",
+            "title": "Runners",
+            "description": "The runners."
           },
           "recommended_models": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/CasteRecommendedModel"
             },
+            "type": "array",
+            "title": "Recommended Models",
             "description": "Catalog models this machine's caste can run, best first."
           },
           "recommended_install": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/CasteRecommendedModel"
             },
+            "type": "array",
+            "title": "Recommended Install",
             "description": "The recommended models that the selected runner has not installed."
           }
         },
+        "type": "object",
         "required": [
           "local_model_config",
           "runners",
           "recommended_models",
           "recommended_install"
-        ]
+        ],
+        "title": "RunnerCapabilitiesData",
+        "description": "RunnerCapabilitiesData."
       },
       "RunnerCapabilitiesResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/RunnerCapabilitiesData"
+            "$ref": "#/components/schemas/RunnerCapabilitiesData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "RunnerCapabilitiesResponse",
+        "description": "RunnerCapabilities response."
       },
       "RunnerPullJob": {
-        "type": "object",
         "properties": {
           "job_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Job Id",
+            "description": "The job id."
           },
           "runner_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Id",
+            "description": "The runner id."
           },
           "model_ref": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ref",
+            "description": "The model ref."
           },
           "model": {
-            "type": "string"
+            "type": "string",
+            "title": "Model",
+            "description": "The model."
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "title": "Status",
+            "description": "The status."
           },
           "active": {
             "type": "boolean",
+            "title": "Active",
             "description": "Whether the pull is still queued, downloading or verifying."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "The updated at."
           },
           "error": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "The error."
           },
           "progress": {
-            "$ref": "#/components/schemas/RunnerPullProgress"
+            "$ref": "#/components/schemas/RunnerPullProgress",
+            "description": "The progress."
           }
         },
+        "type": "object",
         "required": [
           "job_id",
           "model",
@@ -17872,91 +19509,140 @@
           "active",
           "updated_at",
           "progress"
-        ]
+        ],
+        "title": "RunnerPullJob",
+        "description": "RunnerPullJob."
       },
       "RunnerPullProgress": {
-        "type": "object",
         "properties": {
           "completed": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Completed",
+            "description": "The completed."
           },
           "total": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Total",
+            "description": "The total."
           },
           "percent": {
             "type": "number",
-            "format": "double"
+            "format": "double",
+            "title": "Percent",
+            "description": "The percent."
           },
           "stage": {
-            "type": "string"
+            "type": "string",
+            "title": "Stage",
+            "description": "The stage."
           }
         },
+        "type": "object",
         "required": [
           "completed",
           "total",
           "percent",
           "stage"
-        ]
+        ],
+        "title": "RunnerPullProgress",
+        "description": "RunnerPullProgress."
       },
       "RunnerPullStartResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "job_id": {
-                "type": "string"
-              },
-              "runner_id": {
-                "type": "string"
-              },
-              "model_ref": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "job_id",
-              "model",
-              "status"
-            ]
+            "$ref": "#/components/schemas/RunnerPullStartResponseData",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "RunnerPullStartResponse",
+        "description": "RunnerPullStart response."
+      },
+      "RunnerPullStartResponseData": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "The job id."
+          },
+          "runner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Id",
+            "description": "The runner id."
+          },
+          "model_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ref",
+            "description": "The model ref."
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "The model."
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "The status."
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "model",
+          "status"
+        ],
+        "title": "RunnerPullStartResponseData",
+        "description": "RunnerPullStart responseData."
       },
       "RunnerPullStatusResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The ok."
           },
           "data": {
-            "$ref": "#/components/schemas/RunnerPullJob"
+            "$ref": "#/components/schemas/RunnerPullJob",
+            "description": "The data."
           }
         },
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "RunnerPullStatusResponse",
+        "description": "RunnerPullStatus response."
       },
       "SearchCard": {
         "properties": {

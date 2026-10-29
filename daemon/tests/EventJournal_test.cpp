@@ -1,4 +1,4 @@
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include "api/support/EventJournal.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/SseStream.h"
@@ -45,9 +45,9 @@ TEST_CASE("Event journal bounds bytes and encodes one JSON data line", "[events]
 }
 
 TEST_CASE("A reused run ID starts a new event epoch", "[events]") {
-  const auto first = append_run_event("journal-reuse", rig_events::run_started, {}, false);
-  append_run_event("journal-reuse", rig_events::done, {}, true);
-  const auto next = append_run_event("journal-reuse", rig_events::run_started, {}, false);
+  const auto first = append_run_event("journal-reuse", ai_events::run_started, {}, false);
+  append_run_event("journal-reuse", ai_events::done, {}, true);
+  const auto next = append_run_event("journal-reuse", ai_events::run_started, {}, false);
   REQUIRE(first.id != next.id);
   const auto batch = read_run_events("journal-reuse", "");
   REQUIRE(batch);

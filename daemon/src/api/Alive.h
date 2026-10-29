@@ -1,12 +1,12 @@
 #pragma once
 
 #include "api/ApiService.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD AliveResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AliveResponse {
+  bool ok;
 };
 
 inline AliveResponse check_alive() { return {true}; }

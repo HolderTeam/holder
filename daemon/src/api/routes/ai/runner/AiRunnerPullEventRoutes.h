@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/support/SseStream.h"
 #include "llm/RunnerRegistry.h"
 
@@ -12,7 +12,7 @@ namespace holder::api::routes::ai::runner {
 
 // GET /ai/runner/pull/{job_id}/events after generated dispatch has decoded it: a 204 when a
 // reconnect finds the pull finished, otherwise a support::StreamServer.
-rig::host_value get_ai_runner_pull_job_id_events_stream(
+api_runtime::host_value get_ai_runner_pull_job_id_events_stream(
     holder::llm::RunnerRegistry* runner_registry,
     std::shared_ptr<holder::api::support::SseRegistry> streams,
     const std::optional<std::string>& requested_runner_id,

@@ -2,7 +2,7 @@
 
 #include "api/HttpError.h"
 #include "api/LocationRead.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 #include "api/support/StorageErrors.h"
 
@@ -17,55 +17,55 @@ namespace holder::privacy { class SecretStore; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationActionResponseData {
+struct LocationActionResponseData {
   std::string location_id;
-  std::optional<bool> bound RIG_OMIT_EMPTY;
-  std::optional<std::optional<std::string>> binding_preview RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<bool> bound;
+  std::optional<std::optional<std::string>> binding_preview;
 };
 
-struct RIG_OPEN_RECORD LocationActionResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct LocationActionResponse {
+  bool ok;
   LocationActionResponseData data;
 };
 
-struct RIG_OPEN_RECORD LocationBindingRequest {
-  std::map<std::string, std::string> values RIG_WRITE_ONLY;
-  std::optional<std::string> preview RIG_FIELD_DESCRIPTION("Safe display text for the binding; defaults to Configured.") RIG_OMIT_EMPTY;
+struct LocationBindingRequest {
+  std::map<std::string, std::string> values;
+  std::optional<std::string> preview;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationTestResponseData {
+struct LocationTestResponseData {
   bool available;
 };
 
-struct RIG_OPEN_RECORD LocationTestResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct LocationTestResponse {
+  bool ok;
   LocationTestResponseData data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PutLocationsPreferredRequest {
+struct PutLocationsPreferredRequest {
   std::string project_id;
   std::string location_id;
 };
 
 LocationActionResponse put_locations_location_id_binding(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
     std::string location_id,
     LocationBindingRequest request);
 
 LocationActionResponse delete_locations_location_id_binding(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
     std::string location_id);
 
 LocationTestResponse post_locations_location_id_test(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-    const std::function<std::string()>& uuid_v4 RIG_CONTEXT,
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    const std::function<std::string()>& uuid_v4,
     std::string location_id);
 
-LocationActionResponse put_locations_preferred(holder::platform::Db& db RIG_CONTEXT,
-                                               holder::privacy::SecretStore* secret_store RIG_CONTEXT,
+LocationActionResponse put_locations_preferred(holder::platform::Db& db,
+                                               holder::privacy::SecretStore* secret_store,
                                                PutLocationsPreferredRequest request);
 
 } // namespace holder::api

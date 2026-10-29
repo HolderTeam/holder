@@ -53,7 +53,7 @@ nlohmann::json checkpoint_json(const EventCheckpoint& value) {
           {"history_urls", value.history_urls}};
 }
 
-rig::event<nlohmann::json> resync_required(
+api_runtime::event<nlohmann::json> resync_required(
     EventCheckpoint at,
     std::string reason,
     const std::string& revision

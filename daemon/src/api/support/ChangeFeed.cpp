@@ -15,7 +15,7 @@ namespace holder::api::support {
 namespace {
 
 // Every change-feed entity has the same invalidation data.
-rig::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
+api_runtime::event<nlohmann::json> change_event(const holder::api::ChangeEventData& data) {
   static const std::set<std::string> kinds = {"project", "card", "resource", "location",
                                                "thread", "message", "run"};
   if (!kinds.contains(data.entity)) throw std::logic_error("unknown change event entity: " + data.entity);

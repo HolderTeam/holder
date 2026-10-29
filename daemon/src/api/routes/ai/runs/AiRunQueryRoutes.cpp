@@ -2,7 +2,7 @@
 
 #include "ai/AiRunRepo.h"
 #include "api/AiRuns.h"
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include "api/support/RunEventStore.h"
 #include "api/support/StreamServer.h"
 #include "api/support/Time.h"
@@ -20,7 +20,7 @@
 
 namespace holder::api::routes::ai::runs {
 
-rig::host_value get_ai_runs_run_id_events_stream(
+api_runtime::host_value get_ai_runs_run_id_events_stream(
     holder::platform::Db& db,
     std::shared_ptr<support::SseRegistry> streams,
     const std::string& last_event_id,
@@ -53,8 +53,8 @@ rig::host_value get_ai_runs_run_id_events_stream(
     }
     support::append_run_event(
         run_id,
-        run->status == "completed" ? static_cast<support::RunEventConstructor>(rig_events::done)
-                                   : static_cast<support::RunEventConstructor>(rig_events::failed),
+        run->status == "completed" ? static_cast<support::RunEventConstructor>(ai_events::done)
+                                   : static_cast<support::RunEventConstructor>(ai_events::failed),
         std::move(terminal),
         true
     );
@@ -71,7 +71,7 @@ rig::host_value get_ai_runs_run_id_events_stream(
       // The history no longer covers the cursor: the client fetches the run and reconnects.
       batch->events = {support::StreamEvent{
           batch->cursor,
-          rig_events::resync_required(AiStreamResyncData{"history_unavailable"})
+          ai_events::resync_required(AiStreamResyncData{"history_unavailable"})
       }};
       batch->resync_required = false;
       batch->finished = true;
