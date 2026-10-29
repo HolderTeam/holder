@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -21,10 +21,15 @@ def _get_kwargs() -> dict[str, Any]:
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | str | None:
+) -> Any | ErrorResponse | None:
     if response.status_code == 200:
-        response_200 = response.text
+        response_200 = cast(Any, response.text)
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -44,7 +49,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | str]:
+) -> Response[Any | ErrorResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -56,15 +61,17 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | str]:
-    """Download git provider UI/runtime config
+) -> Response[Any | ErrorResponse]:
+    """Download the Git provider UI and runtime config.
+
+     Download the Git provider UI and runtime config.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs()
@@ -79,15 +86,17 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | str | None:
-    """Download git provider UI/runtime config
+) -> Any | ErrorResponse | None:
+    """Download the Git provider UI and runtime config.
+
+     Download the Git provider UI and runtime config.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse
     """
 
     return sync_detailed(
@@ -98,15 +107,17 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | str]:
-    """Download git provider UI/runtime config
+) -> Response[Any | ErrorResponse]:
+    """Download the Git provider UI and runtime config.
+
+     Download the Git provider UI and runtime config.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | str]
+        Response[Any | ErrorResponse]
     """
 
     kwargs = _get_kwargs()
@@ -119,15 +130,17 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | str | None:
-    """Download git provider UI/runtime config
+) -> Any | ErrorResponse | None:
+    """Download the Git provider UI and runtime config.
+
+     Download the Git provider UI and runtime config.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | str
+        Any | ErrorResponse
     """
 
     return (

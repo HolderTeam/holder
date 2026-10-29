@@ -3334,22 +3334,30 @@
     },
     "/ai_catalog.json": {
       "get": {
-        "summary": "Download canonical AI catalog config as JSON",
+        "summary": "Download the canonical AI catalog config as JSON.",
+        "description": "Download the canonical AI catalog config as JSON.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Catalog not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3359,7 +3367,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3373,21 +3381,30 @@
     },
     "/ai_catalog.yaml": {
       "get": {
-        "summary": "Download canonical AI catalog config (models + cloud)",
+        "summary": "Download the canonical AI catalog config.",
+        "description": "Download the canonical AI catalog config.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/yaml": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Catalog not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3397,7 +3414,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3411,11 +3428,12 @@
     },
     "/alive": {
       "get": {
-        "summary": "Liveness check returning JSON, unauthenticated",
+        "summary": "Liveness check returning JSON, unauthenticated.",
+        "description": "Liveness check returning JSON, unauthenticated.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3424,8 +3442,18 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3439,15 +3467,25 @@
     },
     "/bye": {
       "post": {
-        "summary": "Say that this client is leaving",
-        "description": "A hint, never a command. A daemon started with `--idle-exit` normally waits out its whole idle period after the last client has gone; after this request it waits only a few seconds (3), and only while nothing else happens. Running work, an open event stream, a new connection or any other request keeps it running, so another client is never cut off by one client leaving. A daemon without `--idle-exit`, such as the systemd service, ignores it. There is no request body, and nothing is returned beyond acknowledgement. Clients call it best-effort as they close; a client that crashes simply never does, and the daemon then falls back to its idle period.",
+        "summary": "Say that this client is leaving.",
+        "description": "A hint to a daemon started with --idle-exit: it shortens the idle wait only while nothing else happens.\nRunning work, a stream, or another request keeps the daemon running. Other daemon modes ignore it.",
         "responses": {
           "200": {
-            "description": "Acknowledged",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ByeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3463,7 +3501,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3545,11 +3583,12 @@
     },
     "/docs": {
       "get": {
-        "summary": "Browse the API documentation",
+        "summary": "Browse the API documentation.",
+        "description": "Browse the API documentation.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "text/html": {
                 "schema": {
@@ -3558,8 +3597,18 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Documentation assets not installed",
+            "description": "Documentation assets not installed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3569,7 +3618,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3583,7 +3632,8 @@
     },
     "/docs/{file}": {
       "get": {
-        "summary": "Download one of the API documentation's files",
+        "summary": "Download an API documentation file with its media type.",
+        "description": "Download an API documentation file with its media type.",
         "security": [],
         "parameters": [
           {
@@ -3591,19 +3641,34 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "File"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK, with the file's media type",
+            "description": "Successful Response",
             "content": {
-              "*/*": {}
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Documentation file not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3613,7 +3678,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3628,16 +3693,24 @@
     "/events": {
       "get": {
         "operationId": "stream_changes",
-        "summary": "Subscribe to committed daemon state changes (SSE)",
-        "description": "Sends ready, then project.changed, card.changed, resource.changed,\nlocation.changed, thread.changed, message.changed and run.changed invalidations.\nIntermediate states can coalesce. Each frame has an opaque id and JSON data.\nWithout a cursor starts at the current tail. Last-Event-ID replays bounded\nin-memory history. Restart, an expired cursor or last_revision without a\nreplayable cursor returns resync_required with current Git revisions and\nhistory URLs, then closes. This endpoint does not synthesize events from Git.\nRefresh current state on resync; Git is the durable project history.\nComments provide heartbeats. Disconnecting unsubscribes without cancelling jobs.\n",
+        "summary": "Subscribe to committed daemon state changes.",
+        "description": "The stream begins with ready or resync_required, then sends project, card, resource, location, thread,\nmessage, and run invalidations. Its opaque event ID supports bounded replay; resync_required calls for a\nfresh snapshot. Disconnecting does not cancel running work.",
         "parameters": [
           {
             "name": "project_id",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
             }
           },
           {
@@ -3645,23 +3718,38 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LastRevision"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Revision",
               "pattern": "^[0-9a-f]{40}$"
-            },
-            "description": "Last-known project Git revision for recovery; requires project_id. An unavailable replay explicitly requires refresh, even when HEAD is unchanged."
+            }
           },
           {
             "name": "Last-Event-ID",
             "in": "header",
+            "required": false,
             "schema": {
-              "type": "string"
-            },
-            "description": "Opaque cursor from a previous frame or /events/cursor."
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Live SSE stream; ready or resync_required is the first event",
+            "description": "Successful Response",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -3906,7 +3994,7 @@
             }
           },
           "400": {
-            "description": "Invalid query or cursor",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3926,7 +4014,7 @@
             }
           },
           "404": {
-            "description": "Project not found",
+            "description": "Project not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3936,7 +4024,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3946,7 +4034,7 @@
             }
           },
           "503": {
-            "description": "Observer or project unavailable, or stream limit reached",
+            "description": "Observer or project unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3961,22 +4049,30 @@
     "/events/cursor": {
       "get": {
         "operationId": "get_event_cursor",
-        "summary": "Get a change-feed checkpoint before fetching a live snapshot",
-        "description": "Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID. Replayed invalidations close the race between snapshot reads and subscription.",
+        "summary": "Get a change-feed checkpoint before fetching a live snapshot.",
+        "description": "Fetch this checkpoint, read current entities, then subscribe using its cursor as Last-Event-ID.",
         "parameters": [
           {
             "name": "project_id",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Current checkpoint",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -3986,7 +4082,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4006,7 +4102,7 @@
             }
           },
           "404": {
-            "description": "Project not found",
+            "description": "Project not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4016,7 +4112,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4026,7 +4122,7 @@
             }
           },
           "503": {
-            "description": "Change feed or project unavailable",
+            "description": "Feed or project unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4040,22 +4136,30 @@
     },
     "/git_providers.json": {
       "get": {
-        "summary": "Download git provider UI/runtime config as JSON",
+        "summary": "Download the Git provider UI and runtime config as JSON.",
+        "description": "Download the Git provider UI and runtime config as JSON.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Config not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4065,7 +4169,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4079,21 +4183,30 @@
     },
     "/git_providers.yaml": {
       "get": {
-        "summary": "Download git provider UI/runtime config",
+        "summary": "Download the Git provider UI and runtime config.",
+        "description": "Download the Git provider UI and runtime config.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/yaml": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Config not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4103,7 +4216,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4117,14 +4230,25 @@
     },
     "/health": {
       "get": {
-        "summary": "Health check",
+        "summary": "Health check.",
+        "description": "Health check.",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4140,7 +4264,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4321,7 +4445,8 @@
     },
     "/locations": {
       "get": {
-        "summary": "List project storage locations",
+        "summary": "List project storage locations and this device's preferred location.",
+        "description": "List project storage locations and this device's preferred location.",
         "parameters": [
           {
             "name": "project_id",
@@ -4329,13 +4454,14 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "title": "Project Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4345,7 +4471,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4365,7 +4491,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4380,14 +4506,14 @@
         "summary": "Create a project's portable storage declaration.",
         "description": "Create a project's portable storage declaration.",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NewStorageLocation"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -4445,32 +4571,21 @@
     },
     "/locations/preferred": {
       "put": {
-        "summary": "Set this device's preferred project storage location",
+        "summary": "Set this device's preferred project storage location.",
+        "description": "Set this device's preferred project storage location.",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "project_id": {
-                    "type": "string"
-                  },
-                  "location_id": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "project_id",
-                  "location_id"
-                ]
+                "$ref": "#/components/schemas/PreferredLocationRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "Preferred location saved in the device keyring",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4480,7 +4595,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4500,7 +4615,7 @@
             }
           },
           "404": {
-            "description": "No such location in the project",
+            "description": "Location not found in the project.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4510,7 +4625,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4520,7 +4635,7 @@
             }
           },
           "503": {
-            "description": "The daemon has no secret store",
+            "description": "Secret store unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4760,14 +4875,16 @@
     },
     "/locations/{location_id}/binding": {
       "put": {
-        "summary": "Bind private device credentials or path",
+        "summary": "Bind private device credentials or path; secret values are never returned.",
+        "description": "Bind private device credentials or path; secret values are never returned.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Location Id"
             }
           }
         ],
@@ -4783,7 +4900,7 @@
         },
         "responses": {
           "200": {
-            "description": "Bound; secret values are not returned",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4793,7 +4910,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4813,7 +4930,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Location not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4823,7 +4940,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4833,7 +4950,7 @@
             }
           },
           "503": {
-            "description": "The daemon has no secret store",
+            "description": "Secret store unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4845,7 +4962,7 @@
         }
       },
       "delete": {
-        "summary": "Remove this device's private binding",
+        "summary": "Remove this device's private binding.",
         "description": "Also clears the preferred location if it was this one.",
         "parameters": [
           {
@@ -4853,13 +4970,14 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Location Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Unbound",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4869,7 +4987,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4889,7 +5007,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Location not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4899,7 +5017,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4909,7 +5027,7 @@
             }
           },
           "503": {
-            "description": "The daemon has no secret store",
+            "description": "Secret store unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4923,21 +5041,22 @@
     },
     "/locations/{location_id}/oauth/google-drive/authorize": {
       "post": {
-        "summary": "Start connecting a Google Drive location",
-        "description": "Returns the Google authorization URL for the user to open in a browser. Google then redirects the browser to this location's callback, on the host and port this request used.",
+        "summary": "Start connecting a Google Drive location.",
+        "description": "The returned URL redirects to this daemon's callback on the host and port the request used.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Location Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -4947,7 +5066,7 @@
             }
           },
           "400": {
-            "description": "The location does not exist or is not a Google Drive location, or the daemon has no Google OAuth client",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4965,14 +5084,24 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
     },
     "/locations/{location_id}/oauth/google-drive/callback": {
       "get": {
-        "summary": "Finish connecting a Google Drive location",
-        "description": "Google redirects the user's browser here after authorization, so the request carries no token; the state from the authorize call authenticates it instead. The daemon exchanges the code, creates the location's Drive folder if needed, and binds the location. A failure is answered with 400 and an HTML page that explains it.",
+        "summary": "Finish connecting a Google Drive location.",
+        "description": "Google redirects the browser here without a bearer token. The authorize state authenticates the callback.\nA failure returns an explanatory HTML page.",
         "security": [],
         "parameters": [
           {
@@ -4980,7 +5109,8 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Location Id"
             }
           },
           {
@@ -4988,7 +5118,15 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
             }
           },
           {
@@ -4996,7 +5134,15 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
             }
           },
           {
@@ -5004,14 +5150,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Set by Google on denial or failure.",
+              "title": "Error"
             },
-            "description": "Set by Google when the user declined or authorization failed."
+            "description": "Set by Google on denial or failure."
           }
         ],
         "responses": {
           "200": {
-            "description": "An HTML page telling the user the location is connected",
+            "description": "Successful Response",
             "content": {
               "text/html": {
                 "schema": {
@@ -5020,8 +5175,19 @@
               }
             }
           },
+          "400": {
+            "description": "Authorization failed.",
+            "content": {
+              "text/html": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5035,20 +5201,22 @@
     },
     "/locations/{location_id}/test": {
       "post": {
-        "summary": "Upload, verify, and remove a storage probe",
+        "summary": "Upload, verify, and remove a storage probe.",
+        "description": "Upload, verify, and remove a storage probe.",
         "parameters": [
           {
             "name": "location_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "title": "Location Id"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Location available",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -5058,7 +5226,7 @@
             }
           },
           "400": {
-            "description": "The declaration or binding cannot make a provider",
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5078,7 +5246,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Location not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5088,7 +5256,7 @@
             }
           },
           "409": {
-            "description": "The location has no binding on this device, or the storage reports a conflict",
+            "description": "Binding required or storage conflict.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5098,7 +5266,7 @@
             }
           },
           "422": {
-            "description": "The probe failed verification",
+            "description": "Probe verification failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5108,7 +5276,7 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5118,7 +5286,7 @@
             }
           },
           "502": {
-            "description": "The storage rejected the credentials or permissions",
+            "description": "Storage rejected credentials or permissions.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5128,7 +5296,7 @@
             }
           },
           "503": {
-            "description": "The storage or the daemon's secret store is unavailable",
+            "description": "Storage or secret store unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5138,7 +5306,7 @@
             }
           },
           "507": {
-            "description": "The storage is full",
+            "description": "Storage is full.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5152,22 +5320,30 @@
     },
     "/openapi.json": {
       "get": {
-        "summary": "Download the OpenAPI specification as JSON",
+        "summary": "Download the OpenAPI specification as JSON.",
+        "description": "Download the OpenAPI specification as JSON.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5181,21 +5357,30 @@
     },
     "/openapi.yaml": {
       "get": {
-        "summary": "Download the OpenAPI specification",
+        "summary": "Download the OpenAPI specification.",
+        "description": "Download the OpenAPI specification.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/yaml": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5209,11 +5394,12 @@
     },
     "/ping": {
       "get": {
-        "summary": "Liveness check, unauthenticated",
+        "summary": "Liveness check returning plain text, unauthenticated.",
+        "description": "Liveness check returning plain text, unauthenticated.",
         "security": [],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "text/plain": {
                 "schema": {
@@ -5225,8 +5411,18 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Internal server error",
+            "description": "Unexpected failure.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13088,18 +13284,20 @@
         ]
       },
       "AliveResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The daemon is alive."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok"
-        ]
+        ],
+        "title": "AliveResponse",
+        "description": "An unauthenticated liveness response."
       },
       "AssetImportJob": {
         "properties": {
@@ -13286,18 +13484,20 @@
         "description": "One stored copy of an asset."
       },
       "ByeResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "The hint was received."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok"
-        ]
+        ],
+        "title": "ByeResponse",
+        "description": "Acknowledgement that a client is leaving."
       },
       "Calendar": {
         "properties": {
@@ -14749,7 +14949,6 @@
         ]
       },
       "ChangeEventData": {
-        "type": "object",
         "properties": {
           "entity": {
             "type": "string",
@@ -14761,36 +14960,56 @@
               "thread",
               "message",
               "run"
-            ]
+            ],
+            "title": "Entity",
+            "description": "The changed entity type."
           },
           "entity_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Entity Id",
+            "description": "The changed entity ID."
           },
           "project_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id",
+            "description": "The owning project, when known."
           },
           "deleted": {
             "type": "boolean",
-            "description": "Entity disappeared from the observed database snapshot. Soft deletion remains an ordinary invalidation."
+            "title": "Deleted",
+            "description": "Whether the entity disappeared from the observed database snapshot."
           },
           "git_revision": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Observed Git HEAD for this project; live changes may not yet be committed to Git."
+            "title": "Git Revision",
+            "description": "The observed project Git HEAD, when available."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "entity",
           "entity_id",
           "project_id",
           "deleted",
           "git_revision"
-        ]
+        ],
+        "title": "ChangeEventData",
+        "description": "One entity invalidation from the live change feed."
       },
       "DateTime": {
         "type": "string",
@@ -14885,151 +15104,212 @@
         ]
       },
       "EventCheckpoint": {
-        "type": "object",
         "properties": {
           "cursor": {
             "type": "string",
-            "description": "Opaque process-local SSE cursor. Persist it unchanged for Last-Event-ID."
+            "title": "Cursor",
+            "description": "Opaque process-local SSE cursor; preserve it for Last-Event-ID."
           },
           "git_revisions": {
-            "type": "object",
             "additionalProperties": {
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
-            "description": "Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database state."
+            "type": "object",
+            "title": "Git Revisions",
+            "description": "Observed project Git HEADs, null for missing or unborn repositories."
           },
           "history_urls": {
-            "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Existing project history endpoints for durable recovery. Refresh live state after inspecting history."
+            "type": "object",
+            "title": "History Urls",
+            "description": "Project history endpoints for durable recovery."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "cursor",
           "git_revisions",
           "history_urls"
-        ]
+        ],
+        "title": "EventCheckpoint",
+        "description": "A replay cursor and the observed Git state."
       },
       "EventCheckpointResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "$ref": "#/components/schemas/EventCheckpoint"
+            "$ref": "#/components/schemas/EventCheckpoint",
+            "description": "The checkpoint."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "EventCheckpointResponse",
+        "description": "A change-feed checkpoint response."
       },
       "EventResyncData": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/EventCheckpoint"
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "title": "Cursor",
+            "description": "Opaque process-local SSE cursor; preserve it for Last-Event-ID."
           },
-          {
-            "type": "object",
-            "properties": {
-              "reason": {
-                "type": "string",
-                "enum": [
-                  "history_unavailable",
-                  "observer_unavailable"
-                ]
-              },
-              "last_revision": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
+          "git_revisions": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "required": [
-              "reason",
-              "last_revision"
-            ]
+            "type": "object",
+            "title": "Git Revisions",
+            "description": "Observed project Git HEADs, null for missing or unborn repositories."
+          },
+          "history_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "History Urls",
+            "description": "Project history endpoints for durable recovery."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "history_unavailable",
+              "observer_unavailable"
+            ],
+            "title": "Reason",
+            "description": "Why replay is unavailable."
+          },
+          "last_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Revision",
+            "description": "The last revision supplied by the caller, when any."
           }
-        ]
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cursor",
+          "git_revisions",
+          "history_urls",
+          "reason",
+          "last_revision"
+        ],
+        "title": "EventResyncData",
+        "description": "A feed checkpoint that requires a fresh snapshot."
       },
       "GitRemoteUrl": {
         "type": "string",
         "minLength": 1
       },
-      "GoogleDriveAuthorizeResponse": {
+      "GoogleDriveAuthorization": {
+        "properties": {
+          "authorization_url": {
+            "type": "string",
+            "title": "Authorization Url",
+            "description": "The Google authorization URL."
+          }
+        },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "authorization_url"
+        ],
+        "title": "GoogleDriveAuthorization",
+        "description": "Where to send the user to authorize Google Drive."
+      },
+      "GoogleDriveAuthorizeResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "authorization_url": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "authorization_url"
-            ]
+            "$ref": "#/components/schemas/GoogleDriveAuthorization",
+            "description": "The authorization URL."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "GoogleDriveAuthorizeResponse",
+        "description": "The URL to start Google Drive authorization."
       },
       "HealthData": {
-        "type": "object",
         "properties": {
           "db_ok": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Db Ok",
+            "description": "Whether the database is available."
           },
           "uptime_ms": {
             "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "format": "int64",
+            "title": "Uptime Ms",
             "description": "Milliseconds since the HTTP server started."
           },
           "api_version": {
-            "type": "string"
+            "type": "string",
+            "title": "Api Version",
+            "description": "The API version."
           },
           "server_version": {
-            "type": "string"
+            "type": "string",
+            "title": "Server Version",
+            "description": "The daemon version."
           },
           "pid": {
-            "type": "integer"
+            "type": "integer",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "format": "int32",
+            "title": "Pid",
+            "description": "The daemon process ID."
           },
           "privacy": {
-            "type": "object",
-            "properties": {
-              "backend": {
-                "type": "string",
-                "description": "Encryption used for encrypted projects."
-              },
-              "project_mode_supported": {
-                "type": "boolean",
-                "description": "Whether this daemon supports per-project encryption."
-              }
-            },
-            "required": [
-              "backend",
-              "project_mode_supported"
-            ]
+            "$ref": "#/components/schemas/HealthPrivacy",
+            "description": "Project encryption capabilities."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "db_ok",
           "uptime_ms",
@@ -15037,25 +15317,52 @@
           "server_version",
           "pid",
           "privacy"
-        ]
+        ],
+        "title": "HealthData",
+        "description": "Current health and version information."
+      },
+      "HealthPrivacy": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "title": "Backend",
+            "description": "Encryption used for encrypted projects."
+          },
+          "project_mode_supported": {
+            "type": "boolean",
+            "title": "Project Mode Supported",
+            "description": "Whether the daemon supports per-project encryption."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "backend",
+          "project_mode_supported"
+        ],
+        "title": "HealthPrivacy",
+        "description": "The daemon's project encryption support."
       },
       "HealthResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "$ref": "#/components/schemas/HealthData"
+            "$ref": "#/components/schemas/HealthData",
+            "description": "Health and version information."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "HealthResponse",
+        "description": "The daemon's health response."
       },
       "HierarchyRepair": {
         "properties": {
@@ -15251,6 +15558,11 @@
           "unknown"
         ]
       },
+      "JsonValue": {},
+      "LastRevision": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{40}$"
+      },
       "Link": {
         "properties": {
           "source_project_id": {
@@ -15411,59 +15723,83 @@
           "name"
         ]
       },
-      "LocationActionResponse": {
+      "LocationAction": {
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "title": "Location Id",
+            "description": "The affected location ID."
+          },
+          "bound": {
+            "type": "boolean",
+            "title": "Bound",
+            "description": "Whether this device has a binding, when returned."
+          },
+          "binding_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Preview",
+            "description": "Safe binding text, when returned."
+          }
+        },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "location_id"
+        ],
+        "title": "LocationAction",
+        "description": "The location affected by a binding or preference change."
+      },
+      "LocationActionResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "location_id": {
-                "type": "string"
-              },
-              "bound": {
-                "type": "boolean"
-              },
-              "binding_preview": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "location_id"
-            ]
+            "$ref": "#/components/schemas/LocationAction",
+            "description": "The affected location."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "LocationActionResponse",
+        "description": "The result of changing a binding or preference."
       },
       "LocationBindingRequest": {
-        "type": "object",
         "properties": {
           "values": {
-            "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "writeOnly": true
+            "type": "object",
+            "title": "Values",
+            "description": "Provider credentials or local path."
           },
           "preview": {
             "type": "string",
+            "title": "Preview",
             "description": "Safe display text for the binding; defaults to Configured."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "values"
-        ]
+        ],
+        "title": "LocationBindingRequest",
+        "description": "Private provider values for a location on this device."
       },
       "LocationConfiguration": {
         "additionalProperties": {
@@ -15516,31 +15852,42 @@
           "google-drive"
         ]
       },
-      "LocationTestResponse": {
+      "LocationTest": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "Whether the storage probe succeeded."
+          }
+        },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "available"
+        ],
+        "title": "LocationTest",
+        "description": "The result of checking a storage location."
+      },
+      "LocationTestResponse": {
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "type": "object",
-            "properties": {
-              "available": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "available"
-            ]
+            "$ref": "#/components/schemas/LocationTest",
+            "description": "Storage availability."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data"
-        ]
+        ],
+        "title": "LocationTestResponse",
+        "description": "The result of testing a storage location."
       },
       "Milestone": {
         "properties": {
@@ -16042,6 +16389,28 @@
         ],
         "title": "NewStorageLocation",
         "description": "A portable location declaration to create."
+      },
+      "PreferredLocationRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "description": "The owning project."
+          },
+          "location_id": {
+            "type": "string",
+            "title": "Location Id",
+            "description": "The location to prefer."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id",
+          "location_id"
+        ],
+        "title": "PreferredLocationRequest",
+        "description": "Set this device's preferred location for a project."
       },
       "PrivacyMode": {
         "type": "string",
@@ -17725,51 +18094,70 @@
         "title": "SearchMessageListResponse"
       },
       "StorageLocation": {
-        "type": "object",
         "properties": {
           "location_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Location Id",
+            "description": "The location ID."
           },
           "project_id": {
-            "type": "string"
+            "type": "string",
+            "title": "Project Id",
+            "description": "The owning project."
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "title": "Name",
+            "description": "Display name."
           },
           "provider": {
-            "type": "string",
-            "enum": [
-              "local_directory",
-              "s3_compatible",
-              "google-drive"
-            ]
+            "$ref": "#/components/schemas/StorageLocationProvider",
+            "description": "Storage provider kind."
           },
           "configuration": {
-            "type": "object",
             "additionalProperties": {
               "type": "string"
             },
+            "type": "object",
+            "title": "Configuration",
             "description": "Portable non-secret provider configuration."
           },
           "bound": {
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Bound",
+            "description": "Whether this device has a binding."
           },
           "binding_preview": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Safe display text; credentials are never returned."
+            "title": "Binding Preview",
+            "description": "Safe binding display text; credentials are never returned."
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Created At",
+            "description": "Creation time."
           },
           "updated_at": {
             "type": "integer",
-            "format": "int64"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "format": "int64",
+            "title": "Updated At",
+            "description": "Last update time."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "location_id",
           "project_id",
@@ -17780,34 +18168,54 @@
           "binding_preview",
           "created_at",
           "updated_at"
-        ]
+        ],
+        "title": "StorageLocation",
+        "description": "A portable storage declaration with this device's binding status."
       },
       "StorageLocationListResponse": {
-        "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "title": "Ok",
+            "description": "Whether the request succeeded."
           },
           "data": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/StorageLocation"
-            }
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "The project's locations."
           },
           "preferred_location_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Location Id",
+            "description": "This device's preferred location, when set."
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "ok",
           "data",
           "preferred_location_id"
+        ],
+        "title": "StorageLocationListResponse",
+        "description": "Project storage locations and this device's preference."
+      },
+      "StorageLocationProvider": {
+        "type": "string",
+        "enum": [
+          "local_directory",
+          "s3_compatible",
+          "google-drive"
         ]
       },
       "StorageLocationUpdate": {

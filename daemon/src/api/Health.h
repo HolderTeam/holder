@@ -28,9 +28,6 @@ struct RIG_OPEN_RECORD HealthResponse {
   HealthData data;
 };
 
-RIG_ROUTE(GET, "/health")
-RIG_SUMMARY("Health check")
-RIG_RESPONSE_DESCRIPTION("OK")
 HealthResponse get_health(holder::platform::Db& db RIG_CONTEXT,
                           std::chrono::steady_clock::time_point started_at RIG_CONTEXT);
 

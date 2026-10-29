@@ -28,6 +28,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -59,15 +64,11 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ByeResponse | ErrorResponse]:
-    """Say that this client is leaving
+    """Say that this client is leaving.
 
-     A hint, never a command. A daemon started with `--idle-exit` normally waits out its whole idle
-    period after the last client has gone; after this request it waits only a few seconds (3), and only
-    while nothing else happens. Running work, an open event stream, a new connection or any other
-    request keeps it running, so another client is never cut off by one client leaving. A daemon without
-    `--idle-exit`, such as the systemd service, ignores it. There is no request body, and nothing is
-    returned beyond acknowledgement. Clients call it best-effort as they close; a client that crashes
-    simply never does, and the daemon then falls back to its idle period.
+     A hint to a daemon started with --idle-exit: it shortens the idle wait only while nothing else
+    happens.
+    Running work, a stream, or another request keeps the daemon running. Other daemon modes ignore it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -90,15 +91,11 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ByeResponse | ErrorResponse | None:
-    """Say that this client is leaving
+    """Say that this client is leaving.
 
-     A hint, never a command. A daemon started with `--idle-exit` normally waits out its whole idle
-    period after the last client has gone; after this request it waits only a few seconds (3), and only
-    while nothing else happens. Running work, an open event stream, a new connection or any other
-    request keeps it running, so another client is never cut off by one client leaving. A daemon without
-    `--idle-exit`, such as the systemd service, ignores it. There is no request body, and nothing is
-    returned beyond acknowledgement. Clients call it best-effort as they close; a client that crashes
-    simply never does, and the daemon then falls back to its idle period.
+     A hint to a daemon started with --idle-exit: it shortens the idle wait only while nothing else
+    happens.
+    Running work, a stream, or another request keeps the daemon running. Other daemon modes ignore it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -117,15 +114,11 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ByeResponse | ErrorResponse]:
-    """Say that this client is leaving
+    """Say that this client is leaving.
 
-     A hint, never a command. A daemon started with `--idle-exit` normally waits out its whole idle
-    period after the last client has gone; after this request it waits only a few seconds (3), and only
-    while nothing else happens. Running work, an open event stream, a new connection or any other
-    request keeps it running, so another client is never cut off by one client leaving. A daemon without
-    `--idle-exit`, such as the systemd service, ignores it. There is no request body, and nothing is
-    returned beyond acknowledgement. Clients call it best-effort as they close; a client that crashes
-    simply never does, and the daemon then falls back to its idle period.
+     A hint to a daemon started with --idle-exit: it shortens the idle wait only while nothing else
+    happens.
+    Running work, a stream, or another request keeps the daemon running. Other daemon modes ignore it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -146,15 +139,11 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ByeResponse | ErrorResponse | None:
-    """Say that this client is leaving
+    """Say that this client is leaving.
 
-     A hint, never a command. A daemon started with `--idle-exit` normally waits out its whole idle
-    period after the last client has gone; after this request it waits only a few seconds (3), and only
-    while nothing else happens. Running work, an open event stream, a new connection or any other
-    request keeps it running, so another client is never cut off by one client leaving. A daemon without
-    `--idle-exit`, such as the systemd service, ignores it. There is no request body, and nothing is
-    returned beyond acknowledgement. Clients call it best-effort as they close; a client that crashes
-    simply never does, and the daemon then falls back to its idle period.
+     A hint to a daemon started with --idle-exit: it shortens the idle wait only while nothing else
+    happens.
+    Running work, a stream, or another request keeps the daemon running. Other daemon modes ignore it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

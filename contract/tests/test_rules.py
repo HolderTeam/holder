@@ -178,7 +178,6 @@ def get_thing({parameters}) -> None:
     ('"GET", "/things"', "thing_id: str", "get_thing(thing_id): say where it comes from"),
     ('"GET", "/things"', "thing: Annotated[str, Body()]", "a GET has no body, but thing is Body()"),
     ('"PUT", "/things"', "a: Annotated[str, Body()], b: Annotated[str, Body()]", "a, b are all Body()"),
-    ('"GET", "/things"', "since: Annotated[str, Header()]", "header parameters are not supported yet"),
     ('"FETCH", "/things"', "", "the method must be one of"),
     # FastAPI refuses this one itself, when the app is made.
     ('"GET", "/things", status=204', "", "Status code 204 must not have a response body"),

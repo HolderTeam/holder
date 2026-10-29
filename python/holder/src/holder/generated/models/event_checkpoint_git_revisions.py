@@ -12,10 +12,7 @@ T = TypeVar("T", bound="EventCheckpointGitRevisions")
 
 @_attrs_define
 class EventCheckpointGitRevisions:
-    """Observed project Git HEADs; null for missing or unborn repositories. Not a transaction marker for live database
-    state.
-
-    """
+    """Observed project Git HEADs, null for missing or unborn repositories."""
 
     additional_properties: dict[str, None | str] = _attrs_field(
         init=False, factory=dict

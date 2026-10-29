@@ -1,7 +1,6 @@
 #include "api/support/EventService.h"
 
 #include "api/EventCursor.h"
-#include "api/generated/RuntimeJson.h"
 #include "api/support/ChangeFeed.h"
 
 #include <spdlog/spdlog.h>
@@ -46,18 +45,23 @@ EventCheckpoint checkpoint(
   return result;
 }
 
+nlohmann::json checkpoint_json(const EventCheckpoint& value) {
+  nlohmann::json revisions = nlohmann::json::object();
+  for (const auto& [project, revision] : value.git_revisions)
+    revisions[project] = revision ? nlohmann::json(*revision) : nlohmann::json(nullptr);
+  return {{"cursor", value.cursor}, {"git_revisions", std::move(revisions)},
+          {"history_urls", value.history_urls}};
+}
+
 rig::event<nlohmann::json> resync_required(
     EventCheckpoint at,
     std::string reason,
     const std::string& revision
 ) {
-  return rig_events::resync_required(
-      EventResyncData{
-          std::move(at),
-          std::move(reason),
-          revision.empty() ? std::nullopt : std::optional<std::string>(revision),
-      }
-  );
+  auto data = checkpoint_json(at);
+  data["reason"] = std::move(reason);
+  data["last_revision"] = revision.empty() ? nlohmann::json(nullptr) : nlohmann::json(revision);
+  return {"resync_required", std::move(data)};
 }
 
 } // namespace
@@ -175,7 +179,7 @@ StreamServer EventService::subscribe(
           batch.events.begin(),
           StreamEvent{
               cursor,
-              rig_events::ready(checkpoint(batch.cursor, state->revisions, project))
+              {"ready", checkpoint_json(checkpoint(batch.cursor, state->revisions, project))}
           }
       );
       first = false;

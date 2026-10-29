@@ -100,7 +100,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationTestResponse]:
-    """Upload, verify, and remove a storage probe
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):
@@ -129,7 +131,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | LocationTestResponse | None:
-    """Upload, verify, and remove a storage probe
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):
@@ -153,7 +157,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | LocationTestResponse]:
-    """Upload, verify, and remove a storage probe
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):
@@ -180,7 +186,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | LocationTestResponse | None:
-    """Upload, verify, and remove a storage probe
+    """Upload, verify, and remove a storage probe.
+
+     Upload, verify, and remove a storage probe.
 
     Args:
         location_id (str):

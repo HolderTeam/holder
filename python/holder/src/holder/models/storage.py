@@ -24,7 +24,7 @@ from ..generated.models import (
     LocationConfiguration,
     LocationProvider,
     NewStorageLocation,
-    PutLocationsPreferredBody,
+    PreferredLocationRequest,
     StorageLocationUpdate,
 )
 from ..generated.types import UNSET, Unset
@@ -139,7 +139,7 @@ class StorageLocation:
         self._project.storage_locations.get(self.id)
         self._project._holder._call(
             put_locations_preferred,
-            body=PutLocationsPreferredBody(
+            body=PreferredLocationRequest(
                 project_id=self.project_id, location_id=self.id
             ),
             write=True,

@@ -30,9 +30,6 @@ struct LocationNotFound : std::runtime_error {
       : std::runtime_error(message) {}
 };
 
-RIG_ROUTE(GET, "/locations")
-RIG_SUMMARY("List project storage locations")
-RIG_RESPONSE_DESCRIPTION("OK")
 StorageLocationListResponse get_locations(holder::platform::Db& db RIG_CONTEXT,
                                           holder::privacy::SecretStore* secret_store RIG_CONTEXT,
                                           std::string project_id RIG_QUERY RIG_MIN_LENGTH(1));

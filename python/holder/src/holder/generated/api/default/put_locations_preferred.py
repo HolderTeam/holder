@@ -7,13 +7,13 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.location_action_response import LocationActionResponse
-from ...models.put_locations_preferred_body import PutLocationsPreferredBody
+from ...models.preferred_location_request import PreferredLocationRequest
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: PutLocationsPreferredBody,
+    body: PreferredLocationRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -83,12 +83,14 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: PutLocationsPreferredBody,
+    body: PreferredLocationRequest,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Set this device's preferred project storage location
+    """Set this device's preferred project storage location.
+
+     Set this device's preferred project storage location.
 
     Args:
-        body (PutLocationsPreferredBody):
+        body (PreferredLocationRequest): Set this device's preferred location for a project.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -112,12 +114,14 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: PutLocationsPreferredBody,
+    body: PreferredLocationRequest,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Set this device's preferred project storage location
+    """Set this device's preferred project storage location.
+
+     Set this device's preferred project storage location.
 
     Args:
-        body (PutLocationsPreferredBody):
+        body (PreferredLocationRequest): Set this device's preferred location for a project.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -136,12 +140,14 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: PutLocationsPreferredBody,
+    body: PreferredLocationRequest,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Set this device's preferred project storage location
+    """Set this device's preferred project storage location.
+
+     Set this device's preferred project storage location.
 
     Args:
-        body (PutLocationsPreferredBody):
+        body (PreferredLocationRequest): Set this device's preferred location for a project.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -163,12 +169,14 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: PutLocationsPreferredBody,
+    body: PreferredLocationRequest,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Set this device's preferred project storage location
+    """Set this device's preferred project storage location.
+
+     Set this device's preferred project storage location.
 
     Args:
-        body (PutLocationsPreferredBody):
+        body (PreferredLocationRequest): Set this device's preferred location for a project.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

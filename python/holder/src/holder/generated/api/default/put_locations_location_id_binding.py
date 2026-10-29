@@ -90,11 +90,13 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: LocationBindingRequest,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Bind private device credentials or path
+    """Bind private device credentials or path; secret values are never returned.
+
+     Bind private device credentials or path; secret values are never returned.
 
     Args:
         location_id (str):
-        body (LocationBindingRequest):
+        body (LocationBindingRequest): Private provider values for a location on this device.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -122,11 +124,13 @@ def sync(
     client: AuthenticatedClient | Client,
     body: LocationBindingRequest,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Bind private device credentials or path
+    """Bind private device credentials or path; secret values are never returned.
+
+     Bind private device credentials or path; secret values are never returned.
 
     Args:
         location_id (str):
-        body (LocationBindingRequest):
+        body (LocationBindingRequest): Private provider values for a location on this device.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -149,11 +153,13 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: LocationBindingRequest,
 ) -> Response[ErrorResponse | LocationActionResponse]:
-    """Bind private device credentials or path
+    """Bind private device credentials or path; secret values are never returned.
+
+     Bind private device credentials or path; secret values are never returned.
 
     Args:
         location_id (str):
-        body (LocationBindingRequest):
+        body (LocationBindingRequest): Private provider values for a location on this device.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -179,11 +185,13 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: LocationBindingRequest,
 ) -> ErrorResponse | LocationActionResponse | None:
-    """Bind private device credentials or path
+    """Bind private device credentials or path; secret values are never returned.
+
+     Bind private device credentials or path; secret values are never returned.
 
     Args:
         location_id (str):
-        body (LocationBindingRequest):
+        body (LocationBindingRequest): Private provider values for a location on this device.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

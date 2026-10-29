@@ -32,7 +32,9 @@ IR = extract(ROOT / "contract", "interface")
 # No string holds U+0000, a rule of every string in the contract (IR.md) that the document does not state.
 CONFIG = SchemathesisConfig.from_dict({"generation": {"allow-x00": False}})
 SCHEMA = schemathesis.openapi.from_path(ROOT / "api/openapi.json", config=CONFIG).include(
-    name=[f"{b['method']} {b['path']}" for b in IR["http"]])
+    # A successful change feed stays open; request/response generation would wait forever.
+    # daemon/tests/HttpEvents_test.cpp exercises both its stream and its error responses.
+    name=[f"{b['method']} {b['path']}" for b in IR["http"] if b["path"] != "/events"])
 DAEMON = os.environ.get("HOLDER_DAEMON")
 
 
@@ -45,7 +47,8 @@ def stated_in_words(case) -> bool:
     forms, and a milestone's date holds exactly one of them (see interface/milestones.py), and a
     resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
     Search q must also be valid SQLite FTS5 syntax (see interface/app.py). An asset import's
-    source_path must name a readable regular file on the daemon's host.
+    source_path must name a readable regular file on the daemon's host. Google Drive OAuth state
+    must be issued by the daemon.
     """
     query = case.query or {}
     path = case.path_parameters or {}
@@ -56,7 +59,9 @@ def stated_in_words(case) -> bool:
         "first_day" in query or "last_day" in query or "dates" in body or "resource_id" in body
         or "metadata" in body or "recovery_token" in body) or (
         case.operation.path in ("/search/cards", "/search/ai") and "q" in query) or (
-        case.operation.path == "/imports" and case.method.upper() == "POST")
+        case.operation.path == "/imports" and case.method.upper() == "POST") or (
+        case.operation.path in ("/locations/{location_id}/oauth/google-drive/authorize",
+                                "/locations/{location_id}/oauth/google-drive/callback"))
 
 
 def invalid_only_unsent(case) -> bool:

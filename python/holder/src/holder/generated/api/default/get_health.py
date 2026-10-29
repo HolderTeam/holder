@@ -28,6 +28,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -59,7 +64,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | HealthResponse]:
-    """Health check
+    """Health check.
+
+     Health check.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -82,7 +89,9 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | HealthResponse | None:
-    """Health check
+    """Health check.
+
+     Health check.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -101,7 +110,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | HealthResponse]:
-    """Health check
+    """Health check.
+
+     Health check.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -122,7 +133,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | HealthResponse | None:
-    """Health check
+    """Health check.
+
+     Health check.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
