@@ -1321,7 +1321,8 @@ class Cards(RuleBasedStateMachine):
                     for tag, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
         assert tags == expected
 
-    @rule(data=st.data(), operation=st.sampled_from([op["name"] for op in IR["operations"]]))
+    @rule(data=st.data(), operation=st.sampled_from(
+        [op["name"] for op in IR["operations"] if not op["daemon_only"]]))
     def invalid_arguments_are_rejected(self, data, operation):
         arguments, name = data.draw(self.values().invalid_arguments(operation))
         try:
