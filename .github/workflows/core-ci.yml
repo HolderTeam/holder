@@ -101,9 +101,7 @@ jobs:
             libsodium-dev \
             libgit2-dev \
             libmd4c-dev \
-            libsecret-1-dev \
-            lcov \
-            gcovr
+            libsecret-1-dev
           find "${PWD}/.apt-cache/archives" -maxdepth 1 -type f -name '*.deb' -exec cp {} "${PWD}/.apt-cache/debs/" \;
 
       - name: Save apt package cache
@@ -163,17 +161,6 @@ jobs:
       - name: Test the SDK tooling
         run: python3 -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: Coverage
-        run: ./make.sh coverage
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v7
-        with:
-          name: holder-core-coverage
-          path: core/build-coverage/coverage/**
-          if-no-files-found: error
-          retention-days: 7
-
       - name: Save core compiler cache
         uses: ./.github/actions/core-sdk/ccache-save
         with:
@@ -222,6 +209,49 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python -m pytest tests/conformance -p no:cacheprovider
+
+  coverage:
+    permissions:
+      actions: write
+      contents: read
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@v7
+
+      - name: Install coverage build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake catch2 ninja-build pkg-config libssl-dev nlohmann-json3-dev \
+            libyaml-cpp-dev libspdlog-dev libsqlite3-dev libsodium-dev \
+            libgit2-dev libmd4c-dev libsecret-1-dev lcov gcovr
+
+      - name: Restore coverage compiler cache
+        id: compiler-cache
+        uses: ./.github/actions/core-sdk/ccache
+        with:
+          variant: coverage
+          build-type: Debug
+
+      - name: Build, test, and report coverage
+        run: ./make.sh coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: holder-core-coverage
+          path: core/build-coverage/coverage/**
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Save coverage compiler cache
+        uses: ./.github/actions/core-sdk/ccache-save
+        with:
+          key: ${{ steps.compiler-cache.outputs.key }}
+          prefix: ${{ steps.compiler-cache.outputs.prefix }}
 
   macos:
     permissions:
@@ -468,7 +498,7 @@ jobs:
     # instead of building core, and keeps the newest 32 such releases. Only main may use the
     # holder-sdk-publish environment, which holds the publishing app's key; pull requests never
     # run this job.
-    needs: [linux, conformance, macos, windows, sdk, ubuntu-packages]
+    needs: [linux, conformance, coverage, macos, windows, sdk, ubuntu-packages]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: holder-sdk-publish
@@ -533,7 +563,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, conformance, macos, windows, sdk]
+    needs: [changes, linux, conformance, coverage, macos, windows, sdk]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -548,7 +578,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .conformance, .macos, .windows, .sdk] | all(.result == "success"))
+               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "success"))
              else
-               ([.linux, .conformance, .macos, .windows, .sdk] | all(.result == "skipped"))
+               ([.linux, .conformance, .coverage, .macos, .windows, .sdk] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
