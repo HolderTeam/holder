@@ -474,8 +474,8 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
   return matched;
 }
 
-// The methods both dispatchers serve on a path, for a 405's Allow header.
-std::string allowed_methods(const std::string& path, const std::string& ai_allow) {
+// Methods declared by the contract or served directly by the daemon, for a 405's Allow header.
+std::string allowed_methods(const std::string& path) {
   std::set<std::string> methods;
   for (const auto method : contract_http::allowed_methods(path)) methods.emplace(method);
   const auto route_path = path.substr(0, path.find('?'));
@@ -483,12 +483,6 @@ std::string allowed_methods(const std::string& path, const std::string& ai_allow
   std::smatch match;
   if (std::regex_match(route_path, match, import_job_path) ||
       std::regex_match(route_path, match, asset_content_path)) methods.emplace("GET");
-  for (std::size_t start = 0; methods.empty() && start < ai_allow.size();) {
-    const auto end = ai_allow.find(", ", start);
-    methods.insert(ai_allow.substr(start, end - start));
-    if (end == std::string::npos) break;
-    start = end + 2;
-  }
   std::string allow;
   for (const auto& method : methods) allow += (allow.empty() ? "" : ", ") + method;
   return allow;
@@ -500,7 +494,7 @@ bool is_public_generated_route(const GeneratedRequest& req) {
   const auto target = req.target();
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
-  return ai_http::is_public(method, path) || contract_http::is_public(method, path);
+  return contract_http::is_public(method, path);
 }
 
 bool dispatch_generated_routes(
@@ -541,15 +535,15 @@ bool dispatch_generated_routes(
   try {
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
         dispatch_misc_contract_route(method, path, req, res, context, stream)) return true;
-    // AI requests use their retained C++ dispatcher; other generated routes use core's contract
-    // dispatcher. The Python contract owns the paths and response schemas for both.
+    // AI handlers use the Python contract's generated daemon dispatcher and codec. Core backed
+    // operations use the generated core dispatcher.
     auto generated = ai_http::dispatch(
         method, path, req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {
           const auto field = req.find(boost::beast::string_view(name.data(), name.size()));
           if (field == req.end()) return std::nullopt;
           return std::string(field->value());
         });
-    if (!generated || generated->status == 405) {
+    if (!generated) {
       // The contract's operations run in core with this worker's services. An indexer only
       // refers to its database, so a caller without one gets one on the same database.
       std::optional<holder::index::FtsIndexer> own_fts;
@@ -565,10 +559,10 @@ bool dispatch_generated_routes(
     }
     if (!generated) {
       // A path only the contract serves, with another method.
-      const auto allow = allowed_methods(path, "");
+      const auto allow = allowed_methods(path);
       if (allow.empty()) return false;
       res = support::json_response(http::status::method_not_allowed, ai_json::encode(api_error_body(
-          std::type_identity<ErrorResponse>{}, 405, ai_http::method_not_allowed("method not allowed"))));
+          std::type_identity<ErrorResponse>{}, 405, std::runtime_error("method not allowed"))));
       res.set(http::field::allow, allow);
       return true;
     }
@@ -593,7 +587,6 @@ bool dispatch_generated_routes(
       return true;
     }
     res = support::json_response(static_cast<http::status>(generated->status), generated->body);
-    if (!generated->allow.empty()) res.set(http::field::allow, allowed_methods(path, generated->allow));
   } catch (const std::exception& error) {
     // Operations' own failures are already 500s from the generated dispatcher.
     // This only keeps a failure outside them from escaping to the worker.

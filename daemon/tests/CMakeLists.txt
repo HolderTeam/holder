@@ -20,6 +20,7 @@ target_link_libraries(lock_helper PRIVATE
 
 add_executable(holder_daemon_tests
   EventJournal_test.cpp
+  AiContractRuntime_test.cpp
   ChangeFeed_test.cpp
   HttpEvents_test.cpp
   LockFile_test.cpp

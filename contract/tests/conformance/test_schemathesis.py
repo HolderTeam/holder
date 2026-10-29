@@ -1,7 +1,7 @@
 """Schemathesis against the daemon, on the routes the contract describes.
 
 Schemathesis reads api/openapi.json, the daemon's whole document, and tests the contract's
-operations in it: those that have moved from RIG to the contract. It sends each one requests both
+operations in it. It sends each one requests both
 valid and invalid by the document, and checks that the daemon accepts the valid ones, rejects the
 invalid ones with a 4xx, asks for its token, never fails with a 500, and answers only with
 statuses, media types, headers and bodies the document declares. The Hypothesis state machine in
@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 
+import jsonschema_rs
 import pytest
 import requests
 import schemathesis
@@ -57,6 +60,9 @@ def stated_in_words(case) -> bool:
     path = case.path_parameters or {}
     limit = str(query.get("limit", 200))
     body = case.body if isinstance(case.body, dict) else {}
+    # AI writes and reads depend on runner, provider, database, or reference state that a generated
+    # request cannot establish. Their documented semantic failures are still checked by the
+    # response schema and the HTTP integration tests.
     return case.operation.path.startswith("/ai/") or "cursor" in query or "tag" in query or (
         "tag" in path or "resource_id" in path) or (
         query.get("include_content") in (True, "true", "1") and limit.isdigit() and int(limit) > 1000) or (
@@ -72,22 +78,52 @@ def stated_in_words(case) -> bool:
 def invalid_mutation_not_observed(case) -> bool:
     """Whether every schema violation is lost or ignored before response validation.
 
-    The test sends its own token in place of the Authorization header Schemathesis makes, and an
-    extra query parameter whose value is an empty list is not sent at all. The retained AI
-    dispatcher also ignores unknown query names and receives query values as strings, so a
-    generated query type mutation can become valid on the wire.
+    The test sends its own token in place of the Authorization header Schemathesis makes. Requests
+    also turns a non-string query value into URL text, or omits an empty list, before the daemon can
+    validate it. Only ignore a mutation when that wire value satisfies the parameter's schema.
     """
     mutations = getattr(case.meta.phase.data, "mutations", None) if case.meta else None
     if not case.meta or not case.meta.generation.mode.is_negative or not mutations:
         return False
     declared = {parameter.name for parameter in case.operation.query}
     extras = [value for name, value in (case.query or {}).items() if name not in declared]
+
+    def query_mutation_lost(mutation) -> bool:
+        if mutation.parameter_location is None or mutation.parameter_location.name != "QUERY":
+            return False
+        parameter = next((p for p in case.operation.query if p.name == mutation.parameter), None)
+        if parameter is None or mutation.parameter not in (case.query or {}):
+            return False
+        schema = parameter.definition["schema"]
+        validator = jsonschema_rs.Draft202012Validator(schema)
+        original = case.query[mutation.parameter]
+        if validator.is_valid(original):
+            return False
+        request = requests.Request("GET", "http://holder.invalid/", params={mutation.parameter: original}).prepare()
+        wire_values = parse_qs(urlsplit(request.url).query, keep_blank_values=True).get(mutation.parameter, [])
+        if not wire_values:
+            return not parameter.definition.get("required", False)
+        return len(wire_values) == 1 and validator.is_valid(wire_values[0])
+
     return all(m.parameter == "Authorization" or (
         m.parameter_location is not None and m.parameter_location.name == "QUERY"
-        and ("additionalProperties" in m.keywords and (
-            case.operation.path.startswith("/ai/") or all(value in ([], None) for value in extras))
-            or case.operation.path.startswith("/ai/") and "type" in m.keywords))
+        and "additionalProperties" in m.keywords and all(value in ([], None) for value in extras))
+        or query_mutation_lost(m)
         for m in mutations)
+
+
+def test_negative_query_mutation_that_becomes_a_valid_string_is_not_observable():
+    mutation = SimpleNamespace(parameter="runner_id", parameter_location=SimpleNamespace(name="QUERY"),
+                               keywords=["type"])
+    authorization = SimpleNamespace(parameter="Authorization", parameter_location=SimpleNamespace(name="HEADER"),
+                                    keywords=["required"])
+    case = SimpleNamespace(
+        operation=SCHEMA["/ai/capabilities"]["GET"], query={"runner_id": ["false"]},
+        meta=SimpleNamespace(generation=SimpleNamespace(mode=SimpleNamespace(is_negative=True)),
+                             phase=SimpleNamespace(data=SimpleNamespace(mutations=[mutation, authorization]))))
+    assert invalid_mutation_not_observed(case)
+    case.query = {"runner_id": ["one", "two"]}
+    assert not invalid_mutation_not_observed(case)
 
 
 @pytest.mark.skipif(not DAEMON, reason="set HOLDER_DAEMON to a holderd to run these")

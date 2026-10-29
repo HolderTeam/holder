@@ -1,1118 +1,642 @@
-// Retained AI dispatcher. contract/tests/test_ai_runtime.py checks its route inventory.
+// Generated from contract/interface/app.py, contract/interface/ai.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/daemon_routes.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Do not edit; change the contract, then run make -C contract update.
+//
+// AI HTTP routes generated from contract/interface/app.py.
 #pragma once
 #include "api/generated/AiJson.h"
+#include "api/generated/ContractRoutes.h"
 #include <any>
 #include <charconv>
-#include <exception>
 #include <functional>
-#include <initializer_list>
-#include <limits>
-#include <map>
 #include <optional>
-#include <set>
 #include <regex>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <utility>
-#include <variant>
-
 namespace ai_http {
 using json = nlohmann::json;
-struct response {
-    int status;
-    json body;
-    std::string_view operation;
-    // The methods the path accepts, for a 405's Allow header; empty otherwise.
-    std::string allow = {};
-    // A host-value operation's value, for the host to write the body with; empty otherwise.
+struct response { int status; json body; std::string_view operation;
     std::any host = {};
-    // A text operation's media type, whose body is a JSON string the host writes as text.
-    std::string_view media_type = "application/json";
-};
-// The error passed to api_error_body for a 405.
-struct method_not_allowed : std::runtime_error {
-    using std::runtime_error::runtime_error;
-};
-// The application supplies api_error_body, found by argument-dependent
-// lookup, to build each declared error body from an exception.
-template <typename Body, typename Error>
-json encode_error(int status, const Error& error) {
-    const Body body = api_error_body(std::type_identity<Body>{}, status, error);
-    return ai_json::encode(body);
-}
-inline response invalid_request(const std::exception& error, std::string_view operation) {
-    return {400, encode_error<holder::api::ErrorResponse>(400, error), operation};
-}
-inline void enforce_range(int value, int minimum, int maximum, const char* name) {
-    if (value < minimum || value > maximum)
-        throw std::invalid_argument(std::string("out of range: ") + name);
-}
-inline void enforce_range(const std::optional<int>& value,
-                          int minimum, int maximum, const char* name) {
-    if (value) enforce_range(*value, minimum, maximum, name);
-}
-inline void enforce_int_values(int value, std::initializer_list<int> choices, const char* name) {
-    for (int choice : choices) if (value == choice) return;
-    throw std::invalid_argument(std::string("invalid integer value: ") + name);
-}
-inline void enforce_int_values(const std::optional<int>& value,
-                               std::initializer_list<int> choices, const char* name) {
-    if (value) enforce_int_values(*value, choices, name);
-}
-inline void enforce_string_values(const std::string& value,
-                                  std::initializer_list<std::string_view> choices, const char* name) {
-    for (auto choice : choices) if (value == choice) return;
-    throw std::invalid_argument(std::string("invalid value: ") + name);
-}
-inline void enforce_string_values(const std::optional<std::string>& value,
-                                  std::initializer_list<std::string_view> choices, const char* name) {
-    if (value) enforce_string_values(*value, choices, name);
-}
-inline void enforce_length(const std::string& value, std::size_t minimum, std::size_t maximum,
-                           const char* name) {
-    if (value.size() < minimum || value.size() > maximum)
-        throw std::invalid_argument(std::string("invalid length: ") + name);
-}
-inline void enforce_length(const std::optional<std::string>& value, std::size_t minimum,
-                           std::size_t maximum, const char* name) {
-    if (value) enforce_length(*value, minimum, maximum, name);
-}
-inline void enforce_pattern(const std::string& value, const std::regex& pattern, const char* name) {
-    if (!std::regex_search(value, pattern))
-        throw std::invalid_argument(std::string("invalid format: ") + name);
-}
-inline void enforce_pattern(const std::optional<std::string>& value, const std::regex& pattern,
-                            const char* name) {
-    if (value) enforce_pattern(*value, pattern, name);
-}
-inline int hex_digit(char character) {
-    if (character >= '0' && character <= '9') return character - '0';
-    if (character >= 'a' && character <= 'f') return character - 'a' + 10;
-    if (character >= 'A' && character <= 'F') return character - 'A' + 10;
-    return -1;
-}
-inline std::string decode_uri_component(std::string_view input, bool query) {
-    std::string result;
-    result.reserve(input.size());
-    for (std::size_t index = 0; index < input.size(); ++index) {
-        if (query && input[index] == '+') {
-            result.push_back(' ');
+    std::string_view media_type = "application/json"; };
+using header_lookup = std::function<std::optional<std::string>(std::string_view)>;
+
+// JSON's parser converts negative integers outside int64 to floating point. Check their raw
+// tokens first, so an underflow cannot round back into the contract's accepted range.
+inline void check_negative_integer_tokens(std::string_view body) {
+    bool quoted = false, escaped = false;
+    for (std::size_t i = 0; i < body.size(); ++i) {
+        const char c = body[i];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (c == '\\') escaped = true;
+            else if (c == '"') quoted = false;
             continue;
         }
-        if (input[index] != '%') {
-            result.push_back(input[index]);
+        if (c == '"') { quoted = true; continue; }
+        if (c != '-' || i + 1 >= body.size() || body[i + 1] < '0' || body[i + 1] > '9') continue;
+        std::size_t end = i + 2;
+        while (end < body.size() && body[end] >= '0' && body[end] <= '9') ++end;
+        if (end < body.size() && (body[end] == '.' || body[end] == 'e' || body[end] == 'E')) {
+            i = end - 1;
             continue;
         }
-        if (input.size() - index < 3)
-            throw std::invalid_argument("invalid percent escape in URL parameter");
-        const int high = hex_digit(input[index + 1]);
-        const int low = hex_digit(input[index + 2]);
-        if (high < 0 || low < 0)
-            throw std::invalid_argument("invalid percent escape in URL parameter");
-        result.push_back(static_cast<char>((high << 4) | low));
-        index += 2;
+        long long number;
+        const auto [last, error] = std::from_chars(body.data() + i, body.data() + end, number);
+        if (error == std::errc::result_out_of_range)
+            throw std::invalid_argument("integer outside int64 range");
+        (void)last;
+        i = end - 1;
     }
-    return result;
-}
-inline std::string decode_path_string(std::string_view input) {
-    return decode_uri_component(input, false);
-}
-inline std::map<std::string, std::string> decode_query(std::string_view input) {
-    std::map<std::string, std::string> values;
-    while (!input.empty()) {
-        const auto separator = input.find('&');
-        const auto entry = input.substr(0, separator);
-        const auto equals = entry.find('=');
-        auto key = decode_uri_component(entry.substr(0, equals), true);
-        auto value = equals == std::string_view::npos ? std::string{} :
-            decode_uri_component(entry.substr(equals + 1), true);
-        if (!values.emplace(std::move(key), std::move(value)).second)
-            throw std::invalid_argument("duplicate query parameter");
-        if (separator == std::string_view::npos) break;
-        input.remove_prefix(separator + 1);
-    }
-    return values;
-}
-inline int decode_int(std::string_view input, const char* message) {
-    int value;
-    const auto [end, error] = std::from_chars(input.data(), input.data() + input.size(), value);
-    if (error != std::errc{} || end != input.data() + input.size())
-        throw std::invalid_argument(message);
-    return value;
-}
-inline int decode_path_int(std::string_view input) {
-    return decode_int(input, "invalid integer path parameter");
-}
-inline int decode_query_int(std::string_view input) {
-    return decode_int(input, "invalid integer query parameter");
-}
-inline long long decode_query_int64(std::string_view input) {
-    long long value;
-    const auto [end, error] = std::from_chars(input.data(), input.data() + input.size(), value);
-    if (error != std::errc{} || end != input.data() + input.size())
-        throw std::invalid_argument("invalid integer query parameter");
-    return value;
-}
-inline bool decode_query_bool(std::string_view input) {
-    if (input == "true" || input == "1") return true;
-    if (input == "false" || input == "0") return false;
-    throw std::invalid_argument("invalid boolean query parameter");
 }
 template <typename T> T decode_body(const std::string& body) {
-    try {
-        return ai_json::decode<T>(json::parse(body));
-    } catch (const json::exception& error) {
-        throw std::invalid_argument(error.what());
-    }
+    check_negative_integer_tokens(body);
+    return ai_json::decode<T>(contract_http::decode_body(body));
 }
-// Looks up a request header by name, ignoring case; nothing when it is absent.
-using header_lookup = std::function<std::optional<std::string>(std::string_view)>;
+inline int error_status(const std::exception& error) {
+    if (dynamic_cast<const std::invalid_argument*>(&error)) return 400;
+    if (dynamic_cast<const holder::model::ConflictError*>(&error)) return 409;
+    if (dynamic_cast<const holder::api::AiProviderCatalogMissing*>(&error)) return 400;
+    if (dynamic_cast<const holder::api::AiRunsMissingScope*>(&error)) return 400;
+    if (dynamic_cast<const holder::api::AiMessageWrongState*>(&error)) return 400;
+    if (dynamic_cast<const holder::api::AiCaptureNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiMessageNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiNudgeNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiRunNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiRunnerNotConfigured*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiRunnerNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiThreadNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::PullJobNotFound*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::RunnerNotConfigured*>(&error)) return 404;
+    if (dynamic_cast<const holder::api::AiRunUnavailable*>(&error)) return 503;
+    if (dynamic_cast<const holder::api::ProviderCredentialSecretFailure*>(&error)) return 503;
+    if (dynamic_cast<const holder::api::RunnerUnavailable*>(&error)) return 503;
+    if (dynamic_cast<const holder::api::SecretStoreUnavailable*>(&error)) return 503;
+    return 500;
+}
+inline response failure(int status, const std::exception& error, std::string_view operation) {
+    const auto type = std::type_identity<holder::api::ErrorResponse>{};
+    if (const auto* privacy = dynamic_cast<const holder::privacy::PrivacyError*>(&error))
+        return {status, ai_json::encode(holder::api::api_error_body(type, status, *privacy)), operation};
+    if (const auto* coded = dynamic_cast<const holder::api::CodedError*>(&error))
+        return {status, ai_json::encode(holder::api::api_error_body(type, status, *coded)), operation};
+    return {status, ai_json::encode(holder::api::api_error_body(type, status, error)), operation};
+}
 template <typename Context>
-inline std::optional<response> dispatch(const std::string& method,
-                                    const std::string& path,
-                                    const std::string& body, Context& context,
-                                    const header_lookup& header = {}) {
-    const auto query_start = path.find('?');
-    const auto route_path = path.substr(0, query_start);
-    const auto query_string = query_start == std::string::npos ? std::string_view{} :
-        std::string_view(path).substr(query_start + 1);
+inline std::optional<response> dispatch(const std::string& method, const std::string& path,
+    const std::string& body, Context& context, const header_lookup& header = {}) {
+    const auto separator = path.find('?');
+    const auto route_path = path.substr(0, separator);
+    const auto query_string = separator == std::string::npos ? std::string_view{} :
+        std::string_view(path).substr(separator + 1);
     std::smatch match;
-    (void)body;
-    (void)header;
+    (void)body; (void)context; (void)header;
     static const std::regex route_7("^/ai/messages$");
     if (method == "GET" && std::regex_match(route_path, match, route_7)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<int>> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("thread_id");
-            if (query_0 == query_values.end())
-                throw std::invalid_argument("missing query parameter: thread_id");
-            argument_0.emplace(std::string(query_0->second));
-            const auto query_1 = query_values.find("include_deleted");
-            if (query_1 == query_values.end())
-                argument_1.emplace(std::nullopt);
-            else
-                argument_1.emplace(decode_query_int(query_1->second));
-            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "thread_id");
-            enforce_int_values(*argument_1, {0, 1}, "include_deleted");
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_messages");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_messages");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_messages(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_messages"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"thread_id", "include_deleted"});
+            const auto query_thread_id = query_values.find("thread_id");
+            if (query_thread_id == query_values.end()) throw std::invalid_argument("missing thread_id");
+            auto arg_thread_id = ai_json::check_text(query_thread_id->second, "thread_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_include_deleted = query_values.find("include_deleted");
+            std::optional<int> arg_include_deleted;
+            if (query_include_deleted != query_values.end()) {
+                auto decoded_include_deleted = contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
+                if (decoded_include_deleted != 0 && decoded_include_deleted != 1) throw std::invalid_argument("invalid include_deleted");
+                arg_include_deleted = std::move(decoded_include_deleted);
+            }
+            return response{200, ai_json::encode(holder::api::get_ai_messages(context.db, context.fts, std::move(arg_thread_id), std::move(arg_include_deleted))), "get_ai_messages"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_messages"};
+            return failure(error_status(error), error, "get_ai_messages");
         }
     }
     static const std::regex route_11("^/ai/messages$");
     if (method == "POST" && std::regex_match(route_path, match, route_11)) {
-        std::optional<holder::api::AiMessageCreateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiMessageCreateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_messages");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_messages");
-        }
-        try {
-            return response{201, ai_json::encode(holder::api::post_ai_messages(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages"};
-        } catch (const holder::model::ConflictError& error) {
-            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_ai_messages"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiMessageCreateRequest>(body);
+            return response{201, ai_json::encode(holder::api::post_ai_messages(context.db, context.fts, context.uuid_v4, std::move(arg_request))), "post_ai_messages"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_messages"};
+            return failure(error_status(error), error, "post_ai_messages");
         }
     }
     static const std::regex route_18("^/ai/nudges$");
     if (method == "GET" && std::regex_match(route_path, match, route_18)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<std::string>> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("project_id");
-            if (query_0 == query_values.end())
-                throw std::invalid_argument("missing query parameter: project_id");
-            argument_0.emplace(std::string(query_0->second));
-            const auto query_1 = query_values.find("card_id");
-            if (query_1 == query_values.end())
-                argument_1.emplace(std::nullopt);
-            else
-                argument_1.emplace(std::string(query_1->second));
-            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "project_id");
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_nudges");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_nudges");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_nudges(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "get_ai_nudges"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"project_id", "card_id"});
+            const auto query_project_id = query_values.find("project_id");
+            if (query_project_id == query_values.end()) throw std::invalid_argument("missing project_id");
+            auto arg_project_id = ai_json::check_text(query_project_id->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+            const auto query_card_id = query_values.find("card_id");
+            std::optional<std::string> arg_card_id;
+            if (query_card_id != query_values.end()) {
+                auto decoded_card_id = ai_json::check_text(query_card_id->second, "card_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_card_id = std::move(decoded_card_id);
+            }
+            return response{200, ai_json::encode(holder::api::get_ai_nudges(context.db, context.registry, std::move(arg_project_id), std::move(arg_card_id))), "get_ai_nudges"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_nudges"};
+            return failure(error_status(error), error, "get_ai_nudges");
         }
     }
     static const std::regex route_22("^/ai/runners$");
     if (method == "GET" && std::regex_match(route_path, match, route_22)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::get_ai_runners(context.registry)), "get_ai_runners"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runners"};
+            return failure(error_status(error), error, "get_ai_runners");
         }
     }
     static const std::regex route_24("^/ai/runners$");
     if (method == "POST" && std::regex_match(route_path, match, route_24)) {
-        std::optional<holder::api::AiRunnerCreateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiRunnerCreateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_runners");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_runners");
-        }
-        try {
-            return response{201, ai_json::encode(holder::api::post_ai_runners(context.db, context.registry, context.uuid_v4, std::move(*argument_0))), "post_ai_runners"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runners"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiRunnerCreateRequest>(body);
+            return response{201, ai_json::encode(holder::api::post_ai_runners(context.db, context.registry, context.uuid_v4, std::move(arg_request))), "post_ai_runners"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runners"};
+            return failure(error_status(error), error, "post_ai_runners");
         }
     }
     static const std::regex route_28("^/ai/runs$");
     if (method == "GET" && std::regex_match(route_path, match, route_28)) {
-        std::optional<std::optional<std::string>> argument_0;
-        std::optional<std::optional<std::string>> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("project_id");
-            if (query_0 == query_values.end())
-                argument_0.emplace(std::nullopt);
-            else
-                argument_0.emplace(std::string(query_0->second));
-            const auto query_1 = query_values.find("thread_id");
-            if (query_1 == query_values.end())
-                argument_1.emplace(std::nullopt);
-            else
-                argument_1.emplace(std::string(query_1->second));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_runs");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_runs");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_runs(context.db, std::move(*argument_0), std::move(*argument_1))), "get_ai_runs"};
-        } catch (const holder::api::AiRunsMissingScope& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_runs"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"project_id", "thread_id"});
+            const auto query_project_id = query_values.find("project_id");
+            std::optional<std::string> arg_project_id;
+            if (query_project_id != query_values.end()) {
+                auto decoded_project_id = ai_json::check_text(query_project_id->second, "project_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_project_id = std::move(decoded_project_id);
+            }
+            const auto query_thread_id = query_values.find("thread_id");
+            std::optional<std::string> arg_thread_id;
+            if (query_thread_id != query_values.end()) {
+                auto decoded_thread_id = ai_json::check_text(query_thread_id->second, "thread_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_thread_id = std::move(decoded_thread_id);
+            }
+            return response{200, ai_json::encode(holder::api::get_ai_runs(context.db, std::move(arg_project_id), std::move(arg_thread_id))), "get_ai_runs"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runs"};
+            return failure(error_status(error), error, "get_ai_runs");
         }
     }
     static const std::regex route_30("^/ai/capabilities$");
     if (method == "GET" && std::regex_match(route_path, match, route_30)) {
-        std::optional<std::optional<std::string>> argument_0;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("runner_id");
-            if (query_0 == query_values.end())
-                argument_0.emplace(std::nullopt);
-            else
-                argument_0.emplace(std::string(query_0->second));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_capabilities");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_capabilities");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_capabilities(context.db, context.registry, std::move(*argument_0))), "get_ai_capabilities"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"runner_id"});
+            const auto query_runner_id = query_values.find("runner_id");
+            std::optional<std::string> arg_runner_id;
+            if (query_runner_id != query_values.end()) {
+                auto decoded_runner_id = ai_json::check_text(query_runner_id->second, "runner_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_runner_id = std::move(decoded_runner_id);
+            }
+            return response{200, ai_json::encode(holder::api::get_ai_capabilities(context.db, context.registry, std::move(arg_runner_id))), "get_ai_capabilities"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_capabilities"};
+            return failure(error_status(error), error, "get_ai_capabilities");
         }
     }
     static const std::regex route_31("^/ai/status$");
     if (method == "GET" && std::regex_match(route_path, match, route_31)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::get_ai_status(context.db, context.registry)), "get_ai_status"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_status"};
+            return failure(error_status(error), error, "get_ai_status");
         }
     }
     static const std::regex route_32("^/ai/threads$");
     if (method == "GET" && std::regex_match(route_path, match, route_32)) {
-        std::optional<std::string> argument_0;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("project_id");
-            if (query_0 == query_values.end())
-                throw std::invalid_argument("missing query parameter: project_id");
-            argument_0.emplace(std::string(query_0->second));
-            enforce_length(*argument_0, 1, std::numeric_limits<std::size_t>::max(), "project_id");
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_threads");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_threads");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_threads(context.db, std::move(*argument_0))), "get_ai_threads"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"project_id"});
+            const auto query_project_id = query_values.find("project_id");
+            if (query_project_id == query_values.end()) throw std::invalid_argument("missing project_id");
+            auto arg_project_id = ai_json::check_text(query_project_id->second, "project_id", 1, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_threads(context.db, std::move(arg_project_id))), "get_ai_threads"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_threads"};
+            return failure(error_status(error), error, "get_ai_threads");
         }
     }
     static const std::regex route_34("^/ai/threads$");
     if (method == "POST" && std::regex_match(route_path, match, route_34)) {
-        std::optional<holder::api::AiThreadCreateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiThreadCreateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_threads");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_threads");
-        }
-        try {
-            return response{201, ai_json::encode(holder::api::post_ai_threads(context.db, context.uuid_v4, std::move(*argument_0))), "post_ai_threads"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_threads"};
-        } catch (const holder::model::ConflictError& error) {
-            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_ai_threads"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiThreadCreateRequest>(body);
+            return response{201, ai_json::encode(holder::api::post_ai_threads(context.db, context.uuid_v4, std::move(arg_request))), "post_ai_threads"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_threads"};
+            return failure(error_status(error), error, "post_ai_threads");
         }
     }
     static const std::regex route_40("^/ai/runs$");
     if (method == "POST" && std::regex_match(route_path, match, route_40)) {
-        std::optional<holder::api::AiRunCreateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiRunCreateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_runs");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_runs");
-        }
-        try {
-            auto outcome = holder::api::post_ai_runs(context.socket, context.db, context.fts, context.secret_store, context.registry, context.uuid_v4, context.events, std::move(*argument_0));
-            if (outcome.status != 200)
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiRunCreateRequest>(body);
+            auto outcome = holder::api::post_ai_runs(context.socket, context.db, context.fts, context.secret_store, context.registry, context.uuid_v4, context.events, std::move(arg_request));
+            if (outcome.status != 200 && outcome.status != 204)
                 throw std::logic_error("post_ai_runs chose an undeclared success status");
-            return response{outcome.status, json(), "post_ai_runs", {}, std::move(outcome.value)};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runs"};
-        } catch (const holder::api::AiRunUnavailable& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_ai_runs"};
+            return response{outcome.status, json(), "post_ai_runs", std::move(outcome.value)};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runs"};
+            return failure(error_status(error), error, "post_ai_runs");
         }
     }
     static const std::regex route_1("^/ai/runner/pull$");
     if (method == "POST" && std::regex_match(route_path, match, route_1)) {
-        std::optional<holder::api::PostAiRunnerPullRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::PostAiRunnerPullRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_runner_pull");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_runner_pull");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::post_ai_runner_pull(context.registry, std::move(*argument_0))), "post_ai_runner_pull"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runner_pull"};
-        } catch (const holder::api::RunnerNotConfigured& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_runner_pull"};
-        } catch (const holder::api::RunnerUnavailable& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "post_ai_runner_pull"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::PostAiRunnerPullRequest>(body);
+            return response{200, ai_json::encode(holder::api::post_ai_runner_pull(context.registry, std::move(arg_request))), "post_ai_runner_pull"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runner_pull"};
+            return failure(error_status(error), error, "post_ai_runner_pull");
         }
     }
     static const std::regex route_2("^/ai/providers/credentials$");
     if (method == "GET" && std::regex_match(route_path, match, route_2)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::list_provider_credentials(context.db)), "list_provider_credentials"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_provider_credentials"};
+            return failure(error_status(error), error, "list_provider_credentials");
         }
     }
     static const std::regex route_3("^/ai/providers/credentials$");
     if (method == "PUT" && std::regex_match(route_path, match, route_3)) {
-        std::optional<holder::api::AiProviderCredentialUpsertRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiProviderCredentialUpsertRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "upsert_provider_credential");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "upsert_provider_credential");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "upsert_provider_credential"};
-        } catch (const holder::api::SecretStoreUnavailable& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "upsert_provider_credential"};
-        } catch (const holder::api::ProviderCredentialSecretFailure& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "upsert_provider_credential"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiProviderCredentialUpsertRequest>(body);
+            return response{200, ai_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(arg_request))), "upsert_provider_credential"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "upsert_provider_credential"};
+            return failure(error_status(error), error, "upsert_provider_credential");
         }
     }
     static const std::regex route_5("^/ai/local\\-models/config$");
     if (method == "GET" && std::regex_match(route_path, match, route_5)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::get_local_model_config(context.db)), "get_local_model_config"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_local_model_config"};
+            return failure(error_status(error), error, "get_local_model_config");
         }
     }
     static const std::regex route_6("^/ai/local\\-models/config$");
     if (method == "PUT" && std::regex_match(route_path, match, route_6)) {
-        std::optional<holder::api::AiLocalModelConfigUpdateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiLocalModelConfigUpdateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "put_local_model_config");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "put_local_model_config");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::put_local_model_config(context.db, std::move(*argument_0))), "put_local_model_config"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiLocalModelConfigUpdateRequest>(body);
+            return response{200, ai_json::encode(holder::api::put_local_model_config(context.db, std::move(arg_request))), "put_local_model_config"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_local_model_config"};
+            return failure(error_status(error), error, "put_local_model_config");
         }
     }
     static const std::regex route_17("^/ai/messages/capture$");
     if (method == "POST" && std::regex_match(route_path, match, route_17)) {
-        std::optional<holder::api::AiMessageCaptureRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiMessageCaptureRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_messages_capture");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_messages_capture");
-        }
-        try {
-            return response{201, ai_json::encode(holder::api::post_ai_messages_capture(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages_capture"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_capture"};
-        } catch (const holder::api::AiCaptureNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_messages_capture"};
-        } catch (const holder::model::ConflictError& error) {
-            return response{409, encode_error<holder::api::ErrorResponse>(409, error), "post_ai_messages_capture"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiMessageCaptureRequest>(body);
+            return response{201, ai_json::encode(holder::api::post_ai_messages_capture(context.db, context.fts, context.uuid_v4, std::move(arg_request))), "post_ai_messages_capture"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_messages_capture"};
+            return failure(error_status(error), error, "post_ai_messages_capture");
         }
     }
     static const std::regex route_20("^/ai/nudges/evaluate$");
     if (method == "POST" && std::regex_match(route_path, match, route_20)) {
-        std::optional<holder::api::AiNudgeCandidate> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiNudgeCandidate>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_nudges_evaluate");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_nudges_evaluate");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::post_ai_nudges_evaluate(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_evaluate"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_candidate = decode_body<holder::api::AiNudgeCandidate>(body);
+            return response{200, ai_json::encode(holder::api::post_ai_nudges_evaluate(context.db, context.registry, std::move(arg_candidate))), "post_ai_nudges_evaluate"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_nudges_evaluate"};
+            return failure(error_status(error), error, "post_ai_nudges_evaluate");
         }
     }
     static const std::regex route_21("^/ai/providers/catalog$");
     if (method == "GET" && std::regex_match(route_path, match, route_21)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::get_ai_provider_catalog(context.db)), "get_ai_provider_catalog"};
-        } catch (const holder::api::AiProviderCatalogMissing& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_provider_catalog"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_provider_catalog"};
+            return failure(error_status(error), error, "get_ai_provider_catalog");
         }
     }
     static const std::regex route_37("^/ai/providers/settings$");
     if (method == "GET" && std::regex_match(route_path, match, route_37)) {
         try {
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
             return response{200, ai_json::encode(holder::api::list_provider_settings(context.db)), "list_provider_settings"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_provider_settings"};
+            return failure(error_status(error), error, "list_provider_settings");
         }
     }
     static const std::regex route_38("^/ai/providers/settings$");
     if (method == "PUT" && std::regex_match(route_path, match, route_38)) {
-        std::optional<holder::api::AiProviderSettingUpdateRequest> argument_0;
         try {
-            argument_0.emplace(decode_body<holder::api::AiProviderSettingUpdateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "set_provider_setting");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "set_provider_setting");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "set_provider_setting"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_request = decode_body<holder::api::AiProviderSettingUpdateRequest>(body);
+            return response{200, ai_json::encode(holder::api::set_provider_setting(context.db, std::move(arg_request))), "set_provider_setting"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "set_provider_setting"};
+            return failure(error_status(error), error, "set_provider_setting");
         }
     }
     static const std::regex route_0("^/ai/runner/pull/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_0)) {
-        std::optional<std::optional<std::string>> argument_0;
-        std::optional<std::string> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("runner_id");
-            if (query_0 == query_values.end())
-                argument_0.emplace(std::nullopt);
-            else
-                argument_0.emplace(std::string(query_0->second));
-            argument_1.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_pull_status");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_pull_status");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
-        } catch (const holder::api::RunnerNotConfigured& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_pull_status"};
-        } catch (const holder::api::PullJobNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_pull_status"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"runner_id"});
+            const auto query_runner_id = query_values.find("runner_id");
+            std::optional<std::string> arg_runner_id;
+            if (query_runner_id != query_values.end()) {
+                auto decoded_runner_id = ai_json::check_text(query_runner_id->second, "runner_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_runner_id = std::move(decoded_runner_id);
+            }
+            auto arg_job_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "job_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_pull_status(context.registry, std::move(arg_runner_id), std::move(arg_job_id))), "get_pull_status"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_pull_status"};
+            return failure(error_status(error), error, "get_pull_status");
         }
     }
     static const std::regex route_4("^/ai/providers/credentials/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_4)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_provider_credential");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_provider_credential");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "delete_provider_credential"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_credential"};
-        } catch (const holder::api::SecretStoreUnavailable& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "delete_provider_credential"};
-        } catch (const holder::api::ProviderCredentialSecretFailure& error) {
-            return response{503, encode_error<holder::api::ErrorResponse>(503, error), "delete_provider_credential"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_provider = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "provider", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::delete_provider_credential(context.db, context.secret_store, std::move(arg_provider))), "delete_provider_credential"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_provider_credential"};
+            return failure(error_status(error), error, "delete_provider_credential");
         }
     }
     static const std::regex route_39("^/ai/providers/settings/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_39)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_provider_setting");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_provider_setting");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_setting"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_provider = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "provider", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::delete_provider_setting(context.db, std::move(arg_provider))), "delete_provider_setting"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_provider_setting"};
+            return failure(error_status(error), error, "delete_provider_setting");
         }
     }
     static const std::regex route_42("^/ai/runner/pull/([^/]+)/events$");
     if (method == "GET" && std::regex_match(route_path, match, route_42)) {
-        std::optional<std::optional<std::string>> argument_0;
-        std::optional<std::optional<std::string>> argument_1;
-        std::optional<std::string> argument_2;
         try {
-            const auto query_values = decode_query(query_string);
-            const auto query_0 = query_values.find("runner_id");
-            if (query_0 == query_values.end())
-                argument_0.emplace(std::nullopt);
-            else
-                argument_0.emplace(std::string(query_0->second));
-            auto header_1 = header ? header("Last-Event-ID") : std::nullopt;
-            argument_1.emplace(std::move(header_1));
-            argument_2.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_runner_pull_job_id_events");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_runner_pull_job_id_events");
-        }
-        try {
-            auto outcome = holder::api::get_ai_runner_pull_job_id_events(context.registry, context.events, std::move(*argument_0), std::move(*argument_1), std::move(*argument_2));
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"runner_id"});
+            const auto query_runner_id = query_values.find("runner_id");
+            std::optional<std::string> arg_runner_id;
+            if (query_runner_id != query_values.end()) {
+                auto decoded_runner_id = ai_json::check_text(query_runner_id->second, "runner_id", 0, std::numeric_limits<std::size_t>::max());
+                arg_runner_id = std::move(decoded_runner_id);
+            }
+            auto arg_last_event_id = header ? header("Last-Event-ID") : std::nullopt;
+            auto arg_job_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "job_id", 0, std::numeric_limits<std::size_t>::max());
+            auto outcome = holder::api::get_ai_runner_pull_job_id_events(context.registry, context.events, std::move(arg_runner_id), std::move(arg_last_event_id), std::move(arg_job_id));
             if (outcome.status != 200 && outcome.status != 204)
                 throw std::logic_error("get_ai_runner_pull_job_id_events chose an undeclared success status");
-            return response{outcome.status, json(), "get_ai_runner_pull_job_id_events", {}, std::move(outcome.value)};
-        } catch (const holder::api::RunnerNotConfigured& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_runner_pull_job_id_events"};
-        } catch (const holder::api::PullJobNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_runner_pull_job_id_events"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_runner_pull_job_id_events"};
+            return response{outcome.status, json(), "get_ai_runner_pull_job_id_events", std::move(outcome.value)};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runner_pull_job_id_events"};
+            return failure(error_status(error), error, "get_ai_runner_pull_job_id_events");
         }
     }
     static const std::regex route_8("^/ai/messages/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_8)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_message");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_message");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_message(context.db, context.fts, std::move(*argument_0))), "get_ai_message"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_message(context.db, context.fts, std::move(arg_message_id))), "get_ai_message"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_message"};
+            return failure(error_status(error), error, "get_ai_message");
         }
     }
     static const std::regex route_12("^/ai/messages/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, match, route_12)) {
-        std::optional<std::string> argument_0;
-        std::optional<holder::api::AiMessageUpdateRequest> argument_1;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(decode_body<holder::api::AiMessageUpdateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "patch_ai_messages_message_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "patch_ai_messages_message_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::patch_ai_messages_message_id(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "patch_ai_messages_message_id"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_messages_message_id"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_ai_messages_message_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            auto arg_request = decode_body<holder::api::AiMessageUpdateRequest>(body);
+            return response{200, ai_json::encode(holder::api::patch_ai_messages_message_id(context.db, context.fts, std::move(arg_message_id), std::move(arg_request))), "patch_ai_messages_message_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_ai_messages_message_id"};
+            return failure(error_status(error), error, "patch_ai_messages_message_id");
         }
     }
     static const std::regex route_13("^/ai/messages/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_13)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_ai_messages_message_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_ai_messages_message_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id(context.db, context.fts, std::move(*argument_0))), "delete_ai_messages_message_id"};
-        } catch (const holder::api::AiMessageWrongState& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_messages_message_id"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_ai_messages_message_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id(context.db, context.fts, std::move(arg_message_id))), "delete_ai_messages_message_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_ai_messages_message_id"};
+            return failure(error_status(error), error, "delete_ai_messages_message_id");
         }
     }
     static const std::regex route_23("^/ai/runners/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_23)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_runner");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_runner");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_runner(context.registry, std::move(*argument_0))), "get_ai_runner"};
-        } catch (const holder::api::AiRunnerNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_runner"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_runner_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "runner_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_runner(context.registry, std::move(arg_runner_id))), "get_ai_runner"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runner"};
+            return failure(error_status(error), error, "get_ai_runner");
         }
     }
     static const std::regex route_25("^/ai/runners/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, match, route_25)) {
-        std::optional<std::string> argument_0;
-        std::optional<holder::api::AiRunnerUpdateRequest> argument_1;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(decode_body<holder::api::AiRunnerUpdateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "patch_ai_runners_runner_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "patch_ai_runners_runner_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::patch_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "patch_ai_runners_runner_id"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_runners_runner_id"};
-        } catch (const holder::api::AiRunnerNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_ai_runners_runner_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_runner_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "runner_id", 0, std::numeric_limits<std::size_t>::max());
+            auto arg_request = decode_body<holder::api::AiRunnerUpdateRequest>(body);
+            return response{200, ai_json::encode(holder::api::patch_ai_runners_runner_id(context.db, context.registry, std::move(arg_runner_id), std::move(arg_request))), "patch_ai_runners_runner_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_ai_runners_runner_id"};
+            return failure(error_status(error), error, "patch_ai_runners_runner_id");
         }
     }
     static const std::regex route_26("^/ai/runners/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_26)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_ai_runners_runner_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_ai_runners_runner_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0))), "delete_ai_runners_runner_id"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_runners_runner_id"};
-        } catch (const holder::api::AiRunnerNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_ai_runners_runner_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_runner_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "runner_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::delete_ai_runners_runner_id(context.db, context.registry, std::move(arg_runner_id))), "delete_ai_runners_runner_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_ai_runners_runner_id"};
+            return failure(error_status(error), error, "delete_ai_runners_runner_id");
         }
     }
     static const std::regex route_29("^/ai/runs/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_29)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_run");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_run");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_run(context.db, std::move(*argument_0))), "get_ai_run"};
-        } catch (const holder::api::AiRunNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_run"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_run_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "run_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_run(context.db, std::move(arg_run_id))), "get_ai_run"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_run"};
+            return failure(error_status(error), error, "get_ai_run");
         }
     }
     static const std::regex route_33("^/ai/threads/([^/]+)$");
     if (method == "GET" && std::regex_match(route_path, match, route_33)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_thread");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_thread");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_thread(context.db, std::move(*argument_0))), "get_ai_thread"};
-        } catch (const holder::api::AiThreadNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_thread"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_thread_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "thread_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_thread(context.db, std::move(arg_thread_id))), "get_ai_thread"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_thread"};
+            return failure(error_status(error), error, "get_ai_thread");
         }
     }
     static const std::regex route_35("^/ai/threads/([^/]+)$");
     if (method == "PATCH" && std::regex_match(route_path, match, route_35)) {
-        std::optional<std::string> argument_0;
-        std::optional<holder::api::AiThreadUpdateRequest> argument_1;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(decode_body<holder::api::AiThreadUpdateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "patch_ai_threads_thread_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "patch_ai_threads_thread_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::patch_ai_threads_thread_id(context.db, std::move(*argument_0), std::move(*argument_1))), "patch_ai_threads_thread_id"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_threads_thread_id"};
-        } catch (const holder::api::AiThreadNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "patch_ai_threads_thread_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_thread_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "thread_id", 0, std::numeric_limits<std::size_t>::max());
+            auto arg_request = decode_body<holder::api::AiThreadUpdateRequest>(body);
+            return response{200, ai_json::encode(holder::api::patch_ai_threads_thread_id(context.db, std::move(arg_thread_id), std::move(arg_request))), "patch_ai_threads_thread_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "patch_ai_threads_thread_id"};
+            return failure(error_status(error), error, "patch_ai_threads_thread_id");
         }
     }
     static const std::regex route_36("^/ai/threads/([^/]+)$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_36)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_ai_threads_thread_id");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_ai_threads_thread_id");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_ai_threads_thread_id(context.db, std::move(*argument_0))), "delete_ai_threads_thread_id"};
-        } catch (const holder::api::AiThreadNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_ai_threads_thread_id"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_thread_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "thread_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::delete_ai_threads_thread_id(context.db, std::move(arg_thread_id))), "delete_ai_threads_thread_id"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_ai_threads_thread_id"};
+            return failure(error_status(error), error, "delete_ai_threads_thread_id");
         }
     }
     static const std::regex route_9("^/ai/messages/([^/]+)/links$");
     if (method == "GET" && std::regex_match(route_path, match, route_9)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<int>> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            argument_0.emplace(decode_path_string(match[1].str()));
-            const auto query_1 = query_values.find("include_deleted");
-            if (query_1 == query_values.end())
-                argument_1.emplace(std::nullopt);
-            else
-                argument_1.emplace(decode_query_int(query_1->second));
-            enforce_int_values(*argument_1, {0, 1}, "include_deleted");
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_message_links");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_message_links");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_message_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_links"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message_links"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"include_deleted"});
+            const auto query_include_deleted = query_values.find("include_deleted");
+            std::optional<int> arg_include_deleted;
+            if (query_include_deleted != query_values.end()) {
+                auto decoded_include_deleted = contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
+                if (decoded_include_deleted != 0 && decoded_include_deleted != 1) throw std::invalid_argument("invalid include_deleted");
+                arg_include_deleted = std::move(decoded_include_deleted);
+            }
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_message_links(context.db, context.fts, std::move(arg_message_id), std::move(arg_include_deleted))), "get_ai_message_links"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_message_links"};
+            return failure(error_status(error), error, "get_ai_message_links");
         }
     }
     static const std::regex route_10("^/ai/messages/([^/]+)/backlinks$");
     if (method == "GET" && std::regex_match(route_path, match, route_10)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<int>> argument_1;
         try {
-            const auto query_values = decode_query(query_string);
-            argument_0.emplace(decode_path_string(match[1].str()));
-            const auto query_1 = query_values.find("include_deleted");
-            if (query_1 == query_values.end())
-                argument_1.emplace(std::nullopt);
-            else
-                argument_1.emplace(decode_query_int(query_1->second));
-            enforce_int_values(*argument_1, {0, 1}, "include_deleted");
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_message_backlinks");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_message_backlinks");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::get_ai_message_backlinks(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_backlinks"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message_backlinks"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {"include_deleted"});
+            const auto query_include_deleted = query_values.find("include_deleted");
+            std::optional<int> arg_include_deleted;
+            if (query_include_deleted != query_values.end()) {
+                auto decoded_include_deleted = contract_http::decode_integer<int>(query_include_deleted->second, "include_deleted");
+                if (decoded_include_deleted != 0 && decoded_include_deleted != 1) throw std::invalid_argument("invalid include_deleted");
+                arg_include_deleted = std::move(decoded_include_deleted);
+            }
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::get_ai_message_backlinks(context.db, context.fts, std::move(arg_message_id), std::move(arg_include_deleted))), "get_ai_message_backlinks"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_message_backlinks"};
+            return failure(error_status(error), error, "get_ai_message_backlinks");
         }
     }
     static const std::regex route_14("^/ai/messages/([^/]+)/restore$");
     if (method == "POST" && std::regex_match(route_path, match, route_14)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_messages_message_id_restore");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_messages_message_id_restore");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::post_ai_messages_message_id_restore(context.db, context.fts, std::move(*argument_0))), "post_ai_messages_message_id_restore"};
-        } catch (const holder::api::AiMessageWrongState& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_message_id_restore"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_messages_message_id_restore"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::post_ai_messages_message_id_restore(context.db, context.fts, std::move(arg_message_id))), "post_ai_messages_message_id_restore"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_messages_message_id_restore"};
+            return failure(error_status(error), error, "post_ai_messages_message_id_restore");
         }
     }
     static const std::regex route_15("^/ai/messages/([^/]+)/links$");
     if (method == "POST" && std::regex_match(route_path, match, route_15)) {
-        std::optional<std::string> argument_0;
-        std::optional<holder::api::routes::CardLinkCreateRequest> argument_1;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(decode_body<holder::api::routes::CardLinkCreateRequest>(body));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_messages_message_id_links");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_messages_message_id_links");
-        }
-        try {
-            return response{201, ai_json::encode(holder::api::post_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "post_ai_messages_message_id_links"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_message_id_links"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_messages_message_id_links"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            auto arg_request = decode_body<holder::api::routes::CardLinkCreateRequest>(body);
+            return response{201, ai_json::encode(holder::api::post_ai_messages_message_id_links(context.db, context.fts, std::move(arg_message_id), std::move(arg_request))), "post_ai_messages_message_id_links"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_messages_message_id_links"};
+            return failure(error_status(error), error, "post_ai_messages_message_id_links");
         }
     }
     static const std::regex route_16("^/ai/messages/([^/]+)/links$");
     if (method == "DELETE" && std::regex_match(route_path, match, route_16)) {
-        std::optional<std::string> argument_0;
-        std::optional<std::optional<holder::api::CardLinkDeleteRequest>> argument_1;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-            argument_1.emplace(body.empty() ? std::optional<holder::api::CardLinkDeleteRequest>{} : std::optional<holder::api::CardLinkDeleteRequest>(decode_body<holder::api::CardLinkDeleteRequest>(body)));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "delete_ai_messages_message_id_links");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "delete_ai_messages_message_id_links");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "delete_ai_messages_message_id_links"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_messages_message_id_links"};
-        } catch (const holder::api::AiMessageNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_ai_messages_message_id_links"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_message_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "message_id", 0, std::numeric_limits<std::size_t>::max());
+            std::optional<holder::api::CardLinkDeleteRequest> arg_request;
+            if (!body.empty()) arg_request = decode_body<holder::api::CardLinkDeleteRequest>(body);
+            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id_links(context.db, context.fts, std::move(arg_message_id), std::move(arg_request))), "delete_ai_messages_message_id_links"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "delete_ai_messages_message_id_links"};
+            return failure(error_status(error), error, "delete_ai_messages_message_id_links");
         }
     }
     static const std::regex route_19("^/ai/nudges/([^/]+)/dismiss$");
     if (method == "POST" && std::regex_match(route_path, match, route_19)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_nudges_nudge_id_dismiss");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_nudges_nudge_id_dismiss");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::post_ai_nudges_nudge_id_dismiss(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_nudge_id_dismiss"};
-        } catch (const holder::api::AiNudgeNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_nudges_nudge_id_dismiss"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_nudge_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "nudge_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::post_ai_nudges_nudge_id_dismiss(context.db, context.registry, std::move(arg_nudge_id))), "post_ai_nudges_nudge_id_dismiss"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_nudges_nudge_id_dismiss"};
+            return failure(error_status(error), error, "post_ai_nudges_nudge_id_dismiss");
         }
     }
     static const std::regex route_27("^/ai/runners/([^/]+)/retry$");
     if (method == "POST" && std::regex_match(route_path, match, route_27)) {
-        std::optional<std::string> argument_0;
         try {
-            argument_0.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "post_ai_runners_runner_id_retry");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "post_ai_runners_runner_id_retry");
-        }
-        try {
-            return response{200, ai_json::encode(holder::api::post_ai_runners_runner_id_retry(context.registry, std::move(*argument_0))), "post_ai_runners_runner_id_retry"};
-        } catch (const holder::api::AiRunnerNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_runners_runner_id_retry"};
-        } catch (const holder::api::AiRunnerNotConfigured& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_runners_runner_id_retry"};
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_runner_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "runner_id", 0, std::numeric_limits<std::size_t>::max());
+            return response{200, ai_json::encode(holder::api::post_ai_runners_runner_id_retry(context.registry, std::move(arg_runner_id))), "post_ai_runners_runner_id_retry"};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_runners_runner_id_retry"};
+            return failure(error_status(error), error, "post_ai_runners_runner_id_retry");
         }
     }
     static const std::regex route_41("^/ai/runs/([^/]+)/events$");
     if (method == "GET" && std::regex_match(route_path, match, route_41)) {
-        std::optional<std::optional<std::string>> argument_0;
-        std::optional<std::string> argument_1;
         try {
-            auto header_0 = header ? header("Last-Event-ID") : std::nullopt;
-            argument_0.emplace(std::move(header_0));
-            argument_1.emplace(decode_path_string(match[1].str()));
-        } catch (const std::invalid_argument& error) {
-            return invalid_request(error, "get_ai_runs_run_id_events");
-        } catch (const std::out_of_range& error) {
-            return invalid_request(error, "get_ai_runs_run_id_events");
-        }
-        try {
-            auto outcome = holder::api::get_ai_runs_run_id_events(context.db, context.events, std::move(*argument_0), std::move(*argument_1));
+            const auto query_values = contract_http::decode_query(query_string);
+            contract_http::check_query_names(query_values, {});
+            auto arg_last_event_id = header ? header("Last-Event-ID") : std::nullopt;
+            auto arg_run_id = ai_json::check_text(contract_http::decode_uri_component(match[1].str(), false), "run_id", 0, std::numeric_limits<std::size_t>::max());
+            auto outcome = holder::api::get_ai_runs_run_id_events(context.db, context.events, std::move(arg_last_event_id), std::move(arg_run_id));
             if (outcome.status != 200 && outcome.status != 204)
                 throw std::logic_error("get_ai_runs_run_id_events chose an undeclared success status");
-            return response{outcome.status, json(), "get_ai_runs_run_id_events", {}, std::move(outcome.value)};
-        } catch (const holder::api::AiRunNotFound& error) {
-            return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_runs_run_id_events"};
-        } catch (const std::invalid_argument& error) {
-            return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_runs_run_id_events"};
+            return response{outcome.status, json(), "get_ai_runs_run_id_events", std::move(outcome.value)};
         } catch (const std::exception& error) {
-            return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runs_run_id_events"};
+            return failure(error_status(error), error, "get_ai_runs_run_id_events");
         }
-    }
-    std::set<std::string_view> allowed;
-    static const std::regex path_0("^/ai/messages$");
-    if (std::regex_match(route_path, path_0)) allowed.insert({"GET", "POST"});
-    static const std::regex path_1("^/ai/nudges$");
-    if (std::regex_match(route_path, path_1)) allowed.insert({"GET"});
-    static const std::regex path_2("^/ai/runners$");
-    if (std::regex_match(route_path, path_2)) allowed.insert({"GET", "POST"});
-    static const std::regex path_3("^/ai/runs$");
-    if (std::regex_match(route_path, path_3)) allowed.insert({"GET", "POST"});
-    static const std::regex path_4("^/ai/capabilities$");
-    if (std::regex_match(route_path, path_4)) allowed.insert({"GET"});
-    static const std::regex path_5("^/ai/status$");
-    if (std::regex_match(route_path, path_5)) allowed.insert({"GET"});
-    static const std::regex path_6("^/ai/threads$");
-    if (std::regex_match(route_path, path_6)) allowed.insert({"GET", "POST"});
-    static const std::regex path_7("^/ai/runner/pull$");
-    if (std::regex_match(route_path, path_7)) allowed.insert({"POST"});
-    static const std::regex path_8("^/ai/providers/credentials$");
-    if (std::regex_match(route_path, path_8)) allowed.insert({"GET", "PUT"});
-    static const std::regex path_9("^/ai/local\\-models/config$");
-    if (std::regex_match(route_path, path_9)) allowed.insert({"GET", "PUT"});
-    static const std::regex path_10("^/ai/messages/capture$");
-    if (std::regex_match(route_path, path_10)) allowed.insert({"POST"});
-    static const std::regex path_11("^/ai/nudges/evaluate$");
-    if (std::regex_match(route_path, path_11)) allowed.insert({"POST"});
-    static const std::regex path_12("^/ai/providers/catalog$");
-    if (std::regex_match(route_path, path_12)) allowed.insert({"GET"});
-    static const std::regex path_13("^/ai/providers/settings$");
-    if (std::regex_match(route_path, path_13)) allowed.insert({"GET", "PUT"});
-    static const std::regex path_14("^/ai/runner/pull/([^/]+)$");
-    if (std::regex_match(route_path, path_14)) allowed.insert({"GET"});
-    static const std::regex path_15("^/ai/providers/credentials/([^/]+)$");
-    if (std::regex_match(route_path, path_15)) allowed.insert({"DELETE"});
-    static const std::regex path_16("^/ai/providers/settings/([^/]+)$");
-    if (std::regex_match(route_path, path_16)) allowed.insert({"DELETE"});
-    static const std::regex path_17("^/ai/runner/pull/([^/]+)/events$");
-    if (std::regex_match(route_path, path_17)) allowed.insert({"GET"});
-    static const std::regex path_18("^/ai/messages/([^/]+)$");
-    if (std::regex_match(route_path, path_18)) allowed.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_19("^/ai/runners/([^/]+)$");
-    if (std::regex_match(route_path, path_19)) allowed.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_20("^/ai/runs/([^/]+)$");
-    if (std::regex_match(route_path, path_20)) allowed.insert({"GET"});
-    static const std::regex path_21("^/ai/threads/([^/]+)$");
-    if (std::regex_match(route_path, path_21)) allowed.insert({"DELETE", "GET", "PATCH"});
-    static const std::regex path_22("^/ai/messages/([^/]+)/links$");
-    if (std::regex_match(route_path, path_22)) allowed.insert({"DELETE", "GET", "POST"});
-    static const std::regex path_23("^/ai/messages/([^/]+)/backlinks$");
-    if (std::regex_match(route_path, path_23)) allowed.insert({"GET"});
-    static const std::regex path_24("^/ai/messages/([^/]+)/restore$");
-    if (std::regex_match(route_path, path_24)) allowed.insert({"POST"});
-    static const std::regex path_25("^/ai/nudges/([^/]+)/dismiss$");
-    if (std::regex_match(route_path, path_25)) allowed.insert({"POST"});
-    static const std::regex path_26("^/ai/runners/([^/]+)/retry$");
-    if (std::regex_match(route_path, path_26)) allowed.insert({"POST"});
-    static const std::regex path_27("^/ai/runs/([^/]+)/events$");
-    if (std::regex_match(route_path, path_27)) allowed.insert({"GET"});
-    if (!allowed.empty()) {
-        std::string allow;
-        for (const auto allowed_method : allowed) {
-            if (!allow.empty()) allow += ", ";
-            allow += allowed_method;
-        }
-        const method_not_allowed error("method not allowed");
-        return response{405, encode_error<holder::api::ErrorResponse>(405, error), "", std::move(allow)};
     }
     return std::nullopt;
-}
-// Whether the operation dispatch would select for this request is RIG_PUBLIC,
-// so the hosting server can skip authentication for it.
-inline bool is_public(const std::string& method, const std::string& path) {
-    (void)method;
-    (void)path;
-    return false;
-}
-// Whether the operation dispatch would select for this request is a RIG_HOST_RESPONSE
-// operation, so the hosting server serves only the routes the contract declares.
-inline bool is_host_served(const std::string& method, const std::string& path) {
-    (void)method;
-    (void)path;
-    return false;
 }
 } // namespace ai_http
