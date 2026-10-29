@@ -140,6 +140,7 @@ set(HOLDER_CORE_SOURCES
   src/api/RecoveryTokens.cpp
   src/api/Rebuild.cpp
   src/api/Resources.cpp
+  src/api/Locations.cpp
   src/api/Search.cpp
   src/api/ContractCApi.cpp
   src/capi/holder.cpp

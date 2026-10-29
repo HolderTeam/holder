@@ -1,4 +1,4 @@
-// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+// Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -173,6 +173,25 @@ template <typename T> struct codec<std::map<std::string, T>> {
             }
         }
         return result;
+    }
+};
+
+template <> struct codec<holder::contract::ProjectStorageLocationProvider> {
+    static json encode(holder::contract::ProjectStorageLocationProvider value) {
+        switch (value) {
+        case holder::contract::ProjectStorageLocationProvider::LocalDirectory: return "local_directory";
+        case holder::contract::ProjectStorageLocationProvider::S3Compatible: return "s3_compatible";
+        case holder::contract::ProjectStorageLocationProvider::GoogleDrive: return "google-drive";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::ProjectStorageLocationProvider decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "local_directory") return holder::contract::ProjectStorageLocationProvider::LocalDirectory;
+        if (text == "s3_compatible") return holder::contract::ProjectStorageLocationProvider::S3Compatible;
+        if (text == "google-drive") return holder::contract::ProjectStorageLocationProvider::GoogleDrive;
+        throw std::invalid_argument("must be one of local_directory, s3_compatible, google-drive");
     }
 };
 
@@ -458,6 +477,25 @@ template <> struct codec<holder::contract::TrashItemType> {
     }
 };
 
+template <> struct codec<holder::contract::NewStorageLocationProvider> {
+    static json encode(holder::contract::NewStorageLocationProvider value) {
+        switch (value) {
+        case holder::contract::NewStorageLocationProvider::LocalDirectory: return "local_directory";
+        case holder::contract::NewStorageLocationProvider::S3Compatible: return "s3_compatible";
+        case holder::contract::NewStorageLocationProvider::GoogleDrive: return "google-drive";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::NewStorageLocationProvider decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "local_directory") return holder::contract::NewStorageLocationProvider::LocalDirectory;
+        if (text == "s3_compatible") return holder::contract::NewStorageLocationProvider::S3Compatible;
+        if (text == "google-drive") return holder::contract::NewStorageLocationProvider::GoogleDrive;
+        throw std::invalid_argument("must be one of local_directory, s3_compatible, google-drive");
+    }
+};
+
 template <> struct codec<holder::contract::CardReferenceResolveRequestScope> {
     static json encode(holder::contract::CardReferenceResolveRequestScope value) {
         switch (value) {
@@ -544,6 +582,14 @@ template <> struct codec<holder::contract::NewProjectPrivacyMode> {
     }
 };
 
+template <> struct codec<holder::contract::ProjectStorageLocation> {
+    static json encode(const holder::contract::ProjectStorageLocation& value);
+    static holder::contract::ProjectStorageLocation decode(const json& value);
+};
+template <> struct codec<holder::contract::LocationDeleteResult> {
+    static json encode(const holder::contract::LocationDeleteResult& value);
+    static holder::contract::LocationDeleteResult decode(const json& value);
+};
 template <> struct codec<holder::contract::TagOccurrence> {
     static json encode(const holder::contract::TagOccurrence& value);
     static holder::contract::TagOccurrence decode(const json& value);
@@ -748,6 +794,14 @@ template <> struct codec<holder::contract::SearchMessage> {
     static json encode(const holder::contract::SearchMessage& value);
     static holder::contract::SearchMessage decode(const json& value);
 };
+template <> struct codec<holder::contract::NewStorageLocation> {
+    static json encode(const holder::contract::NewStorageLocation& value);
+    static holder::contract::NewStorageLocation decode(const json& value);
+};
+template <> struct codec<holder::contract::StorageLocationUpdate> {
+    static json encode(const holder::contract::StorageLocationUpdate& value);
+    static holder::contract::StorageLocationUpdate decode(const json& value);
+};
 template <> struct codec<holder::contract::CardReferenceResolveRequest> {
     static json encode(const holder::contract::CardReferenceResolveRequest& value);
     static holder::contract::CardReferenceResolveRequest decode(const json& value);
@@ -816,6 +870,98 @@ template <> struct codec<holder::contract::RemoteTest> {
     static json encode(const holder::contract::RemoteTest& value);
     static holder::contract::RemoteTest decode(const json& value);
 };
+
+inline json codec<holder::contract::ProjectStorageLocation>::encode(const holder::contract::ProjectStorageLocation& value) {
+    json result = json::object();
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["provider"] = codec<holder::contract::ProjectStorageLocationProvider>::encode(value.provider);
+    result["configuration"] = codec<std::map<std::string, std::string>>::encode(value.configuration);
+    result["bound"] = codec<bool>::encode(value.bound);
+    result["binding_preview"] = value.binding_preview ? codec<std::string>::encode(*value.binding_preview) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::ProjectStorageLocation codec<holder::contract::ProjectStorageLocation>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a ProjectStorageLocation object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "location_id" && it.key() != "project_id" && it.key() != "name" && it.key() != "provider" && it.key() != "configuration" && it.key() != "bound" && it.key() != "binding_preview" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("ProjectStorageLocation has no field " + it.key());
+    holder::contract::ProjectStorageLocation out;
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("provider") && !value.at("provider").is_null()) {
+        const auto& item = value.at("provider");
+        out.provider = decode_field<holder::contract::ProjectStorageLocationProvider>(item, "provider");
+    } else {
+        throw std::invalid_argument("provider is required and must not be null");
+    }
+    if (value.contains("configuration") && !value.at("configuration").is_null()) {
+        const auto& item = value.at("configuration");
+        out.configuration = [&] { auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration"); for (const auto& [key, text] : entries) { check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max()); check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else {
+        throw std::invalid_argument("configuration is required and must not be null");
+    }
+    if (value.contains("bound") && !value.at("bound").is_null()) {
+        const auto& item = value.at("bound");
+        out.bound = decode_field<bool>(item, "bound");
+    } else {
+        throw std::invalid_argument("bound is required and must not be null");
+    }
+    if (value.contains("binding_preview") && !value.at("binding_preview").is_null()) {
+        const auto& item = value.at("binding_preview");
+        out.binding_preview = check_text(decode_field<std::string>(item, "binding_preview"), "binding_preview", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::LocationDeleteResult>::encode(const holder::contract::LocationDeleteResult& value) {
+    json result = json::object();
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    return result;
+}
+inline holder::contract::LocationDeleteResult codec<holder::contract::LocationDeleteResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a LocationDeleteResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "location_id") throw std::invalid_argument("LocationDeleteResult has no field " + it.key());
+    holder::contract::LocationDeleteResult out;
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    return out;
+}
 
 inline json codec<holder::contract::TagOccurrence>::encode(const holder::contract::TagOccurrence& value) {
     json result = json::object();
@@ -3235,6 +3381,100 @@ inline holder::contract::SearchMessage codec<holder::contract::SearchMessage>::d
         out.rank = decode_field<double>(item, "rank");
     } else {
         throw std::invalid_argument("rank is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::NewStorageLocation>::encode(const holder::contract::NewStorageLocation& value) {
+    json result = json::object();
+    if (value.location_id) result["location_id"] = codec<std::string>::encode(*value.location_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["provider"] = codec<holder::contract::NewStorageLocationProvider>::encode(value.provider);
+    if (value.configuration) result["configuration"] = codec<std::map<std::string, std::string>>::encode(*value.configuration);
+    if (value.created_at) result["created_at"] = codec<long long>::encode(*value.created_at);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::NewStorageLocation codec<holder::contract::NewStorageLocation>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a NewStorageLocation object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "location_id" && it.key() != "project_id" && it.key() != "name" && it.key() != "provider" && it.key() != "configuration" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("NewStorageLocation has no field " + it.key());
+    holder::contract::NewStorageLocation out;
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 0, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("location_id")) {
+        throw std::invalid_argument("location_id must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("provider") && !value.at("provider").is_null()) {
+        const auto& item = value.at("provider");
+        out.provider = decode_field<holder::contract::NewStorageLocationProvider>(item, "provider");
+    } else {
+        throw std::invalid_argument("provider is required and must not be null");
+    }
+    if (value.contains("configuration") && !value.at("configuration").is_null()) {
+        const auto& item = value.at("configuration");
+        out.configuration = [&] { auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration"); for (const auto& [key, text] : entries) { check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max()); check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else if (value.contains("configuration")) {
+        throw std::invalid_argument("configuration must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else if (value.contains("created_at")) {
+        throw std::invalid_argument("created_at must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::StorageLocationUpdate>::encode(const holder::contract::StorageLocationUpdate& value) {
+    json result = json::object();
+    if (value.name) result["name"] = codec<std::string>::encode(*value.name);
+    if (value.configuration) result["configuration"] = codec<std::map<std::string, std::string>>::encode(*value.configuration);
+    if (value.updated_at) result["updated_at"] = codec<long long>::encode(*value.updated_at);
+    return result;
+}
+inline holder::contract::StorageLocationUpdate codec<holder::contract::StorageLocationUpdate>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a StorageLocationUpdate object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "name" && it.key() != "configuration" && it.key() != "updated_at") throw std::invalid_argument("StorageLocationUpdate has no field " + it.key());
+    holder::contract::StorageLocationUpdate out;
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("name")) {
+        throw std::invalid_argument("name must not be null");
+    }
+    if (value.contains("configuration") && !value.at("configuration").is_null()) {
+        const auto& item = value.at("configuration");
+        out.configuration = [&] { auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration"); for (const auto& [key, text] : entries) { check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max()); check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else if (value.contains("configuration")) {
+        throw std::invalid_argument("configuration must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else if (value.contains("updated_at")) {
+        throw std::invalid_argument("updated_at must not be null");
     }
     return out;
 }

@@ -12,6 +12,7 @@ struct holder_context {
   std::vector<holder::contract::Link> links;
   std::vector<holder::contract::Milestone> milestones;
   std::vector<holder::contract::Resource> resources;
+  std::vector<holder::contract::ProjectStorageLocation> locations;
   std::vector<holder::contract::Project> projects;
   int next_id = 1;
 };
@@ -571,6 +572,42 @@ RebuildResult rebuild_project(holder_context& context, const RebuildRequest& req
 ReindexResult reindex_search(holder_context& context) {
   (void)context;
   return {"Reindex complete."};
+}
+
+ProjectStorageLocation get_storage_location(holder_context& context, std::string location_id) {
+  for (const auto& location : context.locations)
+    if (location.location_id == location_id) return location;
+  throw NotFound("location not found");
+}
+
+ProjectStorageLocation create_storage_location(holder_context& context, const NewStorageLocation& request) {
+  const auto value = ProjectStorageLocation{request.location_id ? *request.location_id
+                                                                : "l" + std::to_string(context.next_id++),
+      request.project_id, request.name, static_cast<ProjectStorageLocationProvider>(request.provider),
+      request.configuration.value_or(std::map<std::string, std::string>{}), false, std::nullopt,
+      request.created_at.value_or(1793000500), request.updated_at.value_or(1793000500)};
+  context.locations.push_back(value);
+  return value;
+}
+
+ProjectStorageLocation update_storage_location(holder_context& context, std::string location_id,
+                                        const StorageLocationUpdate& request) {
+  for (auto& location : context.locations) {
+    if (location.location_id != location_id) continue;
+    if (request.name) location.name = *request.name;
+    if (request.configuration) location.configuration = *request.configuration;
+    location.updated_at = request.updated_at.value_or(1793000600);
+    return location;
+  }
+  throw NotFound("location not found");
+}
+
+LocationDeleteResult delete_storage_location(holder_context& context, std::string location_id) {
+  auto it = std::find_if(context.locations.begin(), context.locations.end(),
+                         [&](const auto& location) { return location.location_id == location_id; });
+  if (it == context.locations.end()) throw NotFound("location not found");
+  context.locations.erase(it);
+  return {std::move(location_id)};
 }
 }  // namespace holder::contract
 

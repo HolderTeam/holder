@@ -42,6 +42,8 @@ remove a milestone: status 0, 0 left
 create a resource: status 0, res-1 website identifier=https://example.com/a,https://example.com/b
 update a resource with a repeated name: status 1, resource_update.metadata repeats a key
 attach a resource: status 0, 1 attached
+create location: status 0, bucket=photos
+update location with a repeated option: status 1, storage_location_update.configuration repeats a key
 create a project: status 0, p5 Garden privacy 1
 create a project with an unknown privacy mode: status 1, new_project.privacy_mode is not a holder_new_project_privacy_mode value
 list projects: status 0, 1 found

@@ -37,12 +37,4 @@ StorageLocationListResponse get_locations(holder::platform::Db& db RIG_CONTEXT,
                                           holder::privacy::SecretStore* secret_store RIG_CONTEXT,
                                           std::string project_id RIG_QUERY RIG_MIN_LENGTH(1));
 
-RIG_ROUTE(GET, "/locations/{location_id}")
-RIG_SUMMARY("Get a storage location")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", LocationNotFound)
-StorageLocationResponse get_location(holder::platform::Db& db RIG_CONTEXT,
-                                     holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-                                     std::string location_id);
-
 } // namespace holder::api

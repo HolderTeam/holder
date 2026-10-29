@@ -49,13 +49,4 @@ StorageLocationListResponse get_locations(holder::platform::Db& db,
   return response;
 }
 
-StorageLocationResponse get_location(holder::platform::Db& db,
-                                     holder::privacy::SecretStore* secret_store,
-                                     std::string location_id) {
-  const auto location = holder::resource::LocationRepo(db).get(location_id);
-  if (!location) throw LocationNotFound{};
-  const auto bindings = binding_store(secret_store);
-  return {true, location_item(*location, bindings.get())};
-}
-
 } // namespace holder::api

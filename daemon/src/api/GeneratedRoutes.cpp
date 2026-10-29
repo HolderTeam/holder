@@ -152,6 +152,7 @@ bool dispatch_generated_routes(
       // refers to its database, so a caller without one gets one on the same database.
       std::optional<holder::index::FtsIndexer> own_fts;
       holder_context core(db, fts != nullptr ? *fts : own_fts.emplace(db), git_ops);
+      core.secret_store = secret_store;
       const auto paths = holder::core::Paths::resolve("holder");
       core.projects_root = holder::core::default_projects_root();
       core.registry_path = paths.project_registry_path();

@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
+ * Generated from contract/interface/app.py, contract/interface/card_references.py, contract/interface/cards.py, contract/interface/errors.py, contract/interface/git.py, contract/interface/history.py, contract/interface/links.py, contract/interface/locations.py, contract/interface/maintenance.py, contract/interface/milestones.py, contract/interface/projects.py, contract/interface/rebuild.py, contract/interface/recovery.py, contract/interface/resources.py, contract/interface/search.py, contract/interface/trash.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -54,6 +54,17 @@ typedef struct holder_string_list {
     size_t count;
 } holder_string_list;
 
+/* Portable non-secret provider options. */
+typedef struct holder_location_configuration_entry {
+    const char* key;
+    const char* values;
+} holder_location_configuration_entry;
+
+typedef struct holder_location_configuration {
+    const holder_location_configuration_entry* items;
+    size_t count;
+} holder_location_configuration;
+
 /* What is known about a resource: each name, such as identifier or author, with its values in order. A name is
  * not empty.
  */
@@ -79,6 +90,32 @@ typedef struct holder_string_change {
     holder_change change;
     const char* value; /* Read when change is HOLDER_SET. */
 } holder_string_change;
+
+/* Storage provider kind. */
+typedef enum holder_new_storage_location_provider {
+    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+    HOLDER_NEW_STORAGE_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_new_storage_location_provider;
+
+/* A portable location declaration to create. */
+typedef struct holder_new_storage_location {
+    const char* location_id; /* Optional imported ID; Holder makes one when omitted or empty. NULL when absent. */
+    const char* project_id; /* The owning project. */
+    const char* name; /* Display name. */
+    holder_new_storage_location_provider provider; /* Storage provider kind. */
+    const holder_location_configuration* configuration; /* Portable non-secret provider configuration; empty when omitted. NULL when absent. */
+    const int64_t* created_at; /* Imported creation time; current time when omitted. NULL when absent. */
+    const int64_t* updated_at; /* Imported update time; creation time when omitted. NULL when absent. */
+} holder_new_storage_location;
+
+/* Changes to a portable location declaration. */
+typedef struct holder_storage_location_update {
+    const char* name; /* Replacement display name. NULL when absent. */
+    const holder_location_configuration* configuration; /* Replacement configuration map. NULL when absent. */
+    const int64_t* updated_at; /* Update time; current time when omitted. NULL when absent. */
+} holder_storage_location_update;
 
 /* Which cards may match. */
 typedef enum holder_card_reference_resolve_request_scope {
@@ -255,6 +292,32 @@ typedef struct holder_push_options {
 typedef struct holder_remote_test {
     const char* remote_url; /* The Git remote to test; omit for the project's own. NULL when absent. */
 } holder_remote_test;
+
+/* Storage provider kind. */
+typedef enum holder_project_storage_location_provider {
+    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY = 1,
+    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_S3_COMPATIBLE = 2,
+    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_GOOGLE_DRIVE = 3,
+    HOLDER_PROJECT_STORAGE_LOCATION_PROVIDER_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */
+} holder_project_storage_location_provider;
+
+/* A portable declaration with this device's binding status. */
+typedef struct holder_project_storage_location {
+    const char* location_id; /* The location's ID. */
+    const char* project_id; /* The owning project. */
+    const char* name; /* Display name. */
+    holder_project_storage_location_provider provider; /* Storage provider kind. */
+    holder_location_configuration configuration; /* Portable non-secret provider configuration. */
+    bool bound; /* Whether this device has a private binding. */
+    const char* binding_preview; /* Safe binding display text, or null; credentials are never returned. May be NULL. */
+    int64_t created_at; /* When the declaration was created. */
+    int64_t updated_at; /* When the declaration was last updated. */
+} holder_project_storage_location;
+
+/* The location affected by an action. */
+typedef struct holder_location_delete_result {
+    const char* location_id; /* The affected location ID. */
+} holder_location_delete_result;
 
 /* A tag written in a card's content. */
 typedef struct holder_tag_occurrence {
@@ -967,6 +1030,26 @@ typedef struct holder_search_message_list {
     const holder_search_message* items;
     size_t count;
 } holder_search_message_list;
+
+/* Get a storage declaration and this device's binding status.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+
+/* Create a project's portable storage declaration.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_create_storage_location(holder_context* context, const holder_new_storage_location* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+
+/* Change a storage declaration; configuration replaces the whole map.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_update_storage_location(holder_context* context, const char* location_id, const holder_storage_location_update* request, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error);
+
+/* Delete an unused declaration, its binding and its preferred setting on this device.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_CONFLICT.
+ */
+int holder_delete_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_location_delete_result** out_location_delete_result, holder_error** out_error);
 
 /* Fetch a card.
  * A card in the trash or in another project is not found.

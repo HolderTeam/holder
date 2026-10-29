@@ -5,7 +5,6 @@
 #include "api/RigAnnotations.h"
 #include "api/Schemas.h"
 #include "api/support/StorageErrors.h"
-#include "model/ConflictError.h"
 
 #include <functional>
 #include <map>
@@ -15,25 +14,8 @@
 
 namespace holder::platform { class Db; }
 namespace holder::privacy { class SecretStore; }
-namespace holder::git { class GitOps; }
 
 namespace holder::api {
-
-struct RIG_OPEN_RECORD StorageLocationRequest {
-  std::optional<std::string> location_id RIG_FIELD_DESCRIPTION("Optional; server generates if omitted or empty.") RIG_OMIT_EMPTY;
-  std::string project_id;
-  std::string name;
-  std::string provider RIG_STRING_VALUES("local_directory", "s3_compatible", "google-drive");
-  std::optional<std::map<std::string, std::string>> configuration RIG_OMIT_EMPTY;
-  std::optional<long long> created_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses created_at if omitted.") RIG_OMIT_EMPTY;
-};
-
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PatchLocationsLocationIdRequest {
-  std::optional<std::string> name RIG_OMIT_EMPTY;
-  std::optional<std::map<std::string, std::string>> configuration RIG_FIELD_DESCRIPTION("Replaces the whole configuration.") RIG_OMIT_EMPTY;
-  std::optional<long long> updated_at RIG_FIELD_DESCRIPTION("Optional; server uses current time if omitted.") RIG_OMIT_EMPTY;
-};
 
 struct RIG_OPEN_RECORD RIG_INLINE_RECORD LocationActionResponseData {
   std::string location_id;
@@ -64,41 +46,6 @@ struct RIG_OPEN_RECORD RIG_INLINE_RECORD PutLocationsPreferredRequest {
   std::string project_id;
   std::string location_id;
 };
-
-RIG_ROUTE(POST, "/locations")
-RIG_SUMMARY("Create a storage location declaration")
-RIG_RESPONSE_DESCRIPTION("Created")
-RIG_SUCCESS_STATUS(201)
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request, including a project that does not exist", std::invalid_argument)
-StorageLocationResponse post_locations(holder::platform::Db& db RIG_CONTEXT,
-                                       holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-                                       holder::git::GitOps* git_ops RIG_CONTEXT,
-                                       const std::function<std::string()>& uuid_v4 RIG_CONTEXT,
-                                       StorageLocationRequest request);
-
-RIG_ROUTE(PATCH, "/locations/{location_id}")
-RIG_SUMMARY("Update a storage location declaration")
-RIG_RESPONSE_DESCRIPTION("Updated")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Bad request", std::invalid_argument)
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", LocationNotFound)
-StorageLocationResponse patch_locations_location_id(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-    holder::git::GitOps* git_ops RIG_CONTEXT,
-    std::string location_id,
-    PatchLocationsLocationIdRequest request);
-
-RIG_ROUTE(DELETE, "/locations/{location_id}")
-RIG_SUMMARY("Delete an unused storage location declaration")
-RIG_DESCRIPTION("Also removes this device's binding, and the preferred location if it was this one.")
-RIG_RESPONSE_DESCRIPTION("Deleted")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", LocationNotFound)
-RIG_ERROR_RESPONSE(409, ErrorResponse, "A live placement still uses the location", holder::model::ConflictError)
-LocationActionResponse delete_locations_location_id(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-    holder::git::GitOps* git_ops RIG_CONTEXT,
-    std::string location_id);
 
 RIG_ROUTE(PUT, "/locations/{location_id}/binding")
 RIG_SUMMARY("Bind private device credentials or path")

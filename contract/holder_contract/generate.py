@@ -206,8 +206,9 @@ class Model:
             values = self.resolve(ref["values"])
             if "alias" not in ref:
                 raise Unsupported(f"{name}: a map without a name of its own")
-            if values["kind"] != "list" or self.resolve(values["items"])["kind"] != "string":
-                raise Unsupported(f"{name}: maps to anything but lists of strings")
+            string_list = values["kind"] == "list" and self.resolve(values["items"])["kind"] == "string"
+            if values["kind"] != "string" and not string_list:
+                raise Unsupported(f"{name}: maps to anything but strings or lists of strings")
         if ref["kind"] in ("json", "secret", "stream", "bytes", "none"):
             raise Unsupported(f"{name}: {ref['kind']}")
         if "pattern" in ref:
@@ -393,8 +394,10 @@ def generate_c_header(model: Model) -> str:
     for ref in model.maps.values():
         name = map_c_name(ref)
         alias = model.aliases[ref["alias"]]
+        value_type = ("const char*" if model.resolve(ref["values"])["kind"] == "string"
+                      else "holder_string_list")
         out += comment(alias.get("doc"))
-        out += [f"typedef struct {name}_entry {{", "    const char* key;", "    holder_string_list values;",
+        out += [f"typedef struct {name}_entry {{", "    const char* key;", f"    {value_type} values;",
                 f"}} {name}_entry;", "", f"typedef struct {name} {{", f"    const {name}_entry* items;",
                 "    size_t count;", f"}} {name};", ""]
     if model.changes():
@@ -936,7 +939,24 @@ def generate_glue(model: Model) -> str:
 def map_glue(model: Model, ref: dict[str, Any]) -> list[str]:
     """A map's conversions: entries in the C++ map's order, and back, rejecting a repeated key."""
     name, cpp, alias = map_c_name(ref), cpp_base(model, ref, {}), snake(ref["alias"])
-    low, high = limits(model.resolve(model.resolve(ref["values"])["items"]))
+    values_ref = model.resolve(ref["values"])
+    if values_ref["kind"] == "string":
+        low, high = limits(values_ref)
+        return [f"{name} to_c_{alias}(holder_arena* arena, const {cpp}& value) {{",
+                f"  auto* items = make<{name}_entry>(arena, value.size());",
+                "  std::size_t i = 0;",
+                "  for (const auto& [key, text] : value) items[i++] = {copy(arena, key), copy(arena, text)};",
+                "  return {items, value.size()};", "}", "",
+                f"{cpp} from_c_{alias}(const {name}& value, const char* name) {{",
+                '  require(value.items != nullptr || value.count == 0, std::string(name) + ".items must not be null");',
+                f"  {cpp} out;",
+                "  for (std::size_t i = 0; i < value.count; ++i) {",
+                "    const auto& entry = value.items[i];",
+                '    auto key = text(entry.key, (std::string(name) + " key").c_str(), 0, SIZE_MAX);',
+                f'    auto value_text = text(entry.values, (std::string(name) + "." + key).c_str(), {low}, {high});',
+                '    require(out.emplace(std::move(key), std::move(value_text)).second, std::string(name) + " repeats a key");',
+                "  }", "  return out;", "}", ""]
+    low, high = limits(model.resolve(values_ref["items"]))
     return [f"{name} to_c_{alias}(holder_arena* arena, const {cpp}& value) {{",
             f"  auto* items = make<{name}_entry>(arena, value.size());",
             "  std::size_t i = 0;",
