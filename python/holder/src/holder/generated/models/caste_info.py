@@ -14,10 +14,11 @@ T = TypeVar("T", bound="CasteInfo")
 
 @_attrs_define
 class CasteInfo:
-    """
+    """CasteInfo.
+
     Attributes:
-        name (CasteInfoName):
-        reason (None | str):
+        name (CasteInfoName): The name.
+        reason (None | str): The reason.
     """
 
     name: CasteInfoName

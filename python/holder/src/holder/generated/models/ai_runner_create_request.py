@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import (
+    Any,
+    Literal,
+    TypeVar,
+    cast,
+)
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-from ..models.ai_runner_create_request_kind import AiRunnerCreateRequestKind
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="AiRunnerCreateRequest")
@@ -15,28 +19,33 @@ T = TypeVar("T", bound="AiRunnerCreateRequest")
 
 @_attrs_define
 class AiRunnerCreateRequest:
-    """
+    """AI RunnerCreateRequest.
+
     Attributes:
-        name (str):
-        kind (AiRunnerCreateRequestKind):
+        name (str): The name.
+        kind (Literal['ollama']): The kind.
         base_url (str): http://host:port
-        enabled (bool | Unset): Optional; defaults to true.
+        enabled (bool | None | Unset): Optional; defaults to true.
     """
 
     name: str
-    kind: AiRunnerCreateRequestKind
+    kind: Literal["ollama"]
     base_url: str
-    enabled: bool | Unset = UNSET
+    enabled: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
-        kind = self.kind.value
+        kind = self.kind
 
         base_url = self.base_url
 
-        enabled = self.enabled
+        enabled: bool | None | Unset
+        if isinstance(self.enabled, Unset):
+            enabled = UNSET
+        else:
+            enabled = self.enabled
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -57,11 +66,20 @@ class AiRunnerCreateRequest:
         d = dict(src_dict)
         name = d.pop("name")
 
-        kind = AiRunnerCreateRequestKind(d.pop("kind"))
+        kind = cast(Literal["ollama"], d.pop("kind"))
+        if kind != "ollama":
+            raise ValueError(f"kind must match const 'ollama', got '{kind}'")
 
         base_url = d.pop("base_url")
 
-        enabled = d.pop("enabled", UNSET)
+        def _parse_enabled(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        enabled = _parse_enabled(d.pop("enabled", UNSET))
 
         ai_runner_create_request = cls(
             name=name,

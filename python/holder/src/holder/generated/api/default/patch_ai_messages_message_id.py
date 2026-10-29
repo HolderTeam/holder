@@ -9,13 +9,13 @@ from ...client import AuthenticatedClient, Client
 from ...models.ai_message_update_request import AiMessageUpdateRequest
 from ...models.ai_message_update_response import AiMessageUpdateResponse
 from ...models.error_response import ErrorResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     message_id: str,
     *,
-    body: AiMessageUpdateRequest,
+    body: AiMessageUpdateRequest | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -26,7 +26,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -83,13 +84,15 @@ def sync_detailed(
     message_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiMessageUpdateRequest,
+    body: AiMessageUpdateRequest | Unset = UNSET,
 ) -> Response[AiMessageUpdateResponse | ErrorResponse]:
     """Update an AI message
 
+     Update an AI message
+
     Args:
         message_id (str):
-        body (AiMessageUpdateRequest):
+        body (AiMessageUpdateRequest | Unset): AI MessageUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -115,13 +118,15 @@ def sync(
     message_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiMessageUpdateRequest,
+    body: AiMessageUpdateRequest | Unset = UNSET,
 ) -> AiMessageUpdateResponse | ErrorResponse | None:
     """Update an AI message
 
+     Update an AI message
+
     Args:
         message_id (str):
-        body (AiMessageUpdateRequest):
+        body (AiMessageUpdateRequest | Unset): AI MessageUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -142,13 +147,15 @@ async def asyncio_detailed(
     message_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiMessageUpdateRequest,
+    body: AiMessageUpdateRequest | Unset = UNSET,
 ) -> Response[AiMessageUpdateResponse | ErrorResponse]:
     """Update an AI message
 
+     Update an AI message
+
     Args:
         message_id (str):
-        body (AiMessageUpdateRequest):
+        body (AiMessageUpdateRequest | Unset): AI MessageUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,13 +179,15 @@ async def asyncio(
     message_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiMessageUpdateRequest,
+    body: AiMessageUpdateRequest | Unset = UNSET,
 ) -> AiMessageUpdateResponse | ErrorResponse | None:
     """Update an AI message
 
+     Update an AI message
+
     Args:
         message_id (str):
-        body (AiMessageUpdateRequest):
+        body (AiMessageUpdateRequest | Unset): AI MessageUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

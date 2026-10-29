@@ -14,18 +14,19 @@ T = TypeVar("T", bound="CardLink")
 
 @_attrs_define
 class CardLink:
-    """
+    """CardLink.
+
     Attributes:
-        from_card_id (str):
-        to_card_id (str):
+        from_card_id (str): The from card id.
+        to_card_id (str): The to card id.
         to_type (str): Target type (card, ai_message, ai_thread, resource).
-        kind (str):
-        created_at (int):
-        target_project_id (str | Unset): Present for a card target in another project; omitted for a local target. The
-            link grants no access to the target.
-        source_project_id (str | Unset): Present on a cross-project backlink; identifies the available project that owns
-            the link.
-        label (None | str | Unset):
+        kind (str): The kind.
+        created_at (int): The created at.
+        target_project_id (None | str | Unset): Present for a card target in another project; omitted for a local
+            target. The link grants no access to the target.
+        source_project_id (None | str | Unset): Present on a cross-project backlink; identifies the available project
+            that owns the link.
+        label (None | str | Unset): The label.
     """
 
     from_card_id: str
@@ -33,8 +34,8 @@ class CardLink:
     to_type: str
     kind: str
     created_at: int
-    target_project_id: str | Unset = UNSET
-    source_project_id: str | Unset = UNSET
+    target_project_id: None | str | Unset = UNSET
+    source_project_id: None | str | Unset = UNSET
     label: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -49,9 +50,17 @@ class CardLink:
 
         created_at = self.created_at
 
-        target_project_id = self.target_project_id
+        target_project_id: None | str | Unset
+        if isinstance(self.target_project_id, Unset):
+            target_project_id = UNSET
+        else:
+            target_project_id = self.target_project_id
 
-        source_project_id = self.source_project_id
+        source_project_id: None | str | Unset
+        if isinstance(self.source_project_id, Unset):
+            source_project_id = UNSET
+        else:
+            source_project_id = self.source_project_id
 
         label: None | str | Unset
         if isinstance(self.label, Unset):
@@ -92,9 +101,23 @@ class CardLink:
 
         created_at = d.pop("created_at")
 
-        target_project_id = d.pop("target_project_id", UNSET)
+        def _parse_target_project_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        source_project_id = d.pop("source_project_id", UNSET)
+        target_project_id = _parse_target_project_id(d.pop("target_project_id", UNSET))
+
+        def _parse_source_project_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        source_project_id = _parse_source_project_id(d.pop("source_project_id", UNSET))
 
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/ProviderCredentials.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 
 #include <optional>
@@ -13,59 +13,53 @@ namespace holder::platform { class Db; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD CasteInfo {
-  std::string name RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
-  std::optional<std::string> reason RIG_NULLABLE;
+struct CasteInfo {
+  std::string name;
+  std::optional<std::string> reason;
 };
 
-struct RIG_OPEN_RECORD CasteRecommendedModel {
+struct CasteRecommendedModel {
   std::string tag;
-  std::optional<std::string> provider RIG_NULLABLE;
-  std::optional<std::string> engine RIG_NULLABLE;
-  std::optional<std::string> category RIG_NULLABLE;
-  std::string required_caste RIG_STRING_VALUES("mini", "user", "developer", "workstation", "rig");
+  std::optional<std::string> provider;
+  std::optional<std::string> engine;
+  std::optional<std::string> category;
+  std::string required_caste;
   bool installed;
 };
 
-struct RIG_OPEN_RECORD RunnerCapabilitiesData {
+struct RunnerCapabilitiesData {
   AiLocalModelConfigData local_model_config;
-  std::optional<std::optional<CasteInfo>> caste RIG_OMIT_EMPTY RIG_NULLABLE RIG_FIELD_DESCRIPTION("This machine's hardware caste, or null when it cannot be detected.");
+  std::optional<std::optional<CasteInfo>> caste;
   std::vector<AiRunner> runners;
-  std::vector<CasteRecommendedModel> recommended_models RIG_FIELD_DESCRIPTION("Catalog models this machine's caste can run, best first.");
-  std::vector<CasteRecommendedModel> recommended_install RIG_FIELD_DESCRIPTION("The recommended models that the selected runner has not installed.");
+  std::vector<CasteRecommendedModel> recommended_models;
+  std::vector<CasteRecommendedModel> recommended_install;
 };
 
-struct RIG_OPEN_RECORD RunnerCapabilitiesResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct RunnerCapabilitiesResponse {
+  bool ok;
   RunnerCapabilitiesData data;
 };
 
-struct RIG_OPEN_RECORD AiStatusData {
+struct AiStatusData {
   long long checked_at;
-  long long active_runs RIG_FIELD_DESCRIPTION("Runs still in progress across every project.");
-  long long active_pull_jobs RIG_FIELD_DESCRIPTION("Active pulls across every runner.");
+  long long active_runs;
+  long long active_pull_jobs;
   std::vector<AiRunner> runners;
   std::vector<AiProviderCredential> cloud;
   long long cloud_configured_providers;
 };
 
-struct RIG_OPEN_RECORD AiStatusResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct AiStatusResponse {
+  bool ok;
   AiStatusData data;
 };
 
-RIG_ROUTE(GET, "/ai/capabilities")
-RIG_SUMMARY("Get local model runner capabilities")
-RIG_RESPONSE_DESCRIPTION("OK")
 RunnerCapabilitiesResponse get_ai_capabilities(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::llm::RunnerRegistry* registry RIG_CONTEXT,
-    std::optional<std::string> runner_id RIG_QUERY RIG_PARAMETER_DESCRIPTION("The runner whose installed models decide recommended_install; defaults to auto-local."));
+    holder::platform::Db& db,
+    holder::llm::RunnerRegistry* registry,
+    std::optional<std::string> runner_id);
 
-RIG_ROUTE(GET, "/ai/status")
-RIG_SUMMARY("Get live AI runtime status")
-RIG_RESPONSE_DESCRIPTION("OK")
-AiStatusResponse get_ai_status(holder::platform::Db& db RIG_CONTEXT,
-                               holder::llm::RunnerRegistry* registry RIG_CONTEXT);
+AiStatusResponse get_ai_status(holder::platform::Db& db,
+                               holder::llm::RunnerRegistry* registry);
 
 } // namespace holder::api

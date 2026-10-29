@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiThreadGetResponse | ErrorResponse]:
     """Fetch an AI thread
 
+     Fetch an AI thread
+
     Args:
         thread_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiThreadGetResponse | ErrorResponse | None:
     """Fetch an AI thread
 
+     Fetch an AI thread
+
     Args:
         thread_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiThreadGetResponse | ErrorResponse]:
     """Fetch an AI thread
+
+     Fetch an AI thread
 
     Args:
         thread_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiThreadGetResponse | ErrorResponse | None:
     """Fetch an AI thread
+
+     Fetch an AI thread
 
     Args:
         thread_id (str):

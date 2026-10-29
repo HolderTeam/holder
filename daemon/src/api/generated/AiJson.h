@@ -1,6 +1,6 @@
-// Generated from RIG IR; do not edit.
+// Retained AI JSON codec. AI route schemas are declared in contract/interface/.
 #pragma once
-#include "api/RigRuntime.h"
+#include "api/AiRuntime.h"
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <limits>
@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace rig_json {
+namespace ai_json {
 using json = nlohmann::json;
 template <typename T> struct codec;
 
@@ -2575,44 +2575,44 @@ inline holder::api::routes::CardLinkCreateRequest codec<holder::api::routes::Car
 
 template <typename T> json encode(const T& value) { return codec<T>::encode(value); }
 template <typename T> T decode(const json& value) { return codec<T>::decode(value); }
-} // namespace rig_json
+} // namespace ai_json
 
 // An event can only be built with the data type its operation declares for it.
-namespace rig_events {
-inline rig::event<nlohmann::json> chunk(const holder::api::AiRunEventData& data) {
-    return {"chunk", rig_json::encode(data)};
+namespace ai_events {
+inline api_runtime::event<nlohmann::json> chunk(const holder::api::AiRunEventData& data) {
+    return {"chunk", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> completed(const holder::api::RunnerPullJob& data) {
-    return {"completed", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> completed(const holder::api::RunnerPullJob& data) {
+    return {"completed", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> done(const holder::api::AiRunEventData& data) {
-    return {"done", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> done(const holder::api::AiRunEventData& data) {
+    return {"done", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> failed(const holder::api::AiRunEventData& data) {
-    return {"failed", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> failed(const holder::api::AiRunEventData& data) {
+    return {"failed", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> failed(const holder::api::RunnerPullJob& data) {
-    return {"failed", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> failed(const holder::api::RunnerPullJob& data) {
+    return {"failed", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> fallback(const holder::api::AiRunEventData& data) {
-    return {"fallback", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> fallback(const holder::api::AiRunEventData& data) {
+    return {"fallback", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> progress(const holder::api::AiRunEventData& data) {
-    return {"progress", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> progress(const holder::api::AiRunEventData& data) {
+    return {"progress", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> progress(const holder::api::RunnerPullJob& data) {
-    return {"progress", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> progress(const holder::api::RunnerPullJob& data) {
+    return {"progress", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> resync_required(const holder::api::AiStreamResyncData& data) {
-    return {"resync_required", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> resync_required(const holder::api::AiStreamResyncData& data) {
+    return {"resync_required", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> router(const holder::api::AiRunEventData& data) {
-    return {"router", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> router(const holder::api::AiRunEventData& data) {
+    return {"router", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> router_result(const holder::api::AiRunEventData& data) {
-    return {"router_result", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> router_result(const holder::api::AiRunEventData& data) {
+    return {"router_result", ai_json::encode(data)};
 }
-inline rig::event<nlohmann::json> run_started(const holder::api::AiRunEventData& data) {
-    return {"run_started", rig_json::encode(data)};
+inline api_runtime::event<nlohmann::json> run_started(const holder::api::AiRunEventData& data) {
+    return {"run_started", ai_json::encode(data)};
 }
-} // namespace rig_events
+} // namespace ai_events

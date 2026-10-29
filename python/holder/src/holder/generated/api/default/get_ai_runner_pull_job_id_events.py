@@ -16,8 +16,8 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     job_id: str,
     *,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(last_event_id, Unset):
@@ -25,7 +25,12 @@ def _get_kwargs(
 
     params: dict[str, Any] = {}
 
-    params["runner_id"] = runner_id
+    json_runner_id: None | str | Unset
+    if isinstance(runner_id, Unset):
+        json_runner_id = UNSET
+    else:
+        json_runner_id = runner_id
+    params["runner_id"] = json_runner_id
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -98,8 +103,8 @@ def sync_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Stream pull job progress (SSE)
 
@@ -109,8 +114,8 @@ def sync_detailed(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -137,8 +142,8 @@ def sync(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Stream pull job progress (SSE)
 
@@ -148,8 +153,8 @@ def sync(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -171,8 +176,8 @@ async def asyncio_detailed(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Stream pull job progress (SSE)
 
@@ -182,8 +187,8 @@ async def asyncio_detailed(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -208,8 +213,8 @@ async def asyncio(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Stream pull job progress (SSE)
 
@@ -219,8 +224,8 @@ async def asyncio(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -274,8 +279,8 @@ def stream(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
     reconnect: bool = True,
 ) -> EventStream[RunnerPullJob | str]:
     """Stream pull job progress (SSE)
@@ -286,8 +291,8 @@ def stream(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -314,8 +319,8 @@ def astream(
     job_id: str,
     *,
     client: AuthenticatedClient | Client,
-    runner_id: str | Unset = UNSET,
-    last_event_id: str | Unset = UNSET,
+    runner_id: None | str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
     reconnect: bool = True,
 ) -> AsyncEventStream[RunnerPullJob | str]:
     """Stream pull job progress (SSE)
@@ -326,8 +331,8 @@ def astream(
 
     Args:
         job_id (str):
-        runner_id (str | Unset):
-        last_event_id (str | Unset):
+        runner_id (None | str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID, sent by a reconnecting client.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.

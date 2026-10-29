@@ -86,9 +86,12 @@ def sync_detailed(
 ) -> Response[AiMessageListResponse | ErrorResponse]:
     """List AI messages by thread
 
+     List AI messages by thread
+
     Args:
         thread_id (str):
-        include_deleted (GetAiMessagesIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset): Set to 1 to include deleted
+            messages.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -118,9 +121,12 @@ def sync(
 ) -> AiMessageListResponse | ErrorResponse | None:
     """List AI messages by thread
 
+     List AI messages by thread
+
     Args:
         thread_id (str):
-        include_deleted (GetAiMessagesIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset): Set to 1 to include deleted
+            messages.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -145,9 +151,12 @@ async def asyncio_detailed(
 ) -> Response[AiMessageListResponse | ErrorResponse]:
     """List AI messages by thread
 
+     List AI messages by thread
+
     Args:
         thread_id (str):
-        include_deleted (GetAiMessagesIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset): Set to 1 to include deleted
+            messages.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -175,9 +184,12 @@ async def asyncio(
 ) -> AiMessageListResponse | ErrorResponse | None:
     """List AI messages by thread
 
+     List AI messages by thread
+
     Args:
         thread_id (str):
-        include_deleted (GetAiMessagesIncludeDeleted | Unset):
+        include_deleted (GetAiMessagesIncludeDeleted | Unset): Set to 1 to include deleted
+            messages.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

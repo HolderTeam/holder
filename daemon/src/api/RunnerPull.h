@@ -2,7 +2,7 @@
 
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <optional>
 #include <stdexcept>
@@ -15,49 +15,49 @@ struct RunnerPullJob;
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD RunnerPullProgress {
+struct RunnerPullProgress {
   long long completed;
   long long total;
   double percent;
   std::string stage;
 };
 
-struct RIG_OPEN_RECORD RunnerPullJob {
+struct RunnerPullJob {
   std::string job_id;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
-  std::optional<std::string> model_ref RIG_OMIT_EMPTY;
+  std::optional<std::string> runner_id;
+  std::optional<std::string> model_ref;
   std::string model;
   std::string status;
-  bool active RIG_FIELD_DESCRIPTION("Whether the pull is still queued, downloading or verifying.");
+  bool active;
   long long updated_at;
-  std::optional<std::optional<std::string>> error RIG_OMIT_EMPTY RIG_NULLABLE;
+  std::optional<std::optional<std::string>> error;
   RunnerPullProgress progress;
 };
 
 // A pull job's status as the status route and the pull event stream report it.
 RunnerPullJob pull_job_status(const holder::llm::RunnerPullJob& job, const std::string& runner_id);
 
-struct RIG_OPEN_RECORD RunnerPullStatusResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct RunnerPullStatusResponse {
+  bool ok;
   RunnerPullJob data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD RunnerPullStartResponseData {
+struct RunnerPullStartResponseData {
   std::string job_id;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
-  std::optional<std::string> model_ref RIG_OMIT_EMPTY;
+  std::optional<std::string> runner_id;
+  std::optional<std::string> model_ref;
   std::string model;
   std::string status;
 };
 
-struct RIG_OPEN_RECORD RunnerPullStartResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct RunnerPullStartResponse {
+  bool ok;
   RunnerPullStartResponseData data;
 };
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD PostAiRunnerPullRequest {
+struct PostAiRunnerPullRequest {
   std::string model;
-  std::optional<std::string> runner_id RIG_OMIT_EMPTY;
+  std::optional<std::string> runner_id;
 };
 
 struct RunnerNotConfigured : std::runtime_error {
@@ -68,12 +68,8 @@ struct PullJobNotFound : std::runtime_error {
   PullJobNotFound() : std::runtime_error("Pull job not found.") {}
 };
 
-RIG_ROUTE(GET, "/ai/runner/pull/{job_id}")
-RIG_SUMMARY("Fetch pull job status")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Not found", RunnerNotConfigured, PullJobNotFound)
-RunnerPullStatusResponse get_pull_status(holder::llm::RunnerRegistry* registry RIG_CONTEXT,
-                                         std::optional<std::string> runner_id RIG_QUERY,
+RunnerPullStatusResponse get_pull_status(holder::llm::RunnerRegistry* registry,
+                                         std::optional<std::string> runner_id,
                                          std::string job_id);
 
 // The runner is configured but not answering.
@@ -81,14 +77,7 @@ struct RunnerUnavailable : CodedError {
   RunnerUnavailable() : CodedError("runner_unavailable", "Local model runner unavailable.") {}
 };
 
-RIG_ROUTE(POST, "/ai/runner/pull")
-RIG_SUMMARY("Start pulling a local model")
-RIG_DESCRIPTION("Pulls on runner_id, or the auto-local runner when it is omitted or empty. Follow progress with GET /ai/runner/pull/{job_id} or its events stream.")
-RIG_RESPONSE_DESCRIPTION("OK")
-RIG_ERROR_RESPONSE(400, ErrorResponse, "Malformed request, or the runner rejected the pull", std::invalid_argument)
-RIG_ERROR_RESPONSE(404, ErrorResponse, "Runner not configured", RunnerNotConfigured)
-RIG_ERROR_RESPONSE(503, ErrorResponse, "Runner unavailable (runner_unavailable)", RunnerUnavailable)
-RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registry RIG_CONTEXT,
+RunnerPullStartResponse post_ai_runner_pull(holder::llm::RunnerRegistry* registry,
                                             PostAiRunnerPullRequest request);
 
 } // namespace holder::api

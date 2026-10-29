@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Retry one local model runner
 
+     Retry one local model runner
+
     Args:
         runner_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Retry one local model runner
 
+     Retry one local model runner
+
     Args:
         runner_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Retry one local model runner
+
+     Retry one local model runner
 
     Args:
         runner_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Retry one local model runner
+
+     Retry one local model runner
 
     Args:
         runner_id (str):

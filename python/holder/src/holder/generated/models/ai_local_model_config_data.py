@@ -12,12 +12,13 @@ T = TypeVar("T", bound="AiLocalModelConfigData")
 
 @_attrs_define
 class AiLocalModelConfigData:
-    """
+    """AI LocalModelConfigData.
+
     Attributes:
-        fast_model (None | str):
-        strong_model (None | str):
-        deep_model (None | str):
-        updated_at (int | None):
+        fast_model (None | str): The fast model.
+        strong_model (None | str): The strong model.
+        deep_model (None | str): The deep model.
+        updated_at (int | None): The updated at.
     """
 
     fast_model: None | str

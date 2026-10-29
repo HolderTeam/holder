@@ -21,7 +21,7 @@ on:
       - 'daemon/src/api/generated/ContractRoutes.h'
       - 'api/openapi.yaml'
       - 'api/openapi.json'
-      - 'api/rig/openapi.rig.json'
+      - 'api/openapi-base.json'
       - '.github/workflows/contract-check.yml'
   workflow_dispatch:
 
@@ -52,8 +52,8 @@ jobs:
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
           # The generated files are checked too: editing one by hand, holder.h, which the check reads
-          # for name collisions, or RIG's OpenAPI document, which it merges, must run the contract check.
-          if grep -qE '^(contract/|core/include/holder/holder(_api)?\.h$|core/src/api/Contract(\.h|Glue\.cpp)$|daemon/src/api/generated/Contract(Json|Routes)\.h$|api/openapi\.(yaml|json)$|api/rig/openapi\.rig\.json$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
+          # for name collisions, or the API metadata it merges, must run the contract check.
+          if grep -qE '^(contract/|core/include/holder/holder(_api)?\.h$|core/src/api/Contract(\.h|Glue\.cpp)$|daemon/src/api/generated/Contract(Json|Routes)\.h$|api/openapi\.(yaml|json)$|api/openapi-base\.json$|\.github/workflows/contract-check\.yml$)' <<< "$changed"; then
             echo "contract=true" >> "$GITHUB_OUTPUT"
           else
             echo "contract=false" >> "$GITHUB_OUTPUT"

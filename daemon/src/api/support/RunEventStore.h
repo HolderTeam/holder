@@ -23,8 +23,8 @@ struct RunEventStream {
   long long updated_at = 0;
 };
 
-// A generated constructor for one of the run events, such as rig_events::chunk.
-using RunEventConstructor = rig::event<nlohmann::json> (*)(const AiRunEventData&);
+// A generated constructor for one of the run events, such as ai_events::chunk.
+using RunEventConstructor = api_runtime::event<nlohmann::json> (*)(const AiRunEventData&);
 
 // Records a run event for replay; it carries run_id whatever data says.
 StreamEvent append_run_event(

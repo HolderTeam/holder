@@ -12,12 +12,13 @@ T = TypeVar("T", bound="RunnerPullProgress")
 
 @_attrs_define
 class RunnerPullProgress:
-    """
+    """RunnerPullProgress.
+
     Attributes:
-        completed (int):
-        total (int):
-        percent (float):
-        stage (str):
+        completed (int): The completed.
+        total (int): The total.
+        percent (float): The percent.
+        stage (str): The stage.
     """
 
     completed: int

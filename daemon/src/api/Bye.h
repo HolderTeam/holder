@@ -2,12 +2,12 @@
 
 #include "api/ApiService.h"
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD ByeResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct ByeResponse {
+  bool ok;
 };
 
 ByeResponse say_goodbye();

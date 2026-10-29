@@ -112,34 +112,6 @@ jobs:
       - name: Test make.sh's core selection
         working-directory: daemon
         run: python3 -m unittest scripts/test_make.py -v
-  rig-contract:
-    # api/openapi.yaml and the daemon's generated dispatcher and JSON codec (daemon/src/api/generated)
-    # must be exactly what RIG generates from the declarations in daemon/src/api.
-    # Reflection needs a GCC 16 release (parameter annotations arrived after Ubuntu 26.04's g++-16
-    # snapshot), so this runs in Fedora; the daemon's own builds do not need it.
-    needs: core-sdk
-    runs-on: ubuntu-24.04
-    container: fedora:45
-    steps:
-      - name: Install GCC 16 and Python
-        run: dnf install -y gcc-c++ make diffutils git json-devel python3 python-unversioned-command
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - id: sdk
-        uses: ./.github/actions/core-sdk
-        with:
-          commit: ${{ needs.core-sdk.outputs.commit }}
-          build-type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
-      - name: Install RIG
-        run: |
-          python3 -m venv "$RUNNER_TEMP/rig"
-          "$RUNNER_TEMP/rig/bin/pip" install -r api/rig/requirements.txt
-      - name: Check the RIG contract and generated code
-        env:
-          CORE_SDK: ${{ steps.sdk.outputs.sdk }}
-        run: >-
-          make -C api/rig check RIG="$RUNNER_TEMP/rig/bin/rig" CORE_INCLUDE="$CORE_SDK/include"
   core-sdk:
     # The daemon builds against core from this same commit, through core's installed SDK.
     needs: resolve

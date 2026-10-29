@@ -16,14 +16,15 @@ T = TypeVar("T", bound="CasteRecommendedModel")
 
 @_attrs_define
 class CasteRecommendedModel:
-    """
+    """CasteRecommendedModel.
+
     Attributes:
-        tag (str):
-        provider (None | str):
-        engine (None | str):
-        category (None | str):
-        required_caste (CasteRecommendedModelRequiredCaste):
-        installed (bool):
+        tag (str): The tag.
+        provider (None | str): The provider.
+        engine (None | str): The engine.
+        category (None | str): The category.
+        required_caste (CasteRecommendedModelRequiredCaste): The required caste.
+        installed (bool): The installed.
     """
 
     tag: str

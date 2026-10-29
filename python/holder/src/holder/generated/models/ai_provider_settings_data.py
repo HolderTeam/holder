@@ -8,33 +8,34 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.ai_nudge import AiNudge
+    from ..models.ai_provider_setting import AiProviderSetting
 
 
-T = TypeVar("T", bound="AiNudgeListResponseData")
+T = TypeVar("T", bound="AiProviderSettingsData")
 
 
 @_attrs_define
-class AiNudgeListResponseData:
-    """
+class AiProviderSettingsData:
+    """AI ProviderSettingsData.
+
     Attributes:
-        nudges (list[AiNudge]):
+        providers (list[AiProviderSetting]): The providers.
     """
 
-    nudges: list[AiNudge]
+    providers: list[AiProviderSetting]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        nudges = []
-        for nudges_item_data in self.nudges:
-            nudges_item = nudges_item_data.to_dict()
-            nudges.append(nudges_item)
+        providers = []
+        for providers_item_data in self.providers:
+            providers_item = providers_item_data.to_dict()
+            providers.append(providers_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "nudges": nudges,
+                "providers": providers,
             }
         )
 
@@ -42,22 +43,22 @@ class AiNudgeListResponseData:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.ai_nudge import AiNudge
+        from ..models.ai_provider_setting import AiProviderSetting
 
         d = dict(src_dict)
-        nudges = []
-        _nudges = d.pop("nudges")
-        for nudges_item_data in _nudges:
-            nudges_item = AiNudge.from_dict(nudges_item_data)
+        providers = []
+        _providers = d.pop("providers")
+        for providers_item_data in _providers:
+            providers_item = AiProviderSetting.from_dict(providers_item_data)
 
-            nudges.append(nudges_item)
+            providers.append(providers_item)
 
-        ai_nudge_list_response_data = cls(
-            nudges=nudges,
+        ai_provider_settings_data = cls(
+            providers=providers,
         )
 
-        ai_nudge_list_response_data.additional_properties = d
-        return ai_nudge_list_response_data
+        ai_provider_settings_data.additional_properties = d
+        return ai_provider_settings_data
 
     @property
     def additional_keys(self) -> list[str]:

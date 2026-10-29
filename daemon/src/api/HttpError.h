@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <exception>
 #include <stdexcept>
@@ -12,13 +12,13 @@ namespace holder::privacy { class PrivacyError; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD Error {
+struct Error {
   std::string code;
   std::string message;
 };
 
-struct RIG_OPEN_RECORD ErrorResponse {
-  bool ok RIG_BOOL_VALUE(false);
+struct ErrorResponse {
+  bool ok;
   Error error;
 };
 
@@ -40,12 +40,12 @@ struct SecretStoreUnavailable : CodedError {
 };
 
 // Generated dispatch builds the body for each exception named by an
-// operation's RIG_ERROR_RESPONSE; the PrivacyError and CodedError overloads keep their codes.
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+// operation's declared error response; the PrivacyError and CodedError overloads keep their codes.
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
                              const std::exception& error);
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
                              const holder::privacy::PrivacyError& error);
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
                              const CodedError& error);
 
 } // namespace holder::api

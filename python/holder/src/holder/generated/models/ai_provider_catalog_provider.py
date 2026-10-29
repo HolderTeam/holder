@@ -8,9 +8,9 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
+    from ..models.ai_provider_catalog_api import AiProviderCatalogApi
+    from ..models.ai_provider_catalog_auth import AiProviderCatalogAuth
     from ..models.ai_provider_catalog_model import AiProviderCatalogModel
-    from ..models.ai_provider_catalog_provider_api import AiProviderCatalogProviderApi
-    from ..models.ai_provider_catalog_provider_auth import AiProviderCatalogProviderAuth
 
 
 T = TypeVar("T", bound="AiProviderCatalogProvider")
@@ -18,20 +18,21 @@ T = TypeVar("T", bound="AiProviderCatalogProvider")
 
 @_attrs_define
 class AiProviderCatalogProvider:
-    """
+    """AI ProviderCatalogProvider.
+
     Attributes:
-        id (str):
-        display_name (str):
+        id (str): The id.
+        display_name (str): The display name.
         enabled (bool): This device's setting, or the catalog default without one.
         configured (bool): Whether this device has an API key for the provider.
-        cost_tier (None | str):
-        setup_url (None | str):
-        docs_url (None | str):
-        api_key_label (None | str):
-        api_key_hint (None | str):
-        api (AiProviderCatalogProviderApi):
-        auth (AiProviderCatalogProviderAuth):
-        models (list[AiProviderCatalogModel]):
+        cost_tier (None | str): The cost tier.
+        setup_url (None | str): The setup url.
+        docs_url (None | str): The docs url.
+        api_key_label (None | str): The api key label.
+        api_key_hint (None | str): The api key hint.
+        api (AiProviderCatalogApi): AI ProviderCatalogApi.
+        auth (AiProviderCatalogAuth): AI ProviderCatalogAuth.
+        models (list[AiProviderCatalogModel]): The models.
     """
 
     id: str
@@ -43,8 +44,8 @@ class AiProviderCatalogProvider:
     docs_url: None | str
     api_key_label: None | str
     api_key_hint: None | str
-    api: AiProviderCatalogProviderApi
-    auth: AiProviderCatalogProviderAuth
+    api: AiProviderCatalogApi
+    auth: AiProviderCatalogAuth
     models: list[AiProviderCatalogModel]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -104,14 +105,14 @@ class AiProviderCatalogProvider:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.ai_provider_catalog_api import (
+            AiProviderCatalogApi,
+        )
+        from ..models.ai_provider_catalog_auth import (
+            AiProviderCatalogAuth,
+        )
         from ..models.ai_provider_catalog_model import (
             AiProviderCatalogModel,
-        )
-        from ..models.ai_provider_catalog_provider_api import (
-            AiProviderCatalogProviderApi,
-        )
-        from ..models.ai_provider_catalog_provider_auth import (
-            AiProviderCatalogProviderAuth,
         )
 
         d = dict(src_dict)
@@ -158,9 +159,9 @@ class AiProviderCatalogProvider:
 
         api_key_hint = _parse_api_key_hint(d.pop("api_key_hint"))
 
-        api = AiProviderCatalogProviderApi.from_dict(d.pop("api"))
+        api = AiProviderCatalogApi.from_dict(d.pop("api"))
 
-        auth = AiProviderCatalogProviderAuth.from_dict(d.pop("auth"))
+        auth = AiProviderCatalogAuth.from_dict(d.pop("auth"))
 
         models = []
         _models = d.pop("models")

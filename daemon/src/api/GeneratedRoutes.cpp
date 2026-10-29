@@ -14,9 +14,9 @@
 #include "api/StaticFiles.h"
 #include "api/Streams.h"
 
-#include "api/RigRuntime.h"
+#include "api/AiRuntime.h"
 #include "api/generated/ContractRoutes.h"
-#include "api/generated/RuntimeRoutes.h"
+#include "api/generated/AiRoutes.h"
 #include "capi/Context.h"
 #include "index/FtsIndexer.h"
 #include "platform/Paths.h"
@@ -76,17 +76,17 @@ std::string utf8_message(const char* what) {
 
 } // namespace
 
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int status,
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int status,
                              const std::exception& error) {
   return {false, {error_code(status), utf8_message(error.what())}};
 }
 
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int,
                              const holder::privacy::PrivacyError& error) {
   return {false, {holder::privacy::privacy_error_code_name(error.code()), utf8_message(error.what())}};
 }
 
-ErrorResponse rig_error_body(std::type_identity<ErrorResponse>, int,
+ErrorResponse api_error_body(std::type_identity<ErrorResponse>, int,
                              const CodedError& error) {
   return {false, {error.code, utf8_message(error.what())}};
 }
@@ -322,7 +322,7 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
     res.body() = std::move(content);
     res.prepare_payload();
   };
-  const auto hosted = [&](rig::host_value outcome) {
+  const auto hosted = [&](api_runtime::host_value outcome) {
     if (stream == nullptr) throw std::logic_error("no one to serve a host-written response");
     *stream = std::any_cast<support::StreamServer>(std::move(outcome.value));
   };
@@ -475,7 +475,7 @@ bool dispatch_misc_contract_route(const std::string& method, const std::string& 
 }
 
 // The methods both dispatchers serve on a path, for a 405's Allow header.
-std::string allowed_methods(const std::string& path, const std::string& rig_allow) {
+std::string allowed_methods(const std::string& path, const std::string& ai_allow) {
   std::set<std::string> methods;
   for (const auto method : contract_http::allowed_methods(path)) methods.emplace(method);
   const auto route_path = path.substr(0, path.find('?'));
@@ -483,9 +483,9 @@ std::string allowed_methods(const std::string& path, const std::string& rig_allo
   std::smatch match;
   if (std::regex_match(route_path, match, import_job_path) ||
       std::regex_match(route_path, match, asset_content_path)) methods.emplace("GET");
-  for (std::size_t start = 0; start < rig_allow.size();) {
-    const auto end = rig_allow.find(", ", start);
-    methods.insert(rig_allow.substr(start, end - start));
+  for (std::size_t start = 0; methods.empty() && start < ai_allow.size();) {
+    const auto end = ai_allow.find(", ", start);
+    methods.insert(ai_allow.substr(start, end - start));
     if (end == std::string::npos) break;
     start = end + 2;
   }
@@ -500,7 +500,7 @@ bool is_public_generated_route(const GeneratedRequest& req) {
   const auto target = req.target();
   const std::string method(req.method_string());
   const std::string path(target.data(), target.size());
-  return rig_http::is_public(method, path) || contract_http::is_public(method, path);
+  return ai_http::is_public(method, path) || contract_http::is_public(method, path);
 }
 
 bool dispatch_generated_routes(
@@ -541,11 +541,9 @@ bool dispatch_generated_routes(
   try {
     if (dispatch_resource_contract_route(method, path, req, res, context, stream) ||
         dispatch_misc_contract_route(method, path, req, res, context, stream)) return true;
-    // RIG's routes first, so that a literal segment in one of RIG's keeps its place before a
-    // parameter in one of the contract's; the contract's tooling checks that no RIG route hides
-    // one of the contract's. Then the contract's, for a request RIG has no route for or
-    // would answer with a 405.
-    auto generated = rig_http::dispatch(
+    // AI requests use their retained C++ dispatcher; other generated routes use core's contract
+    // dispatcher. The Python contract owns the paths and response schemas for both.
+    auto generated = ai_http::dispatch(
         method, path, req.body(), context, [&req](std::string_view name) -> std::optional<std::string> {
           const auto field = req.find(boost::beast::string_view(name.data(), name.size()));
           if (field == req.end()) return std::nullopt;
@@ -569,8 +567,8 @@ bool dispatch_generated_routes(
       // A path only the contract serves, with another method.
       const auto allow = allowed_methods(path, "");
       if (allow.empty()) return false;
-      res = support::json_response(http::status::method_not_allowed, rig_json::encode(rig_error_body(
-          std::type_identity<ErrorResponse>{}, 405, rig_http::method_not_allowed("method not allowed"))));
+      res = support::json_response(http::status::method_not_allowed, ai_json::encode(api_error_body(
+          std::type_identity<ErrorResponse>{}, 405, ai_http::method_not_allowed("method not allowed"))));
       res.set(http::field::allow, allow);
       return true;
     }
@@ -599,8 +597,8 @@ bool dispatch_generated_routes(
   } catch (const std::exception& error) {
     // Operations' own failures are already 500s from the generated dispatcher.
     // This only keeps a failure outside them from escaping to the worker.
-    res = support::json_response(http::status::internal_server_error, rig_json::encode(
-        rig_error_body(std::type_identity<ErrorResponse>{}, 500, error)));
+    res = support::json_response(http::status::internal_server_error, ai_json::encode(
+        api_error_body(std::type_identity<ErrorResponse>{}, 500, error)));
   }
   return true;
 }

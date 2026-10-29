@@ -70,10 +70,10 @@ class CardLink:
         )
 
     @classmethod
-    def _from_rig_message_route(
+    def _from_ai_message_route(
         cls, row: Any, project_id: str, source_type: str
     ) -> Self:
-        """A link as RIG's AI message routes answer, until they move to the contract.
+        """A link as the AI message routes answer.
 
         Those routes leave out the project of a local end, and do not say what a
         backlink's source is, so the caller says.

@@ -20,20 +20,21 @@ T = TypeVar("T", bound="AiRunCreateRequest")
 
 @_attrs_define
 class AiRunCreateRequest:
-    """
+    """AI RunCreateRequest.
+
     Attributes:
-        prompt (str):
-        mode (str | Unset): auto or model
+        prompt (str): The prompt.
+        mode (None | str | Unset): auto or model
         model (None | str | Unset): Optional explicit model id; interpreted for local or cloud selected provider.
         provider (None | str | Unset): Optional cloud provider id when local runner is unavailable.
-        project_id (None | str | Unset):
-        thread_id (None | str | Unset):
-        context (AiRunCreateRequestContextType0 | None | Unset):
+        project_id (None | str | Unset): The project id.
+        thread_id (None | str | Unset): The thread id.
+        context (AiRunCreateRequestContextType0 | None | Unset): The context.
         runner_id (None | str | Unset): The local runner to use; defaults to the automatic local runner.
     """
 
     prompt: str
-    mode: str | Unset = UNSET
+    mode: None | str | Unset = UNSET
     model: None | str | Unset = UNSET
     provider: None | str | Unset = UNSET
     project_id: None | str | Unset = UNSET
@@ -49,7 +50,11 @@ class AiRunCreateRequest:
 
         prompt = self.prompt
 
-        mode = self.mode
+        mode: None | str | Unset
+        if isinstance(self.mode, Unset):
+            mode = UNSET
+        else:
+            mode = self.mode
 
         model: None | str | Unset
         if isinstance(self.model, Unset):
@@ -122,7 +127,14 @@ class AiRunCreateRequest:
         d = dict(src_dict)
         prompt = d.pop("prompt")
 
-        mode = d.pop("mode", UNSET)
+        def _parse_mode(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        mode = _parse_mode(d.pop("mode", UNSET))
 
         def _parse_model(data: object) -> None | str | Unset:
             if data is None:

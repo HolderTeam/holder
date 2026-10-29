@@ -12,9 +12,10 @@ T = TypeVar("T", bound="AiThreadPatchResponseData")
 
 @_attrs_define
 class AiThreadPatchResponseData:
-    """
+    """AI ThreadPatch responseData.
+
     Attributes:
-        thread_id (str):
+        thread_id (str): The thread id.
     """
 
     thread_id: str

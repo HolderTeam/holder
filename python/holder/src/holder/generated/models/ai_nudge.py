@@ -18,19 +18,20 @@ T = TypeVar("T", bound="AiNudge")
 
 @_attrs_define
 class AiNudge:
-    """
+    """AI Nudge.
+
     Attributes:
-        nudge_id (str):
-        kind (str):
-        project_id (str):
-        card_id (None | str):
-        title (str):
-        body (str):
+        nudge_id (str): The nudge id.
+        kind (str): The kind.
+        project_id (str): The project id.
+        card_id (None | str): The card id.
+        title (str): The title.
+        body (str): The body.
         meta_json (AiNudgeMetaJson): The evidence and details the nudge was built from.
-        basis_fingerprint (None | str):
-        basis_commit (None | str):
-        created_at (int):
-        suggestions (list[str] | Unset): Suggested titles, for a card.title_suggestion nudge.
+        basis_fingerprint (None | str): The basis fingerprint.
+        basis_commit (None | str): The basis commit.
+        created_at (int): The created at.
+        suggestions (list[str] | None | Unset): Suggested titles, for a card.title_suggestion nudge.
     """
 
     nudge_id: str
@@ -43,7 +44,7 @@ class AiNudge:
     basis_fingerprint: None | str
     basis_commit: None | str
     created_at: int
-    suggestions: list[str] | Unset = UNSET
+    suggestions: list[str] | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -70,8 +71,13 @@ class AiNudge:
 
         created_at = self.created_at
 
-        suggestions: list[str] | Unset = UNSET
-        if not isinstance(self.suggestions, Unset):
+        suggestions: list[str] | None | Unset
+        if isinstance(self.suggestions, Unset):
+            suggestions = UNSET
+        elif isinstance(self.suggestions, list):
+            suggestions = self.suggestions
+
+        else:
             suggestions = self.suggestions
 
         field_dict: dict[str, Any] = {}
@@ -135,7 +141,22 @@ class AiNudge:
 
         created_at = d.pop("created_at")
 
-        suggestions = cast(list[str], d.pop("suggestions", UNSET))
+        def _parse_suggestions(data: object) -> list[str] | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, list):
+                    raise TypeError()
+                suggestions_type_0 = cast(list[str], data)
+
+                return suggestions_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(list[str] | None | Unset, data)
+
+        suggestions = _parse_suggestions(d.pop("suggestions", UNSET))
 
         ai_nudge = cls(
             nudge_id=nudge_id,

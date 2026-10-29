@@ -17,7 +17,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     run_id: str,
     *,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(last_event_id, Unset):
@@ -91,7 +91,7 @@ def sync_detailed(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Stream run events (SSE)
 
@@ -102,7 +102,8 @@ def sync_detailed(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -128,7 +129,7 @@ def sync(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Stream run events (SSE)
 
@@ -139,7 +140,8 @@ def sync(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -160,7 +162,7 @@ async def asyncio_detailed(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Stream run events (SSE)
 
@@ -171,7 +173,8 @@ async def asyncio_detailed(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -195,7 +198,7 @@ async def asyncio(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Stream run events (SSE)
 
@@ -206,7 +209,8 @@ async def asyncio(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -309,7 +313,7 @@ def stream(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
     reconnect: bool = True,
 ) -> EventStream[AiRunEventData | AiStreamResyncData | str]:
     """Stream run events (SSE)
@@ -321,7 +325,8 @@ def stream(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.
@@ -347,7 +352,7 @@ def astream(
     run_id: str,
     *,
     client: AuthenticatedClient | Client,
-    last_event_id: str | Unset = UNSET,
+    last_event_id: None | str | Unset = UNSET,
     reconnect: bool = True,
 ) -> AsyncEventStream[AiRunEventData | AiStreamResyncData | str]:
     """Stream run events (SSE)
@@ -359,7 +364,8 @@ def astream(
 
     Args:
         run_id (str):
-        last_event_id (str | Unset):
+        last_event_id (None | str | Unset): Opaque SSE event ID; unavailable history emits
+            resync_required and closes.
 
     Raises:
         StreamError: If the server answers with an error status instead of the stream.

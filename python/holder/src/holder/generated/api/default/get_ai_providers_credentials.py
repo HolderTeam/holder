@@ -30,6 +30,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ErrorResponse.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 401:
         response_401 = ErrorResponse.from_dict(response.json())
 
@@ -63,6 +68,8 @@ def sync_detailed(
 ) -> Response[AiProviderCredentialsListResponse | ErrorResponse]:
     """List configured cloud provider credentials
 
+     List configured cloud provider credentials
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -86,6 +93,8 @@ def sync(
 ) -> AiProviderCredentialsListResponse | ErrorResponse | None:
     """List configured cloud provider credentials
 
+     List configured cloud provider credentials
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -104,6 +113,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiProviderCredentialsListResponse | ErrorResponse]:
     """List configured cloud provider credentials
+
+     List configured cloud provider credentials
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -125,6 +136,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiProviderCredentialsListResponse | ErrorResponse | None:
     """List configured cloud provider credentials
+
+     List configured cloud provider credentials
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

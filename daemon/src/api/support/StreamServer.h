@@ -19,7 +19,7 @@ using StreamServer = std::function<bool(
 )>;
 
 // The request's connection, for a route that streams as it runs. Declaration headers
-// name it without including Boost, which RIG's inspection of them does not have.
+// name it without including Boost in the API declarations.
 struct RequestSocket {
   boost::asio::ip::tcp::socket& socket;
 };

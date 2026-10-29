@@ -12,13 +12,14 @@ T = TypeVar("T", bound="AiProviderCredential")
 
 @_attrs_define
 class AiProviderCredential:
-    """
+    """AI ProviderCredential.
+
     Attributes:
-        provider (str):
-        configured (bool):
-        api_key_preview (str):
-        created_at (int):
-        updated_at (int):
+        provider (str): The provider.
+        configured (bool): The configured.
+        api_key_preview (str): The api key preview.
+        created_at (int): The created at.
+        updated_at (int): The updated at.
     """
 
     provider: str

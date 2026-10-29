@@ -86,8 +86,10 @@ def sync_detailed(
 ) -> Response[AiProviderCredentialUpsertResponse | ErrorResponse]:
     """Create or update a cloud provider API key
 
+     Create or update a cloud provider API key
+
     Args:
-        body (AiProviderCredentialUpsertRequest):
+        body (AiProviderCredentialUpsertRequest): AI ProviderCredentialUpsertRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -115,8 +117,10 @@ def sync(
 ) -> AiProviderCredentialUpsertResponse | ErrorResponse | None:
     """Create or update a cloud provider API key
 
+     Create or update a cloud provider API key
+
     Args:
-        body (AiProviderCredentialUpsertRequest):
+        body (AiProviderCredentialUpsertRequest): AI ProviderCredentialUpsertRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -139,8 +143,10 @@ async def asyncio_detailed(
 ) -> Response[AiProviderCredentialUpsertResponse | ErrorResponse]:
     """Create or update a cloud provider API key
 
+     Create or update a cloud provider API key
+
     Args:
-        body (AiProviderCredentialUpsertRequest):
+        body (AiProviderCredentialUpsertRequest): AI ProviderCredentialUpsertRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -166,8 +172,10 @@ async def asyncio(
 ) -> AiProviderCredentialUpsertResponse | ErrorResponse | None:
     """Create or update a cloud provider API key
 
+     Create or update a cloud provider API key
+
     Args:
-        body (AiProviderCredentialUpsertRequest):
+        body (AiProviderCredentialUpsertRequest): AI ProviderCredentialUpsertRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

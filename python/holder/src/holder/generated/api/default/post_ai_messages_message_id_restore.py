@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiMessageUpdateResponse | ErrorResponse]:
     """Restore an AI message from trash
 
+     Restore an AI message from trash
+
     Args:
         message_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiMessageUpdateResponse | ErrorResponse | None:
     """Restore an AI message from trash
 
+     Restore an AI message from trash
+
     Args:
         message_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiMessageUpdateResponse | ErrorResponse]:
     """Restore an AI message from trash
+
+     Restore an AI message from trash
 
     Args:
         message_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiMessageUpdateResponse | ErrorResponse | None:
     """Restore an AI message from trash
+
+     Restore an AI message from trash
 
     Args:
         message_id (str):

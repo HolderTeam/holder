@@ -17,16 +17,17 @@ T = TypeVar("T", bound="AiRunnerRuntime")
 
 @_attrs_define
 class AiRunnerRuntime:
-    """
+    """AI RunnerRuntime.
+
     Attributes:
-        configured (bool):
-        available (bool):
-        spawn_attempted (bool):
-        last_checked (int):
-        version (None | str):
-        error (None | str):
-        models (list[LocalModel]):
-        pulls (list[RunnerPullJob]):
+        configured (bool): The configured.
+        available (bool): The available.
+        spawn_attempted (bool): The spawn attempted.
+        last_checked (int): The last checked.
+        version (None | str): The version.
+        error (None | str): The error.
+        models (list[LocalModel]): The models.
+        pulls (list[RunnerPullJob]): The pulls.
     """
 
     configured: bool

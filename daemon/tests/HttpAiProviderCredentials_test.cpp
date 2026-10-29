@@ -230,7 +230,7 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
   http::response<http::string_body> res;
   auto secret_store = holder::privacy::make_default_secret_store(dir);
 
-  SECTION("credentials get masks older stored previews through RIG") {
+  SECTION("credentials get masks older stored previews") {
     holder::ai::AiProviderCredentialRepo(db).upsert("legacy", "secret-example-12345", 1, 2);
     auto req = make_req(http::verb::get, "/ai/providers/credentials");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
@@ -239,7 +239,7 @@ TEST_CASE("Ai provider settings and credentials direct validation", "[http]") {
     REQUIRE(payload["data"]["providers"][0]["api_key_preview"] == "secr...45");
   }
 
-  SECTION("settings get returns an empty list through RIG") {
+  SECTION("settings get returns an empty list") {
     auto req = make_req(http::verb::get, "/ai/providers/settings");
     REQUIRE(holder::api::dispatch_generated_routes(req, res, db));
     REQUIRE(res.result() == http::status::ok);

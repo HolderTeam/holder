@@ -9,13 +9,13 @@ from ...client import AuthenticatedClient, Client
 from ...models.ai_runner_response import AiRunnerResponse
 from ...models.ai_runner_update_request import AiRunnerUpdateRequest
 from ...models.error_response import ErrorResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     runner_id: str,
     *,
-    body: AiRunnerUpdateRequest,
+    body: AiRunnerUpdateRequest | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
@@ -26,7 +26,8 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
+    if not isinstance(body, Unset):
+        _kwargs["json"] = body.to_dict()
 
     headers["Content-Type"] = "application/json"
 
@@ -83,13 +84,15 @@ def sync_detailed(
     runner_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiRunnerUpdateRequest,
+    body: AiRunnerUpdateRequest | Unset = UNSET,
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Update a local model runner
 
+     Update a local model runner
+
     Args:
         runner_id (str):
-        body (AiRunnerUpdateRequest):
+        body (AiRunnerUpdateRequest | Unset): AI RunnerUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -115,13 +118,15 @@ def sync(
     runner_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiRunnerUpdateRequest,
+    body: AiRunnerUpdateRequest | Unset = UNSET,
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Update a local model runner
 
+     Update a local model runner
+
     Args:
         runner_id (str):
-        body (AiRunnerUpdateRequest):
+        body (AiRunnerUpdateRequest | Unset): AI RunnerUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -142,13 +147,15 @@ async def asyncio_detailed(
     runner_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiRunnerUpdateRequest,
+    body: AiRunnerUpdateRequest | Unset = UNSET,
 ) -> Response[AiRunnerResponse | ErrorResponse]:
     """Update a local model runner
 
+     Update a local model runner
+
     Args:
         runner_id (str):
-        body (AiRunnerUpdateRequest):
+        body (AiRunnerUpdateRequest | Unset): AI RunnerUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,13 +179,15 @@ async def asyncio(
     runner_id: str,
     *,
     client: AuthenticatedClient | Client,
-    body: AiRunnerUpdateRequest,
+    body: AiRunnerUpdateRequest | Unset = UNSET,
 ) -> AiRunnerResponse | ErrorResponse | None:
     """Update a local model runner
 
+     Update a local model runner
+
     Args:
         runner_id (str):
-        body (AiRunnerUpdateRequest):
+        body (AiRunnerUpdateRequest | Unset): AI RunnerUpdateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

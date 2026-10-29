@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <exception>
 #include <optional>
@@ -13,28 +13,28 @@ namespace holder::privacy { class SecretStore; }
 
 namespace holder::api {
 
-struct RIG_OPEN_RECORD RIG_INLINE_RECORD GoogleDriveAuthorizeData {
+struct GoogleDriveAuthorizeData {
   std::string authorization_url;
 };
 
-struct RIG_OPEN_RECORD GoogleDriveAuthorizeResponse {
-  bool ok RIG_BOOL_VALUE(true);
+struct GoogleDriveAuthorizeResponse {
+  bool ok;
   GoogleDriveAuthorizeData data;
 };
 
 GoogleDriveAuthorizeResponse post_locations_location_id_oauth_google_drive_authorize(
-    holder::platform::Db& db RIG_CONTEXT,
-    const std::optional<std::string>& host RIG_CONTEXT,
+    holder::platform::Db& db,
+    const std::optional<std::string>& host,
     std::string location_id);
 
-rig::host_value get_locations_location_id_oauth_google_drive_callback(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::privacy::SecretStore* secret_store RIG_CONTEXT,
-    holder::git::GitOps* git_ops RIG_CONTEXT,
-    const std::optional<std::string>& host RIG_CONTEXT,
+api_runtime::host_value get_locations_location_id_oauth_google_drive_callback(
+    holder::platform::Db& db,
+    holder::privacy::SecretStore* secret_store,
+    holder::git::GitOps* git_ops,
+    const std::optional<std::string>& host,
     std::string location_id,
-    std::optional<std::string> code RIG_QUERY,
-    std::optional<std::string> state RIG_QUERY,
-    std::optional<std::string> error RIG_QUERY RIG_PARAMETER_DESCRIPTION("Set by Google when the user declined or authorization failed."));
+    std::optional<std::string> code,
+    std::optional<std::string> state,
+    std::optional<std::string> error);
 
 } // namespace holder::api

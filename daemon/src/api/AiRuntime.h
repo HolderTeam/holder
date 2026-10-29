@@ -1,6 +1,6 @@
 #pragma once
 
-// Operations still dispatched by the checked-in RIG dispatcher.
+// Types and handlers used by the retained AI dispatcher and JSON codec.
 #include "api/AiLocalModelConfig.h"
 #include "api/AiMessageRead.h"
 #include "api/AiMessageWrite.h"

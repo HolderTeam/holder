@@ -371,7 +371,8 @@ def c_out(model: Model, op: dict[str, Any]) -> tuple[str, str] | None:
 
 
 def header_lines(ir: dict[str, Any], what: str, style: str) -> list[str]:
-    sources = sorted({d["source"] for key in ("records", "operations", "errors", "aliases") for d in ir[key]})
+    sources = sorted({d["source"] for key in ("records", "operations", "errors", "aliases") for d in ir[key]},
+                     key=lambda source: (source != "interface/app.py", source))
     text = [f"Generated from contract/{', contract/'.join(sources)} by holder_contract.",
             "Do not edit; change the contract, then run make -C contract update.", "", what]
     return [("// " if style == "cpp" else " * ") + line if line else ("//" if style == "cpp" else " *") for line in text]

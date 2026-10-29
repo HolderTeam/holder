@@ -77,6 +77,8 @@ def sync_detailed(
 ) -> Response[AiRunGetResponse | ErrorResponse]:
     """Fetch an AI run
 
+     Fetch an AI run
+
     Args:
         run_id (str):
 
@@ -106,6 +108,8 @@ def sync(
 ) -> AiRunGetResponse | ErrorResponse | None:
     """Fetch an AI run
 
+     Fetch an AI run
+
     Args:
         run_id (str):
 
@@ -129,6 +133,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AiRunGetResponse | ErrorResponse]:
     """Fetch an AI run
+
+     Fetch an AI run
 
     Args:
         run_id (str):
@@ -156,6 +162,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AiRunGetResponse | ErrorResponse | None:
     """Fetch an AI run
+
+     Fetch an AI run
 
     Args:
         run_id (str):

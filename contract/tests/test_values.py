@@ -18,6 +18,7 @@ SAMPLE = extract(CONTRACT / "tests" / "fixtures", "sample")
 
 
 def pydantic_type(name: str):
+    import interface.ai
     import interface.card_references
     import interface.cards
     import interface.daemon_routes
@@ -36,7 +37,7 @@ def pydantic_type(name: str):
 
     if name == "Page":
         return interface.cards.Page[interface.cards.CardListItem]
-    for module in (interface.card_references, interface.cards, interface.daemon_routes,
+    for module in (interface.ai, interface.card_references, interface.cards, interface.daemon_routes,
                    interface.git, interface.history,
                    interface.links, interface.maintenance, interface.milestones,
                    interface.projects, interface.rebuild, interface.recovery, interface.resources, interface.search,
@@ -103,7 +104,8 @@ def test_arguments_conform_and_invalid_arguments_break_one(operation, data):
     assert {name for name, p in parameters.items() if "default" not in p} <= arguments.keys()
     for name, value in arguments.items():
         assert values.problems(parameters[name]["type"], value) == []
-    if not parameters:
+    if not any(values.invalid(p["type"], may_omit="default" in p) is not None
+               for p in parameters.values()):
         return
     broken, name = data.draw(values.invalid_arguments(operation))
     assert [n for n, v in broken.items() if values.problems(parameters[n]["type"], v)] == [name]

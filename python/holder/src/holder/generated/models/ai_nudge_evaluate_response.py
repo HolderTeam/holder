@@ -8,7 +8,7 @@ from attrs import field as _attrs_field
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.ai_nudge_evaluate_response_data import AiNudgeEvaluateResponseData
+    from ..models.ai_nudge_evaluate_data import AiNudgeEvaluateData
 
 
 T = TypeVar("T", bound="AiNudgeEvaluateResponse")
@@ -16,14 +16,15 @@ T = TypeVar("T", bound="AiNudgeEvaluateResponse")
 
 @_attrs_define
 class AiNudgeEvaluateResponse:
-    """
+    """AI NudgeEvaluate response.
+
     Attributes:
-        ok (bool):
-        data (AiNudgeEvaluateResponseData):
+        ok (bool): The ok.
+        data (AiNudgeEvaluateData): AI NudgeEvaluateData.
     """
 
     ok: bool
-    data: AiNudgeEvaluateResponseData
+    data: AiNudgeEvaluateData
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,14 +45,12 @@ class AiNudgeEvaluateResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.ai_nudge_evaluate_response_data import (
-            AiNudgeEvaluateResponseData,
-        )
+        from ..models.ai_nudge_evaluate_data import AiNudgeEvaluateData
 
         d = dict(src_dict)
         ok = d.pop("ok")
 
-        data = AiNudgeEvaluateResponseData.from_dict(d.pop("data"))
+        data = AiNudgeEvaluateData.from_dict(d.pop("data"))
 
         ai_nudge_evaluate_response = cls(
             ok=ok,

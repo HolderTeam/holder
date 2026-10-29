@@ -95,7 +95,7 @@ def sync_detailed(
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,7 +132,7 @@ def sync(
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -164,7 +164,7 @@ async def asyncio_detailed(
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -199,7 +199,7 @@ async def asyncio(
 
     Args:
         message_id (str):
-        body (CardLinkDeleteRequest | Unset):
+        body (CardLinkDeleteRequest | Unset): CardLinkDeleteRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

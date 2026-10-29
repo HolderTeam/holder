@@ -82,8 +82,10 @@ def sync_detailed(
 ) -> Response[AiMessageCreateResponse | ErrorResponse]:
     """Create an AI message
 
+     Create an AI message
+
     Args:
-        body (AiMessageCreateRequest):
+        body (AiMessageCreateRequest): AI MessageCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -111,8 +113,10 @@ def sync(
 ) -> AiMessageCreateResponse | ErrorResponse | None:
     """Create an AI message
 
+     Create an AI message
+
     Args:
-        body (AiMessageCreateRequest):
+        body (AiMessageCreateRequest): AI MessageCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -135,8 +139,10 @@ async def asyncio_detailed(
 ) -> Response[AiMessageCreateResponse | ErrorResponse]:
     """Create an AI message
 
+     Create an AI message
+
     Args:
-        body (AiMessageCreateRequest):
+        body (AiMessageCreateRequest): AI MessageCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -162,8 +168,10 @@ async def asyncio(
 ) -> AiMessageCreateResponse | ErrorResponse | None:
     """Create an AI message
 
+     Create an AI message
+
     Args:
-        body (AiMessageCreateRequest):
+        body (AiMessageCreateRequest): AI MessageCreateRequest.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

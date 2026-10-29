@@ -16,10 +16,11 @@ T = TypeVar("T", bound="AiStatusResponse")
 
 @_attrs_define
 class AiStatusResponse:
-    """
+    """AI Status response.
+
     Attributes:
-        ok (bool):
-        data (AiStatusData):
+        ok (bool): The ok.
+        data (AiStatusData): AI StatusData.
     """
 
     ok: bool

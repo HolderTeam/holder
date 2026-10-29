@@ -12,9 +12,10 @@ T = TypeVar("T", bound="AiRunnerDeleteResponseData")
 
 @_attrs_define
 class AiRunnerDeleteResponseData:
-    """
+    """AI RunnerDelete responseData.
+
     Attributes:
-        runner_id (str):
+        runner_id (str): The runner id.
     """
 
     runner_id: str

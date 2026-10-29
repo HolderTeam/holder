@@ -31,9 +31,8 @@ from ..generated.models import (
     AiProviderCredentialUpsertRequest,
     AiProviderSettingUpdateRequest,
     AiRunnerCreateRequest,
-    AiRunnerCreateRequestKind,
     AiRunnerUpdateRequest,
-    PostAiRunnerPullBody,
+    PostAiRunnerPullRequest,
 )
 from ..generated.types import UNSET, Unset
 
@@ -262,7 +261,7 @@ class LocalModels:
         _nonempty("name", name)
         data = self._holder._call(
             post_ai_runner_pull,
-            body=PostAiRunnerPullBody(
+            body=PostAiRunnerPullRequest(
                 model=name,
                 runner_id=runner_id if runner_id is not None else UNSET,
             ),
@@ -341,7 +340,7 @@ class RunnerCollection(Collection["Runner"]):
             post_ai_runners,
             body=AiRunnerCreateRequest(
                 name=name,
-                kind=AiRunnerCreateRequestKind.OLLAMA,
+                kind="ollama",
                 base_url=base_url,
                 enabled=enabled,
             ),

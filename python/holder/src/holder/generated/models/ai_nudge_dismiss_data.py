@@ -7,27 +7,33 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from typing_extensions import Self
 
-T = TypeVar("T", bound="AiProviderSettingDeleteResponseData")
+T = TypeVar("T", bound="AiNudgeDismissData")
 
 
 @_attrs_define
-class AiProviderSettingDeleteResponseData:
-    """
+class AiNudgeDismissData:
+    """AI NudgeDismissData.
+
     Attributes:
-        provider (str):
+        nudge_id (str): The nudge id.
+        dismissed (bool): The dismissed.
     """
 
-    provider: str
+    nudge_id: str
+    dismissed: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        provider = self.provider
+        nudge_id = self.nudge_id
+
+        dismissed = self.dismissed
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "provider": provider,
+                "nudge_id": nudge_id,
+                "dismissed": dismissed,
             }
         )
 
@@ -36,14 +42,17 @@ class AiProviderSettingDeleteResponseData:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        provider = d.pop("provider")
+        nudge_id = d.pop("nudge_id")
 
-        ai_provider_setting_delete_response_data = cls(
-            provider=provider,
+        dismissed = d.pop("dismissed")
+
+        ai_nudge_dismiss_data = cls(
+            nudge_id=nudge_id,
+            dismissed=dismissed,
         )
 
-        ai_provider_setting_delete_response_data.additional_properties = d
-        return ai_provider_setting_delete_response_data
+        ai_nudge_dismiss_data.additional_properties = d
+        return ai_nudge_dismiss_data
 
     @property
     def additional_keys(self) -> list[str]:

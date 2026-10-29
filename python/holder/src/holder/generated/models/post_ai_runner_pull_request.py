@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -9,25 +9,30 @@ from typing_extensions import Self
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="PostAiRunnerPullBody")
+T = TypeVar("T", bound="PostAiRunnerPullRequest")
 
 
 @_attrs_define
-class PostAiRunnerPullBody:
-    """
+class PostAiRunnerPullRequest:
+    """PostAI RunnerPullRequest.
+
     Attributes:
-        model (str):
-        runner_id (str | Unset):
+        model (str): The model.
+        runner_id (None | str | Unset): The runner id.
     """
 
     model: str
-    runner_id: str | Unset = UNSET
+    runner_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         model = self.model
 
-        runner_id = self.runner_id
+        runner_id: None | str | Unset
+        if isinstance(self.runner_id, Unset):
+            runner_id = UNSET
+        else:
+            runner_id = self.runner_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -46,15 +51,22 @@ class PostAiRunnerPullBody:
         d = dict(src_dict)
         model = d.pop("model")
 
-        runner_id = d.pop("runner_id", UNSET)
+        def _parse_runner_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
 
-        post_ai_runner_pull_body = cls(
+        runner_id = _parse_runner_id(d.pop("runner_id", UNSET))
+
+        post_ai_runner_pull_request = cls(
             model=model,
             runner_id=runner_id,
         )
 
-        post_ai_runner_pull_body.additional_properties = d
-        return post_ai_runner_pull_body
+        post_ai_runner_pull_request.additional_properties = d
+        return post_ai_runner_pull_request
 
     @property
     def additional_keys(self) -> list[str]:

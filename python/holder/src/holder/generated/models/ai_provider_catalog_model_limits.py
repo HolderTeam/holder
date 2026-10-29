@@ -12,7 +12,8 @@ T = TypeVar("T", bound="AiProviderCatalogModelLimits")
 
 @_attrs_define
 class AiProviderCatalogModelLimits:
-    """
+    """AI ProviderCatalogModelLimits.
+
     Attributes:
         rpm (int): Requests per minute; 0 when unlimited or unknown.
         tpm (int): Tokens per minute; 0 when unlimited or unknown.

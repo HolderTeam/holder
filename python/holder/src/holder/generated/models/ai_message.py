@@ -12,19 +12,20 @@ T = TypeVar("T", bound="AiMessage")
 
 @_attrs_define
 class AiMessage:
-    """
+    """AI Message.
+
     Attributes:
-        message_id (str):
-        thread_id (str):
-        role (str):
-        source (str):
-        provider (None | str):
-        model (None | str):
-        content (str):
-        created_at (int):
-        deleted_at (int | None):
-        prompt_hash (None | str):
-        meta_json (None | str):
+        message_id (str): The message id.
+        thread_id (str): The thread id.
+        role (str): The role.
+        source (str): The source.
+        provider (None | str): The provider.
+        model (None | str): The model.
+        content (str): The content.
+        created_at (int): The created at.
+        deleted_at (int | None): The deleted at.
+        prompt_hash (None | str): The prompt hash.
+        meta_json (None | str): The meta json.
     """
 
     message_id: str

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/HttpError.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/Schemas.h"
 
 #include <optional>
@@ -31,8 +31,8 @@ struct ProjectUnavailable : CodedError {
 void require_change_feed_project(holder::platform::Db& db, const std::string& project_id);
 
 EventCheckpointResponse get_events_cursor(
-    holder::platform::Db& db RIG_CONTEXT,
-    holder::api::support::EventService* events RIG_CONTEXT,
-    std::optional<std::string> project_id RIG_QUERY RIG_MIN_LENGTH(1));
+    holder::platform::Db& db,
+    holder::api::support::EventService* events,
+    std::optional<std::string> project_id);
 
 } // namespace holder::api

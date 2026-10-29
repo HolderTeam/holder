@@ -1,7 +1,7 @@
 #pragma once
 
 #include "api/ApiService.h"
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 
 #include <string>
 

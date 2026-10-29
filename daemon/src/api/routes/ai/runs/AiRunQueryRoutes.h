@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/RigAnnotations.h"
+#include "api/AiRuntimeTypes.h"
 #include "api/support/SseStream.h"
 #include "platform/Db.h"
 
@@ -14,7 +14,7 @@ namespace holder::api::routes::ai::runs {
 
 // GET /ai/runs/{run_id}/events after generated dispatch has decoded it: a 204 when a
 // reconnect is past a finished run's last event, otherwise a support::StreamServer.
-rig::host_value get_ai_runs_run_id_events_stream(
+api_runtime::host_value get_ai_runs_run_id_events_stream(
     holder::platform::Db& db,
     std::shared_ptr<holder::api::support::SseRegistry> streams,
     const std::string& last_event_id,

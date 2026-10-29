@@ -1,5 +1,5 @@
 #include "ai/AiRunRepo.h"
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include "api/routes/ai/runs/AiRunQueryRoutes.h"
 #include "api/support/RunEventStore.h"
 #include "http_test_helpers.h"
@@ -259,13 +259,13 @@ TEST_CASE("HTTP ai run events streams from in-memory event stream", "[http]") {
 
   holder::api::support::append_run_event(
       "run-stream-1",
-      rig_events::progress,
+      ai_events::progress,
       {.message = "step 1"},
       false
   );
   holder::api::support::append_run_event(
       "run-stream-1",
-      rig_events::done,
+      ai_events::done,
       {.status = "completed"},
       true
   );
@@ -307,7 +307,7 @@ TEST_CASE("RunEventStore trims in-memory event stream to last 512 events", "[htt
   for (int i = 0; i < 520; ++i) {
     holder::api::support::append_run_event(
         run_id,
-        rig_events::progress,
+        ai_events::progress,
         {.message = std::to_string(i)},
         i == 519
     );
@@ -337,9 +337,9 @@ TEST_CASE("Ai run events route tells a reconnect past a finished run to stop", "
   run.created_at = 1;
   run.updated_at = 2;
   holder::ai::AiRunRepo(db).create(run);
-  holder::api::support::append_run_event(run.run_id, rig_events::run_started, {}, false);
+  holder::api::support::append_run_event(run.run_id, ai_events::run_started, {}, false);
   const auto started = holder::api::support::read_run_events(run.run_id, "")->cursor;
-  const auto done = holder::api::support::append_run_event(run.run_id, rig_events::done, {}, true);
+  const auto done = holder::api::support::append_run_event(run.run_id, ai_events::done, {}, true);
 
   boost::asio::io_context ioc;
   boost::asio::ip::tcp::socket socket(ioc);

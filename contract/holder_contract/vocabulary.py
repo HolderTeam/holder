@@ -28,6 +28,12 @@ class Record(BaseModel):
         return "".join(getattr(p, "__name__", str(p)) for p in params) + cls.__name__
 
 
+class OpenRecord(Record):
+    """A record that accepts unknown fields, for the daemon's AI request shapes."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True, extra="ignore", frozen=True)
+
+
 @dataclass(frozen=True)
 class Native:
     """Marks a native type in its metadata: its kind and format in the IR, and its own bounds."""

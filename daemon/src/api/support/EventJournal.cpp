@@ -37,7 +37,7 @@ EventJournal::EventJournal(std::size_t capacity, std::size_t byte_limit)
   if (!capacity_ || !byte_limit_) throw std::invalid_argument("Empty event journal capacity");
 }
 
-StreamEvent EventJournal::append(rig::event<nlohmann::json> event_data, bool finished) {
+StreamEvent EventJournal::append(api_runtime::event<nlohmann::json> event_data, bool finished) {
   std::lock_guard lock(mutex_);
   StreamEvent event{epoch_ + ":" + std::to_string(++sequence_), std::move(event_data)};
   const auto size = encode_sse(event).size();

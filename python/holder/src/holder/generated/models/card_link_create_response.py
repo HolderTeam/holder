@@ -16,10 +16,11 @@ T = TypeVar("T", bound="CardLinkCreateResponse")
 
 @_attrs_define
 class CardLinkCreateResponse:
-    """
+    """CardLinkCreate response.
+
     Attributes:
-        ok (bool):
-        data (CardLink):
+        ok (bool): The ok.
+        data (CardLink): CardLink.
     """
 
     ok: bool

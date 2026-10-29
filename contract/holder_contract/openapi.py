@@ -5,9 +5,8 @@ models they use. What is added here is only what makes it the daemon's API: Fast
 validation responses go, since the daemon answers an invalid argument with 400 and the error
 envelope (the routes declare those themselves); operation IDs go, as in the rest of the daemon's
 document; integer bounds are exact again, after FastAPI's models made them floats; and the error
-envelope's schemas are the ones RIG's document has, so that the two merge.
-Authentication, servers and the API's metadata come from the daemon's document, which these paths
-are merged into until every route is in the contract.
+envelope's schemas match the daemon's response bodies. Authentication, servers and the API's
+metadata come from api/openapi-base.json, which these paths are merged into.
 
 ordered() and merge() were ported from RIG's openapi.py (https://github.com/zeth/rig,
 src/rig/openapi.py at e32ea68).
@@ -222,13 +221,10 @@ def ordered(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge(daemon: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
-    """The daemon's document with the contract's paths and schemas added.
+    """The API metadata and security with the contract's paths and schemas added.
 
-    The daemon's document is RIG's, for the routes not yet moved to the contract, and has the
-    API's metadata and security; the contract's operations get the same 401 as the daemon's.
-    A route in both, or a schema of the same name with another shape, is an error. The daemon tries
-    RIG's routes first, so a RIG route that would take a request meant for one of the contract's,
-    without being more specific than it, is an error too.
+    A path or schema supplied twice with different definitions is an error. The overlap check
+    also protects any host routes added to the base document in the future.
     """
     for path, methods in contract["paths"].items():
         for rig_path, rig_methods in daemon["paths"].items():

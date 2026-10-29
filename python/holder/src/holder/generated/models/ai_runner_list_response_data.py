@@ -16,9 +16,10 @@ T = TypeVar("T", bound="AiRunnerListResponseData")
 
 @_attrs_define
 class AiRunnerListResponseData:
-    """
+    """AI RunnerList responseData.
+
     Attributes:
-        runners (list[AiRunner]):
+        runners (list[AiRunner]): The runners.
     """
 
     runners: list[AiRunner]

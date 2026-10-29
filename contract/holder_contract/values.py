@@ -274,7 +274,8 @@ class Values:
                 return [f"{where} is not a {t['name']} object"]
             fields = self.fields(t["name"], t.get("arguments", []))
             names = {f["name"] for f in fields}
-            out = [f"{where} has the unknown field {key}" for key in value if key not in names]
+            out = [] if self.records[t["name"]].get("open") else [
+                f"{where} has the unknown field {key}" for key in value if key not in names]
             for field in fields:
                 if field["name"] in value:
                     out += self.problems(field["type"], value[field["name"]], f"{path}.{field['name']}".lstrip("."))

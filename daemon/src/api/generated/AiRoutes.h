@@ -1,6 +1,6 @@
-// Generated from RIG IR; do not edit.
+// Retained AI dispatcher. contract/tests/test_ai_runtime.py checks its route inventory.
 #pragma once
-#include "api/generated/RuntimeJson.h"
+#include "api/generated/AiJson.h"
 #include <any>
 #include <charconv>
 #include <exception>
@@ -19,7 +19,7 @@
 #include <utility>
 #include <variant>
 
-namespace rig_http {
+namespace ai_http {
 using json = nlohmann::json;
 struct response {
     int status;
@@ -32,16 +32,16 @@ struct response {
     // A text operation's media type, whose body is a JSON string the host writes as text.
     std::string_view media_type = "application/json";
 };
-// The error passed to rig_error_body for a 405.
+// The error passed to api_error_body for a 405.
 struct method_not_allowed : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
-// The application supplies rig_error_body, found by argument-dependent
+// The application supplies api_error_body, found by argument-dependent
 // lookup, to build each declared error body from an exception.
 template <typename Body, typename Error>
 json encode_error(int status, const Error& error) {
-    const Body body = rig_error_body(std::type_identity<Body>{}, status, error);
-    return rig_json::encode(body);
+    const Body body = api_error_body(std::type_identity<Body>{}, status, error);
+    return ai_json::encode(body);
 }
 inline response invalid_request(const std::exception& error, std::string_view operation) {
     return {400, encode_error<holder::api::ErrorResponse>(400, error), operation};
@@ -163,7 +163,7 @@ inline bool decode_query_bool(std::string_view input) {
 }
 template <typename T> T decode_body(const std::string& body) {
     try {
-        return rig_json::decode<T>(json::parse(body));
+        return ai_json::decode<T>(json::parse(body));
     } catch (const json::exception& error) {
         throw std::invalid_argument(error.what());
     }
@@ -205,7 +205,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_messages");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_messages(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_messages"};
+            return response{200, ai_json::encode(holder::api::get_ai_messages(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_messages"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_messages"};
         }
@@ -221,7 +221,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_messages");
         }
         try {
-            return response{201, rig_json::encode(holder::api::post_ai_messages(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages"};
+            return response{201, ai_json::encode(holder::api::post_ai_messages(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages"};
         } catch (const holder::model::ConflictError& error) {
@@ -252,7 +252,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_nudges");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_nudges(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "get_ai_nudges"};
+            return response{200, ai_json::encode(holder::api::get_ai_nudges(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "get_ai_nudges"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_nudges"};
         }
@@ -260,7 +260,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_22("^/ai/runners$");
     if (method == "GET" && std::regex_match(route_path, match, route_22)) {
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_runners(context.registry)), "get_ai_runners"};
+            return response{200, ai_json::encode(holder::api::get_ai_runners(context.registry)), "get_ai_runners"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_runners"};
         }
@@ -276,7 +276,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_runners");
         }
         try {
-            return response{201, rig_json::encode(holder::api::post_ai_runners(context.db, context.registry, context.uuid_v4, std::move(*argument_0))), "post_ai_runners"};
+            return response{201, ai_json::encode(holder::api::post_ai_runners(context.db, context.registry, context.uuid_v4, std::move(*argument_0))), "post_ai_runners"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runners"};
         } catch (const std::exception& error) {
@@ -305,7 +305,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_runs");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_runs(context.db, std::move(*argument_0), std::move(*argument_1))), "get_ai_runs"};
+            return response{200, ai_json::encode(holder::api::get_ai_runs(context.db, std::move(*argument_0), std::move(*argument_1))), "get_ai_runs"};
         } catch (const holder::api::AiRunsMissingScope& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_runs"};
         } catch (const std::exception& error) {
@@ -328,7 +328,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_capabilities");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_capabilities(context.db, context.registry, std::move(*argument_0))), "get_ai_capabilities"};
+            return response{200, ai_json::encode(holder::api::get_ai_capabilities(context.db, context.registry, std::move(*argument_0))), "get_ai_capabilities"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_capabilities"};
         }
@@ -336,7 +336,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_31("^/ai/status$");
     if (method == "GET" && std::regex_match(route_path, match, route_31)) {
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_status(context.db, context.registry)), "get_ai_status"};
+            return response{200, ai_json::encode(holder::api::get_ai_status(context.db, context.registry)), "get_ai_status"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_status"};
         }
@@ -357,7 +357,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_threads");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_threads(context.db, std::move(*argument_0))), "get_ai_threads"};
+            return response{200, ai_json::encode(holder::api::get_ai_threads(context.db, std::move(*argument_0))), "get_ai_threads"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_ai_threads"};
         }
@@ -373,7 +373,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_threads");
         }
         try {
-            return response{201, rig_json::encode(holder::api::post_ai_threads(context.db, context.uuid_v4, std::move(*argument_0))), "post_ai_threads"};
+            return response{201, ai_json::encode(holder::api::post_ai_threads(context.db, context.uuid_v4, std::move(*argument_0))), "post_ai_threads"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_threads"};
         } catch (const holder::model::ConflictError& error) {
@@ -416,7 +416,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_runner_pull");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_ai_runner_pull(context.registry, std::move(*argument_0))), "post_ai_runner_pull"};
+            return response{200, ai_json::encode(holder::api::post_ai_runner_pull(context.registry, std::move(*argument_0))), "post_ai_runner_pull"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_runner_pull"};
         } catch (const holder::api::RunnerNotConfigured& error) {
@@ -430,7 +430,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_2("^/ai/providers/credentials$");
     if (method == "GET" && std::regex_match(route_path, match, route_2)) {
         try {
-            return response{200, rig_json::encode(holder::api::list_provider_credentials(context.db)), "list_provider_credentials"};
+            return response{200, ai_json::encode(holder::api::list_provider_credentials(context.db)), "list_provider_credentials"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_provider_credentials"};
         }
@@ -446,7 +446,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "upsert_provider_credential");
         }
         try {
-            return response{200, rig_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
+            return response{200, ai_json::encode(holder::api::upsert_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "upsert_provider_credential"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "upsert_provider_credential"};
         } catch (const holder::api::SecretStoreUnavailable& error) {
@@ -460,7 +460,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_5("^/ai/local\\-models/config$");
     if (method == "GET" && std::regex_match(route_path, match, route_5)) {
         try {
-            return response{200, rig_json::encode(holder::api::get_local_model_config(context.db)), "get_local_model_config"};
+            return response{200, ai_json::encode(holder::api::get_local_model_config(context.db)), "get_local_model_config"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "get_local_model_config"};
         }
@@ -476,7 +476,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "put_local_model_config");
         }
         try {
-            return response{200, rig_json::encode(holder::api::put_local_model_config(context.db, std::move(*argument_0))), "put_local_model_config"};
+            return response{200, ai_json::encode(holder::api::put_local_model_config(context.db, std::move(*argument_0))), "put_local_model_config"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "put_local_model_config"};
         }
@@ -492,7 +492,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_messages_capture");
         }
         try {
-            return response{201, rig_json::encode(holder::api::post_ai_messages_capture(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages_capture"};
+            return response{201, ai_json::encode(holder::api::post_ai_messages_capture(context.db, context.fts, context.uuid_v4, std::move(*argument_0))), "post_ai_messages_capture"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_capture"};
         } catch (const holder::api::AiCaptureNotFound& error) {
@@ -514,7 +514,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_nudges_evaluate");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_ai_nudges_evaluate(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_evaluate"};
+            return response{200, ai_json::encode(holder::api::post_ai_nudges_evaluate(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_evaluate"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "post_ai_nudges_evaluate"};
         }
@@ -522,7 +522,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_21("^/ai/providers/catalog$");
     if (method == "GET" && std::regex_match(route_path, match, route_21)) {
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_provider_catalog(context.db)), "get_ai_provider_catalog"};
+            return response{200, ai_json::encode(holder::api::get_ai_provider_catalog(context.db)), "get_ai_provider_catalog"};
         } catch (const holder::api::AiProviderCatalogMissing& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "get_ai_provider_catalog"};
         } catch (const std::exception& error) {
@@ -532,7 +532,7 @@ inline std::optional<response> dispatch(const std::string& method,
     static const std::regex route_37("^/ai/providers/settings$");
     if (method == "GET" && std::regex_match(route_path, match, route_37)) {
         try {
-            return response{200, rig_json::encode(holder::api::list_provider_settings(context.db)), "list_provider_settings"};
+            return response{200, ai_json::encode(holder::api::list_provider_settings(context.db)), "list_provider_settings"};
         } catch (const std::exception& error) {
             return response{500, encode_error<holder::api::ErrorResponse>(500, error), "list_provider_settings"};
         }
@@ -548,7 +548,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "set_provider_setting");
         }
         try {
-            return response{200, rig_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
+            return response{200, ai_json::encode(holder::api::set_provider_setting(context.db, std::move(*argument_0))), "set_provider_setting"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "set_provider_setting"};
         } catch (const std::exception& error) {
@@ -573,7 +573,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_pull_status");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
+            return response{200, ai_json::encode(holder::api::get_pull_status(context.registry, std::move(*argument_0), std::move(*argument_1))), "get_pull_status"};
         } catch (const holder::api::RunnerNotConfigured& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_pull_status"};
         } catch (const holder::api::PullJobNotFound& error) {
@@ -593,7 +593,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_provider_credential");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "delete_provider_credential"};
+            return response{200, ai_json::encode(holder::api::delete_provider_credential(context.db, context.secret_store, std::move(*argument_0))), "delete_provider_credential"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_credential"};
         } catch (const holder::api::SecretStoreUnavailable& error) {
@@ -615,7 +615,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_provider_setting");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
+            return response{200, ai_json::encode(holder::api::delete_provider_setting(context.db, std::move(*argument_0))), "delete_provider_setting"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_provider_setting"};
         } catch (const std::exception& error) {
@@ -668,7 +668,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_message");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_message(context.db, context.fts, std::move(*argument_0))), "get_ai_message"};
+            return response{200, ai_json::encode(holder::api::get_ai_message(context.db, context.fts, std::move(*argument_0))), "get_ai_message"};
         } catch (const holder::api::AiMessageNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message"};
         } catch (const std::exception& error) {
@@ -688,7 +688,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "patch_ai_messages_message_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::patch_ai_messages_message_id(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "patch_ai_messages_message_id"};
+            return response{200, ai_json::encode(holder::api::patch_ai_messages_message_id(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "patch_ai_messages_message_id"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_messages_message_id"};
         } catch (const holder::api::AiMessageNotFound& error) {
@@ -708,7 +708,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_ai_messages_message_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_ai_messages_message_id(context.db, context.fts, std::move(*argument_0))), "delete_ai_messages_message_id"};
+            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id(context.db, context.fts, std::move(*argument_0))), "delete_ai_messages_message_id"};
         } catch (const holder::api::AiMessageWrongState& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_messages_message_id"};
         } catch (const holder::api::AiMessageNotFound& error) {
@@ -728,7 +728,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_runner");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_runner(context.registry, std::move(*argument_0))), "get_ai_runner"};
+            return response{200, ai_json::encode(holder::api::get_ai_runner(context.registry, std::move(*argument_0))), "get_ai_runner"};
         } catch (const holder::api::AiRunnerNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_runner"};
         } catch (const std::exception& error) {
@@ -748,7 +748,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "patch_ai_runners_runner_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::patch_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "patch_ai_runners_runner_id"};
+            return response{200, ai_json::encode(holder::api::patch_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0), std::move(*argument_1))), "patch_ai_runners_runner_id"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_runners_runner_id"};
         } catch (const holder::api::AiRunnerNotFound& error) {
@@ -768,7 +768,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_ai_runners_runner_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0))), "delete_ai_runners_runner_id"};
+            return response{200, ai_json::encode(holder::api::delete_ai_runners_runner_id(context.db, context.registry, std::move(*argument_0))), "delete_ai_runners_runner_id"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_runners_runner_id"};
         } catch (const holder::api::AiRunnerNotFound& error) {
@@ -788,7 +788,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_run");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_run(context.db, std::move(*argument_0))), "get_ai_run"};
+            return response{200, ai_json::encode(holder::api::get_ai_run(context.db, std::move(*argument_0))), "get_ai_run"};
         } catch (const holder::api::AiRunNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_run"};
         } catch (const std::exception& error) {
@@ -806,7 +806,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_thread");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_thread(context.db, std::move(*argument_0))), "get_ai_thread"};
+            return response{200, ai_json::encode(holder::api::get_ai_thread(context.db, std::move(*argument_0))), "get_ai_thread"};
         } catch (const holder::api::AiThreadNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_thread"};
         } catch (const std::exception& error) {
@@ -826,7 +826,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "patch_ai_threads_thread_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::patch_ai_threads_thread_id(context.db, std::move(*argument_0), std::move(*argument_1))), "patch_ai_threads_thread_id"};
+            return response{200, ai_json::encode(holder::api::patch_ai_threads_thread_id(context.db, std::move(*argument_0), std::move(*argument_1))), "patch_ai_threads_thread_id"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "patch_ai_threads_thread_id"};
         } catch (const holder::api::AiThreadNotFound& error) {
@@ -846,7 +846,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_ai_threads_thread_id");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_ai_threads_thread_id(context.db, std::move(*argument_0))), "delete_ai_threads_thread_id"};
+            return response{200, ai_json::encode(holder::api::delete_ai_threads_thread_id(context.db, std::move(*argument_0))), "delete_ai_threads_thread_id"};
         } catch (const holder::api::AiThreadNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "delete_ai_threads_thread_id"};
         } catch (const std::exception& error) {
@@ -872,7 +872,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_message_links");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_message_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_links"};
+            return response{200, ai_json::encode(holder::api::get_ai_message_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_links"};
         } catch (const holder::api::AiMessageNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message_links"};
         } catch (const std::exception& error) {
@@ -898,7 +898,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "get_ai_message_backlinks");
         }
         try {
-            return response{200, rig_json::encode(holder::api::get_ai_message_backlinks(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_backlinks"};
+            return response{200, ai_json::encode(holder::api::get_ai_message_backlinks(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "get_ai_message_backlinks"};
         } catch (const holder::api::AiMessageNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "get_ai_message_backlinks"};
         } catch (const std::exception& error) {
@@ -916,7 +916,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_messages_message_id_restore");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_ai_messages_message_id_restore(context.db, context.fts, std::move(*argument_0))), "post_ai_messages_message_id_restore"};
+            return response{200, ai_json::encode(holder::api::post_ai_messages_message_id_restore(context.db, context.fts, std::move(*argument_0))), "post_ai_messages_message_id_restore"};
         } catch (const holder::api::AiMessageWrongState& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_message_id_restore"};
         } catch (const holder::api::AiMessageNotFound& error) {
@@ -938,7 +938,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_messages_message_id_links");
         }
         try {
-            return response{201, rig_json::encode(holder::api::post_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "post_ai_messages_message_id_links"};
+            return response{201, ai_json::encode(holder::api::post_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "post_ai_messages_message_id_links"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "post_ai_messages_message_id_links"};
         } catch (const holder::api::AiMessageNotFound& error) {
@@ -960,7 +960,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "delete_ai_messages_message_id_links");
         }
         try {
-            return response{200, rig_json::encode(holder::api::delete_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "delete_ai_messages_message_id_links"};
+            return response{200, ai_json::encode(holder::api::delete_ai_messages_message_id_links(context.db, context.fts, std::move(*argument_0), std::move(*argument_1))), "delete_ai_messages_message_id_links"};
         } catch (const std::invalid_argument& error) {
             return response{400, encode_error<holder::api::ErrorResponse>(400, error), "delete_ai_messages_message_id_links"};
         } catch (const holder::api::AiMessageNotFound& error) {
@@ -980,7 +980,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_nudges_nudge_id_dismiss");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_ai_nudges_nudge_id_dismiss(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_nudge_id_dismiss"};
+            return response{200, ai_json::encode(holder::api::post_ai_nudges_nudge_id_dismiss(context.db, context.registry, std::move(*argument_0))), "post_ai_nudges_nudge_id_dismiss"};
         } catch (const holder::api::AiNudgeNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_nudges_nudge_id_dismiss"};
         } catch (const std::exception& error) {
@@ -998,7 +998,7 @@ inline std::optional<response> dispatch(const std::string& method,
             return invalid_request(error, "post_ai_runners_runner_id_retry");
         }
         try {
-            return response{200, rig_json::encode(holder::api::post_ai_runners_runner_id_retry(context.registry, std::move(*argument_0))), "post_ai_runners_runner_id_retry"};
+            return response{200, ai_json::encode(holder::api::post_ai_runners_runner_id_retry(context.registry, std::move(*argument_0))), "post_ai_runners_runner_id_retry"};
         } catch (const holder::api::AiRunnerNotFound& error) {
             return response{404, encode_error<holder::api::ErrorResponse>(404, error), "post_ai_runners_runner_id_retry"};
         } catch (const holder::api::AiRunnerNotConfigured& error) {
@@ -1115,4 +1115,4 @@ inline bool is_host_served(const std::string& method, const std::string& path) {
     (void)path;
     return false;
 }
-} // namespace rig_http
+} // namespace ai_http
