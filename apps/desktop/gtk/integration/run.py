@@ -74,6 +74,7 @@ class Runner:
             print(line, end="")
         rc = proc.wait()
         if rc != 0:
+            print(f"Command exited with status {rc}: {' '.join(cmd)}", file=sys.stderr)
             if suppressed:
                 print("\nSuppressed noisy lines (tail):", file=sys.stderr)
                 for line in suppressed[-30:]:
@@ -134,6 +135,7 @@ class Runner:
         env.setdefault("GTK_A11Y", "atspi")
         env.setdefault("GTK_USE_PORTAL", "0")
         env.setdefault("PYTHONUNBUFFERED", "1")
+        env.setdefault("PYTHONFAULTHANDLER", "1")
         if headless:
             env.setdefault("GSETTINGS_BACKEND", "memory")
             env["GDK_BACKEND"] = "x11"
@@ -304,6 +306,10 @@ class Runner:
             self.require_cmd("dbus-run-session", "Fedora: sudo dnf install dbus-daemon; Ubuntu: sudo apt install dbus-x11")
             print("Mode: headless (xvfb-run + dbus-run-session)")
             behave_cmd = [
+                "xvfb-run",
+                "-a",
+                "-s",
+                "-screen 0 1920x1080x24",
                 "dbus-run-session",
                 "--",
                 sys.executable,
@@ -342,9 +348,7 @@ def run_headless_child(behave_cmd: list[str]) -> int:
                 ))
                 time.sleep(0.5)
                 break
-        return subprocess.call([
-            "xvfb-run", "-a", "-s", "-screen 0 1920x1080x24", *behave_cmd,
-        ])
+        return subprocess.call(behave_cmd)
     finally:
         for service in reversed(services):
             if service.poll() is None:
