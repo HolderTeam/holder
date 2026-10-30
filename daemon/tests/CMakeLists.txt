@@ -220,6 +220,13 @@ elseif(TARGET Catch2::Catch2WithMain)
   target_link_libraries(holder_daemon_tests PRIVATE Catch2::Catch2WithMain)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  # Tests locate source fixtures via __FILE__. Debian remaps that path to "."
+  # for reproducibility; keep absolute paths in this unshipped test target.
+  target_compile_options(holder_daemon_tests PRIVATE
+    "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=${CMAKE_SOURCE_DIR}")
+endif()
+
 target_compile_definitions(holder_daemon_tests PRIVATE
   LOCK_HELPER_PATH="$<TARGET_FILE:lock_helper>"
   CARD_SERVER_API_VERSION="${HOLDER_DAEMON_API_VERSION}"

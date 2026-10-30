@@ -15,6 +15,10 @@ on:
     paths:
       - apps/desktop/**
       - .github/workflows/desktop-ci.yml
+      - .github/workflows/daemon-ubuntu-packages.yml
+      - .github/scripts/*daemon-debs.sh
+      - .github/scripts/ubuntu-daemon-package-key.sh
+      - .github/scripts/tests/test_ubuntu_daemon_packages.py
   workflow_dispatch:
     inputs:
       build_type:
@@ -64,7 +68,7 @@ jobs:
           # The pull request merge commit's parents are the base and the pull request head.
           changed=$(git diff --name-only HEAD^1...HEAD^2)
           printf '%s\n' "$changed"
-          if grep -qE '^(apps/desktop/|\.github/workflows/desktop-ci\.yml$)' <<< "$changed"; then
+          if grep -qE '^(apps/desktop/|\.github/workflows/(desktop-ci|daemon-ubuntu-packages)\.yml$|\.github/scripts/(fetch-daemon-debs|publish-daemon-debs|ubuntu-daemon-package-key)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$)' <<< "$changed"; then
             echo "desktop=true" >> "$GITHUB_OUTPUT"
           else
             echo "desktop=false" >> "$GITHUB_OUTPUT"
@@ -318,7 +322,9 @@ jobs:
   linux-daemon-resolute:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
-    uses: ./.github/workflows/daemon-linux-resolute-backend.yml
+    uses: ./.github/workflows/daemon-ubuntu-packages.yml
+    with:
+      series: resolute
 
   linux-behave:
     needs: [changes, linux-resolute, linux-daemon-resolute]
@@ -330,7 +336,6 @@ jobs:
         working-directory: .
     env:
       DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-build
-      DAEMON_STAGE: ${{ github.workspace }}/out/daemon-root
 
     steps:
       - name: Check out holder
@@ -338,35 +343,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install desktop, accessibility, and daemon dependencies
+      - name: Install desktop and accessibility runtime dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             at-spi2-core \
-            catch2 \
-            cmake \
             dbus-x11 \
-            libadwaita-1-dev \
-            libboost-filesystem-dev \
-            libboost-process1.90.0 \
-            libgee-0.8-dev \
-            libgit2-dev \
-            libgtk-4-dev \
-            libgtksourceview-5-dev \
-            libjson-glib-dev \
-            libmd4c-dev \
-            libsecret-1-dev \
-            libsodium-dev \
-            libsoup-3.0-dev \
-            libspdlog-dev \
-            libspelling-1-dev \
-            libsqlite3-dev \
-            libssl-dev \
-            libvte-2.91-gtk4-dev \
-            libyaml-cpp-dev \
-            ninja-build \
-            nlohmann-json3-dev \
-            pkg-config \
+            libadwaita-1-0 \
+            libgee-0.8-2 \
+            libgtksourceview-5-0 \
+            libjson-glib-1.0-0 \
+            libsoup-3.0-0 \
+            libspelling-1-2 \
+            libvte-2.91-gtk4-0 \
             python3-behave \
             python3-dogtail \
             python3-xlib \
@@ -381,7 +370,7 @@ jobs:
       - name: Download Ubuntu 26.04 daemon
         uses: actions/download-artifact@v8
         with:
-          name: holder-daemon-resolute-behave
+          name: holder-daemon-resolute-packages
           path: out/daemon-download
 
       - name: Unpack desktop
@@ -392,15 +381,14 @@ jobs:
           test -x "$DESKTOP_STAGE/holder-desktop"
           test -f "$DESKTOP_STAGE/data/gschemas.compiled"
 
-      - name: Unpack daemon
+      - name: Install tested daemon and matching runtime packages
         run: |
           set -euo pipefail
           cd out/daemon-download
-          sha256sum -c holder-daemon-ubuntu-26.04-x86_64.tar.gz.sha256
-          mkdir -p "$DAEMON_STAGE"
-          tar -xzf holder-daemon-ubuntu-26.04-x86_64.tar.gz -C "$DAEMON_STAGE"
-          test -x "$DAEMON_STAGE/usr/bin/holderd"
-          test -f "$DAEMON_STAGE/usr/share/holder-daemon/schema/schema.sql"
+          sha256sum -c packages.sha256
+          sudo apt-get install -y --no-install-recommends ./*.deb
+          holderd --version
+          holderctl --help
 
       - name: Run GTK Behave suite
         timeout-minutes: 10
@@ -408,10 +396,8 @@ jobs:
           GSK_RENDERER: cairo
         run: |
           set -euo pipefail
-          multiarch="$(gcc -print-multiarch)"
-          export LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib:$DAEMON_STAGE/usr/lib64"
-          export HOLDER_BACKEND_BIN="$DAEMON_STAGE/usr/bin/holderd"
-          export HOLDER_DIR="$DAEMON_STAGE/usr/share/holder-daemon"
+          export HOLDER_BACKEND_BIN=/usr/bin/holderd
+          export HOLDER_DIR=/usr/share/holder-daemon
           export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/holder-desktop"
           export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/data"
           /usr/bin/python3 apps/desktop/gtk/integration/run.py
