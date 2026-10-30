@@ -304,6 +304,107 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  linux-behave:
+    needs: [changes, linux]
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: .
+    env:
+      DAEMON_STAGE: ${{ github.workspace }}/out/daemon-root
+      DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-root
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install desktop, accessibility, and daemon dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            at-spi2-core \
+            catch2 \
+            cmake \
+            dbus-x11 \
+            libadwaita-1-dev \
+            libboost-filesystem-dev \
+            libgee-0.8-dev \
+            libgit2-dev \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libmd4c-dev \
+            libsecret-1-dev \
+            libsodium-dev \
+            libsoup-3.0-dev \
+            libspdlog-dev \
+            libspelling-1-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libvte-2.91-gtk4-dev \
+            libyaml-cpp-dev \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkg-config \
+            python3-behave \
+            python3-dogtail \
+            python3-xlib \
+            xvfb
+
+      - name: Download tested desktop
+        uses: actions/download-artifact@v8
+        with:
+          name: holder-desktop-linux-x86_64${{ inputs.build_type == 'release' && '-release' || '' }}
+          path: out/desktop-download
+
+      - name: Verify and unpack desktop
+        run: |
+          set -euo pipefail
+          cd out/desktop-download
+          sha256sum -c holder-desktop-linux-x86_64.tar.gz.sha256
+          mkdir -p "$DESKTOP_STAGE"
+          tar -xzf holder-desktop-linux-x86_64.tar.gz -C "$DESKTOP_STAGE"
+          test -x "$DESKTOP_STAGE/usr/bin/holder-desktop"
+
+      - id: daemon_key
+        name: Compute matching daemon artifact key
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh RelWithDebInfo)" >> "$GITHUB_OUTPUT"
+
+      - id: daemon_shelf
+        name: Fetch tested daemon for this source tree
+        run: .github/scripts/fetch-daemon-build.sh "${{ steps.daemon_key.outputs.key }}" "$DAEMON_STAGE"
+
+      - name: Build daemon when no matching artifact exists
+        if: steps.daemon_shelf.outputs.found == 'false'
+        working-directory: daemon
+        run: ./make.sh build RelWithDebInfo
+
+      - name: Run GTK Behave suite
+        timeout-minutes: 10
+        env:
+          GSK_RENDERER: cairo
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.daemon_shelf.outputs.found }}" == true ]]; then
+            daemon_bin="$DAEMON_STAGE/usr/bin/holderd"
+            daemon_dir="$DAEMON_STAGE/usr/share/holder-daemon"
+            multiarch="$(gcc -print-multiarch)"
+            export LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib"
+          else
+            daemon_bin="$GITHUB_WORKSPACE/daemon/build/holderd"
+            daemon_dir="$GITHUB_WORKSPACE/daemon"
+          fi
+          test -x "$daemon_bin"
+          export HOLDER_BACKEND_BIN="$daemon_bin"
+          export HOLDER_DIR="$daemon_dir"
+          export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/usr/bin/holder-desktop"
+          export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/usr/share/glib-2.0/schemas"
+          /usr/bin/python3 apps/desktop/gtk/integration/run.py
+
   macos:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
@@ -617,7 +718,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, linux-resolute, macos, windows]
+    needs: [changes, linux, linux-resolute, linux-behave, macos, windows]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -632,7 +733,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "success"))
+               ([.linux, .["linux-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "success"))
              else
-               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "skipped"))
+               ([.linux, .["linux-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null
