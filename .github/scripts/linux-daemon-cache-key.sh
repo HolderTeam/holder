@@ -8,7 +8,7 @@ build_type=$1
 ubuntu_series=${2:-24.04}
 
 case "$ubuntu_series" in
-  24.04|26.04) ;;
+  24.04) ;;
   *) echo "Unsupported Ubuntu series: $ubuntu_series" >&2; exit 2 ;;
 esac
 
@@ -22,10 +22,6 @@ inputs=$(git rev-parse \
   HEAD:.gitmodules \
   HEAD:.github/actions/linux-daemon-deps \
   HEAD:.github/actions/linux-daemon-build)
-
-if [[ "$ubuntu_series" == 26.04 ]]; then
-  inputs+=$'\n'"$(git rev-parse HEAD:.github/workflows/daemon-linux-resolute-backend.yml)"
-fi
 
 printf 'linux-daemon-ubuntu-%s-%s-%s\n' \
   "$ubuntu_series" "$build_type" "$(sha256sum <<< "$inputs" | cut -c1-16)"

@@ -14,6 +14,9 @@ on:
       - '.github/workflows/daemon-*.yml'
       - '.github/actions/linux-daemon-*/**'
       - '.github/scripts/linux-daemon-cache-key.sh'
+      - '.github/scripts/*daemon-debs.sh'
+      - '.github/scripts/ubuntu-daemon-package-key.sh'
+      - '.github/scripts/tests/test_ubuntu_daemon_packages.py'
       - 'cli/**'
       - 'common/**'
       - 'api/**'
@@ -72,7 +75,7 @@ jobs:
           # don't select the daemon jobs. The contract's conformance tests run here over HTTP.
           # Keep in step with the paths.
           changed=$(grep -vE '^core/(include/holder/holder\.h$|src/capi/(holder|version)\.cpp$|tests/)' <<< "$changed" || true)
-          if grep -qE '^(daemon/|cli/|common/|api/|core/|contract/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/linux-daemon-cache-key\.sh$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
+          if grep -qE '^(daemon/|cli/|common/|api/|core/|contract/|VERSION$|\.gitmodules$|\.github/workflows/daemon-|\.github/workflows/core-sdk\.yml$|\.github/actions/core-ubuntu-packages/|\.github/scripts/fetch-core-debs\.sh$|\.github/actions/core-sdk/|\.github/actions/linux-daemon-|\.github/scripts/(linux-daemon-cache-key|ubuntu-daemon-package-key|fetch-daemon-debs|publish-daemon-debs)\.sh$|\.github/scripts/tests/test_ubuntu_daemon_packages\.py$|\.github/scripts/check-core-boundary\.py$)' <<< "$changed"; then
             echo "daemon=true" >> "$GITHUB_OUTPUT"
           else
             echo "daemon=false" >> "$GITHUB_OUTPUT"
@@ -131,12 +134,6 @@ jobs:
     with:
       core_commit: ${{ needs.core-sdk.outputs.commit }}
       daemon_commit: ${{ needs.resolve.outputs.daemon_commit }}
-      build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
-  linux-resolute:
-    needs: changes
-    if: needs.changes.outputs.daemon == 'true'
-    uses: ./.github/workflows/daemon-linux-resolute-backend.yml
-    with:
       build_type: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
   macos:
     needs: [resolve, core-sdk]
@@ -205,10 +202,14 @@ jobs:
           GH_TOKEN: ${{ steps.token.outputs.token }}
         run: .github/scripts/prune-sdk-releases.sh daemon- 64
 
-  publish-linux-resolute-daemon:
-    needs: linux-resolute
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  publish-ubuntu-packages:
+    needs: ubuntu-packages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.core_packages != 'ppa'
     runs-on: ubuntu-24.04
+    strategy:
+      max-parallel: 1
+      matrix:
+        series: [noble, resolute]
     environment: holder-sdk-publish
     concurrency:
       group: holder-sdk-publish
@@ -219,15 +220,14 @@ jobs:
           persist-credentials: false
 
       - id: key
-        name: Compute the Ubuntu 26.04 daemon key
         env:
-          BUILD_TYPE: ${{ inputs.core_build_type || 'RelWithDebInfo' }}
-        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE" 26.04)" >> "$GITHUB_OUTPUT"
+          SERIES: ${{ matrix.series }}
+        run: echo "key=$(.github/scripts/ubuntu-daemon-package-key.sh "$SERIES")-source" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v8
         with:
-          name: holder-daemon-resolute-behave
-          path: out/linux-resolute-daemon
+          name: holder-daemon-${{ matrix.series }}-packages
+          path: out/daemon-debs
 
       - id: token
         name: Get a token for holder-sdk
@@ -239,106 +239,36 @@ jobs:
           repositories: holder-sdk
           permission-contents: write
 
-      - name: Publish the Ubuntu 26.04 daemon
+      - name: Publish tested Ubuntu packages
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: .github/scripts/publish-daemon-build.sh out/linux-resolute-daemon "${{ steps.key.outputs.key }}"
+        run: .github/scripts/publish-daemon-debs.sh out/daemon-debs "${{ steps.key.outputs.key }}"
 
       - name: Keep the newest 64 daemon releases
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-        run: .github/scripts/prune-sdk-releases.sh daemon- 64
+        run: .github/scripts/prune-sdk-releases.sh ubuntu-daemon-debs- 64
 
   ubuntu-packages:
-    # Maintainers can label a PR when Launchpad is unavailable. The required result check
-    # records the skipped package build; all non-package builds still have to pass.
+    # Launchpad outages can still be bypassed for the daemon checks with this label.
     if: github.repository == 'HolderTeam/holder' && inputs.core_build_type != 'Release' && !contains(github.event.pull_request.labels.*.name, 'ci:skip-launchpad-packages')
     needs: resolve
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests build for 26.04 only (24.04's toolchain is already covered by the Linux
-        # backend build); main and manual runs build for both.
-        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"image":"ubuntu:26.04","series":"resolute"}]' || '[{"image":"ubuntu:24.04","series":"noble"},{"image":"ubuntu:26.04","series":"resolute"}]') }}
-    runs-on: ubuntu-24.04
-    container: ${{ matrix.image }}
-    timeout-minutes: 45
-    env:
-      # The package is built from daemon/ copied out on its own, as the Debian source package is,
-      # so a file the build reads from beside daemon/ shows up here instead of on Launchpad.
-      EXPORTED_DAEMON: /tmp/export/daemon
-      # By default libholder packages are built here from core/ in this commit, the same core the
-      # other jobs use, so a daemon change needing new core does not wait on Launchpad. The ppa
-      # choice builds against the published Launchpad packages instead, as users install them.
-      CORE_PACKAGES: ${{ inputs.core_packages || 'source' }}
-    steps:
-      - name: Install packaging tools and configure package source
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates software-properties-common git devscripts equivs debhelper cmake ninja-build
-          # The PPA also provides daemon build dependencies that Ubuntu does not, such as libcaste-dev.
-          add-apt-repository -y ppa:holderteam/holder
-          if [ "$CORE_PACKAGES" = source ]; then
-            # Only the core packages built below may satisfy libholder.
-            printf 'Package: libholder0 libholder-dev\nPin: release o=LP-PPA-holderteam-holder\nPin-Priority: -1\n' \
-              > /etc/apt/preferences.d/no-ppa-libholder
-          fi
-          apt-get update
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve.outputs.daemon_commit }}
-          persist-credentials: false
-      - name: Core packages for core/ in this commit, from holder-sdk or built
-        if: env.CORE_PACKAGES == 'source'
-        uses: ./.github/actions/core-ubuntu-packages
-        with:
-          series: ${{ matrix.series }}
-      - name: Export daemon/ on its own, as the Debian source package sees it
-        run: |
-          mkdir -p "$(dirname "${EXPORTED_DAEMON}")"
-          cp -a daemon "${EXPORTED_DAEMON}"
-          daemon/packaging/linux/prepare-source-tree.sh "${GITHUB_WORKSPACE}" "${EXPORTED_DAEMON}"
-      - name: Build daemon against the installed core packages
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        working-directory: ${{ env.EXPORTED_DAEMON }}
-        run: |
-          cp -a packaging/linux/debian debian
-          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
-          dpkg-buildpackage -b -us -uc -j2
-      - name: Verify shared core linkage and package dependency
-        shell: bash
-        working-directory: ${{ env.EXPORTED_DAEMON }}
-        run: |
-          ldd build/holderd | grep 'libholder.so.0'
-          ldd build/holderctl | grep 'libholder.so.0'
-          package=$(find .. -maxdepth 1 -name 'holder-daemon_*.deb' -print -quit)
-          # holderd uses core's C++ headers, so it must require libholder0 of the same upstream version.
-          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
-          depends=$(dpkg-deb -f "$package" Depends)
-          echo "$depends"
-          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
-          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
-          test ! -d build/holder-core
-          dpkg -i "$package"
-          holderd --version
-          holderctl --help
-          mkdir -p out/ubuntu-packages
-          cp "$package" out/ubuntu-packages/
-      - uses: actions/upload-artifact@v7
-        with:
-          name: holder-daemon-${{ matrix.series }}-packages
-          path: ${{ env.EXPORTED_DAEMON }}/out/ubuntu-packages/*.deb
-          if-no-files-found: error
+        series: ${{ fromJSON(github.event_name == 'pull_request' && '["resolute"]' || '["noble","resolute"]') }}
+    uses: ./.github/workflows/daemon-ubuntu-packages.yml
+    with:
+      series: ${{ matrix.series }}
+      core_packages: ${{ inputs.core_packages || 'source' }}
+
   result:
     name: Daemon CI result
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, checks, resolve, core-sdk, linux, linux-resolute, macos, windows, ubuntu-packages]
+    needs: [changes, checks, resolve, core-sdk, linux, macos, windows, ubuntu-packages]
     runs-on: ubuntu-24.04
     steps:
       - name: Check job results
@@ -355,12 +285,12 @@ jobs:
           jq -e --arg selected "$SELECTED" --arg skip "$SKIP_LAUNCHPAD" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.checks, .resolve, .["core-sdk"], .linux, .["linux-resolute"], .macos, .windows] | all(.result == "success")) and
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows] | all(.result == "success")) and
                (if $skip == "true" then
                   .["ubuntu-packages"].result == "skipped"
                 else
                   (.["ubuntu-packages"].result | IN("success", "skipped"))
                 end)
              else
-               ([.checks, .resolve, .["core-sdk"], .linux, .["linux-resolute"], .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
+               ([.checks, .resolve, .["core-sdk"], .linux, .macos, .windows, .["ubuntu-packages"]] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

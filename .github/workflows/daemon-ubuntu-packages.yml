@@ -1,0 +1,179 @@
+name: Daemon / Ubuntu packages
+
+on:
+  workflow_call:
+    inputs:
+      series:
+        type: string
+        required: true
+      core_packages:
+        type: string
+        default: source
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    outputs:
+      key: ${{ steps.key.outputs.key }}
+      image: ${{ steps.key.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test package reuse scripts
+        run: python3 -m unittest discover -s .github/scripts/tests -p 'test_ubuntu_daemon_packages.py' -v
+      - id: key
+        env:
+          SERIES: ${{ inputs.series }}
+          CORE_PACKAGES: ${{ inputs.core_packages }}
+        run: |
+          case "$SERIES" in
+            noble) echo 'image=ubuntu:24.04' >> "$GITHUB_OUTPUT" ;;
+            resolute) echo 'image=ubuntu:26.04' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unsupported Ubuntu series: $SERIES" >&2; exit 1 ;;
+          esac
+          case "$CORE_PACKAGES" in source|ppa) ;; *) exit 1 ;; esac
+          echo "key=$(.github/scripts/ubuntu-daemon-package-key.sh "$SERIES")-$CORE_PACKAGES" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    runs-on: ubuntu-24.04
+    container: ${{ needs.resolve.outputs.image }}
+    timeout-minutes: 45
+    # The lock spans cache restore, build and save, including concurrent callers.
+    concurrency:
+      group: ${{ needs.resolve.outputs.key }}-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      EXPORTED_DAEMON: /tmp/export/daemon
+      CORE_PACKAGES: ${{ inputs.core_packages }}
+    steps:
+      - name: Install checkout and cache tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl zstd
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: cached
+        if: env.CORE_PACKAGES == 'source'
+        uses: actions/cache/restore@v4
+        with:
+          path: out/daemon-debs
+          key: ${{ needs.resolve.outputs.key }}
+
+      - id: shelf
+        if: env.CORE_PACKAGES == 'source' && steps.cached.outputs.cache-hit != 'true'
+        env:
+          PACKAGE_KEY: ${{ needs.resolve.outputs.key }}
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl
+          .github/scripts/fetch-daemon-debs.sh "$PACKAGE_KEY" out/daemon-debs
+
+      - id: available
+        env:
+          CACHE_HIT: ${{ steps.cached.outputs.cache-hit }}
+          SHELF_HIT: ${{ steps.shelf.outputs.found }}
+        run: |
+          found=false
+          if [ "$CACHE_HIT" = true ] || [ "$SHELF_HIT" = true ]; then found=true; fi
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+
+      - name: Install packaging tools and configure package source
+        if: steps.available.outputs.found != 'true'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates software-properties-common git devscripts equivs debhelper cmake ninja-build
+          # The PPA also provides daemon build dependencies that Ubuntu does not, such as libcaste-dev.
+          add-apt-repository -y ppa:holderteam/holder
+          if [ "$CORE_PACKAGES" = source ]; then
+            # Only the core packages built below may satisfy libholder.
+            printf 'Package: libholder0 libholder-dev\nPin: release o=LP-PPA-holderteam-holder\nPin-Priority: -1\n' \
+              > /etc/apt/preferences.d/no-ppa-libholder
+          fi
+          apt-get update
+      - name: Core packages for core/ in this commit, from holder-sdk or built
+        if: steps.available.outputs.found != 'true' && env.CORE_PACKAGES == 'source'
+        uses: ./.github/actions/core-ubuntu-packages
+        with:
+          series: ${{ inputs.series }}
+      - name: Export daemon/ on its own, as the Debian source package sees it
+        if: steps.available.outputs.found != 'true'
+        run: |
+          mkdir -p "$(dirname "${EXPORTED_DAEMON}")"
+          cp -a daemon "${EXPORTED_DAEMON}"
+          daemon/packaging/linux/prepare-source-tree.sh "${GITHUB_WORKSPACE}" "${EXPORTED_DAEMON}"
+      - name: Build daemon against the installed core packages
+        if: steps.available.outputs.found != 'true'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: ${{ env.EXPORTED_DAEMON }}
+        run: |
+          cp -a packaging/linux/debian debian
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc -j2
+          # Reuse the package build's objects for the unit tests as well.
+          apt-get install -y --no-install-recommends catch2
+          cmake -S . -B build -DBUILD_TESTING=ON
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure --parallel 2 --timeout 60
+      - name: Verify shared core linkage and package dependency
+        if: steps.available.outputs.found != 'true'
+        shell: bash
+        working-directory: ${{ env.EXPORTED_DAEMON }}
+        run: |
+          ldd build/holderd | grep 'libholder.so.0'
+          ldd build/holderctl | grep 'libholder.so.0'
+          package=$(find .. -maxdepth 1 -name 'holder-daemon_*.deb' -print -quit)
+          # holderd uses core's C++ headers, so it must require libholder0 of the same upstream version.
+          upstream=$(dpkg-query -W -f='${source:Upstream-Version}' libholder0)
+          depends=$(dpkg-deb -f "$package" Depends)
+          echo "$depends"
+          grep -F "libholder0 (>= ${upstream})" <<< "$depends"
+          grep -F "libholder0 (<< ${upstream}.~)" <<< "$depends"
+          test ! -d build/holder-core
+          dpkg -i "$package"
+          holderd --version
+          holderctl --help
+          mkdir -p out/ubuntu-packages
+          cp "$package" out/ubuntu-packages/
+      - name: Collect matching runtime packages
+        if: steps.available.outputs.found != 'true' && env.CORE_PACKAGES == 'source'
+        shell: bash
+        run: |
+          mkdir -p out/daemon-debs
+          cp "$EXPORTED_DAEMON"/out/ubuntu-packages/*.deb out/daemon-debs/
+          cp out/core-debs/libholder0_*.deb out/daemon-debs/
+          # Caste comes from the PPA; preserve the exact runtime used for this build.
+          cd out/daemon-debs
+          apt-get download "libcaste0=$(dpkg-query -W -f='${Version}' libcaste0)"
+          for package in *.deb; do
+            normalized="${package//~/.}"
+            if [[ "$package" != "$normalized" ]]; then mv "$package" "$normalized"; fi
+          done
+          sha256sum *.deb > packages.sha256
+
+      - name: Check restored package checksums
+        if: steps.available.outputs.found == 'true'
+        run: cd out/daemon-debs && sha256sum -c packages.sha256
+
+      - name: Save tested packages
+        if: steps.cached.outputs.cache-hit != 'true' && env.CORE_PACKAGES == 'source'
+        uses: actions/cache/save@v4
+        with:
+          path: out/daemon-debs
+          key: ${{ needs.resolve.outputs.key }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: holder-daemon-${{ inputs.series }}-packages
+          path: ${{ env.CORE_PACKAGES == 'source' && 'out/daemon-debs/*' || format('{0}/out/ubuntu-packages/*.deb', env.EXPORTED_DAEMON) }}
+          if-no-files-found: error
