@@ -304,17 +304,27 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Pack desktop for Behave
+        run: tar -C build-resolute -czf holder-desktop-resolute-behave.tar.gz holder-desktop data/gschemas.compiled
+
+      - name: Upload desktop for Behave
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-desktop-resolute-behave
+          path: apps/desktop/gtk/holder-desktop-resolute-behave.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   linux-behave:
-    needs: [changes, linux]
+    needs: [changes, linux-resolute]
     if: needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: .
     env:
-      DAEMON_STAGE: ${{ github.workspace }}/out/daemon-root
-      DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-root
+      DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-build
 
     steps:
       - name: Check out holder
@@ -358,46 +368,18 @@ jobs:
       - name: Download tested desktop
         uses: actions/download-artifact@v8
         with:
-          name: holder-desktop-linux-x86_64${{ inputs.build_type == 'release' && '-release' || '' }}
+          name: holder-desktop-resolute-behave
           path: out/desktop-download
 
-      - name: Verify and unpack desktop
+      - name: Unpack desktop
         run: |
           set -euo pipefail
-          cd out/desktop-download
-          sha256sum -c holder-desktop-linux-x86_64.tar.gz.sha256
           mkdir -p "$DESKTOP_STAGE"
-          tar -xzf holder-desktop-linux-x86_64.tar.gz -C "$DESKTOP_STAGE"
-          test -x "$DESKTOP_STAGE/usr/bin/holder-desktop"
+          tar -xzf out/desktop-download/holder-desktop-resolute-behave.tar.gz -C "$DESKTOP_STAGE"
+          test -x "$DESKTOP_STAGE/holder-desktop"
+          test -f "$DESKTOP_STAGE/data/gschemas.compiled"
 
-      - id: daemon_key
-        name: Compute matching daemon artifact key
-        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh RelWithDebInfo)" >> "$GITHUB_OUTPUT"
-
-      - id: daemon_shelf
-        name: Fetch tested daemon for this source tree
-        run: .github/scripts/fetch-daemon-build.sh "${{ steps.daemon_key.outputs.key }}" "$DAEMON_STAGE"
-
-      - id: daemon_runtime
-        name: Check published daemon runtime on Ubuntu 26.04
-        run: |
-          usable=false
-          if [[ "${{ steps.daemon_shelf.outputs.found }}" == true ]]; then
-            multiarch="$(gcc -print-multiarch)"
-            daemon_bin="$DAEMON_STAGE/usr/bin/holderd"
-            if [[ -x "$daemon_bin" ]]; then
-              if libraries="$(LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib" ldd "$daemon_bin" 2>&1)"; then
-                printf '%s\n' "$libraries"
-                if ! grep -q 'not found' <<< "$libraries"; then
-                  usable=true
-                fi
-              fi
-            fi
-          fi
-          echo "usable=$usable" >> "$GITHUB_OUTPUT"
-
-      - name: Build daemon when the published artifact cannot run
-        if: steps.daemon_runtime.outputs.usable == 'false'
+      - name: Build daemon from this checkout
         working-directory: daemon
         run: ./make.sh build RelWithDebInfo
 
@@ -407,20 +389,11 @@ jobs:
           GSK_RENDERER: cairo
         run: |
           set -euo pipefail
-          if [[ "${{ steps.daemon_runtime.outputs.usable }}" == true ]]; then
-            daemon_bin="$DAEMON_STAGE/usr/bin/holderd"
-            daemon_dir="$DAEMON_STAGE/usr/share/holder-daemon"
-            multiarch="$(gcc -print-multiarch)"
-            export LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib"
-          else
-            daemon_bin="$GITHUB_WORKSPACE/daemon/build/holderd"
-            daemon_dir="$GITHUB_WORKSPACE/daemon"
-          fi
-          test -x "$daemon_bin"
-          export HOLDER_BACKEND_BIN="$daemon_bin"
-          export HOLDER_DIR="$daemon_dir"
-          export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/usr/bin/holder-desktop"
-          export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/usr/share/glib-2.0/schemas"
+          test -x "$GITHUB_WORKSPACE/daemon/build/holderd"
+          export HOLDER_BACKEND_BIN="$GITHUB_WORKSPACE/daemon/build/holderd"
+          export HOLDER_DIR="$GITHUB_WORKSPACE/daemon"
+          export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/holder-desktop"
+          export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/data"
           /usr/bin/python3 apps/desktop/gtk/integration/run.py
 
   macos:
