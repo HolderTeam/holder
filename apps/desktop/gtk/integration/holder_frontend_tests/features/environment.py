@@ -23,6 +23,13 @@ def before_all(context):
     )
 
     if target == "linux":
+        if os.environ.get("GSETTINGS_BACKEND") == "memory":
+            # Dogtail checks this when tree is first imported. With the memory
+            # backend it must be set in this process, not by a gsettings child.
+            from gi.repository import Gio
+
+            settings = Gio.Settings.new("org.gnome.desktop.interface")
+            settings.set_boolean("toolkit-accessibility", True)
         context.driver = LinuxDogtailDriver(app_path)
     else:
         raise RuntimeError(

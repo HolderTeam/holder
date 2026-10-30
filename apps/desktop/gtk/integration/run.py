@@ -297,6 +297,8 @@ class Runner:
             "-D",
             f"app_path={app_path}",
             "--tags=@linux",
+            "--no-capture",
+            "--no-capture-stderr",
         ]
         if scenario_name is not None:
             behave_cmd.extend(("--name", scenario_name))
