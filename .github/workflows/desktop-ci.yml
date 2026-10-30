@@ -378,8 +378,26 @@ jobs:
         name: Fetch tested daemon for this source tree
         run: .github/scripts/fetch-daemon-build.sh "${{ steps.daemon_key.outputs.key }}" "$DAEMON_STAGE"
 
-      - name: Build daemon when no matching artifact exists
-        if: steps.daemon_shelf.outputs.found == 'false'
+      - id: daemon_runtime
+        name: Check published daemon runtime on Ubuntu 26.04
+        run: |
+          usable=false
+          if [[ "${{ steps.daemon_shelf.outputs.found }}" == true ]]; then
+            multiarch="$(gcc -print-multiarch)"
+            daemon_bin="$DAEMON_STAGE/usr/bin/holderd"
+            if [[ -x "$daemon_bin" ]]; then
+              if libraries="$(LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib" ldd "$daemon_bin" 2>&1)"; then
+                printf '%s\n' "$libraries"
+                if ! grep -q 'not found' <<< "$libraries"; then
+                  usable=true
+                fi
+              fi
+            fi
+          fi
+          echo "usable=$usable" >> "$GITHUB_OUTPUT"
+
+      - name: Build daemon when the published artifact cannot run
+        if: steps.daemon_runtime.outputs.usable == 'false'
         working-directory: daemon
         run: ./make.sh build RelWithDebInfo
 
@@ -389,7 +407,7 @@ jobs:
           GSK_RENDERER: cairo
         run: |
           set -euo pipefail
-          if [[ "${{ steps.daemon_shelf.outputs.found }}" == true ]]; then
+          if [[ "${{ steps.daemon_runtime.outputs.usable }}" == true ]]; then
             daemon_bin="$DAEMON_STAGE/usr/bin/holderd"
             daemon_dir="$DAEMON_STAGE/usr/share/holder-daemon"
             multiarch="$(gcc -print-multiarch)"
