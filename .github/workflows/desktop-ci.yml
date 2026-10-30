@@ -348,6 +348,7 @@ jobs:
             dbus-x11 \
             libadwaita-1-dev \
             libboost-filesystem-dev \
+            libboost-process1.90.0 \
             libgee-0.8-dev \
             libgit2-dev \
             libgtk-4-dev \
