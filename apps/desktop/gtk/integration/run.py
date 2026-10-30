@@ -57,6 +57,7 @@ class Runner:
         print("Running:", " ".join(cmd), flush=True)
         proc = subprocess.Popen(
             cmd,
+            cwd=self.integration_root,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
