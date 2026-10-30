@@ -120,11 +120,30 @@ jobs:
           cp -a packaging/linux/debian debian
           mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
           dpkg-buildpackage -b -us -uc -j2
+
+      - name: Build and run daemon unit tests
+        if: steps.available.outputs.found != 'true'
+        working-directory: ${{ env.EXPORTED_DAEMON }}
+        run: |
           # Reuse the package build's objects for the unit tests as well.
-          apt-get install -y --no-install-recommends catch2
+          apt-get install -y --no-install-recommends catch2 passwd util-linux tini
           cmake -S . -B build -DBUILD_TESTING=ON
           cmake --build build --parallel 2
-          ctest --test-dir build --output-on-failure --parallel 2 --timeout 60
+          # Permission tests need an ordinary user. Detached daemon tests also
+          # need a subreaper, since the job container's PID 1 is tail.
+          useradd --create-home holder-test
+          chown -R holder-test:holder-test "$EXPORTED_DAEMON"
+          tini -s -- runuser -u holder-test -- \
+            ctest --test-dir build --output-on-failure --parallel 2 --timeout 60
+
+      - name: Upload package test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: holder-daemon-${{ inputs.series }}-package-test-logs
+          path: /tmp/export/daemon/build/Testing/Temporary/
+          if-no-files-found: ignore
+
       - name: Verify shared core linkage and package dependency
         if: steps.available.outputs.found != 'true'
         shell: bash

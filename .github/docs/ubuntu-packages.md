@@ -15,7 +15,10 @@ For the default `core_packages=source` mode, each caller:
    locks because their writable caches have separate GitHub scopes.
 3. On a miss, builds the Debian packages, builds and runs the daemon unit tests
    using the same build directory, and verifies shared-core linkage and package
-   version constraints. The self-contained Debian source export is still checked.
+   version constraints. Tests run as an ordinary user under a subreaper so file
+   permissions and detached-daemon shutdown work inside a container. The unshipped
+   test binary retains source paths for its fixtures despite Debian path remapping.
+   The self-contained Debian source export is still checked.
 4. Bundles `holder-daemon`, the matching `libholder0`, and the exact `libcaste0`
    runtime installed during the build, with `packages.sha256`. Only a successful
    build and test run is cached. Each caller uploads its own workflow artifact.
