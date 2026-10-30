@@ -1,0 +1,105 @@
+name: Daemon / Ubuntu 26.04 backend
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        type: string
+        default: RelWithDebInfo
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      STAGE: ${{ github.workspace }}/daemon/out/artifacts/linux-resolute-backend
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: key
+        name: Compute Ubuntu 26.04 daemon key
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: echo "key=$(.github/scripts/linux-daemon-cache-key.sh "$BUILD_TYPE" 26.04)" >> "$GITHUB_OUTPUT"
+
+      - id: shelf
+        name: Fetch published Ubuntu 26.04 daemon
+        run: >-
+          .github/scripts/fetch-daemon-build.sh "${{ steps.key.outputs.key }}" "$STAGE"
+          holder-daemon-ubuntu-26.04-x86_64.tar.gz
+
+      - id: cached
+        name: Check published daemon runtime
+        run: |
+          usable=false
+          if [[ "${{ steps.shelf.outputs.found }}" == true && -x "$STAGE/usr/bin/holderd" ]]; then
+            multiarch="$(gcc -print-multiarch)"
+            if libraries="$(LD_LIBRARY_PATH="$STAGE/usr/lib/$multiarch:$STAGE/usr/lib:$STAGE/usr/lib64" ldd "$STAGE/usr/bin/holderd" 2>&1)"; then
+              printf '%s\n' "$libraries"
+              if ! grep -q 'not found' <<< "$libraries"; then
+                usable=true
+              fi
+            fi
+          fi
+          echo "usable=$usable" >> "$GITHUB_OUTPUT"
+
+      - if: steps.cached.outputs.usable != 'true'
+        uses: ./.github/actions/linux-daemon-deps
+
+      - name: Install Ubuntu 26.04 Boost.Process
+        if: steps.cached.outputs.usable != 'true'
+        run: sudo apt-get install -y libboost-process-dev
+
+      - name: Check out caste
+        if: steps.cached.outputs.usable != 'true'
+        run: git submodule update --init --recursive -- daemon/submodules/caste
+
+      - name: Build daemon and local core
+        if: steps.cached.outputs.usable != 'true'
+        working-directory: daemon
+        env:
+          BUILD_TYPE: ${{ inputs.build_type }}
+        run: ./make.sh build "$BUILD_TYPE"
+
+      - name: Test Ubuntu 26.04 daemon
+        if: steps.cached.outputs.usable != 'true'
+        working-directory: daemon
+        run: ctest --test-dir build --output-on-failure --parallel 8 --timeout 60
+
+      - name: Stage built daemon
+        if: steps.cached.outputs.usable != 'true'
+        working-directory: daemon
+        run: |
+          set -euo pipefail
+          rm -rf "$STAGE"
+          DESTDIR="$STAGE" cmake --install build --prefix /usr
+
+      - name: Smoke-test and pack daemon
+        run: |
+          set -euo pipefail
+          multiarch="$(gcc -print-multiarch)"
+          export LD_LIBRARY_PATH="$STAGE/usr/lib/$multiarch:$STAGE/usr/lib:$STAGE/usr/lib64"
+          test -x "$STAGE/usr/bin/holderd"
+          test -f "$STAGE/usr/share/holder-daemon/schema/schema.sql"
+          "$STAGE/usr/bin/holderd" --version
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          archive=holder-daemon-ubuntu-26.04-x86_64.tar.gz
+          tar -C "$STAGE" -czf "$GITHUB_WORKSPACE/out/$archive" .
+          cd "$GITHUB_WORKSPACE/out"
+          sha256sum "$archive" > "$archive.sha256"
+
+      - name: Upload daemon for Behave
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-daemon-resolute-behave
+          path: |
+            out/holder-daemon-ubuntu-26.04-x86_64.tar.gz
+            out/holder-daemon-ubuntu-26.04-x86_64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7

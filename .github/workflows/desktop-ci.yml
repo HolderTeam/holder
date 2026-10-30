@@ -304,6 +304,118 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Pack desktop for Behave
+        run: tar -C build-resolute -czf holder-desktop-resolute-behave.tar.gz holder-desktop data/gschemas.compiled
+
+      - name: Upload desktop for Behave
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: holder-desktop-resolute-behave
+          path: apps/desktop/gtk/holder-desktop-resolute-behave.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  linux-daemon-resolute:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    uses: ./.github/workflows/daemon-linux-resolute-backend.yml
+
+  linux-behave:
+    needs: [changes, linux-resolute, linux-daemon-resolute]
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: .
+    env:
+      DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-build
+      DAEMON_STAGE: ${{ github.workspace }}/out/daemon-root
+
+    steps:
+      - name: Check out holder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install desktop, accessibility, and daemon dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            at-spi2-core \
+            catch2 \
+            cmake \
+            dbus-x11 \
+            libadwaita-1-dev \
+            libboost-filesystem-dev \
+            libboost-process1.90.0 \
+            libgee-0.8-dev \
+            libgit2-dev \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libmd4c-dev \
+            libsecret-1-dev \
+            libsodium-dev \
+            libsoup-3.0-dev \
+            libspdlog-dev \
+            libspelling-1-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libvte-2.91-gtk4-dev \
+            libyaml-cpp-dev \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkg-config \
+            python3-behave \
+            python3-dogtail \
+            python3-xlib \
+            xvfb
+
+      - name: Download tested desktop
+        uses: actions/download-artifact@v8
+        with:
+          name: holder-desktop-resolute-behave
+          path: out/desktop-download
+
+      - name: Download Ubuntu 26.04 daemon
+        uses: actions/download-artifact@v8
+        with:
+          name: holder-daemon-resolute-behave
+          path: out/daemon-download
+
+      - name: Unpack desktop
+        run: |
+          set -euo pipefail
+          mkdir -p "$DESKTOP_STAGE"
+          tar -xzf out/desktop-download/holder-desktop-resolute-behave.tar.gz -C "$DESKTOP_STAGE"
+          test -x "$DESKTOP_STAGE/holder-desktop"
+          test -f "$DESKTOP_STAGE/data/gschemas.compiled"
+
+      - name: Unpack daemon
+        run: |
+          set -euo pipefail
+          cd out/daemon-download
+          sha256sum -c holder-daemon-ubuntu-26.04-x86_64.tar.gz.sha256
+          mkdir -p "$DAEMON_STAGE"
+          tar -xzf holder-daemon-ubuntu-26.04-x86_64.tar.gz -C "$DAEMON_STAGE"
+          test -x "$DAEMON_STAGE/usr/bin/holderd"
+          test -f "$DAEMON_STAGE/usr/share/holder-daemon/schema/schema.sql"
+
+      - name: Run GTK Behave suite
+        timeout-minutes: 10
+        env:
+          GSK_RENDERER: cairo
+        run: |
+          set -euo pipefail
+          multiarch="$(gcc -print-multiarch)"
+          export LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib:$DAEMON_STAGE/usr/lib64"
+          export HOLDER_BACKEND_BIN="$DAEMON_STAGE/usr/bin/holderd"
+          export HOLDER_DIR="$DAEMON_STAGE/usr/share/holder-daemon"
+          export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/holder-desktop"
+          export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/data"
+          /usr/bin/python3 apps/desktop/gtk/integration/run.py
+
   macos:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
@@ -617,7 +729,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, linux-resolute, macos, windows]
+    needs: [changes, linux, linux-resolute, linux-daemon-resolute, linux-behave, macos, windows]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -632,7 +744,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "success"))
+               ([.linux, .["linux-resolute"], .["linux-daemon-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "success"))
              else
-               ([.linux, .["linux-resolute"], .macos, .windows] | all(.result == "skipped"))
+               ([.linux, .["linux-resolute"], .["linux-daemon-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

@@ -4,6 +4,7 @@ import os
 import json
 from pathlib import Path
 from time import time
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from holder_frontend_tests.drivers import LinuxDogtailDriver
@@ -22,6 +23,13 @@ def before_all(context):
     )
 
     if target == "linux":
+        if os.environ.get("GSETTINGS_BACKEND") == "memory":
+            # Dogtail checks this when tree is first imported. With the memory
+            # backend it must be set in this process, not by a gsettings child.
+            from gi.repository import Gio
+
+            settings = Gio.Settings.new("org.gnome.desktop.interface")
+            settings.set_boolean("toolkit-accessibility", True)
         context.driver = LinuxDogtailDriver(app_path)
     else:
         raise RuntimeError(
@@ -80,6 +88,12 @@ def _seed_history_fixture(context) -> None:
             "updated_at": int(time()) + 1,
         },
     )
+    search = _fixture_request(
+        "GET",
+        "/search/cards?" + urlencode({"project_id": project["project_id"], "q": "History Fixture Card"}),
+    )
+    if not any(item["card_id"] == card["card_id"] for item in search):
+        raise RuntimeError("History fixture card is absent from the daemon's search results")
     context.history_fixture_project = project["name"]
     context.history_fixture_card = "History Fixture Card"
 

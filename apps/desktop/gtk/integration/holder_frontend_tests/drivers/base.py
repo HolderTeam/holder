@@ -69,7 +69,7 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def open_search_result(self, text: str) -> None:
+    def open_sidebar_card(self, text: str) -> None:
         raise NotImplementedError
 
     @abstractmethod

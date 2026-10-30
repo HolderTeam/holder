@@ -37,12 +37,22 @@ class LinuxDogtailDriver(FrontendDriver):
         if os.path.exists(os.path.join(schema_dir, "gschemas.compiled")):
             env.setdefault("GSETTINGS_SCHEMA_DIR", schema_dir)
 
-        self.proc = subprocess.Popen(
-            [self.app_path],
-            env=launch_environment(env),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        app_log = os.environ.get("HOLDER_INTEGRATION_APP_LOG")
+        if app_log:
+            with open(app_log, "w", encoding="utf-8") as output:
+                self.proc = subprocess.Popen(
+                    [self.app_path],
+                    env=launch_environment(env),
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                )
+        else:
+            self.proc = subprocess.Popen(
+                [self.app_path],
+                env=launch_environment(env),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
         # Lazy import so non-linux clients can still import package safely.
         from dogtail import tree  # pylint: disable=import-outside-toplevel
@@ -98,9 +108,16 @@ class LinuxDogtailDriver(FrontendDriver):
             timeout=20.0,
             interval=0.2,
         )
-        self._activate_list_item_for_child(project)
+        item = self._ancestor_with_role(project, ("list item",))
+        if item is None:
+            raise RuntimeError(f"Project row not found for: {name}")
+        item.select()
         self._wait_for(
-            lambda: True if self._visible_text_contains(name) else None,
+            lambda: True if (
+                (item := self._ancestor_with_role(
+                    self._find_visible_named(self._current_window(), name), ("list item",)
+                )) is not None and item.selected
+            ) else None,
             timeout=10.0,
             interval=0.2,
         )
@@ -132,11 +149,39 @@ class LinuxDogtailDriver(FrontendDriver):
         rawinput.pressKey("Enter")
 
     def has_search_result(self, text: str) -> bool:
-        return self._has_visible_named(text, timeout=20.0)
+        try:
+            return self._wait_for(
+                lambda: True if self._find_search_result_title(text) is not None else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
 
-    def open_search_result(self, text: str) -> None:
-        result = self._wait_for(lambda: self._find_search_result_title(text), timeout=20.0)
-        self._activate_list_item_for_child(result)
+    def open_sidebar_card(self, text: str) -> None:
+        search_entry = self._find_search_entry()
+        sidebar_right = search_entry.position[0] if search_entry is not None else 290
+
+        def card_row():
+            matches = self._current_window().findChildren(
+                lambda node: (
+                    getattr(node, "name", "") == text
+                    and getattr(node, "showing", True)
+                    and getattr(node, "visible", True)
+                )
+            )
+            for node in matches:
+                if node.position[0] < sidebar_right:
+                    row = self._ancestor_with_role(node, ("list item",))
+                    if row is not None:
+                        return row
+            return None
+
+        row = self._wait_for(card_row, timeout=20.0)
+        row.select()
+        clear_search = self._find_visible_named(self._current_window(), "Clear search")
+        if clear_search is not None:
+            self._click_node(clear_search)
         self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
 
     def replace_all_in_editor(self, find_text: str, replace_text: str) -> None:
@@ -747,6 +792,10 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def _find_search_result_title(self, title: str):
         window = self._current_window()
+        search_entry = self._find_search_entry()
+        if search_entry is None:
+            return None
+        search_x, _ = search_entry.position
         matches = window.findChildren(
             lambda node: (
                 getattr(node, "name", "") == title
@@ -756,7 +805,10 @@ class LinuxDogtailDriver(FrontendDriver):
             )
         )
         for node in matches:
-            if self._ancestor_with_role(node, ("list item",)) is not None:
+            if (
+                node.position[0] >= search_x
+                and self._ancestor_with_role(node, ("list item",)) is not None
+            ):
                 return node
         return None
 
