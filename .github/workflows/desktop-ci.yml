@@ -379,6 +379,9 @@ jobs:
           test -x "$DESKTOP_STAGE/holder-desktop"
           test -f "$DESKTOP_STAGE/data/gschemas.compiled"
 
+      - name: Check out daemon source dependency
+        run: git submodule update --init --recursive -- daemon/submodules/caste
+
       - name: Build daemon from this checkout
         working-directory: daemon
         run: ./make.sh build RelWithDebInfo
