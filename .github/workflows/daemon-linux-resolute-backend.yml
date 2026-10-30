@@ -52,6 +52,10 @@ jobs:
       - if: steps.cached.outputs.usable != 'true'
         uses: ./.github/actions/linux-daemon-deps
 
+      - name: Install Ubuntu 26.04 Boost.Process
+        if: steps.cached.outputs.usable != 'true'
+        run: sudo apt-get install -y libboost-process-dev
+
       - name: Check out caste
         if: steps.cached.outputs.usable != 'true'
         run: git submodule update --init --recursive -- daemon/submodules/caste

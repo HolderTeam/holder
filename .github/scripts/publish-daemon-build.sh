@@ -40,7 +40,7 @@ notes="Holder's Linux daemon (holderd and holderctl, staged for Ubuntu $ubuntu_s
 A development build: see the README. Each archive's SHA-256 checksum is in the .sha256 file beside it."
 
 gh release create "$tag" --repo "$repo" --target main --draft --prerelease --latest=false \
-  --title "Daemon (Linux) ${key##*-}" --notes "$notes" "$dir"/*
+  --title "$(date -u +%Y-%m-%d-%H-%M) Daemon (Linux) ${key##*-}" --notes "$notes" "$dir"/*
 read -r id draft < <(release)
 gh api -X PATCH "repos/$repo/releases/$id" -F draft=false -f make_latest=false > /dev/null
 echo "Published https://github.com/$repo/releases/tag/$tag"
