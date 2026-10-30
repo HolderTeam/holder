@@ -16,14 +16,25 @@ Implemented first vertical slice:
 
 ## Quick start (Linux)
 
-From `integration`:
+On Fedora:
 
-```bash
-# Ubuntu dependencies (no venv required)
+```sh
+sudo dnf install python3-behave python3-dogtail python3-xlib xorg-x11-server-Xvfb at-spi2-core dbus-daemon
+```
+
+On Ubuntu:
+
+```sh
 sudo apt update
-sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
+sudo apt install -y python3-behave python3-dogtail python3-xlib xvfb at-spi2-core dbus-x11 x11-utils
+```
 
-# Run the full Linux integration suite
+From `integration`, build the daemon and desktop from the same checkout, then run the headless suite:
+
+```sh
+cmake --build ../../../../daemon/build --parallel 4
+meson compile -C ../build holder-desktop
+
 ./make.sh
 ```
 

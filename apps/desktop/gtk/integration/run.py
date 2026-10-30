@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -178,6 +179,9 @@ class Runner:
             run_env["XDG_DATA_HOME"] = str(data)
             run_env["XDG_CONFIG_HOME"] = str(config)
             run_env["XDG_CACHE_HOME"] = str(cache)
+            run_env["HOLDER_TEST_KEYSTORE_DIR"] = str(xdg_root_path / "keystore")
+            app_log = xdg_root_path / "holder-desktop.log"
+            run_env["HOLDER_INTEGRATION_APP_LOG"] = str(app_log)
 
             backend_log = xdg_root_path / "holder-backend.log"
             with backend_log.open("w", encoding="utf-8") as log:
@@ -251,12 +255,30 @@ class Runner:
                         print(log_tail[-8000:], file=sys.stderr)
                         raise SystemExit(1)
 
-                self.run_checked(command, env=run_env)
+                try:
+                    self.run_checked(command, env=run_env)
+                except subprocess.CalledProcessError:
+                    print("Backend log (tail):", file=sys.stderr)
+                    print(backend_log.read_text(encoding="utf-8", errors="replace")[-8000:], file=sys.stderr)
+                    if app_log.exists():
+                        print("Desktop log (tail):", file=sys.stderr)
+                        print(app_log.read_text(encoding="utf-8", errors="replace")[-8000:], file=sys.stderr)
+                    raise
             finally:
                 stop_backend()
 
-    def run_linux(self, headless: bool | None = None) -> None:
-        self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
+    def run_linux(self, headless: bool | None = None, scenario_name: str | None = None) -> None:
+        self.require_cmd("behave", "Fedora: sudo dnf install python3-behave; Ubuntu: sudo apt install python3-behave")
+        if importlib.util.find_spec("dogtail") is None:
+            print("Missing dependency: python3-dogtail", file=sys.stderr)
+            print("Fedora: sudo dnf install python3-dogtail", file=sys.stderr)
+            print("Ubuntu: sudo apt install python3-dogtail", file=sys.stderr)
+            raise SystemExit(1)
+        if importlib.util.find_spec("Xlib") is None:
+            print("Missing dependency: python3-xlib (dogtail's X11 coordinate support)", file=sys.stderr)
+            print("Fedora: sudo dnf install python3-xlib", file=sys.stderr)
+            print("Ubuntu: sudo apt install python3-xlib", file=sys.stderr)
+            raise SystemExit(1)
         if headless is None:
             headless = os.environ.get("HOLDER_TEST_HEADLESS", "1") != "0"
         app_path = self.default_app_path()
@@ -273,18 +295,19 @@ class Runner:
             f"app_path={app_path}",
             "--tags=@linux",
         ]
+        if scenario_name is not None:
+            behave_cmd.extend(("--name", scenario_name))
 
         if headless:
-            self.require_cmd("xvfb-run", "Ubuntu: sudo apt install xvfb")
-            self.require_cmd("dbus-run-session", "Ubuntu: sudo apt install dbus-x11")
+            self.require_cmd("xvfb-run", "Fedora: sudo dnf install xorg-x11-server-Xvfb; Ubuntu: sudo apt install xvfb")
+            self.require_cmd("dbus-run-session", "Fedora: sudo dnf install dbus-daemon; Ubuntu: sudo apt install dbus-x11")
             print("Mode: headless (xvfb-run + dbus-run-session)")
             behave_cmd = [
                 "dbus-run-session",
                 "--",
-                "xvfb-run",
-                "-a",
-                "-s",
-                "-screen 0 1920x1080x24",
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--headless-child",
             ] + behave_cmd
         else:
             headed_env = self.behave_env(headless=False)
@@ -293,6 +316,43 @@ class Runner:
             print("Mode: headed (visible desktop session)")
 
         self.run_with_isolated_backend(behave_cmd, env=self.behave_env(headless=headless))
+
+
+def run_headless_child(behave_cmd: list[str]) -> int:
+    """Run dogtail with an accessibility bus inside the private D-Bus session."""
+    locations = (
+        ("/usr/libexec/at-spi-bus-launcher", "/usr/libexec/at-spi2-registryd"),
+        ("/usr/lib/at-spi2-core/at-spi-bus-launcher", "/usr/lib/at-spi2-core/at-spi2-registryd"),
+    )
+    services: list[subprocess.Popen] = []
+    try:
+        for launcher, registry in locations:
+            if Path(launcher).is_file() and Path(registry).is_file():
+                services.append(subprocess.Popen(
+                    [launcher, "--launch-immediately"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ))
+                time.sleep(0.5)
+                services.append(subprocess.Popen(
+                    [registry],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ))
+                time.sleep(0.5)
+                break
+        return subprocess.call([
+            "xvfb-run", "-a", "-s", "-screen 0 1920x1080x24", *behave_cmd,
+        ])
+    finally:
+        for service in reversed(services):
+            if service.poll() is None:
+                service.terminate()
+                try:
+                    service.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    service.kill()
+                    service.wait(timeout=2)
 
 
 def print_usage() -> None:
@@ -325,6 +385,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Run against the current desktop session for faster local feedback.",
     )
+    parser.add_argument("--name", help="Run only scenarios whose name contains this text.")
     return parser.parse_args(argv)
 
 
@@ -335,6 +396,8 @@ def normalize_args(argv: list[str]) -> list[str]:
 
 
 def main() -> int:
+    if sys.argv[1:2] == ["--headless-child"]:
+        return run_headless_child(sys.argv[2:])
     runner = Runner()
     args = parse_args(normalize_args(sys.argv[1:]))
     if args.access:
@@ -355,7 +418,7 @@ def main() -> int:
             headless = True
         if args.headed:
             headless = False
-        runner.run_linux(headless=headless)
+        runner.run_linux(headless=headless, scenario_name=args.name)
         return 0
 
     print_usage()
