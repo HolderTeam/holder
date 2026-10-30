@@ -315,8 +315,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  linux-daemon-resolute:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    uses: ./.github/workflows/daemon-linux-resolute-backend.yml
+
   linux-behave:
-    needs: [changes, linux-resolute]
+    needs: [changes, linux-resolute, linux-daemon-resolute]
     if: needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 40
@@ -325,6 +330,7 @@ jobs:
         working-directory: .
     env:
       DESKTOP_STAGE: ${{ github.workspace }}/out/desktop-build
+      DAEMON_STAGE: ${{ github.workspace }}/out/daemon-root
 
     steps:
       - name: Check out holder
@@ -371,6 +377,12 @@ jobs:
           name: holder-desktop-resolute-behave
           path: out/desktop-download
 
+      - name: Download Ubuntu 26.04 daemon
+        uses: actions/download-artifact@v8
+        with:
+          name: holder-daemon-resolute-behave
+          path: out/daemon-download
+
       - name: Unpack desktop
         run: |
           set -euo pipefail
@@ -379,12 +391,15 @@ jobs:
           test -x "$DESKTOP_STAGE/holder-desktop"
           test -f "$DESKTOP_STAGE/data/gschemas.compiled"
 
-      - name: Check out daemon source dependency
-        run: git submodule update --init --recursive -- daemon/submodules/caste
-
-      - name: Build daemon from this checkout
-        working-directory: daemon
-        run: ./make.sh build RelWithDebInfo
+      - name: Unpack daemon
+        run: |
+          set -euo pipefail
+          cd out/daemon-download
+          sha256sum -c holder-daemon-ubuntu-26.04-x86_64.tar.gz.sha256
+          mkdir -p "$DAEMON_STAGE"
+          tar -xzf holder-daemon-ubuntu-26.04-x86_64.tar.gz -C "$DAEMON_STAGE"
+          test -x "$DAEMON_STAGE/usr/bin/holderd"
+          test -f "$DAEMON_STAGE/usr/share/holder-daemon/schema/schema.sql"
 
       - name: Run GTK Behave suite
         timeout-minutes: 10
@@ -392,9 +407,10 @@ jobs:
           GSK_RENDERER: cairo
         run: |
           set -euo pipefail
-          test -x "$GITHUB_WORKSPACE/daemon/build/holderd"
-          export HOLDER_BACKEND_BIN="$GITHUB_WORKSPACE/daemon/build/holderd"
-          export HOLDER_DIR="$GITHUB_WORKSPACE/daemon"
+          multiarch="$(gcc -print-multiarch)"
+          export LD_LIBRARY_PATH="$DAEMON_STAGE/usr/lib/$multiarch:$DAEMON_STAGE/usr/lib:$DAEMON_STAGE/usr/lib64"
+          export HOLDER_BACKEND_BIN="$DAEMON_STAGE/usr/bin/holderd"
+          export HOLDER_DIR="$DAEMON_STAGE/usr/share/holder-daemon"
           export HOLDER_FRONTEND_APP_PATH="$DESKTOP_STAGE/holder-desktop"
           export GSETTINGS_SCHEMA_DIR="$DESKTOP_STAGE/data"
           /usr/bin/python3 apps/desktop/gtk/integration/run.py
@@ -712,7 +728,7 @@ jobs:
     # The required check. It runs even when jobs fail or are skipped, and passes only when every
     # selected job succeeded and no job ran that was not selected.
     if: always()
-    needs: [changes, linux, linux-resolute, linux-behave, macos, windows]
+    needs: [changes, linux, linux-resolute, linux-daemon-resolute, linux-behave, macos, windows]
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -727,7 +743,7 @@ jobs:
           jq -e --arg selected "$SELECTED" '
             .changes.result == "success" and
             (if $selected == "true" then
-               ([.linux, .["linux-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "success"))
+               ([.linux, .["linux-resolute"], .["linux-daemon-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "success"))
              else
-               ([.linux, .["linux-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "skipped"))
+               ([.linux, .["linux-resolute"], .["linux-daemon-resolute"], .["linux-behave"], .macos, .windows] | all(.result == "skipped"))
              end)' <<< "$RESULTS" > /dev/null

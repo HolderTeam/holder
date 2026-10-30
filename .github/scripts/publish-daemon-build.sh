@@ -31,7 +31,11 @@ while read -r id draft; do
 done < <(release)
 
 commit=$(git rev-parse HEAD)
-notes="Holder's Linux daemon (holderd and holderctl, staged for Ubuntu 24.04), built and tested from HolderTeam/holder commit $commit by $RUN_URL. The tag names a hash of every source tree the build depends on.
+case "$key" in
+  linux-daemon-ubuntu-26.04-*) ubuntu_series=26.04 ;;
+  *) ubuntu_series=24.04 ;;
+esac
+notes="Holder's Linux daemon (holderd and holderctl, staged for Ubuntu $ubuntu_series), built and tested from HolderTeam/holder commit $commit by $RUN_URL. The tag names a hash of every source tree the build depends on.
 
 A development build: see the README. Each archive's SHA-256 checksum is in the .sha256 file beside it."
 
