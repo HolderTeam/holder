@@ -7,6 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
+from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
+from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
 from holder_contract.android_ir import ContractView, NullableType, ScalarType
 from holder_contract.extract import extract
 
@@ -275,6 +277,21 @@ def test_tag_filtered_card_pages_use_contract_list_cards():
         "kind": "string",
     }
     with pytest.raises(ValueError, match="list_cards parameters need a generator update"):
+        generate_android(changed)
+
+
+def test_card_history_bridge_uses_contract_page_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardHistoryEntry(" in generated[HISTORY_KOTLIN_PATH]
+    assert "nativeListCardHistory" in generated[HISTORY_KOTLIN_PATH]
+    assert "holder_list_card_history(" in generated[HISTORY_JNI_PATH]
+    assert "value.visible_parent_oids" in generated[HISTORY_JNI_PATH]
+
+    changed = deepcopy(ir)
+    page = next(record for record in changed["records"] if record["name"] == "CardHistoryPage")
+    page["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardHistoryPage fields need a generator update"):
         generate_android(changed)
 
 

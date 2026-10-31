@@ -257,8 +257,9 @@ def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
     assert main(["generate", "--output", str(tmp_path)]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractCards.kt",
-        "ContractJson.h", "ContractProjects.kt", "ContractRoutes.h", "contract_cards.cpp",
-        "contract_projects.cpp", "holder_api.h", "openapi.json"]
+        "ContractHistory.kt", "ContractJson.h", "ContractProjects.kt", "ContractRoutes.h",
+        "contract_cards.cpp", "contract_history.cpp", "contract_projects.cpp", "holder_api.h",
+        "openapi.json"]
 
 
 def daemon_document(paths):

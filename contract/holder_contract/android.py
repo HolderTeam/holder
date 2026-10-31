@@ -148,7 +148,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         card_metadata_conversion=card_metadata_conversion,
         write_jni=write_jni, list_jni=list_jni, trash_jni=trash_jni + reference_jni,
     )
+    from .android_history import generate_history
     from .android_projects import generate_projects
 
     return {KOTLIN_PATH: kotlin, JNI_PATH: jni,
-            **generate_projects(contract)}
+            **generate_projects(contract), **generate_history(contract)}

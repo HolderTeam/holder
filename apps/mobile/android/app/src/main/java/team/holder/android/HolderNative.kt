@@ -2,6 +2,7 @@ package team.holder.android
 
 import android.content.Context
 import team.holder.android.generated.ContractCards
+import team.holder.android.generated.ContractHistory
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import team.holder.android.generated.ContractProject
@@ -1035,6 +1036,40 @@ object HolderNative {
         cardId: String,
         cursor: String? = null,
         limit: Int = 50,
+    ): HolderCardHistoryPage {
+        val page = backgroundLane.call { ContractHistory.nativeListCardHistory(it, projectId, cardId, limit, cursor) }
+        return HolderCardHistoryPage(
+            headOid = page.headOid,
+            entries = page.entries.map { entry ->
+                HolderCardHistoryEntry(
+                    firstOid = entry.firstOid,
+                    lastOid = entry.lastOid,
+                    parentOids = entry.parentOids,
+                    visibleParentOids = entry.visibleParentOids,
+                    authorName = entry.author.name,
+                    authorEmail = entry.author.email,
+                    startedAt = entry.startedAt,
+                    endedAt = entry.endedAt,
+                    kind = entry.kind,
+                    summary = entry.summary,
+                    commitCount = entry.commitCount,
+                    isMerge = entry.isMerge,
+                    saves = entry.saves.map { save -> HolderCardHistorySave(
+                        oid = save.oid,
+                        parentOids = save.parentOids,
+                        authoredAt = save.authoredAt,
+                        committedAt = save.committedAt,
+                        message = save.message,
+                    ) },
+                )
+            },
+            nextCursor = page.nextCursor,
+            scanLimited = page.scanLimited,
+        )
+    }
+
+    internal fun listCardHistoryJsonForBenchmark(
+        projectId: String, cardId: String, cursor: String? = null, limit: Int = 50,
     ): HolderCardHistoryPage {
         val json = JSONObject(backgroundLane.call { nativeCardHistoryList(it, projectId, cardId, cursor, limit) })
         val entries = json.getJSONArray("entries")
