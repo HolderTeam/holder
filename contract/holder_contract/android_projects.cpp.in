@@ -30,6 +30,42 @@ jstring string(JNIEnv* env, const char* utf8) {
   return env->NewString(reinterpret_cast<const jchar*>(out.data()), static_cast<jsize>(out.size()));
 }
 
+bool utf8(JNIEnv* env, jstring input, std::string& out) {
+  const jchar* chars = env->GetStringChars(input, nullptr);
+  if (!chars) return false;
+  const jsize count = env->GetStringLength(input);
+  for (jsize i = 0; i < count; ++i) {
+    uint32_t cp = chars[i];
+    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < count &&
+        chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+      cp = 0x10000 + ((cp - 0xd800) << 10) + (chars[++i] - 0xdc00);
+    } else if (cp >= 0xd800 && cp <= 0xdfff) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "unpaired UTF-16 surrogate"); return false;
+    }
+    if (cp == 0) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "NUL is not allowed in C strings"); return false;
+    }
+    if (cp < 0x80) out.push_back(static_cast<char>(cp));
+    else if (cp < 0x800) {
+      out.push_back(static_cast<char>(0xc0 | (cp >> 6)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else if (cp < 0x10000) {
+      out.push_back(static_cast<char>(0xe0 | (cp >> 12)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else {
+      out.push_back(static_cast<char>(0xf0 | (cp >> 18)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    }
+  }
+  env->ReleaseStringChars(input, chars);
+  return true;
+}
+
 jobject boxed_int(JNIEnv* env, int32_t value) {
   jclass type = env->FindClass("java/lang/Integer");
   jmethodID ctor = env->GetMethodID(type, "<init>", "(I)V");
@@ -42,6 +78,21 @@ const char* privacy_mode(holder_project_privacy_mode value) {
   switch (value) {
 ${mode_cases}      default: return nullptr;
   }
+}
+
+jobject project_result(JNIEnv* env, const holder_project& project) {
+  const char* mode = privacy_mode(project.privacy_mode);
+  if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractProject");
+  if (!item_type) return nullptr;
+${project_constructor}${project_record_lines}${project_construction}${project_release_refs}  env->DeleteLocalRef(item_type);
+  return item;
+}
+
+void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
+  std::string message = error ? holder_error_message(error) : fallback;
+  if (error) holder_error_destroy(error);
+  fail(env, message.c_str());
 }
 }  // namespace
 
@@ -78,4 +129,62 @@ ${record_lines}${item_construction}${release_refs}    if (env->ExceptionCheck())
     if (env->ExceptionCheck()) return nullptr;
   }
   return items;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring name, jstring privacy_mode_value) {
+  if (!context_handle || !name) { fail(env, "context and name are required"); return nullptr; }
+  std::string project_name, privacy;
+  if (!utf8(env, name, project_name) ||
+      (privacy_mode_value && !utf8(env, privacy_mode_value, privacy))) return nullptr;
+  holder_new_project request{};
+  request.name = project_name.c_str();
+  // Android's null mode has always meant plain; the contract defaults to encrypted_git.
+  if (!privacy_mode_value || privacy == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+  else if (privacy == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+  else { fail(env, "unknown project privacy mode"); return nullptr; }
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_create_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot create project"); return nullptr; }
+  return project_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeRenameProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring name) {
+  if (!context_handle || !project_id || !name) {
+    fail(env, "context, project ID and name are required"); return nullptr;
+  }
+  std::string id, project_name;
+  if (!utf8(env, project_id, id) || !utf8(env, name, project_name)) return nullptr;
+  holder_project_update request{};
+  request.name = project_name.c_str();
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_update_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot rename project"); return nullptr; }
+  return project_result(env, *value);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeDeleteProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return;
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_delete_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) project_error(env, error, "cannot delete project");
 }

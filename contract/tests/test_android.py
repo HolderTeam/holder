@@ -26,6 +26,33 @@ def test_card_field_change_updates_kotlin_and_jni():
     assert "boxed_double(env, *card.new_score)" in after[JNI_PATH]
 
 
+def test_project_writes_follow_contract_and_preserve_android_plain_default():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    for operation in ("Create", "Rename", "Delete"):
+        assert f"native{operation}Project" in kotlin
+    for operation in ("create", "update", "delete"):
+        assert f"holder_{operation}_project(" in jni
+    assert "HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN" in jni
+    assert "GetStringChars" in jni
+    assert "project.project_id" in jni
+
+    changed = deepcopy(ir)
+    project = next(record for record in changed["records"] if record["name"] == "Project")
+    project["fields"].append({"name": "new_count", "type": {"kind": "int32"}})
+    generated = generate_android(changed)
+    assert "val newCount: Int" in generated[PROJECT_KOTLIN_PATH]
+    assert "project.new_count" in generated[PROJECT_JNI_PATH]
+
+    changed = deepcopy(ir)
+    new_project = next(record for record in changed["records"] if record["name"] == "NewProject")
+    new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="NewProject fields need a generator update"):
+        generate_android(changed)
+
+
 def test_card_list_return_change_requires_generator_update():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

@@ -4,6 +4,7 @@ import android.content.Context
 import team.holder.android.generated.ContractCards
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
+import team.holder.android.generated.ContractProject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -873,14 +874,29 @@ object HolderNative {
 
     /** privacyMode null defaults (server-side) to "plain". "encrypted_git" is also valid. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
+        fromContractProject(saveLane.call { ContractProjects.nativeCreateProject(it, name, privacyMode) })
 
     fun renameProject(projectId: String, name: String): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
+        fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
 
     fun deleteProject(projectId: String) {
+        saveLane.call { ContractProjects.nativeDeleteProject(it, projectId) }
+    }
+
+    /** Previous JSON paths retained for parity and timing during migration. */
+    internal fun createProjectJsonForBenchmark(name: String, privacyMode: String? = null): HolderProject =
+        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
+
+    internal fun renameProjectJsonForBenchmark(projectId: String, name: String): HolderProject =
+        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
+
+    internal fun deleteProjectJsonForBenchmark(projectId: String) {
         saveLane.call { nativeProjectDelete(it, projectId) }
     }
+
+    private fun fromContractProject(project: ContractProject) = HolderProject(
+        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode,
+    )
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
         fromContractMetadata(saveLane.call {

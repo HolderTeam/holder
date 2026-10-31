@@ -23,17 +23,40 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     if mode["kind"] != "literal" or not all(isinstance(v, str) for v in mode["values"]):
         raise ValueError("Android project privacy mode needs string literals")
     fields = records["Project"]["fields"] + records["ProjectListItem"]["fields"]
+    project_fields = records["Project"]["fields"]
+    operations = {op["name"]: op for op in ir["operations"]}
+    for name, parameters in {"create_project": ["project"], "update_project": ["project_id", "update"],
+                             "delete_project": ["project_id"]}.items():
+        op = operations[name]
+        if [p["name"] for p in op["parameters"]] != parameters or op["returns"] != {"kind": "named", "name": "Project"}:
+            raise ValueError(f"Android {name} parameters or return need a generator update")
+    if [f["name"] for f in records["NewProject"]["fields"]] != [
+        "project_id", "name", "root_path", "git_remote_url", "git_provider", "privacy_mode", "created_at", "updated_at"
+    ] or operations["create_project"]["parameters"][0]["type"] != {"kind": "named", "name": "NewProject"} or \
+            records["NewProject"]["fields"][5].get("default") != "encrypted_git":
+        raise ValueError("Android NewProject fields need a generator update")
+    project_typed = [(field["name"], *_field_type(field, aliases,
+        allow_literal=field["name"] == "privacy_mode")) for field in project_fields]
+    if [f["name"] for f in records["ProjectUpdate"]["fields"]] != ["name", "git_remote_url", "git_provider"] or \
+            operations["update_project"]["parameters"][1]["type"] != {"kind": "named", "name": "ProjectUpdate"}:
+        raise ValueError("Android ProjectUpdate fields need a generator update")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
     header = "// Generated from contract/interface/projects.py and contract/interface/app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     kotlin = header + "package team.holder.android.generated\n\n" + \
-        _record_kotlin("ContractProjectListItem", typed) + \
+        _record_kotlin("ContractProjectListItem", typed) + "\n" + \
+        _record_kotlin("ContractProject", project_typed) + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
+        "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
+        "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
+        "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     record_lines, arguments, refs = _record_jni_lines(typed, "project", {"privacy_mode": "mode"})
+    project_descriptor = "(" + "".join(signature for _, _, signature, _ in project_typed) + ")V"
+    project_lines, project_args, project_refs = _record_jni_lines(project_typed, "project", {"privacy_mode": "mode"}, indent="  ")
     mode_lines = "".join(
         f"      case HOLDER_PROJECT_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"
         for value in mode["values"])
@@ -44,5 +67,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         record_lines="".join(record_lines),
         item_construction=f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n",
         release_refs="".join(f"    if ({ref}) env->DeleteLocalRef({ref});\n" for ref in refs),
+        project_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{project_descriptor}");\n',
+        project_record_lines="".join(project_lines),
+        project_construction=f"  jobject item = env->NewObject(item_type, item_ctor, {', '.join(project_args)});\n",
+        project_release_refs="".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in project_refs),
     )
     return {PROJECT_KOTLIN_PATH: kotlin, PROJECT_JNI_PATH: jni}

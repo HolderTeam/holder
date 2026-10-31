@@ -130,6 +130,64 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedProjectWrites_matchJsonAndPreservePlainDefault() {
+        initialize("# Welcome\n\nWelcome")
+        val timings = listOf("create", "rename", "delete").associateWith {
+            Pair(ArrayList<Long>(), ArrayList<Long>())
+        }
+        fun <T> timed(samples: MutableList<Long>, record: Boolean, call: () -> T): T {
+            val start = System.nanoTime()
+            val result = call()
+            if (record) samples.add(System.nanoTime() - start)
+            return result
+        }
+        fun <T> pair(operation: String, round: Int, generated: () -> T, json: () -> T): Pair<T, T> {
+            val (generatedTimes, jsonTimes) = timings.getValue(operation)
+            val record = round >= 2
+            return if (round % 2 == 0) {
+                val first = timed(generatedTimes, record, generated)
+                val second = timed(jsonTimes, record, json)
+                Pair(first, second)
+            } else {
+                val second = timed(jsonTimes, record, json)
+                val first = timed(generatedTimes, record, generated)
+                Pair(first, second)
+            }
+        }
+        repeat(9) { round ->
+            val (generated, json) = pair("create", round,
+                { HolderNative.createProject("Generated $round 🚀") },
+                { HolderNative.createProjectJsonForBenchmark("JSON $round 🚀") })
+            assertEquals("plain", generated.privacyMode)
+            assertEquals(json.privacyMode, generated.privacyMode)
+            assertNull(generated.gitRemoteUrl)
+            assertEquals(generated, HolderNative.listProjects().single { it.projectId == generated.projectId })
+
+            val (renamed, jsonRenamed) = pair("rename", round,
+                { HolderNative.renameProject(generated.projectId, "Renamed $round 日本語") },
+                { HolderNative.renameProjectJsonForBenchmark(json.projectId, "Renamed $round 日本語") })
+            assertEquals(jsonRenamed.name, renamed.name)
+            assertEquals(jsonRenamed.privacyMode, renamed.privacyMode)
+            assertEquals(renamed, HolderNative.listProjects().single { it.projectId == generated.projectId })
+
+            pair("delete", round,
+                { HolderNative.deleteProject(generated.projectId) },
+                { HolderNative.deleteProjectJsonForBenchmark(json.projectId) })
+            assertTrue(HolderNative.listProjects().none {
+                it.projectId == generated.projectId || it.projectId == json.projectId
+            })
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        timings.forEach { (operation, samples) ->
+            Log.i("HolderProjectWriteTiming", "$operation generated=${median(samples.first) / 1_000_000.0}ms " +
+                "JSON=${median(samples.second) / 1_000_000.0}ms")
+        }
+
+        val encrypted = HolderNative.createProject("Encrypted 🚀", "encrypted_git")
+        assertEquals("encrypted_git", encrypted.privacyMode)
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
