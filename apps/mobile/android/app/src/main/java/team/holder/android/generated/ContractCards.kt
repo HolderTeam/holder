@@ -28,6 +28,21 @@ data class ContractCardMetadata(
     val deletedAt: Long?,
 )
 
+data class ContractTagCount(
+    val tag: String,
+    val cardCount: Int,
+)
+
+data class ContractSearchCard(
+    val cardId: String,
+    val title: String,
+    val updatedAt: Long,
+    val createdAt: Long,
+    val snippet: String,
+    val rank: Double,
+)
+
+
 data class ContractCardPage(
     val items: List<ContractCardListItem>,
     val nextCursor: String?,
@@ -40,4 +55,6 @@ object ContractCards {
     external fun nativeUpdateCard(contextHandle: Long, projectId: String, cardId: String, title: String, content: String): ContractCardMetadata
     external fun nativeTrashCard(contextHandle: Long, projectId: String, cardId: String)
     external fun nativeRestoreCard(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
+    external fun nativeListProjectTags(contextHandle: Long, projectId: String): List<ContractTagCount>
+    external fun nativeSearchCards(contextHandle: Long, projectId: String, query: String, limit: Int): List<ContractSearchCard>
 }

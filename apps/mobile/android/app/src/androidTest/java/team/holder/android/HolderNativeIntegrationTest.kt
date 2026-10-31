@@ -130,6 +130,279 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedProjectWrites_matchJsonAndPreservePlainDefault() {
+        initialize("# Welcome\n\nWelcome")
+        val timings = listOf("create", "rename", "delete").associateWith {
+            Pair(ArrayList<Long>(), ArrayList<Long>())
+        }
+        fun <T> timed(samples: MutableList<Long>, record: Boolean, call: () -> T): T {
+            val start = System.nanoTime()
+            val result = call()
+            if (record) samples.add(System.nanoTime() - start)
+            return result
+        }
+        fun <T> pair(operation: String, round: Int, generated: () -> T, json: () -> T): Pair<T, T> {
+            val (generatedTimes, jsonTimes) = timings.getValue(operation)
+            val record = round >= 2
+            return if (round % 2 == 0) {
+                val first = timed(generatedTimes, record, generated)
+                val second = timed(jsonTimes, record, json)
+                Pair(first, second)
+            } else {
+                val second = timed(jsonTimes, record, json)
+                val first = timed(generatedTimes, record, generated)
+                Pair(first, second)
+            }
+        }
+        repeat(9) { round ->
+            val (generated, json) = pair("create", round,
+                { HolderNative.createProject("Generated $round 🚀") },
+                { HolderNative.createProjectJsonForBenchmark("JSON $round 🚀") })
+            assertEquals("plain", generated.privacyMode)
+            assertEquals(json.privacyMode, generated.privacyMode)
+            assertNull(generated.gitRemoteUrl)
+            assertEquals(generated, HolderNative.listProjects().single { it.projectId == generated.projectId })
+
+            val (renamed, jsonRenamed) = pair("rename", round,
+                { HolderNative.renameProject(generated.projectId, "Renamed $round 日本語") },
+                { HolderNative.renameProjectJsonForBenchmark(json.projectId, "Renamed $round 日本語") })
+            assertEquals(jsonRenamed.name, renamed.name)
+            assertEquals(jsonRenamed.privacyMode, renamed.privacyMode)
+            assertEquals(renamed, HolderNative.listProjects().single { it.projectId == generated.projectId })
+
+            pair("delete", round,
+                { HolderNative.deleteProject(generated.projectId) },
+                { HolderNative.deleteProjectJsonForBenchmark(json.projectId) })
+            assertTrue(HolderNative.listProjects().none {
+                it.projectId == generated.projectId || it.projectId == json.projectId
+            })
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        timings.forEach { (operation, samples) ->
+            Log.i("HolderProjectWriteTiming", "$operation generated=${median(samples.first) / 1_000_000.0}ms " +
+                "JSON=${median(samples.second) / 1_000_000.0}ms")
+        }
+
+        val encrypted = HolderNative.createProject("Encrypted 🚀", "encrypted_git")
+        assertEquals("encrypted_git", encrypted.privacyMode)
+    }
+
+    @Test
+    fun generatedProjectRemoteUpdate_matchesJsonForSetAndClear() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Remote generated")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("Remote JSON")
+        val generatedSet = ArrayList<Long>()
+        val jsonSet = ArrayList<Long>()
+        val generatedClear = ArrayList<Long>()
+        val jsonClear = ArrayList<Long>()
+        fun timed(samples: MutableList<Long>, record: Boolean, call: () -> HolderProject): HolderProject {
+            val start = System.nanoTime()
+            val result = call()
+            if (record) samples.add(System.nanoTime() - start)
+            return result
+        }
+        fun pair(round: Int, generatedSamples: MutableList<Long>, jsonSamples: MutableList<Long>,
+                 generated: () -> HolderProject, json: () -> HolderProject): Pair<HolderProject, HolderProject> {
+            val record = round >= 2
+            return if (round % 2 == 0) {
+                Pair(timed(generatedSamples, record, generated), timed(jsonSamples, record, json))
+            } else {
+                val old = timed(jsonSamples, record, json)
+                Pair(timed(generatedSamples, record, generated), old)
+            }
+        }
+        repeat(9) { round ->
+            val url = "https://example.com/holder-remote-$round.git"
+            val (set, jsonSetResult) = pair(round, generatedSet, jsonSet,
+                { HolderNative.updateProjectGitRemote(generatedProject.projectId, url) },
+                { HolderNative.updateProjectGitRemoteJsonForBenchmark(jsonProject.projectId, url) })
+            assertEquals(url, set.gitRemoteUrl)
+            assertEquals(jsonSetResult.gitRemoteUrl, set.gitRemoteUrl)
+            assertEquals(set, HolderNative.listProjects().single { it.projectId == set.projectId })
+
+            val (cleared, jsonCleared) = pair(round, generatedClear, jsonClear,
+                { HolderNative.updateProjectGitRemote(generatedProject.projectId, null) },
+                { HolderNative.updateProjectGitRemoteJsonForBenchmark(jsonProject.projectId, null) })
+            assertNull(cleared.gitRemoteUrl)
+            assertEquals(jsonCleared.gitRemoteUrl, cleared.gitRemoteUrl)
+            assertEquals(cleared, HolderNative.listProjects().single { it.projectId == cleared.projectId })
+        }
+        val url = "https://example.com/holder-empty-clear.git"
+        HolderNative.updateProjectGitRemote(generatedProject.projectId, url)
+        assertNull(HolderNative.updateProjectGitRemote(generatedProject.projectId, "").gitRemoteUrl)
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.updateProjectGitRemote("missing-project", url)
+        }
+        assertNull(HolderNative.updateProjectGitRemote(generatedProject.projectId, null).gitRemoteUrl)
+
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderProjectRemoteTiming", "set generated=${median(generatedSet) / 1_000_000.0}ms " +
+            "JSON=${median(jsonSet) / 1_000_000.0}ms")
+        Log.i("HolderProjectRemoteTiming", "clear generated=${median(generatedClear) / 1_000_000.0}ms " +
+            "JSON=${median(jsonClear) / 1_000_000.0}ms")
+    }
+
+    @Test
+    fun generatedEncryptionCheck_matchesJsonForPlainAndEncryptedProjects() {
+        initialize("# Welcome\n\nWelcome")
+        val plain = HolderNative.createProject("Plain check")
+        val encrypted = HolderNative.createProject("Encrypted check", "encrypted_git")
+        HolderNative.createCard(encrypted.projectId, "Private card", "# Private\n\nCafé 日本語 📝")
+
+        for ((name, projectId) in listOf("plain" to plain.projectId, "encrypted_git" to encrypted.projectId)) {
+            val expected = HolderNative.encryptionCheckJsonForBenchmark(projectId)
+            val actual = HolderNative.encryptionCheck(projectId)
+            assertEquals(expected, actual)
+            assertEquals(name, actual.privacyMode)
+            assertTrue(actual.ok)
+            if (name == "plain") {
+                assertEquals(0, actual.checkedFiles)
+                assertTrue(actual.unsafePaths.isEmpty())
+            }
+
+            val generatedTimes = ArrayList<Long>()
+            val jsonTimes = ArrayList<Long>()
+            fun sample(call: () -> EncryptionCheckResult): Long {
+                val start = System.nanoTime()
+                val result = call()
+                val elapsed = System.nanoTime() - start
+                assertEquals(expected, result)
+                return elapsed
+            }
+            repeat(9) { round ->
+                if (round % 2 == 0) {
+                    val generated = sample { HolderNative.encryptionCheck(projectId) }
+                    val json = sample { HolderNative.encryptionCheckJsonForBenchmark(projectId) }
+                    if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+                } else {
+                    val json = sample { HolderNative.encryptionCheckJsonForBenchmark(projectId) }
+                    val generated = sample { HolderNative.encryptionCheck(projectId) }
+                    if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+                }
+            }
+            fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+            Log.i("HolderEncryptionTiming", "$name generated=${median(generatedTimes) / 1_000_000.0}ms " +
+                "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+        }
+
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.encryptionCheck("missing-project")
+        }
+        assertEquals(HolderNative.encryptionCheckJsonForBenchmark(plain.projectId),
+            HolderNative.encryptionCheck(plain.projectId))
+    }
+
+    @Test
+    fun generatedGitSyncState_matchesJsonBeforeAndAfterFailedPush() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Sync state project")
+        val fresh = HolderNative.gitSyncStatus(project.projectId)
+        assertEquals(HolderNative.gitSyncStatusJsonForBenchmark(project.projectId), fresh)
+        assertNull(fresh.lastPushStatus)
+
+        assertEquals("remote_unset", HolderNative.pushGit(project.projectId).status)
+        val expected = HolderNative.gitSyncStatusJsonForBenchmark(project.projectId)
+        assertEquals("remote_unset", expected.lastPushStatus)
+        assertEquals(expected, HolderNative.gitSyncStatus(project.projectId))
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> GitSyncStatus): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertEquals(expected, result)
+            return elapsed
+        }
+        repeat(9) { round ->
+            if (round % 2 == 0) {
+                val generated = sample { HolderNative.gitSyncStatus(project.projectId) }
+                val json = sample { HolderNative.gitSyncStatusJsonForBenchmark(project.projectId) }
+                if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+            } else {
+                val json = sample { HolderNative.gitSyncStatusJsonForBenchmark(project.projectId) }
+                val generated = sample { HolderNative.gitSyncStatus(project.projectId) }
+                if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderSyncStateTiming", "generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+
+        assertThrows(RuntimeException::class.java) { HolderNative.gitSyncStatus("missing-project") }
+        assertEquals(expected, HolderNative.gitSyncStatus(project.projectId))
+    }
+
+    @Test
+    fun generatedGitPull_matchesJsonWhenRemoteIsUnset() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Generated pull")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("JSON pull")
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> GitPullResult): Pair<GitPullResult, Long> {
+            val start = System.nanoTime()
+            val result = call()
+            return Pair(result, System.nanoTime() - start)
+        }
+        repeat(9) { round ->
+            val generated: Pair<GitPullResult, Long>
+            val json: Pair<GitPullResult, Long>
+            if (round % 2 == 0) {
+                generated = sample { HolderNative.pullGit(generatedProject.projectId) }
+                json = sample { HolderNative.pullGitJsonForBenchmark(jsonProject.projectId) }
+            } else {
+                json = sample { HolderNative.pullGitJsonForBenchmark(jsonProject.projectId) }
+                generated = sample { HolderNative.pullGit(generatedProject.projectId) }
+            }
+            assertEquals(json.first, generated.first)
+            assertEquals("failed", generated.first.status)
+            assertEquals(0, generated.first.conflictsResolved)
+            if (round >= 2) {
+                generatedTimes.add(generated.second)
+                jsonTimes.add(json.second)
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderGitPullTiming", "generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+
+        assertThrows(RuntimeException::class.java) { HolderNative.pullGit("missing-project") }
+        assertEquals(HolderNative.pullGitJsonForBenchmark(jsonProject.projectId),
+            HolderNative.pullGit(generatedProject.projectId))
+
+        val generatedRepo = dataDir.resolve("projects/generated-pull")
+        val jsonRepo = dataDir.resolve("projects/json-pull")
+        assertTrue(generatedRepo.isDirectory)
+        assertTrue(jsonRepo.isDirectory)
+        HolderNative.updateProjectGitRemote(generatedProject.projectId, generatedRepo.absolutePath)
+        HolderNative.updateProjectGitRemote(jsonProject.projectId, jsonRepo.absolutePath)
+        val successfulGenerated = HolderNative.pullGit(generatedProject.projectId)
+        val successfulJson = HolderNative.pullGitJsonForBenchmark(jsonProject.projectId)
+        assertEquals(successfulJson, successfulGenerated)
+        assertEquals("succeeded", successfulGenerated.status)
+    }
+
+    @Test
+    fun generatedGitPushAndRemoteProbe_matchJson() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Generated Git operations")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("JSON Git operations")
+
+        val generatedPush = HolderNative.pushGit(generatedProject.projectId)
+        val jsonPush = HolderNative.pushGitJsonForBenchmark(jsonProject.projectId)
+        assertEquals(jsonPush, generatedPush)
+        assertEquals("remote_unset", generatedPush.status)
+
+        val missingRemote = dataDir.resolve("missing-remote").absolutePath
+        val generatedProbe = HolderNative.probeRemoteUrl(generatedProject.projectId, missingRemote)
+        val jsonProbe = HolderNative.probeRemoteUrlJsonForBenchmark(jsonProject.projectId, missingRemote)
+        assertEquals(jsonProbe, generatedProbe)
+        assertFalse(generatedProbe.remoteHasHead)
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
@@ -320,6 +593,59 @@ class HolderNativeIntegrationTest {
         report("update", generatedUpdate, jsonUpdate)
         report("trash", generatedTrash, jsonTrash)
         report("restore", generatedRestore, jsonRestore)
+    }
+
+    @Test
+    fun generatedTagAndSearchLists_matchJsonAndStayWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Generated record lists")
+        repeat(8) { index ->
+            HolderNative.createCard(project.projectId, "Résumé $index 📝", "A résumé about #urgent and #android $index")
+        }
+        assertEquals(HolderNative.listProjectTagsJsonForBenchmark(project.projectId),
+            HolderNative.listProjectTags(project.projectId))
+        assertEquals(HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé"),
+            HolderNative.searchCards(project.projectId, "résumé"))
+
+        val tagsGenerated = ArrayList<Long>()
+        val tagsJson = ArrayList<Long>()
+        val searchGenerated = ArrayList<Long>()
+        val searchJson = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(2) {
+            HolderNative.listProjectTags(project.projectId)
+            HolderNative.listProjectTagsJsonForBenchmark(project.projectId)
+            HolderNative.searchCards(project.projectId, "résumé")
+            HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé")
+        }
+        repeat(7) { round ->
+            if (round % 2 == 0) {
+                tagsGenerated.add(sample { HolderNative.listProjectTags(project.projectId) })
+                tagsJson.add(sample { HolderNative.listProjectTagsJsonForBenchmark(project.projectId) })
+                searchGenerated.add(sample { HolderNative.searchCards(project.projectId, "résumé") })
+                searchJson.add(sample { HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé") })
+            } else {
+                tagsJson.add(sample { HolderNative.listProjectTagsJsonForBenchmark(project.projectId) })
+                tagsGenerated.add(sample { HolderNative.listProjectTags(project.projectId) })
+                searchJson.add(sample { HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé") })
+                searchGenerated.add(sample { HolderNative.searchCards(project.projectId, "résumé") })
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        fun report(name: String, generated: List<Long>, json: List<Long>) {
+            val newMedian = median(generated)
+            val oldMedian = median(json)
+            Log.i("HolderRecordListTiming", "$name generated=${newMedian / 1_000_000.0}ms " +
+                "json=${oldMedian / 1_000_000.0}ms")
+            assertTrue("$name generated took over twice JSON plus 10ms: $newMedian vs $oldMedian ns",
+                newMedian <= oldMedian * 2 + 10_000_000)
+        }
+        report("projectTags", tagsGenerated, tagsJson)
+        report("searchCards", searchGenerated, searchJson)
     }
 
     @Test

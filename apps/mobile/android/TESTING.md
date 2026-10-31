@@ -41,6 +41,49 @@ Use the native Android testing stack. Do not duplicate libholder/C API tests in 
 
    - Do not test every API level.
 
+   **Local Pixel 2 API 30 emulator on a Wayland desktop.** Gradle stores this
+   AVD under `~/.android/avd/gradle-managed`, so a plain `emulator -list-avds`
+   can show nothing even when the API 30 image and AVD are installed. Check with:
+
+   ```bash
+   ANDROID_AVD_HOME="$HOME/.android/avd/gradle-managed" "$ANDROID_HOME/emulator/emulator" -list-avds
+   ```
+
+   On the Fedora Wayland host, Gradle's `pixel2Api30DebugAndroidTest` snapshot
+   setup and direct headless launches with `swiftshader_indirect` or `software`
+   graphics crashed in the emulator's render thread (exit 139). A direct launch
+   with the active Xwayland credentials and host graphics booted successfully.
+   Find the current display and `-auth` path with `ps -C Xwayland -o args=`;
+   replace the example values below with those from that command:
+
+   ```bash
+   export ANDROID_AVD_HOME="$HOME/.android/avd/gradle-managed"
+   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+   export WAYLAND_DISPLAY=wayland-0
+   export DISPLAY=:0
+   export XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.EXAMPLE
+   export QT_QPA_PLATFORM=xcb
+   "$ANDROID_HOME/emulator/emulator" -avd dev30_aosp_atd_x86_64_Pixel_2 \
+     -no-window -no-audio -no-boot-anim -gpu host -no-snapshot
+   ```
+
+   Keep that process running while testing in another terminal. Build the
+   x86_64 APKs, confirm the emulator's serial with `adb devices`, then install
+   and run the needed instrumentation class:
+
+   ```bash
+   ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pholder.android.abis=x86_64
+   adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk
+   adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+   adb -s emulator-5554 shell am instrument -w \
+     -e class team.holder.android.HolderNativeIntegrationTest \
+     team.holder.android.debug.test/androidx.test.runner.AndroidJUnitRunner
+   adb -s emulator-5554 emu kill
+   ```
+
+   The serial may differ if another emulator is running. These commands passed
+   the full 23-test `HolderNativeIntegrationTest` class on the local API 30 AVD.
+
 7. **Screenshot tests**
    - Add after core behavioural tests.
    - Capture major screens in light/dark mode and useful size/font configurations.

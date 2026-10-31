@@ -4,6 +4,7 @@ import android.content.Context
 import team.holder.android.generated.ContractCards
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
+import team.holder.android.generated.ContractProject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -873,14 +874,29 @@ object HolderNative {
 
     /** privacyMode null defaults (server-side) to "plain". "encrypted_git" is also valid. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
+        fromContractProject(saveLane.call { ContractProjects.nativeCreateProject(it, name, privacyMode) })
 
     fun renameProject(projectId: String, name: String): HolderProject =
-        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
+        fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
 
     fun deleteProject(projectId: String) {
+        saveLane.call { ContractProjects.nativeDeleteProject(it, projectId) }
+    }
+
+    /** Previous JSON paths retained for parity and timing during migration. */
+    internal fun createProjectJsonForBenchmark(name: String, privacyMode: String? = null): HolderProject =
+        parseProject(JSONObject(saveLane.call { nativeProjectCreate(it, name, null, privacyMode) }))
+
+    internal fun renameProjectJsonForBenchmark(projectId: String, name: String): HolderProject =
+        parseProject(JSONObject(saveLane.call { nativeProjectRename(it, projectId, name) }))
+
+    internal fun deleteProjectJsonForBenchmark(projectId: String) {
         saveLane.call { nativeProjectDelete(it, projectId) }
     }
+
+    private fun fromContractProject(project: ContractProject) = HolderProject(
+        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode,
+    )
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
         fromContractMetadata(saveLane.call {
@@ -1137,6 +1153,12 @@ object HolderNative {
 
     /** Every distinct tag in projectId with how many cards carry it, most-used first. */
     fun listProjectTags(projectId: String): List<HolderTagCount> {
+        return readLane.call { ContractCards.nativeListProjectTags(it, projectId) }
+            .map { HolderTagCount(tag = it.tag, count = it.cardCount) }
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun listProjectTagsJsonForBenchmark(projectId: String): List<HolderTagCount> {
         val tags = JSONArray(readLane.call { nativeProjectListTags(it, projectId) })
         return List(tags.length()) { index ->
             val entry = tags.getJSONObject(index)
@@ -1223,6 +1245,12 @@ object HolderNative {
     }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
+        return readLane.call { ContractCards.nativeSearchCards(it, projectId, query, limit) }
+            .map { HolderSearchResult(cardId = it.cardId, title = it.title, snippet = it.snippet) }
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun searchCardsJsonForBenchmark(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
         val results = JSONArray(readLane.call { nativeCardSearch(it, projectId, query, limit, 0) })
         return List(results.length()) { index ->
             val result = results.getJSONObject(index)
@@ -1236,6 +1264,12 @@ object HolderNative {
 
     /** remoteUrl null clears the configured remote. */
     fun updateProjectGitRemote(projectId: String, remoteUrl: String?): HolderProject =
+        fromContractProject(saveLane.call {
+            ContractProjects.nativeUpdateProjectGitRemote(it, projectId, remoteUrl)
+        })
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun updateProjectGitRemoteJsonForBenchmark(projectId: String, remoteUrl: String?): HolderProject =
         parseProject(JSONObject(saveLane.call { nativeProjectUpdateGitRemote(it, projectId, remoteUrl) }))
 
     /** Re-registers the background lane's native git signer with [projectId]'s own key --
@@ -1270,6 +1304,19 @@ object HolderNative {
     }
 
     fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeTestProjectRemote(it, projectId, url)
+        }
+        return GitTestRemoteResult(
+            status = result.status,
+            remoteHasHead = result.remoteHasHead,
+            errorMessage = result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun probeRemoteUrlJsonForBenchmark(projectId: String, url: String): GitTestRemoteResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitProbeRemoteUrl(it, url)
@@ -1282,9 +1329,23 @@ object HolderNative {
     }
 
     fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativePushProject(it, projectId, branch, setUpstream)
+        }
+        return GitPushResult(
+            status = result.status,
+            aheadCount = result.aheadCount,
+            behindCount = result.behindCount,
+            errorMessage = result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun pushGitJsonForBenchmark(projectId: String): GitPushResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            nativeGitPush(it, projectId, branch, setUpstream)
+            nativeGitPush(it, projectId, null, true)
         })
         return GitPushResult(
             status = json.getString("status"),
@@ -1295,6 +1356,20 @@ object HolderNative {
     }
 
     fun pullGit(projectId: String): GitPullResult {
+        val pull = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativePullProject(it, projectId)
+        }
+        return GitPullResult(
+            // The old Android result reports an unset remote as a failed pull.
+            status = if (pull.status == "remote_unset") "failed" else pull.status,
+            errorMessage = pull.errorMessage,
+            conflictsResolved = pull.conflictsResolved,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun pullGitJsonForBenchmark(projectId: String): GitPullResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitPull(it, projectId)
@@ -1307,6 +1382,20 @@ object HolderNative {
     }
 
     fun gitSyncStatus(projectId: String): GitSyncStatus {
+        val sync = readLane.call { ContractProjects.nativeGetProjectSyncState(it, projectId) }
+        return GitSyncStatus(
+            lastPushAt = sync.lastPushAt,
+            lastPullAt = sync.lastPullAt,
+            uncommittedChangesCount = sync.uncommittedChangesCount,
+            unpushedCommitsCount = sync.unpushedCommitsCount,
+            lastPushStatus = sync.lastPushStatus,
+            lastPullStatus = sync.lastPullStatus,
+            lastSyncError = sync.lastSyncError,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun gitSyncStatusJsonForBenchmark(projectId: String): GitSyncStatus {
         val sync = JSONObject(readLane.call { nativeGitSyncStatus(it, projectId) }).getJSONObject("sync")
         return GitSyncStatus(
             lastPushAt = sync.optLongOrNull("last_push_at"),
@@ -1379,6 +1468,19 @@ object HolderNative {
     }
 
     fun encryptionCheck(projectId: String): EncryptionCheckResult {
+        val check = backgroundLane.call { ContractProjects.nativeCheckProjectEncryption(it, projectId) }
+        return EncryptionCheckResult(
+            privacyMode = check.privacyMode,
+            ok = check.ok,
+            checkedFiles = check.checkedFiles,
+            unsafeFiles = check.unsafeFiles,
+            unsafePaths = check.unsafePaths,
+            message = check.message,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun encryptionCheckJsonForBenchmark(projectId: String): EncryptionCheckResult {
         val json = JSONObject(backgroundLane.call { nativeEncryptionCheck(it, projectId) })
         val check = json.getJSONObject("check")
         val unsafePathsJson = check.getJSONArray("unsafe_paths")
