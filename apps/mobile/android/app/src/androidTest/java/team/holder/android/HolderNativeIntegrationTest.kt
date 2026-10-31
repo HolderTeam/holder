@@ -118,6 +118,31 @@ class HolderNativeIntegrationTest {
             HolderNative.resolveCardReferenceJsonForBenchmark(project.projectId, second.cardId, 1),
             HolderNative.resolveCardReference(project.projectId, second.cardId, 1),
         )
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> CardReferenceResolution): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertTrue(result is CardReferenceResolution.Resolved)
+            return elapsed
+        }
+        repeat(12) { round ->
+            val generated: Long
+            val json: Long
+            if (round % 2 == 0) {
+                generated = sample { HolderNative.resolveCardReference(project.projectId, first.cardId) }
+                json = sample { HolderNative.resolveCardReferenceJsonForBenchmark(project.projectId, first.cardId) }
+            } else {
+                json = sample { HolderNative.resolveCardReferenceJsonForBenchmark(project.projectId, first.cardId) }
+                generated = sample { HolderNative.resolveCardReference(project.projectId, first.cardId) }
+            }
+            if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderReferenceTiming", "resolved id generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
     }
 
     @Test
