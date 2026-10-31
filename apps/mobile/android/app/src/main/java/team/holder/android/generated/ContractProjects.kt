@@ -45,6 +45,16 @@ data class ContractProjectRecoveryTokenExportResult(
     val recoveryToken: String,
 )
 
+data class ContractRecoveryTokenGlobalImportResult(
+    val projectId: String,
+    val projectCreated: Boolean,
+    val remoteHintPresent: Boolean,
+    val remoteConfigured: Boolean,
+    val remoteError: String?,
+    val pullStatus: String,
+    val pullError: String?,
+)
+
 data class ContractEncryptionCheck(
     val projectId: String,
     val privacyMode: String,
@@ -123,4 +133,5 @@ object ContractProjects {
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
     external fun nativeExportRecoveryToken(contextHandle: Long, projectId: String, pin: String): ContractProjectRecoveryTokenExportResult
     external fun nativeImportRecoveryToken(contextHandle: Long, projectId: String, pin: String, recoveryToken: String)
+    external fun nativeImportRecoveryTokenGlobal(contextHandle: Long, pin: String, recoveryToken: String): ContractRecoveryTokenGlobalImportResult
 }

@@ -102,8 +102,13 @@ def test_project_recovery_export_and_import_follow_contract():
     assert "val recoveryToken: String" in kotlin
     assert "nativeExportRecoveryToken" in kotlin
     assert "nativeImportRecoveryToken" in kotlin
+    assert "data class ContractRecoveryTokenGlobalImportResult(" in kotlin
+    assert "val projectCreated: Boolean" in kotlin
+    assert "nativeImportRecoveryTokenGlobal" in kotlin
     assert "holder_export_project_recovery_token(" in jni
     assert "holder_import_project_recovery_token(" in jni
+    assert "holder_import_recovery_token_global(" in jni
+    assert "HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED" in jni
 
     changed = deepcopy(ir)
     result = next(record for record in changed["records"]

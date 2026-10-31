@@ -711,3 +711,51 @@ Java_team_holder_android_generated_ContractProjects_nativeImportRecoveryToken(
     fail(env, message.c_str());
   }
 }
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeImportRecoveryTokenGlobal(
+    JNIEnv* env, jobject, jlong context_handle, jstring pin, jstring recovery_token) {
+  if (!context_handle || !pin || !recovery_token) {
+    fail(env, "context, PIN and recovery token are required"); return nullptr;
+  }
+  std::string secret, token;
+  if (!utf8(env, pin, secret) || !utf8(env, recovery_token, token)) return nullptr;
+  holder_recovery_token_import_request request{secret.c_str(), token.c_str()};
+  Arena arena;
+  const holder_recovery_token_global_import_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_import_recovery_token_global(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot import recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  const char* status_name = nullptr;
+  switch (value.pull_status) {
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED: status_name = "not_attempted"; break;
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED: status_name = "succeeded"; break;
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED: status_name = "failed"; break;
+    default: fail(env, "unknown recovery pull status"); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractRecoveryTokenGlobalImportResult");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;ZZZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  if (!item_ctor) return nullptr;
+  jstring v_project_id = string(env, value.project_id);
+  jboolean v_project_created = static_cast<jboolean>(value.project_created);
+  jboolean v_remote_hint_present = static_cast<jboolean>(value.remote_hint_present);
+  jboolean v_remote_configured = static_cast<jboolean>(value.remote_configured);
+  jstring v_remote_error = string(env, value.remote_error);
+  jstring v_pull_status = string(env, status_name);
+  jstring v_pull_error = string(env, value.pull_error);
+  jobject item = env->NewObject(item_type, item_ctor, v_project_id, v_project_created, v_remote_hint_present, v_remote_configured, v_remote_error, v_pull_status, v_pull_error);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_remote_error) env->DeleteLocalRef(v_remote_error);
+  if (v_pull_status) env->DeleteLocalRef(v_pull_status);
+  if (v_pull_error) env->DeleteLocalRef(v_pull_error);
+  env->DeleteLocalRef(item_type);
+  return item;
+}

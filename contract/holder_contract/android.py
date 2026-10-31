@@ -20,12 +20,14 @@ def _field_type(field: FieldView, contract: ContractView, *,
     kind = value.kind
     if kind == "literal" and not allow_literal:
         raise ValueError(f"Android record conversion needs a C enum mapping for {field.name}")
-    if kind not in {"string", "literal", "int32", "int64", "float64"}:
+    if kind == "bool" and optional:
+        raise ValueError(f"Android record conversion does not support optional bool for {field.name}")
+    if kind not in {"string", "literal", "bool", "int32", "int64", "float64"}:
         raise ValueError(f"Android record conversion does not support {kind} for {field.name}")
-    return ({"string": "String", "literal": "String", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
+    return ({"string": "String", "literal": "String", "bool": "Boolean", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
             {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "Ljava/lang/Integer;",
-             "int64": "Ljava/lang/Long;", "float64": "Ljava/lang/Double;"}[kind] if optional else
-            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "I", "int64": "J", "float64": "D"}[kind],
+             "int64": "Ljava/lang/Long;", "float64": "Ljava/lang/Double;", "bool": "Ljava/lang/Boolean;"}[kind] if optional else
+            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "bool": "Z", "int32": "I", "int64": "J", "float64": "D"}[kind],
             optional)
 
 
@@ -60,7 +62,7 @@ def _record_jni_lines(typed: list[tuple[str, str, str, bool]], source: str,
             lines.append(f"{indent}jobject {var} = {field} ? {box}(env, *{field}) : nullptr;\n")
             refs.append(var)
         else:
-            cast = {"Int": "jint", "Long": "jlong", "Double": "jdouble"}[kind]
+            cast = {"Int": "jint", "Long": "jlong", "Double": "jdouble", "Boolean": "jboolean"}[kind]
             lines.append(f"{indent}{cast} {var} = static_cast<{cast}>({field});\n")
         arguments.append(var)
     return lines, arguments, refs

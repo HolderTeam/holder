@@ -1626,6 +1626,19 @@ object HolderNative {
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
     fun importRecoveryTokenGlobal(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
+        val result = saveLane.call { ContractProjects.nativeImportRecoveryTokenGlobal(it, pin, recoveryToken) }
+        return RecoveryTokenImportGlobalResult(
+            projectId = result.projectId,
+            projectCreated = result.projectCreated,
+            remoteHintPresent = result.remoteHintPresent,
+            remoteConfigured = result.remoteConfigured,
+            remoteError = result.remoteError,
+            pullStatus = result.pullStatus,
+            pullError = result.pullError,
+        )
+    }
+
+    internal fun importRecoveryTokenGlobalJsonForBenchmark(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
         val json = JSONObject(saveLane.call { nativeRecoveryTokenImportGlobal(it, pin, recoveryToken) })
         return RecoveryTokenImportGlobalResult(
             projectId = json.getString("project_id"),

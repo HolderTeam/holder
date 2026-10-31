@@ -224,6 +224,32 @@ class HolderNativeIntegrationTest {
         assertEquals(project.projectId, HolderNative.inspectRecoveryToken(pin, generated.recoveryToken).projectId)
         HolderNative.importRecoveryToken(project.projectId, pin, generated.recoveryToken)
         HolderNative.importRecoveryTokenJsonForBenchmark(project.projectId, pin, legacy.recoveryToken)
+        val global = HolderNative.importRecoveryTokenGlobal(pin, generated.recoveryToken)
+        val oldGlobal = HolderNative.importRecoveryTokenGlobalJsonForBenchmark(pin, legacy.recoveryToken)
+        assertEquals(oldGlobal, global)
+        assertEquals(project.projectId, global.projectId)
+        assertFalse(global.projectCreated)
+        assertTrue(HolderNative.encryptionCheck(project.projectId).ok)
+    }
+
+    @Test
+    fun generatedGlobalRecoveryImport_createsProjectOnFreshDevice() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("New device recovery", "encrypted_git")
+        val pin = "9876"
+        val token = HolderNative.exportRecoveryToken(project.projectId, pin).recoveryToken
+        val originalDataDir = dataDir
+        HolderNative.close()
+        dataDir = context.cacheDir.resolve("holder-jni-recovery-${UUID.randomUUID()}")
+        check(dataDir.mkdirs())
+        originalDataDir.deleteRecursively()
+        initialize("# Welcome\n\nWelcome")
+
+        val imported = HolderNative.importRecoveryTokenGlobal(pin, token)
+        assertEquals(project.projectId, imported.projectId)
+        assertTrue(imported.projectCreated)
+        assertFalse(imported.remoteHintPresent)
+        assertEquals("not_attempted", imported.pullStatus)
         assertTrue(HolderNative.encryptionCheck(project.projectId).ok)
     }
 

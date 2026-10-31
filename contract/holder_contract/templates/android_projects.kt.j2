@@ -65,4 +65,5 @@ object ContractProjects {
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
     external fun nativeExportRecoveryToken(contextHandle: Long, projectId: String, pin: String): ContractProjectRecoveryTokenExportResult
     external fun nativeImportRecoveryToken(contextHandle: Long, projectId: String, pin: String, recoveryToken: String)
+    external fun nativeImportRecoveryTokenGlobal(contextHandle: Long, pin: String, recoveryToken: String): ContractRecoveryTokenGlobalImportResult
 }
