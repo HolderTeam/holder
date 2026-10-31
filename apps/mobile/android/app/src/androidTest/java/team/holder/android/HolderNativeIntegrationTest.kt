@@ -95,6 +95,41 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedProjectListing_matchesJsonWithNullableFieldsAndUnicode() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Café 日本語 📝", "plain")
+
+        val generated = HolderNative.listProjects()
+        assertEquals(HolderNative.listProjectsJsonForBenchmark(), generated)
+        assertEquals("Café 日本語 📝", generated.single { it.projectId == project.projectId }.name)
+        assertNull(generated.single { it.projectId == project.projectId }.gitRemoteUrl)
+        assertEquals(generated, HolderNative.listProjects())
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(9) { round ->
+            if (round % 2 == 0) {
+                generatedTimes.add(sample { HolderNative.listProjects() })
+                jsonTimes.add(sample { HolderNative.listProjectsJsonForBenchmark() })
+            } else {
+                jsonTimes.add(sample { HolderNative.listProjectsJsonForBenchmark() })
+                generatedTimes.add(sample { HolderNative.listProjects() })
+            }
+        }
+        val generatedMedian = generatedTimes.sorted()[generatedTimes.size / 2]
+        val jsonMedian = jsonTimes.sorted()[jsonTimes.size / 2]
+        Log.i("HolderProjectListTiming", "2 projects: generated=${generatedMedian / 1_000_000.0}ms " +
+            "json=${jsonMedian / 1_000_000.0}ms")
+        assertTrue("Generated project list took over twice the JSON path plus 10ms: $generatedMedian vs $jsonMedian ns",
+            generatedMedian <= jsonMedian * 2 + 10_000_000)
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
