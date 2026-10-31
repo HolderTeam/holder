@@ -2,6 +2,7 @@ package team.holder.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import android.os.Debug
 import android.util.Log
 import java.io.File
 import java.util.UUID
@@ -150,6 +151,35 @@ class HolderNativeIntegrationTest {
         assertEquals(jsonCards, generatedCards)
         assertEquals(1, generatedCards.count { it.title == "Café 日本語 📝" })
         assertEquals(generatedCards, HolderNative.listCards(project.projectId))
+
+        // ART's process-wide allocation counter includes the read lane; retain each result so
+        // native-heap deltas describe memory still held after the JNI arena has been freed.
+        val retained = ArrayList<List<HolderCard>>(8)
+        fun sample(call: () -> List<HolderCard>): Pair<Long, Long> {
+            val javaBefore = Debug.getRuntimeStat("art.gc.bytes-allocated")!!.toLong()
+            val nativeBefore = Debug.getNativeHeapAllocatedSize()
+            retained.add(call())
+            return Pair(
+                Debug.getRuntimeStat("art.gc.bytes-allocated")!!.toLong() - javaBefore,
+                Debug.getNativeHeapAllocatedSize() - nativeBefore,
+            )
+        }
+        val generatedMemory = ArrayList<Pair<Long, Long>>()
+        val jsonMemory = ArrayList<Pair<Long, Long>>()
+        repeat(4) { round ->
+            if (round % 2 == 0) {
+                generatedMemory.add(sample { HolderNative.listCards(project.projectId) })
+                jsonMemory.add(sample { HolderNative.listCardsJsonForBenchmark(project.projectId) })
+            } else {
+                jsonMemory.add(sample { HolderNative.listCardsJsonForBenchmark(project.projectId) })
+                generatedMemory.add(sample { HolderNative.listCards(project.projectId) })
+            }
+        }
+        fun median(values: List<Long>) = values.sorted()[values.size / 2]
+        Log.i("HolderCardPageMemory", "5001 cards: generated Java allocated=" +
+            "${median(generatedMemory.map { it.first })}B, JSON=${median(jsonMemory.map { it.first })}B; " +
+            "generated native heap delta=${median(generatedMemory.map { it.second })}B, " +
+            "JSON=${median(jsonMemory.map { it.second })}B")
     }
 
     @Test
