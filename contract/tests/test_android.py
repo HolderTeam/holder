@@ -61,6 +61,25 @@ def test_project_writes_follow_contract_and_preserve_android_plain_default():
         generate_android(changed)
 
 
+def test_project_encryption_check_maps_nested_safety_fields():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    assert "data class ContractEncryptionCheck(" in kotlin
+    assert "val unsafePaths: List<String>" in kotlin
+    assert "nativeCheckProjectEncryption" in kotlin
+    assert "holder_check_project_encryption(" in jni
+    assert "value.check.unsafe_paths.items[i]" in jni
+    assert "HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_PLAIN" in jni
+
+    changed = deepcopy(ir)
+    safety = next(record for record in changed["records"] if record["name"] == "EncryptionSafetyCheck")
+    safety["fields"].append({"name": "new_field", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="encryption check fields need a generator update"):
+        generate_android(changed)
+
+
 def test_card_list_return_change_requires_generator_update():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

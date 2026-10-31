@@ -45,18 +45,42 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "kind": "nullable", "value": {"kind": "named", "name": "GitRemoteUrl"}
     }:
         raise ValueError("Android project remote update needs nullable, omittable GitRemoteUrl")
+    encryption = operations["check_project_encryption"]
+    if [p["name"] for p in encryption["parameters"]] != ["project_id"] or encryption["returns"] != {
+        "kind": "named", "name": "ProjectEncryptionCheck"
+    }:
+        raise ValueError("Android check_project_encryption parameters or return need a generator update")
+    check_fields = records["ProjectEncryptionCheck"]["fields"]
+    safety_fields = records["EncryptionSafetyCheck"]["fields"]
+    if [(f["name"], f["type"]) for f in check_fields] != [
+        ("project_id", {"kind": "named", "name": "ProjectId"}),
+        ("privacy_mode", {"kind": "named", "name": "PrivacyMode"}),
+        ("check", {"kind": "named", "name": "EncryptionSafetyCheck"}),
+    ] or [(f["name"], f["type"]) for f in safety_fields] != [
+        ("ok", {"kind": "bool"}),
+        ("checked_files", {"kind": "int32", "ge": 0}),
+        ("unsafe_files", {"kind": "int32", "ge": 0}),
+        ("unsafe_paths", {"kind": "list", "items": {"kind": "string"}}),
+        ("message", {"kind": "string"}),
+    ]:
+        raise ValueError("Android encryption check fields need a generator update")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
-    header = "// Generated from contract/interface/projects.py and contract/interface/app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/projects.py, maintenance.py and app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     kotlin = header + "package team.holder.android.generated\n\n" + \
         _record_kotlin("ContractProjectListItem", typed) + "\n" + \
         _record_kotlin("ContractProject", project_typed) + \
+        "\ndata class ContractEncryptionCheck(\n" \
+        "    val projectId: String,\n    val privacyMode: String,\n    val ok: Boolean,\n" \
+        "    val checkedFiles: Int,\n    val unsafeFiles: Int,\n" \
+        "    val unsafePaths: List<String>,\n    val message: String,\n)\n" + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
         "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
         "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
+        "    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
@@ -69,6 +93,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     template = Template(Path(__file__).with_name("android_projects.cpp.in").read_text())
     jni = header + template.substitute(
         mode_cases=mode_lines,
+        check_mode_cases="".join(
+            f"      case HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"
+            for value in mode["values"]),
         item_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n',
         record_lines="".join(record_lines),
         item_construction=f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n",

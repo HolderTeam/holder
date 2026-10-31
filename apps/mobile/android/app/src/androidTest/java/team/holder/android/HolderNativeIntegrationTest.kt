@@ -244,6 +244,56 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedEncryptionCheck_matchesJsonForPlainAndEncryptedProjects() {
+        initialize("# Welcome\n\nWelcome")
+        val plain = HolderNative.createProject("Plain check")
+        val encrypted = HolderNative.createProject("Encrypted check", "encrypted_git")
+        HolderNative.createCard(encrypted.projectId, "Private card", "# Private\n\nCafé 日本語 📝")
+
+        for ((name, projectId) in listOf("plain" to plain.projectId, "encrypted_git" to encrypted.projectId)) {
+            val expected = HolderNative.encryptionCheckJsonForBenchmark(projectId)
+            val actual = HolderNative.encryptionCheck(projectId)
+            assertEquals(expected, actual)
+            assertEquals(name, actual.privacyMode)
+            assertTrue(actual.ok)
+            if (name == "plain") {
+                assertEquals(0, actual.checkedFiles)
+                assertTrue(actual.unsafePaths.isEmpty())
+            }
+
+            val generatedTimes = ArrayList<Long>()
+            val jsonTimes = ArrayList<Long>()
+            fun sample(call: () -> EncryptionCheckResult): Long {
+                val start = System.nanoTime()
+                val result = call()
+                val elapsed = System.nanoTime() - start
+                assertEquals(expected, result)
+                return elapsed
+            }
+            repeat(9) { round ->
+                if (round % 2 == 0) {
+                    val generated = sample { HolderNative.encryptionCheck(projectId) }
+                    val json = sample { HolderNative.encryptionCheckJsonForBenchmark(projectId) }
+                    if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+                } else {
+                    val json = sample { HolderNative.encryptionCheckJsonForBenchmark(projectId) }
+                    val generated = sample { HolderNative.encryptionCheck(projectId) }
+                    if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+                }
+            }
+            fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+            Log.i("HolderEncryptionTiming", "$name generated=${median(generatedTimes) / 1_000_000.0}ms " +
+                "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+        }
+
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.encryptionCheck("missing-project")
+        }
+        assertEquals(HolderNative.encryptionCheckJsonForBenchmark(plain.projectId),
+            HolderNative.encryptionCheck(plain.projectId))
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId

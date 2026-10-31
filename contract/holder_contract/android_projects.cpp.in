@@ -80,6 +80,12 @@ ${mode_cases}      default: return nullptr;
   }
 }
 
+const char* privacy_mode(holder_project_encryption_check_privacy_mode value) {
+  switch (value) {
+${check_mode_cases}      default: return nullptr;
+  }
+}
+
 jobject project_result(JNIEnv* env, const holder_project& project) {
   const char* mode = privacy_mode(project.privacy_mode);
   if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
@@ -87,6 +93,41 @@ jobject project_result(JNIEnv* env, const holder_project& project) {
   if (!item_type) return nullptr;
 ${project_constructor}${project_record_lines}${project_construction}${project_release_refs}  env->DeleteLocalRef(item_type);
   return item;
+}
+
+jobject encryption_check_result(JNIEnv* env, const holder_project_encryption_check& value) {
+  const char* mode = privacy_mode(value.privacy_mode);
+  if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  if (!list_type) return nullptr;
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject paths = env->NewObject(list_type, list_ctor, static_cast<jint>(value.check.unsafe_paths.count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < value.check.unsafe_paths.count; ++i) {
+    jstring path = string(env, value.check.unsafe_paths.items[i]);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(paths, add, path);
+    env->DeleteLocalRef(path);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractEncryptionCheck");
+  if (!item_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(item_type, "<init>",
+      "(Ljava/lang/String;Ljava/lang/String;ZIILjava/util/List;Ljava/lang/String;)V");
+  jstring project_id = string(env, value.project_id);
+  jstring privacy = string(env, mode);
+  jstring message = string(env, value.check.message);
+  jobject result = env->NewObject(item_type, ctor, project_id, privacy,
+      static_cast<jboolean>(value.check.ok), static_cast<jint>(value.check.checked_files),
+      static_cast<jint>(value.check.unsafe_files), paths, message);
+  if (project_id) env->DeleteLocalRef(project_id);
+  if (privacy) env->DeleteLocalRef(privacy);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(paths);
+  env->DeleteLocalRef(list_type);
+  env->DeleteLocalRef(item_type);
+  return result;
 }
 
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
@@ -192,6 +233,22 @@ Java_team_holder_android_generated_ContractProjects_nativeUpdateProjectGitRemote
       id.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot update project Git remote"); return nullptr; }
   return project_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeCheckProjectEncryption(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_project_encryption_check* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_check_project_encryption(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot check project encryption"); return nullptr; }
+  return encryption_check_result(env, *value);
 }
 
 extern "C" JNIEXPORT void JNICALL

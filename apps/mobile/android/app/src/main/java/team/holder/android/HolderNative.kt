@@ -1413,6 +1413,19 @@ object HolderNative {
     }
 
     fun encryptionCheck(projectId: String): EncryptionCheckResult {
+        val check = backgroundLane.call { ContractProjects.nativeCheckProjectEncryption(it, projectId) }
+        return EncryptionCheckResult(
+            privacyMode = check.privacyMode,
+            ok = check.ok,
+            checkedFiles = check.checkedFiles,
+            unsafeFiles = check.unsafeFiles,
+            unsafePaths = check.unsafePaths,
+            message = check.message,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun encryptionCheckJsonForBenchmark(projectId: String): EncryptionCheckResult {
         val json = JSONObject(backgroundLane.call { nativeEncryptionCheck(it, projectId) })
         val check = json.getJSONObject("check")
         val unsafePathsJson = check.getJSONArray("unsafe_paths")
