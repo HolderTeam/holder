@@ -269,7 +269,7 @@ fun CardViewScreen(
                     if (!isDeleting) {
                         isDeleting = true
                         scope.launch {
-                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(cardId) } }
+                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, cardId) } }
                             // Explicitly back on the main thread before onDeleted() -- which
                             // navigates -- rather than relying on withContext(IO) to resume there
                             // on its own; see AddMilestoneScreen for why.

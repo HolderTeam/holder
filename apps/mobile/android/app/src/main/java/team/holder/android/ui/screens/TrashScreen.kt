@@ -83,7 +83,7 @@ fun TrashScreen(
         isSubmitting = true
         menuOpenFor = null
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { HolderNative.restoreCard(card.cardId) } }
+            runCatching { withContext(Dispatchers.IO) { HolderNative.restoreCard(projectId, card.cardId) } }
             isSubmitting = false
             refresh()
         }
