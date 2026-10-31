@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from .android import _field_type, _record_jni_lines
+from .android_ir import ContractView, NamedType
 from .android_templates import TEMPLATES
 
 
@@ -23,33 +22,30 @@ def _jni_write(name: str, parameters: str, required: str, decode: str, request: 
     )
 
 
-def generate_card_writes(ir: dict[str, Any], records: dict[str, dict[str, Any]],
-                         aliases: dict[str, dict[str, Any]], metadata: list[tuple[str, str, str, bool]],
+def generate_card_writes(contract: ContractView, metadata: list[tuple[str, str, str, bool]],
                          descriptor: str) -> tuple[str, str]:
-    operations = {op["name"]: op for op in ir["operations"]}
     expected = {
-        "update_card": (["project_id", "card_id", "update"], {"kind": "named", "name": "Card"}),
-        "trash_card": (["project_id", "card_id", "children"], {"kind": "named", "name": "Card"}),
-        "restore_card": (["project_id", "card_id"], {"kind": "named", "name": "Card"}),
+        "update_card": ["project_id", "card_id", "update"],
+        "trash_card": ["project_id", "card_id", "children"],
+        "restore_card": ["project_id", "card_id"],
     }
-    for name, (parameters, result) in expected.items():
-        operation = operations[name]
-        if [p["name"] for p in operation["parameters"]] != parameters or operation["returns"] != result:
+    for name, parameters in expected.items():
+        operation = contract.operation(name)
+        if [p.name for p in operation.parameters] != parameters or operation.returns != NamedType(name="Card"):
             raise ValueError(f"Android {name} parameters or return need a generator update")
-    update = operations["update_card"]["parameters"][2]
-    if update["type"] != {"kind": "named", "name": "CardUpdate"}:
+    update = contract.operation("update_card").parameter("update")
+    if update.type != NamedType(name="CardUpdate"):
         raise ValueError("Android update_card needs CardUpdate")
-    fields = records["CardUpdate"]["fields"]
-    if [field["name"] for field in fields] != [
+    fields = contract.record("CardUpdate").fields
+    if [field.name for field in fields] != [
         "title", "content", "parent_card_id", "sort_key", "updated_at"
-    ] or [_field_type(field, aliases) for field in fields[:2]] != [
+    ] or [_field_type(field, contract) for field in fields[:2]] != [
         ("String", "Ljava/lang/String;", True), ("String", "Ljava/lang/String;", True)
     ]:
         raise ValueError("Android CardUpdate fields need a generator update")
-    children = operations["trash_card"]["parameters"][2]
-    if children.get("default") != "promote" or children["type"] != {
-        "kind": "literal", "values": ["promote", "trash_subtree"]
-    }:
+    children = contract.operation("trash_card").parameter("children")
+    if children.default != "promote" or children.type.kind != "literal" or \
+            children.type.values != ["promote", "trash_subtree"]:
         raise ValueError("Android trash_card needs promote as its default child policy")
 
     kotlin = TEMPLATES.get_template("android_card_writes.kt.j2").render()

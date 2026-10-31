@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .android_ir import ContractView, FieldView, NamedType, NullableType, ScalarType
 from .android_templates import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
@@ -12,19 +13,21 @@ PROJECT_KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android
 PROJECT_JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_projects.cpp"
 
 
-def _field_type(field: dict[str, Any], aliases: dict[str, dict[str, Any]], *,
+def _field_type(field: FieldView, contract: ContractView, *,
                 allow_literal: bool = False) -> tuple[str, str, bool]:
-    value = field["type"]
-    optional = field.get("omittable", False) or value["kind"] == "nullable"
-    if value["kind"] == "nullable":
-        value = value["value"]
-    while value["kind"] == "named":
-        value = aliases[value["name"]]
-    kind = value["kind"]
+    value = field.type
+    optional = field.omittable
+    while isinstance(value, NamedType | NullableType):
+        if isinstance(value, NamedType):
+            value = contract.alias(value.name)
+        else:
+            optional = True
+            value = value.value
+    kind = value.kind
     if kind == "literal" and not allow_literal:
-        raise ValueError(f"Android record conversion needs a C enum mapping for {field['name']}")
+        raise ValueError(f"Android record conversion needs a C enum mapping for {field.name}")
     if kind not in {"string", "literal", "int32", "int64", "float64"}:
-        raise ValueError(f"Android record conversion does not support {kind} for {field['name']}")
+        raise ValueError(f"Android record conversion does not support {kind} for {field.name}")
     return ({"string": "String", "literal": "String", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
             {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "Ljava/lang/Integer;",
              "int64": "Ljava/lang/Long;", "float64": "Ljava/lang/Double;"}[kind] if optional else
@@ -70,35 +73,33 @@ def _record_jni_lines(typed: list[tuple[str, str, str, bool]], source: str,
 
 
 def generate_android(ir: dict[str, Any]) -> dict[str, str]:
-    records = {record["name"]: record for record in ir["records"]}
-    aliases = {alias["name"]: alias["type"] for alias in ir["aliases"]}
-    operation = next(op for op in ir["operations"] if op["name"] == "list_cards")
-    if [parameter["name"] for parameter in operation["parameters"]] != [
+    contract = ContractView.model_validate(ir)
+    operation = contract.operation("list_cards")
+    if [parameter.name for parameter in operation.parameters] != [
         "project_id", "parent", "tag", "order", "limit", "cursor", "include_content", "include_child_count"
-    ] or operation["parameters"][4]["type"].get("le") != 5000:
+    ] or not isinstance(operation.parameter("limit").type, ScalarType) or \
+            operation.parameter("limit").type.le != 5000:
         raise ValueError("Android list_cards parameters need a generator update")
-    if operation["returns"] != {"kind": "named", "name": "Page", "arguments":
-                                [{"kind": "named", "name": "CardListItem"}]}:
+    if operation.returns != NamedType(name="Page", arguments=[NamedType(name="CardListItem")]):
         raise ValueError("Android list_cards needs Page[CardListItem]")
-    lookup = next(op for op in ir["operations"] if op["name"] == "get_card_metadata")
-    if [p["name"] for p in lookup["parameters"]] != ["project_id", "card_id"] or \
-            lookup["returns"] != {"kind": "named", "name": "CardMetadata"}:
+    lookup = contract.operation("get_card_metadata")
+    if [p.name for p in lookup.parameters] != ["project_id", "card_id"] or \
+            lookup.returns != NamedType(name="CardMetadata"):
         raise ValueError("Android get_card_metadata needs CardMetadata and project/card IDs")
-    content_lookup = next(op for op in ir["operations"] if op["name"] == "get_card")
-    if [p["name"] for p in content_lookup["parameters"]] != ["project_id", "card_id"] or \
-            content_lookup["returns"] != {"kind": "named", "name": "Card"} or \
-            not any(field["name"] == "content" and field["type"] == {"kind": "string"}
-                    for field in records["Card"]["fields"]):
+    content_lookup = contract.operation("get_card")
+    if [p.name for p in content_lookup.parameters] != ["project_id", "card_id"] or \
+            content_lookup.returns != NamedType(name="Card") or \
+            contract.record("Card").field("content").type != ScalarType(kind="string"):
         raise ValueError("Android get_card needs Card content and project/card IDs")
-    create = next(op for op in ir["operations"] if op["name"] == "create_card")
-    if [p["name"] for p in create["parameters"]] != ["project_id", "card"] or \
-            create["parameters"][1]["type"] != {"kind": "named", "name": "NewCard"} or \
-            create["returns"] != {"kind": "named", "name": "Card"}:
+    create = contract.operation("create_card")
+    if [p.name for p in create.parameters] != ["project_id", "card"] or \
+            create.parameter("card").type != NamedType(name="NewCard") or \
+            create.returns != NamedType(name="Card"):
         raise ValueError("Android create_card needs NewCard and Card")
-    new_card_fields = records["NewCard"]["fields"]
-    if [field["name"] for field in new_card_fields] != [
+    new_card_fields = contract.record("NewCard").fields
+    if [field.name for field in new_card_fields] != [
         "title", "content", "parent_card_id", "sort_key", "created_at", "updated_at"
-    ] or [_field_type(field, aliases) for field in new_card_fields] != [
+    ] or [_field_type(field, contract) for field in new_card_fields] != [
         ("String", "Ljava/lang/String;", False),
         ("String", "Ljava/lang/String;", False),
         ("String", "Ljava/lang/String;", True),
@@ -107,9 +108,9 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         ("Long", "Ljava/lang/Long;", True),
     ]:
         raise ValueError("Android NewCard fields need a generator update")
-    metadata = [(field["name"], *_field_type(field, aliases)) for field in records["CardMetadata"]["fields"]]
-    fields = records["CardMetadata"]["fields"] + records["CardListItem"]["fields"]
-    typed = [(field["name"], *_field_type(field, aliases)) for field in fields]
+    metadata = [(field.name, *_field_type(field, contract)) for field in contract.record("CardMetadata").fields]
+    fields = contract.record("CardMetadata").fields + contract.record("CardListItem").fields
+    typed = [(field.name, *_field_type(field, contract)) for field in fields]
     header = "// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
@@ -117,8 +118,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     from .android_card_writes import generate_card_writes
     from .android_lists import generate_record_lists
 
-    write_kotlin, write_jni = generate_card_writes(ir, records, aliases, metadata, metadata_descriptor)
-    list_records, list_methods, list_jni = generate_record_lists(ir, records, aliases)
+    write_kotlin, write_jni = generate_card_writes(contract, metadata, metadata_descriptor)
+    list_records, list_methods, list_jni = generate_record_lists(contract)
     kotlin = header + TEMPLATES.get_template("android_cards.kt.j2").render(
         card_list_record=_record_kotlin("ContractCardListItem", typed),
         card_metadata_record=_record_kotlin("ContractCardMetadata", metadata),
@@ -147,4 +148,4 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     from .android_projects import generate_projects
 
     return {KOTLIN_PATH: kotlin, JNI_PATH: jni,
-            **generate_projects(ir, records, aliases)}
+            **generate_projects(contract)}

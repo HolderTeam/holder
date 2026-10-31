@@ -4,8 +4,10 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
+from holder_contract.android_ir import ContractView, NullableType, ScalarType
 from holder_contract.extract import extract
 
 
@@ -244,6 +246,23 @@ def test_project_sync_bridge_tracks_contract_operation():
     operation = next(op for op in changed["operations"] if op["name"] == "sync_project_if_due")
     operation["returns"] = {"kind": "string"}
     with pytest.raises(ValueError, match="Android sync_project_if_due parameters or return"):
+        generate_android(changed)
+
+
+def test_android_contract_view_preserves_types_and_accepts_unmapped_result_fields():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    contract = ContractView.model_validate(ir)
+    assert contract.record("PullPhase").field("error_message").type == NullableType(
+        kind="nullable", value=ScalarType(kind="string"))
+    assert contract.operation("list_projects").parameter("limit").type.le == 1000
+
+    changed = deepcopy(ir)
+    due = next(record for record in changed["records"] if record["name"] == "DueSyncResult")
+    due["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    assert generate_android(changed) == generate_android(ir)
+
+    due["fields"][-1]["type"] = {"kind": "unsupported_new_type"}
+    with pytest.raises(ValidationError, match="unsupported_new_type"):
         generate_android(changed)
 
 
