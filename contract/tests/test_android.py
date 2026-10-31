@@ -239,6 +239,19 @@ def test_project_sync_bridge_tracks_contract_operation():
         generate_android(changed)
 
 
+def test_card_content_bridge_tracks_get_card_contract():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeGetCardContent" in generated[KOTLIN_PATH]
+    assert "holder_get_card(" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "get_card")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android get_card needs Card content"):
+        generate_android(changed)
+
+
 def test_unmapped_literal_fails_before_emitting_invalid_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

@@ -298,7 +298,7 @@ fun CardViewPagerScreen(
     var currentCardContent by remember(currentCard.cardId) { mutableStateOf<String?>(null) }
     LaunchedEffect(currentCard.cardId, refreshKey) {
         currentCardContent = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.getCardContent(currentCard.cardId) }
+            withContext(Dispatchers.IO) { HolderNative.getCardContent(projectId, currentCard.cardId) }
         }.getOrNull()
     }
 

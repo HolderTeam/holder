@@ -811,9 +811,12 @@ object HolderNative {
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
-    fun getCardContent(cardId: String): String {
-        return readLane.call { nativeCardGetContent(it, cardId) }
-    }
+    fun getCardContent(projectId: String, cardId: String): String =
+        readLane.call { ContractCards.nativeGetCardContent(it, projectId, cardId) }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun getCardContentJsonForBenchmark(cardId: String): String =
+        readLane.call { nativeCardGetContent(it, cardId) }
 
     /** Resolves a [[wikilink]]-style reference (a card id, an unambiguous id prefix, or a
      * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults

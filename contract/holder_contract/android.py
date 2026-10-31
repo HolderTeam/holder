@@ -84,6 +84,12 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     if [p["name"] for p in lookup["parameters"]] != ["project_id", "card_id"] or \
             lookup["returns"] != {"kind": "named", "name": "CardMetadata"}:
         raise ValueError("Android get_card_metadata needs CardMetadata and project/card IDs")
+    content_lookup = next(op for op in ir["operations"] if op["name"] == "get_card")
+    if [p["name"] for p in content_lookup["parameters"]] != ["project_id", "card_id"] or \
+            content_lookup["returns"] != {"kind": "named", "name": "Card"} or \
+            not any(field["name"] == "content" and field["type"] == {"kind": "string"}
+                    for field in records["Card"]["fields"]):
+        raise ValueError("Android get_card needs Card content and project/card IDs")
     create = next(op for op in ir["operations"] if op["name"] == "create_card")
     if [p["name"] for p in create["parameters"]] != ["project_id", "card"] or \
             create["parameters"][1]["type"] != {"kind": "named", "name": "NewCard"} or \
@@ -121,6 +127,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         "object ContractCards {\n" \
         "    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage\n" \
         "    external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata\n" \
+        "    external fun nativeGetCardContent(contextHandle: Long, projectId: String, cardId: String): String\n" \
         "    external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata\n" \
         + write_kotlin + list_methods + \
         "}\n"
@@ -272,6 +279,29 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
               f'  jobject result = env->NewObject(item_type, item_ctor, {", ".join(meta_arguments)});\n',
               *[f'  if ({ref}) env->DeleteLocalRef({ref});\n' for ref in meta_refs],
               '  return result;\n}\n']
+    lines += ['\nextern "C" JNIEXPORT jstring JNICALL\n'
+              'Java_team_holder_android_generated_ContractCards_nativeGetCardContent(\n'
+              '    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {\n'
+              '  if (!context_handle || !project_id || !card_id) {\n'
+              '    fail(env, "context, project ID and card ID are required"); return nullptr;\n  }\n'
+              '  const char* project = env->GetStringUTFChars(project_id, nullptr);\n'
+              '  const char* id = env->GetStringUTFChars(card_id, nullptr);\n'
+              '  if (!project || !id) {\n'
+              '    if (project) env->ReleaseStringUTFChars(project_id, project);\n'
+              '    if (id) env->ReleaseStringUTFChars(card_id, id);\n'
+              '    return nullptr;\n  }\n'
+              '  Arena arena;\n  const holder_card* value = nullptr;\n'
+              '  holder_error* error = nullptr;\n'
+              '  int status = arena.value ? holder_get_card(\n'
+              '      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),\n'
+              '      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;\n'
+              '  env->ReleaseStringUTFChars(card_id, id);\n'
+              '  env->ReleaseStringUTFChars(project_id, project);\n'
+              '  if (status != HOLDER_OK) {\n'
+              '    std::string message = error ? holder_error_message(error) : "cannot read card content";\n'
+              '    if (error) holder_error_destroy(error);\n'
+              '    fail(env, message.c_str()); return nullptr;\n  }\n'
+              '  return string(env, value->content);\n}\n']
     lines.append(write_jni)
     lines.append(list_jni)
     lines += ['\nextern "C" JNIEXPORT jobject JNICALL\n'

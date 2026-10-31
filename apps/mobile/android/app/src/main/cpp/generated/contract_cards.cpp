@@ -200,6 +200,35 @@ Java_team_holder_android_generated_ContractCards_nativeGetCardMetadata(
   return result;
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_team_holder_android_generated_ContractCards_nativeGetCardContent(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* id = env->GetStringUTFChars(card_id, nullptr);
+  if (!project || !id) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    if (id) env->ReleaseStringUTFChars(card_id, id);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  env->ReleaseStringUTFChars(card_id, id);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot read card content";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  return string(env, value->content);
+}
+
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeUpdateCard(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id, jstring title, jstring content) {

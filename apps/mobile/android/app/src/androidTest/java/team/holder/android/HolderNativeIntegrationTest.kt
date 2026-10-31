@@ -69,7 +69,7 @@ class HolderNativeIntegrationTest {
         val cards = HolderNative.listCards(projects.single().projectId)
         assertEquals(1, cards.size)
         assertEquals("Welcome 🌍", cards.single().title)
-        assertEquals(welcome, HolderNative.getCardContent(cards.single().cardId))
+        assertEquals(welcome, HolderNative.getCardContent(projects.single().projectId, cards.single().cardId))
     }
 
     @Test
@@ -83,7 +83,9 @@ class HolderNativeIntegrationTest {
 
         assertEquals(project.projectId, card.projectId)
         assertEquals(title, card.title)
-        assertEquals(content, HolderNative.getCardContent(card.cardId))
+        assertEquals(content, HolderNative.getCardContent(project.projectId, card.cardId))
+        assertEquals(HolderNative.getCardContentJsonForBenchmark(card.cardId),
+            HolderNative.getCardContent(project.projectId, card.cardId))
         assertEquals(card, HolderNative.listCards(project.projectId).single { it.cardId == card.cardId })
         assertEquals(card, HolderNative.getCard(project.projectId, card.cardId))
 
@@ -514,7 +516,7 @@ class HolderNativeIntegrationTest {
         val created = HolderNative.createCard(project.projectId, "Café 日本語 📝", content, parent.cardId)
         assertEquals(parent.cardId, created.parentCardId)
         assertEquals(HolderNative.getCardJsonForBenchmark(created.cardId), created)
-        assertEquals(content, HolderNative.getCardContent(created.cardId))
+        assertEquals(content, HolderNative.getCardContent(project.projectId, created.cardId))
         assertThrows(RuntimeException::class.java) {
             HolderNative.createCard(project.projectId, "Missing parent", "body", "no-such-parent")
         }
@@ -563,7 +565,7 @@ class HolderNativeIntegrationTest {
         }
         assertEquals("Café 📝", HolderNative.updateCard(project.projectId, generated.cardId,
             "", "Привет 🌍").title)
-        assertEquals("Привет 🌍", HolderNative.getCardContent(generated.cardId))
+        assertEquals("Привет 🌍", HolderNative.getCardContent(project.projectId, generated.cardId))
 
         val generatedUpdate = ArrayList<Long>()
         val jsonUpdate = ArrayList<Long>()
@@ -601,7 +603,7 @@ class HolderNativeIntegrationTest {
                 jsonRestore.add(sample { HolderNative.restoreCardJsonForBenchmark(json.cardId) })
                 generatedRestore.add(sample { HolderNative.restoreCard(project.projectId, generated.cardId) })
             }
-            assertEquals(body, HolderNative.getCardContent(generated.cardId))
+            assertEquals(body, HolderNative.getCardContent(project.projectId, generated.cardId))
             assertEquals(HolderNative.getCard(project.projectId, json.cardId).title,
                 HolderNative.getCard(project.projectId, generated.cardId).title)
         }
@@ -742,7 +744,7 @@ class HolderNativeIntegrationTest {
         initialize("# Welcome\n\nWelcome")
 
         assertEquals(project, HolderNative.listProjects().single { it.projectId == project.projectId })
-        assertEquals("# Persistent card\n\nBody", HolderNative.getCardContent(card.cardId))
+        assertEquals("# Persistent card\n\nBody", HolderNative.getCardContent(project.projectId, card.cardId))
     }
 
     @Test
@@ -779,7 +781,7 @@ class HolderNativeIntegrationTest {
         assertEquals(2, rebuilt.getInt("projects"))
         assertEquals(
             "# Rebuilt card\n\nThis body is durable.",
-            HolderNative.getCardContent(card.cardId),
+            HolderNative.getCardContent(project.projectId, card.cardId),
         )
     }
 
@@ -805,7 +807,7 @@ class HolderNativeIntegrationTest {
         assertEquals("encrypted_git", HolderNative.listProjects()
             .single { it.projectId == project.projectId }
             .privacyMode)
-        assertEquals(content, HolderNative.getCardContent(card.cardId))
+        assertEquals(content, HolderNative.getCardContent(project.projectId, card.cardId))
         assertTrue(HolderNative.encryptionCheck(project.projectId).ok)
     }
 
@@ -836,7 +838,7 @@ class HolderNativeIntegrationTest {
 
         val restored = HolderNative.restoreCard(project.projectId, card.cardId)
         assertEquals(card.cardId, restored.cardId)
-        assertEquals("original content", HolderNative.getCardContent(card.cardId))
+        assertEquals("original content", HolderNative.getCardContent(project.projectId, card.cardId))
         assertEquals(1, HolderNative.listCards(project.projectId).count { it.cardId == card.cardId })
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
 
@@ -844,7 +846,7 @@ class HolderNativeIntegrationTest {
         HolderNative.purgeCard(card.cardId)
 
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
-        assertThrows(RuntimeException::class.java) { HolderNative.getCardContent(card.cardId) }
+        assertThrows(RuntimeException::class.java) { HolderNative.getCardContent(project.projectId, card.cardId) }
     }
 
     @Test
@@ -1013,7 +1015,7 @@ class HolderNativeIntegrationTest {
         // remains its own reachable history entry afterwards.
         val restored = HolderNative.restoreCardHistory(card.cardId, creationOid)
         assertEquals(card.cardId, restored.cardId)
-        assertEquals("Sharpen at 15 degrees", HolderNative.getCardContent(card.cardId))
+        assertEquals("Sharpen at 15 degrees", HolderNative.getCardContent(project.projectId, card.cardId))
 
         val afterRestore = HolderNative.listCardHistory(project.projectId, card.cardId)
         assertEquals(3, afterRestore.entries.size)

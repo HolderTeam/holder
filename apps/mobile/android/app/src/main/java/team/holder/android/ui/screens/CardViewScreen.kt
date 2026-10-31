@@ -103,7 +103,7 @@ fun CardViewScreen(
 
     LaunchedEffect(cardId, refreshKey) {
         state = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.getCardContent(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.getCardContent(projectId, cardId) }
         }.fold(
             onSuccess = { LoadState.Success(it) },
             onFailure = { LoadState.Error(it.message ?: it::class.java.simpleName) },
