@@ -29,13 +29,16 @@ class ProjectBridgeGenerator:
 
     def generate(self) -> dict[str, str]:
         self._validate_contract()
+        from .android_recovery import generate_recovery
+
+        recovery_record, recovery_jni = generate_recovery(self.contract)
         new_project_record, new_project_fields = generate_input_record(self.contract, "NewProject")
         project = self._typed_fields("Project")
         listing = self._typed_fields("Project", "ProjectListItem")
         sync = self._typed_fields("SyncState")
         return {
-            PROJECT_KOTLIN_PATH: self._render_kotlin(project, listing, sync, new_project_record),
-            PROJECT_JNI_PATH: self._render_jni(project, listing, sync, new_project_fields),
+            PROJECT_KOTLIN_PATH: self._render_kotlin(project, listing, sync, new_project_record, recovery_record),
+            PROJECT_JNI_PATH: self._render_jni(project, listing, sync, new_project_fields, recovery_jni),
         }
 
     def _validate_contract(self) -> None:
@@ -178,12 +181,14 @@ class ProjectBridgeGenerator:
 
     def _render_kotlin(self, project: list[tuple[str, str, str, bool]],
                        listing: list[tuple[str, str, str, bool]],
-                       sync: list[tuple[str, str, str, bool]], new_project_record: str) -> str:
+                       sync: list[tuple[str, str, str, bool]], new_project_record: str,
+                       recovery_record: str) -> str:
         return HEADER + TEMPLATES.get_template("android_projects.kt.j2").render(
             project_list_record=_record_kotlin("ContractProjectListItem", listing),
             project_record=_record_kotlin("ContractProject", project),
             sync_record=_record_kotlin("ContractSyncState", sync),
             new_project_record=new_project_record,
+            recovery_record=recovery_record,
         )
 
     @staticmethod
@@ -202,7 +207,8 @@ class ProjectBridgeGenerator:
 
     def _render_jni(self, project: list[tuple[str, str, str, bool]],
                     listing: list[tuple[str, str, str, bool]],
-                    sync: list[tuple[str, str, str, bool]], new_project_fields: list[InputField]) -> str:
+                    sync: list[tuple[str, str, str, bool]], new_project_fields: list[InputField],
+                    recovery_jni: str) -> str:
         item = self._record_conversion(listing, "project", "    ", {"privacy_mode": "mode"})
         project_result = self._record_conversion(project, "project", "  ", {"privacy_mode": "mode"})
         sync_result = self._record_conversion(sync, "value", "  ")
@@ -223,6 +229,7 @@ class ProjectBridgeGenerator:
             sync_constructor=sync_result.constructor, sync_record_lines=sync_result.record_lines,
             sync_construction=sync_result.construction, sync_release_refs=sync_result.release_refs,
             new_project_fields=new_project_fields,
+            recovery_jni=recovery_jni,
         )
 
 

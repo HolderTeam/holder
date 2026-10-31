@@ -39,6 +39,12 @@ data class ContractNewProject(
     val updatedAt: Long? = null,
 )
 
+data class ContractProjectRecoveryTokenExportResult(
+    val projectId: String,
+    val keyId: String,
+    val recoveryToken: String,
+)
+
 data class ContractEncryptionCheck(
     val projectId: String,
     val privacyMode: String,
@@ -115,4 +121,6 @@ object ContractProjects {
     external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult
     external fun nativeSyncProjectIfDue(contextHandle: Long, projectId: String, pushIntervalSeconds: Int, pullIntervalSeconds: Int): ContractSyncNowResult
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
+    external fun nativeExportRecoveryToken(contextHandle: Long, projectId: String, pin: String): ContractProjectRecoveryTokenExportResult
+    external fun nativeImportRecoveryToken(contextHandle: Long, projectId: String, pin: String, recoveryToken: String)
 }

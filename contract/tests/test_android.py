@@ -93,6 +93,27 @@ def test_project_encryption_check_maps_nested_safety_fields():
         generate_android(changed)
 
 
+def test_project_recovery_export_and_import_follow_contract():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    assert "data class ContractProjectRecoveryTokenExportResult(" in kotlin
+    assert "val recoveryToken: String" in kotlin
+    assert "nativeExportRecoveryToken" in kotlin
+    assert "nativeImportRecoveryToken" in kotlin
+    assert "holder_export_project_recovery_token(" in jni
+    assert "holder_import_project_recovery_token(" in jni
+
+    changed = deepcopy(ir)
+    result = next(record for record in changed["records"]
+                  if record["name"] == "ProjectRecoveryTokenExportResult")
+    result["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    expanded = generate_android(changed)
+    assert "val newDetail: String" in expanded[PROJECT_KOTLIN_PATH]
+    assert "value.new_detail" in expanded[PROJECT_JNI_PATH]
+
+
 def test_project_sync_state_generates_nullable_fields_and_c_bridge():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)

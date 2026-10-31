@@ -1582,6 +1582,15 @@ object HolderNative {
     }
 
     fun exportRecoveryToken(projectId: String, pin: String): RecoveryTokenExportResult {
+        val result = backgroundLane.call { ContractProjects.nativeExportRecoveryToken(it, projectId, pin) }
+        return RecoveryTokenExportResult(
+            projectId = result.projectId,
+            keyId = result.keyId,
+            recoveryToken = result.recoveryToken,
+        )
+    }
+
+    internal fun exportRecoveryTokenJsonForBenchmark(projectId: String, pin: String): RecoveryTokenExportResult {
         val json = JSONObject(backgroundLane.call { nativeRecoveryTokenExport(it, projectId, pin) })
         return RecoveryTokenExportResult(
             projectId = json.getString("project_id"),
@@ -1594,6 +1603,10 @@ object HolderNative {
      * exist and match the token's own project id. See importRecoveryTokenGlobal for recovering
      * onto a device that doesn't have the project yet. */
     fun importRecoveryToken(projectId: String, pin: String, recoveryToken: String) {
+        saveLane.call { ContractProjects.nativeImportRecoveryToken(it, projectId, pin, recoveryToken) }
+    }
+
+    internal fun importRecoveryTokenJsonForBenchmark(projectId: String, pin: String, recoveryToken: String) {
         saveLane.call { nativeRecoveryTokenImport(it, projectId, pin, recoveryToken) }
     }
 

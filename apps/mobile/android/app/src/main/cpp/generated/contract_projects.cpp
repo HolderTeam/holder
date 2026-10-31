@@ -653,3 +653,61 @@ Java_team_holder_android_generated_ContractProjects_nativeDeleteProject(
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) project_error(env, error, "cannot delete project");
 }
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeExportRecoveryToken(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring pin) {
+  if (!context_handle || !project_id || !pin) {
+    fail(env, "context, project ID and PIN are required"); return nullptr;
+  }
+  std::string project, secret;
+  if (!utf8(env, project_id, project) || !utf8(env, pin, secret)) return nullptr;
+  holder_recovery_token_export_request request{secret.c_str()};
+  Arena arena;
+  const holder_project_recovery_token_export_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_export_project_recovery_token(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot export recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractProjectRecoveryTokenExportResult");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  if (!item_ctor) return nullptr;
+  jstring v_project_id = string(env, value.project_id);
+  jstring v_key_id = string(env, value.key_id);
+  jstring v_recovery_token = string(env, value.recovery_token);
+  jobject item = env->NewObject(item_type, item_ctor, v_project_id, v_key_id, v_recovery_token);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_key_id) env->DeleteLocalRef(v_key_id);
+  if (v_recovery_token) env->DeleteLocalRef(v_recovery_token);
+  env->DeleteLocalRef(item_type);
+  return item;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeImportRecoveryToken(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring pin, jstring recovery_token) {
+  if (!context_handle || !project_id || !pin || !recovery_token) {
+    fail(env, "context, project ID, PIN and recovery token are required"); return;
+  }
+  std::string project, secret, token;
+  if (!utf8(env, project_id, project) || !utf8(env, pin, secret) ||
+      !utf8(env, recovery_token, token)) return;
+  holder_recovery_token_import_request request{secret.c_str(), token.c_str()};
+  Arena arena;
+  const holder_project_recovery_token_import_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_import_project_recovery_token(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot import recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}

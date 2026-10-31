@@ -213,6 +213,21 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedRecoveryTokenExportAndImport_roundTripThroughJni() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Recovery 🚀", "encrypted_git")
+        val pin = "1234-秘密"
+        val generated = HolderNative.exportRecoveryToken(project.projectId, pin)
+        val legacy = HolderNative.exportRecoveryTokenJsonForBenchmark(project.projectId, pin)
+        assertEquals(project.projectId, generated.projectId)
+        assertEquals(legacy.keyId, generated.keyId)
+        assertEquals(project.projectId, HolderNative.inspectRecoveryToken(pin, generated.recoveryToken).projectId)
+        HolderNative.importRecoveryToken(project.projectId, pin, generated.recoveryToken)
+        HolderNative.importRecoveryTokenJsonForBenchmark(project.projectId, pin, legacy.recoveryToken)
+        assertTrue(HolderNative.encryptionCheck(project.projectId).ok)
+    }
+
+    @Test
     fun generatedProjectRemoteUpdate_matchesJsonForSetAndClear() {
         initialize("# Welcome\n\nWelcome")
         val generatedProject = HolderNative.createProject("Remote generated")
