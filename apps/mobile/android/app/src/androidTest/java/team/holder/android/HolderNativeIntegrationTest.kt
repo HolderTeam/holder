@@ -888,10 +888,34 @@ class HolderNativeIntegrationTest {
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
 
         HolderNative.deleteCard(project.projectId, card.cardId)
-        HolderNative.purgeCard(card.cardId)
+        HolderNative.purgeCard(project.projectId, card.cardId)
 
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
         assertThrows(RuntimeException::class.java) { HolderNative.getCardContent(project.projectId, card.cardId) }
+    }
+
+    @Test
+    fun generatedTrashPurge_respectsProjectAndEmptiesOnlyItsCards() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Trash purge")
+        val other = HolderNative.createProject("Other trash")
+        val first = HolderNative.createCard(project.projectId, "First", "body")
+        val second = HolderNative.createCard(project.projectId, "Second", "body")
+        val otherCard = HolderNative.createCard(other.projectId, "Other", "body")
+        for ((projectId, cardId) in listOf(
+            project.projectId to first.cardId,
+            project.projectId to second.cardId,
+            other.projectId to otherCard.cardId,
+        )) HolderNative.deleteCard(projectId, cardId)
+
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.purgeCard(other.projectId, first.cardId)
+        }
+        HolderNative.purgeCard(project.projectId, first.cardId)
+        assertEquals(listOf(second.cardId), HolderNative.listTrashedCards(project.projectId).map { it.cardId })
+        HolderNative.emptyCardTrash(project.projectId)
+        assertTrue(HolderNative.listTrashedCards(project.projectId).isEmpty())
+        assertEquals(otherCard.cardId, HolderNative.listTrashedCards(other.projectId).single().cardId)
     }
 
     @Test

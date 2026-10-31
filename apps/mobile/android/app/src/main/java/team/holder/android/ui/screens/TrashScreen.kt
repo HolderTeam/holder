@@ -94,7 +94,7 @@ fun TrashScreen(
         isSubmitting = true
         cardPendingDelete = null
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { HolderNative.purgeCard(card.cardId) } }
+            runCatching { withContext(Dispatchers.IO) { HolderNative.purgeCard(projectId, card.cardId) } }
             isSubmitting = false
             refresh()
         }
@@ -104,12 +104,9 @@ fun TrashScreen(
         if (isSubmitting) return
         isSubmitting = true
         emptyTrashPending = false
-        val current = (cardsState as? LoadState.Success)?.value.orEmpty()
         scope.launch {
             withContext(Dispatchers.IO) {
-                for (card in current) {
-                    runCatching { HolderNative.purgeCard(card.cardId) }
-                }
+                runCatching { HolderNative.emptyCardTrash(projectId) }
             }
             isSubmitting = false
             refresh()

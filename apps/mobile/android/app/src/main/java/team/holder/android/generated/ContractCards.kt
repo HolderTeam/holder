@@ -59,4 +59,6 @@ object ContractCards {
     external fun nativeRestoreCard(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
     external fun nativeListProjectTags(contextHandle: Long, projectId: String): List<ContractTagCount>
     external fun nativeSearchCards(contextHandle: Long, projectId: String, query: String, limit: Int): List<ContractSearchCard>
+    external fun nativePurgeCard(contextHandle: Long, projectId: String, cardId: String)
+    external fun nativeEmptyCardTrash(contextHandle: Long, projectId: String)
 }

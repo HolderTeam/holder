@@ -137,7 +137,7 @@ Java_team_holder_android_generated_ContractCards_nativeListCardTags(
   env->DeleteLocalRef(list_type);
   return tags;
 }
-{{ write_jni }}{{ list_jni }}
+{{ write_jni }}{{ list_jni }}{{ trash_jni }}
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,

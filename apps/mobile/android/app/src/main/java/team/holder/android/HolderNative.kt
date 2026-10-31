@@ -469,7 +469,6 @@ object HolderNative {
     private external fun nativeCardDelete(contextHandle: Long, cardId: String)
     private external fun nativeCardListTrashed(contextHandle: Long, projectId: String): String
     private external fun nativeCardRestore(contextHandle: Long, cardId: String): String
-    private external fun nativeCardPurge(contextHandle: Long, cardId: String)
     private external fun nativeCardHistoryList(
         contextHandle: Long,
         projectId: String,
@@ -978,8 +977,12 @@ object HolderNative {
         parseCard(JSONObject(saveLane.call { nativeCardRestore(it, cardId) }))
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */
-    fun purgeCard(cardId: String) {
-        saveLane.call { nativeCardPurge(it, cardId) }
+    fun purgeCard(projectId: String, cardId: String) {
+        saveLane.call { ContractCards.nativePurgeCard(it, projectId, cardId) }
+    }
+
+    fun emptyCardTrash(projectId: String) {
+        saveLane.call { ContractCards.nativeEmptyCardTrash(it, projectId) }
     }
 
     /** cardId's editing-session-grouped history within projectId's repository, most-recent

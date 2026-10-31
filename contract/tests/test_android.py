@@ -191,6 +191,23 @@ def test_card_writes_use_scoped_contract_operations_and_guard_input_shape():
         generate_android(changed)
 
 
+def test_card_trash_purge_uses_scoped_contract_operations():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativePurgeCard" in generated[KOTLIN_PATH]
+    assert "holder_delete_project_trash_item(" in generated[JNI_PATH]
+    assert "HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD" in generated[JNI_PATH]
+    assert "nativeEmptyCardTrash" in generated[KOTLIN_PATH]
+    assert "holder_empty_trash(" in generated[JNI_PATH]
+    assert "HOLDER_EMPTY_TRASH_TYPE_CARD" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    purge = next(op for op in changed["operations"] if op["name"] == "delete_project_trash_item")
+    purge["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android card purge needs"):
+        generate_android(changed)
+
+
 def test_record_lists_follow_contract_fields_and_operation_shapes():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)

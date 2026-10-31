@@ -448,6 +448,47 @@ Java_team_holder_android_generated_ContractCards_nativeSearchCards(
   }
   return items;
 }
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractCards_nativePurgeCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return;
+  Arena arena;
+  const holder_trash_delete_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_delete_project_trash_item(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD, id.c_str(),
+      arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot purge card";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractCards_nativeEmptyCardTrash(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return; }
+  std::string project;
+  if (!utf8(env, project_id, project)) return;
+  Arena arena;
+  const holder_trash_empty_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_empty_trash(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), HOLDER_EMPTY_TRASH_TYPE_CARD,
+      arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot empty card trash";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(

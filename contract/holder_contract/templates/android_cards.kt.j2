@@ -14,4 +14,4 @@ object ContractCards {
     external fun nativeGetCardContent(contextHandle: Long, projectId: String, cardId: String): String
     external fun nativeListCardTags(contextHandle: Long, projectId: String, cardId: String): List<String>
     external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata
-{{ write_methods }}{{ list_methods }}}
+{{ write_methods }}{{ list_methods }}{{ trash_methods }}}
