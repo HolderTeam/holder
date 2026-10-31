@@ -1292,6 +1292,20 @@ object HolderNative {
     }
 
     fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeTestProjectRemote(it, projectId, null)
+        }
+        return GitTestRemoteResult(
+            status = result.status,
+            remoteHasHead = result.remoteHasHead,
+            errorMessage = if (result.status == "remote_unset") "Remote URL is not configured."
+                else result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun testGitRemoteJsonForBenchmark(projectId: String, branch: String? = null): GitTestRemoteResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitTestRemote(it, projectId, branch)

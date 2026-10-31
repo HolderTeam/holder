@@ -400,6 +400,9 @@ class HolderNativeIntegrationTest {
         val jsonProbe = HolderNative.probeRemoteUrlJsonForBenchmark(jsonProject.projectId, missingRemote)
         assertEquals(jsonProbe, generatedProbe)
         assertFalse(generatedProbe.remoteHasHead)
+
+        assertEquals(HolderNative.testGitRemoteJsonForBenchmark(jsonProject.projectId, "main"),
+            HolderNative.testGitRemote(generatedProject.projectId, "main"))
     }
 
     @Test
