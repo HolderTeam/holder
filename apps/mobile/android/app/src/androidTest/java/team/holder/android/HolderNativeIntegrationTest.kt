@@ -98,6 +98,29 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedCardReferenceResolution_matchesJsonAcrossScopes() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("References")
+        val first = HolderNative.createCard(project.projectId, "Shared title", "# Shared title")
+        val second = HolderNative.createCard(project.projectId, "Shared title", "# Shared title")
+        for ((reference, scope) in listOf(
+            first.cardId to 0,
+            "Shared title" to 0,
+            "missing-reference" to 0,
+        )) {
+            assertEquals(
+                HolderNative.resolveCardReferenceJsonForBenchmark(project.projectId, reference, scope),
+                HolderNative.resolveCardReference(project.projectId, reference, scope),
+            )
+        }
+        HolderNative.deleteCard(project.projectId, second.cardId)
+        assertEquals(
+            HolderNative.resolveCardReferenceJsonForBenchmark(project.projectId, second.cardId, 1),
+            HolderNative.resolveCardReference(project.projectId, second.cardId, 1),
+        )
+    }
+
+    @Test
     fun generatedProjectListing_matchesJsonWithNullableFieldsAndUnicode() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("Café 日本語 📝", "plain")

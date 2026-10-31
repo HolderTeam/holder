@@ -77,10 +77,12 @@ data class HolderCardRef(
 /** Result of [HolderNative.resolveCardReference] -- mirrors holder-core's
  * CardReferenceResolver::resolve (full-id, then id-prefix, then case-sensitive exact-title). */
 sealed interface CardReferenceResolution {
-    data class Resolved(val matchKind: String, val card: HolderCard) : CardReferenceResolution
-    data class Ambiguous(val matchKind: String, val candidates: List<HolderCard>) : CardReferenceResolution
+    data class Resolved(val matchKind: String, val card: HolderCardReferenceCandidate) : CardReferenceResolution
+    data class Ambiguous(val matchKind: String, val candidates: List<HolderCardReferenceCandidate>) : CardReferenceResolution
     object NotFound : CardReferenceResolution
 }
+
+data class HolderCardReferenceCandidate(val cardId: String, val title: String, val deletedAt: Long?)
 
 /** Matches holder_card_move_json's "intent" values (lowercased, underscore-separated, on the
  * wire) -- see holder-core's CardPlacementResolver for the full algorithm each one runs. */
@@ -824,22 +826,49 @@ object HolderNative {
      * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults
      * to 0 (live cards only), matching holder::model::CardScope::Live. */
     fun resolveCardReference(projectId: String, reference: String, scope: Int = 0): CardReferenceResolution {
+        val result = readLane.call { ContractCards.nativeResolveCardReference(it, projectId, reference, scope) }
+        return when (result.status) {
+            "resolved" -> CardReferenceResolution.Resolved(
+                matchKind = requireNotNull(result.matchKind),
+                card = requireNotNull(result.card).let { HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt) },
+            )
+            "ambiguous" -> CardReferenceResolution.Ambiguous(
+                matchKind = requireNotNull(result.matchKind),
+                candidates = requireNotNull(result.candidates).map {
+                    HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt)
+                },
+            )
+            "not_found" -> CardReferenceResolution.NotFound
+            else -> error("unknown card reference result: ${result.status}")
+        }
+    }
+
+    internal fun resolveCardReferenceJsonForBenchmark(projectId: String, reference: String,
+                                                      scope: Int = 0): CardReferenceResolution {
         val json = JSONObject(readLane.call { nativeCardReferenceResolve(it, projectId, reference, scope) })
         return when (json.getString("status")) {
             "resolved" -> CardReferenceResolution.Resolved(
                 matchKind = json.getString("match_kind"),
-                card = parseCard(json.getJSONObject("card")),
+                card = parseCardReferenceCandidate(json.getJSONObject("card")),
             )
             "ambiguous" -> {
                 val candidates = json.getJSONArray("candidates")
                 CardReferenceResolution.Ambiguous(
                     matchKind = json.getString("match_kind"),
-                    candidates = List(candidates.length()) { index -> parseCard(candidates.getJSONObject(index)) },
+                    candidates = List(candidates.length()) { index ->
+                        parseCardReferenceCandidate(candidates.getJSONObject(index))
+                    },
                 )
             }
             else -> CardReferenceResolution.NotFound
         }
     }
+
+    private fun parseCardReferenceCandidate(json: JSONObject) = HolderCardReferenceCandidate(
+        cardId = json.getString("card_id"),
+        title = json.getString("title"),
+        deletedAt = json.optLongOrNull("deleted_at"),
+    )
 
     /** One page of projectId's cards, most-recently-updated first, for
      * [team.holder.android.git.backup.SnapshotWriter]. Pass cursorCardId = null for the first

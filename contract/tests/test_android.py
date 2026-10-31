@@ -245,6 +245,22 @@ def test_card_trash_purge_uses_scoped_contract_operations():
     assert "value.new_detail" in expanded[JNI_PATH]
 
 
+def test_card_reference_resolution_uses_contract_candidate_fields():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardReferenceCandidate(" in generated[KOTLIN_PATH]
+    assert "nativeResolveCardReference" in generated[KOTLIN_PATH]
+    assert "holder_resolve_card_reference(" in generated[JNI_PATH]
+    assert "value.deleted_at" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    candidate = next(record for record in changed["records"] if record["name"] == "CardReferenceCandidate")
+    candidate["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    expanded = generate_android(changed)
+    assert "val newDetail: String" in expanded[KOTLIN_PATH]
+    assert "value.new_detail" in expanded[JNI_PATH]
+
+
 def test_record_lists_follow_contract_fields_and_operation_shapes():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)

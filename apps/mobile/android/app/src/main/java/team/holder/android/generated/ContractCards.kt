@@ -55,6 +55,18 @@ data class ContractTrashItem(
     val relPath: String?,
 )
 
+data class ContractCardReferenceCandidate(
+    val cardId: String,
+    val title: String,
+    val deletedAt: Long?,
+)
+
+data class ContractCardReferenceResult(
+    val status: String,
+    val matchKind: String?,
+    val card: ContractCardReferenceCandidate?,
+    val candidates: List<ContractCardReferenceCandidate>?,
+)
 
 data class ContractCardPage(
     val items: List<ContractCardListItem>,
@@ -75,4 +87,5 @@ object ContractCards {
     external fun nativePurgeCard(contextHandle: Long, projectId: String, cardId: String)
     external fun nativeEmptyCardTrash(contextHandle: Long, projectId: String)
     external fun nativeListTrashedCards(contextHandle: Long, projectId: String): List<ContractTrashItem>
+    external fun nativeResolveCardReference(contextHandle: Long, projectId: String, reference: String, scope: Int): ContractCardReferenceResult
 }

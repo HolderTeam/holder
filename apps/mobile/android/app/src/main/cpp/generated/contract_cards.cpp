@@ -545,6 +545,88 @@ Java_team_holder_android_generated_ContractCards_nativeEmptyCardTrash(
     fail(env, message.c_str());
   }
 }
+jobject make_reference_candidate(JNIEnv* env, const holder_card_reference_candidate& value,
+                                 jclass item_type, jmethodID item_ctor) {
+  jstring v_card_id = string(env, value.card_id);
+  jstring v_title = string(env, value.title);
+  jobject v_deleted_at = value.deleted_at ? boxed_long(env, *value.deleted_at) : nullptr;
+  jobject item = env->NewObject(item_type, item_ctor, v_card_id, v_title, v_deleted_at);
+  if (v_card_id) env->DeleteLocalRef(v_card_id);
+  if (v_title) env->DeleteLocalRef(v_title);
+  if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
+  return item;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeResolveCardReference(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring reference, jint scope) {
+  if (!context_handle || !project_id || !reference) {
+    fail(env, "context, project ID and reference are required"); return nullptr;
+  }
+  std::string project, text;
+  if (!utf8(env, project_id, project) || !utf8(env, reference, text)) return nullptr;
+  holder_card_reference_resolve_request request{project.c_str(), text.c_str(),
+                                                HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE};
+  switch (scope) {
+    case 0: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE; break;
+    case 1: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED; break;
+    case 2: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER; break;
+    default: fail(env, "invalid card reference scope"); return nullptr;
+  }
+  Arena arena;
+  const holder_card_reference_resolve_data* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_resolve_card_reference(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot resolve card reference";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  const char* status_name = nullptr;
+  switch (value.status) {
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED: status_name = "resolved"; break;
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS: status_name = "ambiguous"; break;
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND: status_name = "not_found"; break;
+    default: fail(env, "unknown card reference status"); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardReferenceCandidate");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)V");
+  if (!item_ctor) return nullptr;
+  jobject card = value.card ? make_reference_candidate(env, *value.card, item_type, item_ctor) : nullptr;
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject candidates = nullptr;
+  if (value.candidates) {
+    candidates = env->NewObject(list_type, list_ctor, static_cast<jint>(value.candidates->count));
+    for (size_t i = 0; i < value.candidates->count && !env->ExceptionCheck(); ++i) {
+      jobject candidate = make_reference_candidate(env, value.candidates->items[i], item_type, item_ctor);
+      if (!candidate || env->ExceptionCheck()) return nullptr;
+      env->CallBooleanMethod(candidates, add, candidate);
+      env->DeleteLocalRef(candidate);
+    }
+  }
+  jclass result_type = env->FindClass("team/holder/android/generated/ContractCardReferenceResult");
+  if (!result_type || env->ExceptionCheck()) return nullptr;
+  jmethodID result_ctor = env->GetMethodID(result_type, "<init>",
+      "(Ljava/lang/String;Ljava/lang/String;Lteam/holder/android/generated/ContractCardReferenceCandidate;Ljava/util/List;)V");
+  if (!result_ctor) return nullptr;
+  jstring kind = string(env, value.match_kind);
+  jstring outcome = string(env, status_name);
+  jobject answer = env->NewObject(result_type, result_ctor, outcome, kind, card, candidates);
+  if (outcome) env->DeleteLocalRef(outcome);
+  if (kind) env->DeleteLocalRef(kind);
+  if (card) env->DeleteLocalRef(card);
+  if (candidates) env->DeleteLocalRef(candidates);
+  env->DeleteLocalRef(result_type);
+  env->DeleteLocalRef(list_type);
+  env->DeleteLocalRef(item_type);
+  return answer;
+}
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(

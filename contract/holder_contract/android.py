@@ -113,16 +113,19 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     metadata_descriptor = "(" + "".join(signature for _, _, signature, _ in metadata) + ")V"
     from .android_card_writes import generate_card_writes
     from .android_lists import generate_record_lists
+    from .android_references import generate_references
     from .android_trash import generate_trash
 
     write_kotlin, write_jni = generate_card_writes(contract, metadata, metadata_descriptor)
     list_records, list_methods, list_jni = generate_record_lists(contract)
     trash_record, trash_methods, trash_jni = generate_trash(contract)
+    reference_record, reference_method, reference_jni = generate_references(contract)
     kotlin = header + TEMPLATES.get_template("android_cards.kt.j2").render(
         card_list_record=_record_kotlin("ContractCardListItem", typed),
         card_metadata_record=_record_kotlin("ContractCardMetadata", metadata),
-        list_records=list_records + trash_record, write_methods=write_kotlin, list_methods=list_methods,
-        trash_methods=trash_methods,
+        list_records=list_records + trash_record + reference_record,
+        write_methods=write_kotlin, list_methods=list_methods,
+        trash_methods=trash_methods + reference_method,
     )
     record_lines, arguments, refs = _record_jni_lines(typed, "card")
     card_list_conversion = (
@@ -142,7 +145,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         card_list_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n',
         card_list_conversion=card_list_conversion,
         card_metadata_conversion=card_metadata_conversion,
-        write_jni=write_jni, list_jni=list_jni, trash_jni=trash_jni,
+        write_jni=write_jni, list_jni=list_jni, trash_jni=trash_jni + reference_jni,
     )
     from .android_projects import generate_projects
 
