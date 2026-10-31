@@ -201,6 +201,107 @@ Java_team_holder_android_generated_ContractCards_nativeGetCardMetadata(
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeUpdateCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id, jstring title, jstring content) {
+  if (!context_handle || !project_id || !card_id || !title || !content) {
+    fail(env, "context, project ID, card ID and required fields are needed"); return nullptr;
+  }
+  std::string project, id, card_title, body;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id) ||
+      !utf8(env, title, card_title) || !utf8(env, content, body)) return nullptr;
+  holder_card_update request{};
+  request.title = card_title.empty() ? nullptr : card_title.c_str();
+  request.content = body.c_str();
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_update_card(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), id.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card for nativeUpdateCard";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& card = *value;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DJJLjava/lang/Long;)V");
+  jstring v_card_id = string(env, card.card_id);
+  jstring v_project_id = string(env, card.project_id);
+  jstring v_title = string(env, card.title);
+  jstring v_rel_path = string(env, card.rel_path);
+  jstring v_parent_card_id = string(env, card.parent_card_id);
+  jdouble v_sort_key = static_cast<jdouble>(card.sort_key);
+  jlong v_created_at = static_cast<jlong>(card.created_at);
+  jlong v_updated_at = static_cast<jlong>(card.updated_at);
+  jobject v_deleted_at = card.deleted_at ? boxed_long(env, *card.deleted_at) : nullptr;
+  jobject result = env->NewObject(item_type, item_ctor, v_card_id, v_project_id, v_title, v_rel_path, v_parent_card_id, v_sort_key, v_created_at, v_updated_at, v_deleted_at);
+  if (v_card_id) env->DeleteLocalRef(v_card_id);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_title) env->DeleteLocalRef(v_title);
+  if (v_rel_path) env->DeleteLocalRef(v_rel_path);
+  if (v_parent_card_id) env->DeleteLocalRef(v_parent_card_id);
+  if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
+  return result;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractCards_nativeTrashCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID, card ID and required fields are needed"); return;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return;
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_trash_card(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), id.c_str(), HOLDER_TRASH_CARD_CHILDREN_PROMOTE, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card for nativeTrashCard";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return;
+  }
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeRestoreCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID, card ID and required fields are needed"); return nullptr;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return nullptr;
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_restore_card(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card for nativeRestoreCard";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& card = *value;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DJJLjava/lang/Long;)V");
+  jstring v_card_id = string(env, card.card_id);
+  jstring v_project_id = string(env, card.project_id);
+  jstring v_title = string(env, card.title);
+  jstring v_rel_path = string(env, card.rel_path);
+  jstring v_parent_card_id = string(env, card.parent_card_id);
+  jdouble v_sort_key = static_cast<jdouble>(card.sort_key);
+  jlong v_created_at = static_cast<jlong>(card.created_at);
+  jlong v_updated_at = static_cast<jlong>(card.updated_at);
+  jobject v_deleted_at = card.deleted_at ? boxed_long(env, *card.deleted_at) : nullptr;
+  jobject result = env->NewObject(item_type, item_ctor, v_card_id, v_project_id, v_title, v_rel_path, v_parent_card_id, v_sort_key, v_created_at, v_updated_at, v_deleted_at);
+  if (v_card_id) env->DeleteLocalRef(v_card_id);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_title) env->DeleteLocalRef(v_title);
+  if (v_rel_path) env->DeleteLocalRef(v_rel_path);
+  if (v_parent_card_id) env->DeleteLocalRef(v_parent_card_id);
+  if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
+  return result;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,
     jstring content, jstring parent_card_id) {

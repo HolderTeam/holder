@@ -234,7 +234,7 @@ fun CardEditScreen(
         val idToDelete = if (wasAutoCreated) currentCardId else null
         if (idToDelete != null) {
             scope.launch {
-                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(idToDelete) } }
+                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, idToDelete) } }
                 withContext(Dispatchers.Main.immediate) { onCancel() }
             }
         } else {
@@ -477,7 +477,7 @@ fun CardEditScreen(
                         if (!isDeleting && idToDelete != null) {
                             isDeleting = true
                             scope.launch {
-                                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(idToDelete) } }
+                                runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, idToDelete) } }
                                 withContext(Dispatchers.Main.immediate) {
                                     isDeleting = false
                                     showDeleteEmptyDialog = false

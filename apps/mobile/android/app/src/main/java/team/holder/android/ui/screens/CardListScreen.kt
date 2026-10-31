@@ -298,7 +298,7 @@ fun CardListScreen(
                         isSubmitting = true
                         cardPendingDelete = null
                         scope.launch {
-                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(card.cardId) } }
+                            runCatching { withContext(Dispatchers.IO) { HolderNative.deleteCard(projectId, card.cardId) } }
                             isSubmitting = false
                             refresh()
                         }

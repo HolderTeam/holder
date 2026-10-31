@@ -252,6 +252,77 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedCardWrites_preserveEditorSemanticsAndStayWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Generated writes")
+        val other = HolderNative.createProject("Other project")
+        val generated = HolderNative.createCard(project.projectId, "Café 📝", "First body")
+        val json = HolderNative.createCard(project.projectId, "Café 📝", "First body")
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.updateCard(other.projectId, generated.cardId, "Wrong", "Wrong")
+        }
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.deleteCard(other.projectId, generated.cardId)
+        }
+        assertEquals("Café 📝", HolderNative.updateCard(project.projectId, generated.cardId,
+            "", "Привет 🌍").title)
+        assertEquals("Привет 🌍", HolderNative.getCardContent(generated.cardId))
+
+        val generatedUpdate = ArrayList<Long>()
+        val jsonUpdate = ArrayList<Long>()
+        val generatedTrash = ArrayList<Long>()
+        val jsonTrash = ArrayList<Long>()
+        val generatedRestore = ArrayList<Long>()
+        val jsonRestore = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(2) { round ->
+            HolderNative.updateCard(project.projectId, generated.cardId, "Café 📝", "warmup $round")
+            HolderNative.updateCardJsonForBenchmark(json.cardId, "Café 📝", "warmup $round")
+            HolderNative.deleteCard(project.projectId, generated.cardId)
+            HolderNative.deleteCardJsonForBenchmark(json.cardId)
+            HolderNative.restoreCard(project.projectId, generated.cardId)
+            HolderNative.restoreCardJsonForBenchmark(json.cardId)
+        }
+        repeat(5) { round ->
+            val body = "Body $round #tag"
+            if (round % 2 == 0) {
+                generatedUpdate.add(sample { HolderNative.updateCard(project.projectId, generated.cardId, "Café 📝", body) })
+                jsonUpdate.add(sample { HolderNative.updateCardJsonForBenchmark(json.cardId, "Café 📝", body) })
+                generatedTrash.add(sample { HolderNative.deleteCard(project.projectId, generated.cardId) })
+                jsonTrash.add(sample { HolderNative.deleteCardJsonForBenchmark(json.cardId) })
+                generatedRestore.add(sample { HolderNative.restoreCard(project.projectId, generated.cardId) })
+                jsonRestore.add(sample { HolderNative.restoreCardJsonForBenchmark(json.cardId) })
+            } else {
+                jsonUpdate.add(sample { HolderNative.updateCardJsonForBenchmark(json.cardId, "Café 📝", body) })
+                generatedUpdate.add(sample { HolderNative.updateCard(project.projectId, generated.cardId, "Café 📝", body) })
+                jsonTrash.add(sample { HolderNative.deleteCardJsonForBenchmark(json.cardId) })
+                generatedTrash.add(sample { HolderNative.deleteCard(project.projectId, generated.cardId) })
+                jsonRestore.add(sample { HolderNative.restoreCardJsonForBenchmark(json.cardId) })
+                generatedRestore.add(sample { HolderNative.restoreCard(project.projectId, generated.cardId) })
+            }
+            assertEquals(body, HolderNative.getCardContent(generated.cardId))
+            assertEquals(HolderNative.getCard(project.projectId, json.cardId).title,
+                HolderNative.getCard(project.projectId, generated.cardId).title)
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        fun report(name: String, generatedTimes: List<Long>, jsonTimes: List<Long>) {
+            val newMedian = median(generatedTimes)
+            val oldMedian = median(jsonTimes)
+            Log.i("HolderCardWriteTiming", "$name generated=${newMedian / 1_000_000.0}ms " +
+                "json=${oldMedian / 1_000_000.0}ms")
+            assertTrue("$name generated took over twice JSON plus 10ms: $newMedian vs $oldMedian ns",
+                newMedian <= oldMedian * 2 + 10_000_000)
+        }
+        report("update", generatedUpdate, jsonUpdate)
+        report("trash", generatedTrash, jsonTrash)
+        report("restore", generatedRestore, jsonRestore)
+    }
+
+    @Test
     fun generatedCardListing_followsCursorPastTheFirstPage() {
         initialize("# Welcome\n\nWelcome")
         val cards = JSONArray()
@@ -393,7 +464,7 @@ class HolderNativeIntegrationTest {
         initialize("# Welcome\n\nWelcome")
 
         val error = assertThrows(RuntimeException::class.java) {
-            HolderNative.deleteCard("card-that-does-not-exist")
+            HolderNative.deleteCard("project-that-does-not-exist", "card-that-does-not-exist")
         }
 
         assertTrue(error.message.orEmpty().isNotBlank())
@@ -405,7 +476,7 @@ class HolderNativeIntegrationTest {
         val project = HolderNative.createProject("Trash test project")
         val card = HolderNative.createCard(project.projectId, "Doomed", "original content")
 
-        HolderNative.deleteCard(card.cardId)
+        HolderNative.deleteCard(project.projectId, card.cardId)
 
         assertTrue(HolderNative.listCards(project.projectId).none { it.cardId == card.cardId })
         val trashed = HolderNative.listTrashedCards(project.projectId).single { it.cardId == card.cardId }
@@ -413,13 +484,13 @@ class HolderNativeIntegrationTest {
         assertThrows(RuntimeException::class.java) { HolderNative.getCard(project.projectId, card.cardId) }
         assertEquals(trashed, HolderNative.getTrashedCard(card.cardId))
 
-        val restored = HolderNative.restoreCard(card.cardId)
+        val restored = HolderNative.restoreCard(project.projectId, card.cardId)
         assertEquals(card.cardId, restored.cardId)
         assertEquals("original content", HolderNative.getCardContent(card.cardId))
         assertEquals(1, HolderNative.listCards(project.projectId).count { it.cardId == card.cardId })
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
 
-        HolderNative.deleteCard(card.cardId)
+        HolderNative.deleteCard(project.projectId, card.cardId)
         HolderNative.purgeCard(card.cardId)
 
         assertTrue(HolderNative.listTrashedCards(project.projectId).none { it.cardId == card.cardId })
@@ -486,7 +557,7 @@ class HolderNativeIntegrationTest {
         assertEquals(2, projectTags.size)
         assertTrue(projectTags.all { it.count == 1 })
 
-        HolderNative.updateCard(card.cardId, "Tagged", "Only #urgent now.")
+        HolderNative.updateCard(project.projectId, card.cardId, "Tagged", "Only #urgent now.")
         assertEquals(listOf("urgent"), HolderNative.listCardTags(card.cardId))
         assertTrue(HolderNative.cardsWithTag(project.projectId, "todo").isEmpty())
     }
@@ -547,7 +618,7 @@ class HolderNativeIntegrationTest {
         val inRange = HolderNative.listMilestonesInRange(project.projectId, start - 3600, start + 3600)
         assertEquals(1, inRange.size)
 
-        HolderNative.deleteCard(card.cardId)
+        HolderNative.deleteCard(project.projectId, card.cardId)
         assertTrue(HolderNative.listMilestonesInRange(project.projectId, start - 3600, end + 3600).isEmpty())
     }
 
@@ -563,7 +634,7 @@ class HolderNativeIntegrationTest {
         assertNotNull(firstPage.headOid)
         val creationOid = firstPage.entries.single().lastOid
 
-        HolderNative.updateCard(card.cardId, "Knife care", "Sharpen at 15-20 degrees")
+        HolderNative.updateCard(project.projectId, card.cardId, "Knife care", "Sharpen at 15-20 degrees")
 
         val page = HolderNative.listCardHistory(project.projectId, card.cardId)
         assertEquals(2, page.entries.size)

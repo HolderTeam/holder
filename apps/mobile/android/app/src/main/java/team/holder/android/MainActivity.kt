@@ -402,7 +402,7 @@ private fun HolderNavHost(
                 if (references.isNotEmpty()) {
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            HolderNative.updateCard(card.cardId, title, references.joinToString("\n"))
+                            HolderNative.updateCard(projectId, card.cardId, title, references.joinToString("\n"))
                         }
                     }
                 }
@@ -693,7 +693,7 @@ private fun HolderNavHost(
                                     // creating a second card.
                                     val existingId = autoCreatedCardId
                                     if (existingId != null) {
-                                        HolderNative.updateCard(existingId, title, content)
+                                        HolderNative.updateCard(projectId, existingId, title, content)
                                     } else {
                                         HolderNative.createCard(projectId, title, content, pendingParentCardId)
                                     }
@@ -970,7 +970,7 @@ private fun HolderNavHost(
                         saveError = null
                         scope.launch {
                             val result = runCatching {
-                                withContext(Dispatchers.IO) { HolderNative.updateCard(cardId, title, content) }
+                                withContext(Dispatchers.IO) { HolderNative.updateCard(projectId, cardId, title, content) }
                             }
                             withContext(Dispatchers.Main.immediate) {
                                 saving = false

@@ -62,6 +62,31 @@ def test_create_card_uses_new_card_and_rejects_unmapped_inputs():
         generate_android(changed)
 
 
+def test_card_writes_use_scoped_contract_operations_and_guard_input_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[KOTLIN_PATH]
+    jni = generated[JNI_PATH]
+    for name in ("Update", "Trash", "Restore"):
+        assert f"native{name}Card(contextHandle: Long, projectId: String, cardId: String" in kotlin
+        assert f"holder_{name.lower()}_card(" in jni
+    assert "HOLDER_TRASH_CARD_CHILDREN_PROMOTE" in jni
+    assert "card_title.empty() ? nullptr" in jni
+    assert "request.content = body.c_str()" in jni
+
+    changed = deepcopy(ir)
+    update = next(record for record in changed["records"] if record["name"] == "CardUpdate")
+    update["fields"].append({"name": "new_option", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardUpdate fields need a generator update"):
+        generate_android(changed)
+
+    changed = deepcopy(ir)
+    trash = next(op for op in changed["operations"] if op["name"] == "trash_card")
+    trash["parameters"][2]["default"] = "trash_subtree"
+    with pytest.raises(ValueError, match="promote as its default"):
+        generate_android(changed)
+
+
 def test_project_fields_and_privacy_literals_update_kotlin_and_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

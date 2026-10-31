@@ -892,7 +892,13 @@ object HolderNative {
                                             parentCardId: String? = null): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardCreate(it, projectId, title, content, parentCardId) }))
 
-    fun updateCard(cardId: String, title: String, content: String): HolderCard =
+    fun updateCard(projectId: String, cardId: String, title: String, content: String): HolderCard =
+        fromContractMetadata(saveLane.call {
+            ContractCards.nativeUpdateCard(it, projectId, cardId, title, content)
+        })
+
+    /** Previous JSON update path, retained for parity and timing during migration. */
+    internal fun updateCardJsonForBenchmark(cardId: String, title: String, content: String): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardUpdateContent(it, cardId, content, title) }))
 
     /** Resolves and applies one of eight relative-placement intents to cardId within
@@ -926,7 +932,12 @@ object HolderNative {
     }
 
     /** Soft-deletes (trashes) a card; it stops appearing in listCards until restored or purged. */
-    fun deleteCard(cardId: String) {
+    fun deleteCard(projectId: String, cardId: String) {
+        saveLane.call { ContractCards.nativeTrashCard(it, projectId, cardId) }
+    }
+
+    /** Previous JSON trash path, retained for parity and timing during migration. */
+    internal fun deleteCardJsonForBenchmark(cardId: String) {
         saveLane.call { nativeCardDelete(it, cardId) }
     }
 
@@ -936,7 +947,11 @@ object HolderNative {
     }
 
     /** Restores a trashed card so it reappears in listCards. Fails if cardId isn't trashed. */
-    fun restoreCard(cardId: String): HolderCard =
+    fun restoreCard(projectId: String, cardId: String): HolderCard =
+        fromContractMetadata(saveLane.call { ContractCards.nativeRestoreCard(it, projectId, cardId) })
+
+    /** Previous JSON restore path, retained for parity and timing during migration. */
+    internal fun restoreCardJsonForBenchmark(cardId: String): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardRestore(it, cardId) }))
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */

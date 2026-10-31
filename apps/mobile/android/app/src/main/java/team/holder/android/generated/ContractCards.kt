@@ -37,4 +37,7 @@ object ContractCards {
     external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
     external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
     external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata
+    external fun nativeUpdateCard(contextHandle: Long, projectId: String, cardId: String, title: String, content: String): ContractCardMetadata
+    external fun nativeTrashCard(contextHandle: Long, projectId: String, cardId: String)
+    external fun nativeRestoreCard(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
 }
