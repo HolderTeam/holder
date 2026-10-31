@@ -2,8 +2,12 @@ package team.holder.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import android.os.Debug
+import android.util.Log
 import java.io.File
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -88,6 +92,103 @@ class HolderNativeIntegrationTest {
         assertEquals(card.cardId, results.single().cardId)
         assertEquals(title, results.single().title)
         assertNotNull(results.single().snippet)
+    }
+
+    @Test
+    fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val projectId = HolderNative.createProject("Card page timing").projectId
+        repeat(300) { index ->
+            HolderNative.createCard(projectId, "Card $index 📝", "Body $index")
+        }
+
+        assertEquals(HolderNative.listCardsJsonForBenchmark(projectId), HolderNative.listCards(projectId))
+        repeat(3) {
+            HolderNative.listCards(projectId)
+            HolderNative.listCardsJsonForBenchmark(projectId)
+        }
+        val generated = ArrayList<Long>()
+        val json = ArrayList<Long>()
+        repeat(9) { round ->
+            fun sample(call: () -> Unit): Long {
+                val start = System.nanoTime()
+                call()
+                return System.nanoTime() - start
+            }
+            if (round % 2 == 0) {
+                generated.add(sample { HolderNative.listCards(projectId) })
+                json.add(sample { HolderNative.listCardsJsonForBenchmark(projectId) })
+            } else {
+                json.add(sample { HolderNative.listCardsJsonForBenchmark(projectId) })
+                generated.add(sample { HolderNative.listCards(projectId) })
+            }
+        }
+        val generatedMedian = generated.sorted()[generated.size / 2]
+        val jsonMedian = json.sorted()[json.size / 2]
+        Log.i("HolderCardPageTiming", "300 cards: generated=${generatedMedian / 1_000_000.0}ms " +
+            "json=${jsonMedian / 1_000_000.0}ms")
+        assertTrue("Generated page took over twice the JSON path plus 10ms: $generatedMedian vs $jsonMedian ns",
+            generatedMedian <= jsonMedian * 2 + 10_000_000)
+    }
+
+    @Test
+    fun generatedCardListing_followsCursorPastTheFirstPage() {
+        initialize("# Welcome\n\nWelcome")
+        val cards = JSONArray()
+        repeat(5_001) { index ->
+            cards.put(JSONObject()
+                .put("card_id", "seed-$index")
+                .put("title", if (index == 5_000) "Café 日本語 📝" else "Card $index")
+                .put("body", "Body $index")
+                .put("created_at", index)
+                .put("updated_at", index))
+        }
+        val project = HolderNative.backupRestore("Paged cards", "plain", cards.toString(), "Seed card page")
+
+        val jsonCards = HolderNative.listCardsJsonForBenchmark(project.projectId)
+        val generatedCards = HolderNative.listCards(project.projectId)
+        assertEquals(5_001, generatedCards.size)
+        assertEquals(jsonCards, generatedCards)
+        assertEquals(1, generatedCards.count { it.title == "Café 日本語 📝" })
+        assertEquals(generatedCards, HolderNative.listCards(project.projectId))
+
+        // ART's process-wide allocation counter includes the read lane; retain each result so
+        // native-heap deltas describe memory still held after the JNI arena has been freed.
+        val retained = ArrayList<List<HolderCard>>(8)
+        fun sample(call: () -> List<HolderCard>): Pair<Long, Long> {
+            val javaBefore = Debug.getRuntimeStat("art.gc.bytes-allocated")!!.toLong()
+            val nativeBefore = Debug.getNativeHeapAllocatedSize()
+            retained.add(call())
+            return Pair(
+                Debug.getRuntimeStat("art.gc.bytes-allocated")!!.toLong() - javaBefore,
+                Debug.getNativeHeapAllocatedSize() - nativeBefore,
+            )
+        }
+        val generatedMemory = ArrayList<Pair<Long, Long>>()
+        val jsonMemory = ArrayList<Pair<Long, Long>>()
+        repeat(4) { round ->
+            if (round % 2 == 0) {
+                generatedMemory.add(sample { HolderNative.listCards(project.projectId) })
+                jsonMemory.add(sample { HolderNative.listCardsJsonForBenchmark(project.projectId) })
+            } else {
+                jsonMemory.add(sample { HolderNative.listCardsJsonForBenchmark(project.projectId) })
+                generatedMemory.add(sample { HolderNative.listCards(project.projectId) })
+            }
+        }
+        fun median(values: List<Long>) = values.sorted()[values.size / 2]
+        Log.i("HolderCardPageMemory", "5001 cards: generated Java allocated=" +
+            "${median(generatedMemory.map { it.first })}B, JSON=${median(jsonMemory.map { it.first })}B; " +
+            "generated native heap delta=${median(generatedMemory.map { it.second })}B, " +
+            "JSON=${median(jsonMemory.map { it.second })}B")
+    }
+
+    @Test
+    fun generatedCardListing_errorLeavesReadLaneUsable() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.listProjects().single()
+
+        assertThrows(RuntimeException::class.java) { HolderNative.listCards("missing-project") }
+        assertEquals(1, HolderNative.listCards(project.projectId).size)
     }
 
     @Test

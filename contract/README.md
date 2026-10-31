@@ -15,7 +15,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
   - the vocabulary contract files import (`vocabulary.py`) and the rules they must follow (`rules.py`);
   - the extractor that reads them into an intermediate representation, the IR (`extract.py`, described in [IR.md](IR.md));
   - the routes' helper, `routes.py`, which `app.py` declares the operations with;
-  - the generators: `generate.py` for core's C API, `http_routes.py` and `json_codec.py` for the daemon, and `openapi.py`, which takes FastAPI's document of the routes (`daemon.py` runs them);
+  - the generators: `generate.py` for core's C API, `android.py` for Android's first Card listing, `http_routes.py` and `json_codec.py` for the daemon, and `openapi.py`, which takes FastAPI's document of the routes (`daemon.py` runs them);
   - Hypothesis strategies for the values of every type in the IR, and a check that a value conforms to its type (`values.py`).
 - `tests/` tests the tooling: the extractor against a sample contract in `tests/fixtures/sample/`, which uses every part of the vocabulary; the generators' output by compiling and running it against a stand-in for core (`tests/c/` for the C API, `tests/http/` for the routes); and the strategies against the conformance check and Pydantic. Core's own tests (`core/tests/CApiCards_test.cpp`) run the real implementation.
 - `tests/conformance/` tests Holder against the contract: Hypothesis calls the operations, with arguments from the strategies, through the generated C API of a shared `libholder` and over HTTP against a `holderd`, and checks each result against its declared type and against a model of what it should be. Over HTTP, every response must also be one its route declares: a status it lists, and a body its Pydantic model accepts. Schemathesis (`test_schemathesis.py`) also sends the daemon requests valid and invalid by `api/openapi.json`, for the contract's routes, and checks each answer against the document. Core CI runs them through the C API on Linux, and Daemon CI over HTTP.
@@ -30,10 +30,10 @@ Python 3.12 or later, with the pinned tools:
 python3 -m pip install -r contract/requirements.txt
 make -C contract check    # lint, test, and check the contract
 make -C contract ir       # write the IR to contract/build/ir.json
-make -C contract update   # after changing the contract or a generator: rewrite the generated files in core, daemon/ and api/
+make -C contract update   # after changing the contract or a generator: rewrite the generated files in core, Android, daemon/ and api/
 ```
 
-`check` fails when a generated file in core, the daemon or `api/` differs from what the contract produces, or when a generated name is already used in the hand-written part of `holder.h`. Commit the contract change and the regenerated files together.
+`check` fails when a generated file in core, Android, the daemon or `api/` differs from what the contract produces, or when a generated name is already used in the hand-written part of `holder.h`. Commit the contract change and the regenerated files together.
 
 `python -m holder_contract check` reports every problem in the contract at once, each with its file and line.
 

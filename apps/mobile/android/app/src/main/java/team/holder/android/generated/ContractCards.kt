@@ -1,0 +1,26 @@
+// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.
+// Do not edit; run make -C contract update.
+package team.holder.android.generated
+
+data class ContractCardListItem(
+    val cardId: String,
+    val projectId: String,
+    val title: String,
+    val relPath: String,
+    val parentCardId: String?,
+    val sortKey: Double,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long?,
+    val childCount: Int?,
+    val content: String?,
+)
+
+data class ContractCardPage(
+    val items: List<ContractCardListItem>,
+    val nextCursor: String?,
+)
+
+object ContractCards {
+    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
+}
