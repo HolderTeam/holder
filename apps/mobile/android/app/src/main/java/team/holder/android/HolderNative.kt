@@ -1137,6 +1137,12 @@ object HolderNative {
 
     /** Every distinct tag in projectId with how many cards carry it, most-used first. */
     fun listProjectTags(projectId: String): List<HolderTagCount> {
+        return readLane.call { ContractCards.nativeListProjectTags(it, projectId) }
+            .map { HolderTagCount(tag = it.tag, count = it.cardCount) }
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun listProjectTagsJsonForBenchmark(projectId: String): List<HolderTagCount> {
         val tags = JSONArray(readLane.call { nativeProjectListTags(it, projectId) })
         return List(tags.length()) { index ->
             val entry = tags.getJSONObject(index)
@@ -1223,6 +1229,12 @@ object HolderNative {
     }
 
     fun searchCards(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
+        return readLane.call { ContractCards.nativeSearchCards(it, projectId, query, limit) }
+            .map { HolderSearchResult(cardId = it.cardId, title = it.title, snippet = it.snippet) }
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun searchCardsJsonForBenchmark(projectId: String, query: String, limit: Int = 50): List<HolderSearchResult> {
         val results = JSONArray(readLane.call { nativeCardSearch(it, projectId, query, limit, 0) })
         return List(results.length()) { index ->
             val result = results.getJSONObject(index)

@@ -302,6 +302,89 @@ Java_team_holder_android_generated_ContractCards_nativeRestoreCard(
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListProjectTags(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) {
+    fail(env, "context and required list parameters are needed"); return nullptr;
+  }
+  std::string project;
+  if (!utf8(env, project_id, project)) return nullptr;
+  Arena arena;
+  const holder_tag_count_list* page = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_list_project_tags(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot run list_project_tags";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractTagCount");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;I)V");
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->count; ++i) {
+    const auto& value = page->items[i];
+    jstring v_tag = string(env, value.tag);
+    jint v_card_count = static_cast<jint>(value.card_count);
+    jobject item = env->NewObject(item_type, item_ctor, v_tag, v_card_count);
+    if (v_tag) env->DeleteLocalRef(v_tag);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  return items;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeSearchCards(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring q, jint limit) {
+  if (!context_handle || !project_id || !q) {
+    fail(env, "context and required list parameters are needed"); return nullptr;
+  }
+  std::string project, query;
+  if (!utf8(env, project_id, project) || !utf8(env, q, query)) return nullptr;
+  const int32_t count = static_cast<int32_t>(limit);
+  Arena arena;
+  const holder_search_card_list* page = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_search_cards(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), query.c_str(), &count, 0, arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot run search_cards";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractSearchCard");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;JJLjava/lang/String;D)V");
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->count; ++i) {
+    const auto& value = page->items[i];
+    jstring v_card_id = string(env, value.card_id);
+    jstring v_title = string(env, value.title);
+    jlong v_updated_at = static_cast<jlong>(value.updated_at);
+    jlong v_created_at = static_cast<jlong>(value.created_at);
+    jstring v_snippet = string(env, value.snippet);
+    jdouble v_rank = static_cast<jdouble>(value.rank);
+    jobject item = env->NewObject(item_type, item_ctor, v_card_id, v_title, v_updated_at, v_created_at, v_snippet, v_rank);
+    if (v_card_id) env->DeleteLocalRef(v_card_id);
+    if (v_title) env->DeleteLocalRef(v_title);
+    if (v_snippet) env->DeleteLocalRef(v_snippet);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  return items;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,
     jstring content, jstring parent_card_id) {

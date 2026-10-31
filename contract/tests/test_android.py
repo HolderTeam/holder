@@ -87,6 +87,28 @@ def test_card_writes_use_scoped_contract_operations_and_guard_input_shape():
         generate_android(changed)
 
 
+def test_record_lists_follow_contract_fields_and_operation_shapes():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeListProjectTags" in generated[KOTLIN_PATH]
+    assert "holder_list_project_tags(" in generated[JNI_PATH]
+    assert "nativeSearchCards" in generated[KOTLIN_PATH]
+    assert "holder_search_cards(" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    search = next(record for record in changed["records"] if record["name"] == "SearchCard")
+    search["fields"].append({"name": "new_score", "type": {"kind": "float64"}})
+    after = generate_android(changed)
+    assert "val newScore: Double" in after[KOTLIN_PATH]
+    assert "value.new_score" in after[JNI_PATH]
+
+    changed = deepcopy(ir)
+    tags = next(op for op in changed["operations"] if op["name"] == "list_project_tags")
+    tags["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android list_project_tags parameters or return"):
+        generate_android(changed)
+
+
 def test_project_fields_and_privacy_literals_update_kotlin_and_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

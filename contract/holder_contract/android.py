@@ -109,18 +109,20 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     metadata_descriptor = "(" + "".join(signature for _, _, signature, _ in metadata) + ")V"
     from .android_card_writes import generate_card_writes
+    from .android_lists import generate_record_lists
 
     write_kotlin, write_jni = generate_card_writes(ir, records, aliases, metadata, metadata_descriptor)
+    list_records, list_methods, list_jni = generate_record_lists(ir, records, aliases)
     kotlin = header + "package team.holder.android.generated\n\n" + \
         _record_kotlin("ContractCardListItem", typed) + \
-        "\n" + _record_kotlin("ContractCardMetadata", metadata) + \
+        "\n" + _record_kotlin("ContractCardMetadata", metadata) + "\n" + list_records + \
         "\ndata class ContractCardPage(\n    val items: List<ContractCardListItem>,\n" \
         "    val nextCursor: String?,\n)\n\n" \
         "object ContractCards {\n" \
         "    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage\n" \
         "    external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata\n" \
         "    external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata\n" \
-        + write_kotlin + \
+        + write_kotlin + list_methods + \
         "}\n"
     lines = [header, '#include "holder/holder.h"\n#include <jni.h>\n#include <cstdint>\n'
              '#include <string>\n#include <vector>\n\nnamespace {\n',
@@ -271,6 +273,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
               *[f'  if ({ref}) env->DeleteLocalRef({ref});\n' for ref in meta_refs],
               '  return result;\n}\n']
     lines.append(write_jni)
+    lines.append(list_jni)
     lines += ['\nextern "C" JNIEXPORT jobject JNICALL\n'
               'Java_team_holder_android_generated_ContractCards_nativeCreateCard(\n'
               '    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,\n'

@@ -1,0 +1,35 @@
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_{{ method }}(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id{{ extra_parameters }}) {
+  if (!context_handle || !project_id{{ required_parameters }}) {
+    fail(env, "context and required list parameters are needed"); return nullptr;
+  }
+  std::string project{{ extra_variables }};
+  if (!utf8(env, project_id, project){{ decode_parameters }}) return nullptr;
+{{ pre_call }}  Arena arena;
+  const {{ c_record }}_list* page = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? {{ c_call }} : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot run {{ operation }}";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/{{ kotlin_record }}");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{{ descriptor }}");
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->count; ++i) {
+    const auto& value = page->items[i];
+{{ record_lines }}    jobject item = env->NewObject(item_type, item_ctor, {{ arguments }});
+{{ release_refs }}    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  return items;
+}

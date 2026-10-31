@@ -323,6 +323,59 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedTagAndSearchLists_matchJsonAndStayWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Generated record lists")
+        repeat(8) { index ->
+            HolderNative.createCard(project.projectId, "Résumé $index 📝", "A résumé about #urgent and #android $index")
+        }
+        assertEquals(HolderNative.listProjectTagsJsonForBenchmark(project.projectId),
+            HolderNative.listProjectTags(project.projectId))
+        assertEquals(HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé"),
+            HolderNative.searchCards(project.projectId, "résumé"))
+
+        val tagsGenerated = ArrayList<Long>()
+        val tagsJson = ArrayList<Long>()
+        val searchGenerated = ArrayList<Long>()
+        val searchJson = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(2) {
+            HolderNative.listProjectTags(project.projectId)
+            HolderNative.listProjectTagsJsonForBenchmark(project.projectId)
+            HolderNative.searchCards(project.projectId, "résumé")
+            HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé")
+        }
+        repeat(7) { round ->
+            if (round % 2 == 0) {
+                tagsGenerated.add(sample { HolderNative.listProjectTags(project.projectId) })
+                tagsJson.add(sample { HolderNative.listProjectTagsJsonForBenchmark(project.projectId) })
+                searchGenerated.add(sample { HolderNative.searchCards(project.projectId, "résumé") })
+                searchJson.add(sample { HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé") })
+            } else {
+                tagsJson.add(sample { HolderNative.listProjectTagsJsonForBenchmark(project.projectId) })
+                tagsGenerated.add(sample { HolderNative.listProjectTags(project.projectId) })
+                searchJson.add(sample { HolderNative.searchCardsJsonForBenchmark(project.projectId, "résumé") })
+                searchGenerated.add(sample { HolderNative.searchCards(project.projectId, "résumé") })
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        fun report(name: String, generated: List<Long>, json: List<Long>) {
+            val newMedian = median(generated)
+            val oldMedian = median(json)
+            Log.i("HolderRecordListTiming", "$name generated=${newMedian / 1_000_000.0}ms " +
+                "json=${oldMedian / 1_000_000.0}ms")
+            assertTrue("$name generated took over twice JSON plus 10ms: $newMedian vs $oldMedian ns",
+                newMedian <= oldMedian * 2 + 10_000_000)
+        }
+        report("projectTags", tagsGenerated, tagsJson)
+        report("searchCards", searchGenerated, searchJson)
+    }
+
+    @Test
     fun generatedCardListing_followsCursorPastTheFirstPage() {
         initialize("# Welcome\n\nWelcome")
         val cards = JSONArray()
