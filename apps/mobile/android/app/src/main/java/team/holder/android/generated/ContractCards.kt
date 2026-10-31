@@ -42,6 +42,19 @@ data class ContractSearchCard(
     val rank: Double,
 )
 
+data class ContractTrashItem(
+    val type: String,
+    val projectId: String,
+    val cardId: String?,
+    val messageId: String?,
+    val threadId: String?,
+    val title: String?,
+    val role: String?,
+    val deletedAt: Long,
+    val createdAt: Long?,
+    val relPath: String?,
+)
+
 
 data class ContractCardPage(
     val items: List<ContractCardListItem>,
@@ -61,4 +74,5 @@ object ContractCards {
     external fun nativeSearchCards(contextHandle: Long, projectId: String, query: String, limit: Int): List<ContractSearchCard>
     external fun nativePurgeCard(contextHandle: Long, projectId: String, cardId: String)
     external fun nativeEmptyCardTrash(contextHandle: Long, projectId: String)
+    external fun nativeListTrashedCards(contextHandle: Long, projectId: String): List<ContractTrashItem>
 }

@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import team.holder.android.HolderCard
+import team.holder.android.HolderTrashedCard
 import team.holder.android.HolderNative
 import team.holder.android.ui.CenteredMessage
 import team.holder.android.ui.LoadState
@@ -58,9 +58,9 @@ fun TrashScreen(
     projectId: String,
     onBack: () -> Unit,
 ) {
-    var cardsState by remember(projectId) { mutableStateOf<LoadState<List<HolderCard>>>(LoadState.Loading) }
+    var cardsState by remember(projectId) { mutableStateOf<LoadState<List<HolderTrashedCard>>>(LoadState.Loading) }
     var menuOpenFor by remember { mutableStateOf<String?>(null) }
-    var cardPendingDelete by remember { mutableStateOf<HolderCard?>(null) }
+    var cardPendingDelete by remember { mutableStateOf<HolderTrashedCard?>(null) }
     var emptyTrashPending by remember { mutableStateOf(false) }
     // Guards restore/delete against double-tap: a second tap can reach the same button or dialog
     // action before recomposition clears it, re-running the request.
@@ -78,7 +78,7 @@ fun TrashScreen(
 
     LaunchedEffect(projectId) { refresh() }
 
-    fun restore(card: HolderCard) {
+    fun restore(card: HolderTrashedCard) {
         if (isSubmitting) return
         isSubmitting = true
         menuOpenFor = null
@@ -89,7 +89,7 @@ fun TrashScreen(
         }
     }
 
-    fun deletePermanently(card: HolderCard) {
+    fun deletePermanently(card: HolderTrashedCard) {
         if (isSubmitting) return
         isSubmitting = true
         cardPendingDelete = null

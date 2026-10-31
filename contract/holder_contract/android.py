@@ -115,11 +115,11 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
 
     write_kotlin, write_jni = generate_card_writes(contract, metadata, metadata_descriptor)
     list_records, list_methods, list_jni = generate_record_lists(contract)
-    trash_methods, trash_jni = generate_trash(contract)
+    trash_record, trash_methods, trash_jni = generate_trash(contract)
     kotlin = header + TEMPLATES.get_template("android_cards.kt.j2").render(
         card_list_record=_record_kotlin("ContractCardListItem", typed),
         card_metadata_record=_record_kotlin("ContractCardMetadata", metadata),
-        list_records=list_records, write_methods=write_kotlin, list_methods=list_methods,
+        list_records=list_records + trash_record, write_methods=write_kotlin, list_methods=list_methods,
         trash_methods=trash_methods,
     )
     record_lines, arguments, refs = _record_jni_lines(typed, "card")

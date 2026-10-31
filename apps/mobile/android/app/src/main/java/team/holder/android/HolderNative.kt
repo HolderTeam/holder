@@ -36,6 +36,8 @@ data class HolderCard(
     val childCount: Int? = null,
 )
 
+data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
+
 /** Matches holder_card_query_json's "view" values (lowercased on the wire). */
 enum class CardQueryView { ROOTS, CHILDREN, ALL, RECENT }
 
@@ -963,7 +965,17 @@ object HolderNative {
         saveLane.call { nativeCardDelete(it, cardId) }
     }
 
-    fun listTrashedCards(projectId: String): List<HolderCard> {
+    fun listTrashedCards(projectId: String): List<HolderTrashedCard> =
+        readLane.call { ContractCards.nativeListTrashedCards(it, projectId) }.map { item ->
+            HolderTrashedCard(
+                cardId = requireNotNull(item.cardId),
+                title = requireNotNull(item.title),
+                deletedAt = item.deletedAt,
+            )
+        }
+
+    /** Previous JSON listing retained for parity during migration. */
+    internal fun listTrashedCardsJsonForBenchmark(projectId: String): List<HolderCard> {
         val cards = JSONArray(readLane.call { nativeCardListTrashed(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }

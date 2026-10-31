@@ -448,6 +448,62 @@ Java_team_holder_android_generated_ContractCards_nativeSearchCards(
   }
   return items;
 }
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListTrashedCards(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) {
+    fail(env, "context and required list parameters are needed"); return nullptr;
+  }
+  std::string project;
+  if (!utf8(env, project_id, project)) return nullptr;
+  Arena arena;
+  const holder_trash_item_list* page = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_list_trash(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), "card", arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot run list_trash";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractTrashItem");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/Long;Ljava/lang/String;)V");
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->count; ++i) {
+    const auto& value = page->items[i];
+    if (value.type != HOLDER_TRASH_ITEM_TYPE_CARD) { fail(env, "unexpected trash item"); return nullptr; }
+    const char* type_name = "card";
+    jstring v_type = string(env, type_name);
+    jstring v_project_id = string(env, value.project_id);
+    jstring v_card_id = string(env, value.card_id);
+    jstring v_message_id = string(env, value.message_id);
+    jstring v_thread_id = string(env, value.thread_id);
+    jstring v_title = string(env, value.title);
+    jstring v_role = string(env, value.role);
+    jlong v_deleted_at = static_cast<jlong>(value.deleted_at);
+    jobject v_created_at = value.created_at ? boxed_long(env, *value.created_at) : nullptr;
+    jstring v_rel_path = string(env, value.rel_path);
+    jobject item = env->NewObject(item_type, item_ctor, v_type, v_project_id, v_card_id, v_message_id, v_thread_id, v_title, v_role, v_deleted_at, v_created_at, v_rel_path);
+    if (v_type) env->DeleteLocalRef(v_type);
+    if (v_project_id) env->DeleteLocalRef(v_project_id);
+    if (v_card_id) env->DeleteLocalRef(v_card_id);
+    if (v_message_id) env->DeleteLocalRef(v_message_id);
+    if (v_thread_id) env->DeleteLocalRef(v_thread_id);
+    if (v_title) env->DeleteLocalRef(v_title);
+    if (v_role) env->DeleteLocalRef(v_role);
+    if (v_created_at) env->DeleteLocalRef(v_created_at);
+    if (v_rel_path) env->DeleteLocalRef(v_rel_path);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  return items;
+}
 extern "C" JNIEXPORT void JNICALL
 Java_team_holder_android_generated_ContractCards_nativePurgeCard(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {

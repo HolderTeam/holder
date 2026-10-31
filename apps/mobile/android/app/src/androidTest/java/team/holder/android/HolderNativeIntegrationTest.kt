@@ -879,7 +879,12 @@ class HolderNativeIntegrationTest {
         val trashed = HolderNative.listTrashedCards(project.projectId).single { it.cardId == card.cardId }
         assertNotNull(trashed.deletedAt)
         assertThrows(RuntimeException::class.java) { HolderNative.getCard(project.projectId, card.cardId) }
-        assertEquals(trashed, HolderNative.getTrashedCard(card.cardId))
+        val legacy = HolderNative.getTrashedCard(card.cardId)
+        assertEquals(legacy.cardId, trashed.cardId)
+        assertEquals(legacy.title, trashed.title)
+        assertEquals(legacy.deletedAt, trashed.deletedAt)
+        assertEquals(HolderNative.listTrashedCardsJsonForBenchmark(project.projectId).map { it.cardId },
+            HolderNative.listTrashedCards(project.projectId).map { it.cardId })
 
         val restored = HolderNative.restoreCard(project.projectId, card.cardId)
         assertEquals(card.cardId, restored.cardId)
