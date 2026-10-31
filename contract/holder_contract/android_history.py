@@ -36,6 +36,14 @@ def generate_history(contract: ContractView) -> dict[str, str]:
     for name, fields in comparison_fields.items():
         if [field.name for field in contract.record(name).fields] != fields:
             raise ValueError(f"Android {name} fields need a generator update")
+    restore = contract.operation("restore_card_history_snapshot")
+    if [field.name for field in restore.parameters] != ["project_id", "card_id", "oid"] or \
+            restore.returns != NamedType(name="CardHistoryRestoreResult"):
+        raise ValueError("Android card-history restore needs a generator update")
+    if [field.name for field in contract.record("CardHistoryRestoreResult").fields] != [
+        "card_id", "restored_from_oid", "result_oid", "title", "updated_at", "deleted_at"
+    ]:
+        raise ValueError("Android CardHistoryRestoreResult fields need a generator update")
     header = "// Generated from contract/interface/history.py and contract/interface/app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     return {

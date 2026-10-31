@@ -1131,7 +1131,17 @@ object HolderNative {
      * together -- through the ordinary write path (a new "Restore card ..." commit). Never
      * checks out or rewrites Git history, so the pre-restore state remains its own, still-
      * reachable history entry. Returns the restored card. */
-    fun restoreCardHistory(cardId: String, historicalOid: String): HolderCard =
+    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): HolderCard {
+        val cardJson = saveLane.call { context ->
+            val result = ContractHistory.nativeRestoreCardHistory(context, projectId, cardId, historicalOid)
+            // The contract result omits hierarchy and creation fields in HolderCard. Keep this
+            // read until the Android-facing return shape is settled in #344.
+            nativeCardGet(context, result.cardId, 2)
+        }
+        return parseCard(JSONObject(cardJson))
+    }
+
+    internal fun restoreCardHistoryJsonForBenchmark(cardId: String, historicalOid: String): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardHistoryRestore(it, cardId, historicalOid) }))
 
     /** Explicit connections only -- not hierarchy (parent/child) or inline [[wikilinks]]. */

@@ -311,6 +311,20 @@ def test_card_history_comparison_bridge_uses_contract_shape():
         generate_android(changed)
 
 
+def test_card_history_restore_bridge_uses_contract_result_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardHistoryRestoreResult(" in generated[HISTORY_KOTLIN_PATH]
+    assert "nativeRestoreCardHistory" in generated[HISTORY_KOTLIN_PATH]
+    assert "holder_restore_card_history_snapshot(" in generated[HISTORY_JNI_PATH]
+
+    changed = deepcopy(ir)
+    result = next(record for record in changed["records"] if record["name"] == "CardHistoryRestoreResult")
+    result["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardHistoryRestoreResult fields need a generator update"):
+        generate_android(changed)
+
+
 def test_record_lists_follow_contract_fields_and_operation_shapes():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)

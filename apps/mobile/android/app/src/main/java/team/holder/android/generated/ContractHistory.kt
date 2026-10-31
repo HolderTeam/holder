@@ -56,6 +56,15 @@ data class ContractCardHistoryComparison(
     val truncated: Boolean,
 )
 
+data class ContractCardHistoryRestoreResult(
+    val cardId: String,
+    val restoredFromOid: String,
+    val resultOid: String,
+    val title: String,
+    val updatedAt: Long,
+    val deletedAt: Long?,
+)
+
 object ContractHistory {
     external fun nativeListCardHistory(
         contextHandle: Long, projectId: String, cardId: String, limit: Int, cursor: String?,
@@ -63,4 +72,7 @@ object ContractHistory {
     external fun nativeCompareCardHistory(
         contextHandle: Long, projectId: String, cardId: String, fromOid: String?, toOid: String,
     ): ContractCardHistoryComparison
+    external fun nativeRestoreCardHistory(
+        contextHandle: Long, projectId: String, cardId: String, oid: String,
+    ): ContractCardHistoryRestoreResult
 }

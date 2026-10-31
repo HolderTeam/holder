@@ -1224,7 +1224,7 @@ class HolderNativeIntegrationTest {
 
         // Restoration is a new forward commit -- never a rewrite -- so the pre-restore edit
         // remains its own reachable history entry afterwards.
-        val restored = HolderNative.restoreCardHistory(card.cardId, creationOid)
+        val restored = HolderNative.restoreCardHistory(project.projectId, card.cardId, creationOid)
         assertEquals(card.cardId, restored.cardId)
         assertEquals("Sharpen at 15 degrees", HolderNative.getCardContent(project.projectId, card.cardId))
 
@@ -1323,6 +1323,56 @@ class HolderNativeIntegrationTest {
         fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
         Log.i("HolderHistoryCompareTiming", "2 versions generated=${median(generatedTimes) / 1_000_000.0}ms " +
             "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+    }
+
+    @Test
+    fun generatedCardHistoryRestore_preservesCardReturnAndMeasuresWrite() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("History restore timing")
+        fun fixture(index: Int): Pair<String, String> {
+            val card = HolderNative.createCard(project.projectId, "Restore $index", "Earlier version")
+            val oid = HolderNative.listCardHistory(project.projectId, card.cardId).entries.single().lastOid
+            HolderNative.updateCard(project.projectId, card.cardId, "Restore $index", "Later version")
+            return card.cardId to oid
+        }
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        repeat(6) { round ->
+            val (generatedId, generatedOid) = fixture(round * 2)
+            val (jsonId, jsonOid) = fixture(round * 2 + 1)
+            fun sample(call: () -> HolderCard): Pair<HolderCard, Long> {
+                val start = System.nanoTime()
+                val result = call()
+                return result to (System.nanoTime() - start)
+            }
+            val generated: Pair<HolderCard, Long>
+            val json: Pair<HolderCard, Long>
+            if (round % 2 == 0) {
+                generated = sample { HolderNative.restoreCardHistory(project.projectId, generatedId, generatedOid) }
+                json = sample { HolderNative.restoreCardHistoryJsonForBenchmark(jsonId, jsonOid) }
+            } else {
+                json = sample { HolderNative.restoreCardHistoryJsonForBenchmark(jsonId, jsonOid) }
+                generated = sample { HolderNative.restoreCardHistory(project.projectId, generatedId, generatedOid) }
+            }
+            assertEquals(generatedId, generated.first.cardId)
+            assertEquals(jsonId, json.first.cardId)
+            assertEquals("Restore ${round * 2}", generated.first.title)
+            assertEquals("Restore ${round * 2 + 1}", json.first.title)
+            assertEquals(HolderNative.getCard(project.projectId, generatedId), generated.first)
+            assertEquals("Earlier version", HolderNative.getCardContent(project.projectId, generatedId))
+            assertEquals("Earlier version", HolderNative.getCardContent(project.projectId, jsonId))
+            if (round >= 1) { generatedTimes.add(generated.second); jsonTimes.add(json.second) }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderHistoryRestoreTiming", "5 restores generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+
+        val trashed = HolderNative.createCard(project.projectId, "Trashed history", "Body")
+        HolderNative.deleteCard(project.projectId, trashed.cardId)
+        val trashOid = HolderNative.listCardHistory(project.projectId, trashed.cardId).entries.first().lastOid
+        val restoredTrash = HolderNative.restoreCardHistory(project.projectId, trashed.cardId, trashOid)
+        assertNotNull(restoredTrash.deletedAt)
+        assertEquals(trashed.cardId, restoredTrash.cardId)
     }
 
     private fun initialize(welcomeContent: String) {

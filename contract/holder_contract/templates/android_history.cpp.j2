@@ -87,6 +87,9 @@ struct JavaTypes {
   jclass comparison = env->FindClass("team/holder/android/generated/ContractCardHistoryComparison");
   jmethodID comparison_ctor = env->GetMethodID(comparison, "<init>",
       "(Lteam/holder/android/generated/ContractCardHistoryVersion;Lteam/holder/android/generated/ContractCardHistoryVersion;Ljava/lang/String;Ljava/util/List;Z)V");
+  jclass restore = env->FindClass("team/holder/android/generated/ContractCardHistoryRestoreResult");
+  jmethodID restore_ctor = env->GetMethodID(restore, "<init>",
+      "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/Long;)V");
   jclass boxed_long = env->FindClass("java/lang/Long");
   jmethodID boxed_long_ctor = env->GetMethodID(boxed_long, "<init>", "(J)V");
   ~JavaTypes() {
@@ -98,6 +101,7 @@ struct JavaTypes {
     env->DeleteLocalRef(version);
     env->DeleteLocalRef(line);
     env->DeleteLocalRef(comparison);
+    env->DeleteLocalRef(restore);
     env->DeleteLocalRef(boxed_long);
   }
   jobject array(size_t count) { return env->NewObject(list, list_ctor, static_cast<jint>(count)); }
@@ -274,5 +278,45 @@ Java_team_holder_android_generated_ContractHistory_nativeCompareCardHistory(
   if (after) env->DeleteLocalRef(after);
   if (summary) env->DeleteLocalRef(summary);
   if (lines) env->DeleteLocalRef(lines);
+  return result;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractHistory_nativeRestoreCardHistory(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id,
+    jstring oid) {
+  if (!context_handle || !project_id || !card_id || !oid) {
+    fail(env, "context, project ID, card ID and revision are required"); return nullptr;
+  }
+  std::string project, card, revision;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, card) ||
+      !utf8(env, oid, revision)) return nullptr;
+  Arena arena;
+  const holder_card_history_restore_result* restored = nullptr;
+  holder_error* error = nullptr;
+  const int status = arena.value ? holder_restore_card_history_snapshot(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), card.c_str(), revision.c_str(), arena.value, &restored, &error)
+      : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate history restore result";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  JavaTypes types{env};
+  if (env->ExceptionCheck()) return nullptr;
+  jstring result_card_id = string(env, restored->card_id);
+  jstring from = string(env, restored->restored_from_oid);
+  jstring result_oid = string(env, restored->result_oid);
+  jstring title = string(env, restored->title);
+  jobject deleted = restored->deleted_at ? env->NewObject(types.boxed_long, types.boxed_long_ctor,
+      static_cast<jlong>(*restored->deleted_at)) : nullptr;
+  jobject result = env->ExceptionCheck() ? nullptr : env->NewObject(types.restore, types.restore_ctor,
+      result_card_id, from, result_oid, title, static_cast<jlong>(restored->updated_at), deleted);
+  env->DeleteLocalRef(result_card_id);
+  env->DeleteLocalRef(from);
+  env->DeleteLocalRef(result_oid);
+  env->DeleteLocalRef(title);
+  if (deleted) env->DeleteLocalRef(deleted);
   return result;
 }
