@@ -99,6 +99,24 @@ def test_project_sync_state_generates_nullable_fields_and_c_bridge():
         generate_android(changed)
 
 
+def test_project_pull_maps_contract_phase_and_guards_its_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    assert "data class ContractPullPhase(" in kotlin
+    assert "nativePullProject" in kotlin
+    assert "holder_pull_project(" in jni
+    assert "HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET" in jni
+    assert "value->pull" in jni
+
+    changed = deepcopy(ir)
+    pull = next(record for record in changed["records"] if record["name"] == "PullPhase")
+    pull["fields"].append({"name": "new_field", "type": {"kind": "bool"}})
+    with pytest.raises(ValueError, match="PullPhase needs a generator update"):
+        generate_android(changed)
+
+
 def test_card_list_return_change_requires_generator_update():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

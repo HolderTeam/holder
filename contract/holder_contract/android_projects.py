@@ -70,6 +70,19 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     }:
         raise ValueError("Android get_project_sync_state parameters or return need a generator update")
     sync_typed = [(field["name"], *_field_type(field, aliases)) for field in records["SyncState"]["fields"]]
+    pull = operations["pull_project"]
+    pull_fields = records["PullPhase"]["fields"]
+    if [p["name"] for p in pull["parameters"]] != ["project_id"] or pull["returns"] != {
+        "kind": "named", "name": "SyncResult"
+    } or not any(f["name"] == "pull" and f["type"] == {"kind": "named", "name": "PullPhase"}
+                 for f in records["SyncResult"]["fields"]) or [(f["name"], f["type"]) for f in pull_fields] != [
+        ("attempted", {"kind": "bool"}),
+        ("status", {"kind": "literal", "values": ["not_attempted", "succeeded", "remote_unset", "failed"]}),
+        ("conflicts_resolved", {"kind": "int32"}),
+        ("hidden_cards_repaired", {"kind": "int32"}),
+        ("error_message", {"kind": "nullable", "value": {"kind": "string"}}),
+    ]:
+        raise ValueError("Android pull_project or PullPhase needs a generator update")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
     header = "// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n" \
@@ -82,6 +95,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    val checkedFiles: Int,\n    val unsafeFiles: Int,\n" \
         "    val unsafePaths: List<String>,\n    val message: String,\n)\n" + \
         "\n" + _record_kotlin("ContractSyncState", sync_typed) + \
+        "\ndata class ContractPullPhase(\n    val attempted: Boolean,\n    val status: String,\n" \
+        "    val conflictsResolved: Int,\n    val hiddenCardsRepaired: Int,\n" \
+        "    val errorMessage: String?,\n)\n" + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
@@ -89,6 +105,7 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
         "    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck\n" \
         "    external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState\n" \
+        "    external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
@@ -106,6 +123,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         check_mode_cases="".join(
             f"      case HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"
             for value in mode["values"]),
+        pull_status_cases="".join(
+            f"      case HOLDER_PULL_PHASE_STATUS_{value.upper()}: return \"{value}\";\n"
+            for value in pull_fields[1]["type"]["values"]),
         item_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n',
         record_lines="".join(record_lines),
         item_construction=f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n",

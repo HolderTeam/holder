@@ -100,6 +100,16 @@ const char* privacy_mode(holder_project_encryption_check_privacy_mode value) {
   }
 }
 
+const char* pull_status(holder_pull_phase_status value) {
+  switch (value) {
+      case HOLDER_PULL_PHASE_STATUS_NOT_ATTEMPTED: return "not_attempted";
+      case HOLDER_PULL_PHASE_STATUS_SUCCEEDED: return "succeeded";
+      case HOLDER_PULL_PHASE_STATUS_REMOTE_UNSET: return "remote_unset";
+      case HOLDER_PULL_PHASE_STATUS_FAILED: return "failed";
+      default: return nullptr;
+  }
+}
+
 jobject project_result(JNIEnv* env, const holder_project& project) {
   const char* mode = privacy_mode(project.privacy_mode);
   if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
@@ -195,6 +205,23 @@ jobject sync_state_result(JNIEnv* env, const holder_sync_state& value) {
   if (v_updated_at) env->DeleteLocalRef(v_updated_at);
   env->DeleteLocalRef(item_type);
   return item;
+}
+
+jobject pull_phase_result(JNIEnv* env, const holder_pull_phase& value) {
+  const char* status = pull_status(value.status);
+  if (!status) { fail(env, "unknown project pull status"); return nullptr; }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractPullPhase");
+  if (!item_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(item_type, "<init>", "(ZLjava/lang/String;IILjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring error_message = string(env, value.error_message);
+  jobject result = env->NewObject(item_type, ctor, static_cast<jboolean>(value.attempted), state,
+      static_cast<jint>(value.conflicts_resolved), static_cast<jint>(value.hidden_cards_repaired),
+      error_message);
+  if (state) env->DeleteLocalRef(state);
+  if (error_message) env->DeleteLocalRef(error_message);
+  env->DeleteLocalRef(item_type);
+  return result;
 }
 
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
@@ -354,6 +381,22 @@ Java_team_holder_android_generated_ContractProjects_nativeGetProjectSyncState(
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot read project sync state"); return nullptr; }
   return sync_state_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativePullProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_pull_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot pull project"); return nullptr; }
+  return pull_phase_result(env, value->pull);
 }
 
 extern "C" JNIEXPORT void JNICALL

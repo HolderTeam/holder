@@ -1329,6 +1329,20 @@ object HolderNative {
     }
 
     fun pullGit(projectId: String): GitPullResult {
+        val pull = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativePullProject(it, projectId)
+        }
+        return GitPullResult(
+            // The old Android result reports an unset remote as a failed pull.
+            status = if (pull.status == "remote_unset") "failed" else pull.status,
+            errorMessage = pull.errorMessage,
+            conflictsResolved = pull.conflictsResolved,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun pullGitJsonForBenchmark(projectId: String): GitPullResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitPull(it, projectId)

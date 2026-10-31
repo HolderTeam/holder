@@ -335,6 +335,56 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedGitPull_matchesJsonWhenRemoteIsUnset() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Generated pull")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("JSON pull")
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> GitPullResult): Pair<GitPullResult, Long> {
+            val start = System.nanoTime()
+            val result = call()
+            return Pair(result, System.nanoTime() - start)
+        }
+        repeat(9) { round ->
+            val generated: Pair<GitPullResult, Long>
+            val json: Pair<GitPullResult, Long>
+            if (round % 2 == 0) {
+                generated = sample { HolderNative.pullGit(generatedProject.projectId) }
+                json = sample { HolderNative.pullGitJsonForBenchmark(jsonProject.projectId) }
+            } else {
+                json = sample { HolderNative.pullGitJsonForBenchmark(jsonProject.projectId) }
+                generated = sample { HolderNative.pullGit(generatedProject.projectId) }
+            }
+            assertEquals(json.first, generated.first)
+            assertEquals("failed", generated.first.status)
+            assertEquals(0, generated.first.conflictsResolved)
+            if (round >= 2) {
+                generatedTimes.add(generated.second)
+                jsonTimes.add(json.second)
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderGitPullTiming", "generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+
+        assertThrows(RuntimeException::class.java) { HolderNative.pullGit("missing-project") }
+        assertEquals(HolderNative.pullGitJsonForBenchmark(jsonProject.projectId),
+            HolderNative.pullGit(generatedProject.projectId))
+
+        val generatedRepo = dataDir.resolve("projects/generated-pull")
+        val jsonRepo = dataDir.resolve("projects/json-pull")
+        assertTrue(generatedRepo.isDirectory)
+        assertTrue(jsonRepo.isDirectory)
+        HolderNative.updateProjectGitRemote(generatedProject.projectId, generatedRepo.toURI().toString())
+        HolderNative.updateProjectGitRemote(jsonProject.projectId, jsonRepo.toURI().toString())
+        val successfulGenerated = HolderNative.pullGit(generatedProject.projectId)
+        val successfulJson = HolderNative.pullGitJsonForBenchmark(jsonProject.projectId)
+        assertEquals(successfulJson, successfulGenerated)
+        assertEquals("succeeded", successfulGenerated.status)
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
