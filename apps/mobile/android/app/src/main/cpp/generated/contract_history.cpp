@@ -82,12 +82,25 @@ struct JavaTypes {
       "(Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Lteam/holder/android/generated/ContractHistoryAuthor;JJLjava/lang/String;Ljava/lang/String;IZLjava/util/List;)V");
   jclass page = env->FindClass("team/holder/android/generated/ContractCardHistoryPage");
   jmethodID page_ctor = env->GetMethodID(page, "<init>", "(Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Z)V");
+  jclass version = env->FindClass("team/holder/android/generated/ContractCardHistoryVersion");
+  jmethodID version_ctor = env->GetMethodID(version, "<init>", "(ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  jclass line = env->FindClass("team/holder/android/generated/ContractCardHistoryDiffLine");
+  jmethodID line_ctor = env->GetMethodID(line, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;)V");
+  jclass comparison = env->FindClass("team/holder/android/generated/ContractCardHistoryComparison");
+  jmethodID comparison_ctor = env->GetMethodID(comparison, "<init>",
+      "(Lteam/holder/android/generated/ContractCardHistoryVersion;Lteam/holder/android/generated/ContractCardHistoryVersion;Ljava/lang/String;Ljava/util/List;Z)V");
+  jclass boxed_long = env->FindClass("java/lang/Long");
+  jmethodID boxed_long_ctor = env->GetMethodID(boxed_long, "<init>", "(J)V");
   ~JavaTypes() {
     env->DeleteLocalRef(list);
     env->DeleteLocalRef(save);
     env->DeleteLocalRef(author);
     env->DeleteLocalRef(entry);
     env->DeleteLocalRef(page);
+    env->DeleteLocalRef(version);
+    env->DeleteLocalRef(line);
+    env->DeleteLocalRef(comparison);
+    env->DeleteLocalRef(boxed_long);
   }
   jobject array(size_t count) { return env->NewObject(list, list_ctor, static_cast<jint>(count)); }
 };
@@ -148,6 +161,36 @@ jobject entry(JavaTypes& types, const holder_card_history_entry& value) {
   env->DeleteLocalRef(saves);
   return out;
 }
+
+jobject version(JavaTypes& types, const holder_card_history_version& value) {
+  JNIEnv* env = types.env;
+  jstring oid = string(env, value.oid);
+  jstring title = string(env, value.title);
+  jstring body = string(env, value.body);
+  jobject out = env->ExceptionCheck() ? nullptr : env->NewObject(types.version, types.version_ctor,
+      static_cast<jboolean>(value.exists), oid, title, body);
+  env->DeleteLocalRef(oid);
+  env->DeleteLocalRef(title);
+  env->DeleteLocalRef(body);
+  return out;
+}
+
+jobject diff_line(JavaTypes& types, const holder_card_history_diff_line& value) {
+  JNIEnv* env = types.env;
+  jstring origin = string(env, value.origin);
+  jstring text = string(env, value.text);
+  jobject old_line = value.old_line ? env->NewObject(types.boxed_long, types.boxed_long_ctor,
+      static_cast<jlong>(*value.old_line)) : nullptr;
+  jobject new_line = value.new_line ? env->NewObject(types.boxed_long, types.boxed_long_ctor,
+      static_cast<jlong>(*value.new_line)) : nullptr;
+  jobject out = env->ExceptionCheck() ? nullptr : env->NewObject(types.line, types.line_ctor,
+      origin, text, old_line, new_line);
+  env->DeleteLocalRef(origin);
+  env->DeleteLocalRef(text);
+  if (old_line) env->DeleteLocalRef(old_line);
+  if (new_line) env->DeleteLocalRef(new_line);
+  return out;
+}
 }  // namespace
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -188,5 +231,50 @@ Java_team_holder_android_generated_ContractHistory_nativeListCardHistory(
   env->DeleteLocalRef(head);
   env->DeleteLocalRef(entries);
   env->DeleteLocalRef(next);
+  return result;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractHistory_nativeCompareCardHistory(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id,
+    jstring from_oid, jstring to_oid) {
+  if (!context_handle || !project_id || !card_id || !to_oid) {
+    fail(env, "context, project ID, card ID and ending revision are required"); return nullptr;
+  }
+  std::string project, card, from, to;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, card) ||
+      (from_oid && !utf8(env, from_oid, from)) || !utf8(env, to_oid, to)) return nullptr;
+  Arena arena;
+  const holder_card_history_comparison* comparison = nullptr;
+  holder_error* error = nullptr;
+  const auto mode = from_oid ? HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE
+                             : HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE;
+  const int status = arena.value ? holder_compare_card_history(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), card.c_str(), to.c_str(), from_oid ? from.c_str() : nullptr,
+      mode, arena.value, &comparison, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate history comparison";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  JavaTypes types{env};
+  if (env->ExceptionCheck()) return nullptr;
+  jobject before = version(types, comparison->before);
+  jobject after = version(types, comparison->after);
+  jstring summary = string(env, comparison->summary);
+  jobject lines = types.array(comparison->lines.count);
+  for (size_t i = 0; i < comparison->lines.count && !env->ExceptionCheck(); ++i) {
+    jobject item = diff_line(types, comparison->lines.items[i]);
+    if (!env->ExceptionCheck()) env->CallBooleanMethod(lines, types.add, item);
+    if (item) env->DeleteLocalRef(item);
+  }
+  jobject result = env->ExceptionCheck() ? nullptr : env->NewObject(types.comparison,
+      types.comparison_ctor, before, after, summary, lines,
+      static_cast<jboolean>(comparison->truncated));
+  if (before) env->DeleteLocalRef(before);
+  if (after) env->DeleteLocalRef(after);
+  if (summary) env->DeleteLocalRef(summary);
+  if (lines) env->DeleteLocalRef(lines);
   return result;
 }

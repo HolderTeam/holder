@@ -1279,6 +1279,52 @@ class HolderNativeIntegrationTest {
             "JSON=${median(jsonTimes) / 1_000_000.0}ms")
     }
 
+    @Test
+    fun generatedCardHistoryComparison_matchesJsonWithTiming() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("History comparisons")
+        val card = HolderNative.createCard(project.projectId, "Résumé", "First line\nOld line")
+        val createdOid = HolderNative.listCardHistory(project.projectId, card.cardId).entries.single().lastOid
+        HolderNative.updateCard(project.projectId, card.cardId, "Résumé", "First line\nNew café line")
+        val updatedOid = HolderNative.listCardHistory(project.projectId, card.cardId).entries.first().lastOid
+
+        val since = HolderNative.compareCardHistory(project.projectId, card.cardId, createdOid, updatedOid)
+        val sinceJson = HolderNative.compareCardHistoryJsonForBenchmark(project.projectId, card.cardId, createdOid, updatedOid)
+        assertEquals(sinceJson, since)
+        assertTrue(since.lines.any { it.origin == "+" && it.oldLine == null })
+        assertTrue(since.lines.any { it.origin == "-" && it.newLine == null })
+
+        val creation = HolderNative.compareCardHistory(project.projectId, card.cardId, null, createdOid)
+        val creationJson = HolderNative.compareCardHistoryJsonForBenchmark(project.projectId, card.cardId, null, createdOid)
+        assertEquals(creationJson, creation)
+        assertFalse(creation.from.exists)
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> HolderCardHistoryComparison): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertEquals(since, result)
+            return elapsed
+        }
+        repeat(12) { round ->
+            val typed: Long
+            val json: Long
+            if (round % 2 == 0) {
+                typed = sample { HolderNative.compareCardHistory(project.projectId, card.cardId, createdOid, updatedOid) }
+                json = sample { HolderNative.compareCardHistoryJsonForBenchmark(project.projectId, card.cardId, createdOid, updatedOid) }
+            } else {
+                json = sample { HolderNative.compareCardHistoryJsonForBenchmark(project.projectId, card.cardId, createdOid, updatedOid) }
+                typed = sample { HolderNative.compareCardHistory(project.projectId, card.cardId, createdOid, updatedOid) }
+            }
+            if (round >= 2) { generatedTimes.add(typed); jsonTimes.add(json) }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderHistoryCompareTiming", "2 versions generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+    }
+
     private fun initialize(welcomeContent: String) {
         HolderNative.initialize(
             context = context,

@@ -1092,6 +1092,29 @@ object HolderNative {
         fromOid: String?,
         toOid: String,
     ): HolderCardHistoryComparison {
+        val comparison = backgroundLane.call {
+            ContractHistory.nativeCompareCardHistory(it, projectId, cardId, fromOid, toOid)
+        }
+        fun version(value: team.holder.android.generated.ContractCardHistoryVersion) = HolderCardHistoryVersion(
+            exists = value.exists, oid = value.oid, title = value.title, body = value.body,
+        )
+        return HolderCardHistoryComparison(
+            // Android has always represented the absent state before creation with an empty OID.
+            from = version(comparison.before).let { before ->
+                if (fromOid == null && !before.exists) before.copy(oid = "") else before
+            },
+            to = version(comparison.after),
+            summary = comparison.summary,
+            lines = comparison.lines.map { line -> HolderCardHistoryDiffLine(
+                origin = line.origin, text = line.text, oldLine = line.oldLine, newLine = line.newLine,
+            ) },
+            truncated = comparison.truncated,
+        )
+    }
+
+    internal fun compareCardHistoryJsonForBenchmark(
+        projectId: String, cardId: String, fromOid: String?, toOid: String,
+    ): HolderCardHistoryComparison {
         val json = JSONObject(backgroundLane.call { nativeCardHistoryCompare(it, projectId, cardId, fromOid, toOid) })
         val lines = json.getJSONArray("lines")
         return HolderCardHistoryComparison(

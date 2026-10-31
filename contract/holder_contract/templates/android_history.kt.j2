@@ -32,8 +32,33 @@ data class ContractCardHistoryPage(
     val scanLimited: Boolean,
 )
 
+data class ContractCardHistoryVersion(
+    val exists: Boolean,
+    val oid: String,
+    val title: String,
+    val body: String,
+)
+
+data class ContractCardHistoryDiffLine(
+    val origin: String,
+    val text: String,
+    val oldLine: Long?,
+    val newLine: Long?,
+)
+
+data class ContractCardHistoryComparison(
+    val before: ContractCardHistoryVersion,
+    val after: ContractCardHistoryVersion,
+    val summary: String,
+    val lines: List<ContractCardHistoryDiffLine>,
+    val truncated: Boolean,
+)
+
 object ContractHistory {
     external fun nativeListCardHistory(
         contextHandle: Long, projectId: String, cardId: String, limit: Int, cursor: String?,
     ): ContractCardHistoryPage
+    external fun nativeCompareCardHistory(
+        contextHandle: Long, projectId: String, cardId: String, fromOid: String?, toOid: String,
+    ): ContractCardHistoryComparison
 }
