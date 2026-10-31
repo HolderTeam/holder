@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from .android import _field_type, _record_jni_lines
-from .android_ir import ContractView, NamedType
 from .android_templates import TEMPLATES
+from .ir import ContractView, NamedType
 
 
 def _jni_write(name: str, parameters: str, required: str, decode: str, request: str, call: str,

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from .android import _field_type, _record_jni_lines, _record_kotlin
-from .android_ir import ContractView, LiteralType, NamedType
 from .android_templates import TEMPLATES
+from .ir import ContractView, LiteralType, NamedType
 
 
 def generate_recovery(contract: ContractView) -> tuple[str, str]:

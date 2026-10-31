@@ -9,10 +9,10 @@ from pydantic import ValidationError
 from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
 from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
 from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
-from holder_contract.android_ir import ContractView, NullableType, ScalarType
 from holder_contract.android_resources import JNI_PATH as RESOURCES_JNI_PATH
 from holder_contract.android_resources import KOTLIN_PATH as RESOURCES_KOTLIN_PATH
 from holder_contract.extract import extract
+from holder_contract.ir import ContractView, NullableType, ScalarType
 
 
 def test_card_field_change_updates_kotlin_and_jni():

@@ -1,7 +1,7 @@
 """Generate Android's card-history list bridge over the contract C ABI."""
 
-from .android_ir import ContractView, NamedType
 from .android_templates import TEMPLATES
+from .ir import ContractView, NamedType
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractHistory.kt"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_history.cpp"

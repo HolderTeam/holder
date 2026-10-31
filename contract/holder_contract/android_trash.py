@@ -1,8 +1,8 @@
 """Android adapters for permanent deletion of trashed cards."""
 
 from .android import _field_type, _record_jni_lines, _record_kotlin
-from .android_ir import ContractView, ListType, LiteralType, NamedType
 from .android_templates import TEMPLATES
+from .ir import ContractView, ListType, LiteralType, NamedType
 
 
 def generate_trash(contract: ContractView) -> tuple[str, str, str]:

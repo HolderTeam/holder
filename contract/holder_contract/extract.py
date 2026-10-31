@@ -19,7 +19,12 @@ from typing import Any
 
 from fastapi import params
 from fastapi.routing import APIRoute
-from pydantic import MISSING, JsonValue, SecretStr
+
+try:
+    from pydantic import MISSING, JsonValue, SecretStr
+except ImportError:
+    from pydantic import JsonValue, SecretStr
+    from pydantic_core import MISSING  # type: ignore
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 

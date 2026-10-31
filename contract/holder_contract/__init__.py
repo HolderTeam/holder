@@ -3,7 +3,11 @@
 Contract files import their vocabulary from here.
 """
 
-from pydantic import MISSING, Field, JsonValue, SecretStr
+try:
+    from pydantic import MISSING, Field, JsonValue, SecretStr
+except ImportError:
+    from pydantic import Field, JsonValue, SecretStr
+    from pydantic_core import MISSING  # type: ignore
 
 from .routes import Contract
 from .vocabulary import (

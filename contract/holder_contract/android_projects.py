@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from .android import PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, _field_type, _record_jni_lines, _record_kotlin
 from .android_inputs import InputField, generate_input_record
-from .android_ir import ContractView, ListType, LiteralType, NamedType, NullableType, ScalarType
 from .android_templates import TEMPLATES
+from .ir import ContractView, ListType, LiteralType, NamedType, NullableType, ScalarType
 
 HEADER = ("// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n"
           "// Do not edit; run make -C contract update.\n")

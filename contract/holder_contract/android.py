@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .android_ir import ContractView, FieldView, NamedType, NullableType, ScalarType
+from .android_models import camel_case as _camel, map_field, record_jni_lines as _record_jni_lines
 from .android_templates import TEMPLATES
+from .ir import ContractView, FieldView, NamedType, NullableType, ScalarType
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_cards.cpp"
@@ -15,57 +16,14 @@ PROJECT_JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_proj
 
 def _field_type(field: FieldView, contract: ContractView, *,
                 allow_literal: bool = False) -> tuple[str, str, bool]:
-    value, nullable = contract.resolve_type(field.type)
-    optional = field.omittable or nullable
-    kind = value.kind
-    if kind == "literal" and not allow_literal:
-        raise ValueError(f"Android record conversion needs a C enum mapping for {field.name}")
-    if kind == "bool" and optional:
-        raise ValueError(f"Android record conversion does not support optional bool for {field.name}")
-    if kind not in {"string", "literal", "bool", "int32", "int64", "float64"}:
-        raise ValueError(f"Android record conversion does not support {kind} for {field.name}")
-    return ({"string": "String", "literal": "String", "bool": "Boolean", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
-            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "Ljava/lang/Integer;",
-             "int64": "Ljava/lang/Long;", "float64": "Ljava/lang/Double;", "bool": "Ljava/lang/Boolean;"}[kind] if optional else
-            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "bool": "Z", "int32": "I", "int64": "J", "float64": "D"}[kind],
-            optional)
-
-
-def _camel(name: str) -> str:
-    first, *rest = name.split("_")
-    return first + "".join(word.title() for word in rest)
+    f = map_field(field, contract, allow_literal=allow_literal)
+    return f.kotlin_type, f.jni_signature, f.optional
 
 
 def _record_kotlin(name: str, typed: list[tuple[str, str, str, bool]]) -> str:
     return f"data class {name}(\n" + "".join(
         f"    val {_camel(field)}: {kind}{'?' if optional else ''},\n"
         for field, kind, _, optional in typed) + ")\n"
-
-
-def _record_jni_lines(typed: list[tuple[str, str, str, bool]], source: str,
-                      overrides: dict[str, str] | None = None, indent: str = "    "
-                      ) -> tuple[list[str], list[str], list[str]]:
-    lines: list[str] = []
-    arguments: list[str] = []
-    refs: list[str] = []
-    for name, kind, _, optional in typed:
-        var = f"v_{name}"
-        field = f"{source}.{name}"
-        if overrides and name in overrides:
-            lines.append(f"{indent}jstring {var} = string(env, {overrides[name]});\n")
-            refs.append(var)
-        elif kind == "String":
-            lines.append(f"{indent}jstring {var} = string(env, {field});\n")
-            refs.append(var)
-        elif optional:
-            box = {"Long": "boxed_long", "Int": "boxed_int", "Double": "boxed_double"}[kind]
-            lines.append(f"{indent}jobject {var} = {field} ? {box}(env, *{field}) : nullptr;\n")
-            refs.append(var)
-        else:
-            cast = {"Int": "jint", "Long": "jlong", "Double": "jdouble", "Boolean": "jboolean"}[kind]
-            lines.append(f"{indent}{cast} {var} = static_cast<{cast}>({field});\n")
-        arguments.append(var)
-    return lines, arguments, refs
 
 
 def generate_android(ir: dict[str, Any]) -> dict[str, str]:
