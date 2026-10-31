@@ -16,7 +16,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+_TEMPLATES = Environment(
+    loader=FileSystemLoader(Path(__file__).with_name("templates")),
+    undefined=StrictUndefined,
+    autoescape=False,
+    trim_blocks=True,
+    keep_trailing_newline=True,
+    newline_sequence="\n",
+)
 
 FIRST_ERROR_CODE = 100
 SCALARS_C = {"int32": "int32_t", "int64": "int64_t", "float64": "double", "bool": "bool"}
@@ -613,147 +625,6 @@ def cpp_literal(value: Any) -> str:
 
 # ---- glue -------------------------------------------------------------------------------------
 
-GLUE_SUPPORT = r"""
-namespace contract = holder::contract;
-
-struct holder_arena {
-  std::vector<std::unique_ptr<std::byte[]>> blocks;
-};
-
-namespace {
-
-template <class T>
-T* make(holder_arena* arena, std::size_t count = 1) {
-  if (count == 0) return nullptr;
-  auto block = std::make_unique<std::byte[]>(sizeof(T) * count);
-  T* items = reinterpret_cast<T*>(block.get());
-  std::uninitialized_value_construct_n(items, count);
-  arena->blocks.push_back(std::move(block));
-  return items;
-}
-
-const char* copy(holder_arena* arena, const std::string& text) {
-  char* out = make<char>(arena, text.size() + 1);
-  std::memcpy(out, text.data(), text.size());
-  return out;
-}
-
-template <class C, class T>
-const C* copy_value(holder_arena* arena, const std::optional<T>& value) {
-  if (!value) return nullptr;
-  C* out = make<C>(arena);
-  *out = static_cast<C>(*value);
-  return out;
-}
-
-template <class C, class T, class Convert>
-const C* copy_optional(holder_arena* arena, const std::optional<T>& value, Convert convert) {
-  if (!value) return nullptr;
-  C* out = make<C>(arena);
-  *out = convert(*value);
-  return out;
-}
-
-const char* copy_text(holder_arena* arena, const std::optional<std::string>& value) {
-  return value ? copy(arena, *value) : nullptr;
-}
-
-holder_string_list copy_strings(holder_arena* arena, const std::vector<std::string>& values) {
-  auto* items = make<const char*>(arena, values.size());
-  for (std::size_t i = 0; i < values.size(); ++i) items[i] = copy(arena, values[i]);
-  return {items, values.size()};
-}
-
-struct ArgumentError : std::invalid_argument {
-  using std::invalid_argument::invalid_argument;
-};
-
-void require(bool ok, const std::string& message) {
-  if (!ok) throw ArgumentError(message);
-}
-
-// The number of characters in text, or nothing when it is not well-formed UTF-8: no overlong
-// forms, surrogates or code points above U+10FFFF.
-std::optional<std::size_t> utf8_length(const std::string& text) {
-  std::size_t count = 0;
-  for (std::size_t i = 0; i < text.size(); ++count) {
-    const auto lead = static_cast<unsigned char>(text[i]);
-    std::size_t size = 1;
-    char32_t point = lead;
-    if (lead >= 0xC2 && lead <= 0xDF) {
-      size = 2, point = lead & 0x1F;
-    } else if (lead >= 0xE0 && lead <= 0xEF) {
-      size = 3, point = lead & 0x0F;
-    } else if (lead >= 0xF0 && lead <= 0xF4) {
-      size = 4, point = lead & 0x07;
-    } else if (lead >= 0x80) {
-      return std::nullopt;
-    }
-    if (text.size() - i < size) return std::nullopt;
-    for (std::size_t k = 1; k < size; ++k) {
-      const auto next = static_cast<unsigned char>(text[i + k]);
-      if ((next & 0xC0) != 0x80) return std::nullopt;
-      point = (point << 6) | (next & 0x3F);
-    }
-    if ((size == 3 && (point < 0x800 || (point >= 0xD800 && point <= 0xDFFF))) ||
-        (size == 4 && (point < 0x10000 || point > 0x10FFFF)))
-      return std::nullopt;
-    i += size;
-  }
-  return count;
-}
-
-// Lengths count characters, as the contract does.
-std::string text(const char* value, const char* name, std::size_t min_length, std::size_t max_length) {
-  require(value != nullptr, std::string(name) + " must not be null");
-  std::string out(value);
-  const auto length = utf8_length(out);
-  require(length.has_value(), std::string(name) + " must be UTF-8");
-  require(*length >= min_length, std::string(name) + (min_length == 1 ? " must not be empty"
-                                                                       : " must be at least " + std::to_string(min_length) + " characters"));
-  require(*length <= max_length, std::string(name) + " must be at most " + std::to_string(max_length) + " characters");
-  return out;
-}
-
-std::optional<std::string> optional_text(const char* value, const char* name, std::size_t min_length,
-                                         std::size_t max_length) {
-  if (value == nullptr) return std::nullopt;
-  return text(value, name, min_length, max_length);
-}
-
-template <class T>
-T in_range(T value, const char* name, T minimum, T maximum) {
-  require(value >= minimum && value <= maximum, std::string(name) + " must be from " + std::to_string(minimum) +
-                                                    " to " + std::to_string(maximum));
-  return value;
-}
-
-double finite(double value, const char* name) {
-  require(std::isfinite(value), std::string(name) + " must be a finite number");
-  return value;
-}
-
-template <class Body>
-int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
-  if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
-  try {
-    body();
-    return HOLDER_OK;
-  } catch (const ArgumentError& e) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
-  } catch (const contract::InvalidArgument& e) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, e.what());
-@@ERROR_CATCHES@@  } catch (const std::bad_alloc&) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed");
-  } catch (const std::exception& e) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, e.what());
-  } catch (...) {
-    return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
-  }
-}
-"""
-
 
 CHANGE_SUPPORT = r"""
 // A partial update's text field: kept, set to its value, or cleared.
@@ -858,17 +729,14 @@ def scalar_check(t: dict[str, Any], label: str) -> str:
 
 
 def generate_glue(model: Model) -> str:
-    catches = "".join(
-        f"  }} catch (const contract::{e['name']}& e) {{\n"
-        f"    return contract::detail::fail(out_error, HOLDER_ERROR_{snake(e['name']).upper()}, e.what());\n"
-        for e in model.errors)
+    errors = [{"name": error["name"], "code": snake(error["name"]).upper()} for error in model.errors]
     out = [*header_lines(model.ir, "The C entry points: argument checks, conversions and error codes.", "cpp"),
            '#include "Contract.h"', '#include "holder/holder.h"', "", "#include <cmath>", "#include <cstddef>", "#include <cstdint>",
            "#include <cstring>", "#include <limits>", "#include <map>", "#include <memory>", "#include <new>",
            "#include <optional>",
            "#include <stdexcept>", "#include <string>",
            "#include <utility>", "#include <vector>",
-           GLUE_SUPPORT.replace("@@ERROR_CATCHES@@", catches).rstrip(), ""]
+           _TEMPLATES.get_template("glue_support.cpp.j2").render(errors=errors).rstrip(), ""]
     if model.changes():
         out += [CHANGE_SUPPORT.strip("\n"), ""]
     for ref in model.maps.values():
