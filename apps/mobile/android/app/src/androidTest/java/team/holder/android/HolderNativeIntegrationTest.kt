@@ -208,6 +208,50 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedCardCreation_preservesUnicodeAndStaysWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Generated creation")
+        val parent = HolderNative.createCardJsonForBenchmark(project.projectId, "Parent", "Parent body")
+        val content = "# Café 日本語 📝\n\nПривет 🌍 #tag"
+
+        val created = HolderNative.createCard(project.projectId, "Café 日本語 📝", content, parent.cardId)
+        assertEquals(parent.cardId, created.parentCardId)
+        assertEquals(HolderNative.getCardJsonForBenchmark(created.cardId), created)
+        assertEquals(content, HolderNative.getCardContent(created.cardId))
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.createCard(project.projectId, "Missing parent", "body", "no-such-parent")
+        }
+        assertEquals("After error", HolderNative.createCard(project.projectId, "After error", "body").title)
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(2) { index ->
+            HolderNative.createCard(project.projectId, "Generated warmup $index", "Body $index")
+            HolderNative.createCardJsonForBenchmark(project.projectId, "JSON warmup $index", "Body $index")
+        }
+        repeat(7) { round ->
+            if (round % 2 == 0) {
+                generatedTimes.add(sample { HolderNative.createCard(project.projectId, "Generated $round", "Body $round") })
+                jsonTimes.add(sample { HolderNative.createCardJsonForBenchmark(project.projectId, "JSON $round", "Body $round") })
+            } else {
+                jsonTimes.add(sample { HolderNative.createCardJsonForBenchmark(project.projectId, "JSON $round", "Body $round") })
+                generatedTimes.add(sample { HolderNative.createCard(project.projectId, "Generated $round", "Body $round") })
+            }
+        }
+        val generatedMedian = generatedTimes.sorted()[generatedTimes.size / 2]
+        val jsonMedian = jsonTimes.sorted()[jsonTimes.size / 2]
+        Log.i("HolderCardCreateTiming", "generated=${generatedMedian / 1_000_000.0}ms " +
+            "json=${jsonMedian / 1_000_000.0}ms")
+        assertTrue("Generated creation took over twice JSON plus 10ms: $generatedMedian vs $jsonMedian ns",
+            generatedMedian <= jsonMedian * 2 + 10_000_000)
+    }
+
+    @Test
     fun generatedCardListing_followsCursorPastTheFirstPage() {
         initialize("# Welcome\n\nWelcome")
         val cards = JSONArray()
