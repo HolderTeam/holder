@@ -35,6 +35,18 @@ def test_card_list_return_change_requires_generator_update():
         generate_android(changed)
 
 
+def test_card_metadata_change_updates_kotlin_and_jni():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    changed = deepcopy(ir)
+    metadata = next(record for record in changed["records"] if record["name"] == "CardMetadata")
+    metadata["fields"].append({"name": "new_rank", "type": {"kind": "int32"}})
+
+    after = generate_android(changed)
+    assert "val newRank: Int" in after[KOTLIN_PATH]
+    assert "card.new_rank" in after[JNI_PATH]
+    assert "holder_get_card_metadata" in after[JNI_PATH]
+
+
 def test_project_fields_and_privacy_literals_update_kotlin_and_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

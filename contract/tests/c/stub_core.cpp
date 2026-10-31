@@ -45,6 +45,10 @@ Card get_card(holder_context& context, std::string project_id, std::string card_
   return live_card(context, project_id, card_id);
 }
 
+CardMetadata get_card_metadata(holder_context& context, std::string project_id, std::string card_id) {
+  return live_card(context, project_id, card_id);
+}
+
 std::vector<CardBreadcrumb> get_card_breadcrumbs(holder_context& context, std::string project_id,
                                                  std::string card_id) {
   live_card(context, project_id, card_id);

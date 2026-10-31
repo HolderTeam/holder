@@ -16,6 +16,18 @@ data class ContractCardListItem(
     val content: String?,
 )
 
+data class ContractCardMetadata(
+    val cardId: String,
+    val projectId: String,
+    val title: String,
+    val relPath: String,
+    val parentCardId: String?,
+    val sortKey: Double,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long?,
+)
+
 data class ContractCardPage(
     val items: List<ContractCardListItem>,
     val nextCursor: String?,
@@ -23,4 +35,5 @@ data class ContractCardPage(
 
 object ContractCards {
     external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
+    external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
 }

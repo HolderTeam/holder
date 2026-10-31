@@ -347,6 +347,24 @@ typedef struct holder_card {
     holder_tag_occurrence_list tag_occurrences; /* Each tag written in the content, in order. */
 } holder_card;
 
+/* Everything about a card except its content. */
+typedef struct holder_card_metadata {
+    const char* card_id; /* The card's ID. */
+    const char* project_id; /* The project the card belongs to. */
+    const char* title; /* The card's title. */
+    const char* rel_path; /* The card's file, relative to the project's root. */
+    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
+    double sort_key; /* The card's place among its siblings; lower comes first. */
+    int64_t created_at; /* When the card was created. */
+    int64_t updated_at; /* When the card was last changed. */
+    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
+} holder_card_metadata;
+
+typedef struct holder_card_metadata_list {
+    const holder_card_metadata* items;
+    size_t count;
+} holder_card_metadata_list;
+
 /* Whether this step names the project or a card. */
 typedef enum holder_card_breadcrumb_kind {
     HOLDER_CARD_BREADCRUMB_KIND_PROJECT = 1,
@@ -501,24 +519,6 @@ typedef struct holder_calendar_milestone_list {
     const holder_calendar_milestone* items;
     size_t count;
 } holder_calendar_milestone_list;
-
-/* Everything about a card except its content. */
-typedef struct holder_card_metadata {
-    const char* card_id; /* The card's ID. */
-    const char* project_id; /* The project the card belongs to. */
-    const char* title; /* The card's title. */
-    const char* rel_path; /* The card's file, relative to the project's root. */
-    const char* parent_card_id; /* The card's parent; null for a root card. May be NULL. */
-    double sort_key; /* The card's place among its siblings; lower comes first. */
-    int64_t created_at; /* When the card was created. */
-    int64_t updated_at; /* When the card was last changed. */
-    const int64_t* deleted_at; /* When the card was moved to the trash; null when it is not in the trash. May be NULL. */
-} holder_card_metadata;
-
-typedef struct holder_card_metadata_list {
-    const holder_card_metadata* items;
-    size_t count;
-} holder_card_metadata_list;
 
 /* What happens in a project over a window of time: its milestones, and the cards made and changed. */
 typedef struct holder_calendar {
@@ -1056,6 +1056,12 @@ int holder_delete_storage_location(holder_context* context, const char* location
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_get_card(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card** out_card, holder_error** out_error);
+
+/* Fetch a live card's metadata without reading its content.
+ * A card in the trash or in another project is not found.
+ * Errors: HOLDER_ERROR_NOT_FOUND.
+ */
+int holder_get_card_metadata(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error);
 
 /* Read a live card's path from its project root.
  * The project comes first, then live ancestor cards and the requested card. A missing or trashed

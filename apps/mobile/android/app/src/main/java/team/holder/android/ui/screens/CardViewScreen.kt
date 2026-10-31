@@ -112,7 +112,7 @@ fun CardViewScreen(
 
     LaunchedEffect(cardId, projectId, refreshKey) {
         cardMeta = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.getCard(cardId).takeIf { it.projectId == projectId } }
+            withContext(Dispatchers.IO) { HolderNative.getCard(projectId, cardId) }
         }.getOrNull()
     }
 

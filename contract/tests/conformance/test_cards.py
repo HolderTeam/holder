@@ -291,6 +291,17 @@ class Cards(RuleBasedStateMachine):
             assert card == self.cards[card_id]
 
     @rule(data=st.data())
+    def get_card_metadata(self, data):
+        card_id, project = self.a_card(data)
+        live = self.is_live(card_id, project)
+        metadata = self.expect("get_card_metadata", set() if live else {"NotFound"},
+                               {"project_id": project, "card_id": card_id})
+        if metadata is not None:
+            self.conforms("get_card_metadata", metadata)
+            assert metadata == {key: value for key, value in self.cards[card_id].items()
+                                if key not in {"content", "tags", "tag_occurrences"}}
+
+    @rule(data=st.data())
     def list_cards(self, data):
         arguments = data.draw(self.values().arguments("list_cards"))
         known_tags = sorted({t for c in self.live() for t in c["tags"]})
