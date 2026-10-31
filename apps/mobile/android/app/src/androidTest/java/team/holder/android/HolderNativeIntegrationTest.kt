@@ -137,7 +137,7 @@ class HolderNativeIntegrationTest {
         repeat(5_001) { index ->
             cards.put(JSONObject()
                 .put("card_id", "seed-$index")
-                .put("title", "Card $index")
+                .put("title", if (index == 5_000) "Café 日本語 📝" else "Card $index")
                 .put("body", "Body $index")
                 .put("created_at", index)
                 .put("updated_at", index))
@@ -148,6 +148,8 @@ class HolderNativeIntegrationTest {
         val generatedCards = HolderNative.listCards(project.projectId)
         assertEquals(5_001, generatedCards.size)
         assertEquals(jsonCards, generatedCards)
+        assertEquals(1, generatedCards.count { it.title == "Café 日本語 📝" })
+        assertEquals(generatedCards, HolderNative.listCards(project.projectId))
     }
 
     @Test
