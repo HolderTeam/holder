@@ -1,4 +1,4 @@
-"""The first Android contract slice: a typed, paged card listing over the C ABI."""
+"""Generate Android's typed Card bridge over the contract C ABI."""
 
 # ruff: noqa: ISC004
 
@@ -84,6 +84,23 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     if [p["name"] for p in lookup["parameters"]] != ["project_id", "card_id"] or \
             lookup["returns"] != {"kind": "named", "name": "CardMetadata"}:
         raise ValueError("Android get_card_metadata needs CardMetadata and project/card IDs")
+    create = next(op for op in ir["operations"] if op["name"] == "create_card")
+    if [p["name"] for p in create["parameters"]] != ["project_id", "card"] or \
+            create["parameters"][1]["type"] != {"kind": "named", "name": "NewCard"} or \
+            create["returns"] != {"kind": "named", "name": "Card"}:
+        raise ValueError("Android create_card needs NewCard and Card")
+    new_card_fields = records["NewCard"]["fields"]
+    if [field["name"] for field in new_card_fields] != [
+        "title", "content", "parent_card_id", "sort_key", "created_at", "updated_at"
+    ] or [_field_type(field, aliases) for field in new_card_fields] != [
+        ("String", "Ljava/lang/String;", False),
+        ("String", "Ljava/lang/String;", False),
+        ("String", "Ljava/lang/String;", True),
+        ("Double", "Ljava/lang/Double;", True),
+        ("Long", "Ljava/lang/Long;", True),
+        ("Long", "Ljava/lang/Long;", True),
+    ]:
+        raise ValueError("Android NewCard fields need a generator update")
     metadata = [(field["name"], *_field_type(field, aliases)) for field in records["CardMetadata"]["fields"]]
     fields = records["CardMetadata"]["fields"] + records["CardListItem"]["fields"]
     typed = [(field["name"], *_field_type(field, aliases)) for field in fields]
@@ -97,6 +114,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
         "object ContractCards {\n" \
         "    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage\n" \
         "    external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata\n" \
+        "    external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     metadata_descriptor = "(" + "".join(signature for _, _, signature, _ in metadata) + ")V"
@@ -134,6 +152,40 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
              '  jmethodID ctor = env->GetMethodID(type, "<init>", "(I)V");\n'
              '  jobject result = env->NewObject(type, ctor, static_cast<jint>(value));\n'
              '  env->DeleteLocalRef(type);\n  return result;\n}\n\n',
+             'bool utf8(JNIEnv* env, jstring input, std::string& out) {\n'
+             '  const jchar* chars = env->GetStringChars(input, nullptr);\n'
+             '  if (!chars) return false;\n'
+             '  const jsize count = env->GetStringLength(input);\n'
+             '  for (jsize i = 0; i < count; ++i) {\n'
+             '    uint32_t cp = chars[i];\n'
+             '    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < count &&\n'
+             '        chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {\n'
+             '      cp = 0x10000 + ((cp - 0xd800) << 10) + (chars[++i] - 0xdc00);\n'
+             '    } else if (cp >= 0xd800 && cp <= 0xdfff) {\n'
+             '      env->ReleaseStringChars(input, chars);\n'
+             '      fail(env, "unpaired UTF-16 surrogate"); return false;\n'
+             '    }\n'
+             '    if (cp == 0) {\n'
+             '      env->ReleaseStringChars(input, chars);\n'
+             '      fail(env, "NUL is not allowed in C strings"); return false;\n'
+             '    }\n'
+             '    if (cp < 0x80) out.push_back(static_cast<char>(cp));\n'
+             '    else if (cp < 0x800) {\n'
+             '      out.push_back(static_cast<char>(0xc0 | (cp >> 6)));\n'
+             '      out.push_back(static_cast<char>(0x80 | (cp & 63)));\n'
+             '    } else if (cp < 0x10000) {\n'
+             '      out.push_back(static_cast<char>(0xe0 | (cp >> 12)));\n'
+             '      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));\n'
+             '      out.push_back(static_cast<char>(0x80 | (cp & 63)));\n'
+             '    } else {\n'
+             '      out.push_back(static_cast<char>(0xf0 | (cp >> 18)));\n'
+             '      out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));\n'
+             '      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));\n'
+             '      out.push_back(static_cast<char>(0x80 | (cp & 63)));\n'
+             '    }\n'
+             '  }\n'
+             '  env->ReleaseStringChars(input, chars);\n'
+             '  return true;\n}\n\n',
              ('jobject boxed_double(JNIEnv* env, double value) {\n'
              '  jclass type = env->FindClass("java/lang/Double");\n'
              '  jmethodID ctor = env->GetMethodID(type, "<init>", "(D)V");\n'
@@ -205,6 +257,36 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
               '  env->ReleaseStringUTFChars(project_id, project);\n'
               '  if (status != HOLDER_OK) {\n'
               '    std::string message = error ? holder_error_message(error) : "cannot allocate card metadata";\n'
+              '    if (error) holder_error_destroy(error);\n'
+              '    fail(env, message.c_str()); return nullptr;\n  }\n'
+              '  const auto& card = *value;\n'
+              '  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");\n'
+              f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{metadata_descriptor}");\n',
+              *meta_lines,
+              f'  jobject result = env->NewObject(item_type, item_ctor, {", ".join(meta_arguments)});\n',
+              *[f'  if ({ref}) env->DeleteLocalRef({ref});\n' for ref in meta_refs],
+              '  return result;\n}\n']
+    lines += ['\nextern "C" JNIEXPORT jobject JNICALL\n'
+              'Java_team_holder_android_generated_ContractCards_nativeCreateCard(\n'
+              '    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,\n'
+              '    jstring content, jstring parent_card_id) {\n'
+              '  if (!context_handle || !project_id || !title || !content) {\n'
+              '    fail(env, "context, project ID, title and content are required"); return nullptr;\n  }\n'
+              '  std::string project, card_title, body, parent;\n'
+              '  if (!utf8(env, project_id, project) || !utf8(env, title, card_title) ||\n'
+              '      !utf8(env, content, body) ||\n'
+              '      (parent_card_id && !utf8(env, parent_card_id, parent))) return nullptr;\n'
+              '  holder_new_card request{};\n'
+              '  request.title = card_title.c_str();\n'
+              '  request.content = body.c_str();\n'
+              '  request.parent_card_id = parent_card_id ? parent.c_str() : nullptr;\n'
+              '  Arena arena;\n  const holder_card* value = nullptr;\n'
+              '  holder_error* error = nullptr;\n'
+              '  int status = arena.value ? holder_create_card(\n'
+              '      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),\n'
+              '      project.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;\n'
+              '  if (status != HOLDER_OK) {\n'
+              '    std::string message = error ? holder_error_message(error) : "cannot allocate card";\n'
               '    if (error) holder_error_destroy(error);\n'
               '    fail(env, message.c_str()); return nullptr;\n  }\n'
               '  const auto& card = *value;\n'

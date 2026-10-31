@@ -2,6 +2,7 @@ package team.holder.android
 
 import android.content.Context
 import team.holder.android.generated.ContractCards
+import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import org.json.JSONArray
 import org.json.JSONObject
@@ -768,8 +769,7 @@ object HolderNative {
     /** Fetches one live card's metadata in its project. */
     fun getCard(projectId: String, cardId: String): HolderCard {
         val card = readLane.call { ContractCards.nativeGetCardMetadata(it, projectId, cardId) }
-        return HolderCard(card.cardId, card.projectId, card.title, card.parentCardId,
-            card.createdAt, card.updatedAt, card.sortKey, card.deletedAt)
+        return fromContractMetadata(card)
     }
 
     /** Temporary JSON baseline for the generated live-card lookup. */
@@ -883,6 +883,13 @@ object HolderNative {
     }
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
+        fromContractMetadata(saveLane.call {
+            ContractCards.nativeCreateCard(it, projectId, title, content, parentCardId)
+        })
+
+    /** Previous JSON creation path, retained for parity and timing during migration. */
+    internal fun createCardJsonForBenchmark(projectId: String, title: String, content: String,
+                                            parentCardId: String? = null): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardCreate(it, projectId, title, content, parentCardId) }))
 
     fun updateCard(cardId: String, title: String, content: String): HolderCard =
@@ -1478,6 +1485,11 @@ object HolderNative {
         name = json.getString("name"),
         gitRemoteUrl = json.optStringOrNull("git_remote_url"),
         privacyMode = json.getString("privacy_mode"),
+    )
+
+    private fun fromContractMetadata(card: ContractCardMetadata) = HolderCard(
+        card.cardId, card.projectId, card.title, card.parentCardId,
+        card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )
 
     private fun parseCard(json: JSONObject) = HolderCard(

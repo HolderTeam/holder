@@ -47,6 +47,21 @@ def test_card_metadata_change_updates_kotlin_and_jni():
     assert "holder_get_card_metadata" in after[JNI_PATH]
 
 
+def test_create_card_uses_new_card_and_rejects_unmapped_inputs():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeCreateCard" in generated[KOTLIN_PATH]
+    assert "holder_new_card request{}" in generated[JNI_PATH]
+    assert "holder_create_card(" in generated[JNI_PATH]
+    assert "GetStringChars" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    new_card = next(record for record in changed["records"] if record["name"] == "NewCard")
+    new_card["fields"].append({"name": "new_option", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="NewCard fields need a generator update"):
+        generate_android(changed)
+
+
 def test_project_fields_and_privacy_literals_update_kotlin_and_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)
