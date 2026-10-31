@@ -115,3 +115,21 @@ TEST_CASE("A project pushes, pulls and syncs with its remote, and each records i
   REQUIRE(missing.error_message.has_value());
   REQUIRE(contract::get_project(host.context, host.project_id).git_remote_url == remote);
 }
+
+TEST_CASE("Scheduled contract sync respects remote and cadence", "[contract][git]") {
+  Host host;
+  const auto without_remote = contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
+  REQUIRE_FALSE(without_remote.pull.attempted);
+  REQUIRE_FALSE(without_remote.push.attempted);
+  REQUIRE(without_remote.remote_url == std::nullopt);
+
+  const auto remote = host.remote();
+  const auto first = contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
+  REQUIRE(first.remote_url == remote);
+  REQUIRE(first.pull.attempted);
+  REQUIRE(first.push.attempted);
+  const auto second = contract::sync_project_if_due(host.context, host.project_id, 3600, 3600);
+  REQUIRE_FALSE(second.pull.attempted);
+  REQUIRE_FALSE(second.push.attempted);
+  REQUIRE_THROWS_AS(contract::sync_project_if_due(host.context, "no-such-project", 0, 0), contract::NotFound);
+}

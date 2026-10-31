@@ -97,6 +97,20 @@ class SyncResult(Record):
     """The push; not attempted for a pull, or after a pull that failed."""
 
 
+class DueSyncResult(Record):
+    """A scheduled sync's pull and push outcomes. Both phases are not attempted when neither is due or the
+    project has no remote. A due push may still run after a failed pull so local changes get another chance."""
+
+    project_id: ProjectId
+    """The project."""
+    remote_url: GitRemoteUrl | None
+    """The configured remote; null when there is none."""
+    pull: PullPhase
+    """The pull, or not attempted when it is not due."""
+    push: PushPhase
+    """The push, or not attempted when it is not due."""
+
+
 class PushOptions(Record):
     """How to push."""
 

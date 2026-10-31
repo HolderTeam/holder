@@ -790,6 +790,16 @@ typedef struct holder_sync_result {
     holder_push_phase push; /* The push; not attempted for a pull, or after a pull that failed. */
 } holder_sync_result;
 
+/* A scheduled sync's pull and push outcomes. Both phases are not attempted when neither is due or the
+ * project has no remote. A due push may still run after a failed pull so local changes get another chance.
+ */
+typedef struct holder_due_sync_result {
+    const char* project_id; /* The project. */
+    const char* remote_url; /* The configured remote; null when there is none. May be NULL. */
+    holder_pull_phase pull; /* The pull, or not attempted when it is not due. */
+    holder_push_phase push; /* The push, or not attempted when it is not due. */
+} holder_due_sync_result;
+
 /* What testing the remote found; remote_unset when there was none to test. */
 typedef enum holder_remote_test_result_status {
     HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE = 1,
@@ -1463,6 +1473,15 @@ int holder_push_project(holder_context* context, const char* project_id, const h
  * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
  */
 int holder_sync_project(holder_context* context, const char* project_id, const holder_push_options* options, holder_arena* arena, const holder_sync_result** out_sync_result, holder_error** out_error);
+
+/* Try the project's pull and push phases only when their cadence and retry policy say they are due.
+ * Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project without a remote and
+ * a project with nothing due return both phases as not attempted without changing sync state. A due push can
+ * run after a failed pull; this keeps scheduled pushes independent from the pull retry schedule.
+ * Git failures are phase outcomes and are recorded in the project's sync state.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_sync_project_if_due(holder_context* context, const char* project_id, int32_t push_interval_seconds, int32_t pull_interval_seconds, holder_arena* arena, const holder_due_sync_result** out_due_sync_result, holder_error** out_error);
 
 /* Test whether a Git remote can be reached, with this device's credentials.
  * Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository

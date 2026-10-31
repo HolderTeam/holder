@@ -1,0 +1,31 @@
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
+    JNIEnv* env, jobject, jlong context_handle, jobject input) {
+  if (!context_handle || !input) { fail(env, "context and project are required"); return nullptr; }
+  jclass input_type = env->GetObjectClass(input);
+  if (!input_type) return nullptr;
+  holder_new_project request{};
+{% for field in new_project_fields %}{% if field.kind in ("string", "literal") %}  std::optional<std::string> v_{{ field.name }};
+  if (!read_string_field(env, input, input_type, "{{ field.kotlin_name }}", {{ "false" if field.optional else "true" }}, v_{{ field.name }})) return nullptr;
+{% if field.kind == "literal" %}  if (v_{{ field.name }}) {
+{% for value, c_value in field.enum_cases %}    {% if not loop.first %}else {% endif %}if (*v_{{ field.name }} == "{{ value }}") request.{{ field.name }} = {{ c_value }};
+{% endfor %}    else { fail(env, "unknown {{ field.name }}"); return nullptr; }
+  }
+{% else %}  request.{{ field.name }} = v_{{ field.name }} ? v_{{ field.name }}->c_str() : nullptr;
+{% endif %}{% elif field.kind == "int64" and field.optional %}  std::optional<int64_t> v_{{ field.name }};
+  if (!read_long_field(env, input, input_type, "{{ field.kotlin_name }}", v_{{ field.name }})) return nullptr;
+  request.{{ field.name }} = v_{{ field.name }} ? &*v_{{ field.name }} : nullptr;
+{% elif field.kind == "int64" %}  jfieldID id_{{ field.name }} = env->GetFieldID(input_type, "{{ field.kotlin_name }}", "J");
+  if (!id_{{ field.name }}) return nullptr;
+  request.{{ field.name }} = static_cast<int64_t>(env->GetLongField(input, id_{{ field.name }}));
+  if (env->ExceptionCheck()) return nullptr;
+{% endif %}{% endfor %}  env->DeleteLocalRef(input_type);
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_create_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot create project"); return nullptr; }
+  return project_result(env, *value);
+}

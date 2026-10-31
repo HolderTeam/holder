@@ -4691,6 +4691,73 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /projects/{project_id}/git/sync-if-due:
+    post:
+      summary: Try the project's pull and push phases only when their cadence and retry policy say they
+        are due.
+      description: 'Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project
+        without a remote and
+
+        a project with nothing due return both phases as not attempted without changing sync state. A
+        due push can
+
+        run after a failed pull; this keeps scheduled pushes independent from the pull retry schedule.
+
+        Git failures are phase outcomes and are recorded in the project''s sync state.'
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ProjectId'}
+      - name: push_interval_seconds
+        in: query
+        required: false
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Push
+            Interval Seconds}
+      - name: pull_interval_seconds
+        in: query
+        required: false
+        schema: {type: integer, maximum: 2147483647, minimum: 0, format: int32, default: 0, title: Pull
+            Interval Seconds}
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DueSyncResultResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: The thing asked for does not exist, or is in the trash.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: An encrypted project's key is not on this device; the project's recovery token
+            restores it.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: 'A project''s stored data is damaged or unsafe: an encrypted file does not decrypt,
+            or holds plaintext. Unexpected failure.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'The keyring that holds an encrypted project''s key cannot be used: it is locked,
+            or this device has none.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /projects/{project_id}/git/sync-status:
     get:
       summary: What this device last recorded about a project's sync.
@@ -8334,6 +8401,34 @@ components:
       description: One entity invalidation from the live change feed.
     DateTime: {type: string, maxLength: 25, minLength: 20}
     Day: {type: string, maxLength: 10, minLength: 10}
+    DueSyncResult:
+      properties:
+        project_id: {$ref: '#/components/schemas/ProjectId', description: The project.}
+        remote_url:
+          anyOf:
+          - {$ref: '#/components/schemas/GitRemoteUrl'}
+          - {type: 'null'}
+          description: The configured remote; null when there is none.
+        pull: {$ref: '#/components/schemas/PullPhase', description: 'The pull, or not attempted when it
+            is not due.'}
+        push: {$ref: '#/components/schemas/PushPhase', description: 'The push, or not attempted when it
+            is not due.'}
+      additionalProperties: false
+      type: object
+      required: [project_id, remote_url, pull, push]
+      title: DueSyncResult
+      description: 'A scheduled sync''s pull and push outcomes. Both phases are not attempted when neither
+        is due or the
+
+        project has no remote. A due push may still run after a failed pull so local changes get another
+        chance.'
+    DueSyncResultResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data: {$ref: '#/components/schemas/DueSyncResult'}
+      type: object
+      required: [ok, data]
+      title: DueSyncResultResponse
     EncryptionSafetyCheck:
       properties:
         ok: {type: boolean, title: Ok, description: Whether every checked file passed.}

@@ -87,26 +87,23 @@ bool utf8(JNIEnv* env, jstring input, std::string& out) {
 
 }  // namespace
 
-extern "C" JNIEXPORT jobject JNICALL
-Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
-    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring cursor) {
+jobject list_card_page(JNIEnv* env, jlong context_handle, jstring project_id, jstring tag,
+                       jstring cursor, holder_list_cards_order order, jint requested_limit) {
   if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
-  const char* project = env->GetStringUTFChars(project_id, nullptr);
-  const char* position = cursor ? env->GetStringUTFChars(cursor, nullptr) : nullptr;
-  if (!project || (cursor && !position)) {
-    if (project) env->ReleaseStringUTFChars(project_id, project);
-    return nullptr;
+  if (requested_limit < 1 || requested_limit > 5000) {
+    fail(env, "card page limit must be between 1 and 5000"); return nullptr;
   }
+  std::string project, tag_text, position;
+  if (!utf8(env, project_id, project) || (tag && !utf8(env, tag, tag_text)) ||
+      (cursor && !utf8(env, cursor, position))) return nullptr;
   Arena arena;
   const holder_card_list_item_page* page = nullptr;
   holder_error* error = nullptr;
-  const int32_t limit = 5000;
+  const int32_t limit = static_cast<int32_t>(requested_limit);
   int status = arena.value ? holder_list_cards(
-      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project,
-      {}, nullptr, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC, &limit, position, false, false,
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(),
+      {}, tag ? tag_text.c_str() : nullptr, order, &limit, cursor ? position.c_str() : nullptr, false, false,
       arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
-  if (position) env->ReleaseStringUTFChars(cursor, position);
-  env->ReleaseStringUTFChars(project_id, project);
   if (status != HOLDER_OK) {
     std::string message = error ? holder_error_message(error) : "cannot allocate card page";
     if (error) holder_error_destroy(error);
@@ -150,6 +147,22 @@ Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
   jmethodID page_ctor = env->GetMethodID(page_type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");
   jstring next = string(env, page->next_cursor);
   return env->NewObject(page_type, page_ctor, items, next);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring cursor) {
+  return list_card_page(env, context_handle, project_id, nullptr, cursor,
+                        HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC, 5000);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardsWithTagPage(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring tag, jstring cursor,
+    jint limit) {
+  if (!tag) { fail(env, "tag is required"); return nullptr; }
+  return list_card_page(env, context_handle, project_id, tag, cursor,
+                        HOLDER_LIST_CARDS_ORDER_UPDATED_DESC, limit);
 }
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -198,6 +211,71 @@ Java_team_holder_android_generated_ContractCards_nativeGetCardMetadata(
   if (v_parent_card_id) env->DeleteLocalRef(v_parent_card_id);
   if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
   return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_team_holder_android_generated_ContractCards_nativeGetCardContent(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* id = env->GetStringUTFChars(card_id, nullptr);
+  if (!project || !id) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    if (id) env->ReleaseStringUTFChars(card_id, id);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  env->ReleaseStringUTFChars(card_id, id);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot read card content";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  return string(env, value->content);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardTags(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return nullptr;
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot list card tags";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  if (!list_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject tags = env->NewObject(list_type, ctor, static_cast<jint>(value->tags.count));
+  if (!tags || env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+  for (size_t i = 0; i < value->tags.count; ++i) {
+    jstring tag = string(env, value->tags.items[i]);
+    if (!tag || env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+    env->CallBooleanMethod(tags, add, tag);
+    env->DeleteLocalRef(tag);
+    if (env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+  }
+  env->DeleteLocalRef(list_type);
+  return tags;
 }
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -382,6 +460,185 @@ Java_team_holder_android_generated_ContractCards_nativeSearchCards(
     if (env->ExceptionCheck()) return nullptr;
   }
   return items;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListTrashedCards(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) {
+    fail(env, "context and required list parameters are needed"); return nullptr;
+  }
+  std::string project;
+  if (!utf8(env, project_id, project)) return nullptr;
+  Arena arena;
+  const holder_trash_item_list* page = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_list_trash(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(), "card", arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot run list_trash";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractTrashItem");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/Long;Ljava/lang/String;)V");
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->count; ++i) {
+    const auto& value = page->items[i];
+    if (value.type != HOLDER_TRASH_ITEM_TYPE_CARD) { fail(env, "unexpected trash item"); return nullptr; }
+    const char* type_name = "card";
+    jstring v_type = string(env, type_name);
+    jstring v_project_id = string(env, value.project_id);
+    jstring v_card_id = string(env, value.card_id);
+    jstring v_message_id = string(env, value.message_id);
+    jstring v_thread_id = string(env, value.thread_id);
+    jstring v_title = string(env, value.title);
+    jstring v_role = string(env, value.role);
+    jlong v_deleted_at = static_cast<jlong>(value.deleted_at);
+    jobject v_created_at = value.created_at ? boxed_long(env, *value.created_at) : nullptr;
+    jstring v_rel_path = string(env, value.rel_path);
+    jobject item = env->NewObject(item_type, item_ctor, v_type, v_project_id, v_card_id, v_message_id, v_thread_id, v_title, v_role, v_deleted_at, v_created_at, v_rel_path);
+    if (v_type) env->DeleteLocalRef(v_type);
+    if (v_project_id) env->DeleteLocalRef(v_project_id);
+    if (v_card_id) env->DeleteLocalRef(v_card_id);
+    if (v_message_id) env->DeleteLocalRef(v_message_id);
+    if (v_thread_id) env->DeleteLocalRef(v_thread_id);
+    if (v_title) env->DeleteLocalRef(v_title);
+    if (v_role) env->DeleteLocalRef(v_role);
+    if (v_created_at) env->DeleteLocalRef(v_created_at);
+    if (v_rel_path) env->DeleteLocalRef(v_rel_path);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  return items;
+}
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractCards_nativePurgeCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return;
+  Arena arena;
+  const holder_trash_delete_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_delete_project_trash_item(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD, id.c_str(),
+      arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot purge card";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractCards_nativeEmptyCardTrash(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return; }
+  std::string project;
+  if (!utf8(env, project_id, project)) return;
+  Arena arena;
+  const holder_trash_empty_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_empty_trash(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), HOLDER_EMPTY_TRASH_TYPE_CARD,
+      arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot empty card trash";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}
+jobject make_reference_candidate(JNIEnv* env, const holder_card_reference_candidate& value,
+                                 jclass item_type, jmethodID item_ctor) {
+  jstring v_card_id = string(env, value.card_id);
+  jstring v_title = string(env, value.title);
+  jobject v_deleted_at = value.deleted_at ? boxed_long(env, *value.deleted_at) : nullptr;
+  jobject item = env->NewObject(item_type, item_ctor, v_card_id, v_title, v_deleted_at);
+  if (v_card_id) env->DeleteLocalRef(v_card_id);
+  if (v_title) env->DeleteLocalRef(v_title);
+  if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
+  return item;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeResolveCardReference(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring reference, jint scope) {
+  if (!context_handle || !project_id || !reference) {
+    fail(env, "context, project ID and reference are required"); return nullptr;
+  }
+  std::string project, text;
+  if (!utf8(env, project_id, project) || !utf8(env, reference, text)) return nullptr;
+  holder_card_reference_resolve_request request{project.c_str(), text.c_str(),
+                                                HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE};
+  switch (scope) {
+    case 0: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_LIVE; break;
+    case 1: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_TRASHED; break;
+    case 2: request.scope = HOLDER_CARD_REFERENCE_RESOLVE_REQUEST_SCOPE_EITHER; break;
+    default: fail(env, "invalid card reference scope"); return nullptr;
+  }
+  Arena arena;
+  const holder_card_reference_resolve_data* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_resolve_card_reference(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot resolve card reference";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  const char* status_name = nullptr;
+  switch (value.status) {
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_RESOLVED: status_name = "resolved"; break;
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_AMBIGUOUS: status_name = "ambiguous"; break;
+    case HOLDER_CARD_REFERENCE_RESOLVE_DATA_STATUS_NOT_FOUND: status_name = "not_found"; break;
+    default: fail(env, "unknown card reference status"); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardReferenceCandidate");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)V");
+  if (!item_ctor) return nullptr;
+  jobject card = value.card ? make_reference_candidate(env, *value.card, item_type, item_ctor) : nullptr;
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject candidates = nullptr;
+  if (value.candidates) {
+    candidates = env->NewObject(list_type, list_ctor, static_cast<jint>(value.candidates->count));
+    for (size_t i = 0; i < value.candidates->count && !env->ExceptionCheck(); ++i) {
+      jobject candidate = make_reference_candidate(env, value.candidates->items[i], item_type, item_ctor);
+      if (!candidate || env->ExceptionCheck()) return nullptr;
+      env->CallBooleanMethod(candidates, add, candidate);
+      env->DeleteLocalRef(candidate);
+    }
+  }
+  jclass result_type = env->FindClass("team/holder/android/generated/ContractCardReferenceResult");
+  if (!result_type || env->ExceptionCheck()) return nullptr;
+  jmethodID result_ctor = env->GetMethodID(result_type, "<init>",
+      "(Ljava/lang/String;Ljava/lang/String;Lteam/holder/android/generated/ContractCardReferenceCandidate;Ljava/util/List;)V");
+  if (!result_ctor) return nullptr;
+  jstring kind = string(env, value.match_kind);
+  jstring outcome = string(env, status_name);
+  jobject answer = env->NewObject(result_type, result_ctor, outcome, kind, card, candidates);
+  if (outcome) env->DeleteLocalRef(outcome);
+  if (kind) env->DeleteLocalRef(kind);
+  if (card) env->DeleteLocalRef(card);
+  if (candidates) env->DeleteLocalRef(candidates);
+  env->DeleteLocalRef(result_type);
+  env->DeleteLocalRef(list_type);
+  env->DeleteLocalRef(item_type);
+  return answer;
 }
 
 extern "C" JNIEXPORT jobject JNICALL
