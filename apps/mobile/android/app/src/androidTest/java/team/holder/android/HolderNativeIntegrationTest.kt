@@ -1080,6 +1080,52 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedTagFilteredCards_matchJsonMembersAndPageAcrossProject() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Tag pages")
+        val other = HolderNative.createProject("Other tags")
+        val cards = (1..3).map { index ->
+            HolderNative.createCard(project.projectId, "Tagged $index", "Body #TODO")
+        }
+        HolderNative.createCard(project.projectId, "Untagged", "Body")
+        HolderNative.createCard(other.projectId, "Other project tag", "Body #TODO")
+
+        val generated = HolderNative.cardsWithTag(project.projectId, "todo")
+        val paged = HolderNative.cardsWithTagPaged(project.projectId, "TODO", 1)
+        val legacy = HolderNative.cardsWithTagJsonForBenchmark(project.projectId, "todo")
+        assertEquals(cards.map { it.cardId }.toSet(), generated.map { it.cardId }.toSet())
+        assertEquals(generated, paged)
+        // Legacy tag timestamps can differ after a projection rebuild, and equal-second ties are unordered.
+        assertEquals(legacy.toSet(), generated.toSet())
+        assertTrue(HolderNative.cardsWithTag(project.projectId, "missing").isEmpty())
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> List<HolderCardRef>): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertEquals(cards.size, result.size)
+            return elapsed
+        }
+        repeat(12) { round ->
+            val typed: Long
+            val json: Long
+            if (round % 2 == 0) {
+                typed = sample { HolderNative.cardsWithTag(project.projectId, "todo") }
+                json = sample { HolderNative.cardsWithTagJsonForBenchmark(project.projectId, "todo") }
+            } else {
+                json = sample { HolderNative.cardsWithTagJsonForBenchmark(project.projectId, "todo") }
+                typed = sample { HolderNative.cardsWithTag(project.projectId, "todo") }
+            }
+            if (round >= 2) { generatedTimes.add(typed); jsonTimes.add(json) }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderTagCardsTiming", "3 cards generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+    }
+
+    @Test
     fun milestones_roundTripThroughTheFullJniBoundary() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("Milestones test project")

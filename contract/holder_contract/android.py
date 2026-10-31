@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .android_ir import ContractView, FieldView, NamedType, ScalarType
+from .android_ir import ContractView, FieldView, NamedType, NullableType, ScalarType
 from .android_templates import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
@@ -74,7 +74,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     if [parameter.name for parameter in operation.parameters] != [
         "project_id", "parent", "tag", "order", "limit", "cursor", "include_content", "include_child_count"
     ] or not isinstance(operation.parameter("limit").type, ScalarType) or \
-            operation.parameter("limit").type.le != 5000:
+            operation.parameter("limit").type.le != 5000 or \
+            operation.parameter("tag").type != NullableType(kind="nullable", value=NamedType(name="Tag")):
         raise ValueError("Android list_cards parameters need a generator update")
     if operation.returns != NamedType(name="Page", arguments=[NamedType(name="CardListItem")]):
         raise ValueError("Android list_cards needs Page[CardListItem]")

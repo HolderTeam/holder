@@ -1201,7 +1201,23 @@ object HolderNative {
     }
 
     /** Cards in projectId carrying tag (case-insensitive). */
-    fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> {
+    fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> = cardsWithTagPaged(projectId, tag, 5000)
+
+    internal fun cardsWithTagPaged(projectId: String, tag: String, pageSize: Int): List<HolderCardRef> {
+        val result = ArrayList<HolderCardRef>()
+        readLane.call { context ->
+            var cursor: String? = null
+            do {
+                val page = ContractCards.nativeListCardsWithTagPage(context, projectId, tag, cursor, pageSize)
+                result.ensureCapacity(result.size + page.items.size)
+                page.items.forEach { card -> result.add(HolderCardRef(cardId = card.cardId, title = card.title)) }
+                cursor = page.nextCursor
+            } while (cursor != null)
+        }
+        return result
+    }
+
+    internal fun cardsWithTagJsonForBenchmark(projectId: String, tag: String): List<HolderCardRef> {
         val cards = JSONArray(readLane.call { nativeCardsWithTag(it, projectId, tag) })
         return List(cards.length()) { index -> parseCardRef(cards.getJSONObject(index)) }
     }

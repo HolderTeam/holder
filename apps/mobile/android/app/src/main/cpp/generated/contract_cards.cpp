@@ -87,26 +87,23 @@ bool utf8(JNIEnv* env, jstring input, std::string& out) {
 
 }  // namespace
 
-extern "C" JNIEXPORT jobject JNICALL
-Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
-    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring cursor) {
+jobject list_card_page(JNIEnv* env, jlong context_handle, jstring project_id, jstring tag,
+                       jstring cursor, holder_list_cards_order order, jint requested_limit) {
   if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
-  const char* project = env->GetStringUTFChars(project_id, nullptr);
-  const char* position = cursor ? env->GetStringUTFChars(cursor, nullptr) : nullptr;
-  if (!project || (cursor && !position)) {
-    if (project) env->ReleaseStringUTFChars(project_id, project);
-    return nullptr;
+  if (requested_limit < 1 || requested_limit > 5000) {
+    fail(env, "card page limit must be between 1 and 5000"); return nullptr;
   }
+  std::string project, tag_text, position;
+  if (!utf8(env, project_id, project) || (tag && !utf8(env, tag, tag_text)) ||
+      (cursor && !utf8(env, cursor, position))) return nullptr;
   Arena arena;
   const holder_card_list_item_page* page = nullptr;
   holder_error* error = nullptr;
-  const int32_t limit = 5000;
+  const int32_t limit = static_cast<int32_t>(requested_limit);
   int status = arena.value ? holder_list_cards(
-      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project,
-      {}, nullptr, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC, &limit, position, false, false,
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project.c_str(),
+      {}, tag ? tag_text.c_str() : nullptr, order, &limit, cursor ? position.c_str() : nullptr, false, false,
       arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
-  if (position) env->ReleaseStringUTFChars(cursor, position);
-  env->ReleaseStringUTFChars(project_id, project);
   if (status != HOLDER_OK) {
     std::string message = error ? holder_error_message(error) : "cannot allocate card page";
     if (error) holder_error_destroy(error);
@@ -150,6 +147,22 @@ Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
   jmethodID page_ctor = env->GetMethodID(page_type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");
   jstring next = string(env, page->next_cursor);
   return env->NewObject(page_type, page_ctor, items, next);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring cursor) {
+  return list_card_page(env, context_handle, project_id, nullptr, cursor,
+                        HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC, 5000);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardsWithTagPage(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring tag, jstring cursor,
+    jint limit) {
+  if (!tag) { fail(env, "tag is required"); return nullptr; }
+  return list_card_page(env, context_handle, project_id, tag, cursor,
+                        HOLDER_LIST_CARDS_ORDER_UPDATED_DESC, limit);
 }
 
 extern "C" JNIEXPORT jobject JNICALL

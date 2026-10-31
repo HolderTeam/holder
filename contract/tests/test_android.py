@@ -261,6 +261,23 @@ def test_card_reference_resolution_uses_contract_candidate_fields():
     assert "value.new_detail" in expanded[JNI_PATH]
 
 
+def test_tag_filtered_card_pages_use_contract_list_cards():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeListCardsWithTagPage" in generated[KOTLIN_PATH]
+    assert "tag ? tag_text.c_str() : nullptr" in generated[JNI_PATH]
+    assert "HOLDER_LIST_CARDS_ORDER_UPDATED_DESC" in generated[JNI_PATH]
+    assert "card page limit must be between 1 and 5000" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    listing = next(operation for operation in changed["operations"] if operation["name"] == "list_cards")
+    next(parameter for parameter in listing["parameters"] if parameter["name"] == "tag")["type"] = {
+        "kind": "string",
+    }
+    with pytest.raises(ValueError, match="list_cards parameters need a generator update"):
+        generate_android(changed)
+
+
 def test_record_lists_follow_contract_fields_and_operation_shapes():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)

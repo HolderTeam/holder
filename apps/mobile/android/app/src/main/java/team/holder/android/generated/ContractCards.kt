@@ -75,6 +75,7 @@ data class ContractCardPage(
 
 object ContractCards {
     external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
+    external fun nativeListCardsWithTagPage(contextHandle: Long, projectId: String, tag: String, cursor: String?, limit: Int): ContractCardPage
     external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
     external fun nativeGetCardContent(contextHandle: Long, projectId: String, cardId: String): String
     external fun nativeListCardTags(contextHandle: Long, projectId: String, cardId: String): List<String>
