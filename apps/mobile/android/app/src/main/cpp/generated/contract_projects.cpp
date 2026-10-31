@@ -110,6 +110,34 @@ const char* pull_status(holder_pull_phase_status value) {
   }
 }
 
+const char* push_status(holder_push_phase_status value) {
+  switch (value) {
+      case HOLDER_PUSH_PHASE_STATUS_NOT_ATTEMPTED: return "not_attempted";
+      case HOLDER_PUSH_PHASE_STATUS_PUSHED: return "pushed";
+      case HOLDER_PUSH_PHASE_STATUS_UP_TO_DATE: return "up_to_date";
+      case HOLDER_PUSH_PHASE_STATUS_AUTH_FAILED: return "auth_failed";
+      case HOLDER_PUSH_PHASE_STATUS_NOT_FOUND: return "not_found";
+      case HOLDER_PUSH_PHASE_STATUS_NETWORK_ERROR: return "network_error";
+      case HOLDER_PUSH_PHASE_STATUS_NON_FAST_FORWARD: return "non_fast_forward";
+      case HOLDER_PUSH_PHASE_STATUS_REMOTE_UNSET: return "remote_unset";
+      case HOLDER_PUSH_PHASE_STATUS_UNKNOWN_ERROR: return "unknown_error";
+      default: return nullptr;
+  }
+}
+
+const char* remote_test_status(holder_remote_test_result_status value) {
+  switch (value) {
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_REACHABLE: return "reachable";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_AUTH_FAILED: return "auth_failed";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_NOT_FOUND: return "not_found";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_NETWORK_ERROR: return "network_error";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_INVALID_REMOTE_URL: return "invalid_remote_url";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_REMOTE_UNSET: return "remote_unset";
+      case HOLDER_REMOTE_TEST_RESULT_STATUS_UNKNOWN_ERROR: return "unknown_error";
+      default: return nullptr;
+  }
+}
+
 jobject project_result(JNIEnv* env, const holder_project& project) {
   const char* mode = privacy_mode(project.privacy_mode);
   if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
@@ -221,6 +249,37 @@ jobject pull_phase_result(JNIEnv* env, const holder_pull_phase& value) {
   if (state) env->DeleteLocalRef(state);
   if (error_message) env->DeleteLocalRef(error_message);
   env->DeleteLocalRef(item_type);
+  return result;
+}
+
+jobject push_phase_result(JNIEnv* env, const holder_push_phase& value) {
+  const char* status = push_status(value.status);
+  if (!status) { fail(env, "unknown project push status"); return nullptr; }
+  jclass type = env->FindClass("team/holder/android/generated/ContractPushPhase");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;IILjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring message = string(env, value.error_message);
+  jobject result = env->NewObject(type, ctor, state, static_cast<jint>(value.ahead_count),
+      static_cast<jint>(value.behind_count), message);
+  if (state) env->DeleteLocalRef(state);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+jobject remote_test_result(JNIEnv* env, const holder_remote_test_result& value) {
+  const char* status = remote_test_status(value.status);
+  if (!status) { fail(env, "unknown remote test status"); return nullptr; }
+  jclass type = env->FindClass("team/holder/android/generated/ContractRemoteTestResult");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;ZLjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring message = string(env, value.error_message);
+  jobject result = env->NewObject(type, ctor, state, static_cast<jboolean>(value.remote_has_head), message);
+  if (state) env->DeleteLocalRef(state);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(type);
   return result;
 }
 
@@ -397,6 +456,44 @@ Java_team_holder_android_generated_ContractProjects_nativePullProject(
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot pull project"); return nullptr; }
   return pull_phase_result(env, value->pull);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativePushProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring branch, jboolean set_upstream) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id, branch_name;
+  if (!utf8(env, project_id, id) || (branch && !utf8(env, branch, branch_name))) return nullptr;
+  const bool upstream = set_upstream;
+  holder_push_options options{};
+  options.branch = branch ? branch_name.c_str() : nullptr;
+  options.set_upstream = &upstream;
+  Arena arena;
+  const holder_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_push_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), &options, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot push project"); return nullptr; }
+  return push_phase_result(env, value->push);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeTestProjectRemote(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring remote_url) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id, url;
+  if (!utf8(env, project_id, id) || (remote_url && !utf8(env, remote_url, url))) return nullptr;
+  holder_remote_test request{};
+  request.remote_url = remote_url ? url.c_str() : nullptr;
+  Arena arena;
+  const holder_remote_test_result* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_test_project_remote(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot test project remote"); return nullptr; }
+  return remote_test_result(env, *value);
 }
 
 extern "C" JNIEXPORT void JNICALL

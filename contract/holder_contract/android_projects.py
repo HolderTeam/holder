@@ -83,6 +83,25 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         ("error_message", {"kind": "nullable", "value": {"kind": "string"}}),
     ]:
         raise ValueError("Android pull_project or PullPhase needs a generator update")
+    for name, parameters in {
+        "push_project": ["project_id", "options"],
+        "test_project_remote": ["project_id", "remote"],
+    }.items():
+        op = operations[name]
+        expected = "SyncResult" if name == "push_project" else "RemoteTestResult"
+        if [p["name"] for p in op["parameters"]] != parameters or op["returns"] != {
+            "kind": "named", "name": expected
+        }:
+            raise ValueError(f"Android {name} parameters or return need a generator update")
+    push_fields = records["PushPhase"]["fields"]
+    remote_test_fields = records["RemoteTestResult"]["fields"]
+    if [field["name"] for field in push_fields] != [
+        "attempted", "status", "ahead_count", "behind_count", "local_head_commit", "error_message"
+    ] or [field["name"] for field in remote_test_fields] != [
+        "project_id", "status", "remote_url", "remote_has_head", "error_message"
+    ] or [field["name"] for field in records["PushOptions"]["fields"]] != ["branch", "set_upstream"] or \
+            [field["name"] for field in records["RemoteTest"]["fields"]] != ["remote_url"]:
+        raise ValueError("Android project push or remote test fields need a generator update")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
     header = "// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n" \
@@ -98,6 +117,10 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "\ndata class ContractPullPhase(\n    val attempted: Boolean,\n    val status: String,\n" \
         "    val conflictsResolved: Int,\n    val hiddenCardsRepaired: Int,\n" \
         "    val errorMessage: String?,\n)\n" + \
+        "\ndata class ContractPushPhase(\n    val status: String,\n    val aheadCount: Int,\n" \
+        "    val behindCount: Int,\n    val errorMessage: String?,\n)\n" + \
+        "\ndata class ContractRemoteTestResult(\n    val status: String,\n" \
+        "    val remoteHasHead: Boolean,\n    val errorMessage: String?,\n)\n" + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
@@ -106,6 +129,8 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck\n" \
         "    external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState\n" \
         "    external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase\n" \
+        "    external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase\n" \
+        "    external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
@@ -126,6 +151,12 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         pull_status_cases="".join(
             f"      case HOLDER_PULL_PHASE_STATUS_{value.upper()}: return \"{value}\";\n"
             for value in pull_fields[1]["type"]["values"]),
+        push_status_cases="".join(
+            f"      case HOLDER_PUSH_PHASE_STATUS_{value.upper()}: return \"{value}\";\n"
+            for value in aliases["PushStatus"]["values"]),
+        remote_test_status_cases="".join(
+            f"      case HOLDER_REMOTE_TEST_RESULT_STATUS_{value.upper()}: return \"{value}\";\n"
+            for value in remote_test_fields[1]["type"]["values"]),
         item_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n',
         record_lines="".join(record_lines),
         item_construction=f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n",

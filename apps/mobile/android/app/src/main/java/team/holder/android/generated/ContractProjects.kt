@@ -64,6 +64,19 @@ data class ContractPullPhase(
     val errorMessage: String?,
 )
 
+data class ContractPushPhase(
+    val status: String,
+    val aheadCount: Int,
+    val behindCount: Int,
+    val errorMessage: String?,
+)
+
+data class ContractRemoteTestResult(
+    val status: String,
+    val remoteHasHead: Boolean,
+    val errorMessage: String?,
+)
+
 object ContractProjects {
     external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
     external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
@@ -72,5 +85,7 @@ object ContractProjects {
     external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck
     external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState
     external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase
+    external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase
+    external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
 }

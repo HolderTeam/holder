@@ -1304,6 +1304,19 @@ object HolderNative {
     }
 
     fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeTestProjectRemote(it, projectId, url)
+        }
+        return GitTestRemoteResult(
+            status = result.status,
+            remoteHasHead = result.remoteHasHead,
+            errorMessage = result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun probeRemoteUrlJsonForBenchmark(projectId: String, url: String): GitTestRemoteResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitProbeRemoteUrl(it, url)
@@ -1316,9 +1329,23 @@ object HolderNative {
     }
 
     fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativePushProject(it, projectId, branch, setUpstream)
+        }
+        return GitPushResult(
+            status = result.status,
+            aheadCount = result.aheadCount,
+            behindCount = result.behindCount,
+            errorMessage = result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun pushGitJsonForBenchmark(projectId: String): GitPushResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            nativeGitPush(it, projectId, branch, setUpstream)
+            nativeGitPush(it, projectId, null, true)
         })
         return GitPushResult(
             status = json.getString("status"),

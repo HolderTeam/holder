@@ -385,6 +385,24 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedGitPushAndRemoteProbe_matchJson() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Generated Git operations")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("JSON Git operations")
+
+        val generatedPush = HolderNative.pushGit(generatedProject.projectId)
+        val jsonPush = HolderNative.pushGitJsonForBenchmark(jsonProject.projectId)
+        assertEquals(jsonPush, generatedPush)
+        assertEquals("remote_unset", generatedPush.status)
+
+        val missingRemote = dataDir.resolve("missing-remote").absolutePath
+        val generatedProbe = HolderNative.probeRemoteUrl(generatedProject.projectId, missingRemote)
+        val jsonProbe = HolderNative.probeRemoteUrlJsonForBenchmark(jsonProject.projectId, missingRemote)
+        assertEquals(jsonProbe, generatedProbe)
+        assertFalse(generatedProbe.remoteHasHead)
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
