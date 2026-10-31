@@ -97,7 +97,8 @@ jobject remote_test_result(JNIEnv* env, const holder_remote_test_result& value) 
   return result;
 }
 
-jobject sync_now_result(JNIEnv* env, const holder_sync_result& value) {
+template <typename Result>
+jobject sync_now_result(JNIEnv* env, const Result& value) {
   const char* pull_state = value.pull.attempted ? pull_status(value.pull.status) : nullptr;
   const char* push_state = value.push.attempted ? push_status(value.push.status) : nullptr;
   if ((value.pull.attempted && !pull_state) || (value.push.attempted && !push_state)) {

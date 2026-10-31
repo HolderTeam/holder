@@ -1442,6 +1442,27 @@ object HolderNative {
         pushIntervalSeconds: Int = 0,
         pullIntervalSeconds: Int = 0,
     ): GitSyncIfDueResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeSyncProjectIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
+        }
+        return GitSyncIfDueResult(
+            pullAttempted = result.pullAttempted,
+            pullStatus = result.pullStatus,
+            pullError = result.pullError,
+            pullConflictsResolved = result.pullConflictsResolved,
+            pushAttempted = result.pushAttempted,
+            pushStatus = result.pushStatus,
+            pushError = result.pushError,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun gitSyncIfDueJsonForBenchmark(
+        projectId: String,
+        pushIntervalSeconds: Int = 0,
+        pullIntervalSeconds: Int = 0,
+    ): GitSyncIfDueResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitSyncIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)

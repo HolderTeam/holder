@@ -718,6 +718,10 @@ template <> struct codec<holder::contract::SyncResult> {
     static json encode(const holder::contract::SyncResult& value);
     static holder::contract::SyncResult decode(const json& value);
 };
+template <> struct codec<holder::contract::DueSyncResult> {
+    static json encode(const holder::contract::DueSyncResult& value);
+    static holder::contract::DueSyncResult decode(const json& value);
+};
 template <> struct codec<holder::contract::RemoteTestResult> {
     static json encode(const holder::contract::RemoteTestResult& value);
     static holder::contract::RemoteTestResult decode(const json& value);
@@ -2543,6 +2547,44 @@ inline holder::contract::SyncResult codec<holder::contract::SyncResult>::decode(
         out.status = decode_field<holder::contract::SyncResultStatus>(item, "status");
     } else {
         throw std::invalid_argument("status is required and must not be null");
+    }
+    if (value.contains("remote_url") && !value.at("remote_url").is_null()) {
+        const auto& item = value.at("remote_url");
+        out.remote_url = check_text(decode_field<std::string>(item, "remote_url"), "remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("pull") && !value.at("pull").is_null()) {
+        const auto& item = value.at("pull");
+        out.pull = codec<holder::contract::PullPhase>::decode(item);
+    } else {
+        throw std::invalid_argument("pull is required and must not be null");
+    }
+    if (value.contains("push") && !value.at("push").is_null()) {
+        const auto& item = value.at("push");
+        out.push = codec<holder::contract::PushPhase>::decode(item);
+    } else {
+        throw std::invalid_argument("push is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::DueSyncResult>::encode(const holder::contract::DueSyncResult& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["remote_url"] = value.remote_url ? codec<std::string>::encode(*value.remote_url) : json(nullptr);
+    result["pull"] = codec<holder::contract::PullPhase>::encode(value.pull);
+    result["push"] = codec<holder::contract::PushPhase>::encode(value.push);
+    return result;
+}
+inline holder::contract::DueSyncResult codec<holder::contract::DueSyncResult>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a DueSyncResult object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "remote_url" && it.key() != "pull" && it.key() != "push") throw std::invalid_argument("DueSyncResult has no field " + it.key());
+    holder::contract::DueSyncResult out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
     }
     if (value.contains("remote_url") && !value.at("remote_url").is_null()) {
         const auto& item = value.at("remote_url");

@@ -230,12 +230,20 @@ def test_project_sync_bridge_tracks_contract_operation():
     generated = generate_android(ir)
     assert "nativeSyncProject" in generated[PROJECT_KOTLIN_PATH]
     assert "holder_sync_project(" in generated[PROJECT_JNI_PATH]
+    assert "nativeSyncProjectIfDue" in generated[PROJECT_KOTLIN_PATH]
+    assert "holder_sync_project_if_due(" in generated[PROJECT_JNI_PATH]
     assert "holder_pull_project(" in generated[PROJECT_JNI_PATH]
 
     changed = deepcopy(ir)
     operation = next(op for op in changed["operations"] if op["name"] == "sync_project")
     operation["returns"] = {"kind": "string"}
     with pytest.raises(ValueError, match="Android sync_project parameters or return"):
+        generate_android(changed)
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "sync_project_if_due")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android sync_project_if_due parameters or return"):
         generate_android(changed)
 
 

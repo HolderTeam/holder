@@ -102,5 +102,6 @@ object ContractProjects {
     external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase
     external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult
     external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult
+    external fun nativeSyncProjectIfDue(contextHandle: Long, projectId: String, pushIntervalSeconds: Int, pullIntervalSeconds: Int): ContractSyncNowResult
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
 }

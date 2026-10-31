@@ -458,6 +458,16 @@ SyncResult sync_project(holder_context& context, std::string project_id, const P
   return no_remote(context, project_id, true, true);
 }
 
+DueSyncResult sync_project_if_due(holder_context& context, std::string project_id,
+                                  std::int32_t push_interval_seconds, std::int32_t pull_interval_seconds) {
+  project_named(context, project_id);
+  (void)push_interval_seconds;
+  (void)pull_interval_seconds;
+  return {project_id, std::nullopt,
+          {false, PullPhaseStatus::NotAttempted, 0, 0, std::nullopt},
+          {false, PushPhaseStatus::NotAttempted, 0, 0, std::nullopt, std::nullopt}};
+}
+
 RemoteTestResult test_project_remote(holder_context& context, std::string project_id, const RemoteTest& remote) {
   project_named(context, project_id);
   return {project_id, RemoteTestResultStatus::RemoteUnset, remote.remote_url, false, std::nullopt};

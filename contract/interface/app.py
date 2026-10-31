@@ -61,7 +61,7 @@ from .errors import (
     RecoveryTokenInvalid,
     RevisionAmbiguous,
 )
-from .git import PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
+from .git import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 from .history import (
     CardHistoryComparison,
     CardHistoryPage,
@@ -746,6 +746,21 @@ def sync_project(project_id: Annotated[ProjectId, Path()], options: Annotated[Pu
     """Pull a project, then push it.
 
     The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
+    """
+
+
+@contract.route("POST", "/projects/{project_id}/git/sync-if-due", errors=[NotFound, *KEYS])
+def sync_project_if_due(
+    project_id: Annotated[ProjectId, Path()],
+    push_interval_seconds: Annotated[Int32, Query(ge=0)] = 0,
+    pull_interval_seconds: Annotated[Int32, Query(ge=0)] = 0,
+) -> DueSyncResult:
+    """Try the project's pull and push phases only when their cadence and retry policy say they are due.
+
+    Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project without a remote and
+    a project with nothing due return both phases as not attempted without changing sync state. A due push can
+    run after a failed pull; this keeps scheduled pushes independent from the pull retry schedule.
+    Git failures are phase outcomes and are recorded in the project's sync state.
     """
 
 

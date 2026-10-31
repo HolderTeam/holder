@@ -183,6 +183,25 @@ Java_team_holder_android_generated_ContractProjects_nativeSyncProject(
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeSyncProjectIfDue(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id,
+    jint push_interval_seconds, jint pull_interval_seconds) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_due_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_sync_project_if_due(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), push_interval_seconds > 0 ? push_interval_seconds : 0,
+      pull_interval_seconds > 0 ? pull_interval_seconds : 0, arena.value, &value, &error)
+      : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot sync project if due"); return nullptr; }
+  return sync_now_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativePushProject(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring branch, jboolean set_upstream) {
   if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }

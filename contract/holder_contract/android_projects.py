@@ -53,6 +53,7 @@ class ProjectBridgeGenerator:
         self._validate_push_fields()
         self._validate_remote_fields()
         self._validate_sync_result()
+        self._validate_due_sync_result()
 
     def _validate_listing(self) -> None:
         operation = self.operations["list_projects"]
@@ -184,6 +185,17 @@ class ProjectBridgeGenerator:
             "project_id", "status", "remote_url", "pull", "push"
         ]:
             raise ValueError("Android SyncResult fields need a generator update")
+
+    def _validate_due_sync_result(self) -> None:
+        operation = self.operations["sync_project_if_due"]
+        if [p["name"] for p in operation["parameters"]] != [
+            "project_id", "push_interval_seconds", "pull_interval_seconds"
+        ] or operation["returns"] != {"kind": "named", "name": "DueSyncResult"}:
+            raise ValueError("Android sync_project_if_due parameters or return need a generator update")
+        if [field["name"] for field in self.records["DueSyncResult"]["fields"]] != [
+            "project_id", "remote_url", "pull", "push"
+        ]:
+            raise ValueError("Android DueSyncResult fields need a generator update")
 
     def _typed_fields(self, *record_names: str) -> list[tuple[str, str, str, bool]]:
         return [(field["name"], *_field_type(field, self.aliases,

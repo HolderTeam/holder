@@ -429,6 +429,28 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedGitSyncIfDue_matchesJsonCadenceAndNoRemote() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Generated sync if due")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("JSON sync if due")
+        assertEquals(HolderNative.gitSyncIfDueJsonForBenchmark(jsonProject.projectId),
+            HolderNative.gitSyncIfDue(generatedProject.projectId))
+
+        val generatedRepo = dataDir.resolve("projects/generated-sync-if-due")
+        val jsonRepo = dataDir.resolve("projects/json-sync-if-due")
+        HolderNative.updateProjectGitRemote(generatedProject.projectId, generatedRepo.absolutePath)
+        HolderNative.updateProjectGitRemote(jsonProject.projectId, jsonRepo.absolutePath)
+        repeat(2) {
+            val json = HolderNative.gitSyncIfDueJsonForBenchmark(jsonProject.projectId, 3600, 3600)
+            val generated = HolderNative.gitSyncIfDue(generatedProject.projectId, 3600, 3600)
+            assertEquals(json, generated)
+        }
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.gitSyncIfDue("no-such-project")
+        }
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
