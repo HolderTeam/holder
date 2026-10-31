@@ -593,6 +593,15 @@ struct SyncResult {
   PushPhase push;  ///< The push; not attempted for a pull, or after a pull that failed.
 };
 
+/// A scheduled sync's pull and push outcomes. Both phases are not attempted when neither is due or the
+/// project has no remote. A due push may still run after a failed pull so local changes get another chance.
+struct DueSyncResult {
+  std::string project_id;  ///< The project.
+  std::optional<std::string> remote_url;  ///< The configured remote; null when there is none.
+  PullPhase pull;  ///< The pull, or not attempted when it is not due.
+  PushPhase push;  ///< The push, or not attempted when it is not due.
+};
+
 /// What testing the remote found; remote_unset when there was none to test.
 enum class RemoteTestResultStatus { Reachable, AuthFailed, NotFound, NetworkError, InvalidRemoteUrl, RemoteUnset, UnknownError };
 
@@ -1104,6 +1113,14 @@ SyncResult push_project(holder_context& context, std::string project_id, const P
 /// The push is tried only when the pull succeeds. Otherwise as pull_project and push_project.
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 SyncResult sync_project(holder_context& context, std::string project_id, const PushOptions& options);
+
+/// Try the project's pull and push phases only when their cadence and retry policy say they are due.
+/// Zero uses the built-in intervals (20 minutes for push, 5 minutes for pull). A project without a remote and
+/// a project with nothing due return both phases as not attempted without changing sync state. A due push can
+/// run after a failed pull; this keeps scheduled pushes independent from the pull retry schedule.
+/// Git failures are phase outcomes and are recorded in the project's sync state.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+DueSyncResult sync_project_if_due(holder_context& context, std::string project_id, std::int32_t push_interval_seconds, std::int32_t pull_interval_seconds);
 
 /// Test whether a Git remote can be reached, with this device's credentials.
 /// Lists the remote's refs and nothing more: nothing is fetched, and neither the project nor its repository

@@ -1,0 +1,135 @@
+jobject project_result(JNIEnv* env, const holder_project& project) {
+  const char* mode = privacy_mode(project.privacy_mode);
+  if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractProject");
+  if (!item_type) return nullptr;
+{{ project_constructor }}{{ project_record_lines }}{{ project_construction }}{{ project_release_refs }}  env->DeleteLocalRef(item_type);
+  return item;
+}
+
+jobject encryption_check_result(JNIEnv* env, const holder_project_encryption_check& value) {
+  const char* mode = privacy_mode(value.privacy_mode);
+  if (!mode) { fail(env, "unknown project privacy mode"); return nullptr; }
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  if (!list_type) return nullptr;
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject paths = env->NewObject(list_type, list_ctor, static_cast<jint>(value.check.unsafe_paths.count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < value.check.unsafe_paths.count; ++i) {
+    jstring path = string(env, value.check.unsafe_paths.items[i]);
+    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(paths, add, path);
+    env->DeleteLocalRef(path);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractEncryptionCheck");
+  if (!item_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(item_type, "<init>",
+      "(Ljava/lang/String;Ljava/lang/String;ZIILjava/util/List;Ljava/lang/String;)V");
+  jstring project_id = string(env, value.project_id);
+  jstring privacy = string(env, mode);
+  jstring message = string(env, value.check.message);
+  jobject result = env->NewObject(item_type, ctor, project_id, privacy,
+      static_cast<jboolean>(value.check.ok), static_cast<jint>(value.check.checked_files),
+      static_cast<jint>(value.check.unsafe_files), paths, message);
+  if (project_id) env->DeleteLocalRef(project_id);
+  if (privacy) env->DeleteLocalRef(privacy);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(paths);
+  env->DeleteLocalRef(list_type);
+  env->DeleteLocalRef(item_type);
+  return result;
+}
+
+jobject sync_state_result(JNIEnv* env, const holder_sync_state& value) {
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractSyncState");
+  if (!item_type) return nullptr;
+{{ sync_constructor }}{{ sync_record_lines }}{{ sync_construction }}{{ sync_release_refs }}  env->DeleteLocalRef(item_type);
+  return item;
+}
+
+jobject pull_phase_result(JNIEnv* env, const holder_pull_phase& value) {
+  const char* status = pull_status(value.status);
+  if (!status) { fail(env, "unknown project pull status"); return nullptr; }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractPullPhase");
+  if (!item_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(item_type, "<init>", "(ZLjava/lang/String;IILjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring error_message = string(env, value.error_message);
+  jobject result = env->NewObject(item_type, ctor, static_cast<jboolean>(value.attempted), state,
+      static_cast<jint>(value.conflicts_resolved), static_cast<jint>(value.hidden_cards_repaired),
+      error_message);
+  if (state) env->DeleteLocalRef(state);
+  if (error_message) env->DeleteLocalRef(error_message);
+  env->DeleteLocalRef(item_type);
+  return result;
+}
+
+jobject push_phase_result(JNIEnv* env, const holder_push_phase& value) {
+  const char* status = push_status(value.status);
+  if (!status) { fail(env, "unknown project push status"); return nullptr; }
+  jclass type = env->FindClass("team/holder/android/generated/ContractPushPhase");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;IILjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring message = string(env, value.error_message);
+  jobject result = env->NewObject(type, ctor, state, static_cast<jint>(value.ahead_count),
+      static_cast<jint>(value.behind_count), message);
+  if (state) env->DeleteLocalRef(state);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+jobject remote_test_result(JNIEnv* env, const holder_remote_test_result& value) {
+  const char* status = remote_test_status(value.status);
+  if (!status) { fail(env, "unknown remote test status"); return nullptr; }
+  jclass type = env->FindClass("team/holder/android/generated/ContractRemoteTestResult");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;ZLjava/lang/String;)V");
+  jstring state = string(env, status);
+  jstring message = string(env, value.error_message);
+  jobject result = env->NewObject(type, ctor, state, static_cast<jboolean>(value.remote_has_head), message);
+  if (state) env->DeleteLocalRef(state);
+  if (message) env->DeleteLocalRef(message);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+template <typename Result>
+jobject sync_now_result(JNIEnv* env, const Result& value) {
+  const char* pull_state = value.pull.attempted ? pull_status(value.pull.status) : nullptr;
+  const char* push_state = value.push.attempted ? push_status(value.push.status) : nullptr;
+  if ((value.pull.attempted && !pull_state) || (value.push.attempted && !push_state)) {
+    fail(env, "unknown project sync status"); return nullptr;
+  }
+  jclass type = env->FindClass("team/holder/android/generated/ContractSyncNowResult");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>",
+      "(ZLjava/lang/String;Ljava/lang/String;IZLjava/lang/String;Ljava/lang/String;IILjava/lang/String;)V");
+  if (!ctor) { env->DeleteLocalRef(type); return nullptr; }
+  jstring pull_status_value = string(env, pull_state);
+  jstring pull_error = string(env, value.pull.error_message);
+  jstring push_status_value = string(env, push_state);
+  jstring push_error = string(env, value.push.error_message);
+  jstring head = string(env, value.push.local_head_commit);
+  jobject result = env->NewObject(type, ctor, static_cast<jboolean>(value.pull.attempted),
+      pull_status_value, pull_error, static_cast<jint>(value.pull.conflicts_resolved),
+      static_cast<jboolean>(value.push.attempted), push_status_value, push_error,
+      static_cast<jint>(value.push.ahead_count), static_cast<jint>(value.push.behind_count), head);
+  if (pull_status_value) env->DeleteLocalRef(pull_status_value);
+  if (pull_error) env->DeleteLocalRef(pull_error);
+  if (push_status_value) env->DeleteLocalRef(push_status_value);
+  if (push_error) env->DeleteLocalRef(push_error);
+  if (head) env->DeleteLocalRef(head);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
+  std::string message = error ? holder_error_message(error) : fallback;
+  if (error) holder_error_destroy(error);
+  fail(env, message.c_str());
+}
+}  // namespace

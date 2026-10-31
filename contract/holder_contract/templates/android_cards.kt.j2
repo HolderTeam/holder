@@ -1,0 +1,18 @@
+package team.holder.android.generated
+
+{{ card_list_record }}
+{{ card_metadata_record }}
+{{ list_records }}
+data class ContractCardPage(
+    val items: List<ContractCardListItem>,
+    val nextCursor: String?,
+)
+
+object ContractCards {
+    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage
+    external fun nativeListCardsWithTagPage(contextHandle: Long, projectId: String, tag: String, cursor: String?, limit: Int): ContractCardPage
+    external fun nativeGetCardMetadata(contextHandle: Long, projectId: String, cardId: String): ContractCardMetadata
+    external fun nativeGetCardContent(contextHandle: Long, projectId: String, cardId: String): String
+    external fun nativeListCardTags(contextHandle: Long, projectId: String, cardId: String): List<String>
+    external fun nativeCreateCard(contextHandle: Long, projectId: String, title: String, content: String, parentCardId: String?): ContractCardMetadata
+{{ write_methods }}{{ list_methods }}{{ trash_methods }}}

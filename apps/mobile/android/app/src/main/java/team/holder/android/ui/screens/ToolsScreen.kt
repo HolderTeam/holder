@@ -110,7 +110,7 @@ fun ToolsScreen(
 
     suspend fun refreshTags() {
         tags = runCatching {
-            withContext(Dispatchers.IO) { HolderNative.listCardTags(cardId) }
+            withContext(Dispatchers.IO) { HolderNative.listCardTags(projectId, cardId) }
         }.getOrDefault(tags)
         // The subset of `tags` on the card's trailing tag line -- the only ones removeCardTag
         // can actually remove. Drives which chips get a remove ("x") control at all, rather

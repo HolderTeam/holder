@@ -3,6 +3,7 @@
 #include "holder/holder.h"
 #include <jni.h>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace {
@@ -66,6 +67,37 @@ bool utf8(JNIEnv* env, jstring input, std::string& out) {
   }
   env->ReleaseStringChars(input, chars);
   return true;
+}
+
+bool read_string_field(JNIEnv* env, jobject input, jclass type, const char* name, bool required,
+                       std::optional<std::string>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/String;");
+  if (!field) return false;
+  jstring value = static_cast<jstring>(env->GetObjectField(input, field));
+  if (env->ExceptionCheck()) return false;
+  if (!value) {
+    if (required) { fail(env, "required project field is null"); return false; }
+    return true;
+  }
+  out.emplace();
+  const bool decoded = utf8(env, value, *out);
+  env->DeleteLocalRef(value);
+  return decoded;
+}
+
+bool read_long_field(JNIEnv* env, jobject input, jclass type, const char* name, std::optional<int64_t>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/Long;");
+  if (!field) return false;
+  jobject value = env->GetObjectField(input, field);
+  if (env->ExceptionCheck()) return false;
+  if (!value) return true;
+  jclass boxed_type = env->GetObjectClass(value);
+  if (!boxed_type) return false;
+  jmethodID long_value = env->GetMethodID(boxed_type, "longValue", "()J");
+  if (long_value) out = static_cast<int64_t>(env->CallLongMethod(value, long_value));
+  env->DeleteLocalRef(boxed_type);
+  env->DeleteLocalRef(value);
+  return long_value && !env->ExceptionCheck();
 }
 
 jobject boxed_int(JNIEnv* env, int32_t value) {
@@ -283,6 +315,36 @@ jobject remote_test_result(JNIEnv* env, const holder_remote_test_result& value) 
   return result;
 }
 
+template <typename Result>
+jobject sync_now_result(JNIEnv* env, const Result& value) {
+  const char* pull_state = value.pull.attempted ? pull_status(value.pull.status) : nullptr;
+  const char* push_state = value.push.attempted ? push_status(value.push.status) : nullptr;
+  if ((value.pull.attempted && !pull_state) || (value.push.attempted && !push_state)) {
+    fail(env, "unknown project sync status"); return nullptr;
+  }
+  jclass type = env->FindClass("team/holder/android/generated/ContractSyncNowResult");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>",
+      "(ZLjava/lang/String;Ljava/lang/String;IZLjava/lang/String;Ljava/lang/String;IILjava/lang/String;)V");
+  if (!ctor) { env->DeleteLocalRef(type); return nullptr; }
+  jstring pull_status_value = string(env, pull_state);
+  jstring pull_error = string(env, value.pull.error_message);
+  jstring push_status_value = string(env, push_state);
+  jstring push_error = string(env, value.push.error_message);
+  jstring head = string(env, value.push.local_head_commit);
+  jobject result = env->NewObject(type, ctor, static_cast<jboolean>(value.pull.attempted),
+      pull_status_value, pull_error, static_cast<jint>(value.pull.conflicts_resolved),
+      static_cast<jboolean>(value.push.attempted), push_status_value, push_error,
+      static_cast<jint>(value.push.ahead_count), static_cast<jint>(value.push.behind_count), head);
+  if (pull_status_value) env->DeleteLocalRef(pull_status_value);
+  if (pull_error) env->DeleteLocalRef(pull_error);
+  if (push_status_value) env->DeleteLocalRef(push_status_value);
+  if (push_error) env->DeleteLocalRef(push_error);
+  if (head) env->DeleteLocalRef(head);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
   std::string message = error ? holder_error_message(error) : fallback;
   if (error) holder_error_destroy(error);
@@ -348,18 +410,57 @@ Java_team_holder_android_generated_ContractProjects_nativeListProjectsPage(
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeGetProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot get project"); return nullptr; }
+  return project_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
-    JNIEnv* env, jobject, jlong context_handle, jstring name, jstring privacy_mode_value) {
-  if (!context_handle || !name) { fail(env, "context and name are required"); return nullptr; }
-  std::string project_name, privacy;
-  if (!utf8(env, name, project_name) ||
-      (privacy_mode_value && !utf8(env, privacy_mode_value, privacy))) return nullptr;
+    JNIEnv* env, jobject, jlong context_handle, jobject input) {
+  if (!context_handle || !input) { fail(env, "context and project are required"); return nullptr; }
+  jclass input_type = env->GetObjectClass(input);
+  if (!input_type) return nullptr;
   holder_new_project request{};
-  request.name = project_name.c_str();
-  // Android's null mode has always meant plain; the contract defaults to encrypted_git.
-  if (!privacy_mode_value || privacy == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
-  else if (privacy == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
-  else { fail(env, "unknown project privacy mode"); return nullptr; }
+  std::optional<std::string> v_project_id;
+  if (!read_string_field(env, input, input_type, "projectId", false, v_project_id)) return nullptr;
+  request.project_id = v_project_id ? v_project_id->c_str() : nullptr;
+  std::optional<std::string> v_name;
+  if (!read_string_field(env, input, input_type, "name", true, v_name)) return nullptr;
+  request.name = v_name ? v_name->c_str() : nullptr;
+  std::optional<std::string> v_root_path;
+  if (!read_string_field(env, input, input_type, "rootPath", false, v_root_path)) return nullptr;
+  request.root_path = v_root_path ? v_root_path->c_str() : nullptr;
+  std::optional<std::string> v_git_remote_url;
+  if (!read_string_field(env, input, input_type, "gitRemoteUrl", false, v_git_remote_url)) return nullptr;
+  request.git_remote_url = v_git_remote_url ? v_git_remote_url->c_str() : nullptr;
+  std::optional<std::string> v_git_provider;
+  if (!read_string_field(env, input, input_type, "gitProvider", false, v_git_provider)) return nullptr;
+  request.git_provider = v_git_provider ? v_git_provider->c_str() : nullptr;
+  std::optional<std::string> v_privacy_mode;
+  if (!read_string_field(env, input, input_type, "privacyMode", true, v_privacy_mode)) return nullptr;
+  if (v_privacy_mode) {
+    if (*v_privacy_mode == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+    else if (*v_privacy_mode == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    else { fail(env, "unknown privacy_mode"); return nullptr; }
+  }
+  std::optional<int64_t> v_created_at;
+  if (!read_long_field(env, input, input_type, "createdAt", v_created_at)) return nullptr;
+  request.created_at = v_created_at ? &*v_created_at : nullptr;
+  std::optional<int64_t> v_updated_at;
+  if (!read_long_field(env, input, input_type, "updatedAt", v_updated_at)) return nullptr;
+  request.updated_at = v_updated_at ? &*v_updated_at : nullptr;
+  env->DeleteLocalRef(input_type);
   Arena arena;
   const holder_project* value = nullptr;
   holder_error* error = nullptr;
@@ -369,6 +470,7 @@ Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
   if (status != HOLDER_OK) { project_error(env, error, "cannot create project"); return nullptr; }
   return project_result(env, *value);
 }
+
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativeRenameProject(
@@ -459,6 +561,47 @@ Java_team_holder_android_generated_ContractProjects_nativePullProject(
 }
 
 extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeSyncProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring branch,
+    jboolean push, jboolean set_upstream) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id, branch_name;
+  if (!utf8(env, project_id, id) || (branch && !utf8(env, branch, branch_name))) return nullptr;
+  const bool upstream = set_upstream;
+  holder_push_options options{};
+  options.branch = branch ? branch_name.c_str() : nullptr;
+  options.set_upstream = &upstream;
+  Arena arena;
+  const holder_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  holder_context* context = reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle));
+  int status = arena.value ? (push
+      ? holder_sync_project(context, id.c_str(), &options, arena.value, &value, &error)
+      : holder_pull_project(context, id.c_str(), arena.value, &value, &error)) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot sync project"); return nullptr; }
+  return sync_now_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeSyncProjectIfDue(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id,
+    jint push_interval_seconds, jint pull_interval_seconds) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_due_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_sync_project_if_due(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), push_interval_seconds > 0 ? push_interval_seconds : 0,
+      pull_interval_seconds > 0 ? pull_interval_seconds : 0, arena.value, &value, &error)
+      : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot sync project if due"); return nullptr; }
+  return sync_now_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativePushProject(
     JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring branch, jboolean set_upstream) {
   if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
@@ -509,4 +652,110 @@ Java_team_holder_android_generated_ContractProjects_nativeDeleteProject(
       reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) project_error(env, error, "cannot delete project");
+}
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeExportRecoveryToken(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring pin) {
+  if (!context_handle || !project_id || !pin) {
+    fail(env, "context, project ID and PIN are required"); return nullptr;
+  }
+  std::string project, secret;
+  if (!utf8(env, project_id, project) || !utf8(env, pin, secret)) return nullptr;
+  holder_recovery_token_export_request request{secret.c_str()};
+  Arena arena;
+  const holder_project_recovery_token_export_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_export_project_recovery_token(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot export recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractProjectRecoveryTokenExportResult");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  if (!item_ctor) return nullptr;
+  jstring v_project_id = string(env, value.project_id);
+  jstring v_key_id = string(env, value.key_id);
+  jstring v_recovery_token = string(env, value.recovery_token);
+  jobject item = env->NewObject(item_type, item_ctor, v_project_id, v_key_id, v_recovery_token);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_key_id) env->DeleteLocalRef(v_key_id);
+  if (v_recovery_token) env->DeleteLocalRef(v_recovery_token);
+  env->DeleteLocalRef(item_type);
+  return item;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeImportRecoveryToken(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring pin, jstring recovery_token) {
+  if (!context_handle || !project_id || !pin || !recovery_token) {
+    fail(env, "context, project ID, PIN and recovery token are required"); return;
+  }
+  std::string project, secret, token;
+  if (!utf8(env, project_id, project) || !utf8(env, pin, secret) ||
+      !utf8(env, recovery_token, token)) return;
+  holder_recovery_token_import_request request{secret.c_str(), token.c_str()};
+  Arena arena;
+  const holder_project_recovery_token_import_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_import_project_recovery_token(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot import recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str());
+  }
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeImportRecoveryTokenGlobal(
+    JNIEnv* env, jobject, jlong context_handle, jstring pin, jstring recovery_token) {
+  if (!context_handle || !pin || !recovery_token) {
+    fail(env, "context, PIN and recovery token are required"); return nullptr;
+  }
+  std::string secret, token;
+  if (!utf8(env, pin, secret) || !utf8(env, recovery_token, token)) return nullptr;
+  holder_recovery_token_import_request request{secret.c_str(), token.c_str()};
+  Arena arena;
+  const holder_recovery_token_global_import_result* result = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_import_recovery_token_global(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      &request, arena.value, &result, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot import recovery token";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& value = *result;
+  const char* status_name = nullptr;
+  switch (value.pull_status) {
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED: status_name = "not_attempted"; break;
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED: status_name = "succeeded"; break;
+    case HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_FAILED: status_name = "failed"; break;
+    default: fail(env, "unknown recovery pull status"); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractRecoveryTokenGlobalImportResult");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;ZZZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+  if (!item_ctor) return nullptr;
+  jstring v_project_id = string(env, value.project_id);
+  jboolean v_project_created = static_cast<jboolean>(value.project_created);
+  jboolean v_remote_hint_present = static_cast<jboolean>(value.remote_hint_present);
+  jboolean v_remote_configured = static_cast<jboolean>(value.remote_configured);
+  jstring v_remote_error = string(env, value.remote_error);
+  jstring v_pull_status = string(env, status_name);
+  jstring v_pull_error = string(env, value.pull_error);
+  jobject item = env->NewObject(item_type, item_ctor, v_project_id, v_project_created, v_remote_hint_present, v_remote_configured, v_remote_error, v_pull_status, v_pull_error);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_remote_error) env->DeleteLocalRef(v_remote_error);
+  if (v_pull_status) env->DeleteLocalRef(v_pull_status);
+  if (v_pull_error) env->DeleteLocalRef(v_pull_error);
+  env->DeleteLocalRef(item_type);
+  return item;
 }

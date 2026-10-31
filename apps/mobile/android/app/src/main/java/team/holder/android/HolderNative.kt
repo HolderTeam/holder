@@ -2,9 +2,12 @@ package team.holder.android
 
 import android.content.Context
 import team.holder.android.generated.ContractCards
+import team.holder.android.generated.ContractHistory
+import team.holder.android.generated.ContractResources
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import team.holder.android.generated.ContractProject
+import team.holder.android.generated.ContractNewProject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -34,6 +37,8 @@ data class HolderCard(
      * card-returning call leaves this null rather than paying for a count nobody asked for. */
     val childCount: Int? = null,
 )
+
+data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
 
 /** Matches holder_card_query_json's "view" values (lowercased on the wire). */
 enum class CardQueryView { ROOTS, CHILDREN, ALL, RECENT }
@@ -74,10 +79,12 @@ data class HolderCardRef(
 /** Result of [HolderNative.resolveCardReference] -- mirrors holder-core's
  * CardReferenceResolver::resolve (full-id, then id-prefix, then case-sensitive exact-title). */
 sealed interface CardReferenceResolution {
-    data class Resolved(val matchKind: String, val card: HolderCard) : CardReferenceResolution
-    data class Ambiguous(val matchKind: String, val candidates: List<HolderCard>) : CardReferenceResolution
+    data class Resolved(val matchKind: String, val card: HolderCardReferenceCandidate) : CardReferenceResolution
+    data class Ambiguous(val matchKind: String, val candidates: List<HolderCardReferenceCandidate>) : CardReferenceResolution
     object NotFound : CardReferenceResolution
 }
+
+data class HolderCardReferenceCandidate(val cardId: String, val title: String, val deletedAt: Long?)
 
 /** Matches holder_card_move_json's "intent" values (lowercased, underscore-separated, on the
  * wire) -- see holder-core's CardPlacementResolver for the full algorithm each one runs. */
@@ -236,12 +243,9 @@ data class HolderLocation(
 
 data class HolderPlacement(
     val placementId: String,
-    val assetId: String,
     val locationId: String,
-    val objectKey: String,
     val encoding: String,
     val storedByteSize: Long,
-    val storedSha256: String,
     val createdAt: Long,
 )
 
@@ -468,7 +472,6 @@ object HolderNative {
     private external fun nativeCardDelete(contextHandle: Long, cardId: String)
     private external fun nativeCardListTrashed(contextHandle: Long, projectId: String): String
     private external fun nativeCardRestore(contextHandle: Long, cardId: String): String
-    private external fun nativeCardPurge(contextHandle: Long, cardId: String)
     private external fun nativeCardHistoryList(
         contextHandle: Long,
         projectId: String,
@@ -811,30 +814,60 @@ object HolderNative {
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
-    fun getCardContent(cardId: String): String {
-        return readLane.call { nativeCardGetContent(it, cardId) }
-    }
+    fun getCardContent(projectId: String, cardId: String): String =
+        readLane.call { ContractCards.nativeGetCardContent(it, projectId, cardId) }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun getCardContentJsonForBenchmark(cardId: String): String =
+        readLane.call { nativeCardGetContent(it, cardId) }
 
     /** Resolves a [[wikilink]]-style reference (a card id, an unambiguous id prefix, or a
      * case-sensitive exact title) the same way holder-daemon/holderctl do. scope defaults
      * to 0 (live cards only), matching holder::model::CardScope::Live. */
     fun resolveCardReference(projectId: String, reference: String, scope: Int = 0): CardReferenceResolution {
+        val result = readLane.call { ContractCards.nativeResolveCardReference(it, projectId, reference, scope) }
+        return when (result.status) {
+            "resolved" -> CardReferenceResolution.Resolved(
+                matchKind = requireNotNull(result.matchKind),
+                card = requireNotNull(result.card).let { HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt) },
+            )
+            "ambiguous" -> CardReferenceResolution.Ambiguous(
+                matchKind = requireNotNull(result.matchKind),
+                candidates = requireNotNull(result.candidates).map {
+                    HolderCardReferenceCandidate(it.cardId, it.title, it.deletedAt)
+                },
+            )
+            "not_found" -> CardReferenceResolution.NotFound
+            else -> error("unknown card reference result: ${result.status}")
+        }
+    }
+
+    internal fun resolveCardReferenceJsonForBenchmark(projectId: String, reference: String,
+                                                      scope: Int = 0): CardReferenceResolution {
         val json = JSONObject(readLane.call { nativeCardReferenceResolve(it, projectId, reference, scope) })
         return when (json.getString("status")) {
             "resolved" -> CardReferenceResolution.Resolved(
                 matchKind = json.getString("match_kind"),
-                card = parseCard(json.getJSONObject("card")),
+                card = parseCardReferenceCandidate(json.getJSONObject("card")),
             )
             "ambiguous" -> {
                 val candidates = json.getJSONArray("candidates")
                 CardReferenceResolution.Ambiguous(
                     matchKind = json.getString("match_kind"),
-                    candidates = List(candidates.length()) { index -> parseCard(candidates.getJSONObject(index)) },
+                    candidates = List(candidates.length()) { index ->
+                        parseCardReferenceCandidate(candidates.getJSONObject(index))
+                    },
                 )
             }
             else -> CardReferenceResolution.NotFound
         }
     }
+
+    private fun parseCardReferenceCandidate(json: JSONObject) = HolderCardReferenceCandidate(
+        cardId = json.getString("card_id"),
+        title = json.getString("title"),
+        deletedAt = json.optLongOrNull("deleted_at"),
+    )
 
     /** One page of projectId's cards, most-recently-updated first, for
      * [team.holder.android.git.backup.SnapshotWriter]. Pass cursorCardId = null for the first
@@ -872,9 +905,12 @@ object HolderNative {
             JSONObject(saveLane.call { nativeBackupRestore(it, projectName, privacyMode, cardsJson, commitMessage) }),
         )
 
-    /** privacyMode null defaults (server-side) to "plain". "encrypted_git" is also valid. */
+    /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        fromContractProject(saveLane.call { ContractProjects.nativeCreateProject(it, name, privacyMode) })
+        fromContractProject(createProjectContract(ContractNewProject(name = name, privacyMode = privacyMode ?: "plain")))
+
+    internal fun createProjectContract(project: ContractNewProject): ContractProject =
+        saveLane.call { ContractProjects.nativeCreateProject(it, project) }
 
     fun renameProject(projectId: String, name: String): HolderProject =
         fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
@@ -957,7 +993,17 @@ object HolderNative {
         saveLane.call { nativeCardDelete(it, cardId) }
     }
 
-    fun listTrashedCards(projectId: String): List<HolderCard> {
+    fun listTrashedCards(projectId: String): List<HolderTrashedCard> =
+        readLane.call { ContractCards.nativeListTrashedCards(it, projectId) }.map { item ->
+            HolderTrashedCard(
+                cardId = requireNotNull(item.cardId),
+                title = requireNotNull(item.title),
+                deletedAt = item.deletedAt,
+            )
+        }
+
+    /** Previous JSON listing retained for parity during migration. */
+    internal fun listTrashedCardsJsonForBenchmark(projectId: String): List<HolderCard> {
         val cards = JSONArray(readLane.call { nativeCardListTrashed(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
@@ -971,8 +1017,12 @@ object HolderNative {
         parseCard(JSONObject(saveLane.call { nativeCardRestore(it, cardId) }))
 
     /** Permanently deletes a trashed card. Irreversible. Fails if cardId isn't trashed. */
-    fun purgeCard(cardId: String) {
-        saveLane.call { nativeCardPurge(it, cardId) }
+    fun purgeCard(projectId: String, cardId: String) {
+        saveLane.call { ContractCards.nativePurgeCard(it, projectId, cardId) }
+    }
+
+    fun emptyCardTrash(projectId: String) {
+        saveLane.call { ContractCards.nativeEmptyCardTrash(it, projectId) }
     }
 
     /** cardId's editing-session-grouped history within projectId's repository, most-recent
@@ -984,6 +1034,40 @@ object HolderNative {
         cardId: String,
         cursor: String? = null,
         limit: Int = 50,
+    ): HolderCardHistoryPage {
+        val page = backgroundLane.call { ContractHistory.nativeListCardHistory(it, projectId, cardId, limit, cursor) }
+        return HolderCardHistoryPage(
+            headOid = page.headOid,
+            entries = page.entries.map { entry ->
+                HolderCardHistoryEntry(
+                    firstOid = entry.firstOid,
+                    lastOid = entry.lastOid,
+                    parentOids = entry.parentOids,
+                    visibleParentOids = entry.visibleParentOids,
+                    authorName = entry.author.name,
+                    authorEmail = entry.author.email,
+                    startedAt = entry.startedAt,
+                    endedAt = entry.endedAt,
+                    kind = entry.kind,
+                    summary = entry.summary,
+                    commitCount = entry.commitCount,
+                    isMerge = entry.isMerge,
+                    saves = entry.saves.map { save -> HolderCardHistorySave(
+                        oid = save.oid,
+                        parentOids = save.parentOids,
+                        authoredAt = save.authoredAt,
+                        committedAt = save.committedAt,
+                        message = save.message,
+                    ) },
+                )
+            },
+            nextCursor = page.nextCursor,
+            scanLimited = page.scanLimited,
+        )
+    }
+
+    internal fun listCardHistoryJsonForBenchmark(
+        projectId: String, cardId: String, cursor: String? = null, limit: Int = 50,
     ): HolderCardHistoryPage {
         val json = JSONObject(backgroundLane.call { nativeCardHistoryList(it, projectId, cardId, cursor, limit) })
         val entries = json.getJSONArray("entries")
@@ -1006,6 +1090,29 @@ object HolderNative {
         fromOid: String?,
         toOid: String,
     ): HolderCardHistoryComparison {
+        val comparison = backgroundLane.call {
+            ContractHistory.nativeCompareCardHistory(it, projectId, cardId, fromOid, toOid)
+        }
+        fun version(value: team.holder.android.generated.ContractCardHistoryVersion) = HolderCardHistoryVersion(
+            exists = value.exists, oid = value.oid, title = value.title, body = value.body,
+        )
+        return HolderCardHistoryComparison(
+            // Android has always represented the absent state before creation with an empty OID.
+            from = version(comparison.before).let { before ->
+                if (fromOid == null && !before.exists) before.copy(oid = "") else before
+            },
+            to = version(comparison.after),
+            summary = comparison.summary,
+            lines = comparison.lines.map { line -> HolderCardHistoryDiffLine(
+                origin = line.origin, text = line.text, oldLine = line.oldLine, newLine = line.newLine,
+            ) },
+            truncated = comparison.truncated,
+        )
+    }
+
+    internal fun compareCardHistoryJsonForBenchmark(
+        projectId: String, cardId: String, fromOid: String?, toOid: String,
+    ): HolderCardHistoryComparison {
         val json = JSONObject(backgroundLane.call { nativeCardHistoryCompare(it, projectId, cardId, fromOid, toOid) })
         val lines = json.getJSONArray("lines")
         return HolderCardHistoryComparison(
@@ -1022,7 +1129,17 @@ object HolderNative {
      * together -- through the ordinary write path (a new "Restore card ..." commit). Never
      * checks out or rewrites Git history, so the pre-restore state remains its own, still-
      * reachable history entry. Returns the restored card. */
-    fun restoreCardHistory(cardId: String, historicalOid: String): HolderCard =
+    fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): HolderCard {
+        val cardJson = saveLane.call { context ->
+            val result = ContractHistory.nativeRestoreCardHistory(context, projectId, cardId, historicalOid)
+            // The contract result omits hierarchy and creation fields in HolderCard. Keep this
+            // read until the Android-facing return shape is settled in #344.
+            nativeCardGet(context, result.cardId, 2)
+        }
+        return parseCard(JSONObject(cardJson))
+    }
+
+    internal fun restoreCardHistoryJsonForBenchmark(cardId: String, historicalOid: String): HolderCard =
         parseCard(JSONObject(saveLane.call { nativeCardHistoryRestore(it, cardId, historicalOid) }))
 
     /** Explicit connections only -- not hierarchy (parent/child) or inline [[wikilinks]]. */
@@ -1097,7 +1214,11 @@ object HolderNative {
     }
 
     /** cardId's #tags, as extracted from its body (including any added via addCardTag). */
-    fun listCardTags(cardId: String): List<String> {
+    fun listCardTags(projectId: String, cardId: String): List<String> =
+        readLane.call { ContractCards.nativeListCardTags(it, projectId, cardId) }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun listCardTagsJsonForBenchmark(cardId: String): List<String> {
         val tags = JSONArray(readLane.call { nativeCardListTags(it, cardId) })
         return List(tags.length()) { index -> tags.getString(index) }
     }
@@ -1146,7 +1267,23 @@ object HolderNative {
     }
 
     /** Cards in projectId carrying tag (case-insensitive). */
-    fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> {
+    fun cardsWithTag(projectId: String, tag: String): List<HolderCardRef> = cardsWithTagPaged(projectId, tag, 5000)
+
+    internal fun cardsWithTagPaged(projectId: String, tag: String, pageSize: Int): List<HolderCardRef> {
+        val result = ArrayList<HolderCardRef>()
+        readLane.call { context ->
+            var cursor: String? = null
+            do {
+                val page = ContractCards.nativeListCardsWithTagPage(context, projectId, tag, cursor, pageSize)
+                result.ensureCapacity(result.size + page.items.size)
+                page.items.forEach { card -> result.add(HolderCardRef(cardId = card.cardId, title = card.title)) }
+                cursor = page.nextCursor
+            } while (cursor != null)
+        }
+        return result
+    }
+
+    internal fun cardsWithTagJsonForBenchmark(projectId: String, tag: String): List<HolderCardRef> {
         val cards = JSONArray(readLane.call { nativeCardsWithTag(it, projectId, tag) })
         return List(cards.length()) { index -> parseCardRef(cards.getJSONObject(index)) }
     }
@@ -1292,6 +1429,20 @@ object HolderNative {
     }
 
     fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeTestProjectRemote(it, projectId, null)
+        }
+        return GitTestRemoteResult(
+            status = result.status,
+            remoteHasHead = result.remoteHasHead,
+            errorMessage = if (result.status == "remote_unset") "Remote URL is not configured."
+                else result.errorMessage,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun testGitRemoteJsonForBenchmark(projectId: String, branch: String? = null): GitTestRemoteResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitTestRemote(it, projectId, branch)
@@ -1421,6 +1572,27 @@ object HolderNative {
         pushIntervalSeconds: Int = 0,
         pullIntervalSeconds: Int = 0,
     ): GitSyncIfDueResult {
+        val result = backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            ContractProjects.nativeSyncProjectIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
+        }
+        return GitSyncIfDueResult(
+            pullAttempted = result.pullAttempted,
+            pullStatus = result.pullStatus,
+            pullError = result.pullError,
+            pullConflictsResolved = result.pullConflictsResolved,
+            pushAttempted = result.pushAttempted,
+            pushStatus = result.pushStatus,
+            pushError = result.pushError,
+        )
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun gitSyncIfDueJsonForBenchmark(
+        projectId: String,
+        pushIntervalSeconds: Int = 0,
+        pullIntervalSeconds: Int = 0,
+    ): GitSyncIfDueResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             nativeGitSyncIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
@@ -1449,9 +1621,35 @@ object HolderNative {
         push: Boolean = true,
         setUpstream: Boolean = true,
     ): GitSyncNowResult {
+        return backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            // The existing Android action leaves a project without a remote untouched.
+            if (ContractProjects.nativeGetProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
+                GitSyncNowResult(false, null, null, 0, false, null, null, 0, 0, null)
+            } else {
+                val result = ContractProjects.nativeSyncProject(
+                    it, projectId, branch?.takeIf { value -> value.isNotEmpty() }, push, setUpstream)
+                GitSyncNowResult(
+                    pullAttempted = result.pullAttempted,
+                    pullStatus = result.pullStatus,
+                    pullError = result.pullError,
+                    pullConflictsResolved = result.pullConflictsResolved,
+                    pushAttempted = result.pushAttempted,
+                    pushStatus = result.pushStatus,
+                    pushError = result.pushError,
+                    pushAheadCount = result.pushAheadCount,
+                    pushBehindCount = result.pushBehindCount,
+                    pushLocalHeadCommit = result.pushLocalHeadCommit,
+                )
+            }
+        }
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun gitSyncNowJsonForBenchmark(projectId: String, push: Boolean = true): GitSyncNowResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            nativeGitSyncNow(it, projectId, branch, push, setUpstream)
+            nativeGitSyncNow(it, projectId, null, push, true)
         })
         return GitSyncNowResult(
             pullAttempted = json.getBoolean("pull_attempted"),
@@ -1495,6 +1693,15 @@ object HolderNative {
     }
 
     fun exportRecoveryToken(projectId: String, pin: String): RecoveryTokenExportResult {
+        val result = backgroundLane.call { ContractProjects.nativeExportRecoveryToken(it, projectId, pin) }
+        return RecoveryTokenExportResult(
+            projectId = result.projectId,
+            keyId = result.keyId,
+            recoveryToken = result.recoveryToken,
+        )
+    }
+
+    internal fun exportRecoveryTokenJsonForBenchmark(projectId: String, pin: String): RecoveryTokenExportResult {
         val json = JSONObject(backgroundLane.call { nativeRecoveryTokenExport(it, projectId, pin) })
         return RecoveryTokenExportResult(
             projectId = json.getString("project_id"),
@@ -1507,6 +1714,10 @@ object HolderNative {
      * exist and match the token's own project id. See importRecoveryTokenGlobal for recovering
      * onto a device that doesn't have the project yet. */
     fun importRecoveryToken(projectId: String, pin: String, recoveryToken: String) {
+        saveLane.call { ContractProjects.nativeImportRecoveryToken(it, projectId, pin, recoveryToken) }
+    }
+
+    internal fun importRecoveryTokenJsonForBenchmark(projectId: String, pin: String, recoveryToken: String) {
         saveLane.call { nativeRecoveryTokenImport(it, projectId, pin, recoveryToken) }
     }
 
@@ -1526,6 +1737,19 @@ object HolderNative {
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
     fun importRecoveryTokenGlobal(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
+        val result = saveLane.call { ContractProjects.nativeImportRecoveryTokenGlobal(it, pin, recoveryToken) }
+        return RecoveryTokenImportGlobalResult(
+            projectId = result.projectId,
+            projectCreated = result.projectCreated,
+            remoteHintPresent = result.remoteHintPresent,
+            remoteConfigured = result.remoteConfigured,
+            remoteError = result.remoteError,
+            pullStatus = result.pullStatus,
+            pullError = result.pullError,
+        )
+    }
+
+    internal fun importRecoveryTokenGlobalJsonForBenchmark(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
         val json = JSONObject(saveLane.call { nativeRecoveryTokenImportGlobal(it, pin, recoveryToken) })
         return RecoveryTokenImportGlobalResult(
             projectId = json.getString("project_id"),
@@ -1571,6 +1795,36 @@ object HolderNative {
         parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
 
     fun listResources(projectId: String): List<HolderResource> {
+        return readLane.call { ContractResources.nativeListResources(it, projectId) }.map { resource ->
+            HolderResource(
+                resourceId = resource.resourceId,
+                projectId = resource.projectId,
+                type = resource.type,
+                label = resource.label,
+                createdAt = resource.createdAt,
+                updatedAt = resource.updatedAt,
+                assets = resource.assets.map { asset -> HolderAsset(
+                    assetId = asset.assetId,
+                    resourceId = resource.resourceId,
+                    originalFilename = asset.originalFilename,
+                    mediaType = asset.mediaType,
+                    byteSize = asset.byteSize,
+                    plaintextSha256 = asset.plaintextSha256,
+                    createdAt = asset.createdAt,
+                    updatedAt = asset.updatedAt,
+                    placements = asset.placements.map { placement -> HolderPlacement(
+                        placementId = placement.placementId,
+                        locationId = placement.locationId,
+                        encoding = placement.encoding,
+                        storedByteSize = placement.storedByteSize,
+                        createdAt = placement.createdAt,
+                    ) },
+                ) },
+            )
+        }
+    }
+
+    internal fun listResourcesJsonForBenchmark(projectId: String): List<HolderResource> {
         val resources = JSONArray(readLane.call { nativeResourceList(it, projectId) })
         return List(resources.length()) { index -> parseResourceBundle(resources.getJSONObject(index)) }
     }
@@ -1725,12 +1979,9 @@ object HolderNative {
 
     private fun parsePlacement(json: JSONObject) = HolderPlacement(
         placementId = json.getString("placement_id"),
-        assetId = json.getString("asset_id"),
         locationId = json.getString("location_id"),
-        objectKey = json.getString("object_key"),
         encoding = json.getString("encoding"),
         storedByteSize = json.getLong("stored_byte_size"),
-        storedSha256 = json.getString("stored_sha256"),
         createdAt = json.getLong("created_at"),
     )
 

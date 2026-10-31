@@ -212,7 +212,7 @@ fun CardHistoryScreen(
                 comparisonState = comparisonState,
                 onRestore = { oid ->
                     scope.launch {
-                        HolderNative.restoreCardHistory(cardId, oid)
+                        HolderNative.restoreCardHistory(projectId, cardId, oid)
                         onRestored()
                         selectedEntry = null
                         load()

@@ -28,6 +28,33 @@ data class ContractProject(
     val updatedAt: Long,
 )
 
+data class ContractNewProject(
+    val projectId: String? = null,
+    val name: String,
+    val rootPath: String? = null,
+    val gitRemoteUrl: String? = null,
+    val gitProvider: String? = null,
+    val privacyMode: String = "encrypted_git",
+    val createdAt: Long? = null,
+    val updatedAt: Long? = null,
+)
+
+data class ContractProjectRecoveryTokenExportResult(
+    val projectId: String,
+    val keyId: String,
+    val recoveryToken: String,
+)
+
+data class ContractRecoveryTokenGlobalImportResult(
+    val projectId: String,
+    val projectCreated: Boolean,
+    val remoteHintPresent: Boolean,
+    val remoteConfigured: Boolean,
+    val remoteError: String?,
+    val pullStatus: String,
+    val pullError: String?,
+)
+
 data class ContractEncryptionCheck(
     val projectId: String,
     val privacyMode: String,
@@ -77,9 +104,23 @@ data class ContractRemoteTestResult(
     val errorMessage: String?,
 )
 
+data class ContractSyncNowResult(
+    val pullAttempted: Boolean,
+    val pullStatus: String?,
+    val pullError: String?,
+    val pullConflictsResolved: Int,
+    val pushAttempted: Boolean,
+    val pushStatus: String?,
+    val pushError: String?,
+    val pushAheadCount: Int,
+    val pushBehindCount: Int,
+    val pushLocalHeadCommit: String?,
+)
+
 object ContractProjects {
     external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
-    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
+    external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject
+    external fun nativeCreateProject(contextHandle: Long, project: ContractNewProject): ContractProject
     external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject
     external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject
     external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck
@@ -87,5 +128,10 @@ object ContractProjects {
     external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase
     external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase
     external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult
+    external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult
+    external fun nativeSyncProjectIfDue(contextHandle: Long, projectId: String, pushIntervalSeconds: Int, pullIntervalSeconds: Int): ContractSyncNowResult
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
+    external fun nativeExportRecoveryToken(contextHandle: Long, projectId: String, pin: String): ContractProjectRecoveryTokenExportResult
+    external fun nativeImportRecoveryToken(contextHandle: Long, projectId: String, pin: String, recoveryToken: String)
+    external fun nativeImportRecoveryTokenGlobal(contextHandle: Long, pin: String, recoveryToken: String): ContractRecoveryTokenGlobalImportResult
 }

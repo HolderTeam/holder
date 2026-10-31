@@ -431,6 +431,7 @@ holder_sync_state to_c(holder_arena* arena, const contract::SyncState& value);
 holder_pull_phase to_c(holder_arena* arena, const contract::PullPhase& value);
 holder_push_phase to_c(holder_arena* arena, const contract::PushPhase& value);
 holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value);
+holder_due_sync_result to_c(holder_arena* arena, const contract::DueSyncResult& value);
 holder_remote_test_result to_c(holder_arena* arena, const contract::RemoteTestResult& value);
 holder_history_author to_c(holder_arena* arena, const contract::HistoryAuthor& value);
 holder_history_affected_path to_c(holder_arena* arena, const contract::HistoryAffectedPath& value);
@@ -908,6 +909,15 @@ holder_sync_result to_c(holder_arena* arena, const contract::SyncResult& value) 
   holder_sync_result out{};
   out.project_id = copy(arena, value.project_id);
   out.status = to_c_enum(value.status);
+  out.remote_url = copy_text(arena, value.remote_url);
+  out.pull = to_c(arena, value.pull);
+  out.push = to_c(arena, value.push);
+  return out;
+}
+
+holder_due_sync_result to_c(holder_arena* arena, const contract::DueSyncResult& value) {
+  holder_due_sync_result out{};
+  out.project_id = copy(arena, value.project_id);
   out.remote_url = copy_text(arena, value.remote_url);
   out.pull = to_c(arena, value.pull);
   out.push = to_c(arena, value.push);
@@ -2142,6 +2152,20 @@ int holder_sync_project(holder_context* context, const char* project_id, const h
     auto* out = make<holder_sync_result>(arena);
     *out = to_c(arena, contract::sync_project(*context, project_id_value, options_value));
     *out_sync_result = out;
+  });
+}
+
+int holder_sync_project_if_due(holder_context* context, const char* project_id, int32_t push_interval_seconds, int32_t pull_interval_seconds, holder_arena* arena, const holder_due_sync_result** out_due_sync_result, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_due_sync_result != nullptr, "out_due_sync_result must not be null");
+    *out_due_sync_result = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto push_interval_seconds_value = in_range<std::int32_t>(push_interval_seconds, "push_interval_seconds", 0, std::numeric_limits<std::int32_t>::max());
+    const auto pull_interval_seconds_value = in_range<std::int32_t>(pull_interval_seconds, "pull_interval_seconds", 0, std::numeric_limits<std::int32_t>::max());
+    auto* out = make<holder_due_sync_result>(arena);
+    *out = to_c(arena, contract::sync_project_if_due(*context, project_id_value, push_interval_seconds_value, pull_interval_seconds_value));
+    *out_due_sync_result = out;
   });
 }
 

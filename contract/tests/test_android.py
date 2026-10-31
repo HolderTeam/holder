@@ -4,8 +4,14 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
+from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
+from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
+from holder_contract.android_ir import ContractView, NullableType, ScalarType
+from holder_contract.android_resources import JNI_PATH as RESOURCES_JNI_PATH
+from holder_contract.android_resources import KOTLIN_PATH as RESOURCES_KOTLIN_PATH
 from holder_contract.extract import extract
 
 
@@ -50,9 +56,20 @@ def test_project_writes_follow_contract_and_preserve_android_plain_default():
 
     changed = deepcopy(ir)
     new_project = next(record for record in changed["records"] if record["name"] == "NewProject")
-    new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}})
-    with pytest.raises(ValueError, match="NewProject fields need a generator update"):
-        generate_android(changed)
+    new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}, "omittable": True})
+    expanded = generate_android(changed)
+    assert "val newOption: String? = null" in expanded[PROJECT_KOTLIN_PATH]
+    assert 'read_string_field(env, input, input_type, "newOption", false' in expanded[PROJECT_JNI_PATH]
+    assert "request.new_option = v_new_option ? v_new_option->c_str() : nullptr" in expanded[PROJECT_JNI_PATH]
+
+    new_project["fields"].append({"name": "required_nullable", "type": {
+        "kind": "nullable", "value": {"kind": "string"}}})
+    new_project["fields"].append({"name": "optional_with_value", "type": {
+        "kind": "nullable", "value": {"kind": "string"}}, "default": "hello"})
+    expanded = generate_android(changed)[PROJECT_KOTLIN_PATH]
+    assert "val requiredNullable: String?," in expanded
+    assert "val requiredNullable: String? = null" not in expanded
+    assert 'val optionalWithValue: String? = "hello"' in expanded
 
     changed = deepcopy(ir)
     update = next(record for record in changed["records"] if record["name"] == "ProjectUpdate")
@@ -78,6 +95,32 @@ def test_project_encryption_check_maps_nested_safety_fields():
     safety["fields"].append({"name": "new_field", "type": {"kind": "string"}})
     with pytest.raises(ValueError, match="encryption check fields need a generator update"):
         generate_android(changed)
+
+
+def test_project_recovery_export_and_import_follow_contract():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    assert "data class ContractProjectRecoveryTokenExportResult(" in kotlin
+    assert "val recoveryToken: String" in kotlin
+    assert "nativeExportRecoveryToken" in kotlin
+    assert "nativeImportRecoveryToken" in kotlin
+    assert "data class ContractRecoveryTokenGlobalImportResult(" in kotlin
+    assert "val projectCreated: Boolean" in kotlin
+    assert "nativeImportRecoveryTokenGlobal" in kotlin
+    assert "holder_export_project_recovery_token(" in jni
+    assert "holder_import_project_recovery_token(" in jni
+    assert "holder_import_recovery_token_global(" in jni
+    assert "HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_SUCCEEDED" in jni
+
+    changed = deepcopy(ir)
+    result = next(record for record in changed["records"]
+                  if record["name"] == "ProjectRecoveryTokenExportResult")
+    result["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    expanded = generate_android(changed)
+    assert "val newDetail: String" in expanded[PROJECT_KOTLIN_PATH]
+    assert "value.new_detail" in expanded[PROJECT_JNI_PATH]
 
 
 def test_project_sync_state_generates_nullable_fields_and_c_bridge():
@@ -178,6 +221,127 @@ def test_card_writes_use_scoped_contract_operations_and_guard_input_shape():
         generate_android(changed)
 
 
+def test_card_trash_purge_uses_scoped_contract_operations():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractTrashItem(" in generated[KOTLIN_PATH]
+    assert "nativeListTrashedCards" in generated[KOTLIN_PATH]
+    assert "holder_list_trash(" in generated[JNI_PATH]
+    assert 'project.c_str(), "card"' in generated[JNI_PATH]
+    assert "nativePurgeCard" in generated[KOTLIN_PATH]
+    assert "holder_delete_project_trash_item(" in generated[JNI_PATH]
+    assert "HOLDER_DELETE_PROJECT_TRASH_ITEM_TYPE_CARD" in generated[JNI_PATH]
+    assert "nativeEmptyCardTrash" in generated[KOTLIN_PATH]
+    assert "holder_empty_trash(" in generated[JNI_PATH]
+    assert "HOLDER_EMPTY_TRASH_TYPE_CARD" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    purge = next(op for op in changed["operations"] if op["name"] == "delete_project_trash_item")
+    purge["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android card purge needs"):
+        generate_android(changed)
+
+    changed = deepcopy(ir)
+    item = next(record for record in changed["records"] if record["name"] == "TrashItem")
+    item["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    expanded = generate_android(changed)
+    assert "val newDetail: String" in expanded[KOTLIN_PATH]
+    assert "value.new_detail" in expanded[JNI_PATH]
+
+
+def test_card_reference_resolution_uses_contract_candidate_fields():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardReferenceCandidate(" in generated[KOTLIN_PATH]
+    assert "nativeResolveCardReference" in generated[KOTLIN_PATH]
+    assert "holder_resolve_card_reference(" in generated[JNI_PATH]
+    assert "value.deleted_at" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    candidate = next(record for record in changed["records"] if record["name"] == "CardReferenceCandidate")
+    candidate["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    expanded = generate_android(changed)
+    assert "val newDetail: String" in expanded[KOTLIN_PATH]
+    assert "value.new_detail" in expanded[JNI_PATH]
+
+
+def test_tag_filtered_card_pages_use_contract_list_cards():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeListCardsWithTagPage" in generated[KOTLIN_PATH]
+    assert "tag ? tag_text.c_str() : nullptr" in generated[JNI_PATH]
+    assert "HOLDER_LIST_CARDS_ORDER_UPDATED_DESC" in generated[JNI_PATH]
+    assert "card page limit must be between 1 and 5000" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    listing = next(operation for operation in changed["operations"] if operation["name"] == "list_cards")
+    next(parameter for parameter in listing["parameters"] if parameter["name"] == "tag")["type"] = {
+        "kind": "string",
+    }
+    with pytest.raises(ValueError, match="list_cards parameters need a generator update"):
+        generate_android(changed)
+
+
+def test_card_history_bridge_uses_contract_page_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardHistoryEntry(" in generated[HISTORY_KOTLIN_PATH]
+    assert "nativeListCardHistory" in generated[HISTORY_KOTLIN_PATH]
+    assert "holder_list_card_history(" in generated[HISTORY_JNI_PATH]
+    assert "value.visible_parent_oids" in generated[HISTORY_JNI_PATH]
+
+    changed = deepcopy(ir)
+    page = next(record for record in changed["records"] if record["name"] == "CardHistoryPage")
+    page["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardHistoryPage fields need a generator update"):
+        generate_android(changed)
+
+
+def test_card_history_comparison_bridge_uses_contract_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardHistoryComparison(" in generated[HISTORY_KOTLIN_PATH]
+    assert "nativeCompareCardHistory" in generated[HISTORY_KOTLIN_PATH]
+    assert "holder_compare_card_history(" in generated[HISTORY_JNI_PATH]
+    assert "HOLDER_COMPARE_CARD_HISTORY_MODE_CHANGE" in generated[HISTORY_JNI_PATH]
+    assert "HOLDER_COMPARE_CARD_HISTORY_MODE_SINCE" in generated[HISTORY_JNI_PATH]
+
+    changed = deepcopy(ir)
+    comparison = next(record for record in changed["records"] if record["name"] == "CardHistoryComparison")
+    comparison["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardHistoryComparison fields need a generator update"):
+        generate_android(changed)
+
+
+def test_card_history_restore_bridge_uses_contract_result_shape():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractCardHistoryRestoreResult(" in generated[HISTORY_KOTLIN_PATH]
+    assert "nativeRestoreCardHistory" in generated[HISTORY_KOTLIN_PATH]
+    assert "holder_restore_card_history_snapshot(" in generated[HISTORY_JNI_PATH]
+
+    changed = deepcopy(ir)
+    result = next(record for record in changed["records"] if record["name"] == "CardHistoryRestoreResult")
+    result["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="CardHistoryRestoreResult fields need a generator update"):
+        generate_android(changed)
+
+
+def test_resource_listing_bridge_uses_contract_nested_records():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractResource(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "data class ContractResourceAsset(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "data class ContractAssetPlacement(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "holder_list_resources(" in generated[RESOURCES_JNI_PATH]
+
+    changed = deepcopy(ir)
+    placement = next(record for record in changed["records"] if record["name"] == "AssetPlacement")
+    placement["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="AssetPlacement fields need a generator update"):
+        generate_android(changed)
+
+
 def test_record_lists_follow_contract_fields_and_operation_shapes():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)
@@ -222,6 +386,58 @@ def test_project_list_return_change_requires_generator_update():
     operation = next(op for op in changed["operations"] if op["name"] == "list_projects")
     operation["returns"] = {"kind": "string"}
     with pytest.raises(ValueError, match="list\\[ProjectListItem\\]"):
+        generate_android(changed)
+
+
+def test_project_sync_bridge_tracks_contract_operation():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeSyncProject" in generated[PROJECT_KOTLIN_PATH]
+    assert "holder_sync_project(" in generated[PROJECT_JNI_PATH]
+    assert "nativeSyncProjectIfDue" in generated[PROJECT_KOTLIN_PATH]
+    assert "holder_sync_project_if_due(" in generated[PROJECT_JNI_PATH]
+    assert "holder_pull_project(" in generated[PROJECT_JNI_PATH]
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "sync_project")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android sync_project parameters or return"):
+        generate_android(changed)
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "sync_project_if_due")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android sync_project_if_due parameters or return"):
+        generate_android(changed)
+
+
+def test_android_contract_view_preserves_types_and_accepts_unmapped_result_fields():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    contract = ContractView.model_validate(ir)
+    assert contract.record("PullPhase").field("error_message").type == NullableType(
+        kind="nullable", value=ScalarType(kind="string"))
+    assert contract.operation("list_projects").parameter("limit").type.le == 1000
+
+    changed = deepcopy(ir)
+    due = next(record for record in changed["records"] if record["name"] == "DueSyncResult")
+    due["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    assert generate_android(changed) == generate_android(ir)
+
+    due["fields"][-1]["type"] = {"kind": "unsupported_new_type"}
+    with pytest.raises(ValidationError, match="unsupported_new_type"):
+        generate_android(changed)
+
+
+def test_card_content_bridge_tracks_get_card_contract():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeGetCardContent" in generated[KOTLIN_PATH]
+    assert "holder_get_card(" in generated[JNI_PATH]
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "get_card")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android get_card needs Card content"):
         generate_android(changed)
 
 

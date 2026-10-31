@@ -1,0 +1,145 @@
+#include "holder/holder.h"
+#include <jni.h>
+#include <cstdint>
+#include <optional>
+#include <string>
+
+namespace {
+struct Arena {
+  holder_arena* value = holder_arena_new();
+  ~Arena() { holder_arena_free(value); }
+};
+
+void fail(JNIEnv* env, const char* message) {
+  jclass type = env->FindClass("java/lang/RuntimeException");
+  if (type) env->ThrowNew(type, message);
+}
+
+// JNI strings use UTF-16; the C contract strings use ordinary UTF-8.
+jstring string(JNIEnv* env, const char* utf8) {
+  if (!utf8) return nullptr;
+  std::u16string out;
+  const auto* p = reinterpret_cast<const unsigned char*>(utf8);
+  while (*p) {
+    uint32_t cp = *p++;
+    if (cp >= 0xf0) { cp = (cp & 7) << 18; cp |= (*p++ & 63) << 12; cp |= (*p++ & 63) << 6; cp |= *p++ & 63; }
+    else if (cp >= 0xe0) { cp = (cp & 15) << 12; cp |= (*p++ & 63) << 6; cp |= *p++ & 63; }
+    else if (cp >= 0xc0) { cp = (cp & 31) << 6; cp |= *p++ & 63; }
+    if (cp <= 0xffff) out.push_back(static_cast<char16_t>(cp));
+    else { cp -= 0x10000; out.push_back(static_cast<char16_t>(0xd800 + (cp >> 10))); out.push_back(static_cast<char16_t>(0xdc00 + (cp & 1023))); }
+  }
+  return env->NewString(reinterpret_cast<const jchar*>(out.data()), static_cast<jsize>(out.size()));
+}
+
+bool utf8(JNIEnv* env, jstring input, std::string& out) {
+  const jchar* chars = env->GetStringChars(input, nullptr);
+  if (!chars) return false;
+  const jsize count = env->GetStringLength(input);
+  for (jsize i = 0; i < count; ++i) {
+    uint32_t cp = chars[i];
+    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < count &&
+        chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+      cp = 0x10000 + ((cp - 0xd800) << 10) + (chars[++i] - 0xdc00);
+    } else if (cp >= 0xd800 && cp <= 0xdfff) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "unpaired UTF-16 surrogate"); return false;
+    }
+    if (cp == 0) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "NUL is not allowed in C strings"); return false;
+    }
+    if (cp < 0x80) out.push_back(static_cast<char>(cp));
+    else if (cp < 0x800) {
+      out.push_back(static_cast<char>(0xc0 | (cp >> 6)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else if (cp < 0x10000) {
+      out.push_back(static_cast<char>(0xe0 | (cp >> 12)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else {
+      out.push_back(static_cast<char>(0xf0 | (cp >> 18)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    }
+  }
+  env->ReleaseStringChars(input, chars);
+  return true;
+}
+
+bool read_string_field(JNIEnv* env, jobject input, jclass type, const char* name, bool required,
+                       std::optional<std::string>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/String;");
+  if (!field) return false;
+  jstring value = static_cast<jstring>(env->GetObjectField(input, field));
+  if (env->ExceptionCheck()) return false;
+  if (!value) {
+    if (required) { fail(env, "required project field is null"); return false; }
+    return true;
+  }
+  out.emplace();
+  const bool decoded = utf8(env, value, *out);
+  env->DeleteLocalRef(value);
+  return decoded;
+}
+
+bool read_long_field(JNIEnv* env, jobject input, jclass type, const char* name, std::optional<int64_t>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/Long;");
+  if (!field) return false;
+  jobject value = env->GetObjectField(input, field);
+  if (env->ExceptionCheck()) return false;
+  if (!value) return true;
+  jclass boxed_type = env->GetObjectClass(value);
+  if (!boxed_type) return false;
+  jmethodID long_value = env->GetMethodID(boxed_type, "longValue", "()J");
+  if (long_value) out = static_cast<int64_t>(env->CallLongMethod(value, long_value));
+  env->DeleteLocalRef(boxed_type);
+  env->DeleteLocalRef(value);
+  return long_value && !env->ExceptionCheck();
+}
+
+jobject boxed_int(JNIEnv* env, int32_t value) {
+  jclass type = env->FindClass("java/lang/Integer");
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(I)V");
+  jobject result = env->NewObject(type, ctor, static_cast<jint>(value));
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+jobject boxed_long(JNIEnv* env, int64_t value) {
+  jclass type = env->FindClass("java/lang/Long");
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(J)V");
+  jobject result = env->NewObject(type, ctor, static_cast<jlong>(value));
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+const char* privacy_mode(holder_project_privacy_mode value) {
+  switch (value) {
+{{ mode_cases }}      default: return nullptr;
+  }
+}
+
+const char* privacy_mode(holder_project_encryption_check_privacy_mode value) {
+  switch (value) {
+{{ check_mode_cases }}      default: return nullptr;
+  }
+}
+
+const char* pull_status(holder_pull_phase_status value) {
+  switch (value) {
+{{ pull_status_cases }}      default: return nullptr;
+  }
+}
+
+const char* push_status(holder_push_phase_status value) {
+  switch (value) {
+{{ push_status_cases }}      default: return nullptr;
+  }
+}
+
+const char* remote_test_status(holder_remote_test_result_status value) {
+  switch (value) {
+{{ remote_test_status_cases }}      default: return nullptr;
+  }
+}
