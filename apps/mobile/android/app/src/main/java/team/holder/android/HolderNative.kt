@@ -2,6 +2,7 @@ package team.holder.android
 
 import android.content.Context
 import team.holder.android.generated.ContractCards
+import team.holder.android.generated.ContractProjects
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -711,6 +712,23 @@ object HolderNative {
     }
 
     fun listProjects(): List<HolderProject> {
+        val result = ArrayList<HolderProject>()
+        readLane.call { context ->
+            var count: Int
+            do {
+                val page = ContractProjects.nativeListProjectsPage(context, result.size)
+                count = page.size
+                page.forEach { project ->
+                    result.add(HolderProject(project.projectId, project.name,
+                        project.gitRemoteUrl, project.privacyMode))
+                }
+            } while (count == 1000)
+        }
+        return result
+    }
+
+    /** Previous JSON path, retained while comparing the generated project listing. */
+    internal fun listProjectsJsonForBenchmark(): List<HolderProject> {
         val projects = JSONArray(readLane.call { nativeProjectList(it) })
         return List(projects.length()) { index -> parseProject(projects.getJSONObject(index)) }
     }

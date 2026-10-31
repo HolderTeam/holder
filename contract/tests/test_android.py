@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from holder_contract.android import JNI_PATH, KOTLIN_PATH, generate_android
+from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
 from holder_contract.extract import extract
 
 
@@ -32,4 +32,38 @@ def test_card_list_return_change_requires_generator_update():
     operation = next(op for op in changed["operations"] if op["name"] == "list_cards")
     operation["returns"] = {"kind": "string"}
     with pytest.raises(ValueError, match="Page\\[CardListItem\\]"):
+        generate_android(changed)
+
+
+def test_project_fields_and_privacy_literals_update_kotlin_and_jni():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    changed = deepcopy(ir)
+    item = next(record for record in changed["records"] if record["name"] == "ProjectListItem")
+    item["fields"].append({"name": "new_count", "type": {"kind": "int32"}, "omittable": True})
+    mode = next(alias for alias in changed["aliases"] if alias["name"] == "PrivacyMode")
+    mode["type"]["values"].append("new_mode")
+
+    before = generate_android(ir)
+    assert "HOLDER_LIST_PROJECTS_ORDER_UPDATED_AT_DESC" in before[PROJECT_JNI_PATH]
+    after = generate_android(changed)
+    assert "val newCount: Int?" in after[PROJECT_KOTLIN_PATH]
+    assert "boxed_int(env, *project.new_count)" in after[PROJECT_JNI_PATH]
+    assert 'HOLDER_PROJECT_PRIVACY_MODE_NEW_MODE: return "new_mode"' in after[PROJECT_JNI_PATH]
+
+
+def test_project_list_return_change_requires_generator_update():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "list_projects")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="list\\[ProjectListItem\\]"):
+        generate_android(changed)
+
+
+def test_unmapped_literal_fails_before_emitting_invalid_jni():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    changed = deepcopy(ir)
+    item = next(record for record in changed["records"] if record["name"] == "CardListItem")
+    item["fields"].append({"name": "new_state", "type": {"kind": "literal", "values": ["ready"]}})
+    with pytest.raises(ValueError, match="C enum mapping for new_state"):
         generate_android(changed)

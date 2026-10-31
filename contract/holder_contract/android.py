@@ -8,9 +8,12 @@ from typing import Any
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_cards.cpp"
+PROJECT_KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractProjects.kt"
+PROJECT_JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_projects.cpp"
 
 
-def _field_type(field: dict[str, Any], aliases: dict[str, dict[str, Any]]) -> tuple[str, str, bool]:
+def _field_type(field: dict[str, Any], aliases: dict[str, dict[str, Any]], *,
+                allow_literal: bool = False) -> tuple[str, str, bool]:
     value = field["type"]
     optional = field.get("omittable", False) or value["kind"] == "nullable"
     if value["kind"] == "nullable":
@@ -18,18 +21,51 @@ def _field_type(field: dict[str, Any], aliases: dict[str, dict[str, Any]]) -> tu
     while value["kind"] == "named":
         value = aliases[value["name"]]
     kind = value["kind"]
-    if kind not in {"string", "int32", "int64", "float64"}:
-        raise ValueError(f"Android card listing does not support {kind} for {field['name']}")
-    return ({"string": "String", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
-            {"string": "Ljava/lang/String;", "int32": "Ljava/lang/Integer;", "int64": "Ljava/lang/Long;",
-             "float64": "Ljava/lang/Double;"}[kind] if optional else
-            {"string": "Ljava/lang/String;", "int32": "I", "int64": "J", "float64": "D"}[kind],
+    if kind == "literal" and not allow_literal:
+        raise ValueError(f"Android record conversion needs a C enum mapping for {field['name']}")
+    if kind not in {"string", "literal", "int32", "int64", "float64"}:
+        raise ValueError(f"Android record conversion does not support {kind} for {field['name']}")
+    return ({"string": "String", "literal": "String", "int32": "Int", "int64": "Long", "float64": "Double"}[kind],
+            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "Ljava/lang/Integer;",
+             "int64": "Ljava/lang/Long;", "float64": "Ljava/lang/Double;"}[kind] if optional else
+            {"string": "Ljava/lang/String;", "literal": "Ljava/lang/String;", "int32": "I", "int64": "J", "float64": "D"}[kind],
             optional)
 
 
 def _camel(name: str) -> str:
     first, *rest = name.split("_")
     return first + "".join(word.title() for word in rest)
+
+
+def _record_kotlin(name: str, typed: list[tuple[str, str, str, bool]]) -> str:
+    return f"data class {name}(\n" + "".join(
+        f"    val {_camel(field)}: {kind}{'?' if optional else ''},\n"
+        for field, kind, _, optional in typed) + ")\n"
+
+
+def _record_jni_lines(typed: list[tuple[str, str, str, bool]], source: str,
+                      overrides: dict[str, str] | None = None) -> tuple[list[str], list[str], list[str]]:
+    lines: list[str] = []
+    arguments: list[str] = []
+    refs: list[str] = []
+    for name, kind, _, optional in typed:
+        var = f"v_{name}"
+        field = f"{source}.{name}"
+        if overrides and name in overrides:
+            lines.append(f"    jstring {var} = string(env, {overrides[name]});\n")
+            refs.append(var)
+        elif kind == "String":
+            lines.append(f"    jstring {var} = string(env, {field});\n")
+            refs.append(var)
+        elif optional:
+            box = {"Long": "boxed_long", "Int": "boxed_int", "Double": "boxed_double"}[kind]
+            lines.append(f"    jobject {var} = {field} ? {box}(env, *{field}) : nullptr;\n")
+            refs.append(var)
+        else:
+            cast = {"Int": "jint", "Long": "jlong", "Double": "jdouble"}[kind]
+            lines.append(f"    {cast} {var} = static_cast<{cast}>({field});\n")
+        arguments.append(var)
+    return lines, arguments, refs
 
 
 def generate_android(ir: dict[str, Any]) -> dict[str, str]:
@@ -48,10 +84,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     header = "// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     kotlin = header + "package team.holder.android.generated\n\n" + \
-        "data class ContractCardListItem(\n" + "".join(
-            f"    val {_camel(name)}: {kind}{'?' if optional else ''},\n"
-            for name, kind, _, optional in typed) + \
-        ")\n\ndata class ContractCardPage(\n    val items: List<ContractCardListItem>,\n" \
+        _record_kotlin("ContractCardListItem", typed) + \
+        "\ndata class ContractCardPage(\n    val items: List<ContractCardListItem>,\n" \
         "    val nextCursor: String?,\n)\n\n" \
         "object ContractCards {\n" \
         "    external fun nativeListCardsPage(contextHandle: Long, projectId: String, cursor: String?): ContractCardPage\n" \
@@ -128,21 +162,8 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
              '  if (env->ExceptionCheck()) return nullptr;\n'
              '  for (size_t i = 0; i < page->items.count; ++i) {\n'
              '    const auto& card = page->items.items[i];\n']
-    arguments = []
-    refs = []
-    for name, kind, _, optional in typed:
-        var = f"v_{name}"
-        if kind == "String":
-            lines.append(f"    jstring {var} = string(env, card.{name});\n")
-            refs.append(var)
-        elif optional:
-            box = {"Long": "boxed_long", "Int": "boxed_int", "Double": "boxed_double"}[kind]
-            lines.append(f"    jobject {var} = card.{name} ? {box}(env, *card.{name}) : nullptr;\n")
-            refs.append(var)
-        else:
-            cast = {"Int": "jint", "Long": "jlong", "Double": "jdouble"}[kind]
-            lines.append(f"    {cast} {var} = static_cast<{cast}>(card.{name});\n")
-        arguments.append(var)
+    record_lines, arguments, refs = _record_jni_lines(typed, "card")
+    lines.extend(record_lines)
     lines += [f"    jobject item = env->NewObject(item_type, item_ctor, {', '.join(arguments)});\n",
               *[f"    if ({var}) env->DeleteLocalRef({var});\n" for var in refs],
               '    if (env->ExceptionCheck()) return nullptr;\n'
@@ -154,4 +175,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
               '  jmethodID page_ctor = env->GetMethodID(page_type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");\n'
               '  jstring next = string(env, page->next_cursor);\n'
               '  return env->NewObject(page_type, page_ctor, items, next);\n}\n']
-    return {KOTLIN_PATH: kotlin, JNI_PATH: "".join(lines)}
+    from .android_projects import generate_projects
+
+    return {KOTLIN_PATH: kotlin, JNI_PATH: "".join(lines),
+            **generate_projects(ir, records, aliases)}

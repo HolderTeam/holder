@@ -19,7 +19,7 @@ COMMANDS = {
     "check": "report every problem in the contract, and fail if a generated file in core, Android, the daemon or api/ is "
              "out of date",
     "ir": "write the contract's IR as JSON",
-    "generate": "write every generated file into --output, a directory: core's C API, Android's Card bridge, "
+    "generate": "write every generated file into --output, a directory: core's C API, Android's Card and Project bridges, "
                 "the daemon's routes, their JSON codec and their OpenAPI paths",
     "update": "write the generated files into core, Android, the daemon and api/",
 }
