@@ -64,9 +64,15 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         ("message", {"kind": "string"}),
     ]:
         raise ValueError("Android encryption check fields need a generator update")
+    sync = operations["get_project_sync_state"]
+    if [p["name"] for p in sync["parameters"]] != ["project_id"] or sync["returns"] != {
+        "kind": "named", "name": "SyncState"
+    }:
+        raise ValueError("Android get_project_sync_state parameters or return need a generator update")
+    sync_typed = [(field["name"], *_field_type(field, aliases)) for field in records["SyncState"]["fields"]]
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
-    header = "// Generated from contract/interface/projects.py, maintenance.py and app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     kotlin = header + "package team.holder.android.generated\n\n" + \
         _record_kotlin("ContractProjectListItem", typed) + "\n" + \
@@ -75,18 +81,22 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    val projectId: String,\n    val privacyMode: String,\n    val ok: Boolean,\n" \
         "    val checkedFiles: Int,\n    val unsafeFiles: Int,\n" \
         "    val unsafePaths: List<String>,\n    val message: String,\n)\n" + \
+        "\n" + _record_kotlin("ContractSyncState", sync_typed) + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
         "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
         "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
         "    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck\n" \
+        "    external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     record_lines, arguments, refs = _record_jni_lines(typed, "project", {"privacy_mode": "mode"})
     project_descriptor = "(" + "".join(signature for _, _, signature, _ in project_typed) + ")V"
     project_lines, project_args, project_refs = _record_jni_lines(project_typed, "project", {"privacy_mode": "mode"}, indent="  ")
+    sync_descriptor = "(" + "".join(signature for _, _, signature, _ in sync_typed) + ")V"
+    sync_lines, sync_args, sync_refs = _record_jni_lines(sync_typed, "value", indent="  ")
     mode_lines = "".join(
         f"      case HOLDER_PROJECT_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"
         for value in mode["values"])
@@ -104,5 +114,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         project_record_lines="".join(project_lines),
         project_construction=f"  jobject item = env->NewObject(item_type, item_ctor, {', '.join(project_args)});\n",
         project_release_refs="".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in project_refs),
+        sync_constructor=f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{sync_descriptor}");\n',
+        sync_record_lines="".join(sync_lines),
+        sync_construction=f"  jobject item = env->NewObject(item_type, item_ctor, {', '.join(sync_args)});\n",
+        sync_release_refs="".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in sync_refs),
     )
     return {PROJECT_KOTLIN_PATH: kotlin, PROJECT_JNI_PATH: jni}

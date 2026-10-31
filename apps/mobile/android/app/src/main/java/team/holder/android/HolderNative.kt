@@ -1341,6 +1341,20 @@ object HolderNative {
     }
 
     fun gitSyncStatus(projectId: String): GitSyncStatus {
+        val sync = readLane.call { ContractProjects.nativeGetProjectSyncState(it, projectId) }
+        return GitSyncStatus(
+            lastPushAt = sync.lastPushAt,
+            lastPullAt = sync.lastPullAt,
+            uncommittedChangesCount = sync.uncommittedChangesCount,
+            unpushedCommitsCount = sync.unpushedCommitsCount,
+            lastPushStatus = sync.lastPushStatus,
+            lastPullStatus = sync.lastPullStatus,
+            lastSyncError = sync.lastSyncError,
+        )
+    }
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun gitSyncStatusJsonForBenchmark(projectId: String): GitSyncStatus {
         val sync = JSONObject(readLane.call { nativeGitSyncStatus(it, projectId) }).getJSONObject("sync")
         return GitSyncStatus(
             lastPushAt = sync.optLongOrNull("last_push_at"),

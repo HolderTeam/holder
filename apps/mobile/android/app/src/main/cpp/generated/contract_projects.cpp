@@ -1,4 +1,4 @@
-// Generated from contract/interface/projects.py, maintenance.py and app.py by holder_contract.
+// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.
 // Do not edit; run make -C contract update.
 #include "holder/holder.h"
 #include <jni.h>
@@ -72,6 +72,14 @@ jobject boxed_int(JNIEnv* env, int32_t value) {
   jclass type = env->FindClass("java/lang/Integer");
   jmethodID ctor = env->GetMethodID(type, "<init>", "(I)V");
   jobject result = env->NewObject(type, ctor, static_cast<jint>(value));
+  env->DeleteLocalRef(type);
+  return result;
+}
+
+jobject boxed_long(JNIEnv* env, int64_t value) {
+  jclass type = env->FindClass("java/lang/Long");
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(J)V");
+  jobject result = env->NewObject(type, ctor, static_cast<jlong>(value));
   env->DeleteLocalRef(type);
   return result;
 }
@@ -152,6 +160,41 @@ jobject encryption_check_result(JNIEnv* env, const holder_project_encryption_che
   env->DeleteLocalRef(list_type);
   env->DeleteLocalRef(item_type);
   return result;
+}
+
+jobject sync_state_result(JNIEnv* env, const holder_sync_state& value) {
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractSyncState");
+  if (!item_type) return nullptr;
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Long;ILjava/lang/Long;Ljava/lang/Long;)V");
+  jstring v_project_id = string(env, value.project_id);
+  jobject v_last_commit_at = value.last_commit_at ? boxed_long(env, *value.last_commit_at) : nullptr;
+  jobject v_last_push_at = value.last_push_at ? boxed_long(env, *value.last_push_at) : nullptr;
+  jobject v_last_pull_at = value.last_pull_at ? boxed_long(env, *value.last_pull_at) : nullptr;
+  jint v_uncommitted_changes_count = static_cast<jint>(value.uncommitted_changes_count);
+  jint v_unpushed_commits_count = static_cast<jint>(value.unpushed_commits_count);
+  jstring v_last_push_status = string(env, value.last_push_status);
+  jstring v_last_pull_status = string(env, value.last_pull_status);
+  jstring v_last_sync_error = string(env, value.last_sync_error);
+  jobject v_last_sync_error_at = value.last_sync_error_at ? boxed_long(env, *value.last_sync_error_at) : nullptr;
+  jint v_retry_count = static_cast<jint>(value.retry_count);
+  jobject v_next_retry_at = value.next_retry_at ? boxed_long(env, *value.next_retry_at) : nullptr;
+  jint v_pull_retry_count = static_cast<jint>(value.pull_retry_count);
+  jobject v_next_pull_retry_at = value.next_pull_retry_at ? boxed_long(env, *value.next_pull_retry_at) : nullptr;
+  jobject v_updated_at = value.updated_at ? boxed_long(env, *value.updated_at) : nullptr;
+  jobject item = env->NewObject(item_type, item_ctor, v_project_id, v_last_commit_at, v_last_push_at, v_last_pull_at, v_uncommitted_changes_count, v_unpushed_commits_count, v_last_push_status, v_last_pull_status, v_last_sync_error, v_last_sync_error_at, v_retry_count, v_next_retry_at, v_pull_retry_count, v_next_pull_retry_at, v_updated_at);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_last_commit_at) env->DeleteLocalRef(v_last_commit_at);
+  if (v_last_push_at) env->DeleteLocalRef(v_last_push_at);
+  if (v_last_pull_at) env->DeleteLocalRef(v_last_pull_at);
+  if (v_last_push_status) env->DeleteLocalRef(v_last_push_status);
+  if (v_last_pull_status) env->DeleteLocalRef(v_last_pull_status);
+  if (v_last_sync_error) env->DeleteLocalRef(v_last_sync_error);
+  if (v_last_sync_error_at) env->DeleteLocalRef(v_last_sync_error_at);
+  if (v_next_retry_at) env->DeleteLocalRef(v_next_retry_at);
+  if (v_next_pull_retry_at) env->DeleteLocalRef(v_next_pull_retry_at);
+  if (v_updated_at) env->DeleteLocalRef(v_updated_at);
+  env->DeleteLocalRef(item_type);
+  return item;
 }
 
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
@@ -295,6 +338,22 @@ Java_team_holder_android_generated_ContractProjects_nativeCheckProjectEncryption
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot check project encryption"); return nullptr; }
   return encryption_check_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeGetProjectSyncState(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_sync_state* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_project_sync_state(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot read project sync state"); return nullptr; }
+  return sync_state_result(env, *value);
 }
 
 extern "C" JNIEXPORT void JNICALL

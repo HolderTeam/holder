@@ -74,6 +74,14 @@ jobject boxed_int(JNIEnv* env, int32_t value) {
   return result;
 }
 
+jobject boxed_long(JNIEnv* env, int64_t value) {
+  jclass type = env->FindClass("java/lang/Long");
+  jmethodID ctor = env->GetMethodID(type, "<init>", "(J)V");
+  jobject result = env->NewObject(type, ctor, static_cast<jlong>(value));
+  env->DeleteLocalRef(type);
+  return result;
+}
+
 const char* privacy_mode(holder_project_privacy_mode value) {
   switch (value) {
 ${mode_cases}      default: return nullptr;
@@ -128,6 +136,13 @@ jobject encryption_check_result(JNIEnv* env, const holder_project_encryption_che
   env->DeleteLocalRef(list_type);
   env->DeleteLocalRef(item_type);
   return result;
+}
+
+jobject sync_state_result(JNIEnv* env, const holder_sync_state& value) {
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractSyncState");
+  if (!item_type) return nullptr;
+${sync_constructor}${sync_record_lines}${sync_construction}${sync_release_refs}  env->DeleteLocalRef(item_type);
+  return item;
 }
 
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
@@ -249,6 +264,22 @@ Java_team_holder_android_generated_ContractProjects_nativeCheckProjectEncryption
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot check project encryption"); return nullptr; }
   return encryption_check_result(env, *value);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeGetProjectSyncState(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_sync_state* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_project_sync_state(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot read project sync state"); return nullptr; }
+  return sync_state_result(env, *value);
 }
 
 extern "C" JNIEXPORT void JNICALL

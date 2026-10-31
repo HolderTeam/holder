@@ -80,6 +80,25 @@ def test_project_encryption_check_maps_nested_safety_fields():
         generate_android(changed)
 
 
+def test_project_sync_state_generates_nullable_fields_and_c_bridge():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    kotlin = generated[PROJECT_KOTLIN_PATH]
+    jni = generated[PROJECT_JNI_PATH]
+    assert "data class ContractSyncState(" in kotlin
+    assert "val lastPushAt: Long?" in kotlin
+    assert "val unpushedCommitsCount: Int" in kotlin
+    assert "nativeGetProjectSyncState" in kotlin
+    assert "holder_get_project_sync_state(" in jni
+    assert "boxed_long(env, *value.last_push_at)" in jni
+
+    changed = deepcopy(ir)
+    sync = next(op for op in changed["operations"] if op["name"] == "get_project_sync_state")
+    sync["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="get_project_sync_state parameters or return"):
+        generate_android(changed)
+
+
 def test_card_list_return_change_requires_generator_update():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

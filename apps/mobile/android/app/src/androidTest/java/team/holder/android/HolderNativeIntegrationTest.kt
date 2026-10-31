@@ -294,6 +294,47 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedGitSyncState_matchesJsonBeforeAndAfterFailedPush() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Sync state project")
+        val fresh = HolderNative.gitSyncStatus(project.projectId)
+        assertEquals(HolderNative.gitSyncStatusJsonForBenchmark(project.projectId), fresh)
+        assertNull(fresh.lastPushStatus)
+
+        assertEquals("remote_unset", HolderNative.pushGit(project.projectId).status)
+        val expected = HolderNative.gitSyncStatusJsonForBenchmark(project.projectId)
+        assertEquals("remote_unset", expected.lastPushStatus)
+        assertEquals(expected, HolderNative.gitSyncStatus(project.projectId))
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> GitSyncStatus): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertEquals(expected, result)
+            return elapsed
+        }
+        repeat(9) { round ->
+            if (round % 2 == 0) {
+                val generated = sample { HolderNative.gitSyncStatus(project.projectId) }
+                val json = sample { HolderNative.gitSyncStatusJsonForBenchmark(project.projectId) }
+                if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+            } else {
+                val json = sample { HolderNative.gitSyncStatusJsonForBenchmark(project.projectId) }
+                val generated = sample { HolderNative.gitSyncStatus(project.projectId) }
+                if (round >= 2) { generatedTimes.add(generated); jsonTimes.add(json) }
+            }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderSyncStateTiming", "generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+
+        assertThrows(RuntimeException::class.java) { HolderNative.gitSyncStatus("missing-project") }
+        assertEquals(expected, HolderNative.gitSyncStatus(project.projectId))
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId
