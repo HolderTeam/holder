@@ -3,6 +3,7 @@ package team.holder.android
 import android.content.Context
 import team.holder.android.generated.ContractCards
 import team.holder.android.generated.ContractHistory
+import team.holder.android.generated.ContractResources
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import team.holder.android.generated.ContractProject
@@ -242,12 +243,9 @@ data class HolderLocation(
 
 data class HolderPlacement(
     val placementId: String,
-    val assetId: String,
     val locationId: String,
-    val objectKey: String,
     val encoding: String,
     val storedByteSize: Long,
-    val storedSha256: String,
     val createdAt: Long,
 )
 
@@ -1797,6 +1795,36 @@ object HolderNative {
         parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
 
     fun listResources(projectId: String): List<HolderResource> {
+        return readLane.call { ContractResources.nativeListResources(it, projectId) }.map { resource ->
+            HolderResource(
+                resourceId = resource.resourceId,
+                projectId = resource.projectId,
+                type = resource.type,
+                label = resource.label,
+                createdAt = resource.createdAt,
+                updatedAt = resource.updatedAt,
+                assets = resource.assets.map { asset -> HolderAsset(
+                    assetId = asset.assetId,
+                    resourceId = resource.resourceId,
+                    originalFilename = asset.originalFilename,
+                    mediaType = asset.mediaType,
+                    byteSize = asset.byteSize,
+                    plaintextSha256 = asset.plaintextSha256,
+                    createdAt = asset.createdAt,
+                    updatedAt = asset.updatedAt,
+                    placements = asset.placements.map { placement -> HolderPlacement(
+                        placementId = placement.placementId,
+                        locationId = placement.locationId,
+                        encoding = placement.encoding,
+                        storedByteSize = placement.storedByteSize,
+                        createdAt = placement.createdAt,
+                    ) },
+                ) },
+            )
+        }
+    }
+
+    internal fun listResourcesJsonForBenchmark(projectId: String): List<HolderResource> {
         val resources = JSONArray(readLane.call { nativeResourceList(it, projectId) })
         return List(resources.length()) { index -> parseResourceBundle(resources.getJSONObject(index)) }
     }
@@ -1951,12 +1979,9 @@ object HolderNative {
 
     private fun parsePlacement(json: JSONObject) = HolderPlacement(
         placementId = json.getString("placement_id"),
-        assetId = json.getString("asset_id"),
         locationId = json.getString("location_id"),
-        objectKey = json.getString("object_key"),
         encoding = json.getString("encoding"),
         storedByteSize = json.getLong("stored_byte_size"),
-        storedSha256 = json.getString("stored_sha256"),
         createdAt = json.getLong("created_at"),
     )
 

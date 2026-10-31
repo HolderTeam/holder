@@ -1375,6 +1375,56 @@ class HolderNativeIntegrationTest {
         assertEquals(trashed.cardId, restoredTrash.cardId)
     }
 
+    @Test
+    fun generatedResourceListing_matchesJsonAndProjectScopeWithTiming() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Resources")
+        val other = HolderNative.createProject("Other resources")
+        fun addResource(projectId: String, name: String, body: String): String {
+            val card = HolderNative.createCard(projectId, "Attachment host", "Body")
+            val locationId = UUID.randomUUID().toString()
+            HolderNative.putLocation(locationId, projectId, "Local", "local_directory", emptyMap(),
+                System.currentTimeMillis() / 1000)
+            val source = File(dataDir, name).apply { writeText(body) }
+            return HolderNative.importAsset(projectId, card.cardId, locationId, source.absolutePath).resourceId
+        }
+        val firstId = addResource(project.projectId, "café.txt", "first attachment")
+        val secondId = addResource(project.projectId, "second.txt", "second attachment")
+        addResource(other.projectId, "other.txt", "other attachment")
+
+        val generated = HolderNative.listResources(project.projectId)
+        val legacy = HolderNative.listResourcesJsonForBenchmark(project.projectId)
+        assertEquals(legacy, generated)
+        assertEquals(setOf(firstId, secondId), generated.map { it.resourceId }.toSet())
+        assertTrue(generated.all { it.assets.single().placements.size == 1 })
+        assertTrue(HolderNative.listResources(other.projectId).single().projectId == other.projectId)
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> List<HolderResource>): Long {
+            val start = System.nanoTime()
+            val result = call()
+            val elapsed = System.nanoTime() - start
+            assertEquals(generated, result)
+            return elapsed
+        }
+        repeat(12) { round ->
+            val typed: Long
+            val json: Long
+            if (round % 2 == 0) {
+                typed = sample { HolderNative.listResources(project.projectId) }
+                json = sample { HolderNative.listResourcesJsonForBenchmark(project.projectId) }
+            } else {
+                json = sample { HolderNative.listResourcesJsonForBenchmark(project.projectId) }
+                typed = sample { HolderNative.listResources(project.projectId) }
+            }
+            if (round >= 2) { generatedTimes.add(typed); jsonTimes.add(json) }
+        }
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderResourcesTiming", "2 resources generated=${median(generatedTimes) / 1_000_000.0}ms " +
+            "JSON=${median(jsonTimes) / 1_000_000.0}ms")
+    }
+
     private fun initialize(welcomeContent: String) {
         HolderNative.initialize(
             context = context,

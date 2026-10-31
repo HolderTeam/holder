@@ -150,6 +150,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     )
     from .android_history import generate_history
     from .android_projects import generate_projects
+    from .android_resources import generate_resources
 
     return {KOTLIN_PATH: kotlin, JNI_PATH: jni,
-            **generate_projects(contract), **generate_history(contract)}
+            **generate_projects(contract), **generate_history(contract), **generate_resources(contract)}

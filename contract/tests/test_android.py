@@ -10,6 +10,8 @@ from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PRO
 from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
 from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
 from holder_contract.android_ir import ContractView, NullableType, ScalarType
+from holder_contract.android_resources import JNI_PATH as RESOURCES_JNI_PATH
+from holder_contract.android_resources import KOTLIN_PATH as RESOURCES_KOTLIN_PATH
 from holder_contract.extract import extract
 
 
@@ -322,6 +324,21 @@ def test_card_history_restore_bridge_uses_contract_result_shape():
     result = next(record for record in changed["records"] if record["name"] == "CardHistoryRestoreResult")
     result["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
     with pytest.raises(ValueError, match="CardHistoryRestoreResult fields need a generator update"):
+        generate_android(changed)
+
+
+def test_resource_listing_bridge_uses_contract_nested_records():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "data class ContractResource(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "data class ContractResourceAsset(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "data class ContractAssetPlacement(" in generated[RESOURCES_KOTLIN_PATH]
+    assert "holder_list_resources(" in generated[RESOURCES_JNI_PATH]
+
+    changed = deepcopy(ir)
+    placement = next(record for record in changed["records"] if record["name"] == "AssetPlacement")
+    placement["fields"].append({"name": "new_detail", "type": {"kind": "string"}})
+    with pytest.raises(ValueError, match="AssetPlacement fields need a generator update"):
         generate_android(changed)
 
 
