@@ -1264,6 +1264,12 @@ object HolderNative {
 
     /** remoteUrl null clears the configured remote. */
     fun updateProjectGitRemote(projectId: String, remoteUrl: String?): HolderProject =
+        fromContractProject(saveLane.call {
+            ContractProjects.nativeUpdateProjectGitRemote(it, projectId, remoteUrl)
+        })
+
+    /** Previous JSON path, retained for parity and timing during migration. */
+    internal fun updateProjectGitRemoteJsonForBenchmark(projectId: String, remoteUrl: String?): HolderProject =
         parseProject(JSONObject(saveLane.call { nativeProjectUpdateGitRemote(it, projectId, remoteUrl) }))
 
     /** Re-registers the background lane's native git signer with [projectId]'s own key --

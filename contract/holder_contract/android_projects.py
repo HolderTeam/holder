@@ -40,6 +40,11 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     if [f["name"] for f in records["ProjectUpdate"]["fields"]] != ["name", "git_remote_url", "git_provider"] or \
             operations["update_project"]["parameters"][1]["type"] != {"kind": "named", "name": "ProjectUpdate"}:
         raise ValueError("Android ProjectUpdate fields need a generator update")
+    remote_field = records["ProjectUpdate"]["fields"][1]
+    if not remote_field.get("omittable") or remote_field["type"] != {
+        "kind": "nullable", "value": {"kind": "named", "name": "GitRemoteUrl"}
+    }:
+        raise ValueError("Android project remote update needs nullable, omittable GitRemoteUrl")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
     header = "// Generated from contract/interface/projects.py and contract/interface/app.py by holder_contract.\n" \
@@ -51,6 +56,7 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
         "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
+        "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"

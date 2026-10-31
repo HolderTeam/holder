@@ -188,6 +188,62 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun generatedProjectRemoteUpdate_matchesJsonForSetAndClear() {
+        initialize("# Welcome\n\nWelcome")
+        val generatedProject = HolderNative.createProject("Remote generated")
+        val jsonProject = HolderNative.createProjectJsonForBenchmark("Remote JSON")
+        val generatedSet = ArrayList<Long>()
+        val jsonSet = ArrayList<Long>()
+        val generatedClear = ArrayList<Long>()
+        val jsonClear = ArrayList<Long>()
+        fun timed(samples: MutableList<Long>, record: Boolean, call: () -> HolderProject): HolderProject {
+            val start = System.nanoTime()
+            val result = call()
+            if (record) samples.add(System.nanoTime() - start)
+            return result
+        }
+        fun pair(round: Int, generatedSamples: MutableList<Long>, jsonSamples: MutableList<Long>,
+                 generated: () -> HolderProject, json: () -> HolderProject): Pair<HolderProject, HolderProject> {
+            val record = round >= 2
+            return if (round % 2 == 0) {
+                Pair(timed(generatedSamples, record, generated), timed(jsonSamples, record, json))
+            } else {
+                val old = timed(jsonSamples, record, json)
+                Pair(timed(generatedSamples, record, generated), old)
+            }
+        }
+        repeat(9) { round ->
+            val url = "https://example.com/holder-remote-$round.git"
+            val (set, jsonSetResult) = pair(round, generatedSet, jsonSet,
+                { HolderNative.updateProjectGitRemote(generatedProject.projectId, url) },
+                { HolderNative.updateProjectGitRemoteJsonForBenchmark(jsonProject.projectId, url) })
+            assertEquals(url, set.gitRemoteUrl)
+            assertEquals(jsonSetResult.gitRemoteUrl, set.gitRemoteUrl)
+            assertEquals(set, HolderNative.listProjects().single { it.projectId == set.projectId })
+
+            val (cleared, jsonCleared) = pair(round, generatedClear, jsonClear,
+                { HolderNative.updateProjectGitRemote(generatedProject.projectId, null) },
+                { HolderNative.updateProjectGitRemoteJsonForBenchmark(jsonProject.projectId, null) })
+            assertNull(cleared.gitRemoteUrl)
+            assertEquals(jsonCleared.gitRemoteUrl, cleared.gitRemoteUrl)
+            assertEquals(cleared, HolderNative.listProjects().single { it.projectId == cleared.projectId })
+        }
+        val url = "https://example.com/holder-empty-clear.git"
+        HolderNative.updateProjectGitRemote(generatedProject.projectId, url)
+        assertNull(HolderNative.updateProjectGitRemote(generatedProject.projectId, "").gitRemoteUrl)
+        assertThrows(RuntimeException::class.java) {
+            HolderNative.updateProjectGitRemote("missing-project", url)
+        }
+        assertNull(HolderNative.updateProjectGitRemote(generatedProject.projectId, null).gitRemoteUrl)
+
+        fun median(samples: List<Long>) = samples.sorted()[samples.size / 2]
+        Log.i("HolderProjectRemoteTiming", "set generated=${median(generatedSet) / 1_000_000.0}ms " +
+            "JSON=${median(jsonSet) / 1_000_000.0}ms")
+        Log.i("HolderProjectRemoteTiming", "clear generated=${median(generatedClear) / 1_000_000.0}ms " +
+            "JSON=${median(jsonClear) / 1_000_000.0}ms")
+    }
+
+    @Test
     fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
         initialize("# Welcome\n\nWelcome")
         val projectId = HolderNative.createProject("Card page timing").projectId

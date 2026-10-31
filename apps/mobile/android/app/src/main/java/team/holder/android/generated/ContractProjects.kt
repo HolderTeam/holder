@@ -32,5 +32,6 @@ object ContractProjects {
     external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
     external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
     external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject
+    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
 }

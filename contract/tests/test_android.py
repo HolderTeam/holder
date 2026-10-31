@@ -38,6 +38,8 @@ def test_project_writes_follow_contract_and_preserve_android_plain_default():
     assert "HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN" in jni
     assert "GetStringChars" in jni
     assert "project.project_id" in jni
+    assert "nativeUpdateProjectGitRemote" in kotlin
+    assert "request.git_remote_url.change = !remote_url || url.empty() ? HOLDER_CLEAR : HOLDER_SET" in jni
 
     changed = deepcopy(ir)
     project = next(record for record in changed["records"] if record["name"] == "Project")
@@ -50,6 +52,12 @@ def test_project_writes_follow_contract_and_preserve_android_plain_default():
     new_project = next(record for record in changed["records"] if record["name"] == "NewProject")
     new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}})
     with pytest.raises(ValueError, match="NewProject fields need a generator update"):
+        generate_android(changed)
+
+    changed = deepcopy(ir)
+    update = next(record for record in changed["records"] if record["name"] == "ProjectUpdate")
+    update["fields"][1]["omittable"] = False
+    with pytest.raises(ValueError, match="remote update needs nullable, omittable"):
         generate_android(changed)
 
 
