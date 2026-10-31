@@ -77,8 +77,22 @@ data class ContractRemoteTestResult(
     val errorMessage: String?,
 )
 
+data class ContractSyncNowResult(
+    val pullAttempted: Boolean,
+    val pullStatus: String?,
+    val pullError: String?,
+    val pullConflictsResolved: Int,
+    val pushAttempted: Boolean,
+    val pushStatus: String?,
+    val pushError: String?,
+    val pushAheadCount: Int,
+    val pushBehindCount: Int,
+    val pushLocalHeadCommit: String?,
+)
+
 object ContractProjects {
     external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
+    external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject
     external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
     external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject
     external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject
@@ -87,5 +101,6 @@ object ContractProjects {
     external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase
     external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase
     external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult
+    external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult
     external fun nativeDeleteProject(contextHandle: Long, projectId: String)
 }

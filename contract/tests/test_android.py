@@ -225,6 +225,20 @@ def test_project_list_return_change_requires_generator_update():
         generate_android(changed)
 
 
+def test_project_sync_bridge_tracks_contract_operation():
+    ir = extract(Path(__file__).resolve().parents[1], "interface")
+    generated = generate_android(ir)
+    assert "nativeSyncProject" in generated[PROJECT_KOTLIN_PATH]
+    assert "holder_sync_project(" in generated[PROJECT_JNI_PATH]
+    assert "holder_pull_project(" in generated[PROJECT_JNI_PATH]
+
+    changed = deepcopy(ir)
+    operation = next(op for op in changed["operations"] if op["name"] == "sync_project")
+    operation["returns"] = {"kind": "string"}
+    with pytest.raises(ValueError, match="Android sync_project parameters or return"):
+        generate_android(changed)
+
+
 def test_unmapped_literal_fails_before_emitting_invalid_jni():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     changed = deepcopy(ir)

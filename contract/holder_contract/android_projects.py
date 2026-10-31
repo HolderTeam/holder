@@ -25,6 +25,9 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     fields = records["Project"]["fields"] + records["ProjectListItem"]["fields"]
     project_fields = records["Project"]["fields"]
     operations = {op["name"]: op for op in ir["operations"]}
+    if [p["name"] for p in operations["get_project"]["parameters"]] != ["project_id"] or \
+            operations["get_project"]["returns"] != {"kind": "named", "name": "Project"}:
+        raise ValueError("Android get_project needs a Project result")
     for name, parameters in {"create_project": ["project"], "update_project": ["project_id", "update"],
                              "delete_project": ["project_id"]}.items():
         op = operations[name]
@@ -85,10 +88,11 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         raise ValueError("Android pull_project or PullPhase needs a generator update")
     for name, parameters in {
         "push_project": ["project_id", "options"],
+        "sync_project": ["project_id", "options"],
         "test_project_remote": ["project_id", "remote"],
     }.items():
         op = operations[name]
-        expected = "SyncResult" if name == "push_project" else "RemoteTestResult"
+        expected = "RemoteTestResult" if name == "test_project_remote" else "SyncResult"
         if [p["name"] for p in op["parameters"]] != parameters or op["returns"] != {
             "kind": "named", "name": expected
         }:
@@ -102,6 +106,10 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     ] or [field["name"] for field in records["PushOptions"]["fields"]] != ["branch", "set_upstream"] or \
             [field["name"] for field in records["RemoteTest"]["fields"]] != ["remote_url"]:
         raise ValueError("Android project push or remote test fields need a generator update")
+    if [field["name"] for field in records["SyncResult"]["fields"]] != [
+        "project_id", "status", "remote_url", "pull", "push"
+    ]:
+        raise ValueError("Android SyncResult fields need a generator update")
     typed = [(field["name"], *_field_type(field, aliases, allow_literal=field["name"] == "privacy_mode"))
              for field in fields]
     header = "// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n" \
@@ -121,8 +129,14 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    val behindCount: Int,\n    val errorMessage: String?,\n)\n" + \
         "\ndata class ContractRemoteTestResult(\n    val status: String,\n" \
         "    val remoteHasHead: Boolean,\n    val errorMessage: String?,\n)\n" + \
+        "\ndata class ContractSyncNowResult(\n    val pullAttempted: Boolean,\n" \
+        "    val pullStatus: String?,\n    val pullError: String?,\n    val pullConflictsResolved: Int,\n" \
+        "    val pushAttempted: Boolean,\n    val pushStatus: String?,\n    val pushError: String?,\n" \
+        "    val pushAheadCount: Int,\n    val pushBehindCount: Int,\n" \
+        "    val pushLocalHeadCommit: String?,\n)\n" + \
         "\nobject ContractProjects {\n" \
         "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
+        "    external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject\n" \
         "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
         "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
         "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
@@ -131,6 +145,7 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
         "    external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase\n" \
         "    external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase\n" \
         "    external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult\n" \
+        "    external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult\n" \
         "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
         "}\n"
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"

@@ -1463,9 +1463,35 @@ object HolderNative {
         push: Boolean = true,
         setUpstream: Boolean = true,
     ): GitSyncNowResult {
+        return backgroundLane.call {
+            selectGitSignerForProject(it, projectId)
+            // The existing Android action leaves a project without a remote untouched.
+            if (ContractProjects.nativeGetProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
+                GitSyncNowResult(false, null, null, 0, false, null, null, 0, 0, null)
+            } else {
+                val result = ContractProjects.nativeSyncProject(
+                    it, projectId, branch?.takeIf { value -> value.isNotEmpty() }, push, setUpstream)
+                GitSyncNowResult(
+                    pullAttempted = result.pullAttempted,
+                    pullStatus = result.pullStatus,
+                    pullError = result.pullError,
+                    pullConflictsResolved = result.pullConflictsResolved,
+                    pushAttempted = result.pushAttempted,
+                    pushStatus = result.pushStatus,
+                    pushError = result.pushError,
+                    pushAheadCount = result.pushAheadCount,
+                    pushBehindCount = result.pushBehindCount,
+                    pushLocalHeadCommit = result.pushLocalHeadCommit,
+                )
+            }
+        }
+    }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun gitSyncNowJsonForBenchmark(projectId: String, push: Boolean = true): GitSyncNowResult {
         val json = JSONObject(backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            nativeGitSyncNow(it, projectId, branch, push, setUpstream)
+            nativeGitSyncNow(it, projectId, null, push, true)
         })
         return GitSyncNowResult(
             pullAttempted = json.getBoolean("pull_attempted"),

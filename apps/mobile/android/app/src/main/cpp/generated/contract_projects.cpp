@@ -283,6 +283,35 @@ jobject remote_test_result(JNIEnv* env, const holder_remote_test_result& value) 
   return result;
 }
 
+jobject sync_now_result(JNIEnv* env, const holder_sync_result& value) {
+  const char* pull_state = value.pull.attempted ? pull_status(value.pull.status) : nullptr;
+  const char* push_state = value.push.attempted ? push_status(value.push.status) : nullptr;
+  if ((value.pull.attempted && !pull_state) || (value.push.attempted && !push_state)) {
+    fail(env, "unknown project sync status"); return nullptr;
+  }
+  jclass type = env->FindClass("team/holder/android/generated/ContractSyncNowResult");
+  if (!type) return nullptr;
+  jmethodID ctor = env->GetMethodID(type, "<init>",
+      "(ZLjava/lang/String;Ljava/lang/String;IZLjava/lang/String;Ljava/lang/String;IILjava/lang/String;)V");
+  if (!ctor) { env->DeleteLocalRef(type); return nullptr; }
+  jstring pull_status_value = string(env, pull_state);
+  jstring pull_error = string(env, value.pull.error_message);
+  jstring push_status_value = string(env, push_state);
+  jstring push_error = string(env, value.push.error_message);
+  jstring head = string(env, value.push.local_head_commit);
+  jobject result = env->NewObject(type, ctor, static_cast<jboolean>(value.pull.attempted),
+      pull_status_value, pull_error, static_cast<jint>(value.pull.conflicts_resolved),
+      static_cast<jboolean>(value.push.attempted), push_status_value, push_error,
+      static_cast<jint>(value.push.ahead_count), static_cast<jint>(value.push.behind_count), head);
+  if (pull_status_value) env->DeleteLocalRef(pull_status_value);
+  if (pull_error) env->DeleteLocalRef(pull_error);
+  if (push_status_value) env->DeleteLocalRef(push_status_value);
+  if (push_error) env->DeleteLocalRef(push_error);
+  if (head) env->DeleteLocalRef(head);
+  env->DeleteLocalRef(type);
+  return result;
+}
+
 void project_error(JNIEnv* env, holder_error* error, const char* fallback) {
   std::string message = error ? holder_error_message(error) : fallback;
   if (error) holder_error_destroy(error);
@@ -345,6 +374,22 @@ Java_team_holder_android_generated_ContractProjects_nativeListProjectsPage(
     if (env->ExceptionCheck()) return nullptr;
   }
   return items;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeGetProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id;
+  if (!utf8(env, project_id, id)) return nullptr;
+  Arena arena;
+  const holder_project* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_project(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot get project"); return nullptr; }
+  return project_result(env, *value);
 }
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -456,6 +501,28 @@ Java_team_holder_android_generated_ContractProjects_nativePullProject(
       id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
   if (status != HOLDER_OK) { project_error(env, error, "cannot pull project"); return nullptr; }
   return pull_phase_result(env, value->pull);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractProjects_nativeSyncProject(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring branch,
+    jboolean push, jboolean set_upstream) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  std::string id, branch_name;
+  if (!utf8(env, project_id, id) || (branch && !utf8(env, branch, branch_name))) return nullptr;
+  const bool upstream = set_upstream;
+  holder_push_options options{};
+  options.branch = branch ? branch_name.c_str() : nullptr;
+  options.set_upstream = &upstream;
+  Arena arena;
+  const holder_sync_result* value = nullptr;
+  holder_error* error = nullptr;
+  holder_context* context = reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle));
+  int status = arena.value ? (push
+      ? holder_sync_project(context, id.c_str(), &options, arena.value, &value, &error)
+      : holder_pull_project(context, id.c_str(), arena.value, &value, &error)) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) { project_error(env, error, "cannot sync project"); return nullptr; }
+  return sync_now_result(env, *value);
 }
 
 extern "C" JNIEXPORT jobject JNICALL
