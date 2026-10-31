@@ -2,6 +2,7 @@ package team.holder.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import android.util.Log
 import java.io.File
 import java.util.UUID
 import org.junit.After
@@ -88,6 +89,43 @@ class HolderNativeIntegrationTest {
         assertEquals(card.cardId, results.single().cardId)
         assertEquals(title, results.single().title)
         assertNotNull(results.single().snippet)
+    }
+
+    @Test
+    fun generatedCardPage_matchesJsonAndStaysWithinCallBudget() {
+        initialize("# Welcome\n\nWelcome")
+        val projectId = HolderNative.createProject("Card page timing").projectId
+        repeat(300) { index ->
+            HolderNative.createCard(projectId, "Card $index 📝", "Body $index")
+        }
+
+        assertEquals(HolderNative.listCardsJsonForBenchmark(projectId), HolderNative.listCards(projectId))
+        repeat(3) {
+            HolderNative.listCards(projectId)
+            HolderNative.listCardsJsonForBenchmark(projectId)
+        }
+        val generated = ArrayList<Long>()
+        val json = ArrayList<Long>()
+        repeat(9) { round ->
+            fun sample(call: () -> Unit): Long {
+                val start = System.nanoTime()
+                call()
+                return System.nanoTime() - start
+            }
+            if (round % 2 == 0) {
+                generated.add(sample { HolderNative.listCards(projectId) })
+                json.add(sample { HolderNative.listCardsJsonForBenchmark(projectId) })
+            } else {
+                json.add(sample { HolderNative.listCardsJsonForBenchmark(projectId) })
+                generated.add(sample { HolderNative.listCards(projectId) })
+            }
+        }
+        val generatedMedian = generated.sorted()[generated.size / 2]
+        val jsonMedian = json.sorted()[json.size / 2]
+        Log.i("HolderCardPageTiming", "300 cards: generated=${generatedMedian / 1_000_000.0}ms " +
+            "json=${jsonMedian / 1_000_000.0}ms")
+        assertTrue("Generated page took over twice the JSON path plus 10ms: $generatedMedian vs $jsonMedian ns",
+            generatedMedian <= jsonMedian * 2 + 10_000_000)
     }
 
     @Test

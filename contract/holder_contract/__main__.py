@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+from .android import generate_android
 from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
 from .extract import ContractError, extract, load_contract
 from .generate import CORE_PATHS, Unsupported, generate
@@ -15,12 +16,12 @@ from .generate import CORE_PATHS, Unsupported, generate
 CONTRACT = Path(__file__).resolve().parents[1]
 REPOSITORY = CONTRACT.parent
 COMMANDS = {
-    "check": "report every problem in the contract, and fail if a generated file in core, the daemon or api/ is "
+    "check": "report every problem in the contract, and fail if a generated file in core, Android, the daemon or api/ is "
              "out of date",
     "ir": "write the contract's IR as JSON",
-    "generate": "write every generated file into --output, a directory: core's C API, and the daemon's routes, "
-                "their JSON codec and their OpenAPI paths",
-    "update": "write the generated files into core, the daemon and api/",
+    "generate": "write every generated file into --output, a directory: core's C API, Android's Card bridge, "
+                "the daemon's routes, their JSON codec and their OpenAPI paths",
+    "update": "write the generated files into core, Android, the daemon and api/",
 }
 
 
@@ -37,6 +38,7 @@ def repository_files(ir: dict, contract, files: dict[str, str]) -> dict[str, str
     """Every generated file the repository holds, by its path in the repository."""
     daemon = generate_daemon(ir, contract)
     return {**{CORE_PATHS[name]: text for name, text in files.items()},
+            **generate_android(ir),
             **{DAEMON_PATHS[name]: daemon[name] for name in DAEMON_PATHS},
             **{OPENAPI_PATHS[name]: text for name, text in api_documents(contract, REPOSITORY).items()}}
 
@@ -89,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             files = repository_files(ir, load_contract(args.root, args.package), files)
         except (Unsupported, ValueError) as error:
-            print(f"The daemon's files cannot be generated: {error}", file=sys.stderr)
+            print(f"A generated file cannot be written: {error}", file=sys.stderr)
             return 1
     if args.command == "check":
         stale = stale_files(files)
@@ -100,9 +102,10 @@ def main(argv: list[str] | None = None) -> int:
         if not args.output:
             parser.error("generate needs --output, a directory")
         try:
-            files = {**files, **generate_daemon(ir, load_contract(args.root, args.package))}
-        except Unsupported as error:
-            print(f"The daemon's generators do not support this yet: {error}", file=sys.stderr)
+            files = {**files, **generate_daemon(ir, load_contract(args.root, args.package)),
+                     **{path.rsplit('/', 1)[-1]: text for path, text in generate_android(ir).items()}}
+        except (Unsupported, ValueError) as error:
+            print(f"A generator does not support this yet: {error}", file=sys.stderr)
             return 1
         targets = {name: args.output / name for name in files}
     else:

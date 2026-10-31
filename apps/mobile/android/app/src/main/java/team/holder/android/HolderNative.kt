@@ -1,6 +1,7 @@
 package team.holder.android
 
 import android.content.Context
+import team.holder.android.generated.ContractCards
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -715,6 +716,33 @@ object HolderNative {
     }
 
     fun listCards(projectId: String): List<HolderCard> {
+        val result = ArrayList<HolderCard>()
+        readLane.call { context ->
+            var cursor: String? = null
+            do {
+                val page = ContractCards.nativeListCardsPage(context, projectId, cursor)
+                result.ensureCapacity(result.size + page.items.size)
+                page.items.forEach { card ->
+                    result.add(HolderCard(
+                        cardId = card.cardId,
+                        projectId = card.projectId,
+                        title = card.title,
+                        parentCardId = card.parentCardId,
+                        createdAt = card.createdAt,
+                        updatedAt = card.updatedAt,
+                        sortKey = card.sortKey,
+                        deletedAt = card.deletedAt,
+                        childCount = card.childCount,
+                    ))
+                }
+                cursor = page.nextCursor
+            } while (cursor != null)
+        }
+        return result
+    }
+
+    /** The previous JSON path, kept as a reference for the Android performance comparison. */
+    internal fun listCardsJsonForBenchmark(projectId: String): List<HolderCard> {
         val cards = JSONArray(readLane.call { nativeCardList(it, projectId) })
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }

@@ -251,13 +251,13 @@ def test_generated_routes_compile_and_answer_requests(tmp_path):
     assert result.stdout == (TESTS / "http" / "exercise.expected").read_text(encoding="utf-8")
 
 
-def test_generate_command_writes_core_and_daemon_files(tmp_path):
+def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
     from holder_contract.__main__ import main
 
     assert main(["generate", "--output", str(tmp_path)]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractJson.h",
-        "ContractRoutes.h", "holder_api.h", "openapi.json"]
+        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractCards.kt",
+        "ContractJson.h", "ContractRoutes.h", "contract_cards.cpp", "holder_api.h", "openapi.json"]
 
 
 def daemon_document(paths):
