@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .android import PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, _field_type, _record_jni_lines, _record_kotlin
+from .android_inputs import InputField, generate_input_record
 from .android_ir import ContractView, ListType, LiteralType, NamedType, NullableType, ScalarType
 from .android_templates import TEMPLATES
 
@@ -28,12 +29,13 @@ class ProjectBridgeGenerator:
 
     def generate(self) -> dict[str, str]:
         self._validate_contract()
+        new_project_record, new_project_fields = generate_input_record(self.contract, "NewProject")
         project = self._typed_fields("Project")
         listing = self._typed_fields("Project", "ProjectListItem")
         sync = self._typed_fields("SyncState")
         return {
-            PROJECT_KOTLIN_PATH: self._render_kotlin(project, listing, sync),
-            PROJECT_JNI_PATH: self._render_jni(project, listing, sync),
+            PROJECT_KOTLIN_PATH: self._render_kotlin(project, listing, sync, new_project_record),
+            PROJECT_JNI_PATH: self._render_jni(project, listing, sync, new_project_fields),
         }
 
     def _validate_contract(self) -> None:
@@ -41,7 +43,6 @@ class ProjectBridgeGenerator:
         self._validate_privacy_mode()
         self._validate_project_lookup()
         self._validate_project_writes()
-        self._validate_new_project()
         self._validate_project_update()
         self._validate_encryption_check()
         self._validate_sync_state()
@@ -83,15 +84,8 @@ class ProjectBridgeGenerator:
             operation = self.contract.operation(name)
             if [p.name for p in operation.parameters] != parameters or operation.returns != NamedType(name="Project"):
                 raise ValueError(f"Android {name} parameters or return need a generator update")
-
-    def _validate_new_project(self) -> None:
-        fields = self.contract.record("NewProject").fields
-        if [field.name for field in fields] != [
-            "project_id", "name", "root_path", "git_remote_url", "git_provider", "privacy_mode",
-            "created_at", "updated_at"
-        ] or self.contract.operation("create_project").parameter("project").type != NamedType(name="NewProject") or \
-                self.contract.record("NewProject").field("privacy_mode").default != "encrypted_git":
-            raise ValueError("Android NewProject fields need a generator update")
+        if self.contract.operation("create_project").parameter("project").type != NamedType(name="NewProject"):
+            raise ValueError("Android create_project request needs NewProject")
 
     def _validate_project_update(self) -> None:
         fields = self.contract.record("ProjectUpdate").fields
@@ -184,11 +178,12 @@ class ProjectBridgeGenerator:
 
     def _render_kotlin(self, project: list[tuple[str, str, str, bool]],
                        listing: list[tuple[str, str, str, bool]],
-                       sync: list[tuple[str, str, str, bool]]) -> str:
+                       sync: list[tuple[str, str, str, bool]], new_project_record: str) -> str:
         return HEADER + TEMPLATES.get_template("android_projects.kt.j2").render(
             project_list_record=_record_kotlin("ContractProjectListItem", listing),
             project_record=_record_kotlin("ContractProject", project),
             sync_record=_record_kotlin("ContractSyncState", sync),
+            new_project_record=new_project_record,
         )
 
     @staticmethod
@@ -207,7 +202,7 @@ class ProjectBridgeGenerator:
 
     def _render_jni(self, project: list[tuple[str, str, str, bool]],
                     listing: list[tuple[str, str, str, bool]],
-                    sync: list[tuple[str, str, str, bool]]) -> str:
+                    sync: list[tuple[str, str, str, bool]], new_project_fields: list[InputField]) -> str:
         item = self._record_conversion(listing, "project", "    ", {"privacy_mode": "mode"})
         project_result = self._record_conversion(project, "project", "  ", {"privacy_mode": "mode"})
         sync_result = self._record_conversion(sync, "value", "  ")
@@ -227,6 +222,7 @@ class ProjectBridgeGenerator:
             project_construction=project_result.construction, project_release_refs=project_result.release_refs,
             sync_constructor=sync_result.constructor, sync_record_lines=sync_result.record_lines,
             sync_construction=sync_result.construction, sync_release_refs=sync_result.release_refs,
+            new_project_fields=new_project_fields,
         )
 
 

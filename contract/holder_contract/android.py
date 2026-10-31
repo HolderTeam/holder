@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .android_ir import ContractView, FieldView, NamedType, NullableType, ScalarType
+from .android_ir import ContractView, FieldView, NamedType, ScalarType
 from .android_templates import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
@@ -15,14 +15,8 @@ PROJECT_JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_proj
 
 def _field_type(field: FieldView, contract: ContractView, *,
                 allow_literal: bool = False) -> tuple[str, str, bool]:
-    value = field.type
-    optional = field.omittable
-    while isinstance(value, NamedType | NullableType):
-        if isinstance(value, NamedType):
-            value = contract.alias(value.name)
-        else:
-            optional = True
-            value = value.value
+    value, nullable = contract.resolve_type(field.type)
+    optional = field.omittable or nullable
     kind = value.kind
     if kind == "literal" and not allow_literal:
         raise ValueError(f"Android record conversion needs a C enum mapping for {field.name}")

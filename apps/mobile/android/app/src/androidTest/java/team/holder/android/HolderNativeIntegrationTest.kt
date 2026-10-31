@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import team.holder.android.generated.ContractNewProject
 
 /**
  * Representative Kotlin -> JNI -> C API -> libholder tests.
@@ -187,6 +188,28 @@ class HolderNativeIntegrationTest {
 
         val encrypted = HolderNative.createProject("Encrypted 🚀", "encrypted_git")
         assertEquals("encrypted_git", encrypted.privacyMode)
+    }
+
+    @Test
+    fun generatedNewProjectRequest_preservesImportedFields() {
+        initialize("# Welcome\n\nWelcome")
+        val id = UUID.randomUUID().toString()
+        val root = dataDir.resolve("imported-project").absolutePath
+        val createdAt = 1_700_000_000L
+        val project = HolderNative.createProjectContract(ContractNewProject(
+            projectId = id,
+            name = "Imported project",
+            rootPath = root,
+            gitProvider = "example",
+            privacyMode = "plain",
+            createdAt = createdAt,
+            updatedAt = createdAt + 10,
+        ))
+        assertEquals(id, project.projectId)
+        assertEquals(root, project.rootPath)
+        assertEquals("example", project.gitProvider)
+        assertEquals(createdAt, project.createdAt)
+        assertEquals(createdAt + 10, project.updatedAt)
     }
 
     @Test

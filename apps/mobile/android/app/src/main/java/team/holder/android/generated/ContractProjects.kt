@@ -28,6 +28,17 @@ data class ContractProject(
     val updatedAt: Long,
 )
 
+data class ContractNewProject(
+    val projectId: String? = null,
+    val name: String,
+    val rootPath: String? = null,
+    val gitRemoteUrl: String? = null,
+    val gitProvider: String? = null,
+    val privacyMode: String = "encrypted_git",
+    val createdAt: Long? = null,
+    val updatedAt: Long? = null,
+)
+
 data class ContractEncryptionCheck(
     val projectId: String,
     val privacyMode: String,
@@ -93,7 +104,7 @@ data class ContractSyncNowResult(
 object ContractProjects {
     external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
     external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject
-    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
+    external fun nativeCreateProject(contextHandle: Long, project: ContractNewProject): ContractProject
     external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject
     external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject
     external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck

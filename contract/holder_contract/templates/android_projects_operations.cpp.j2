@@ -49,28 +49,7 @@ Java_team_holder_android_generated_ContractProjects_nativeGetProject(
   return project_result(env, *value);
 }
 
-extern "C" JNIEXPORT jobject JNICALL
-Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
-    JNIEnv* env, jobject, jlong context_handle, jstring name, jstring privacy_mode_value) {
-  if (!context_handle || !name) { fail(env, "context and name are required"); return nullptr; }
-  std::string project_name, privacy;
-  if (!utf8(env, name, project_name) ||
-      (privacy_mode_value && !utf8(env, privacy_mode_value, privacy))) return nullptr;
-  holder_new_project request{};
-  request.name = project_name.c_str();
-  // Android's null mode has always meant plain; the contract defaults to encrypted_git.
-  if (!privacy_mode_value || privacy == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
-  else if (privacy == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
-  else { fail(env, "unknown project privacy mode"); return nullptr; }
-  Arena arena;
-  const holder_project* value = nullptr;
-  holder_error* error = nullptr;
-  int status = arena.value ? holder_create_project(
-      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
-      &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
-  if (status != HOLDER_OK) { project_error(env, error, "cannot create project"); return nullptr; }
-  return project_result(env, *value);
-}
+{% include "android_project_create.cpp.j2" %}
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativeRenameProject(

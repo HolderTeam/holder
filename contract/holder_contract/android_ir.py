@@ -139,3 +139,14 @@ class ContractView(View):
             return next(operation for operation in self.operations if operation.name == name)
         except StopIteration as error:
             raise ValueError(f"Contract has no operation {name}") from error
+
+    def resolve_type(self, ref: TypeRef) -> tuple[TypeRef, bool]:
+        """Follow aliases and nullability while retaining the field's separate omission rule."""
+        nullable = False
+        while isinstance(ref, NamedType | NullableType):
+            if isinstance(ref, NamedType):
+                ref = self.alias(ref.name)
+            else:
+                nullable = True
+                ref = ref.value
+        return ref, nullable

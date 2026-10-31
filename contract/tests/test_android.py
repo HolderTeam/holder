@@ -52,9 +52,20 @@ def test_project_writes_follow_contract_and_preserve_android_plain_default():
 
     changed = deepcopy(ir)
     new_project = next(record for record in changed["records"] if record["name"] == "NewProject")
-    new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}})
-    with pytest.raises(ValueError, match="NewProject fields need a generator update"):
-        generate_android(changed)
+    new_project["fields"].append({"name": "new_option", "type": {"kind": "string"}, "omittable": True})
+    expanded = generate_android(changed)
+    assert "val newOption: String? = null" in expanded[PROJECT_KOTLIN_PATH]
+    assert 'read_string_field(env, input, input_type, "newOption", false' in expanded[PROJECT_JNI_PATH]
+    assert "request.new_option = v_new_option ? v_new_option->c_str() : nullptr" in expanded[PROJECT_JNI_PATH]
+
+    new_project["fields"].append({"name": "required_nullable", "type": {
+        "kind": "nullable", "value": {"kind": "string"}}})
+    new_project["fields"].append({"name": "optional_with_value", "type": {
+        "kind": "nullable", "value": {"kind": "string"}}, "default": "hello"})
+    expanded = generate_android(changed)[PROJECT_KOTLIN_PATH]
+    assert "val requiredNullable: String?," in expanded
+    assert "val requiredNullable: String? = null" not in expanded
+    assert 'val optionalWithValue: String? = "hello"' in expanded
 
     changed = deepcopy(ir)
     update = next(record for record in changed["records"] if record["name"] == "ProjectUpdate")

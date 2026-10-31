@@ -3,6 +3,7 @@
 #include "holder/holder.h"
 #include <jni.h>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace {
@@ -66,6 +67,37 @@ bool utf8(JNIEnv* env, jstring input, std::string& out) {
   }
   env->ReleaseStringChars(input, chars);
   return true;
+}
+
+bool read_string_field(JNIEnv* env, jobject input, jclass type, const char* name, bool required,
+                       std::optional<std::string>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/String;");
+  if (!field) return false;
+  jstring value = static_cast<jstring>(env->GetObjectField(input, field));
+  if (env->ExceptionCheck()) return false;
+  if (!value) {
+    if (required) { fail(env, "required project field is null"); return false; }
+    return true;
+  }
+  out.emplace();
+  const bool decoded = utf8(env, value, *out);
+  env->DeleteLocalRef(value);
+  return decoded;
+}
+
+bool read_long_field(JNIEnv* env, jobject input, jclass type, const char* name, std::optional<int64_t>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/Long;");
+  if (!field) return false;
+  jobject value = env->GetObjectField(input, field);
+  if (env->ExceptionCheck()) return false;
+  if (!value) return true;
+  jclass boxed_type = env->GetObjectClass(value);
+  if (!boxed_type) return false;
+  jmethodID long_value = env->GetMethodID(boxed_type, "longValue", "()J");
+  if (long_value) out = static_cast<int64_t>(env->CallLongMethod(value, long_value));
+  env->DeleteLocalRef(boxed_type);
+  env->DeleteLocalRef(value);
+  return long_value && !env->ExceptionCheck();
 }
 
 jobject boxed_int(JNIEnv* env, int32_t value) {
@@ -395,17 +427,40 @@ Java_team_holder_android_generated_ContractProjects_nativeGetProject(
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
-    JNIEnv* env, jobject, jlong context_handle, jstring name, jstring privacy_mode_value) {
-  if (!context_handle || !name) { fail(env, "context and name are required"); return nullptr; }
-  std::string project_name, privacy;
-  if (!utf8(env, name, project_name) ||
-      (privacy_mode_value && !utf8(env, privacy_mode_value, privacy))) return nullptr;
+    JNIEnv* env, jobject, jlong context_handle, jobject input) {
+  if (!context_handle || !input) { fail(env, "context and project are required"); return nullptr; }
+  jclass input_type = env->GetObjectClass(input);
+  if (!input_type) return nullptr;
   holder_new_project request{};
-  request.name = project_name.c_str();
-  // Android's null mode has always meant plain; the contract defaults to encrypted_git.
-  if (!privacy_mode_value || privacy == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
-  else if (privacy == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
-  else { fail(env, "unknown project privacy mode"); return nullptr; }
+  std::optional<std::string> v_project_id;
+  if (!read_string_field(env, input, input_type, "projectId", false, v_project_id)) return nullptr;
+  request.project_id = v_project_id ? v_project_id->c_str() : nullptr;
+  std::optional<std::string> v_name;
+  if (!read_string_field(env, input, input_type, "name", true, v_name)) return nullptr;
+  request.name = v_name ? v_name->c_str() : nullptr;
+  std::optional<std::string> v_root_path;
+  if (!read_string_field(env, input, input_type, "rootPath", false, v_root_path)) return nullptr;
+  request.root_path = v_root_path ? v_root_path->c_str() : nullptr;
+  std::optional<std::string> v_git_remote_url;
+  if (!read_string_field(env, input, input_type, "gitRemoteUrl", false, v_git_remote_url)) return nullptr;
+  request.git_remote_url = v_git_remote_url ? v_git_remote_url->c_str() : nullptr;
+  std::optional<std::string> v_git_provider;
+  if (!read_string_field(env, input, input_type, "gitProvider", false, v_git_provider)) return nullptr;
+  request.git_provider = v_git_provider ? v_git_provider->c_str() : nullptr;
+  std::optional<std::string> v_privacy_mode;
+  if (!read_string_field(env, input, input_type, "privacyMode", true, v_privacy_mode)) return nullptr;
+  if (v_privacy_mode) {
+    if (*v_privacy_mode == "encrypted_git") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_ENCRYPTED_GIT;
+    else if (*v_privacy_mode == "plain") request.privacy_mode = HOLDER_NEW_PROJECT_PRIVACY_MODE_PLAIN;
+    else { fail(env, "unknown privacy_mode"); return nullptr; }
+  }
+  std::optional<int64_t> v_created_at;
+  if (!read_long_field(env, input, input_type, "createdAt", v_created_at)) return nullptr;
+  request.created_at = v_created_at ? &*v_created_at : nullptr;
+  std::optional<int64_t> v_updated_at;
+  if (!read_long_field(env, input, input_type, "updatedAt", v_updated_at)) return nullptr;
+  request.updated_at = v_updated_at ? &*v_updated_at : nullptr;
+  env->DeleteLocalRef(input_type);
   Arena arena;
   const holder_project* value = nullptr;
   holder_error* error = nullptr;
@@ -415,6 +470,7 @@ Java_team_holder_android_generated_ContractProjects_nativeCreateProject(
   if (status != HOLDER_OK) { project_error(env, error, "cannot create project"); return nullptr; }
   return project_result(env, *value);
 }
+
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractProjects_nativeRenameProject(

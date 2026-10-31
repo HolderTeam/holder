@@ -1,6 +1,7 @@
 #include "holder/holder.h"
 #include <jni.h>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace {
@@ -64,6 +65,37 @@ bool utf8(JNIEnv* env, jstring input, std::string& out) {
   }
   env->ReleaseStringChars(input, chars);
   return true;
+}
+
+bool read_string_field(JNIEnv* env, jobject input, jclass type, const char* name, bool required,
+                       std::optional<std::string>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/String;");
+  if (!field) return false;
+  jstring value = static_cast<jstring>(env->GetObjectField(input, field));
+  if (env->ExceptionCheck()) return false;
+  if (!value) {
+    if (required) { fail(env, "required project field is null"); return false; }
+    return true;
+  }
+  out.emplace();
+  const bool decoded = utf8(env, value, *out);
+  env->DeleteLocalRef(value);
+  return decoded;
+}
+
+bool read_long_field(JNIEnv* env, jobject input, jclass type, const char* name, std::optional<int64_t>& out) {
+  jfieldID field = env->GetFieldID(type, name, "Ljava/lang/Long;");
+  if (!field) return false;
+  jobject value = env->GetObjectField(input, field);
+  if (env->ExceptionCheck()) return false;
+  if (!value) return true;
+  jclass boxed_type = env->GetObjectClass(value);
+  if (!boxed_type) return false;
+  jmethodID long_value = env->GetMethodID(boxed_type, "longValue", "()J");
+  if (long_value) out = static_cast<int64_t>(env->CallLongMethod(value, long_value));
+  env->DeleteLocalRef(boxed_type);
+  env->DeleteLocalRef(value);
+  return long_value && !env->ExceptionCheck();
 }
 
 jobject boxed_int(JNIEnv* env, int32_t value) {

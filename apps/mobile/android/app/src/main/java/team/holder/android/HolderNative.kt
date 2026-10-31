@@ -5,6 +5,7 @@ import team.holder.android.generated.ContractCards
 import team.holder.android.generated.ContractCardMetadata
 import team.holder.android.generated.ContractProjects
 import team.holder.android.generated.ContractProject
+import team.holder.android.generated.ContractNewProject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -875,9 +876,12 @@ object HolderNative {
             JSONObject(saveLane.call { nativeBackupRestore(it, projectName, privacyMode, cardsJson, commitMessage) }),
         )
 
-    /** privacyMode null defaults (server-side) to "plain". "encrypted_git" is also valid. */
+    /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        fromContractProject(saveLane.call { ContractProjects.nativeCreateProject(it, name, privacyMode) })
+        fromContractProject(createProjectContract(ContractNewProject(name = name, privacyMode = privacyMode ?: "plain")))
+
+    internal fun createProjectContract(project: ContractNewProject): ContractProject =
+        saveLane.call { ContractProjects.nativeCreateProject(it, project) }
 
     fun renameProject(projectId: String, name: String): HolderProject =
         fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
