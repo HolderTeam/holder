@@ -789,6 +789,11 @@ LocationDeleteResult delete_storage_location(holder_context& context, std::strin
 /// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
 Card get_card(holder_context& context, std::string project_id, std::string card_id);
 
+/// Fetch a live card's metadata without reading its content.
+/// A card in the trash or in another project is not found.
+/// @throws NotFound
+CardMetadata get_card_metadata(holder_context& context, std::string project_id, std::string card_id);
+
 /// Read a live card's path from its project root.
 /// The project comes first, then live ancestor cards and the requested card. A missing or trashed
 /// card is not found; a broken or cyclic ancestor chain is invalid.

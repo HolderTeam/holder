@@ -20,6 +20,7 @@ from .cards import (
     CardBreadcrumb,
     CardId,
     CardListItem,
+    CardMetadata,
     CardMove,
     CardUpdate,
     NewCard,
@@ -141,6 +142,14 @@ def delete_storage_location(location_id: Annotated[str, Path(min_length=1)]) -> 
                 errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
 def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
     """Fetch a card.
+
+    A card in the trash or in another project is not found.
+    """
+
+
+@contract.route("GET", "/projects/{project_id}/cards/{card_id}/metadata", errors=[NotFound])
+def get_card_metadata(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> CardMetadata:
+    """Fetch a live card's metadata without reading its content.
 
     A card in the trash or in another project is not found.
     """

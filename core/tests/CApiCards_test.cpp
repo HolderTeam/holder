@@ -205,6 +205,24 @@ TEST_CASE("holder_get_card does not find trashed or unknown cards, or cards in a
           HOLDER_ERROR_NOT_FOUND);
 }
 
+TEST_CASE("holder_get_card_metadata reads only a live card in the requested project", "[capi][contract]") {
+  Fixture f;
+  const auto* created = f.create("Café", "A large body #tag");
+  const std::string id = created->card_id;
+  const holder_card_metadata* metadata = nullptr;
+  REQUIRE(holder_get_card_metadata(f.context, f.project_id.c_str(), id.c_str(), f.arena, &metadata, &f.error) ==
+          HOLDER_OK);
+  REQUIRE(std::string(metadata->title) == "Café");
+  REQUIRE(std::string(metadata->project_id) == f.project_id);
+  REQUIRE(metadata->deleted_at == nullptr);
+
+  REQUIRE(f.failed(holder_get_card_metadata(f.context, "other-project", id.c_str(), f.arena, &metadata, &f.error)) ==
+          HOLDER_ERROR_NOT_FOUND);
+  REQUIRE(holder_card_delete(f.context, id.c_str(), &f.error) == HOLDER_OK);
+  REQUIRE(f.failed(holder_get_card_metadata(f.context, f.project_id.c_str(), id.c_str(), f.arena, &metadata,
+                                             &f.error)) == HOLDER_ERROR_NOT_FOUND);
+}
+
 TEST_CASE("holder_list_cards filters by level and adds content and counts on request", "[capi][contract]") {
   Fixture f;
   const auto* root = f.create("Root", "Body");

@@ -115,3 +115,51 @@ Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
   jstring next = string(env, page->next_cursor);
   return env->NewObject(page_type, page_ctor, items, next);
 }
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeGetCardMetadata(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* id = env->GetStringUTFChars(card_id, nullptr);
+  if (!project || !id) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    if (id) env->ReleaseStringUTFChars(card_id, id);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card_metadata* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card_metadata(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  env->ReleaseStringUTFChars(card_id, id);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card metadata";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& card = *value;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");
+  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DJJLjava/lang/Long;)V");
+  jstring v_card_id = string(env, card.card_id);
+  jstring v_project_id = string(env, card.project_id);
+  jstring v_title = string(env, card.title);
+  jstring v_rel_path = string(env, card.rel_path);
+  jstring v_parent_card_id = string(env, card.parent_card_id);
+  jdouble v_sort_key = static_cast<jdouble>(card.sort_key);
+  jlong v_created_at = static_cast<jlong>(card.created_at);
+  jlong v_updated_at = static_cast<jlong>(card.updated_at);
+  jobject v_deleted_at = card.deleted_at ? boxed_long(env, *card.deleted_at) : nullptr;
+  jobject result = env->NewObject(item_type, item_ctor, v_card_id, v_project_id, v_title, v_rel_path, v_parent_card_id, v_sort_key, v_created_at, v_updated_at, v_deleted_at);
+  if (v_card_id) env->DeleteLocalRef(v_card_id);
+  if (v_project_id) env->DeleteLocalRef(v_project_id);
+  if (v_title) env->DeleteLocalRef(v_title);
+  if (v_rel_path) env->DeleteLocalRef(v_rel_path);
+  if (v_parent_card_id) env->DeleteLocalRef(v_parent_card_id);
+  if (v_deleted_at) env->DeleteLocalRef(v_deleted_at);
+  return result;
+}

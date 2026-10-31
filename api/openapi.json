@@ -7341,6 +7341,82 @@
         }
       }
     },
+    "/projects/{project_id}/cards/{card_id}/metadata": {
+      "get": {
+        "summary": "Fetch a live card's metadata without reading its content.",
+        "description": "A card in the trash or in another project is not found.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CardId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid argument.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The thing asked for does not exist, or is in the trash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/cards/{card_id}/milestones": {
       "get": {
         "summary": "List a card's milestones.",
@@ -16105,6 +16181,24 @@
         ],
         "title": "CardMetadata",
         "description": "Everything about a card except its content."
+      },
+      "CardMetadataResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CardMetadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "title": "CardMetadataResponse"
       },
       "CardMove": {
         "properties": {

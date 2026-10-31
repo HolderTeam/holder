@@ -115,6 +115,7 @@ from .card_list_item import CardListItem
 from .card_list_item_page import CardListItemPage
 from .card_list_item_page_response import CardListItemPageResponse
 from .card_metadata import CardMetadata
+from .card_metadata_response import CardMetadataResponse
 from .card_move import CardMove
 from .card_move_intent import CardMoveIntent
 from .card_reference_candidate import CardReferenceCandidate
@@ -398,6 +399,7 @@ __all__ = (
     "CardListItemPage",
     "CardListItemPageResponse",
     "CardMetadata",
+    "CardMetadataResponse",
     "CardMove",
     "CardMoveIntent",
     "CardReferenceCandidate",

@@ -387,6 +387,8 @@ holder_location_delete_result to_c(holder_arena* arena, const contract::Location
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
 holder_card to_c(holder_arena* arena, const contract::Card& value);
+holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value);
+holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values);
 holder_card_breadcrumb to_c(holder_arena* arena, const contract::CardBreadcrumb& value);
 holder_card_breadcrumb_list to_c_list(holder_arena* arena, const std::vector<contract::CardBreadcrumb>& values);
 holder_card_reference_candidate to_c(holder_arena* arena, const contract::CardReferenceCandidate& value);
@@ -405,8 +407,6 @@ holder_milestone to_c(holder_arena* arena, const contract::Milestone& value);
 holder_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::Milestone>& values);
 holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMilestone& value);
 holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values);
-holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value);
-holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values);
 holder_calendar to_c(holder_arena* arena, const contract::Calendar& value);
 holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value);
 holder_asset_placement_list to_c_list(holder_arena* arena, const std::vector<contract::AssetPlacement>& values);
@@ -509,6 +509,26 @@ holder_card to_c(holder_arena* arena, const contract::Card& value) {
   out.tags = copy_strings(arena, value.tags);
   out.tag_occurrences = to_c_list(arena, value.tag_occurrences);
   return out;
+}
+
+holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value) {
+  holder_card_metadata out{};
+  out.card_id = copy(arena, value.card_id);
+  out.project_id = copy(arena, value.project_id);
+  out.title = copy(arena, value.title);
+  out.rel_path = copy(arena, value.rel_path);
+  out.parent_card_id = copy_text(arena, value.parent_card_id);
+  out.sort_key = value.sort_key;
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
+  return out;
+}
+
+holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values) {
+  auto* items = make<holder_card_metadata>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
 }
 
 holder_card_breadcrumb to_c(holder_arena* arena, const contract::CardBreadcrumb& value) {
@@ -659,26 +679,6 @@ holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMile
 
 holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values) {
   auto* items = make<holder_calendar_milestone>(arena, values.size());
-  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
-  return {items, values.size()};
-}
-
-holder_card_metadata to_c(holder_arena* arena, const contract::CardMetadata& value) {
-  holder_card_metadata out{};
-  out.card_id = copy(arena, value.card_id);
-  out.project_id = copy(arena, value.project_id);
-  out.title = copy(arena, value.title);
-  out.rel_path = copy(arena, value.rel_path);
-  out.parent_card_id = copy_text(arena, value.parent_card_id);
-  out.sort_key = value.sort_key;
-  out.created_at = value.created_at;
-  out.updated_at = value.updated_at;
-  out.deleted_at = copy_value<int64_t>(arena, value.deleted_at);
-  return out;
-}
-
-holder_card_metadata_list to_c_list(holder_arena* arena, const std::vector<contract::CardMetadata>& values) {
-  auto* items = make<holder_card_metadata>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
 }
@@ -1431,6 +1431,19 @@ int holder_get_card(holder_context* context, const char* project_id, const char*
     auto* out = make<holder_card>(arena);
     *out = to_c(arena, contract::get_card(*context, project_id_value, card_id_value));
     *out_card = out;
+  });
+}
+
+int holder_get_card_metadata(holder_context* context, const char* project_id, const char* card_id, holder_arena* arena, const holder_card_metadata** out_card_metadata, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_card_metadata != nullptr, "out_card_metadata must not be null");
+    *out_card_metadata = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto card_id_value = text(card_id, "card_id", 1, SIZE_MAX);
+    auto* out = make<holder_card_metadata>(arena);
+    *out = to_c(arena, contract::get_card_metadata(*context, project_id_value, card_id_value));
+    *out_card_metadata = out;
   });
 }
 

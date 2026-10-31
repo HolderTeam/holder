@@ -765,9 +765,20 @@ object HolderNative {
         return List(cards.length()) { index -> parseCard(cards.getJSONObject(index)) }
     }
 
-    /** Fetches one card's metadata by exact ID; scope is 0 for live, 1 for Trash, or 2 for either. */
-    fun getCard(cardId: String, scope: Int = 0): HolderCard =
-        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, scope) }))
+    /** Fetches one live card's metadata in its project. */
+    fun getCard(projectId: String, cardId: String): HolderCard {
+        val card = readLane.call { ContractCards.nativeGetCardMetadata(it, projectId, cardId) }
+        return HolderCard(card.cardId, card.projectId, card.title, card.parentCardId,
+            card.createdAt, card.updatedAt, card.sortKey, card.deletedAt)
+    }
+
+    /** Temporary JSON baseline for the generated live-card lookup. */
+    internal fun getCardJsonForBenchmark(cardId: String): HolderCard =
+        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, 0) }))
+
+    /** Trash-aware lookup stays on the legacy C API until the contract covers Trash lookup. */
+    fun getTrashedCard(cardId: String): HolderCard =
+        parseCard(JSONObject(readLane.call { nativeCardGet(it, cardId, 1) }))
 
     /** One hierarchy/recency view of projectId's cards, bundling what would otherwise be
      * several one-off native calls (list_roots/list_children/list_all/list_recent_page)

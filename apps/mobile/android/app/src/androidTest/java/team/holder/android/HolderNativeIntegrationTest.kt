@@ -85,7 +85,7 @@ class HolderNativeIntegrationTest {
         assertEquals(title, card.title)
         assertEquals(content, HolderNative.getCardContent(card.cardId))
         assertEquals(card, HolderNative.listCards(project.projectId).single { it.cardId == card.cardId })
-        assertEquals(card, HolderNative.getCard(card.cardId))
+        assertEquals(card, HolderNative.getCard(project.projectId, card.cardId))
 
         val results = HolderNative.searchCards(project.projectId, "résumé")
         assertEquals(1, results.size)
@@ -163,6 +163,47 @@ class HolderNativeIntegrationTest {
         Log.i("HolderCardPageTiming", "300 cards: generated=${generatedMedian / 1_000_000.0}ms " +
             "json=${jsonMedian / 1_000_000.0}ms")
         assertTrue("Generated page took over twice the JSON path plus 10ms: $generatedMedian vs $jsonMedian ns",
+            generatedMedian <= jsonMedian * 2 + 10_000_000)
+    }
+
+    @Test
+    fun generatedCardMetadata_matchesJsonAndRespectsProjectScope() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Metadata project")
+        val other = HolderNative.createProject("Other project")
+        val card = HolderNative.createCard(project.projectId, "Café 日本語 📝",
+            "# Café 日本語 📝\n\n" + "body text ".repeat(4_096))
+
+        assertEquals(HolderNative.getCardJsonForBenchmark(card.cardId),
+            HolderNative.getCard(project.projectId, card.cardId))
+        assertThrows(RuntimeException::class.java) { HolderNative.getCard(other.projectId, card.cardId) }
+        assertEquals(card, HolderNative.getCard(project.projectId, card.cardId))
+
+        val generatedTimes = ArrayList<Long>()
+        val jsonTimes = ArrayList<Long>()
+        fun sample(call: () -> Unit): Long {
+            val start = System.nanoTime()
+            call()
+            return System.nanoTime() - start
+        }
+        repeat(3) {
+            HolderNative.getCard(project.projectId, card.cardId)
+            HolderNative.getCardJsonForBenchmark(card.cardId)
+        }
+        repeat(9) { round ->
+            if (round % 2 == 0) {
+                generatedTimes.add(sample { HolderNative.getCard(project.projectId, card.cardId) })
+                jsonTimes.add(sample { HolderNative.getCardJsonForBenchmark(card.cardId) })
+            } else {
+                jsonTimes.add(sample { HolderNative.getCardJsonForBenchmark(card.cardId) })
+                generatedTimes.add(sample { HolderNative.getCard(project.projectId, card.cardId) })
+            }
+        }
+        val generatedMedian = generatedTimes.sorted()[generatedTimes.size / 2]
+        val jsonMedian = jsonTimes.sorted()[jsonTimes.size / 2]
+        Log.i("HolderCardMetadataTiming", "generated=${generatedMedian / 1_000_000.0}ms " +
+            "json=${jsonMedian / 1_000_000.0}ms")
+        assertTrue("Generated metadata took over twice JSON plus 10ms: $generatedMedian vs $jsonMedian ns",
             generatedMedian <= jsonMedian * 2 + 10_000_000)
     }
 
@@ -325,8 +366,8 @@ class HolderNativeIntegrationTest {
         assertTrue(HolderNative.listCards(project.projectId).none { it.cardId == card.cardId })
         val trashed = HolderNative.listTrashedCards(project.projectId).single { it.cardId == card.cardId }
         assertNotNull(trashed.deletedAt)
-        assertThrows(RuntimeException::class.java) { HolderNative.getCard(card.cardId) }
-        assertEquals(trashed, HolderNative.getCard(card.cardId, scope = 1))
+        assertThrows(RuntimeException::class.java) { HolderNative.getCard(project.projectId, card.cardId) }
+        assertEquals(trashed, HolderNative.getTrashedCard(card.cardId))
 
         val restored = HolderNative.restoreCard(card.cardId)
         assertEquals(card.cardId, restored.cardId)

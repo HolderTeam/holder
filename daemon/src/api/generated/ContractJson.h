@@ -598,6 +598,10 @@ template <> struct codec<holder::contract::Card> {
     static json encode(const holder::contract::Card& value);
     static holder::contract::Card decode(const json& value);
 };
+template <> struct codec<holder::contract::CardMetadata> {
+    static json encode(const holder::contract::CardMetadata& value);
+    static holder::contract::CardMetadata decode(const json& value);
+};
 template <> struct codec<holder::contract::CardBreadcrumb> {
     static json encode(const holder::contract::CardBreadcrumb& value);
     static holder::contract::CardBreadcrumb decode(const json& value);
@@ -637,10 +641,6 @@ template <> struct codec<holder::contract::Milestone> {
 template <> struct codec<holder::contract::CalendarMilestone> {
     static json encode(const holder::contract::CalendarMilestone& value);
     static holder::contract::CalendarMilestone decode(const json& value);
-};
-template <> struct codec<holder::contract::CardMetadata> {
-    static json encode(const holder::contract::CardMetadata& value);
-    static holder::contract::CardMetadata decode(const json& value);
 };
 template <> struct codec<holder::contract::Calendar> {
     static json encode(const holder::contract::Calendar& value);
@@ -1084,6 +1084,77 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
         out.tag_occurrences = decode_field<std::vector<holder::contract::TagOccurrence>>(item, "tag_occurrences");
     } else {
         throw std::invalid_argument("tag_occurrences is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::CardMetadata>::encode(const holder::contract::CardMetadata& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["rel_path"] = codec<std::string>::encode(value.rel_path);
+    result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
+    result["sort_key"] = codec<double>::encode(value.sort_key);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at) : json(nullptr);
+    return result;
+}
+inline holder::contract::CardMetadata codec<holder::contract::CardMetadata>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CardMetadata object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at") throw std::invalid_argument("CardMetadata has no field " + it.key());
+    holder::contract::CardMetadata out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("rel_path") && !value.at("rel_path").is_null()) {
+        const auto& item = value.at("rel_path");
+        out.rel_path = check_text(decode_field<std::string>(item, "rel_path"), "rel_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("rel_path is required and must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("sort_key") && !value.at("sort_key").is_null()) {
+        const auto& item = value.at("sort_key");
+        out.sort_key = decode_field<double>(item, "sort_key");
+    } else {
+        throw std::invalid_argument("sort_key is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
+        const auto& item = value.at("deleted_at");
+        out.deleted_at = decode_field<long long>(item, "deleted_at");
     }
     return out;
 }
@@ -1564,77 +1635,6 @@ inline holder::contract::CalendarMilestone codec<holder::contract::CalendarMiles
         out.card_title = check_text(decode_field<std::string>(item, "card_title"), "card_title", 0, std::numeric_limits<std::size_t>::max());
     } else {
         throw std::invalid_argument("card_title is required and must not be null");
-    }
-    return out;
-}
-
-inline json codec<holder::contract::CardMetadata>::encode(const holder::contract::CardMetadata& value) {
-    json result = json::object();
-    result["card_id"] = codec<std::string>::encode(value.card_id);
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["title"] = codec<std::string>::encode(value.title);
-    result["rel_path"] = codec<std::string>::encode(value.rel_path);
-    result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
-    result["sort_key"] = codec<double>::encode(value.sort_key);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    result["deleted_at"] = value.deleted_at ? codec<long long>::encode(*value.deleted_at) : json(nullptr);
-    return result;
-}
-inline holder::contract::CardMetadata codec<holder::contract::CardMetadata>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected a CardMetadata object");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at") throw std::invalid_argument("CardMetadata has no field " + it.key());
-    holder::contract::CardMetadata out;
-    if (value.contains("card_id") && !value.at("card_id").is_null()) {
-        const auto& item = value.at("card_id");
-        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("card_id is required and must not be null");
-    }
-    if (value.contains("project_id") && !value.at("project_id").is_null()) {
-        const auto& item = value.at("project_id");
-        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("project_id is required and must not be null");
-    }
-    if (value.contains("title") && !value.at("title").is_null()) {
-        const auto& item = value.at("title");
-        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("title is required and must not be null");
-    }
-    if (value.contains("rel_path") && !value.at("rel_path").is_null()) {
-        const auto& item = value.at("rel_path");
-        out.rel_path = check_text(decode_field<std::string>(item, "rel_path"), "rel_path", 0, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("rel_path is required and must not be null");
-    }
-    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
-        const auto& item = value.at("parent_card_id");
-        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
-    }
-    if (value.contains("sort_key") && !value.at("sort_key").is_null()) {
-        const auto& item = value.at("sort_key");
-        out.sort_key = decode_field<double>(item, "sort_key");
-    } else {
-        throw std::invalid_argument("sort_key is required and must not be null");
-    }
-    if (value.contains("created_at") && !value.at("created_at").is_null()) {
-        const auto& item = value.at("created_at");
-        out.created_at = decode_field<long long>(item, "created_at");
-    } else {
-        throw std::invalid_argument("created_at is required and must not be null");
-    }
-    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
-        const auto& item = value.at("updated_at");
-        out.updated_at = decode_field<long long>(item, "updated_at");
-    } else {
-        throw std::invalid_argument("updated_at is required and must not be null");
-    }
-    if (value.contains("deleted_at") && !value.at("deleted_at").is_null()) {
-        const auto& item = value.at("deleted_at");
-        out.deleted_at = decode_field<long long>(item, "deleted_at");
     }
     return out;
 }
