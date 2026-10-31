@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from string import Template
 from typing import Any
 
 from .android import PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, _field_type, _record_jni_lines, _record_kotlin
+from .android_templates import TEMPLATES
 
 
 def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
@@ -114,40 +113,11 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
              for field in fields]
     header = "// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
-    kotlin = header + "package team.holder.android.generated\n\n" + \
-        _record_kotlin("ContractProjectListItem", typed) + "\n" + \
-        _record_kotlin("ContractProject", project_typed) + \
-        "\ndata class ContractEncryptionCheck(\n" \
-        "    val projectId: String,\n    val privacyMode: String,\n    val ok: Boolean,\n" \
-        "    val checkedFiles: Int,\n    val unsafeFiles: Int,\n" \
-        "    val unsafePaths: List<String>,\n    val message: String,\n)\n" + \
-        "\n" + _record_kotlin("ContractSyncState", sync_typed) + \
-        "\ndata class ContractPullPhase(\n    val attempted: Boolean,\n    val status: String,\n" \
-        "    val conflictsResolved: Int,\n    val hiddenCardsRepaired: Int,\n" \
-        "    val errorMessage: String?,\n)\n" + \
-        "\ndata class ContractPushPhase(\n    val status: String,\n    val aheadCount: Int,\n" \
-        "    val behindCount: Int,\n    val errorMessage: String?,\n)\n" + \
-        "\ndata class ContractRemoteTestResult(\n    val status: String,\n" \
-        "    val remoteHasHead: Boolean,\n    val errorMessage: String?,\n)\n" + \
-        "\ndata class ContractSyncNowResult(\n    val pullAttempted: Boolean,\n" \
-        "    val pullStatus: String?,\n    val pullError: String?,\n    val pullConflictsResolved: Int,\n" \
-        "    val pushAttempted: Boolean,\n    val pushStatus: String?,\n    val pushError: String?,\n" \
-        "    val pushAheadCount: Int,\n    val pushBehindCount: Int,\n" \
-        "    val pushLocalHeadCommit: String?,\n)\n" + \
-        "\nobject ContractProjects {\n" \
-        "    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>\n" \
-        "    external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject\n" \
-        "    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject\n" \
-        "    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject\n" \
-        "    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject\n" \
-        "    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck\n" \
-        "    external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState\n" \
-        "    external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase\n" \
-        "    external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase\n" \
-        "    external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult\n" \
-        "    external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult\n" \
-        "    external fun nativeDeleteProject(contextHandle: Long, projectId: String)\n" \
-        "}\n"
+    kotlin = header + TEMPLATES.get_template("android_projects.kt.j2").render(
+        project_list_record=_record_kotlin("ContractProjectListItem", typed),
+        project_record=_record_kotlin("ContractProject", project_typed),
+        sync_record=_record_kotlin("ContractSyncState", sync_typed),
+    )
     descriptor = "(" + "".join(signature for _, _, signature, _ in typed) + ")V"
     record_lines, arguments, refs = _record_jni_lines(typed, "project", {"privacy_mode": "mode"})
     project_descriptor = "(" + "".join(signature for _, _, signature, _ in project_typed) + ")V"
@@ -157,8 +127,7 @@ def generate_projects(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     mode_lines = "".join(
         f"      case HOLDER_PROJECT_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"
         for value in mode["values"])
-    template = Template(Path(__file__).with_name("android_projects.cpp.in").read_text())
-    jni = header + template.substitute(
+    jni = header + TEMPLATES.get_template("android_projects.cpp.j2").render(
         mode_cases=mode_lines,
         check_mode_cases="".join(
             f"      case HOLDER_PROJECT_ENCRYPTION_CHECK_PRIVACY_MODE_{value.upper()}: return \"{value}\";\n"

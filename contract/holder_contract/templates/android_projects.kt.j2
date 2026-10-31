@@ -1,0 +1,63 @@
+package team.holder.android.generated
+
+{{ project_list_record }}
+{{ project_record }}
+data class ContractEncryptionCheck(
+    val projectId: String,
+    val privacyMode: String,
+    val ok: Boolean,
+    val checkedFiles: Int,
+    val unsafeFiles: Int,
+    val unsafePaths: List<String>,
+    val message: String,
+)
+
+{{ sync_record }}
+data class ContractPullPhase(
+    val attempted: Boolean,
+    val status: String,
+    val conflictsResolved: Int,
+    val hiddenCardsRepaired: Int,
+    val errorMessage: String?,
+)
+
+data class ContractPushPhase(
+    val status: String,
+    val aheadCount: Int,
+    val behindCount: Int,
+    val errorMessage: String?,
+)
+
+data class ContractRemoteTestResult(
+    val status: String,
+    val remoteHasHead: Boolean,
+    val errorMessage: String?,
+)
+
+data class ContractSyncNowResult(
+    val pullAttempted: Boolean,
+    val pullStatus: String?,
+    val pullError: String?,
+    val pullConflictsResolved: Int,
+    val pushAttempted: Boolean,
+    val pushStatus: String?,
+    val pushError: String?,
+    val pushAheadCount: Int,
+    val pushBehindCount: Int,
+    val pushLocalHeadCommit: String?,
+)
+
+object ContractProjects {
+    external fun nativeListProjectsPage(contextHandle: Long, offset: Int): List<ContractProjectListItem>
+    external fun nativeGetProject(contextHandle: Long, projectId: String): ContractProject
+    external fun nativeCreateProject(contextHandle: Long, name: String, privacyMode: String?): ContractProject
+    external fun nativeRenameProject(contextHandle: Long, projectId: String, name: String): ContractProject
+    external fun nativeUpdateProjectGitRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractProject
+    external fun nativeCheckProjectEncryption(contextHandle: Long, projectId: String): ContractEncryptionCheck
+    external fun nativeGetProjectSyncState(contextHandle: Long, projectId: String): ContractSyncState
+    external fun nativePullProject(contextHandle: Long, projectId: String): ContractPullPhase
+    external fun nativePushProject(contextHandle: Long, projectId: String, branch: String?, setUpstream: Boolean): ContractPushPhase
+    external fun nativeTestProjectRemote(contextHandle: Long, projectId: String, remoteUrl: String?): ContractRemoteTestResult
+    external fun nativeSyncProject(contextHandle: Long, projectId: String, branch: String?, push: Boolean, setUpstream: Boolean): ContractSyncNowResult
+    external fun nativeDeleteProject(contextHandle: Long, projectId: String)
+}

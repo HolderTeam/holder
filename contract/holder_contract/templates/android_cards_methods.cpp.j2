@@ -1,0 +1,134 @@
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardsPage(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring cursor) {
+  if (!context_handle || !project_id) { fail(env, "context and project ID are required"); return nullptr; }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* position = cursor ? env->GetStringUTFChars(cursor, nullptr) : nullptr;
+  if (!project || (cursor && !position)) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card_list_item_page* page = nullptr;
+  holder_error* error = nullptr;
+  const int32_t limit = 5000;
+  int status = arena.value ? holder_list_cards(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)), project,
+      {}, nullptr, HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC, &limit, position, false, false,
+      arena.value, &page, &error) : HOLDER_ERROR_ALLOCATION;
+  if (position) env->ReleaseStringUTFChars(cursor, position);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card page";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardListItem");
+{{ card_list_constructor }}  jclass list_type = env->FindClass("java/util/ArrayList");
+  jmethodID list_ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject items = env->NewObject(list_type, list_ctor, static_cast<jint>(page->items.count));
+  if (env->ExceptionCheck()) return nullptr;
+  for (size_t i = 0; i < page->items.count; ++i) {
+    const auto& card = page->items.items[i];
+{{ card_list_conversion }}    if (env->ExceptionCheck()) return nullptr;
+    env->CallBooleanMethod(items, add, item);
+    env->DeleteLocalRef(item);
+    if (env->ExceptionCheck()) return nullptr;
+  }
+  jclass page_type = env->FindClass("team/holder/android/generated/ContractCardPage");
+  jmethodID page_ctor = env->GetMethodID(page_type, "<init>", "(Ljava/util/List;Ljava/lang/String;)V");
+  jstring next = string(env, page->next_cursor);
+  return env->NewObject(page_type, page_ctor, items, next);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeGetCardMetadata(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* id = env->GetStringUTFChars(card_id, nullptr);
+  if (!project || !id) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    if (id) env->ReleaseStringUTFChars(card_id, id);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card_metadata* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card_metadata(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  env->ReleaseStringUTFChars(card_id, id);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card metadata";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& card = *value;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");
+{{ card_metadata_conversion }}  return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_team_holder_android_generated_ContractCards_nativeGetCardContent(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  const char* project = env->GetStringUTFChars(project_id, nullptr);
+  const char* id = env->GetStringUTFChars(card_id, nullptr);
+  if (!project || !id) {
+    if (project) env->ReleaseStringUTFChars(project_id, project);
+    if (id) env->ReleaseStringUTFChars(card_id, id);
+    return nullptr;
+  }
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project, id, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  env->ReleaseStringUTFChars(card_id, id);
+  env->ReleaseStringUTFChars(project_id, project);
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot read card content";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  return string(env, value->content);
+}
+{{ write_jni }}{{ list_jni }}
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeCreateCard(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring title,
+    jstring content, jstring parent_card_id) {
+  if (!context_handle || !project_id || !title || !content) {
+    fail(env, "context, project ID, title and content are required"); return nullptr;
+  }
+  std::string project, card_title, body, parent;
+  if (!utf8(env, project_id, project) || !utf8(env, title, card_title) ||
+      !utf8(env, content, body) ||
+      (parent_card_id && !utf8(env, parent_card_id, parent))) return nullptr;
+  holder_new_card request{};
+  request.title = card_title.c_str();
+  request.content = body.c_str();
+  request.parent_card_id = parent_card_id ? parent.c_str() : nullptr;
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_create_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), &request, arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot allocate card";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  const auto& card = *value;
+  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");
+{{ card_metadata_conversion }}  return result;
+}

@@ -5,44 +5,21 @@ from __future__ import annotations
 from typing import Any
 
 from .android import _field_type, _record_jni_lines
+from .android_templates import TEMPLATES
 
 
 def _jni_write(name: str, parameters: str, required: str, decode: str, request: str, call: str,
                descriptor: str, metadata: list[tuple[str, str, str, bool]], *, returns_card: bool) -> str:
     lines, arguments, refs = _record_jni_lines(metadata, "card", indent="  ")
-    result_type = "jobject" if returns_card else "void"
-    early_return = "return nullptr;" if returns_card else "return;"
-    strings = "std::string project, id, card_title, body;" if name == "nativeUpdateCard" else "std::string project, id;"
-    result = ""
-    if returns_card:
-        result = (
-            '  const auto& card = *value;\n'
-            '  jclass item_type = env->FindClass("team/holder/android/generated/ContractCardMetadata");\n'
-            f'  jmethodID item_ctor = env->GetMethodID(item_type, "<init>", "{descriptor}");\n'
-            + "".join(lines)
-            + f'  jobject result = env->NewObject(item_type, item_ctor, {", ".join(arguments)});\n'
-            + "".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in refs)
-            + '  return result;\n'
-        )
-    return (
-        f'\nextern "C" JNIEXPORT {result_type} JNICALL\n'
-        f'Java_team_holder_android_generated_ContractCards_{name}(\n'
-        f'    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id{parameters}) {{\n'
-        f'  if (!context_handle || !project_id || !card_id{required}) {{\n'
-        f'    fail(env, "context, project ID, card ID and required fields are needed"); {early_return}\n  }}\n'
-        f'  {strings}\n'
-        '  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)'
-        f'{decode}) {early_return}\n'
-        f'{request}'
-        '  Arena arena;\n  const holder_card* value = nullptr;\n'
-        '  holder_error* error = nullptr;\n'
-        f'  int status = arena.value ? {call} : HOLDER_ERROR_ALLOCATION;\n'
-        '  if (status != HOLDER_OK) {\n'
-        f'    std::string message = error ? holder_error_message(error) : "cannot allocate card for {name}";\n'
-        '    if (error) holder_error_destroy(error);\n'
-        f'    fail(env, message.c_str()); {early_return}\n  }}\n'
-        f'{result}'
-        '}\n'
+    return TEMPLATES.get_template("android_card_write.cpp.j2").render(
+        name=name, result_type="jobject" if returns_card else "void",
+        early_return="return nullptr;" if returns_card else "return;",
+        strings="std::string project, id, card_title, body;" if name == "nativeUpdateCard"
+        else "std::string project, id;",
+        parameters=parameters, required=required, decode=decode, request=request, call=call,
+        returns_card=returns_card, descriptor=descriptor, record_lines="".join(lines),
+        arguments=", ".join(arguments),
+        release_refs="".join(f"  if ({ref}) env->DeleteLocalRef({ref});\n" for ref in refs),
     )
 
 
@@ -75,13 +52,7 @@ def generate_card_writes(ir: dict[str, Any], records: dict[str, dict[str, Any]],
     }:
         raise ValueError("Android trash_card needs promote as its default child policy")
 
-    kotlin = (
-        "    external fun nativeUpdateCard(contextHandle: Long, projectId: String, cardId: String, "
-        "title: String, content: String): ContractCardMetadata\n"
-        "    external fun nativeTrashCard(contextHandle: Long, projectId: String, cardId: String)\n"
-        "    external fun nativeRestoreCard(contextHandle: Long, projectId: String, cardId: String): "
-        "ContractCardMetadata\n"
-    )
+    kotlin = TEMPLATES.get_template("android_card_writes.kt.j2").render()
     context = 'reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle))'
     prefix = f'{context}, project.c_str(), id.c_str(), '
     jni = _jni_write(

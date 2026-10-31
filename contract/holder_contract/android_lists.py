@@ -2,22 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
-
 from .android import _field_type, _record_jni_lines, _record_kotlin
+from .android_templates import TEMPLATES
 from .generate import snake
-
-_TEMPLATES = Environment(
-    loader=FileSystemLoader(Path(__file__).with_name("templates")),
-    undefined=StrictUndefined,
-    autoescape=False,
-    trim_blocks=False,
-    keep_trailing_newline=True,
-    newline_sequence="\n",
-)
 
 
 def _list_adapter(operation: dict[str, Any], record: dict[str, Any], aliases: dict[str, dict[str, Any]], *,
@@ -40,7 +29,7 @@ def _list_adapter(operation: dict[str, Any], record: dict[str, Any], aliases: di
     c_record = f"holder_{snake(record_name)}"
     context = 'reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle))'
     c_call = (f"holder_{name}({context}, project.c_str(), {c_arguments}arena.value, &page, &error)")
-    jni = _TEMPLATES.get_template("android_record_list.cpp.j2").render(
+    jni = TEMPLATES.get_template("android_record_list.cpp.j2").render(
         method=method, operation=name, extra_parameters=extra_parameters,
         required_parameters=required_parameters, extra_variables=extra_variables,
         decode_parameters=decode_parameters, pre_call=pre_call, c_record=c_record, c_call=c_call,
