@@ -135,6 +135,8 @@ from .change_event_data_entity import ChangeEventDataEntity
 from .delete_projects_project_id_cards_card_id_children import (
     DeleteProjectsProjectIdCardsCardIdChildren,
 )
+from .due_sync_result import DueSyncResult
+from .due_sync_result_response import DueSyncResultResponse
 from .encryption_safety_check import EncryptionSafetyCheck
 from .error import Error
 from .error_response import ErrorResponse
@@ -417,6 +419,8 @@ __all__ = (
     "ChangeEventData",
     "ChangeEventDataEntity",
     "DeleteProjectsProjectIdCardsCardIdChildren",
+    "DueSyncResult",
+    "DueSyncResultResponse",
     "EncryptionSafetyCheck",
     "Error",
     "ErrorResponse",
