@@ -101,6 +101,42 @@ Java_team_holder_android_generated_ContractCards_nativeGetCardContent(
   }
   return string(env, value->content);
 }
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_generated_ContractCards_nativeListCardTags(
+    JNIEnv* env, jobject, jlong context_handle, jstring project_id, jstring card_id) {
+  if (!context_handle || !project_id || !card_id) {
+    fail(env, "context, project ID and card ID are required"); return nullptr;
+  }
+  std::string project, id;
+  if (!utf8(env, project_id, project) || !utf8(env, card_id, id)) return nullptr;
+  Arena arena;
+  const holder_card* value = nullptr;
+  holder_error* error = nullptr;
+  int status = arena.value ? holder_get_card(
+      reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      project.c_str(), id.c_str(), arena.value, &value, &error) : HOLDER_ERROR_ALLOCATION;
+  if (status != HOLDER_OK) {
+    std::string message = error ? holder_error_message(error) : "cannot list card tags";
+    if (error) holder_error_destroy(error);
+    fail(env, message.c_str()); return nullptr;
+  }
+  jclass list_type = env->FindClass("java/util/ArrayList");
+  if (!list_type) return nullptr;
+  jmethodID ctor = env->GetMethodID(list_type, "<init>", "(I)V");
+  jmethodID add = env->GetMethodID(list_type, "add", "(Ljava/lang/Object;)Z");
+  jobject tags = env->NewObject(list_type, ctor, static_cast<jint>(value->tags.count));
+  if (!tags || env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+  for (size_t i = 0; i < value->tags.count; ++i) {
+    jstring tag = string(env, value->tags.items[i]);
+    if (!tag || env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+    env->CallBooleanMethod(tags, add, tag);
+    env->DeleteLocalRef(tag);
+    if (env->ExceptionCheck()) { env->DeleteLocalRef(list_type); return nullptr; }
+  }
+  env->DeleteLocalRef(list_type);
+  return tags;
+}
 {{ write_jni }}{{ list_jni }}
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_generated_ContractCards_nativeCreateCard(

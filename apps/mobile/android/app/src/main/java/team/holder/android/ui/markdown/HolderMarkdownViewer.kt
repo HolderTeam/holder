@@ -279,13 +279,13 @@ fun HolderMarkdownViewer(
     // The card's real extracted tags, fetched once, are the source of truth for which #word
     // spans are actually clickable -- cheaper and more robust than re-deriving the backend's
     // full matching rules (boundary chars, hex-color exclusion) a second time in Kotlin.
-    var cardTags by remember(cardId) { mutableStateOf<Set<String>>(emptySet()) }
-    LaunchedEffect(cardId) {
+    var cardTags by remember(projectId, cardId) { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(projectId, cardId) {
         cardTags = if (cardId == null) {
             emptySet()
         } else {
             runCatching {
-                withContext(Dispatchers.IO) { HolderNative.listCardTags(cardId) }
+                withContext(Dispatchers.IO) { HolderNative.listCardTags(projectId, cardId) }
             }.getOrDefault(emptyList()).toSet()
         }
     }

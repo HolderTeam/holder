@@ -1100,7 +1100,11 @@ object HolderNative {
     }
 
     /** cardId's #tags, as extracted from its body (including any added via addCardTag). */
-    fun listCardTags(cardId: String): List<String> {
+    fun listCardTags(projectId: String, cardId: String): List<String> =
+        readLane.call { ContractCards.nativeListCardTags(it, projectId, cardId) }
+
+    /** Previous JSON path, retained for parity during migration. */
+    internal fun listCardTagsJsonForBenchmark(cardId: String): List<String> {
         val tags = JSONArray(readLane.call { nativeCardListTags(it, cardId) })
         return List(tags.length()) { index -> tags.getString(index) }
     }

@@ -899,7 +899,9 @@ class HolderNativeIntegrationTest {
         val project = HolderNative.createProject("Tags test project")
         val card = HolderNative.createCard(project.projectId, "Tagged", "Body mentioning #TODO and #android.")
 
-        assertEquals(listOf("android", "todo"), HolderNative.listCardTags(card.cardId))
+        assertEquals(listOf("android", "todo"), HolderNative.listCardTags(project.projectId, card.cardId))
+        assertEquals(HolderNative.listCardTagsJsonForBenchmark(card.cardId),
+            HolderNative.listCardTags(project.projectId, card.cardId))
 
         val withTodo = HolderNative.cardsWithTag(project.projectId, "TODO")
         assertEquals(1, withTodo.size)
@@ -910,7 +912,7 @@ class HolderNativeIntegrationTest {
         assertTrue(projectTags.all { it.count == 1 })
 
         HolderNative.updateCard(project.projectId, card.cardId, "Tagged", "Only #urgent now.")
-        assertEquals(listOf("urgent"), HolderNative.listCardTags(card.cardId))
+        assertEquals(listOf("urgent"), HolderNative.listCardTags(project.projectId, card.cardId))
         assertTrue(HolderNative.cardsWithTag(project.projectId, "todo").isEmpty())
     }
 
