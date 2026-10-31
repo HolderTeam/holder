@@ -5,6 +5,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import android.util.Log
 import java.io.File
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -126,6 +128,35 @@ class HolderNativeIntegrationTest {
             "json=${jsonMedian / 1_000_000.0}ms")
         assertTrue("Generated page took over twice the JSON path plus 10ms: $generatedMedian vs $jsonMedian ns",
             generatedMedian <= jsonMedian * 2 + 10_000_000)
+    }
+
+    @Test
+    fun generatedCardListing_followsCursorPastTheFirstPage() {
+        initialize("# Welcome\n\nWelcome")
+        val cards = JSONArray()
+        repeat(5_001) { index ->
+            cards.put(JSONObject()
+                .put("card_id", "seed-$index")
+                .put("title", "Card $index")
+                .put("body", "Body $index")
+                .put("created_at", index)
+                .put("updated_at", index))
+        }
+        val project = HolderNative.backupRestore("Paged cards", "plain", cards.toString(), "Seed card page")
+
+        val jsonCards = HolderNative.listCardsJsonForBenchmark(project.projectId)
+        val generatedCards = HolderNative.listCards(project.projectId)
+        assertEquals(5_001, generatedCards.size)
+        assertEquals(jsonCards, generatedCards)
+    }
+
+    @Test
+    fun generatedCardListing_errorLeavesReadLaneUsable() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.listProjects().single()
+
+        assertThrows(RuntimeException::class.java) { HolderNative.listCards("missing-project") }
+        assertEquals(1, HolderNative.listCards(project.projectId).size)
     }
 
     @Test
