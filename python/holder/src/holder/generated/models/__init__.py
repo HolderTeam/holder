@@ -178,6 +178,8 @@ from .history_affected_path import HistoryAffectedPath
 from .history_author import HistoryAuthor
 from .history_object_kind import HistoryObjectKind
 from .link import Link
+from .link_kind_labels import LinkKindLabels
+from .link_kind_labels_list_response import LinkKindLabelsListResponse
 from .link_list_response import LinkListResponse
 from .link_response import LinkResponse
 from .link_source_type import LinkSourceType
@@ -267,10 +269,7 @@ from .search_card import SearchCard
 from .search_card_list_response import SearchCardListResponse
 from .search_message import SearchMessage
 from .search_message_list_response import SearchMessageListResponse
-from .storage_location import StorageLocation
-from .storage_location_configuration import StorageLocationConfiguration
 from .storage_location_list_response import StorageLocationListResponse
-from .storage_location_provider import StorageLocationProvider
 from .storage_location_update import StorageLocationUpdate
 from .sync_result import SyncResult
 from .sync_result_response import SyncResultResponse
@@ -454,6 +453,8 @@ __all__ = (
     "HistoryAuthor",
     "HistoryObjectKind",
     "Link",
+    "LinkKindLabels",
+    "LinkKindLabelsListResponse",
     "LinkListResponse",
     "LinkResponse",
     "LinkSourceType",
@@ -535,10 +536,7 @@ __all__ = (
     "SearchCardListResponse",
     "SearchMessage",
     "SearchMessageListResponse",
-    "StorageLocation",
-    "StorageLocationConfiguration",
     "StorageLocationListResponse",
-    "StorageLocationProvider",
     "StorageLocationUpdate",
     "SyncResult",
     "SyncResultResponse",

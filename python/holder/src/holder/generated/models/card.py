@@ -30,6 +30,9 @@ class Card:
         content (str): The card's body.
         tags (list[str]): The card's normalized tags.
         tag_occurrences (list[TagOccurrence]): Each tag written in the content, in order.
+        removable_tags (list[str]): The tags remove_card_tag would take off the card: each is on its trailing tag line
+            and nowhere else in its
+            content. A tag also written in prose stays until the content is edited.
     """
 
     card_id: str
@@ -44,6 +47,7 @@ class Card:
     content: str
     tags: list[str]
     tag_occurrences: list[TagOccurrence]
+    removable_tags: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         card_id = self.card_id
@@ -75,6 +79,8 @@ class Card:
             tag_occurrences_item = tag_occurrences_item_data.to_dict()
             tag_occurrences.append(tag_occurrences_item)
 
+        removable_tags = self.removable_tags
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -91,6 +97,7 @@ class Card:
                 "content": content,
                 "tags": tags,
                 "tag_occurrences": tag_occurrences,
+                "removable_tags": removable_tags,
             }
         )
 
@@ -140,6 +147,8 @@ class Card:
 
             tag_occurrences.append(tag_occurrences_item)
 
+        removable_tags = cast(list[str], d.pop("removable_tags"))
+
         card = cls(
             card_id=card_id,
             project_id=project_id,
@@ -153,6 +162,7 @@ class Card:
             content=content,
             tags=tags,
             tag_occurrences=tag_occurrences,
+            removable_tags=removable_tags,
         )
 
         return card

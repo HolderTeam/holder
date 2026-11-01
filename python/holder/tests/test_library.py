@@ -67,6 +67,7 @@ def card_payload(index=0, project_id="p-0", content=False):
         result["content"] = "current body"
         result["tags"] = []
         result["tag_occurrences"] = []
+        result["removable_tags"] = []
     return result
 
 
