@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from compiler.ir import ContractView
+from generators.daemon.http import plan_http
 from holder_contract.daemon import generate_daemon
 from holder_contract.extract import extract, load_contract
 from holder_contract.generate import Model, Unsupported, generate
@@ -65,6 +67,18 @@ def test_crossing_route_specificity_is_rejected():
 def test_disjoint_routes_and_other_methods_are_accepted():
     validate_routes([binding("GET", "/items/{id}"), binding("GET", "/items/new"),
                      binding("POST", "/items/{slug}"), binding("GET", "/items/{id}/parts")])
+
+
+def test_typed_http_plan_locates_contract_arguments():
+    contract = ContractView.model_validate(holder_ir())
+    plan = plan_http(contract)
+    cards = next(route for route in plan.routes if route.operation.name == "list_cards")
+    assert cards.binding.path == "/projects/{project_id}/cards"
+    assert {argument.parameter.name: argument.location for argument in cards.arguments} == {
+        "project_id": "path", "parent": "query", "order": "query", "limit": "query",
+        "cursor": "query", "tag": "query", "include_child_count": "query", "include_content": "query",
+    }
+    assert all(not route.operation.daemon_only for route in plan.routes)
 
 
 def test_a_literal_segment_is_tried_before_a_parameter():
