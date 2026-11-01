@@ -45,6 +45,8 @@ Card full_card(holder::card::CardStore& store, const holder::model::Card& card) 
     tags.insert(occurrence.tag);
   }
   out.tags.assign(tags.begin(), tags.end());
+  for (const auto& tag : out.tags)
+    if (holder::core::tag_removable(out.content, tag)) out.removable_tags.push_back(tag);
   return out;
 }
 
@@ -370,7 +372,7 @@ Card remove_tag(holder_context& context, const std::string& project_id, const st
     return std::find(tags.begin(), tags.end(), normalized) != tags.end();
   };
   if (!carries(*content)) return read_back(store, card_id);
-  if (carries(holder::core::remove_from_trailing_tag_line(*content, normalized).new_body))
+  if (!holder::core::tag_removable(*content, normalized))
     throw Conflict("the card carries #" + normalized +
                    " in its prose, which Holder does not rewrite; edit its content to remove it");
   store.remove_tag(card_id, tag, now_epoch_seconds());

@@ -387,6 +387,14 @@ holder_new_link card_link(const char* target, const char* kind = "ref", const ch
 
 } // namespace
 
+TEST_CASE("a card lists the tags remove_card_tag would take off it", "[capi][contract]") {
+  Fixture f;
+  const auto* card = f.create("Tagged", "Prose with #mixed and #prose\n\n#mixed #line");
+  REQUIRE(card->tags.count == 3);
+  REQUIRE(card->removable_tags.count == 1);
+  REQUIRE(std::string(card->removable_tags.items[0]) == "line");
+}
+
 TEST_CASE("holder_list_link_kinds lists the catalog with both labels", "[capi][contract]") {
   Fixture f;
   const holder_link_kind_labels_list* kinds = nullptr;

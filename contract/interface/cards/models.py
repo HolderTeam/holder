@@ -88,6 +88,9 @@ class Card(CardMetadata):
     """The card's normalized tags."""
     tag_occurrences: list[TagOccurrence]
     """Each tag written in the content, in order."""
+    removable_tags: list[str]
+    """The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its
+    content. A tag also written in prose stays until the content is edited."""
 
 
 class NewCard(Record):

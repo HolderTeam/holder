@@ -7804,10 +7804,18 @@ components:
           type: array
           title: Tag Occurrences
           description: Each tag written in the content, in order.
+        removable_tags:
+          items: {type: string}
+          type: array
+          title: Removable Tags
+          description: 'The tags remove_card_tag would take off the card: each is on its trailing tag
+            line and nowhere else in its
+
+            content. A tag also written in prose stays until the content is edited.'
       additionalProperties: false
       type: object
       required: [card_id, project_id, title, rel_path, parent_card_id, sort_key, created_at, updated_at,
-        deleted_at, content, tags, tag_occurrences]
+        deleted_at, content, tags, tag_occurrences, removable_tags]
       title: Card
       description: A card, with its content and tags.
     CardBreadcrumb:

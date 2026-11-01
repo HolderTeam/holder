@@ -345,6 +345,7 @@ typedef struct holder_card {
     const char* content; /* The card's body. */
     holder_string_list tags; /* The card's normalized tags. */
     holder_tag_occurrence_list tag_occurrences; /* Each tag written in the content, in order. */
+    holder_string_list removable_tags; /* The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its content. A tag also written in prose stays until the content is edited. */
 } holder_card;
 
 /* Everything about a card except its content. */

@@ -1,13 +1,13 @@
 POST /projects/p1/cards {"title": "Thesis", "content": "Intro #draft"}
-  201 create_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
+  201 create_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
 POST /projects/p1/cards {"title": "Child", "parent_card_id": "c1", "sort_key": 2.5, "created_at": -5}
-  201 create_card {"data":{"card_id":"c2","content":"","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"tag_occurrences":[],"tags":[],"title":"Child","updated_at":-5},"ok":true}
+  201 create_card {"data":{"card_id":"c2","content":"","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","removable_tags":[],"sort_key":2.5,"tag_occurrences":[],"tags":[],"title":"Child","updated_at":-5},"ok":true}
 POST /projects/p1/cards {"title": "Named", "card_id": "mine"}
   400 create_card {"error":{"code":"invalid_argument","message":"NewCard has no field card_id"},"ok":false}
 GET /projects/p1/cards/c1
-  200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
+  200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
 GET /projects/p1/cards/c%31
-  200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
+  200 get_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis","updated_at":1793000000},"ok":true}
 GET /projects/p1/cards
   200 list_cards {"data":{"items":[{"card_id":"c1","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"title":"Thesis","updated_at":1793000000},{"card_id":"c2","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"title":"Child","updated_at":-5}],"next_cursor":null},"ok":true}
 GET /projects/p1/cards?parent=roots&include_child_count=true&include_content=1
@@ -17,13 +17,13 @@ GET /projects/p1/cards?parent=c1&order=updated_desc&limit=1
 GET /projects/p1/cards?limit=1&cursor=1
   200 list_cards {"data":{"items":[{"card_id":"c2","created_at":-5,"deleted_at":null,"parent_card_id":"c1","project_id":"p1","rel_path":"cards/c2.md","sort_key":2.5,"title":"Child","updated_at":-5}],"next_cursor":null},"ok":true}
 POST /projects/p1/cards {"title": "Whole", "created_at": 691.0, "updated_at": 7e2}
-  201 create_card {"data":{"card_id":"c3","content":"","created_at":691,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c3.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Whole","updated_at":700},"ok":true}
+  201 create_card {"data":{"card_id":"c3","content":"","created_at":691,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c3.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Whole","updated_at":700},"ok":true}
 POST /projects/p1/cards {"title": "Least", "created_at": -9223372036854775808.0}
-  201 create_card {"data":{"card_id":"c4","content":"","created_at":-9223372036854775808,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c4.md","sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Least","updated_at":-9223372036854775808},"ok":true}
+  201 create_card {"data":{"card_id":"c4","content":"","created_at":-9223372036854775808,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c4.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[],"tags":[],"title":"Least","updated_at":-9223372036854775808},"ok":true}
 PATCH /projects/p1/cards/c1 {"title": "Thesis, revised", "parent_card_id": "c2"}
-  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":"c2","project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":"c2","project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 PATCH /projects/p1/cards/c1 {"parent_card_id": null}
-  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 update_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 PATCH /projects/p1/cards/c1 {"title": ""}
   400 update_card {"error":{"code":"invalid_argument","message":"title must not be empty"},"ok":false}
 POST /projects/p1/cards/c1/move {"intent": "into", "target_card_id": "c1"}
@@ -33,23 +33,23 @@ POST /projects/p1/cards/c1/move {"intent": "sideways"}
 POST /projects/p1/cards/c1/move {"intent": "to_end", "project_id": "p1"}
   400 move_card {"error":{"code":"invalid_argument","message":"CardMove has no field project_id"},"ok":false}
 DELETE /projects/p1/cards/c1?children=trash_subtree
-  200 trash_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":1793000200,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 trash_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":1793000200,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 DELETE /projects/p1/cards/c1?children=everything
   400 trash_card {"error":{"code":"invalid_argument","message":"children must be one of promote, trash_subtree"},"ok":false}
 POST /projects/p1/cards/c1/restore
-  200 restore_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 restore_card {"data":{"card_id":"c1","content":"Intro #draft","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 POST /projects/p1/cards/c1/restore
   409 restore_card {"error":{"code":"conflict","message":"the card is not in the trash: c1"},"ok":false}
 PUT /projects/p1/cards/c1/tags/idea
-  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 PUT /projects/p1/cards/c1/tags/idea
-  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 PUT /projects/p1/cards/c1/tags/a%2Fb
-  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea\n#a/b","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea","a/b"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 add_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea\n#a/b","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea","a/b"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 DELETE /projects/p1/cards/c1/tags/idea
   409 remove_card_tag {"error":{"code":"conflict","message":"the card carries #idea only in its prose"},"ok":false}
 DELETE /projects/p1/cards/c1/tags/absent
-  200 remove_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea\n#a/b","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea","a/b"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
+  200 remove_card_tag {"data":{"card_id":"c1","content":"Intro #draft\n#idea\n#a/b","created_at":1793000000,"deleted_at":null,"parent_card_id":null,"project_id":"p1","rel_path":"cards/c1.md","removable_tags":[],"sort_key":0.0,"tag_occurrences":[{"byte_end":12,"byte_start":6,"tag":"draft"}],"tags":["draft","idea","a/b"],"title":"Thesis, revised","updated_at":1793000000},"ok":true}
 PUT /projects/p1/cards/c1/tags/%23idea
   400 add_card_tag {"error":{"code":"invalid_argument","message":"not a tag: #idea"},"ok":false}
 PUT /projects/p1/cards/c1/tags/

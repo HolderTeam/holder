@@ -51,4 +51,10 @@ RemoveTagLineResult remove_from_trailing_tag_line(const std::string& body, const
 // either way, since the prose occurrence is untouched.
 std::vector<std::string> tags_on_trailing_line(const std::string& body);
 
+// Whether body carries `tag` (already normalize_tag'd) and would no longer carry it once it is
+// removed from the trailing tag line: the tag is on that line and nowhere else in body. This is
+// the rule by which the contract's remove_card_tag removes a tag rather than refusing, so a
+// client can offer removal exactly where it will work.
+bool tag_removable(const std::string& body, const std::string& tag);
+
 } // namespace holder::core

@@ -701,10 +701,10 @@ jobject to_java_holder_tag_occurrence(JNIEnv* env, const holder_tag_occurrence& 
 jobject to_java_holder_card(JNIEnv* env, const holder_card& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/Card");
   if (!type) return nullptr;
-  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DJJLjava/lang/Long;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V");
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DJJLjava/lang/Long;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V");
   if (!constructor) return nullptr;
   Locals locals(env);
-  jvalue args[12] = {};
+  jvalue args[13] = {};
   args[0].l = locals.add(string(env, value.card_id));
   if (env->ExceptionCheck()) return nullptr;
   args[1].l = locals.add(string(env, value.project_id));
@@ -725,6 +725,8 @@ jobject to_java_holder_card(JNIEnv* env, const holder_card& value) {
   args[10].l = locals.add(to_java_list(env, (value.tags).items, (value.tags).count, [&](const auto& item) -> jobject { return string(env, item); }));
   if (env->ExceptionCheck()) return nullptr;
   args[11].l = locals.add(to_java_list(env, (value.tag_occurrences).items, (value.tag_occurrences).count, [&](const auto& item) -> jobject { return to_java_holder_tag_occurrence(env, item); }));
+  if (env->ExceptionCheck()) return nullptr;
+  args[12].l = locals.add(to_java_list(env, (value.removable_tags).items, (value.removable_tags).count, [&](const auto& item) -> jobject { return string(env, item); }));
   if (env->ExceptionCheck()) return nullptr;
   return env->NewObjectA(type, constructor, args);
 }

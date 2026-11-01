@@ -161,6 +161,12 @@ data class HolderCardLinks(
     val children: List<HolderCardRef>,
 )
 
+/** A card's tags, and those of them [HolderNative.removeCardTag] would remove. */
+data class HolderCardTags(
+    val tags: List<String>,
+    val removable: List<String>,
+)
+
 data class HolderTagCount(
     val tag: String,
     val count: Int,
@@ -483,7 +489,6 @@ object HolderNative {
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
         contextHandle: Long,
@@ -1018,14 +1023,12 @@ object HolderNative {
         RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
     }
 
-    /** The subset of cardId's tags that removeCardTag can actually remove -- those on the
-     * card's trailing tag line. A tag can be in this list and still occur in prose elsewhere;
-     * removing it still succeeds, but the card remains tagged either way. Callers should use
-     * this to show a remove control only where it will work, rather than offering one on every
-     * tag uniformly. */
-    fun listEditableCardTags(cardId: String): List<String> {
-        val tags = JSONArray(readLane.call { nativeCardListEditableTags(it, cardId) })
-        return List(tags.length()) { index -> tags.getString(index) }
+    /** cardId's tags, and those of them removeCardTag would take off: each is on the card's
+     * trailing tag line and nowhere else in it. A tag also written in prose stays until the
+     * content is edited, so callers should offer removal only for [HolderCardTags.removable]. */
+    fun cardTags(projectId: String, cardId: String): HolderCardTags {
+        val card = readLane.call { Cards.getCard(it, projectId, cardId) }
+        return HolderCardTags(card.tags, card.removableTags)
     }
 
     /** Cards in projectId carrying tag (case-insensitive). */

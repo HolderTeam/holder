@@ -681,6 +681,25 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun cardTags_offerRemovalOnlyWhereRemoveCardTagWorks() {
+        initialize("# Welcome\n\nWelcome")
+        val project = HolderNative.createProject("Removable tags project")
+        val card = HolderNative.createCard(project.projectId, "Tagged",
+            "Prose with #mixed and #prose\n\n#mixed #line")
+
+        val tags = HolderNative.cardTags(project.projectId, card.cardId)
+        assertEquals(listOf("line", "mixed", "prose"), tags.tags)
+        // A tag on the trailing line that is also in prose would stay, so it is not offered.
+        assertEquals(listOf("line"), tags.removable)
+
+        assertEquals(HolderNative.RemoveTagResult.REMOVED,
+            HolderNative.removeCardTag(project.projectId, card.cardId, "line"))
+        assertEquals(HolderNative.RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE,
+            HolderNative.removeCardTag(project.projectId, card.cardId, "mixed"))
+        assertEquals(listOf("mixed", "prose"), HolderNative.cardTags(project.projectId, card.cardId).tags)
+    }
+
+    @Test
     fun tags_roundTripThroughTheFullJniBoundary() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("Tags test project")

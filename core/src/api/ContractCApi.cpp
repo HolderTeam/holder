@@ -511,6 +511,7 @@ holder_card to_c(holder_arena* arena, const contract::Card& value) {
   out.content = copy(arena, value.content);
   out.tags = copy_strings(arena, value.tags);
   out.tag_occurrences = to_c_list(arena, value.tag_occurrences);
+  out.removable_tags = copy_strings(arena, value.removable_tags);
   return out;
 }
 

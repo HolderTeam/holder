@@ -165,6 +165,14 @@ RemoveTagLineResult remove_from_trailing_tag_line(const std::string& body, const
   };
 }
 
+bool tag_removable(const std::string& body, const std::string& tag) {
+  const auto carries = [&](const std::string& text) {
+    const auto tags = extract_tags(text);
+    return std::find(tags.begin(), tags.end(), tag) != tags.end();
+  };
+  return carries(body) && !carries(remove_from_trailing_tag_line(body, tag).new_body);
+}
+
 std::vector<std::string> tags_on_trailing_line(const std::string& body) {
   const auto split = split_trailing_whitespace(body);
   if (split.content.empty()) {

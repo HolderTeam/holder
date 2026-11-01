@@ -1018,12 +1018,13 @@ inline json codec<holder::contract::Card>::encode(const holder::contract::Card& 
     result["content"] = codec<std::string>::encode(value.content);
     result["tags"] = codec<std::vector<std::string>>::encode(value.tags);
     result["tag_occurrences"] = codec<std::vector<holder::contract::TagOccurrence>>::encode(value.tag_occurrences);
+    result["removable_tags"] = codec<std::vector<std::string>>::encode(value.removable_tags);
     return result;
 }
 inline holder::contract::Card codec<holder::contract::Card>::decode(const json& value) {
     if (!value.is_object()) throw std::invalid_argument("expected a Card object");
     for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at" && it.key() != "content" && it.key() != "tags" && it.key() != "tag_occurrences") throw std::invalid_argument("Card has no field " + it.key());
+        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at" && it.key() != "content" && it.key() != "tags" && it.key() != "tag_occurrences" && it.key() != "removable_tags") throw std::invalid_argument("Card has no field " + it.key());
     holder::contract::Card out;
     if (value.contains("card_id") && !value.at("card_id").is_null()) {
         const auto& item = value.at("card_id");
@@ -1092,6 +1093,12 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
         out.tag_occurrences = decode_field<std::vector<holder::contract::TagOccurrence>>(item, "tag_occurrences");
     } else {
         throw std::invalid_argument("tag_occurrences is required and must not be null");
+    }
+    if (value.contains("removable_tags") && !value.at("removable_tags").is_null()) {
+        const auto& item = value.at("removable_tags");
+        out.removable_tags = [&] { auto items = decode_field<std::vector<std::string>>(item, "removable_tags"); for (const auto& text : items) check_text(text, "removable_tags", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("removable_tags is required and must not be null");
     }
     return out;
 }

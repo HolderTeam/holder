@@ -319,6 +319,7 @@ struct Card : CardMetadata {
   std::string content;  ///< The card's body.
   std::vector<std::string> tags;  ///< The card's normalized tags.
   std::vector<TagOccurrence> tag_occurrences;  ///< Each tag written in the content, in order.
+  std::vector<std::string> removable_tags;  ///< The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its content. A tag also written in prose stays until the content is edited.
 };
 
 /// Whether this step names the project or a card.
