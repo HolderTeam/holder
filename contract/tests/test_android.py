@@ -10,6 +10,8 @@ from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PRO
 from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
 from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
 from holder_contract.android_ir import ContractView, NullableType, ScalarType
+from holder_contract.android_operation import JNI_PATH as OPERATION_JNI_PATH
+from holder_contract.android_operation import KOTLIN_PATH as OPERATION_KOTLIN_PATH
 from holder_contract.android_resources import JNI_PATH as RESOURCES_JNI_PATH
 from holder_contract.android_resources import KOTLIN_PATH as RESOURCES_KOTLIN_PATH
 from holder_contract.extract import extract
@@ -23,13 +25,13 @@ def test_card_field_change_updates_kotlin_and_jni():
     item["fields"].append({"name": "new_score", "type": {"kind": "nullable", "value": {"kind": "float64"}}})
 
     before = generate_android(ir)
-    assert "HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC" in before[JNI_PATH]
+    assert "HOLDER_LIST_CARDS_ORDER_SORT_KEY_ASC" in before[OPERATION_JNI_PATH]
     after = generate_android(changed)
     assert before != after
-    assert "val newCount: Int" in after[KOTLIN_PATH]
-    assert "card.new_count" in after[JNI_PATH]
-    assert "val newScore: Double?" in after[KOTLIN_PATH]
-    assert "boxed_double(env, *card.new_score)" in after[JNI_PATH]
+    assert "val newCount: Int" in after[OPERATION_KOTLIN_PATH]
+    assert "record.new_count" in after[OPERATION_JNI_PATH]
+    assert "val newScore: Double?" in after[OPERATION_KOTLIN_PATH]
+    assert "boxed_double(env, *record.new_score)" in after[OPERATION_JNI_PATH]
 
 
 def test_project_writes_follow_contract_and_preserve_android_plain_default():
@@ -165,7 +167,7 @@ def test_card_list_return_change_requires_generator_update():
     changed = deepcopy(ir)
     operation = next(op for op in changed["operations"] if op["name"] == "list_cards")
     operation["returns"] = {"kind": "string"}
-    with pytest.raises(ValueError, match="Page\\[CardListItem\\]"):
+    with pytest.raises(ValueError, match="generic page result"):
         generate_android(changed)
 
 
@@ -268,17 +270,19 @@ def test_card_reference_resolution_uses_contract_candidate_fields():
 def test_tag_filtered_card_pages_use_contract_list_cards():
     ir = extract(Path(__file__).resolve().parents[1], "interface")
     generated = generate_android(ir)
-    assert "nativeListCardsWithTagPage" in generated[KOTLIN_PATH]
-    assert "tag ? tag_text.c_str() : nullptr" in generated[JNI_PATH]
-    assert "HOLDER_LIST_CARDS_ORDER_UPDATED_DESC" in generated[JNI_PATH]
-    assert "card page limit must be between 1 and 5000" in generated[JNI_PATH]
+    assert "nativeListCards(" in generated[OPERATION_KOTLIN_PATH]
+    assert "tag: String? = null" in generated[OPERATION_KOTLIN_PATH]
+    assert "includeContent: Boolean = false" in generated[OPERATION_KOTLIN_PATH]
+    assert "includeChildCount: Boolean = false" in generated[OPERATION_KOTLIN_PATH]
+    assert "tag ? tag_text.c_str() : nullptr" in generated[OPERATION_JNI_PATH]
+    assert "HOLDER_LIST_CARDS_ORDER_UPDATED_DESC" in generated[OPERATION_JNI_PATH]
 
     changed = deepcopy(ir)
     listing = next(operation for operation in changed["operations"] if operation["name"] == "list_cards")
     next(parameter for parameter in listing["parameters"] if parameter["name"] == "tag")["type"] = {
         "kind": "string",
     }
-    with pytest.raises(ValueError, match="list_cards parameters need a generator update"):
+    with pytest.raises(ValueError, match="null default needs a nullable type"):
         generate_android(changed)
 
 
@@ -446,5 +450,5 @@ def test_unmapped_literal_fails_before_emitting_invalid_jni():
     changed = deepcopy(ir)
     item = next(record for record in changed["records"] if record["name"] == "CardListItem")
     item["fields"].append({"name": "new_state", "type": {"kind": "literal", "values": ["ready"]}})
-    with pytest.raises(ValueError, match="C enum mapping for new_state"):
+    with pytest.raises(ValueError, match="unsupported result field new_state: literal"):
         generate_android(changed)

@@ -8,9 +8,11 @@ import re
 import sys
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from .android import generate_android
 from .daemon import DAEMON_PATHS, OPENAPI_PATHS, api_documents, generate_daemon
-from .extract import ContractError, extract, load_contract
+from .extract import ContractError, extract_typed, load_contract
 from .generate import CORE_PATHS, Unsupported, generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -62,10 +64,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, help="ir: a file instead of standard output; generate: a directory")
     args = parser.parse_args(argv)
     try:
-        ir = extract(args.root, args.package)
+        ir = extract_typed(args.root, args.package).model_dump(exclude_unset=True)
     except ContractError as error:
         print(error, file=sys.stderr)
         print(f"{len(error.problems)} problem(s) in the contract.", file=sys.stderr)
+        return 1
+    except ValidationError as error:
+        print(f"The extractor produced invalid IR: {error}", file=sys.stderr)
         return 1
     if args.command == "ir":
         text = json.dumps(ir, indent=2, ensure_ascii=False) + "\n"

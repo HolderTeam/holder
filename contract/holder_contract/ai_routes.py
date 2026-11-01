@@ -9,42 +9,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .daemon_bindings import RuntimeBinding
+from .daemon_bindings import bindings as load_bindings
 from .generate import Unsupported, header_lines
 from .http_routes import route_pattern, route_priority, validate_routes
-
-
-def _groups() -> dict[str, tuple[str, ...]]:
-    groups = {
-        "db, fts": "get_ai_messages get_ai_message get_ai_message_links get_ai_message_backlinks "
-                   "patch_ai_messages_message_id delete_ai_messages_message_id "
-                   "post_ai_messages_message_id_restore post_ai_messages_message_id_links "
-                   "delete_ai_messages_message_id_links",
-        "db, fts, uuid_v4": "post_ai_messages post_ai_messages_capture",
-        "db, registry": "get_ai_nudges post_ai_nudges_evaluate get_ai_capabilities get_ai_status "
-                        "patch_ai_runners_runner_id delete_ai_runners_runner_id "
-                        "post_ai_nudges_nudge_id_dismiss",
-        "registry": "get_ai_runners get_ai_runner post_ai_runner_pull get_pull_status "
-                    "post_ai_runners_runner_id_retry",
-        "db, registry, uuid_v4": "post_ai_runners",
-        "db": "get_ai_runs get_ai_threads list_provider_credentials get_local_model_config "
-              "put_local_model_config get_ai_provider_catalog list_provider_settings "
-              "set_provider_setting delete_provider_setting get_ai_run get_ai_thread "
-              "patch_ai_threads_thread_id delete_ai_threads_thread_id",
-        "db, uuid_v4": "post_ai_threads",
-        "db, secret_store": "upsert_provider_credential delete_provider_credential",
-        "registry, events": "get_ai_runner_pull_job_id_events",
-        "db, events": "get_ai_runs_run_id_events",
-        "socket, db, fts, secret_store, registry, uuid_v4, events": "post_ai_runs",
-    }
-    return {name: tuple(f"context.{part.strip()}" for part in arguments.split(","))
-            for arguments, names in groups.items() for name in names.split()}
-
-
-INJECTIONS = _groups()
-CALL_ORDER = {
-    "get_ai_message_links": ("message_id", "include_deleted"),
-    "get_ai_message_backlinks": ("message_id", "include_deleted"),
-}
 
 BODY_SUPPORT = r"""
 // JSON's parser converts negative integers outside int64 to floating point. Check their raw
@@ -117,7 +85,8 @@ def _field_lines(parameter: dict[str, Any], source: str) -> list[str]:
     return [f'auto arg_{name} = ai_json::check_text({source}, "{name}", {low}, {high});']
 
 
-def _argument_lines(op: dict[str, Any], binding: dict[str, Any], captures: dict[str, int]) -> tuple[list[str], list[str]]:
+def _argument_lines(op: dict[str, Any], binding: dict[str, Any], captures: dict[str, int],
+                    runtime: RuntimeBinding) -> tuple[list[str], list[str]]:
     parameters = {p["name"]: p for p in op["parameters"]}
     body = binding.get("body")
     queries = binding["query"]
@@ -159,20 +128,21 @@ def _argument_lines(op: dict[str, Any], binding: dict[str, Any], captures: dict[
             if name != "last_event_id":
                 raise Unsupported(f"{op['name']}: unsupported header {name}")
             lines += [f'auto arg_{name} = header ? header("Last-Event-ID") : std::nullopt;']
-    call_order = CALL_ORDER.get(op["name"], order)
+    call_order = runtime.argument_order or order
     if set(call_order) != set(order):
         raise Unsupported(f"{op['name']}: handler argument inventory differs from contract")
     return lines, [f"std::move(arg_{name})" for name in call_order]
 
 
 def generate_ai_routes(ir: dict[str, Any]) -> str:
+    runtime_bindings = load_bindings()
     operations = {op["name"]: op for op in ir["operations"] if op["daemon_only"]}
     bindings = [b for b in ir["http"] if b["operation"] in operations and b["path"].startswith("/ai/")]
     validate_routes(ir["http"])
     declared = {b["operation"] for b in bindings}
-    if declared != INJECTIONS.keys():
-        raise Unsupported(f"AI handler wiring differs from contract: missing={sorted(declared - INJECTIONS.keys())}, "
-                          f"unused={sorted(INJECTIONS.keys() - declared)}")
+    if declared != runtime_bindings.keys():
+        raise Unsupported(f"AI handler wiring differs from contract: missing={sorted(declared - runtime_bindings.keys())}, "
+                          f"unused={sorted(runtime_bindings.keys() - declared)}")
     lines = [*header_lines(ir, "AI HTTP routes generated from contract/interface/app.py.", "cpp"),
              "#pragma once", '#include "api/generated/AiJson.h"',
              '#include "api/generated/ContractRoutes.h"',
@@ -217,8 +187,9 @@ def generate_ai_routes(ir: dict[str, Any]) -> str:
         op = operations[binding["operation"]]
         name = op["name"]
         pattern, captures = route_pattern(binding["path"])
-        decodes, arguments = _argument_lines(op, binding, captures)
-        injections = INJECTIONS[name]
+        runtime = runtime_bindings[name]
+        decodes, arguments = _argument_lines(op, binding, captures, runtime)
+        injections = tuple(f"context.{service}" for service in runtime.services)
         call = f"holder::api::{name}({', '.join([*injections, *arguments])})"
         lines += [f"    static const std::regex route_{index}({json.dumps(pattern)});",
                   f'    if (method == "{binding["method"]}" && std::regex_match(route_path, match, route_{index})) {{',

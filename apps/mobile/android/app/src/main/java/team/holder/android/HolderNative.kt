@@ -2,6 +2,9 @@ package team.holder.android
 
 import android.content.Context
 import team.holder.android.generated.ContractCards
+import team.holder.android.generated.ContractOperations
+import team.holder.android.generated.ContractPage
+import team.holder.android.generated.ContractCardListItem
 import team.holder.android.generated.ContractHistory
 import team.holder.android.generated.ContractResources
 import team.holder.android.generated.ContractCardMetadata
@@ -738,12 +741,29 @@ object HolderNative {
         return List(projects.length()) { index -> parseProject(projects.getJSONObject(index)) }
     }
 
+    internal fun listCardsPage(
+        projectId: String,
+        parent: String? = null,
+        tag: String? = null,
+        order: String = "card_id_asc",
+        limit: Int = 200,
+        cursor: String? = null,
+        includeContent: Boolean = false,
+        includeChildCount: Boolean = false,
+    ): ContractPage<ContractCardListItem> = readLane.call { context ->
+        ContractOperations.nativeListCards(
+            context, projectId, parent, tag, order, limit, cursor, includeContent, includeChildCount,
+        )
+    }
+
     fun listCards(projectId: String): List<HolderCard> {
         val result = ArrayList<HolderCard>()
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractCards.nativeListCardsPage(context, projectId, cursor)
+                val page = ContractOperations.nativeListCards(
+                    context, projectId, order = "sort_key_asc", limit = 5000, cursor = cursor,
+                )
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card ->
                     result.add(HolderCard(
@@ -1274,7 +1294,9 @@ object HolderNative {
         readLane.call { context ->
             var cursor: String? = null
             do {
-                val page = ContractCards.nativeListCardsWithTagPage(context, projectId, tag, cursor, pageSize)
+                val page = ContractOperations.nativeListCards(
+                    context, projectId, tag = tag, order = "updated_desc", limit = pageSize, cursor = cursor,
+                )
                 result.ensureCapacity(result.size + page.items.size)
                 page.items.forEach { card -> result.add(HolderCardRef(cardId = card.cardId, title = card.title)) }
                 cursor = page.nextCursor

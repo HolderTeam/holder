@@ -19,10 +19,16 @@ from typing import Any
 
 from fastapi import params
 from fastapi.routing import APIRoute
-from pydantic import MISSING, JsonValue, SecretStr
+
+try:
+    from pydantic import MISSING, JsonValue, SecretStr
+except ImportError:
+    from pydantic import JsonValue, SecretStr
+    from pydantic_core import MISSING
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
+from .ir import ContractView
 from .routes import Contract
 from .rules import Declarations, Problem, check_file
 from .vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
@@ -78,6 +84,11 @@ def extract(root: Path, package: str) -> dict[str, Any]:
     if problems:
         raise ContractError(problems)
     return _Builder(modules, declared, app, app_path.relative_to(root).as_posix()).build()
+
+
+def extract_typed(root: Path, package: str) -> ContractView:
+    """Extract and validate the contract's canonical, target-independent IR."""
+    return ContractView.model_validate(extract(root, package))
 
 
 def load_contract(root: Path, package: str) -> Contract | None:
