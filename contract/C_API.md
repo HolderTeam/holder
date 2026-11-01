@@ -16,6 +16,10 @@ Core implements the operations by hand in `core/src/api/` (`Cards.cpp`). A recor
   - An operation with no result has no `out_` parameter.
   - An operation that returns a list returns it as a `{items, count}` struct, in `out_<record>_list`, such as `const holder_tag_count_list** out_tag_count_list`.
   - An operation on a card takes the card's `project_id` before its `card_id`, and does not find a card in another project.
+  - **Runtime operations** (`interface/runtime/`) are declared with how they use a context:
+    - one that runs without a context, such as `holder_version` and `holder_database_rebuild`, drops the `context` parameter;
+    - one that opens a context is `int holder_<operation>(<parameters>, holder_context** out_context, holder_error** out_error)`, as `holder_context_open` is: it takes no arena, and the caller owns the new context;
+    - one that closes a context is `void holder_<operation>(holder_context* context)`, as `holder_context_destroy` is.
 - **Error codes:** a code is the HTTP status it echoes and one more digit, so it reads as that status. `holder.h` declares `HOLDER_ERROR_INVALID_ARGUMENT` (4000) for anything the contract's checks reject, `HOLDER_ERROR_RUNTIME` (5000) for an unexpected failure, and `HOLDER_ERROR_ALLOCATION` (5001). Each error kind in the contract has the code its error table gives it, such as `HOLDER_ERROR_NOT_FOUND` (4040); a code keeps its meaning once released, wherever its declaration moves.
 - **Memory:** results live in the `holder_arena` the caller passes, until `holder_arena_free`. Nothing in a result needs freeing on its own.
 - **Strings** are NUL-terminated UTF-8. The glue rejects text that is not well-formed UTF-8, and length constraints count characters, not bytes.

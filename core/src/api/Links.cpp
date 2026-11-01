@@ -8,6 +8,7 @@
 #include "ai/AiMessageRepo.h"
 #include "ai/AiThreadRepo.h"
 #include "card/CardRepo.h"
+#include "card/LinkKindCatalog.h"
 #include "card/LinkRepo.h"
 #include "card/LinkVisibility.h"
 #include "platform/Tx.h"
@@ -238,6 +239,13 @@ std::vector<Link> remove_card_link(holder_context& context, std::string project_
                                    std::optional<std::string> target_project_id) {
   return with_contract_errors(
       [&] { return remove(context, project_id, card_id, target_type, target_id, kind, target_project_id); });
+}
+
+std::vector<LinkKindLabels> list_link_kinds(holder_context&) {
+  std::vector<LinkKindLabels> out;
+  for (const auto& entry : holder::core::link_kind_catalog())
+    out.push_back(LinkKindLabels{entry.id, entry.forward_label, entry.reverse_label});
+  return out;
 }
 
 } // namespace holder::contract

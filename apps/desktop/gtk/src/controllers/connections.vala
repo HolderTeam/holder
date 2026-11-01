@@ -147,6 +147,23 @@ public class ConnectionsGraphRefreshTarget : Object {
 }
 
 public class ConnectionsController : Object {
+    // The link kinds Holder knows, from the daemon, loaded once with the first graph links.
+    private Gee.ArrayList<LinkKindLabels> link_kinds = new Gee.ArrayList<LinkKindLabels>();
+
+    public void set_link_kinds(Gee.ArrayList<LinkKindLabels> kinds) {
+        link_kinds = kinds;
+    }
+
+    // How a link of this kind reads: from the card it is from when outgoing, otherwise from what
+    // it points at. A kind Holder does not know reads the same both ways, its words capitalised.
+    public string link_kind_label(string kind, bool outgoing) {
+        foreach (var entry in link_kinds) {
+            if (entry.kind == kind) return outgoing ? entry.forward_label : entry.reverse_label;
+        }
+        if (kind.length == 0) return kind;
+        return kind.substring(0, 1).up() + kind.substring(1).replace("_", " ");
+    }
+
     internal static int ellipsize_cutoff_override_for_tests = int.MIN;
 
     private string? normalize_parent(string? parent_card_id) {
@@ -192,11 +209,12 @@ public class ConnectionsController : Object {
 
     public Gee.ArrayList<string> list_available_link_kinds(Settings? settings) {
         var values = new Gee.ArrayList<string>();
-        values.add("ref");
-        values.add("depends_on");
-        values.add("example_of");
-        values.add("blocks");
-        values.add("related_to");
+        if (link_kinds.size > 0) {
+            foreach (var entry in link_kinds) values.add(entry.kind);
+        } else {
+            // Before the daemon's catalog has loaded.
+            values.add("ref");
+        }
 
         if (settings == null) {
             return values;
@@ -273,6 +291,13 @@ public class ConnectionsController : Object {
                 "Select a card to view graph links.",
                 "Select a card to view graph links."
             );
+        }
+        if (link_kinds.size == 0) {
+            try {
+                link_kinds = yield api.list_link_kinds();
+            } catch (Error e) {
+                // Links still show without labels; the catalog is tried again with the next load.
+            }
         }
         try {
             var outgoing = yield api.list_card_links(selected_card.project_id, selected_card.card_id);

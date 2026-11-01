@@ -274,8 +274,8 @@ consumers.
 
 The `Core / SDK` workflow at the repository root builds static libholder SDK archives
 for Linux x86_64, macOS arm64 and Windows x86_64, in `RelWithDebInfo` or `Release`.
-Each archive has `include/`, `lib/`, CMake package files, the schema and
-welcome resource under `share/holder/`, and a
+Each archive has `include/`, `lib/`, CMake package files, the schema under
+`share/holder/`, and a
 `libholder-manifest.json` recording the exact commit, build type, platform,
 architecture, and compiler. Windows archives also carry the vcpkg runtime
 DLLs and license notices in `bin/` and `share/vcpkg-licenses/`.
@@ -328,8 +328,8 @@ Windows toolchain options in `CMAKE_ARGS`. `resolve` still selects the SDKs
 that the former holder-core repository published (`latest-green`, `sdk-<SHA>`
 and version tags), which remain available there.
 
-The installed CMake package exposes `holder_DATA_DIR`, `holder_SCHEMA_FILE`
-and `holder_WELCOME_FILE` alongside `Holder::Core` and `Holder::Shared`.
+The installed CMake package exposes `holder_DATA_DIR` and `holder_SCHEMA_FILE`
+alongside `Holder::Core` and `Holder::Shared`.
 These resource paths follow the selected installation, including relocation.
 
 ## Ubuntu packages

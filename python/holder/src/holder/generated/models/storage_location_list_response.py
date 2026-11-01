@@ -7,7 +7,7 @@ from attrs import define as _attrs_define
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from ..models.storage_location import StorageLocation
+    from ..models.project_storage_location import ProjectStorageLocation
 
 
 T = TypeVar("T", bound="StorageLocationListResponse")
@@ -19,12 +19,12 @@ class StorageLocationListResponse:
 
     Attributes:
         ok (bool): Whether the request succeeded.
-        data (list[StorageLocation]): The project's locations.
+        data (list[ProjectStorageLocation]): The project's locations.
         preferred_location_id (None | str): This device's preferred location, when set.
     """
 
     ok: bool
-    data: list[StorageLocation]
+    data: list[ProjectStorageLocation]
     preferred_location_id: None | str
 
     def to_dict(self) -> dict[str, Any]:
@@ -52,7 +52,9 @@ class StorageLocationListResponse:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.storage_location import StorageLocation
+        from ..models.project_storage_location import (
+            ProjectStorageLocation,
+        )
 
         d = dict(src_dict)
         ok = d.pop("ok")
@@ -60,7 +62,7 @@ class StorageLocationListResponse:
         data = []
         _data = d.pop("data")
         for data_item_data in _data:
-            data_item = StorageLocation.from_dict(data_item_data)
+            data_item = ProjectStorageLocation.from_dict(data_item_data)
 
             data.append(data_item)
 

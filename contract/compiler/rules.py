@@ -1,7 +1,7 @@
 """Rules on what a contract file may contain, checked on its source before it is imported.
 
 A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
-host interfaces and `type` statements. Anything that could run logic, such as a validator, an
+host interfaces, `type` statements and string constants (`NAME: Final = "..."`). Anything that could run logic, such as a validator, an
 assignment or a function, is rejected with the line it is on. A domain's operations.py may
 contain one register function holding only route declarations.
 """
@@ -36,6 +36,7 @@ class Declarations:
     alias_docs: dict[str, str] = field(default_factory=dict)
     class_members: dict[str, list[str]] = field(default_factory=dict)
     module_order: tuple[str, ...] | None = None
+    constants: set[str] = field(default_factory=set)
 
 
 def _is_docstring(node: ast.stmt) -> bool:
@@ -49,6 +50,15 @@ def _is_placeholder(node: ast.stmt) -> bool:
 
 def _declaration_body(body: list[ast.stmt]) -> bool:
     return all(_is_docstring(node) or _is_placeholder(node) for node in body)
+
+
+def _is_constant(node: ast.stmt) -> bool:
+    """`NAME: Final = "text"`: a named string the contract declares, in capitals."""
+    annotation = getattr(node, "annotation", None)
+    final = (isinstance(annotation, ast.Name) and annotation.id == "Final") or (
+        isinstance(annotation, ast.Attribute) and annotation.attr == "Final")
+    return (isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and final and
+            node.target.id.isupper() and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str))
 
 
 def _decorator_name(node: ast.expr) -> str | None:
@@ -122,8 +132,12 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
             _check_class(node, found, problem)
         elif isinstance(node, ast.FunctionDef):
             problem(node, f"{node.name}: operations are routes in a domain's operations.py, not functions in a model module")
+        elif _is_constant(node):
+            found.names.append((node.target.id, node.lineno))
+            found.constants.add(node.target.id)
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            problem(node, "contract files hold no assignments; name a type with a `type` statement")
+            problem(node, "contract files hold no assignments but string constants (`NAME: Final = \"...\"`); "
+                          "name a type with a `type` statement")
         else:
             problem(node, f"contract files hold only declarations, not {type(node).__name__}")
     return problems, found
@@ -158,8 +172,9 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
                         isinstance(operation.decorator_list[0].func, ast.Attribute) and
                         isinstance(operation.decorator_list[0].func.value, ast.Name) and
                         operation.decorator_list[0].func.value.id == "contract" and
-                        operation.decorator_list[0].func.attr in {"route", "core_operation"}):
-                    problem(operation, "register holds only @contract.route or @contract.core_operation declarations")
+                        operation.decorator_list[0].func.attr in {"route", "core_operation", "runtime_operation"}):
+                    problem(operation, "register holds only @contract.route, @contract.core_operation or "
+                                       "@contract.runtime_operation declarations")
                 elif not _declaration_body(operation.body):
                     problem(operation, f"{operation.name}: an operation body may hold only its docstring")
         else:

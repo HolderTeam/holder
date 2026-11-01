@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from compiler.builder import BASE_ERROR_CODES
 from compiler.ir import (
+    ConstantView,
     ContractView,
     FieldView,
     ListType,
@@ -198,6 +199,8 @@ class OperationPlan:
     result: Value | None
     result_c_type: str | None
     errors: tuple[str, ...]
+    # How it uses a context, as in the IR: "required", "none", "opens" or "closes".
+    context: str = "required"
 
 
 @dataclass(frozen=True)
@@ -211,6 +214,7 @@ class ErrorPlan:
 class DomainPlan:
     name: str
     kotlin_name: str
+    constants: list[ConstantView] = field(default_factory=list)
     enums: list[EnumPlan] = field(default_factory=list)
     unions: list[UnionPlan] = field(default_factory=list)
     records: list[RecordPlan] = field(default_factory=list)
@@ -450,7 +454,8 @@ class AndroidClient:
                 raise Unsupported(f"{op.name}: {returns.kind} results in the Android client")
         doc = "\n".join(x for x in [op.summary, op.description] if x) or None
         return OperationPlan(op.name, kotlin_name, f"Java_{CLASS_PATH.replace('/', '_')}_{object_name}_{kotlin_name}",
-                             doc, parameters, value, result.type_name if result else None, tuple(op.errors))
+                             doc, parameters, value, result.type_name if result else None, tuple(op.errors),
+                             op.context)
 
     # ---- the client ----------------------------------------------------------------------------
 
@@ -476,6 +481,8 @@ class AndroidClient:
         # records the operations use get a Kotlin class.
         for name in dict.fromkeys(instance.record for instance in unique(self.types.outputs + self.types.inputs)):
             of(domain(self.types.records[name].source)).records.append(self.record_plan(name))
+        for constant in self.contract.constants:
+            of(domain(constant.source)).constants.append(constant)
         for error in self.contract.errors:
             of(domain(error.source)).errors.append(ErrorPlan(error.name + "Exception", error.code, error.doc))
         for enum in self.enums.values():

@@ -11,7 +11,7 @@ T = TypeVar("T", bound="AssetImportRequest")
 
 @_attrs_define
 class AssetImportRequest:
-    """Start importing a local file into a project resource.
+    """A local file to import into a project resource and attach to a card.
 
     Attributes:
         project_id (str):

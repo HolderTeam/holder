@@ -60,11 +60,11 @@ object SnapshotWriter {
         budgetBytes: Long = SNAPSHOT_BUDGET_BYTES,
         pageSize: Int = 500,
     ): SnapshotWriteResult =
-        writeLines(deviceCards(pageSize).map { it.toString() }, destination, budgetBytes)
+        writeLines(deviceLines(pageSize), destination, budgetBytes)
 
     /** The largest `updated_at` among any local project's cards right now, or null if there
      * are no cards anywhere -- a cheap one-card-page-per-project check via
-     * [HolderNative.backupSnapshotPage] (`limit = 1`, not a full pull), used to decide whether
+     * [HolderNative.recoverySnapshotPage] (`limit = 1`, not a full pull), used to decide whether
      * a scheduled regeneration ([team.holder.android.git.backup.SnapshotWorker]) has anything
      * new to write, and recorded by [regenerateAndRecordFreshness] after writing. Any card
      * mutation that matters for a snapshot -- title/body, links, milestones, trash/restore --
@@ -75,8 +75,8 @@ object SnapshotWriter {
     fun deviceMaxUpdatedAt(): Long? =
         HolderNative.listProjects()
             .mapNotNull { project ->
-                HolderNative.backupSnapshotPage(project.projectId, 0, null, limit = 1)
-                    .cards.firstOrNull()?.getLong("updated_at")
+                HolderNative.recoverySnapshotPage(project.projectId, cursor = null, limit = 1)
+                    .cards.firstOrNull()?.updatedAt
             }
             .maxOrNull()
 
@@ -94,12 +94,10 @@ object SnapshotWriter {
     }
 
     /**
-     * The tested core: streams [lines] (each the literal per-card JSON object
-     * `holder_backup_snapshot_page` returns, already `.toString()`'d -- card_id, project_id,
-     * project_name, privacy_mode, title, body, created_at, updated_at, links, milestones,
-     * linked resource metadata and portable storage declarations (not stored file bytes),
-     * unchanged, so restore can group cards back into projects without a separate per-project
-     * header record) one per line into a gzip stream at [destination], stopping *before*
+     * The tested core: streams [lines] (each one card: a JSON object holding the card's
+     * `project_id`, `project_name` and `privacy_mode`, which restore groups cards by, and as
+     * `line` the card in core's recovery snapshot encoding, which only core reads -- see
+     * [snapshotLine]) one per line into a gzip stream at [destination], stopping *before*
      * writing whichever line would push the compressed output over [budgetBytes] -- checked
      * after every line via a sync-flushing [GZIPOutputStream], not some fixed batch size, so a
      * handful of huge cards can't overshoot the budget just because they arrived in the same
@@ -158,35 +156,38 @@ object SnapshotWriter {
     }
 
     /**
-     * Every local project's cards, most-recently-updated first within each project, lazily
-     * paginated from [HolderNative.backupSnapshotPage] [pageSize] cards at a time so
-     * [writeLines] never needs more than one page's worth of cards in memory at once. Projects
-     * are visited in [HolderNative.listProjects] order -- true cross-project recency
-     * (interleaving by updated_at across every project on the device) isn't attempted: a
-     * typical Holder user has one primary project (see holder-core's `ensure_default_project`),
-     * so one big project starving a smaller, later one of budget is a real but low-value edge
-     * case for this deliberately modest "recover recent cards" feature to solve up front --
-     * see BACKUP_RESTORE_DESIGN.md.
+     * Every local project's cards as snapshot file lines (see [snapshotLine]),
+     * most-recently-updated first within each project, lazily paginated from
+     * [HolderNative.recoverySnapshotPage] [pageSize] cards at a time so [writeLines] never
+     * needs more than one page's worth of cards in memory at once. Projects are visited in
+     * [HolderNative.listProjects] order -- true cross-project recency (interleaving by
+     * updated_at across every project on the device) isn't attempted: a typical Holder user
+     * has one primary project, so one big project starving a smaller, later one of budget is a
+     * real but low-value edge case for this deliberately modest "recover recent cards" feature.
      */
-    private fun deviceCards(pageSize: Int): Sequence<JSONObject> = sequence {
+    private fun deviceLines(pageSize: Int): Sequence<String> = sequence {
         for (project in HolderNative.listProjects()) {
-            var cursorUpdatedAt = 0L
-            var cursorCardId: String? = null
-            while (true) {
-                val page = HolderNative.backupSnapshotPage(
-                    project.projectId,
-                    cursorUpdatedAt,
-                    cursorCardId,
-                    pageSize,
-                )
-                yieldAll(page.cards)
-                val next = page.nextCursor ?: break
-                cursorUpdatedAt = next.updatedAt
-                cursorCardId = next.cardId
-            }
+            var cursor: String? = null
+            do {
+                val page = HolderNative.recoverySnapshotPage(project.projectId, cursor, pageSize)
+                page.cards.zip(page.lines).forEach { (card, line) ->
+                    yield(snapshotLine(card.projectId, card.projectName, card.privacyMode.value, line))
+                }
+                cursor = page.nextCursor
+            } while (cursor != null)
         }
     }
 }
+
+/** One snapshot file line: the card's project, for [SnapshotReader] to group by, and [line],
+ * the card as core's recovery snapshot encodes it, which only core reads back. */
+fun snapshotLine(projectId: String, projectName: String, privacyMode: String, line: String): String =
+    JSONObject()
+        .put("project_id", projectId)
+        .put("project_name", projectName)
+        .put("privacy_mode", privacyMode)
+        .put("line", line)
+        .toString()
 
 /** Counts bytes actually written to [out] -- used to check the snapshot's real compressed
  * size against the budget without a separate stat()/length() call, which a still-open

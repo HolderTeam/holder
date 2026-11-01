@@ -57,7 +57,6 @@ class CardListBoardMoveTest {
             context = context,
             dataDir = dataDir,
             schemaSql = context.assets.open("schema.sql").bufferedReader().use { it.readText() },
-            welcomeContent = "# Welcome\n\nWelcome",
         )
         // Board mode is a persisted global preference (HolderSettings), not per-project -- force
         // it on for this test and back off afterward so it doesn't leak into other instrumented

@@ -24,7 +24,7 @@ std::function<std::string()> counting_uuid_v4(const std::string& prefix) {
 } // namespace
 
 TEST_CASE(
-    "ensure_default_project creates a project and welcome card when empty",
+    "ensure_default_project makes an encrypted Home with the contract's welcome card when empty",
     "[default_project]"
 ) {
   const auto dir = holder::test::make_temp_dir();
@@ -32,17 +32,13 @@ TEST_CASE(
 
   const auto created = holder::project::ensure_default_project(
       db,
-      "Home",
-      "plain",
-      "Welcome",
-      "# Welcome to Holder\n",
       counting_uuid_v4("id"),
       dir / "projects"
   );
 
   REQUIRE(created.has_value());
   REQUIRE(created->name == "Home");
-  REQUIRE(created->privacy_mode == "plain");
+  REQUIRE(created->privacy_mode == "encrypted_git");
   REQUIRE(created->id_scheme == holder::model::IdScheme::Uuid7);
   REQUIRE(created->project_id.size() == 36);
   REQUIRE(created->project_id[14] == '7');
@@ -52,7 +48,8 @@ TEST_CASE(
   REQUIRE(cards.size() == 1);
   REQUIRE(cards[0].card_id.size() == 36);
   REQUIRE(cards[0].card_id[14] == '7');
-  REQUIRE(cards[0].title == "Welcome");
+  REQUIRE(cards[0].title == "Welcome to Holder");
+  REQUIRE(holder::project::welcome_card_title() == "Welcome to Holder");
 }
 
 TEST_CASE(
@@ -73,10 +70,6 @@ TEST_CASE(
 
   const auto created = holder::project::ensure_default_project(
       db,
-      "Home",
-      "plain",
-      "Welcome",
-      "# Welcome to Holder\n",
       counting_uuid_v4("id"),
       dir / "projects"
   );

@@ -25,6 +25,7 @@ from .projects import operations as project_operations
 from .recovery import operations as recovery_operations
 from .recovery.errors import RecoveryTokenInvalid
 from .resources import operations as resource_operations
+from .runtime import operations as runtime_operations
 from .search import operations as search_operations
 from .trash import operations as trash_operations
 from .trash.errors import NotTrashed
@@ -52,6 +53,7 @@ contract = Contract(errors={
     HistoryUnavailable: (503, 5031),
 })
 
+runtime_operations.register(contract)
 location_operations.register(contract)
 card_operations.register(contract)
 link_operations.register(contract)

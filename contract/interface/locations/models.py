@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from authoring import MISSING, Field, Int64, Record, Timestamp
+from authoring import MISSING, Field, Record, Timestamp
 
 from ..projects.ids import ProjectId
 
@@ -72,39 +72,12 @@ class LocationDeleteResult(Record):
     """The affected location ID."""
 
 
-type StorageLocationProvider = Literal["local_directory", "s3_compatible", "google-drive"]
-"""The storage provider kind in a location listing."""
-
-
-class StorageLocation(Record):
-    """A portable storage declaration with this device's binding status."""
-
-    location_id: str
-    """The location ID."""
-    project_id: str
-    """The owning project."""
-    name: str
-    """Display name."""
-    provider: StorageLocationProvider
-    """Storage provider kind."""
-    configuration: dict[str, str]
-    """Portable non-secret provider configuration."""
-    bound: bool
-    """Whether this device has a binding."""
-    binding_preview: str | None
-    """Safe binding display text; credentials are never returned."""
-    created_at: Int64
-    """Creation time."""
-    updated_at: Int64
-    """Last update time."""
-
-
 class StorageLocationListResponse(Record):
     """Project storage locations and this device's preference."""
 
     ok: bool
     """Whether the request succeeded."""
-    data: list[StorageLocation]
+    data: list[ProjectStorageLocation]
     """The project's locations."""
     preferred_location_id: str | None
     """This device's preferred location, when set."""
@@ -178,3 +151,13 @@ class GoogleDriveAuthorizeResponse(Record):
     """Whether the request succeeded."""
     data: GoogleDriveAuthorization
     """The authorization URL."""
+
+
+class StorageLocationList(Record):
+    """A project's storage locations, with this device's binding status, and this device's preferred one."""
+
+    data: list[ProjectStorageLocation]
+    """The project's locations, most recently updated first; none for a project with none, or one this device does
+    not have."""
+    preferred_location_id: LocationId | None
+    """This device's preferred location for the project; null when it has none."""

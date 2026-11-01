@@ -160,7 +160,6 @@ class MainActivity : ComponentActivity() {
                 context = this,
                 dataDir = holderDataDir,
                 schemaSql = assets.open("schema.sql").bufferedReader().use { it.readText() },
-                welcomeContent = assets.open("WELCOME.md").bufferedReader().use { it.readText() },
             )
         }.exceptionOrNull()
 

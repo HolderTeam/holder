@@ -64,6 +64,16 @@ void save(holder_context& context, const holder::model::Location& location) {
 
 } // namespace
 
+StorageLocationList list_storage_locations(holder_context& context, std::string project_id) {
+  return with_contract_errors([&] {
+    const auto bindings = binding_store(context);
+    StorageLocationList out{{}, bindings ? bindings->preferred(project_id) : std::nullopt};
+    for (const auto& location : holder::resource::LocationRepo(context.db).list(project_id))
+      out.data.push_back(item(location, bindings.get()));
+    return out;
+  });
+}
+
 ProjectStorageLocation get_storage_location(holder_context& context, std::string location_id) {
   return with_contract_errors([&] {
     const auto location = require_location(context, location_id);

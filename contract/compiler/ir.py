@@ -111,6 +111,13 @@ class AliasView(View):
     type: TypeRef
 
 
+class ConstantView(View):
+    name: str
+    source: str | None = None
+    doc: str | None = None
+    value: str
+
+
 class EnumMemberView(View):
     name: str
     value: str
@@ -168,6 +175,7 @@ class OperationView(View):
     returns: TypeRef
     errors: list[str]
     daemon_only: bool
+    context: Literal["required", "none", "opens", "closes"] = "required"
 
     def parameter(self, name: str) -> ParameterView:
         try:
@@ -204,6 +212,7 @@ class ContractView(View):
     operations: list[OperationView]
     http: list[HttpBindingView]
     http_errors: list[HttpErrorView]
+    constants: list[ConstantView] = []
 
     def record(self, name: str) -> RecordView:
         try:

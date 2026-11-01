@@ -28,6 +28,7 @@ from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record,
 from .errors import ContractError
 from .ir import (
     AliasView,
+    ConstantView,
     ContractView,
     EnumMemberView,
     EnumView,
@@ -79,11 +80,13 @@ class _Draft:
     operations: list[OperationView] = field(default_factory=list)
     http: list[HttpBindingView] = field(default_factory=list)
     http_errors: list[HttpErrorView] = field(default_factory=list)
+    constants: list[ConstantView] = field(default_factory=list)
 
     def finish(self) -> ContractView:
         return ContractView(ir_version=IR_VERSION, aliases=self.aliases, enums=self.enums,
                             records=self.records, errors=self.errors, interfaces=self.interfaces,
-                            operations=self.operations, http=self.http, http_errors=self.http_errors)
+                            operations=self.operations, http=self.http, http_errors=self.http_errors,
+                            **({"constants": self.constants} if self.constants else {}))
 
 
 @dataclass(frozen=True)
@@ -139,7 +142,13 @@ class _Builder:
     def declare(self, module: types.ModuleType, name: str, declarations: Declarations) -> None:
         obj = module.__dict__[name]
         source = self.where[0]
-        if isinstance(obj, typing.TypeAliasType):
+        if name in declarations.constants:
+            self.unique(name)
+            doc = declarations.alias_docs.get(name)
+            if not doc:
+                self.problem(f"{name} has no docstring")
+            self.draft.constants.append(ConstantView(name=name, source=source, doc=doc, value=obj))
+        elif isinstance(obj, typing.TypeAliasType):
             self.unique(name)
             self.draft.aliases.append(AliasView(name=name, source=source, doc=declarations.alias_docs.get(name),
                                                 type=self.ref(obj.__value__, name)))
@@ -252,13 +261,23 @@ class _Builder:
             self.draft.operations.append(OperationView(name=signature.name, source=operation_source,
                                                        summary=signature.summary, description=signature.description,
                                                        parameters=signature.parameters, returns=signature.returns,
-                                                       errors=errors, daemon_only=not operation.core))
+                                                       errors=errors, daemon_only=not operation.core,
+                                                       **({"context": operation.context}
+                                                          if operation.context != "required" else {})))
+            self.check_context(function.__name__, operation.context, signature)
             if operation.route:
                 self.bind(function, routes[function], operation.created_when, operation.public,
                           operation.core)
         self.where = (self.app_source, 1)
         for error, entry in contract.errors.items():
             self.bind_error(error, entry)
+
+    def check_context(self, name: str, context: str, signature: _Signature) -> None:
+        """An operation that opens a context returns nothing else; one that closes takes and returns nothing."""
+        if context in ("opens", "closes") and signature.returns.kind != "none":
+            self.problem(f"{name}: an operation that {context} a context returns None")
+        if context == "closes" and signature.parameters:
+            self.problem(f"{name}: an operation that closes a context takes only that context")
 
     def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> _Signature:
         doc = _doc(function)

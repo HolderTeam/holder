@@ -84,3 +84,22 @@ def c_out(types: CoreTypes, op: OperationView) -> tuple[str, str] | None:
     except CAbiError as error:
         raise Unsupported(str(error)) from error
     return (result.type_name, result.out_name) if result else None
+
+
+def c_signature(types: CoreTypes, op: OperationView) -> str:
+    """The operation's C function, without a semicolon. An operation that opens a context returns it through
+    out_context; the one that closes a context takes it and reports nothing; one that runs without a context
+    takes none."""
+    params = [c_param(types, op, p) for p in op.parameters]
+    if op.context == "closes":
+        return f"void holder_{op.name}(holder_context* context)"
+    if op.context == "opens":
+        args = [*[p.c_decl for p in params], "holder_context** out_context", "holder_error** out_error"]
+        return f"int holder_{op.name}(" + ", ".join(args) + ")"
+    result = c_out(types, op)
+    args = [*([] if op.context == "none" else ["holder_context* context"]), *[p.c_decl for p in params],
+            "holder_arena* arena"]
+    if result:
+        args.append(f"const {result[0]}** {result[1]}")
+    args.append("holder_error** out_error")
+    return f"int holder_{op.name}(" + ", ".join(args) + ")"

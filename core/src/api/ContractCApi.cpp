@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -139,9 +139,8 @@ double finite(double value, const char* name) {
 }
 
 template <class Body>
-int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+int run_guarded(holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
   try {
     body();
     return HOLDER_OK;
@@ -184,6 +183,16 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
   } catch (...) {
     return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
   }
+}
+
+// Runs body as guarded does, for an operation that writes its result into an arena.
+template <class Body>
+int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+  if (arena == nullptr) {
+    if (out_error != nullptr) *out_error = nullptr;
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
+  }
+  return run_guarded(out_error, std::forward<Body>(body));
 }
 
 // A partial update's text field: kept, set to its value, or cleared.
@@ -307,6 +316,41 @@ holder_project_encryption_check_privacy_mode to_c_enum(contract::ProjectEncrypti
   throw std::logic_error("not a contract::ProjectEncryptionCheckPrivacyMode value");
 }
 
+holder_recovery_snapshot_link_target_type to_c_enum(contract::RecoverySnapshotLinkTargetType value) {
+  switch (value) {
+  case contract::RecoverySnapshotLinkTargetType::Card: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_CARD;
+  case contract::RecoverySnapshotLinkTargetType::AiMessage: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_MESSAGE;
+  case contract::RecoverySnapshotLinkTargetType::AiThread: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_AI_THREAD;
+  case contract::RecoverySnapshotLinkTargetType::Resource: return HOLDER_RECOVERY_SNAPSHOT_LINK_TARGET_TYPE_RESOURCE;
+  }
+  throw std::logic_error("not a contract::RecoverySnapshotLinkTargetType value");
+}
+
+holder_recovery_snapshot_placement_encoding to_c_enum(contract::RecoverySnapshotPlacementEncoding value) {
+  switch (value) {
+  case contract::RecoverySnapshotPlacementEncoding::Plain: return HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_PLAIN;
+  case contract::RecoverySnapshotPlacementEncoding::HolderAssetV1: return HOLDER_RECOVERY_SNAPSHOT_PLACEMENT_ENCODING_HOLDER_ASSET_V1;
+  }
+  throw std::logic_error("not a contract::RecoverySnapshotPlacementEncoding value");
+}
+
+holder_recovery_snapshot_location_provider to_c_enum(contract::RecoverySnapshotLocationProvider value) {
+  switch (value) {
+  case contract::RecoverySnapshotLocationProvider::LocalDirectory: return HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_LOCAL_DIRECTORY;
+  case contract::RecoverySnapshotLocationProvider::S3Compatible: return HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_S3_COMPATIBLE;
+  case contract::RecoverySnapshotLocationProvider::GoogleDrive: return HOLDER_RECOVERY_SNAPSHOT_LOCATION_PROVIDER_GOOGLE_DRIVE;
+  }
+  throw std::logic_error("not a contract::RecoverySnapshotLocationProvider value");
+}
+
+holder_recovery_snapshot_card_privacy_mode to_c_enum(contract::RecoverySnapshotCardPrivacyMode value) {
+  switch (value) {
+  case contract::RecoverySnapshotCardPrivacyMode::EncryptedGit: return HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_ENCRYPTED_GIT;
+  case contract::RecoverySnapshotCardPrivacyMode::Plain: return HOLDER_RECOVERY_SNAPSHOT_CARD_PRIVACY_MODE_PLAIN;
+  }
+  throw std::logic_error("not a contract::RecoverySnapshotCardPrivacyMode value");
+}
+
 holder_recovery_token_global_import_result_pull_status to_c_enum(contract::RecoveryTokenGlobalImportResultPullStatus value) {
   switch (value) {
   case contract::RecoveryTokenGlobalImportResultPullStatus::NotAttempted: return HOLDER_RECOVERY_TOKEN_GLOBAL_IMPORT_RESULT_PULL_STATUS_NOT_ATTEMPTED;
@@ -382,7 +426,11 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
   throw std::logic_error("not a contract::TrashItemType value");
 }
 
+holder_core_version to_c(holder_arena* arena, const contract::CoreVersion& value);
+holder_database_rebuild_report to_c(holder_arena* arena, const contract::DatabaseRebuildReport& value);
 holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value);
+holder_project_storage_location_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectStorageLocation>& values);
+holder_storage_location_list to_c(holder_arena* arena, const contract::StorageLocationList& value);
 holder_location_delete_result to_c(holder_arena* arena, const contract::LocationDeleteResult& value);
 holder_tag_occurrence to_c(holder_arena* arena, const contract::TagOccurrence& value);
 holder_tag_occurrence_list to_c_list(holder_arena* arena, const std::vector<contract::TagOccurrence>& values);
@@ -399,6 +447,8 @@ holder_card_list_item_list to_c_list(holder_arena* arena, const std::vector<cont
 holder_card_list_item_page to_c(holder_arena* arena, const contract::Page<contract::CardListItem>& value);
 holder_tag_count to_c(holder_arena* arena, const contract::TagCount& value);
 holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract::TagCount>& values);
+holder_link_kind_labels to_c(holder_arena* arena, const contract::LinkKindLabels& value);
+holder_link_kind_labels_list to_c_list(holder_arena* arena, const std::vector<contract::LinkKindLabels>& values);
 holder_link to_c(holder_arena* arena, const contract::Link& value);
 holder_link_list to_c_list(holder_arena* arena, const std::vector<contract::Link>& values);
 holder_milestone_date to_c(holder_arena* arena, const contract::MilestoneDate& value);
@@ -408,15 +458,18 @@ holder_milestone_list to_c_list(holder_arena* arena, const std::vector<contract:
 holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMilestone& value);
 holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values);
 holder_calendar to_c(holder_arena* arena, const contract::Calendar& value);
+holder_asset_import to_c(holder_arena* arena, const contract::AssetImport& value);
+holder_asset_file to_c(holder_arena* arena, const contract::AssetFile& value);
 holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value);
 holder_asset_placement_list to_c_list(holder_arena* arena, const std::vector<contract::AssetPlacement>& values);
 holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& value);
 holder_resource_asset_list to_c_list(holder_arena* arena, const std::vector<contract::ResourceAsset>& values);
 holder_resource to_c(holder_arena* arena, const contract::Resource& value);
 holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::Resource>& values);
+holder_project to_c(holder_arena* arena, const contract::Project& value);
+holder_home_project to_c(holder_arena* arena, const contract::HomeProject& value);
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value);
 holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectListItem>& values);
-holder_project to_c(holder_arena* arena, const contract::Project& value);
 holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value);
 holder_project_encryption_check to_c(holder_arena* arena, const contract::ProjectEncryptionCheck& value);
 holder_hierarchy_repair_move to_c(holder_arena* arena, const contract::HierarchyRepairMove& value);
@@ -424,6 +477,21 @@ holder_hierarchy_repair_move_list to_c_list(holder_arena* arena, const std::vect
 holder_hierarchy_repair to_c(holder_arena* arena, const contract::HierarchyRepair& value);
 holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& value);
 holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value);
+holder_recovery_snapshot_link to_c(holder_arena* arena, const contract::RecoverySnapshotLink& value);
+holder_recovery_snapshot_link_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotLink>& values);
+holder_recovery_snapshot_milestone to_c(holder_arena* arena, const contract::RecoverySnapshotMilestone& value);
+holder_recovery_snapshot_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotMilestone>& values);
+holder_recovery_snapshot_placement to_c(holder_arena* arena, const contract::RecoverySnapshotPlacement& value);
+holder_recovery_snapshot_placement_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotPlacement>& values);
+holder_recovery_snapshot_asset to_c(holder_arena* arena, const contract::RecoverySnapshotAsset& value);
+holder_recovery_snapshot_asset_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotAsset>& values);
+holder_recovery_snapshot_resource to_c(holder_arena* arena, const contract::RecoverySnapshotResource& value);
+holder_recovery_snapshot_resource_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotResource>& values);
+holder_recovery_snapshot_location to_c(holder_arena* arena, const contract::RecoverySnapshotLocation& value);
+holder_recovery_snapshot_location_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotLocation>& values);
+holder_recovery_snapshot_card to_c(holder_arena* arena, const contract::RecoverySnapshotCard& value);
+holder_recovery_snapshot_card_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotCard>& values);
+holder_recovery_snapshot_page to_c(holder_arena* arena, const contract::RecoverySnapshotPage& value);
 holder_project_recovery_token_export_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenExportResult& value);
 holder_project_recovery_token_import_result to_c(holder_arena* arena, const contract::ProjectRecoveryTokenImportResult& value);
 holder_recovery_token_global_import_result to_c(holder_arena* arena, const contract::RecoveryTokenGlobalImportResult& value);
@@ -461,6 +529,32 @@ holder_search_card_list to_c_list(holder_arena* arena, const std::vector<contrac
 holder_search_message to_c(holder_arena* arena, const contract::SearchMessage& value);
 holder_search_message_list to_c_list(holder_arena* arena, const std::vector<contract::SearchMessage>& values);
 
+holder_core_version to_c(holder_arena* arena, const contract::CoreVersion& value) {
+  holder_core_version out{};
+  out.version = copy(arena, value.version);
+  out.major = value.major;
+  out.minor = value.minor;
+  out.patch = value.patch;
+  return out;
+}
+
+holder_database_rebuild_report to_c(holder_arena* arena, const contract::DatabaseRebuildReport& value) {
+  holder_database_rebuild_report out{};
+  out.dry_run = value.dry_run;
+  out.previous_health = copy(arena, value.previous_health);
+  out.projects = value.projects;
+  out.cards = value.cards;
+  out.ai_threads = value.ai_threads;
+  out.ai_messages = value.ai_messages;
+  out.resources = value.resources;
+  out.assets = value.assets;
+  out.placements = value.placements;
+  out.locations = value.locations;
+  out.quarantined_cards = value.quarantined_cards;
+  out.backup_path = copy_text(arena, value.backup_path);
+  return out;
+}
+
 holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value) {
   holder_project_storage_location out{};
   out.location_id = copy(arena, value.location_id);
@@ -472,6 +566,19 @@ holder_project_storage_location to_c(holder_arena* arena, const contract::Projec
   out.binding_preview = copy_text(arena, value.binding_preview);
   out.created_at = value.created_at;
   out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_project_storage_location_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectStorageLocation>& values) {
+  auto* items = make<holder_project_storage_location>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_storage_location_list to_c(holder_arena* arena, const contract::StorageLocationList& value) {
+  holder_storage_location_list out{};
+  out.data = to_c_list(arena, value.data);
+  out.preferred_location_id = copy_text(arena, value.preferred_location_id);
   return out;
 }
 
@@ -509,6 +616,7 @@ holder_card to_c(holder_arena* arena, const contract::Card& value) {
   out.content = copy(arena, value.content);
   out.tags = copy_strings(arena, value.tags);
   out.tag_occurrences = to_c_list(arena, value.tag_occurrences);
+  out.removable_tags = copy_strings(arena, value.removable_tags);
   return out;
 }
 
@@ -611,6 +719,20 @@ holder_tag_count_list to_c_list(holder_arena* arena, const std::vector<contract:
   return {items, values.size()};
 }
 
+holder_link_kind_labels to_c(holder_arena* arena, const contract::LinkKindLabels& value) {
+  holder_link_kind_labels out{};
+  out.kind = copy(arena, value.kind);
+  out.forward_label = copy(arena, value.forward_label);
+  out.reverse_label = copy(arena, value.reverse_label);
+  return out;
+}
+
+holder_link_kind_labels_list to_c_list(holder_arena* arena, const std::vector<contract::LinkKindLabels>& values) {
+  auto* items = make<holder_link_kind_labels>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
 holder_link to_c(holder_arena* arena, const contract::Link& value) {
   holder_link out{};
   out.source_project_id = copy(arena, value.source_project_id);
@@ -692,6 +814,24 @@ holder_calendar to_c(holder_arena* arena, const contract::Calendar& value) {
   return out;
 }
 
+holder_asset_import to_c(holder_arena* arena, const contract::AssetImport& value) {
+  holder_asset_import out{};
+  out.resource_id = copy(arena, value.resource_id);
+  out.asset_id = copy(arena, value.asset_id);
+  out.duplicate_reused = value.duplicate_reused;
+  out.link_created = value.link_created;
+  return out;
+}
+
+holder_asset_file to_c(holder_arena* arena, const contract::AssetFile& value) {
+  holder_asset_file out{};
+  out.path = copy(arena, value.path);
+  out.original_filename = copy(arena, value.original_filename);
+  out.media_type = copy(arena, value.media_type);
+  out.byte_size = value.byte_size;
+  return out;
+}
+
 holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value) {
   holder_asset_placement out{};
   out.placement_id = copy(arena, value.placement_id);
@@ -746,6 +886,26 @@ holder_resource_list to_c_list(holder_arena* arena, const std::vector<contract::
   return {items, values.size()};
 }
 
+holder_project to_c(holder_arena* arena, const contract::Project& value) {
+  holder_project out{};
+  out.project_id = copy(arena, value.project_id);
+  out.name = copy(arena, value.name);
+  out.root_path = copy(arena, value.root_path);
+  out.git_remote_url = copy_text(arena, value.git_remote_url);
+  out.git_provider = copy_text(arena, value.git_provider);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.project_key_id = copy_text(arena, value.project_key_id);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_home_project to_c(holder_arena* arena, const contract::HomeProject& value) {
+  holder_home_project out{};
+  out.project = copy_optional<holder_project>(arena, value.project, [&](const auto& item) { return to_c(arena, item); });
+  return out;
+}
+
 holder_project_list_item to_c(holder_arena* arena, const contract::ProjectListItem& value) {
   holder_project_list_item out{};
   out.project_id = copy(arena, value.project_id);
@@ -766,20 +926,6 @@ holder_project_list_item_list to_c_list(holder_arena* arena, const std::vector<c
   auto* items = make<holder_project_list_item>(arena, values.size());
   for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
   return {items, values.size()};
-}
-
-holder_project to_c(holder_arena* arena, const contract::Project& value) {
-  holder_project out{};
-  out.project_id = copy(arena, value.project_id);
-  out.name = copy(arena, value.name);
-  out.root_path = copy(arena, value.root_path);
-  out.git_remote_url = copy_text(arena, value.git_remote_url);
-  out.git_provider = copy_text(arena, value.git_provider);
-  out.privacy_mode = to_c_enum(value.privacy_mode);
-  out.project_key_id = copy_text(arena, value.project_key_id);
-  out.created_at = value.created_at;
-  out.updated_at = value.updated_at;
-  return out;
 }
 
 holder_encryption_safety_check to_c(holder_arena* arena, const contract::EncryptionSafetyCheck& value) {
@@ -835,6 +981,141 @@ holder_rebuild_result to_c(holder_arena* arena, const contract::RebuildResult& v
 holder_reindex_result to_c(holder_arena* arena, const contract::ReindexResult& value) {
   holder_reindex_result out{};
   out.message = copy(arena, value.message);
+  return out;
+}
+
+holder_recovery_snapshot_link to_c(holder_arena* arena, const contract::RecoverySnapshotLink& value) {
+  holder_recovery_snapshot_link out{};
+  out.target_type = to_c_enum(value.target_type);
+  out.target_id = copy(arena, value.target_id);
+  out.target_project_id = copy_text(arena, value.target_project_id);
+  out.kind = copy(arena, value.kind);
+  out.label = copy_text(arena, value.label);
+  return out;
+}
+
+holder_recovery_snapshot_link_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotLink>& values) {
+  auto* items = make<holder_recovery_snapshot_link>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_milestone to_c(holder_arena* arena, const contract::RecoverySnapshotMilestone& value) {
+  holder_recovery_snapshot_milestone out{};
+  out.dates = to_c_list(arena, value.dates);
+  out.kind = copy_text(arena, value.kind);
+  out.description = copy_text(arena, value.description);
+  return out;
+}
+
+holder_recovery_snapshot_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotMilestone>& values) {
+  auto* items = make<holder_recovery_snapshot_milestone>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_placement to_c(holder_arena* arena, const contract::RecoverySnapshotPlacement& value) {
+  holder_recovery_snapshot_placement out{};
+  out.placement_id = copy(arena, value.placement_id);
+  out.location_id = copy(arena, value.location_id);
+  out.object_key = copy(arena, value.object_key);
+  out.encoding = to_c_enum(value.encoding);
+  out.stored_byte_size = value.stored_byte_size;
+  out.stored_sha256 = copy(arena, value.stored_sha256);
+  out.created_at = value.created_at;
+  return out;
+}
+
+holder_recovery_snapshot_placement_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotPlacement>& values) {
+  auto* items = make<holder_recovery_snapshot_placement>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_asset to_c(holder_arena* arena, const contract::RecoverySnapshotAsset& value) {
+  holder_recovery_snapshot_asset out{};
+  out.asset_id = copy(arena, value.asset_id);
+  out.original_filename = copy(arena, value.original_filename);
+  out.media_type = copy(arena, value.media_type);
+  out.byte_size = value.byte_size;
+  out.plaintext_sha256 = copy(arena, value.plaintext_sha256);
+  out.placements = to_c_list(arena, value.placements);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_recovery_snapshot_asset_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotAsset>& values) {
+  auto* items = make<holder_recovery_snapshot_asset>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_resource to_c(holder_arena* arena, const contract::RecoverySnapshotResource& value) {
+  holder_recovery_snapshot_resource out{};
+  out.resource_id = copy(arena, value.resource_id);
+  out.type = copy(arena, value.type);
+  out.label = copy(arena, value.label);
+  out.metadata = to_c_resource_metadata(arena, value.metadata);
+  out.assets = to_c_list(arena, value.assets);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_recovery_snapshot_resource_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotResource>& values) {
+  auto* items = make<holder_recovery_snapshot_resource>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_location to_c(holder_arena* arena, const contract::RecoverySnapshotLocation& value) {
+  holder_recovery_snapshot_location out{};
+  out.location_id = copy(arena, value.location_id);
+  out.name = copy(arena, value.name);
+  out.provider = to_c_enum(value.provider);
+  out.configuration = to_c_location_configuration(arena, value.configuration);
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  return out;
+}
+
+holder_recovery_snapshot_location_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotLocation>& values) {
+  auto* items = make<holder_recovery_snapshot_location>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_card to_c(holder_arena* arena, const contract::RecoverySnapshotCard& value) {
+  holder_recovery_snapshot_card out{};
+  out.card_id = copy(arena, value.card_id);
+  out.project_id = copy(arena, value.project_id);
+  out.project_name = copy(arena, value.project_name);
+  out.privacy_mode = to_c_enum(value.privacy_mode);
+  out.title = copy(arena, value.title);
+  out.content = copy(arena, value.content);
+  out.parent_card_id = copy_text(arena, value.parent_card_id);
+  out.sort_key = value.sort_key;
+  out.created_at = value.created_at;
+  out.updated_at = value.updated_at;
+  out.links = to_c_list(arena, value.links);
+  out.milestones = to_c_list(arena, value.milestones);
+  out.resources = to_c_list(arena, value.resources);
+  out.locations = to_c_list(arena, value.locations);
+  return out;
+}
+
+holder_recovery_snapshot_card_list to_c_list(holder_arena* arena, const std::vector<contract::RecoverySnapshotCard>& values) {
+  auto* items = make<holder_recovery_snapshot_card>(arena, values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) items[i] = to_c(arena, values[i]);
+  return {items, values.size()};
+}
+
+holder_recovery_snapshot_page to_c(holder_arena* arena, const contract::RecoverySnapshotPage& value) {
+  holder_recovery_snapshot_page out{};
+  out.cards = to_c_list(arena, value.cards);
+  out.lines = copy_strings(arena, value.lines);
+  out.next_cursor = copy_text(arena, value.next_cursor);
   return out;
 }
 
@@ -1289,6 +1570,15 @@ contract::MilestoneUpdate from_c(const holder_milestone_update& value) {
   return out;
 }
 
+contract::AssetImportRequest from_c(const holder_asset_import_request& value) {
+  contract::AssetImportRequest out;
+  out.project_id = text(value.project_id, "asset_import_request.project_id", 1, SIZE_MAX);
+  out.card_id = text(value.card_id, "asset_import_request.card_id", 0, SIZE_MAX);
+  out.location_id = text(value.location_id, "asset_import_request.location_id", 0, SIZE_MAX);
+  out.source_path = text(value.source_path, "asset_import_request.source_path", 0, SIZE_MAX);
+  return out;
+}
+
 contract::NewResource from_c(const holder_new_resource& value) {
   contract::NewResource out;
   out.resource_id = optional_text(value.resource_id, "new_resource.resource_id", 4, SIZE_MAX);
@@ -1347,6 +1637,19 @@ contract::RebuildRequest from_c(const holder_rebuild_request& value) {
   return out;
 }
 
+contract::RecoverySnapshotRestore from_c(const holder_recovery_snapshot_restore& value) {
+  contract::RecoverySnapshotRestore out;
+  out.project_name = text(value.project_name, "recovery_snapshot_restore.project_name", 1, SIZE_MAX);
+  switch (value.privacy_mode) {
+  case HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_ENCRYPTED_GIT: out.privacy_mode = contract::RecoverySnapshotRestorePrivacyMode::EncryptedGit; break;
+  case HOLDER_RECOVERY_SNAPSHOT_RESTORE_PRIVACY_MODE_PLAIN: out.privacy_mode = contract::RecoverySnapshotRestorePrivacyMode::Plain; break;
+  default: throw ArgumentError("recovery_snapshot_restore.privacy_mode is not a holder_recovery_snapshot_restore_privacy_mode value");
+  }
+  out.snapshot = text(value.snapshot, "recovery_snapshot_restore.snapshot", 0, SIZE_MAX);
+  out.commit_message = text(value.commit_message, "recovery_snapshot_restore.commit_message", 1, SIZE_MAX);
+  return out;
+}
+
 contract::RecoveryTokenExportRequest from_c(const holder_recovery_token_export_request& value) {
   contract::RecoveryTokenExportRequest out;
   out.pin = text(value.pin, "recovery_token_export_request.pin", 1, SIZE_MAX);
@@ -1379,6 +1682,53 @@ extern "C" {
 
 holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }
 void holder_arena_free(holder_arena* arena) { delete arena; }
+
+int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(out_core_version != nullptr, "out_core_version must not be null");
+    *out_core_version = nullptr;
+    auto* out = make<holder_core_version>(arena);
+    *out = to_c(arena, contract::version());
+    *out_core_version = out;
+  });
+}
+
+int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, holder_error** out_error) {
+  return run_guarded(out_error, [&] {
+    require(out_context != nullptr, "out_context must not be null");
+    *out_context = nullptr;
+    const auto data_dir_value = text(data_dir, "data_dir", 1, SIZE_MAX);
+    const auto schema_sql_value = optional_text(schema_sql, "schema_sql", 0, SIZE_MAX);
+    *out_context = contract::context_open(data_dir_value, schema_sql_value);
+  });
+}
+
+void holder_context_destroy(holder_context* context) { contract::context_destroy(context); }
+
+int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena, const holder_database_rebuild_report** out_database_rebuild_report, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(out_database_rebuild_report != nullptr, "out_database_rebuild_report must not be null");
+    *out_database_rebuild_report = nullptr;
+    const auto data_dir_value = text(data_dir, "data_dir", 1, SIZE_MAX);
+    const auto schema_sql_value = text(schema_sql, "schema_sql", 1, SIZE_MAX);
+    const auto dry_run_value = dry_run;
+    auto* out = make<holder_database_rebuild_report>(arena);
+    *out = to_c(arena, contract::database_rebuild(data_dir_value, schema_sql_value, dry_run_value));
+    *out_database_rebuild_report = out;
+  });
+}
+
+int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_storage_location_list != nullptr, "out_storage_location_list must not be null");
+    *out_storage_location_list = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    auto* out = make<holder_storage_location_list>(arena);
+    *out = to_c(arena, contract::list_storage_locations(*context, project_id_value));
+    *out_storage_location_list = out;
+  });
+}
 
 int holder_get_storage_location(holder_context* context, const char* location_id, holder_arena* arena, const holder_project_storage_location** out_project_storage_location, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
@@ -1632,6 +1982,17 @@ int holder_list_project_tags(holder_context* context, const char* project_id, ho
   });
 }
 
+int holder_list_link_kinds(holder_context* context, holder_arena* arena, const holder_link_kind_labels_list** out_link_kind_labels_list, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_link_kind_labels_list != nullptr, "out_link_kind_labels_list must not be null");
+    *out_link_kind_labels_list = nullptr;
+    auto* out = make<holder_link_kind_labels_list>(arena);
+    *out = to_c_list(arena, contract::list_link_kinds(*context));
+    *out_link_kind_labels_list = out;
+  });
+}
+
 int holder_list_card_links(holder_context* context, const char* project_id, const char* card_id, bool include_deleted, holder_arena* arena, const holder_link_list** out_link_list, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
@@ -1811,6 +2172,34 @@ int holder_get_calendar(holder_context* context, const char* project_id, int64_t
   });
 }
 
+int holder_import_asset_file(holder_context* context, const holder_asset_import_request* request, holder_arena* arena, const holder_asset_import** out_asset_import, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_asset_import != nullptr, "out_asset_import must not be null");
+    *out_asset_import = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_asset_import>(arena);
+    *out = to_c(arena, contract::import_asset_file(*context, request_value));
+    *out_asset_import = out;
+  });
+}
+
+int holder_retrieve_asset_file(holder_context* context, const char* resource_id, const char* asset_id, const char* placement_id, const char* destination_path, holder_arena* arena, const holder_asset_file** out_asset_file, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_asset_file != nullptr, "out_asset_file must not be null");
+    *out_asset_file = nullptr;
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    const auto asset_id_value = text(asset_id, "asset_id", 1, SIZE_MAX);
+    const auto placement_id_value = text(placement_id, "placement_id", 1, SIZE_MAX);
+    const auto destination_path_value = text(destination_path, "destination_path", 1, SIZE_MAX);
+    auto* out = make<holder_asset_file>(arena);
+    *out = to_c(arena, contract::retrieve_asset_file(*context, resource_id_value, asset_id_value, placement_id_value, destination_path_value));
+    *out_asset_file = out;
+  });
+}
+
 int holder_list_resources(holder_context* context, const char* project_id, holder_arena* arena, const holder_resource_list** out_resource_list, holder_error** out_error) {
   return guarded(arena, out_error, [&] {
     require(context != nullptr, "context must not be null");
@@ -1930,6 +2319,17 @@ int holder_detach_card_resource(holder_context* context, const char* project_id,
     auto* out = make<holder_resource_list>(arena);
     *out = to_c_list(arena, contract::detach_card_resource(*context, project_id_value, card_id_value, resource_id_value));
     *out_resource_list = out;
+  });
+}
+
+int holder_ensure_home_project(holder_context* context, holder_arena* arena, const holder_home_project** out_home_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_home_project != nullptr, "out_home_project must not be null");
+    *out_home_project = nullptr;
+    auto* out = make<holder_home_project>(arena);
+    *out = to_c(arena, contract::ensure_home_project(*context));
+    *out_home_project = out;
   });
 }
 
@@ -2059,6 +2459,33 @@ int holder_reindex_search(holder_context* context, holder_arena* arena, const ho
     auto* out = make<holder_reindex_result>(arena);
     *out = to_c(arena, contract::reindex_search(*context));
     *out_reindex_result = out;
+  });
+}
+
+int holder_read_recovery_snapshot(holder_context* context, const char* project_id, const char* cursor, const int32_t* limit, holder_arena* arena, const holder_recovery_snapshot_page** out_recovery_snapshot_page, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_recovery_snapshot_page != nullptr, "out_recovery_snapshot_page must not be null");
+    *out_recovery_snapshot_page = nullptr;
+    const auto project_id_value = text(project_id, "project_id", 1, SIZE_MAX);
+    const auto cursor_value = optional_text(cursor, "cursor", 0, SIZE_MAX);
+    const auto limit_value = (limit ? in_range<std::int32_t>(*limit, "limit", 1, 500) : std::int32_t{500});
+    auto* out = make<holder_recovery_snapshot_page>(arena);
+    *out = to_c(arena, contract::read_recovery_snapshot(*context, project_id_value, cursor_value, limit_value));
+    *out_recovery_snapshot_page = out;
+  });
+}
+
+int holder_restore_recovery_snapshot(holder_context* context, const holder_recovery_snapshot_restore* request, holder_arena* arena, const holder_project** out_project, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_project != nullptr, "out_project must not be null");
+    *out_project = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_project>(arena);
+    *out = to_c(arena, contract::restore_recovery_snapshot(*context, request_value));
+    *out_project = out;
   });
 }
 

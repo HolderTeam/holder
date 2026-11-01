@@ -101,7 +101,8 @@ def sync_detailed(
     failures.
 
     Args:
-        body (AssetImportRequest): Start importing a local file into a project resource.
+        body (AssetImportRequest): A local file to import into a project resource and attach to a
+            card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,7 +134,8 @@ def sync(
     failures.
 
     Args:
-        body (AssetImportRequest): Start importing a local file into a project resource.
+        body (AssetImportRequest): A local file to import into a project resource and attach to a
+            card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -160,7 +162,8 @@ async def asyncio_detailed(
     failures.
 
     Args:
-        body (AssetImportRequest): Start importing a local file into a project resource.
+        body (AssetImportRequest): A local file to import into a project resource and attach to a
+            card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -190,7 +193,8 @@ async def asyncio(
     failures.
 
     Args:
-        body (AssetImportRequest): Start importing a local file into a project resource.
+        body (AssetImportRequest): A local file to import into a project resource and attach to a
+            card.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

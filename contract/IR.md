@@ -12,15 +12,19 @@
   "interfaces": [],
   "operations": [],
   "http": [],
-  "http_errors": []
+  "http_errors": [],
+  "constants": []
 }
 ```
+
+`constants` is left out when the contract declares none.
 
 Declarations appear in the order of their modules' paths, then in source order. Every declared name is unique across the contract. Each declaration has a `name`, a `source` (its file, relative to `contract/`, for the "generated from" line of generated files) and a `doc`.
 
 ## Declarations
 
 - **Alias** (a `type` statement): `name`, `source`, `doc`, `type`.
+- **Constant** (`NAME: Final = "..."` in a model module): `name`, `source`, `doc` and its string `value`. A constant is text the contract fixes, such as a default name, so every platform takes it from one place.
 - **Enum** (a `StrEnum`): `name`, `source`, `doc`, and `values`, each with the member's `name` and its string `value`.
 - **Record**:
   - `name`, `source`, `doc`, and its own `fields`;
@@ -33,7 +37,7 @@ Declarations appear in the order of their modules' paths, then in source order. 
   - A field with neither is required.
 - **Error kind**: `name`, `source`, `doc`, `fields`, which have no defaults, and `code`, its C error code from the contract's error table (left out when the contract has no `app.py`).
 - **Interface**: `name`, `source`, `doc`, and `methods`, each a signature.
-- **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`. Operations are read from domain modules registered by the contract's `app.py`, in registration order. `source` names the module that declares the operation.
+- **Operation**: a signature, plus `source`, `errors` (the names of its error kinds) and `daemon_only`. A runtime operation also has `context`: `none` when it runs without a context, `opens` when it makes one, and `closes` when it releases the one it is given; it is left out for the ordinary operation, which works through a context. Operations are read from domain modules registered by the contract's `app.py`, in registration order. `source` names the module that declares the operation.
 - **Signature**: `name`, `summary`, `description`, `parameters` and `returns`. Each parameter has a `name` and `type`, and may have a `doc` and a `default`.
 - **HTTP binding**: `operation`, `method`, `path`, `path_parameters`, `query` and `status` (the success status), plus `body` when one parameter is left for the request body, `headers` when header parameters are declared, and `public: true` for an unauthenticated route. `created_when` names a boolean result field that selects 201 when true, leaving `status` (200) for false. Each comes from FastAPI's analysis of a route declared in a domain module.
 - **HTTP error status** (in `http_errors`): an error kind's `error` name and its `status`.

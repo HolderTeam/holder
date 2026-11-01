@@ -49,7 +49,7 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
-    fun nativeVersion_isAvailableThroughJni() {
+    fun version_isAvailableThroughTheGeneratedClient() {
         val version = HolderNative.version()
 
         assertFalse(version.startsWith("native load failed:"))
@@ -58,24 +58,31 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
-    fun initialize_bootstrapsHomeProjectAndWelcomeCard() {
-        val welcome = "# Welcome 🌍\n\nHolder is ready."
-
-        initialize(welcome)
+    fun initialize_bootstrapsEncryptedHomeWithTheContractsWelcomeCard() {
+        initialize()
 
         val projects = HolderNative.listProjects()
         assertEquals(1, projects.size)
-        assertEquals("Home", projects.single().name)
+        assertEquals(team.holder.android.contract.HOME_PROJECT_NAME, projects.single().name)
+        assertEquals("encrypted_git", projects.single().privacyMode)
 
         val cards = HolderNative.listCards(projects.single().projectId)
         assertEquals(1, cards.size)
-        assertEquals("Welcome 🌍", cards.single().title)
-        assertEquals(welcome, HolderNative.getCardContent(projects.single().projectId, cards.single().cardId))
+        assertEquals("Welcome to Holder", cards.single().title)
+        assertEquals(
+            team.holder.android.contract.WELCOME_CARD,
+            HolderNative.getCardContent(projects.single().projectId, cards.single().cardId),
+        )
+
+        // Opening again leaves the device's projects alone.
+        HolderNative.close()
+        initialize()
+        assertEquals(projects, HolderNative.listProjects())
     }
 
     @Test
     fun projectAndCardRoundTrip_preservesUtf8AndSearchResults() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
 
         val project = HolderNative.createProject("Проект 🚀")
         val title = "Café 日本語 📝"
@@ -97,7 +104,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun contractCardPage_exposesResponseOptionsAndFilters() {
-        initialize("# Welcome")
+        initialize()
         val project = HolderNative.createProject("Page proof")
         val parent = HolderNative.createCard(project.projectId, "Parent 🌍", "Parent body #proof")
         val child = HolderNative.createCard(project.projectId, "Child", "Child body", parent.cardId)
@@ -129,7 +136,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardReferenceResolution_acrossScopes() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("References")
         val first = HolderNative.createCard(project.projectId, "Shared title", "# Shared title")
         val second = HolderNative.createCard(project.projectId, "Shared title", "# Shared title")
@@ -149,7 +156,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun projectListing_preservesNullableFieldsAndUnicode() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Café 日本語 📝", "plain")
 
         val projects = HolderNative.listProjects()
@@ -163,7 +170,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun projectWrites_preservePlainDefault() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         repeat(3) { round ->
             val created = HolderNative.createProject("Project $round 🚀")
             assertEquals("plain", created.privacyMode)
@@ -185,7 +192,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun newProjectRequest_preservesImportedFields() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val id = UUID.randomUUID().toString()
         val root = dataDir.resolve("imported-project").absolutePath
         val createdAt = 1_700_000_000L
@@ -207,7 +214,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun recoveryTokenExportAndImport_roundTripThroughJni() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Recovery 🚀", "encrypted_git")
         val pin = "1234-秘密"
         val exported = HolderNative.exportRecoveryToken(project.projectId, pin)
@@ -225,7 +232,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun globalRecoveryImport_createsProjectOnFreshDevice() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("New device recovery", "encrypted_git")
         val pin = "9876"
         val token = HolderNative.exportRecoveryToken(project.projectId, pin).recoveryToken
@@ -234,7 +241,7 @@ class HolderNativeIntegrationTest {
         dataDir = context.cacheDir.resolve("holder-jni-recovery-${UUID.randomUUID()}")
         check(dataDir.mkdirs())
         originalDataDir.deleteRecursively()
-        initialize("# Welcome\n\nWelcome")
+        initialize()
 
         val imported = HolderNative.importRecoveryTokenGlobal(pin, token)
         assertEquals(project.projectId, imported.projectId)
@@ -246,7 +253,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun projectRemoteUpdate_setsAndClears() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Remote project")
         val url = "https://example.com/holder-remote.git"
 
@@ -267,7 +274,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun encryptionCheck_forPlainAndEncryptedProjects() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val plain = HolderNative.createProject("Plain check")
         val encrypted = HolderNative.createProject("Encrypted check", "encrypted_git")
         HolderNative.createCard(encrypted.projectId, "Private card", "# Private\n\nCafé 日本語 📝")
@@ -292,7 +299,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun gitSyncState_beforeAndAfterFailedPush() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Sync state project")
         val fresh = HolderNative.gitSyncStatus(project.projectId)
         assertNull(fresh.lastPushStatus)
@@ -306,7 +313,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun gitPull_failsWithoutRemoteAndSucceedsWithOne() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Pull project")
 
         val unset = HolderNative.pullGit(project.projectId)
@@ -322,7 +329,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun gitPushAndRemoteProbe_reportUnsetAndMissingRemotes() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Git operations")
 
         val push = HolderNative.pushGit(project.projectId)
@@ -340,7 +347,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun gitSyncNow_withAndWithoutRemote() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Sync now")
         val untouched = HolderNative.gitSyncNow(project.projectId)
         assertFalse(untouched.pullAttempted)
@@ -356,7 +363,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun gitSyncIfDue_followsCadenceAndSkipsProjectsWithoutRemote() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Sync if due")
         val idle = HolderNative.gitSyncIfDue(project.projectId)
         assertFalse(idle.pullAttempted)
@@ -375,7 +382,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardListing_returnsEveryCardInPlaceOrder() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val projectId = HolderNative.createProject("Card page").projectId
         val created = List(300) { index -> HolderNative.createCard(projectId, "Card $index 📝", "Body $index") }
 
@@ -387,7 +394,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardMetadata_respectsProjectScope() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Metadata project")
         val other = HolderNative.createProject("Other project")
         val card = HolderNative.createCard(project.projectId, "Café 日本語 📝",
@@ -399,7 +406,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardCreation_preservesUnicodeAndParent() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Card creation")
         val parent = HolderNative.createCard(project.projectId, "Parent", "Parent body")
         val content = "# Café 日本語 📝\n\nПривет 🌍 #tag"
@@ -416,7 +423,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardWrites_preserveEditorSemantics() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Card writes")
         val other = HolderNative.createProject("Other project")
         val card = HolderNative.createCard(project.projectId, "Café 📝", "First body")
@@ -442,7 +449,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun tagAndSearchLists_coverEveryCard() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Record lists")
         repeat(8) { index ->
             HolderNative.createCard(project.projectId, "Résumé $index 📝", "A résumé about #urgent and #android $index")
@@ -456,17 +463,21 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardListing_followsCursorPastTheFirstPage() {
-        initialize("# Welcome\n\nWelcome")
-        val cards = JSONArray()
-        repeat(5_001) { index ->
-            cards.put(JSONObject()
+        initialize()
+        // Seeded as one restore, from copies of a real card's snapshot line with their identity changed.
+        val source = HolderNative.createProject("Seed source")
+        HolderNative.createCard(source.projectId, "Seed", "Body")
+        val template = JSONObject(HolderNative.recoverySnapshotPage(source.projectId, null, 1).lines.single())
+        val lines = List(5_001) { index ->
+            val card = JSONObject(template.getJSONObject("card").toString())
                 .put("card_id", "seed-$index")
                 .put("title", if (index == 5_000) "Café 日本語 📝" else "Card $index")
-                .put("body", "Body $index")
+                .put("content", "Body $index")
                 .put("created_at", index)
-                .put("updated_at", index))
+                .put("updated_at", index)
+            JSONObject(template.toString()).put("card", card).toString()
         }
-        val project = HolderNative.backupRestore("Paged cards", "plain", cards.toString(), "Seed card page")
+        val project = HolderNative.restoreRecoverySnapshot("Paged cards", "plain", lines.joinToString("\n"), "Seed card page")
 
         val listed = HolderNative.listCards(project.projectId)
         assertEquals(5_001, listed.size)
@@ -477,8 +488,44 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun backupSnapshot_restoresTheCardTreeIntoANewProject() {
+        initialize()
+        val project = HolderNative.createProject("Backed up")
+        val parent = HolderNative.createCard(project.projectId, "Parent", "Parent body")
+        val child = HolderNative.createCard(project.projectId, "Child", "Child body", parent.cardId)
+        HolderNative.createCard(project.projectId, "Grandchild", "Grandchild body", child.cardId)
+
+        val file = File(dataDir, "backup/snapshot.jsonl.gz")
+        val written = team.holder.android.git.backup.SnapshotWriter.writeDeviceSnapshot(file, pageSize = 2)
+        assertFalse(written.truncated)
+        val group = team.holder.android.git.backup.SnapshotReader.readGroups(file)
+            .single { it.projectName == "Backed up" }
+        assertEquals(3, group.cardCount)
+        val restored = HolderNative.restoreRecoverySnapshot(group.projectName, group.privacyMode, group.snapshot, "Restore")
+
+        assertNotEquals(project.projectId, restored.projectId)
+        val cards = HolderNative.listCards(restored.projectId).associateBy { it.title }
+        assertEquals(setOf("Parent", "Child", "Grandchild"), cards.keys)
+        assertNull(cards.getValue("Parent").parentCardId)
+        assertEquals(cards.getValue("Parent").cardId, cards.getValue("Child").parentCardId)
+        assertEquals(cards.getValue("Child").cardId, cards.getValue("Grandchild").parentCardId)
+        assertTrue(cards.values.none { it.cardId in setOf(parent.cardId, child.cardId) })
+        assertEquals("Child body", HolderNative.getCardContent(restored.projectId, cards.getValue("Child").cardId))
+    }
+
+    @Test
+    fun backupSnapshot_restoreRefusesALineCoreCannotRead() {
+        initialize()
+        val before = HolderNative.listProjects().size
+        assertThrows(Exception::class.java) {
+            HolderNative.restoreRecoverySnapshot("Broken", "plain", "not a snapshot line", "Restore")
+        }
+        assertEquals(before, HolderNative.listProjects().size)
+    }
+
+    @Test
     fun cardListing_errorLeavesReadLaneUsable() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.listProjects().single()
 
         assertThrows(RuntimeException::class.java) { HolderNative.listCards("missing-project") }
@@ -487,12 +534,12 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun closeAndReopen_preservesProjectAndCardData() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Persistent project")
         val card = HolderNative.createCard(project.projectId, "Persistent card", "# Persistent card\n\nBody")
 
         HolderNative.close()
-        initialize("# Welcome\n\nWelcome")
+        initialize()
 
         assertEquals(project, HolderNative.listProjects().single { it.projectId == project.projectId })
         assertEquals("# Persistent card\n\nBody", HolderNative.getCardContent(project.projectId, card.cardId))
@@ -500,8 +547,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun databaseRebuild_restoresProjectsAndCardsFromDurableFiles() {
-        val welcome = "# Welcome\n\nWelcome"
-        initialize(welcome)
+        initialize()
         val project = HolderNative.createProject("Rebuild project")
         val card = HolderNative.createCard(
             project.projectId,
@@ -513,11 +559,10 @@ class HolderNativeIntegrationTest {
             context = context,
             dataDir = dataDir,
             schemaSql = schemaSql,
-            welcomeContent = welcome,
             dryRun = true,
         )
-        assertTrue(dryRun.getBoolean("dry_run"))
-        assertEquals(2, dryRun.getInt("projects"))
+        assertTrue(dryRun.dryRun)
+        assertEquals(2, dryRun.projects)
 
         HolderNative.close()
         assertTrue(dataDir.resolve("server/holder.db").delete())
@@ -526,10 +571,9 @@ class HolderNativeIntegrationTest {
             context = context,
             dataDir = dataDir,
             schemaSql = schemaSql,
-            welcomeContent = welcome,
         )
-        assertEquals("missing", rebuilt.getString("previous_health"))
-        assertEquals(2, rebuilt.getInt("projects"))
+        assertEquals("missing", rebuilt.previousHealth)
+        assertEquals(2, rebuilt.projects)
         assertEquals(
             "# Rebuilt card\n\nThis body is durable.",
             HolderNative.getCardContent(project.projectId, card.cardId),
@@ -538,8 +582,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun initialize_rebuildsEncryptedProjectUsingAndroidKeyring() {
-        val welcome = "# Welcome\n\nWelcome"
-        initialize(welcome)
+        initialize()
         val project = HolderNative.createProject(
             name = "Encrypted rebuild project",
             privacyMode = "encrypted_git",
@@ -553,7 +596,7 @@ class HolderNativeIntegrationTest {
 
         // initialize() must register the Android keyring before holder_context_open()
         // notices the missing projection and reconstructs the encrypted project.
-        initialize(welcome)
+        initialize()
 
         assertEquals("encrypted_git", HolderNative.listProjects()
             .single { it.projectId == project.projectId }
@@ -564,7 +607,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun deletingMissingCard_returnsNativeErrorThroughKotlinBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
 
         val error = assertThrows(RuntimeException::class.java) {
             HolderNative.deleteCard("project-that-does-not-exist", "card-that-does-not-exist")
@@ -575,7 +618,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun trashRestorePurge_roundTripsThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Trash test project")
         val card = HolderNative.createCard(project.projectId, "Doomed", "original content")
 
@@ -601,7 +644,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun trashPurge_respectsProjectAndEmptiesOnlyItsCards() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Trash purge")
         val other = HolderNative.createProject("Other trash")
         val first = HolderNative.createCard(project.projectId, "First", "body")
@@ -625,7 +668,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardLinks_roundTripThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Connections test project")
         val blocked = HolderNative.createCard(project.projectId, "Blocked task", "content")
         val blocking = HolderNative.createCard(project.projectId, "Blocking task", "content")
@@ -652,8 +695,19 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun linkKinds_labelBothEndsAndHumanizeUnknownKinds() {
+        initialize()
+        val kinds = HolderNative.listLinkKinds()
+        assertEquals(100, kinds.size)
+        assertEquals(HolderLinkKind("ref", "References", "Referenced by"), kinds.single { it.id == "ref" })
+        assertEquals("Depends on", HolderNative.linkKindLabel("depends_on", forward = true))
+        assertEquals("Required by", HolderNative.linkKindLabel("depends_on", forward = false))
+        assertEquals("My custom kind", HolderNative.linkKindLabel("my_custom_kind", forward = false))
+    }
+
+    @Test
     fun cardLinks_reflectParentChildHierarchyThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Hierarchy test project")
         val parent = HolderNative.createCard(project.projectId, "Parent card", "content")
         val child = HolderNative.createCard(project.projectId, "Child card", "content", parent.cardId)
@@ -670,8 +724,42 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun locations_listNewestFirstAndNoneForAnUnknownProject() {
+        initialize()
+        val project = HolderNative.createProject("Locations project")
+        HolderNative.createLocation("older", project.projectId, "Older", "local_directory", mapOf("path" to "/a"), 1_700_000_000)
+        HolderNative.createLocation("newer", project.projectId, "Newer 📁", "s3_compatible", mapOf("bucket" to "b"), 1_700_000_100)
+
+        val listed = HolderNative.listLocations(project.projectId)
+        assertEquals(listOf("newer", "older"), listed.map { it.locationId })
+        assertEquals("Newer 📁", listed.first().name)
+        assertEquals("s3_compatible", listed.first().provider)
+        assertEquals(mapOf("bucket" to "b"), listed.first().configuration)
+        assertTrue(HolderNative.listLocations("no-such-project").isEmpty())
+    }
+
+    @Test
+    fun cardTags_offerRemovalOnlyWhereRemoveCardTagWorks() {
+        initialize()
+        val project = HolderNative.createProject("Removable tags project")
+        val card = HolderNative.createCard(project.projectId, "Tagged",
+            "Prose with #mixed and #prose\n\n#mixed #line")
+
+        val tags = HolderNative.cardTags(project.projectId, card.cardId)
+        assertEquals(listOf("line", "mixed", "prose"), tags.tags)
+        // A tag on the trailing line that is also in prose would stay, so it is not offered.
+        assertEquals(listOf("line"), tags.removable)
+
+        assertEquals(HolderNative.RemoveTagResult.REMOVED,
+            HolderNative.removeCardTag(project.projectId, card.cardId, "line"))
+        assertEquals(HolderNative.RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE,
+            HolderNative.removeCardTag(project.projectId, card.cardId, "mixed"))
+        assertEquals(listOf("mixed", "prose"), HolderNative.cardTags(project.projectId, card.cardId).tags)
+    }
+
+    @Test
     fun tags_roundTripThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Tags test project")
         val card = HolderNative.createCard(project.projectId, "Tagged", "Body mentioning #TODO and #android.")
 
@@ -692,7 +780,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun tagFilteredCards_pageWithinTheirProject() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Tag pages")
         val other = HolderNative.createProject("Other tags")
         val cards = (1..3).map { index ->
@@ -709,7 +797,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun milestones_roundTripThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Milestones test project")
         val card = HolderNative.createCard(project.projectId, "Renewal", "content")
 
@@ -757,7 +845,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun milestones_supportASpanWithAnEndAndSurviveCardTrash() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Milestone span test project")
         val card = HolderNative.createCard(project.projectId, "Conference", "content")
 
@@ -775,7 +863,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun history_roundTripsListCompareAndRestoreThroughTheFullJniBoundary() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("History test project")
         val card = HolderNative.createCard(project.projectId, "Knife care", "Sharpen at 15 degrees")
 
@@ -823,7 +911,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardHistory_pagesByCursor() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("History pages")
         val card = HolderNative.createCard(project.projectId, "Résumé", "First version")
         HolderNative.updateCard(project.projectId, card.cardId, "Résumé", "Second version")
@@ -839,7 +927,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardHistoryComparison_sinceAVersionAndFromCreation() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("History comparisons")
         val card = HolderNative.createCard(project.projectId, "Résumé", "First line\nOld line")
         val createdOid = HolderNative.listCardHistory(project.projectId, card.cardId).entries.single().lastOid
@@ -858,7 +946,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun cardHistoryRestore_returnsTheRestoredCard() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("History restore")
         repeat(2) { index ->
             val card = HolderNative.createCard(project.projectId, "Restore $index", "Earlier version")
@@ -882,7 +970,7 @@ class HolderNativeIntegrationTest {
 
     @Test
     fun resourceListing_respectsProjectScope() {
-        initialize("# Welcome\n\nWelcome")
+        initialize()
         val project = HolderNative.createProject("Resources")
         val other = HolderNative.createProject("Other resources")
         fun addResource(projectId: String, name: String, body: String): String {
@@ -904,12 +992,11 @@ class HolderNativeIntegrationTest {
         assertEquals(other.projectId, HolderNative.listResources(other.projectId).single().projectId)
     }
 
-    private fun initialize(welcomeContent: String) {
+    private fun initialize() {
         HolderNative.initialize(
             context = context,
             dataDir = dataDir,
             schemaSql = schemaSql,
-            welcomeContent = welcomeContent,
         )
     }
 }

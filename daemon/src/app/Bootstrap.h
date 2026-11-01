@@ -29,8 +29,8 @@ void recover_existing_projects(
     bool require_durable_manifest
 );
 
-// If no project exists yet, creates a default encrypted "Home" project with a
-// welcome card loaded from config/WELCOME.md. Does nothing otherwise.
+// If no project exists yet, makes Home with the contract's welcome card (see
+// ensure_home_project in contract/interface/projects/operations.py). Does nothing otherwise.
 std::optional<holder::model::Project> bootstrap_default_home_project(
     holder::platform::Db& db,
     holder::index::FtsIndexer* fts

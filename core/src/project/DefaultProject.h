@@ -18,16 +18,15 @@ class FtsIndexer;
 
 namespace holder::project {
 
-// If any project already exists, does nothing and returns std::nullopt.
-// Otherwise creates a project named `name` (with the given privacy_mode) and
-// a single card (`welcome_title` / `welcome_content`) in it, returning the
-// created project.
+// The welcome card's title: WELCOME_CARD's first line without the heading's hashes.
+std::string welcome_card_title();
+
+// If any project already exists, does nothing and returns std::nullopt. Otherwise makes Home: an
+// encrypted_git project named HOME_PROJECT_NAME holding one card whose content is WELCOME_CARD (see
+// contract/interface/projects/home.py), and returns it. Callers in one process are serialized, so
+// two contexts starting together make one Home.
 std::optional<holder::model::Project> ensure_default_project(
     holder::platform::Db& db,
-    const std::string& name,
-    const std::string& privacy_mode,
-    const std::string& welcome_title,
-    const std::string& welcome_content,
     const std::function<std::string()>& uuid_v4,
     const std::filesystem::path& projects_root,
     holder::index::FtsIndexer* fts = nullptr,

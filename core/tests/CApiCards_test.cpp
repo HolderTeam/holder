@@ -387,6 +387,60 @@ holder_new_link card_link(const char* target, const char* kind = "ref", const ch
 
 } // namespace
 
+TEST_CASE("a card lists the tags remove_card_tag would take off it", "[capi][contract]") {
+  Fixture f;
+  const auto* card = f.create("Tagged", "Prose with #mixed and #prose\n\n#mixed #line");
+  REQUIRE(card->tags.count == 3);
+  REQUIRE(card->removable_tags.count == 1);
+  REQUIRE(std::string(card->removable_tags.items[0]) == "line");
+}
+
+TEST_CASE("holder_list_storage_locations lists a project's locations, most recently updated first", "[capi][contract]") {
+  Fixture f;
+  const auto add = [&](const char* id, int64_t updated_at) {
+    holder_new_storage_location location{};
+    location.location_id = id;
+    location.project_id = f.project_id.c_str();
+    location.name = id;
+    location.provider = HOLDER_NEW_STORAGE_LOCATION_PROVIDER_LOCAL_DIRECTORY;
+    location.created_at = &updated_at;
+    location.updated_at = &updated_at;
+    const holder_project_storage_location* made = nullptr;
+    REQUIRE(holder_create_storage_location(f.context, &location, f.arena, &made, &f.error) == HOLDER_OK);
+  };
+  add("older", 1700000000);
+  add("newer", 1700000100);
+
+  const holder_storage_location_list* listed = nullptr;
+  REQUIRE(holder_list_storage_locations(f.context, f.project_id.c_str(), f.arena, &listed, &f.error) == HOLDER_OK);
+  REQUIRE(listed->data.count == 2);
+  REQUIRE(std::string(listed->data.items[0].location_id) == "newer");
+  REQUIRE(std::string(listed->data.items[1].location_id) == "older");
+  // Without a binding store, nothing is bound on this device and nothing is preferred.
+  REQUIRE_FALSE(listed->data.items[0].bound);
+  REQUIRE(listed->preferred_location_id == nullptr);
+
+  // A project this device does not have lists none, as the daemon's listing always has.
+  REQUIRE(holder_list_storage_locations(f.context, "no-such-project", f.arena, &listed, &f.error) == HOLDER_OK);
+  REQUIRE(listed->data.count == 0);
+}
+
+TEST_CASE("holder_list_link_kinds lists the catalog with both labels", "[capi][contract]") {
+  Fixture f;
+  const holder_link_kind_labels_list* kinds = nullptr;
+  REQUIRE(holder_list_link_kinds(f.context, f.arena, &kinds, &f.error) == HOLDER_OK);
+  REQUIRE(kinds->count == 100);
+  auto labels = [&](const std::string& kind) -> std::pair<std::string, std::string> {
+    for (std::size_t i = 0; i < kinds->count; ++i)
+      if (kinds->items[i].kind == kind) return {kinds->items[i].forward_label, kinds->items[i].reverse_label};
+    FAIL("no link kind " << kind);
+    return {};
+  };
+  // ref is a link's default kind.
+  REQUIRE(labels("ref") == std::pair<std::string, std::string>{"References", "Referenced by"});
+  REQUIRE(labels("depends_on") == std::pair<std::string, std::string>{"Depends on", "Required by"});
+}
+
 TEST_CASE("holder_add_card_link makes one link per target and kind, and keeps when it was made", "[capi][contract]") {
   Fixture f;
   const auto* project = f.project_id.c_str();

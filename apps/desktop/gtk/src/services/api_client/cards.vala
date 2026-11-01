@@ -351,6 +351,12 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return cards;
     }
 
+    // The link kinds Holder knows, the same for every project and device.
+    public static async Gee.ArrayList<LinkKindLabels> list_link_kinds(ApiClient client) throws Error {
+        var root = yield client.request_json("GET", "/link-kinds", null, null);
+        return ApiParsersCards.parse_link_kinds(root);
+    }
+
     public static async Gee.ArrayList<CardLink> list_card_links(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                                 string project_id,
                                                                 string card_id) throws Error {

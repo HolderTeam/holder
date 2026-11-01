@@ -41,17 +41,32 @@ def cpp_initializer(types: CoreTypes, slot: Slot) -> str:
     return ""
 
 
+def cpp_string(value: str, indent: str = "    ") -> str:
+    """value as a C++ string literal, one source line per line of text."""
+    def escape(text: str) -> str:
+        return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
+    lines = value.splitlines(keepends=True) or [""]
+    if len(lines) == 1:
+        return f'"{escape(lines[0])}"'
+    return "\n" + "\n".join(f'{indent}"{escape(line)}"' for line in lines)
+
+
 def generate_cpp_header(types: CoreTypes) -> str:
     out = [*header_lines(contract_sources(types.contract),
                          "The C++ declarations core implements: one function per operation. A missing "
                          "implementation fails to link.", "cpp"),
            "#pragma once", "", "#include <cstdint>", "#include <map>", "#include <optional>", "#include <stdexcept>",
-           "#include <string>", "#include <variant>", "#include <vector>", "", "struct holder_context;",
+           "#include <string>", "#include <string_view>", "#include <variant>", "#include <vector>", "", "struct holder_context;",
            "struct holder_error;", "", "namespace holder::contract {", "",
            "/// Base of the error kinds operations throw. Anything else thrown is an unexpected failure.",
            "struct Error : std::runtime_error {", "  using std::runtime_error::runtime_error;", "};", "",
            "/// Thrown for an argument the contract's checks cannot catch.",
            "struct InvalidArgument : Error {", "  using Error::Error;", "};", ""]
+    for constant in types.contract.constants:
+        out += comment(constant.doc, style="cpp")
+        literal = cpp_string(constant.value)
+        separator = "" if literal.startswith("\n") else " "
+        out += [f"inline constexpr std::string_view {constant.name} ={separator}{literal};", ""]
     if types.changes():
         out += ["/// A field of a partial update: nullopt keeps it, an empty value clears it, and a value sets it.",
                 "template <class T>", "using Change = std::optional<std::optional<T>>;", ""]
@@ -112,7 +127,14 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"/// @throws {', '.join(op.errors)}")
         result = types.resolve(op.returns).type
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
-        out.append(f"{returns} {op.name}(" + ", ".join(["holder_context& context", *declarations]) + ");")
+        if op.context == "opens":
+            out.append("/// @return A new context, which the caller owns and releases with the closing operation.")
+            out.append(f"holder_context* {op.name}(" + ", ".join(declarations) + ");")
+        elif op.context == "closes":
+            out.append(f"void {op.name}(holder_context* context) noexcept;")
+        else:
+            context = ["holder_context& context"] if op.context == "required" else []
+            out.append(f"{returns} {op.name}(" + ", ".join([*context, *declarations]) + ");")
         out.append("")
     out += ["namespace detail {", "",
             "/// Core supplies this: sets *out_error (when not null) to a new holder_error with message, and",

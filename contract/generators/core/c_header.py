@@ -6,7 +6,7 @@ from compiler.ir import ListType, LiteralType, MapType, NamedType
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_C, format_default, literal_member, snake
-from .render import c_out, c_param, comment
+from .render import c_param, c_signature, comment
 from .types import CoreTypes, Slot, c_enum_name, list_c_name, map_c_name, unique
 
 
@@ -112,12 +112,7 @@ def generate_c_header(types: CoreTypes) -> str:
         if op.errors:
             notes.append("Errors: " + ", ".join(f"HOLDER_ERROR_{snake(e).upper()}" for e in op.errors) + ".")
         out += comment("\n".join([doc, *notes]))
-        result = c_out(types, op)
-        args = ["holder_context* context", *[p.c_decl for p in params], "holder_arena* arena"]
-        if result:
-            args.append(f"const {result[0]}** {result[1]}")
-        args.append("holder_error** out_error")
-        out.append(f"int holder_{op.name}(" + ", ".join(args) + ");")
+        out.append(c_signature(types, op) + ";")
         out.append("")
     out += ["#ifdef __cplusplus", "}", "#endif", "", "#endif", ""]
     return "\n".join(out)

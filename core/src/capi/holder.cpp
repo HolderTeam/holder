@@ -2,6 +2,7 @@
 
 #include "api/Contract.h"
 #include "capi/Context.h"
+#include "capi/StorageProviders.h"
 
 #include "card/CardPlacementResolver.h"
 #include "card/CardReferenceResolver.h"
@@ -26,7 +27,6 @@
 #include "platform/Migrations.h"
 #include "privacy/PlatformKeyring.h"
 #include "privacy/ProjectPrivacy.h"
-#include "project/DefaultProject.h"
 #include "project/ProjectImport.h"
 #include "project/ProjectManifest.h"
 #include "project/ProjectPaths.h"
@@ -324,23 +324,6 @@ holder::model::ResourceBundle resource_bundle_from_json(const nlohmann::json& bo
   return bundle;
 } // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
 
-// -- holder_backup_restore's input parsing: accepts the shape holder_backup_snapshot_page
-// emits per card, so the Android snapshot writer/restorer round-trip without remapping. --
-
-holder::model::CardLink batch_card_link_from_json(const nlohmann::json& body) {
-  holder::model::CardLink link;
-  link.to_card_id = body.value("to_id", body.value("to_card_id", std::string()));
-  link.to_type = body.value("to_type", std::string("card"));
-  link.kind = body.value("kind", std::string());
-  if (body.contains("target_project_id") && !body.at("target_project_id").is_null()) {
-    link.target_project_id = body.at("target_project_id").get<std::string>();
-  }
-  if (body.contains("label") && !body.at("label").is_null()) {
-    link.label = body.at("label").get<std::string>();
-  }
-  return link;
-} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
-
 holder::model::MilestoneDate milestone_date_from_json(const nlohmann::json& item) {
   if (!item.is_object()) throw std::invalid_argument("milestone date must be an object");
   for (auto it = item.begin(); it != item.end(); ++it) {
@@ -383,22 +366,6 @@ holder::model::Milestone batch_milestone_from_json(const nlohmann::json& body) {
     milestone.description = body.at("description").get<std::string>();
   }
   return milestone;
-} // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
-
-holder::card::BatchCardInput batch_card_input_from_json(const nlohmann::json& body) {
-  holder::card::BatchCardInput item;
-  item.card_id = body.at("card_id").get<std::string>();
-  item.title = body.at("title").get<std::string>();
-  item.content = body.value("body", std::string());
-  item.created_at = body.at("created_at").get<long long>();
-  item.updated_at = body.at("updated_at").get<long long>();
-  for (const auto& link_json : body.value("links", nlohmann::json::array())) {
-    item.links.push_back(batch_card_link_from_json(link_json));
-  }
-  for (const auto& milestone_json : body.value("milestones", nlohmann::json::array())) {
-    item.milestones.push_back(batch_milestone_from_json(milestone_json));
-  }
-  return item;
 } // LCOV_EXCL_LINE - GCC emits an uncovered function-end counter.
 
 holder::model::Location location_from_json(const nlohmann::json& body) {
@@ -1179,130 +1146,105 @@ int resolve_pull_conflicts(
 
 } // namespace
 
+namespace holder::capi {
+
+std::shared_ptr<holder::resource::StorageProvider> storage_provider(holder_context& context,
+                                                                    const std::string& provider_name) {
+  return resolve_storage_provider(&context, provider_name);
+}
+
+} // namespace holder::capi
+
 // The generated C API (src/api/ContractCApi.cpp) reports errors through the same holder_error as
 // the rest of the C API.
 int holder::contract::detail::fail(holder_error** out_error, int code, const std::string& message) {
   return set_error(out_error, code, message);
 }
 
-int holder_context_open(
-    const char* data_dir,
-    const char* schema_sql,
-    holder_context** out_context,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_context must not be null");
-  }
-  *out_context = nullptr;
+// The contract's runtime operations (contract/interface/runtime): opening and releasing a context,
+// and rebuilding a data directory's database with no context open.
+holder_context* holder::contract::context_open(std::string data_dir, std::optional<std::string> schema_sql) {
+  auto context = std::make_unique<holder_context>();
+  context->data_dir = std::filesystem::path(data_dir);
+  context->db_path = context->data_dir / "server" / "holder.db";
+  context->projects_root = context->data_dir / "projects";
+  std::filesystem::create_directories(context->db_path.parent_path());
 
-  if (data_dir == nullptr || data_dir[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "data_dir must not be empty");
+  const auto health = holder::platform::inspect_database_health(context->db_path);
+  const auto roots = discover_managed_project_roots(context->data_dir);
+  if (health.health == holder::platform::DatabaseHealth::IoError) {
+    throw std::runtime_error("database I/O failure: " + health.detail);
+  }
+  bool needs_rebuild = health.health == holder::platform::DatabaseHealth::Corrupt ||
+                       (health.health == holder::platform::DatabaseHealth::Missing &&
+                        !roots.empty());
+  // quick_check (what `health` reflects) only catches corruption, not staleness: a
+  // structurally intact database left behind by an older build can still be on an
+  // older schema_version than this one expects -- the one case this whole codebase's
+  // callers actually hit is an in-place app update on Android, which has no other
+  // migration path wired up (unlike the desktop daemon, which calls
+  // Migrations::migrate_to_latest() directly from its own startup). Reuse the same
+  // rebuild-from-durable-git-source-of-truth path already used for Corrupt/Missing
+  // rather than running incremental migrations in place here: every future schema
+  // bump gets this for free with no migration script of its own to write or forget,
+  // and rebuild_database_projection's durable-object-count check means it fails loudly
+  // instead of silently if anything doesn't come back the same.
+  if (!needs_rebuild && health.health == holder::platform::DatabaseHealth::Healthy) {
+    holder::platform::Db probe;
+    probe.open(context->db_path);
+    const bool stale = holder::platform::Migrations::read_schema_version(probe) <
+                       holder::platform::Migrations::latest_schema_version;
+    probe.close();
+    needs_rebuild = stale;
+  }
+  if (needs_rebuild) {
+    if (!schema_sql || schema_sql->empty()) {
+      throw std::runtime_error("schema SQL is required to reconstruct the database");
+    }
+    rebuild_managed_database(context->data_dir, *schema_sql, false);
   }
 
+  context->db.open(context->db_path);
+  if (schema_sql && !schema_sql->empty()) {
+    context->db.exec(*schema_sql);
+  }
   try {
-    auto context = std::make_unique<holder_context>();
-    context->data_dir = std::filesystem::path(data_dir);
-    context->db_path = context->data_dir / "server" / "holder.db";
-    context->projects_root = context->data_dir / "projects";
-    std::filesystem::create_directories(context->db_path.parent_path());
+    if (holder::project::ProjectRepo(context->db).list().size() != roots.size()) {
+      throw std::runtime_error("not every project is under the managed project directory");
+    }
+    holder::platform::audit_core_durable_ownership(
+        context->db,
+        context->db_path.parent_path() / "quarantined-cards.json"
+    );
+    holder::platform::mark_database_rebuild_ready(rebuild_readiness_path(context->data_dir));
+  } catch (const std::exception&) {
+    // A healthy legacy profile remains usable, but is deliberately not marked
+    // reconstructible until its durable owners have been backfilled and audited.
+    if (health.health != holder::platform::DatabaseHealth::Healthy) throw;
+  }
 
-    const auto health = holder::platform::inspect_database_health(context->db_path);
-    const auto roots = discover_managed_project_roots(context->data_dir);
-    if (health.health == holder::platform::DatabaseHealth::IoError) {
-      throw std::runtime_error("database I/O failure: " + health.detail);
-    }
-    bool needs_rebuild = health.health == holder::platform::DatabaseHealth::Corrupt ||
-                         (health.health == holder::platform::DatabaseHealth::Missing &&
-                          !roots.empty());
-    // quick_check (what `health` reflects) only catches corruption, not staleness: a
-    // structurally intact database left behind by an older build can still be on an
-    // older schema_version than this one expects -- the one case this whole codebase's
-    // callers actually hit is an in-place app update on Android, which has no other
-    // migration path wired up (unlike the desktop daemon, which calls
-    // Migrations::migrate_to_latest() directly from its own startup). Reuse the same
-    // rebuild-from-durable-git-source-of-truth path already used for Corrupt/Missing
-    // rather than running incremental migrations in place here: every future schema
-    // bump gets this for free with no migration script of its own to write or forget,
-    // and rebuild_database_projection's durable-object-count check means it fails loudly
-    // instead of silently if anything doesn't come back the same.
-    if (!needs_rebuild && health.health == holder::platform::DatabaseHealth::Healthy) {
-      holder::platform::Db probe;
-      probe.open(context->db_path);
-      const bool stale = holder::platform::Migrations::read_schema_version(probe) <
-                         holder::platform::Migrations::latest_schema_version;
-      probe.close();
-      needs_rebuild = stale;
-    }
-    if (needs_rebuild) {
-      if (schema_sql == nullptr || schema_sql[0] == '\0') {
-        throw std::runtime_error("schema SQL is required to reconstruct the database");
-      }
-      rebuild_managed_database(context->data_dir, schema_sql, false);
-    }
-
-    context->db.open(context->db_path);
-    if (schema_sql != nullptr && schema_sql[0] != '\0') {
-      context->db.exec(schema_sql);
-    }
-    try {
-      if (holder::project::ProjectRepo(context->db).list().size() != roots.size()) {
-        throw std::runtime_error("not every project is under the managed project directory");
-      }
-      holder::platform::audit_core_durable_ownership(
-          context->db,
-          context->db_path.parent_path() / "quarantined-cards.json"
-      );
-      holder::platform::mark_database_rebuild_ready(rebuild_readiness_path(context->data_dir));
-    } catch (const std::exception&) {
-      // A healthy legacy profile remains usable, but is deliberately not marked
-      // reconstructible until its durable owners have been backfilled and audited.
-      if (health.health != holder::platform::DatabaseHealth::Healthy) throw;
-    }
-
-    *out_context = context.release();
-    return HOLDER_OK;
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
+  return context.release();
 }
 
-void holder_context_destroy(holder_context* context) { delete context; }
+void holder::contract::context_destroy(holder_context* context) noexcept { delete context; }
 
-int holder_database_rebuild(
-    const char* data_dir,
-    const char* schema_sql,
-    int dry_run,
-    char** out_json,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
-  }
-  *out_json = nullptr;
-  if (data_dir == nullptr || data_dir[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "data_dir must not be empty");
-  }
-  if (schema_sql == nullptr || schema_sql[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "schema_sql must not be empty");
-  }
-  try {
-    const auto report =
-        rebuild_managed_database(std::filesystem::path(data_dir), schema_sql, dry_run != 0);
-    return return_json(nlohmann::json::parse(report.to_json()), out_json, out_error);
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE - excluded fallback handler-end counter.
+
+holder::contract::DatabaseRebuildReport holder::contract::database_rebuild(std::string data_dir,
+                                                                          std::string schema_sql, bool dry_run) {
+  const auto report = rebuild_managed_database(std::filesystem::path(data_dir), schema_sql, dry_run);
+  const auto count = [](std::size_t value) { return static_cast<std::int32_t>(value); };
+  return {report.dry_run,
+          report.previous_health,
+          count(report.projects),
+          count(report.cards),
+          count(report.ai_threads),
+          count(report.ai_messages),
+          count(report.resources),
+          count(report.assets),
+          count(report.placements),
+          count(report.locations),
+          count(report.quarantined_cards),
+          report.backup_path.empty() ? std::nullopt : std::optional<std::string>(report.backup_path.string())};
 }
 
 int holder_project_import(
@@ -1645,110 +1587,6 @@ int holder_storage_provider_register(
     return set_unknown_exception(out_error);
   }
   // LCOV_EXCL_STOP
-}
-
-int holder_asset_import_file(
-    holder_context* context,
-    const char* project_id,
-    const char* card_id,
-    const char* location_id,
-    const char* source_file_path,
-    char** out_json,
-    holder_error** out_error
-) {
-  if (project_id == nullptr || project_id[0] == '\0' || card_id == nullptr || card_id[0] == '\0' ||
-      location_id == nullptr || location_id[0] == '\0' || source_file_path == nullptr ||
-      source_file_path[0] == '\0') {
-    clear_error(out_error);
-    if (out_json != nullptr) *out_json = nullptr;
-    return set_error(
-        out_error,
-        HOLDER_ERROR_INVALID_ARGUMENT,
-        "project_id, card_id, location_id, and source_file_path must not be empty"
-    );
-  }
-  return with_json_output(context, out_json, out_error, [&]() {
-    const auto location = holder::resource::LocationRepo(context->db).get(location_id);
-    if (!location.has_value())
-      throw std::runtime_error("location not found: " + std::string(location_id));
-
-    holder::resource::AssetImportRequest request;
-    request.project_id = project_id;
-    request.card_id = card_id;
-    request.location_id = location_id;
-    request.source_file = std::filesystem::path(source_file_path);
-    request.now = now_epoch_seconds();
-
-    holder::resource::AssetImportService service(
-        context->db,
-        context->data_dir / "server" / "asset-staging",
-        holder::identity::uuid_v4
-    );
-    const auto provider = resolve_storage_provider(context, location->provider);
-    const auto result = service.import_file(request, *provider);
-    return nlohmann::json{
-        {"resource_id", result.resource_id},
-        {"asset_id", result.asset_id},
-        {"duplicate_reused", result.duplicate_reused},
-        {"link_created", result.link_created},
-    };
-  });
-}
-
-int holder_asset_retrieve(
-    holder_context* context,
-    const char* resource_id,
-    const char* asset_id,
-    const char* placement_id,
-    const char* destination_file_path,
-    holder_error** out_error
-) {
-  if (resource_id == nullptr || resource_id[0] == '\0' || asset_id == nullptr ||
-      asset_id[0] == '\0' || placement_id == nullptr || placement_id[0] == '\0' ||
-      destination_file_path == nullptr || destination_file_path[0] == '\0') {
-    clear_error(out_error);
-    return set_error(
-        out_error,
-        HOLDER_ERROR_INVALID_ARGUMENT,
-        "resource_id, asset_id, placement_id, and destination_file_path must not be empty"
-    );
-  }
-  return with_void_output(context, out_error, [&]() {
-    const auto bundle = holder::resource::ResourceRepo(context->db).get_bundle(resource_id);
-    if (!bundle.has_value())
-      throw std::runtime_error("resource not found: " + std::string(resource_id));
-    const auto asset =
-        std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& item) {
-          return item.asset_id == asset_id;
-        });
-    if (asset == bundle->assets.end()) {
-      throw std::runtime_error("asset not found in resource: " + std::string(asset_id));
-    }
-    const auto placement =
-        std::find_if(asset->placements.begin(), asset->placements.end(), [&](const auto& item) {
-          return item.placement_id == placement_id;
-        });
-    if (placement == asset->placements.end()) {
-      throw std::runtime_error("placement not found in asset: " + std::string(placement_id));
-    }
-    const auto location = holder::resource::LocationRepo(context->db).get(placement->location_id);
-    if (!location.has_value())
-      throw std::runtime_error("location not found: " + placement->location_id);
-
-    holder::resource::AssetImportService service(
-        context->db,
-        context->data_dir / "server" / "asset-staging",
-        holder::identity::uuid_v4
-    );
-    const auto provider = resolve_storage_provider(context, location->provider);
-    service.retrieve(
-        resource_id,
-        asset_id,
-        placement_id,
-        *provider,
-        std::filesystem::path(destination_file_path)
-    );
-  });
 }
 
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error) {
@@ -2147,294 +1985,6 @@ int holder_card_query_json(
     }
     return nlohmann::json{{"cards", out_cards}};
   });
-}
-
-// The Android backup snapshot's query (BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1):
-// project_id's cards, most-recently-updated first, cursor-paginated so the caller (Kotlin,
-// deciding based on accumulated JSON+gzip size, which holder-core knows nothing about) can
-// stop whenever it wants rather than holder-core needing a byte budget of its own. Each card
-// carries its own project's name/privacy_mode denormalized inline (simpler than a separate
-// per-project header the caller would have to track across pages) plus links and milestones
-// -- both are frontmatter-only, not recoverable from body text alone, so the snapshot must
-// carry them explicitly. Tags are deliberately NOT included: they're always #hashtags already
-// present in the card's own body (see GITHUB_INTEGRATION_ANDROID_PLAN.md's card_tags note),
-// so restore's normal card-write path re-derives them from body text the same way any other
-// card write already does -- carrying them here too would just be redundant. Linked
-// resources carry their portable metadata and storage declarations. Object bytes and
-// private storage credentials remain outside Android's size-limited snapshot.
-//
-// cursor_card_id empty/null means "first page." next_cursor in the response is null once a
-// page comes back shorter than limit (nothing left); otherwise it's the caller's cursor for
-// the next call.
-int holder_backup_snapshot_page(
-    holder_context* context,
-    const char* project_id,
-    long long cursor_updated_at,
-    const char* cursor_card_id,
-    int limit,
-    char** out_json,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
-  }
-  *out_json = nullptr;
-
-  if (context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
-  }
-  if (project_id == nullptr || project_id[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_id must not be empty");
-  }
-  if (limit <= 0) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "limit must be positive");
-  }
-
-  try {
-    holder::project::ProjectRepo project_repo(context->db);
-    const auto project = project_repo.get(project_id);
-    if (!project.has_value()) {
-      return set_error(
-          out_error,
-          HOLDER_ERROR_RUNTIME,
-          "project not found: " + std::string(project_id)
-      );
-    }
-
-    holder::card::CardRepo card_repo(context->db);
-    holder::card::LinkRepo link_repo(context->db);
-    holder::card::MilestoneRepo milestone_repo(context->db);
-    holder::resource::ResourceRepo resource_repo(context->db);
-    holder::resource::LocationRepo location_repo(context->db);
-    holder::index::FtsIndexer fts(context->db);
-
-    const bool has_cursor = cursor_card_id != nullptr && cursor_card_id[0] != '\0';
-    const auto cards = card_repo.list_recent_page(
-        project_id,
-        has_cursor ? std::optional<long long>(cursor_updated_at) : std::nullopt,
-        has_cursor ? std::optional<std::string>(cursor_card_id) : std::nullopt,
-        limit
-    );
-
-    nlohmann::json cards_json = nlohmann::json::array();
-    for (const auto& card : cards) {
-      nlohmann::json entry = {
-          {"card_id", card.card_id},
-          {"project_id", card.project_id},
-          {"project_name", project->name},
-          {"privacy_mode", project->privacy_mode},
-          {"title", card.title},
-          {"body", fts.get_body(card.card_id).value_or("")},
-          {"created_at", card.created_at},
-          {"updated_at", card.updated_at},
-      };
-
-      nlohmann::json links = nlohmann::json::array();
-      nlohmann::json resources = nlohmann::json::array();
-      std::set<std::string> included_resources;
-      for (const auto& link : link_repo.list_outgoing(project_id, card.card_id)) {
-        nlohmann::json link_json = {
-            {"to_id", link.to_card_id},
-            {"to_type", link.to_type},
-            {"kind", link.kind},
-        };
-        link_json["label"] = link.label.has_value() ? nlohmann::json(*link.label)
-                                                    : nlohmann::json(nullptr);
-        if (link.target_project_id.has_value())
-          link_json["target_project_id"] = *link.target_project_id;
-        links.push_back(link_json);
-        if (link.to_type == "resource" && included_resources.insert(link.to_card_id).second) {
-          const auto bundle = resource_repo.get_bundle(link.to_card_id);
-          if (bundle) {
-            auto resource_json = resource_bundle_to_json(*bundle);
-            nlohmann::json locations = nlohmann::json::array();
-            std::set<std::string> included_locations;
-            for (const auto& asset : bundle->assets) {
-              for (const auto& placement : asset.placements) {
-                if (!included_locations.insert(placement.location_id).second) continue;
-                const auto location = location_repo.get(placement.location_id);
-                if (location) locations.push_back(location_to_json(*location));
-              }
-            }
-            resource_json["locations"] = std::move(locations);
-            resources.push_back(std::move(resource_json));
-          }
-        }
-      }
-      if (!links.empty()) entry["links"] = links;
-      if (!resources.empty()) entry["resources"] = resources;
-
-      nlohmann::json milestones = nlohmann::json::array();
-      for (const auto& milestone : milestone_repo.list_for_card(project_id, card.card_id)) {
-        auto milestone_json = milestone_dates_to_json(milestone);
-        milestone_json.erase("milestone_id");
-        milestone_json.erase("card_id");
-        milestone_json.erase("created_at");
-        milestone_json.erase("updated_at");
-        milestones.push_back(milestone_json);
-      }
-      if (!milestones.empty()) entry["milestones"] = milestones;
-
-      cards_json.push_back(entry);
-    }
-
-    nlohmann::json body = {{"cards", cards_json}};
-    if (!cards.empty() && static_cast<int>(cards.size()) == limit) {
-      const auto& last = cards.back();
-      body["next_cursor"] = {
-          {"updated_at", last.updated_at},
-          {"card_id", last.card_id},
-      };
-    } else {
-      body["next_cursor"] = nullptr;
-    }
-
-    auto* out = duplicate_string(body.dump());
-    if (out == nullptr) {
-      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-    }
-    *out_json = out;
-    return HOLDER_OK;
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
-}
-
-int holder_backup_restore(
-    holder_context* context,
-    const char* project_name,
-    const char* privacy_mode,
-    const char* cards_json,
-    const char* commit_message,
-    char** out_json,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
-  }
-  *out_json = nullptr;
-
-  if (context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
-  }
-  if (project_name == nullptr || project_name[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "project_name must not be empty");
-  }
-  if (cards_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "cards_json must not be null");
-  }
-  if (commit_message == nullptr || commit_message[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "commit_message must not be empty");
-  }
-
-  try {
-    std::vector<holder::card::BatchCardInput> items;
-    std::map<std::string, holder::model::ResourceBundle> snapshot_resources;
-    std::map<std::string, holder::model::Location> snapshot_locations;
-    for (const auto& card_json : nlohmann::json::parse(cards_json)) {
-      auto item = batch_card_input_from_json(card_json);
-      for (const auto& resource_json : card_json.value("resources", nlohmann::json::array())) {
-        auto bundle = resource_bundle_from_json(resource_json);
-        snapshot_resources.emplace(bundle.resource.resource_id, std::move(bundle));
-        for (const auto& location_json :
-             resource_json.value("locations", nlohmann::json::array())) {
-          auto location = location_from_json(location_json);
-          snapshot_locations.emplace(location.location_id, std::move(location));
-        }
-      }
-      items.push_back(std::move(item));
-    }
-
-    holder::model::Project project;
-    project.name = project_name;
-    project.id_scheme = holder::model::IdScheme::Uuid7;
-    project.privacy_mode = (privacy_mode != nullptr && privacy_mode[0] != '\0')
-                               ? std::string(privacy_mode)
-                               : "plain";
-
-    holder::project::ProjectStore project_store(context->db);
-    const auto created =
-        project_store.create(project, holder::identity::uuid_v4, context->data_dir / "projects");
-
-    try {
-      std::map<std::string, std::string> location_id_remap;
-      for (auto& [old_id, location] : snapshot_locations) {
-        location_id_remap[old_id] = holder::identity::uuid_v4();
-        location.location_id = location_id_remap.at(old_id);
-        location.project_id = created.project_id;
-        holder::resource::LocationStore(context->db).put(location);
-      }
-      std::map<std::string, std::string> resource_id_remap;
-      for (auto& [old_id, bundle] : snapshot_resources) {
-        const auto new_id = holder::identity::uuid_v4();
-        resource_id_remap[old_id] = new_id;
-        bundle.resource.resource_id = new_id;
-        bundle.resource.project_id = created.project_id;
-        for (auto& asset : bundle.assets) {
-          asset.asset_id = holder::identity::uuid_v4();
-          asset.resource_id = new_id;
-          for (auto& placement : asset.placements) {
-            const auto location = location_id_remap.find(placement.location_id);
-            if (location == location_id_remap.end())
-              throw std::invalid_argument("resource placement location missing from snapshot");
-            placement.placement_id = holder::identity::uuid_v4();
-            placement.asset_id = asset.asset_id;
-            placement.location_id = location->second;
-          }
-        }
-        holder::resource::ResourceStore(context->db).put(bundle);
-      }
-      for (auto& item : items) {
-        for (const auto& [old_id, new_id] : resource_id_remap) {
-          const auto old_ref = "holder://resource/" + old_id;
-          const auto new_ref = "holder://resource/" + new_id;
-          std::size_t at = 0;
-          while ((at = item.content.find(old_ref, at)) != std::string::npos) {
-            item.content.replace(at, old_ref.size(), new_ref);
-            at += new_ref.size();
-          }
-        }
-      }
-      holder::card::CardStore card_store(context->db, &context->fts);
-      card_store.create_batch(
-          created.project_id,
-          items,
-          holder::identity::uuid_v4,
-          commit_message,
-          resource_id_remap
-      );
-    } catch (...) {
-      // This project was created solely for this restore. Drop its projection and
-      // durable files so a failed restore cannot leave orphaned manifests behind.
-      holder::project::ProjectRepo(context->db).remove(created.project_id);
-      std::error_code ignored;
-      std::filesystem::remove_all(created.root_path, ignored);
-      throw;
-    }
-
-    holder::project::ProjectRepo repo(context->db);
-    const auto final_project = repo.get(created.project_id).value();
-
-    auto* out = duplicate_string(project_to_json(final_project).dump());
-    if (out == nullptr) {
-      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-    }
-
-    *out_json = out;
-    return HOLDER_OK;
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
 }
 
 int holder_card_get_content(
@@ -4102,60 +3652,6 @@ int holder_reindex(holder_context* context, holder_error** out_error) {
   try {
     holder::index::Reindexer reindexer(context->db);
     reindexer.run();
-    return HOLDER_OK;
-  } catch (const std::bad_alloc&) {
-    return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-  } catch (const std::exception& e) {
-    return set_exception(out_error, e);
-  } catch (...) {
-    return set_unknown_exception(out_error); // LCOV_EXCL_LINE
-  } // LCOV_EXCL_LINE
-}
-
-int holder_ensure_default_project(
-    holder_context* context,
-    const char* name,
-    const char* welcome_title,
-    const char* welcome_content,
-    char** out_json,
-    holder_error** out_error
-) {
-  clear_error(out_error);
-  if (out_json == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "out_json must not be null");
-  }
-  *out_json = nullptr;
-
-  if (context == nullptr) {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "context must not be null");
-  }
-  if (name == nullptr || name[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "name must not be empty");
-  }
-  if (welcome_title == nullptr || welcome_title[0] == '\0') {
-    return set_error(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "welcome_title must not be empty");
-  }
-
-  try {
-    const auto created = holder::project::ensure_default_project(
-        context->db,
-        name,
-        "plain",
-        welcome_title,
-        welcome_content != nullptr ? std::string(welcome_content) : std::string(),
-        holder::identity::uuid_v4,
-        context->data_dir / "projects",
-        &context->fts
-    );
-
-    auto* out = duplicate_string(
-        created.has_value() ? project_to_json(created.value()).dump() : std::string("null")
-    );
-    if (out == nullptr) {
-      return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE
-    }
-
-    *out_json = out;
     return HOLDER_OK;
   } catch (const std::bad_alloc&) {
     return set_error(out_error, HOLDER_ERROR_ALLOCATION, "allocation failed"); // LCOV_EXCL_LINE

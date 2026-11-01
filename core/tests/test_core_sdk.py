@@ -34,7 +34,6 @@ class SDKTests(unittest.TestCase):
         with tarfile.open(fileobj=stream, mode="w:gz") as package:
             files = {"libholder-sdk/libholder-manifest.json": json.dumps(manifest or self.manifest),
                      "libholder-sdk/share/holder/schema/schema.sql": "schema",
-                     "libholder-sdk/share/holder/resources/WELCOME.md": "welcome",
                      "libholder-sdk/lib/cmake/holder/holderConfig.cmake": "cmake"}
             if extra:
                 files.update(extra)

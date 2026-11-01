@@ -37,6 +37,19 @@ enum class NewLinkTargetType(val value: String) {
 }
 
 /**
+ * One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;
+ * a kind Holder does not know has no labels of its own.
+ */
+data class LinkKindLabels(
+    /** The kind, as a link names it. */
+    val kind: String,
+    /** How the link reads from the card it is from, such as Depends on. */
+    val forwardLabel: String,
+    /** How the link reads from what it points at, such as Required by. */
+    val reverseLabel: String,
+)
+
+/**
  * A link from a card, or from an AI message, to something in a project. A link names both of its ends in full:
  * each end's project, type and ID.
  */
@@ -82,6 +95,14 @@ object Links {
     init {
         System.loadLibrary("holder_jni")
     }
+
+    /**
+     * List the link kinds Holder knows, with their labels.
+     * The list is the same for every project and device. A link may have any other kind.
+     */
+    external fun listLinkKinds(
+        contextHandle: Long,
+    ): List<LinkKindLabels>
 
     /**
      * List a card's links.

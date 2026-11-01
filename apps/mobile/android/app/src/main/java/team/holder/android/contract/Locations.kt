@@ -37,6 +37,14 @@ data class ProjectStorageLocation(
     val updatedAt: Long,
 )
 
+/** A project's storage locations, with this device's binding status, and this device's preferred one. */
+data class StorageLocationList(
+    /** The project's locations, most recently updated first; none for a project with none, or one this device does not have. */
+    val data: List<ProjectStorageLocation>,
+    /** This device's preferred location for the project; null when it has none. */
+    val preferredLocationId: String? = null,
+)
+
 /** The location affected by an action. */
 data class LocationDeleteResult(
     /** The affected location ID. */
@@ -76,6 +84,16 @@ object Locations {
     init {
         System.loadLibrary("holder_jni")
     }
+
+    /**
+     * List a project's storage declarations, with this device's binding status and preferred location.
+     * Locations are most recently updated first. A project with none, or one this device does not have, lists none.
+     * The daemon serves this as GET /locations.
+     */
+    external fun listStorageLocations(
+        contextHandle: Long,
+        projectId: String,
+    ): StorageLocationList
 
     /** Get a storage declaration and this device's binding status. */
     external fun getStorageLocation(

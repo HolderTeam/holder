@@ -189,6 +189,10 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
+    public async Gee.ArrayList<LinkKindLabels> list_link_kinds() throws Error {
+        return yield ApiClientCardsEndpoints.list_link_kinds(this);
+    }
+
     public async Gee.ArrayList<CardLink> list_card_links(string project_id, string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientCardsEndpoints.list_card_links(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }

@@ -193,3 +193,15 @@ TEST_CASE(
       std::vector<std::string>{"work", "android"}
   );
 }
+
+TEST_CASE("tag_removable says whether removal from the trailing tag line would untag the card", "[tag_line_editor]") {
+  using holder::core::tag_removable;
+  // On the trailing tag line only.
+  REQUIRE(tag_removable("hello\n\n#work #android", "android"));
+  // Only in prose: there is nothing on the tag line to remove.
+  REQUIRE_FALSE(tag_removable("about #android here\n\n#work", "android"));
+  // On the tag line and in prose: removing it from the line leaves the card tagged.
+  REQUIRE_FALSE(tag_removable("about #android here\n\n#work #android", "android"));
+  // Not carried at all.
+  REQUIRE_FALSE(tag_removable("hello\n\n#work", "android"));
+}

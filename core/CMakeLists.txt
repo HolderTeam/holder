@@ -138,6 +138,8 @@ set(HOLDER_CORE_SOURCES
   src/api/Projects.cpp
   src/api/ProjectMaintenance.cpp
   src/api/RecoveryTokens.cpp
+  src/api/RecoverySnapshots.cpp
+  src/api/Assets.cpp
   src/api/Rebuild.cpp
   src/api/Resources.cpp
   src/api/Locations.cpp
@@ -335,7 +337,6 @@ install(DIRECTORY include/
   FILES_MATCHING PATTERN "*.h"
 )
 install(FILES schema/schema.sql DESTINATION ${CMAKE_INSTALL_DATADIR}/holder/schema)
-install(FILES resources/WELCOME.md DESTINATION ${CMAKE_INSTALL_DATADIR}/holder/resources)
 install(EXPORT holderTargets
   NAMESPACE Holder::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/holder

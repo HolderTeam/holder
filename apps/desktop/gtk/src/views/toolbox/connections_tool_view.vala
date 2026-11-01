@@ -490,7 +490,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         var kind_options = new Gtk.StringList(null);
         var available_kinds = controller.list_available_link_kinds(settings);
         foreach (var kind_option in available_kinds) {
-            kind_options.append(kind_option);
+            kind_options.append(controller.link_kind_label(kind_option, true));
         }
         kind_options.append("custom");
         var kind_dropdown = new Gtk.DropDown(kind_options, null);

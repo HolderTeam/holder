@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -320,6 +320,80 @@ template <> struct codec<holder::contract::ProjectEncryptionCheckPrivacyMode> {
     }
 };
 
+template <> struct codec<holder::contract::RecoverySnapshotLinkTargetType> {
+    static json encode(holder::contract::RecoverySnapshotLinkTargetType value) {
+        switch (value) {
+        case holder::contract::RecoverySnapshotLinkTargetType::Card: return "card";
+        case holder::contract::RecoverySnapshotLinkTargetType::AiMessage: return "ai_message";
+        case holder::contract::RecoverySnapshotLinkTargetType::AiThread: return "ai_thread";
+        case holder::contract::RecoverySnapshotLinkTargetType::Resource: return "resource";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoverySnapshotLinkTargetType decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "card") return holder::contract::RecoverySnapshotLinkTargetType::Card;
+        if (text == "ai_message") return holder::contract::RecoverySnapshotLinkTargetType::AiMessage;
+        if (text == "ai_thread") return holder::contract::RecoverySnapshotLinkTargetType::AiThread;
+        if (text == "resource") return holder::contract::RecoverySnapshotLinkTargetType::Resource;
+        throw std::invalid_argument("must be one of card, ai_message, ai_thread, resource");
+    }
+};
+
+template <> struct codec<holder::contract::RecoverySnapshotPlacementEncoding> {
+    static json encode(holder::contract::RecoverySnapshotPlacementEncoding value) {
+        switch (value) {
+        case holder::contract::RecoverySnapshotPlacementEncoding::Plain: return "plain";
+        case holder::contract::RecoverySnapshotPlacementEncoding::HolderAssetV1: return "holder_asset_v1";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoverySnapshotPlacementEncoding decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "plain") return holder::contract::RecoverySnapshotPlacementEncoding::Plain;
+        if (text == "holder_asset_v1") return holder::contract::RecoverySnapshotPlacementEncoding::HolderAssetV1;
+        throw std::invalid_argument("must be one of plain, holder_asset_v1");
+    }
+};
+
+template <> struct codec<holder::contract::RecoverySnapshotLocationProvider> {
+    static json encode(holder::contract::RecoverySnapshotLocationProvider value) {
+        switch (value) {
+        case holder::contract::RecoverySnapshotLocationProvider::LocalDirectory: return "local_directory";
+        case holder::contract::RecoverySnapshotLocationProvider::S3Compatible: return "s3_compatible";
+        case holder::contract::RecoverySnapshotLocationProvider::GoogleDrive: return "google-drive";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoverySnapshotLocationProvider decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "local_directory") return holder::contract::RecoverySnapshotLocationProvider::LocalDirectory;
+        if (text == "s3_compatible") return holder::contract::RecoverySnapshotLocationProvider::S3Compatible;
+        if (text == "google-drive") return holder::contract::RecoverySnapshotLocationProvider::GoogleDrive;
+        throw std::invalid_argument("must be one of local_directory, s3_compatible, google-drive");
+    }
+};
+
+template <> struct codec<holder::contract::RecoverySnapshotCardPrivacyMode> {
+    static json encode(holder::contract::RecoverySnapshotCardPrivacyMode value) {
+        switch (value) {
+        case holder::contract::RecoverySnapshotCardPrivacyMode::EncryptedGit: return "encrypted_git";
+        case holder::contract::RecoverySnapshotCardPrivacyMode::Plain: return "plain";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoverySnapshotCardPrivacyMode decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "encrypted_git") return holder::contract::RecoverySnapshotCardPrivacyMode::EncryptedGit;
+        if (text == "plain") return holder::contract::RecoverySnapshotCardPrivacyMode::Plain;
+        throw std::invalid_argument("must be one of encrypted_git, plain");
+    }
+};
+
 template <> struct codec<holder::contract::RecoveryTokenGlobalImportResultPullStatus> {
     static json encode(holder::contract::RecoveryTokenGlobalImportResultPullStatus value) {
         switch (value) {
@@ -582,9 +656,38 @@ template <> struct codec<holder::contract::NewProjectPrivacyMode> {
     }
 };
 
+template <> struct codec<holder::contract::RecoverySnapshotRestorePrivacyMode> {
+    static json encode(holder::contract::RecoverySnapshotRestorePrivacyMode value) {
+        switch (value) {
+        case holder::contract::RecoverySnapshotRestorePrivacyMode::EncryptedGit: return "encrypted_git";
+        case holder::contract::RecoverySnapshotRestorePrivacyMode::Plain: return "plain";
+        }
+        throw std::invalid_argument("is not a known value");
+    }
+    static holder::contract::RecoverySnapshotRestorePrivacyMode decode(const json& value) {
+        if (!value.is_string()) throw std::invalid_argument("must be a string");
+        const auto& text = value.get_ref<const std::string&>();
+        if (text == "encrypted_git") return holder::contract::RecoverySnapshotRestorePrivacyMode::EncryptedGit;
+        if (text == "plain") return holder::contract::RecoverySnapshotRestorePrivacyMode::Plain;
+        throw std::invalid_argument("must be one of encrypted_git, plain");
+    }
+};
+
+template <> struct codec<holder::contract::CoreVersion> {
+    static json encode(const holder::contract::CoreVersion& value);
+    static holder::contract::CoreVersion decode(const json& value);
+};
+template <> struct codec<holder::contract::DatabaseRebuildReport> {
+    static json encode(const holder::contract::DatabaseRebuildReport& value);
+    static holder::contract::DatabaseRebuildReport decode(const json& value);
+};
 template <> struct codec<holder::contract::ProjectStorageLocation> {
     static json encode(const holder::contract::ProjectStorageLocation& value);
     static holder::contract::ProjectStorageLocation decode(const json& value);
+};
+template <> struct codec<holder::contract::StorageLocationList> {
+    static json encode(const holder::contract::StorageLocationList& value);
+    static holder::contract::StorageLocationList decode(const json& value);
 };
 template <> struct codec<holder::contract::LocationDeleteResult> {
     static json encode(const holder::contract::LocationDeleteResult& value);
@@ -626,6 +729,10 @@ template <> struct codec<holder::contract::TagCount> {
     static json encode(const holder::contract::TagCount& value);
     static holder::contract::TagCount decode(const json& value);
 };
+template <> struct codec<holder::contract::LinkKindLabels> {
+    static json encode(const holder::contract::LinkKindLabels& value);
+    static holder::contract::LinkKindLabels decode(const json& value);
+};
 template <> struct codec<holder::contract::Link> {
     static json encode(const holder::contract::Link& value);
     static holder::contract::Link decode(const json& value);
@@ -646,6 +753,14 @@ template <> struct codec<holder::contract::Calendar> {
     static json encode(const holder::contract::Calendar& value);
     static holder::contract::Calendar decode(const json& value);
 };
+template <> struct codec<holder::contract::AssetImport> {
+    static json encode(const holder::contract::AssetImport& value);
+    static holder::contract::AssetImport decode(const json& value);
+};
+template <> struct codec<holder::contract::AssetFile> {
+    static json encode(const holder::contract::AssetFile& value);
+    static holder::contract::AssetFile decode(const json& value);
+};
 template <> struct codec<holder::contract::AssetPlacement> {
     static json encode(const holder::contract::AssetPlacement& value);
     static holder::contract::AssetPlacement decode(const json& value);
@@ -658,13 +773,17 @@ template <> struct codec<holder::contract::Resource> {
     static json encode(const holder::contract::Resource& value);
     static holder::contract::Resource decode(const json& value);
 };
-template <> struct codec<holder::contract::ProjectListItem> {
-    static json encode(const holder::contract::ProjectListItem& value);
-    static holder::contract::ProjectListItem decode(const json& value);
-};
 template <> struct codec<holder::contract::Project> {
     static json encode(const holder::contract::Project& value);
     static holder::contract::Project decode(const json& value);
+};
+template <> struct codec<holder::contract::HomeProject> {
+    static json encode(const holder::contract::HomeProject& value);
+    static holder::contract::HomeProject decode(const json& value);
+};
+template <> struct codec<holder::contract::ProjectListItem> {
+    static json encode(const holder::contract::ProjectListItem& value);
+    static holder::contract::ProjectListItem decode(const json& value);
 };
 template <> struct codec<holder::contract::EncryptionSafetyCheck> {
     static json encode(const holder::contract::EncryptionSafetyCheck& value);
@@ -689,6 +808,38 @@ template <> struct codec<holder::contract::RebuildResult> {
 template <> struct codec<holder::contract::ReindexResult> {
     static json encode(const holder::contract::ReindexResult& value);
     static holder::contract::ReindexResult decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotLink> {
+    static json encode(const holder::contract::RecoverySnapshotLink& value);
+    static holder::contract::RecoverySnapshotLink decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotMilestone> {
+    static json encode(const holder::contract::RecoverySnapshotMilestone& value);
+    static holder::contract::RecoverySnapshotMilestone decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotPlacement> {
+    static json encode(const holder::contract::RecoverySnapshotPlacement& value);
+    static holder::contract::RecoverySnapshotPlacement decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotAsset> {
+    static json encode(const holder::contract::RecoverySnapshotAsset& value);
+    static holder::contract::RecoverySnapshotAsset decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotResource> {
+    static json encode(const holder::contract::RecoverySnapshotResource& value);
+    static holder::contract::RecoverySnapshotResource decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotLocation> {
+    static json encode(const holder::contract::RecoverySnapshotLocation& value);
+    static holder::contract::RecoverySnapshotLocation decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotCard> {
+    static json encode(const holder::contract::RecoverySnapshotCard& value);
+    static holder::contract::RecoverySnapshotCard decode(const json& value);
+};
+template <> struct codec<holder::contract::RecoverySnapshotPage> {
+    static json encode(const holder::contract::RecoverySnapshotPage& value);
+    static holder::contract::RecoverySnapshotPage decode(const json& value);
 };
 template <> struct codec<holder::contract::ProjectRecoveryTokenExportResult> {
     static json encode(const holder::contract::ProjectRecoveryTokenExportResult& value);
@@ -834,6 +985,10 @@ template <> struct codec<holder::contract::MilestoneUpdate> {
     static json encode(const holder::contract::MilestoneUpdate& value);
     static holder::contract::MilestoneUpdate decode(const json& value);
 };
+template <> struct codec<holder::contract::AssetImportRequest> {
+    static json encode(const holder::contract::AssetImportRequest& value);
+    static holder::contract::AssetImportRequest decode(const json& value);
+};
 template <> struct codec<holder::contract::NewResource> {
     static json encode(const holder::contract::NewResource& value);
     static holder::contract::NewResource decode(const json& value);
@@ -858,6 +1013,10 @@ template <> struct codec<holder::contract::RebuildRequest> {
     static json encode(const holder::contract::RebuildRequest& value);
     static holder::contract::RebuildRequest decode(const json& value);
 };
+template <> struct codec<holder::contract::RecoverySnapshotRestore> {
+    static json encode(const holder::contract::RecoverySnapshotRestore& value);
+    static holder::contract::RecoverySnapshotRestore decode(const json& value);
+};
 template <> struct codec<holder::contract::RecoveryTokenExportRequest> {
     static json encode(const holder::contract::RecoveryTokenExportRequest& value);
     static holder::contract::RecoveryTokenExportRequest decode(const json& value);
@@ -874,6 +1033,140 @@ template <> struct codec<holder::contract::RemoteTest> {
     static json encode(const holder::contract::RemoteTest& value);
     static holder::contract::RemoteTest decode(const json& value);
 };
+
+inline json codec<holder::contract::CoreVersion>::encode(const holder::contract::CoreVersion& value) {
+    json result = json::object();
+    result["version"] = codec<std::string>::encode(value.version);
+    result["major"] = codec<std::int32_t>::encode(value.major);
+    result["minor"] = codec<std::int32_t>::encode(value.minor);
+    result["patch"] = codec<std::int32_t>::encode(value.patch);
+    return result;
+}
+inline holder::contract::CoreVersion codec<holder::contract::CoreVersion>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CoreVersion object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "version" && it.key() != "major" && it.key() != "minor" && it.key() != "patch") throw std::invalid_argument("CoreVersion has no field " + it.key());
+    holder::contract::CoreVersion out;
+    if (value.contains("version") && !value.at("version").is_null()) {
+        const auto& item = value.at("version");
+        out.version = check_text(decode_field<std::string>(item, "version"), "version", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("version is required and must not be null");
+    }
+    if (value.contains("major") && !value.at("major").is_null()) {
+        const auto& item = value.at("major");
+        out.major = decode_field<std::int32_t>(item, "major");
+    } else {
+        throw std::invalid_argument("major is required and must not be null");
+    }
+    if (value.contains("minor") && !value.at("minor").is_null()) {
+        const auto& item = value.at("minor");
+        out.minor = decode_field<std::int32_t>(item, "minor");
+    } else {
+        throw std::invalid_argument("minor is required and must not be null");
+    }
+    if (value.contains("patch") && !value.at("patch").is_null()) {
+        const auto& item = value.at("patch");
+        out.patch = decode_field<std::int32_t>(item, "patch");
+    } else {
+        throw std::invalid_argument("patch is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::DatabaseRebuildReport>::encode(const holder::contract::DatabaseRebuildReport& value) {
+    json result = json::object();
+    result["dry_run"] = codec<bool>::encode(value.dry_run);
+    result["previous_health"] = codec<std::string>::encode(value.previous_health);
+    result["projects"] = codec<std::int32_t>::encode(value.projects);
+    result["cards"] = codec<std::int32_t>::encode(value.cards);
+    result["ai_threads"] = codec<std::int32_t>::encode(value.ai_threads);
+    result["ai_messages"] = codec<std::int32_t>::encode(value.ai_messages);
+    result["resources"] = codec<std::int32_t>::encode(value.resources);
+    result["assets"] = codec<std::int32_t>::encode(value.assets);
+    result["placements"] = codec<std::int32_t>::encode(value.placements);
+    result["locations"] = codec<std::int32_t>::encode(value.locations);
+    result["quarantined_cards"] = codec<std::int32_t>::encode(value.quarantined_cards);
+    result["backup_path"] = value.backup_path ? codec<std::string>::encode(*value.backup_path) : json(nullptr);
+    return result;
+}
+inline holder::contract::DatabaseRebuildReport codec<holder::contract::DatabaseRebuildReport>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a DatabaseRebuildReport object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dry_run" && it.key() != "previous_health" && it.key() != "projects" && it.key() != "cards" && it.key() != "ai_threads" && it.key() != "ai_messages" && it.key() != "resources" && it.key() != "assets" && it.key() != "placements" && it.key() != "locations" && it.key() != "quarantined_cards" && it.key() != "backup_path") throw std::invalid_argument("DatabaseRebuildReport has no field " + it.key());
+    holder::contract::DatabaseRebuildReport out;
+    if (value.contains("dry_run") && !value.at("dry_run").is_null()) {
+        const auto& item = value.at("dry_run");
+        out.dry_run = decode_field<bool>(item, "dry_run");
+    } else {
+        throw std::invalid_argument("dry_run is required and must not be null");
+    }
+    if (value.contains("previous_health") && !value.at("previous_health").is_null()) {
+        const auto& item = value.at("previous_health");
+        out.previous_health = check_text(decode_field<std::string>(item, "previous_health"), "previous_health", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("previous_health is required and must not be null");
+    }
+    if (value.contains("projects") && !value.at("projects").is_null()) {
+        const auto& item = value.at("projects");
+        out.projects = check_range<std::int32_t>(decode_field<std::int32_t>(item, "projects"), "projects", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("projects is required and must not be null");
+    }
+    if (value.contains("cards") && !value.at("cards").is_null()) {
+        const auto& item = value.at("cards");
+        out.cards = check_range<std::int32_t>(decode_field<std::int32_t>(item, "cards"), "cards", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("cards is required and must not be null");
+    }
+    if (value.contains("ai_threads") && !value.at("ai_threads").is_null()) {
+        const auto& item = value.at("ai_threads");
+        out.ai_threads = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_threads"), "ai_threads", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_threads is required and must not be null");
+    }
+    if (value.contains("ai_messages") && !value.at("ai_messages").is_null()) {
+        const auto& item = value.at("ai_messages");
+        out.ai_messages = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_messages"), "ai_messages", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_messages is required and must not be null");
+    }
+    if (value.contains("resources") && !value.at("resources").is_null()) {
+        const auto& item = value.at("resources");
+        out.resources = check_range<std::int32_t>(decode_field<std::int32_t>(item, "resources"), "resources", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("resources is required and must not be null");
+    }
+    if (value.contains("assets") && !value.at("assets").is_null()) {
+        const auto& item = value.at("assets");
+        out.assets = check_range<std::int32_t>(decode_field<std::int32_t>(item, "assets"), "assets", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("assets is required and must not be null");
+    }
+    if (value.contains("placements") && !value.at("placements").is_null()) {
+        const auto& item = value.at("placements");
+        out.placements = check_range<std::int32_t>(decode_field<std::int32_t>(item, "placements"), "placements", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("placements is required and must not be null");
+    }
+    if (value.contains("locations") && !value.at("locations").is_null()) {
+        const auto& item = value.at("locations");
+        out.locations = check_range<std::int32_t>(decode_field<std::int32_t>(item, "locations"), "locations", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("locations is required and must not be null");
+    }
+    if (value.contains("quarantined_cards") && !value.at("quarantined_cards").is_null()) {
+        const auto& item = value.at("quarantined_cards");
+        out.quarantined_cards = check_range<std::int32_t>(decode_field<std::int32_t>(item, "quarantined_cards"), "quarantined_cards", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("quarantined_cards is required and must not be null");
+    }
+    if (value.contains("backup_path") && !value.at("backup_path").is_null()) {
+        const auto& item = value.at("backup_path");
+        out.backup_path = check_text(decode_field<std::string>(item, "backup_path"), "backup_path", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
 
 inline json codec<holder::contract::ProjectStorageLocation>::encode(const holder::contract::ProjectStorageLocation& value) {
     json result = json::object();
@@ -948,6 +1241,30 @@ inline holder::contract::ProjectStorageLocation codec<holder::contract::ProjectS
     return out;
 }
 
+inline json codec<holder::contract::StorageLocationList>::encode(const holder::contract::StorageLocationList& value) {
+    json result = json::object();
+    result["data"] = codec<std::vector<holder::contract::ProjectStorageLocation>>::encode(value.data);
+    result["preferred_location_id"] = value.preferred_location_id ? codec<std::string>::encode(*value.preferred_location_id) : json(nullptr);
+    return result;
+}
+inline holder::contract::StorageLocationList codec<holder::contract::StorageLocationList>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a StorageLocationList object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "data" && it.key() != "preferred_location_id") throw std::invalid_argument("StorageLocationList has no field " + it.key());
+    holder::contract::StorageLocationList out;
+    if (value.contains("data") && !value.at("data").is_null()) {
+        const auto& item = value.at("data");
+        out.data = decode_field<std::vector<holder::contract::ProjectStorageLocation>>(item, "data");
+    } else {
+        throw std::invalid_argument("data is required and must not be null");
+    }
+    if (value.contains("preferred_location_id") && !value.at("preferred_location_id").is_null()) {
+        const auto& item = value.at("preferred_location_id");
+        out.preferred_location_id = check_text(decode_field<std::string>(item, "preferred_location_id"), "preferred_location_id", 1, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
 inline json codec<holder::contract::LocationDeleteResult>::encode(const holder::contract::LocationDeleteResult& value) {
     json result = json::object();
     result["location_id"] = codec<std::string>::encode(value.location_id);
@@ -1014,12 +1331,13 @@ inline json codec<holder::contract::Card>::encode(const holder::contract::Card& 
     result["content"] = codec<std::string>::encode(value.content);
     result["tags"] = codec<std::vector<std::string>>::encode(value.tags);
     result["tag_occurrences"] = codec<std::vector<holder::contract::TagOccurrence>>::encode(value.tag_occurrences);
+    result["removable_tags"] = codec<std::vector<std::string>>::encode(value.removable_tags);
     return result;
 }
 inline holder::contract::Card codec<holder::contract::Card>::decode(const json& value) {
     if (!value.is_object()) throw std::invalid_argument("expected a Card object");
     for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at" && it.key() != "content" && it.key() != "tags" && it.key() != "tag_occurrences") throw std::invalid_argument("Card has no field " + it.key());
+        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "title" && it.key() != "rel_path" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "deleted_at" && it.key() != "content" && it.key() != "tags" && it.key() != "tag_occurrences" && it.key() != "removable_tags") throw std::invalid_argument("Card has no field " + it.key());
     holder::contract::Card out;
     if (value.contains("card_id") && !value.at("card_id").is_null()) {
         const auto& item = value.at("card_id");
@@ -1088,6 +1406,12 @@ inline holder::contract::Card codec<holder::contract::Card>::decode(const json& 
         out.tag_occurrences = decode_field<std::vector<holder::contract::TagOccurrence>>(item, "tag_occurrences");
     } else {
         throw std::invalid_argument("tag_occurrences is required and must not be null");
+    }
+    if (value.contains("removable_tags") && !value.at("removable_tags").is_null()) {
+        const auto& item = value.at("removable_tags");
+        out.removable_tags = [&] { auto items = decode_field<std::vector<std::string>>(item, "removable_tags"); for (const auto& text : items) check_text(text, "removable_tags", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("removable_tags is required and must not be null");
     }
     return out;
 }
@@ -1402,6 +1726,39 @@ inline holder::contract::TagCount codec<holder::contract::TagCount>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::LinkKindLabels>::encode(const holder::contract::LinkKindLabels& value) {
+    json result = json::object();
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["forward_label"] = codec<std::string>::encode(value.forward_label);
+    result["reverse_label"] = codec<std::string>::encode(value.reverse_label);
+    return result;
+}
+inline holder::contract::LinkKindLabels codec<holder::contract::LinkKindLabels>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a LinkKindLabels object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "kind" && it.key() != "forward_label" && it.key() != "reverse_label") throw std::invalid_argument("LinkKindLabels has no field " + it.key());
+    holder::contract::LinkKindLabels out;
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("forward_label") && !value.at("forward_label").is_null()) {
+        const auto& item = value.at("forward_label");
+        out.forward_label = check_text(decode_field<std::string>(item, "forward_label"), "forward_label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("forward_label is required and must not be null");
+    }
+    if (value.contains("reverse_label") && !value.at("reverse_label").is_null()) {
+        const auto& item = value.at("reverse_label");
+        out.reverse_label = check_text(decode_field<std::string>(item, "reverse_label"), "reverse_label", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("reverse_label is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::Link>::encode(const holder::contract::Link& value) {
     json result = json::object();
     result["source_project_id"] = codec<std::string>::encode(value.source_project_id);
@@ -1676,6 +2033,86 @@ inline holder::contract::Calendar codec<holder::contract::Calendar>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::AssetImport>::encode(const holder::contract::AssetImport& value) {
+    json result = json::object();
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    result["asset_id"] = codec<std::string>::encode(value.asset_id);
+    result["duplicate_reused"] = codec<bool>::encode(value.duplicate_reused);
+    result["link_created"] = codec<bool>::encode(value.link_created);
+    return result;
+}
+inline holder::contract::AssetImport codec<holder::contract::AssetImport>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetImport object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "resource_id" && it.key() != "asset_id" && it.key() != "duplicate_reused" && it.key() != "link_created") throw std::invalid_argument("AssetImport has no field " + it.key());
+    holder::contract::AssetImport out;
+    if (value.contains("resource_id") && !value.at("resource_id").is_null()) {
+        const auto& item = value.at("resource_id");
+        out.resource_id = check_text(decode_field<std::string>(item, "resource_id"), "resource_id", 4, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("resource_id is required and must not be null");
+    }
+    if (value.contains("asset_id") && !value.at("asset_id").is_null()) {
+        const auto& item = value.at("asset_id");
+        out.asset_id = check_text(decode_field<std::string>(item, "asset_id"), "asset_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("asset_id is required and must not be null");
+    }
+    if (value.contains("duplicate_reused") && !value.at("duplicate_reused").is_null()) {
+        const auto& item = value.at("duplicate_reused");
+        out.duplicate_reused = decode_field<bool>(item, "duplicate_reused");
+    } else {
+        throw std::invalid_argument("duplicate_reused is required and must not be null");
+    }
+    if (value.contains("link_created") && !value.at("link_created").is_null()) {
+        const auto& item = value.at("link_created");
+        out.link_created = decode_field<bool>(item, "link_created");
+    } else {
+        throw std::invalid_argument("link_created is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::AssetFile>::encode(const holder::contract::AssetFile& value) {
+    json result = json::object();
+    result["path"] = codec<std::string>::encode(value.path);
+    result["original_filename"] = codec<std::string>::encode(value.original_filename);
+    result["media_type"] = codec<std::string>::encode(value.media_type);
+    result["byte_size"] = codec<long long>::encode(value.byte_size);
+    return result;
+}
+inline holder::contract::AssetFile codec<holder::contract::AssetFile>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetFile object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "path" && it.key() != "original_filename" && it.key() != "media_type" && it.key() != "byte_size") throw std::invalid_argument("AssetFile has no field " + it.key());
+    holder::contract::AssetFile out;
+    if (value.contains("path") && !value.at("path").is_null()) {
+        const auto& item = value.at("path");
+        out.path = check_text(decode_field<std::string>(item, "path"), "path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("path is required and must not be null");
+    }
+    if (value.contains("original_filename") && !value.at("original_filename").is_null()) {
+        const auto& item = value.at("original_filename");
+        out.original_filename = check_text(decode_field<std::string>(item, "original_filename"), "original_filename", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("original_filename is required and must not be null");
+    }
+    if (value.contains("media_type") && !value.at("media_type").is_null()) {
+        const auto& item = value.at("media_type");
+        out.media_type = check_text(decode_field<std::string>(item, "media_type"), "media_type", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("media_type is required and must not be null");
+    }
+    if (value.contains("byte_size") && !value.at("byte_size").is_null()) {
+        const auto& item = value.at("byte_size");
+        out.byte_size = decode_field<long long>(item, "byte_size");
+    } else {
+        throw std::invalid_argument("byte_size is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::AssetPlacement>::encode(const holder::contract::AssetPlacement& value) {
     json result = json::object();
     result["placement_id"] = codec<std::string>::encode(value.placement_id);
@@ -1859,6 +2296,92 @@ inline holder::contract::Resource codec<holder::contract::Resource>::decode(cons
     return out;
 }
 
+inline json codec<holder::contract::Project>::encode(const holder::contract::Project& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["root_path"] = codec<std::string>::encode(value.root_path);
+    result["git_remote_url"] = value.git_remote_url ? codec<std::string>::encode(*value.git_remote_url) : json(nullptr);
+    result["git_provider"] = value.git_provider ? codec<std::string>::encode(*value.git_provider) : json(nullptr);
+    result["privacy_mode"] = codec<holder::contract::ProjectPrivacyMode>::encode(value.privacy_mode);
+    result["project_key_id"] = value.project_key_id ? codec<std::string>::encode(*value.project_key_id) : json(nullptr);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::Project codec<holder::contract::Project>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a Project object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" && it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" && it.key() != "project_key_id" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("Project has no field " + it.key());
+    holder::contract::Project out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("root_path") && !value.at("root_path").is_null()) {
+        const auto& item = value.at("root_path");
+        out.root_path = check_text(decode_field<std::string>(item, "root_path"), "root_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("root_path is required and must not be null");
+    }
+    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
+        const auto& item = value.at("git_remote_url");
+        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
+        const auto& item = value.at("git_provider");
+        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::ProjectPrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("project_key_id") && !value.at("project_key_id").is_null()) {
+        const auto& item = value.at("project_key_id");
+        out.project_key_id = check_text(decode_field<std::string>(item, "project_key_id"), "project_key_id", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::HomeProject>::encode(const holder::contract::HomeProject& value) {
+    json result = json::object();
+    result["project"] = value.project ? codec<holder::contract::Project>::encode(*value.project) : json(nullptr);
+    return result;
+}
+inline holder::contract::HomeProject codec<holder::contract::HomeProject>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a HomeProject object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project") throw std::invalid_argument("HomeProject has no field " + it.key());
+    holder::contract::HomeProject out;
+    if (value.contains("project") && !value.at("project").is_null()) {
+        const auto& item = value.at("project");
+        out.project = codec<holder::contract::Project>::decode(item);
+    }
+    return out;
+}
+
 inline json codec<holder::contract::ProjectListItem>::encode(const holder::contract::ProjectListItem& value) {
     json result = json::object();
     result["project_id"] = codec<std::string>::encode(value.project_id);
@@ -1938,75 +2461,6 @@ inline holder::contract::ProjectListItem codec<holder::contract::ProjectListItem
         out.root_card_count = decode_field<std::int32_t>(item, "root_card_count");
     } else if (value.contains("root_card_count")) {
         throw std::invalid_argument("root_card_count must not be null");
-    }
-    return out;
-}
-
-inline json codec<holder::contract::Project>::encode(const holder::contract::Project& value) {
-    json result = json::object();
-    result["project_id"] = codec<std::string>::encode(value.project_id);
-    result["name"] = codec<std::string>::encode(value.name);
-    result["root_path"] = codec<std::string>::encode(value.root_path);
-    result["git_remote_url"] = value.git_remote_url ? codec<std::string>::encode(*value.git_remote_url) : json(nullptr);
-    result["git_provider"] = value.git_provider ? codec<std::string>::encode(*value.git_provider) : json(nullptr);
-    result["privacy_mode"] = codec<holder::contract::ProjectPrivacyMode>::encode(value.privacy_mode);
-    result["project_key_id"] = value.project_key_id ? codec<std::string>::encode(*value.project_key_id) : json(nullptr);
-    result["created_at"] = codec<long long>::encode(value.created_at);
-    result["updated_at"] = codec<long long>::encode(value.updated_at);
-    return result;
-}
-inline holder::contract::Project codec<holder::contract::Project>::decode(const json& value) {
-    if (!value.is_object()) throw std::invalid_argument("expected a Project object");
-    for (auto it = value.begin(); it != value.end(); ++it)
-        if (it.key() != "project_id" && it.key() != "name" && it.key() != "root_path" && it.key() != "git_remote_url" && it.key() != "git_provider" && it.key() != "privacy_mode" && it.key() != "project_key_id" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("Project has no field " + it.key());
-    holder::contract::Project out;
-    if (value.contains("project_id") && !value.at("project_id").is_null()) {
-        const auto& item = value.at("project_id");
-        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("project_id is required and must not be null");
-    }
-    if (value.contains("name") && !value.at("name").is_null()) {
-        const auto& item = value.at("name");
-        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("name is required and must not be null");
-    }
-    if (value.contains("root_path") && !value.at("root_path").is_null()) {
-        const auto& item = value.at("root_path");
-        out.root_path = check_text(decode_field<std::string>(item, "root_path"), "root_path", 0, std::numeric_limits<std::size_t>::max());
-    } else {
-        throw std::invalid_argument("root_path is required and must not be null");
-    }
-    if (value.contains("git_remote_url") && !value.at("git_remote_url").is_null()) {
-        const auto& item = value.at("git_remote_url");
-        out.git_remote_url = check_text(decode_field<std::string>(item, "git_remote_url"), "git_remote_url", 1, std::numeric_limits<std::size_t>::max());
-    }
-    if (value.contains("git_provider") && !value.at("git_provider").is_null()) {
-        const auto& item = value.at("git_provider");
-        out.git_provider = check_text(decode_field<std::string>(item, "git_provider"), "git_provider", 0, std::numeric_limits<std::size_t>::max());
-    }
-    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
-        const auto& item = value.at("privacy_mode");
-        out.privacy_mode = decode_field<holder::contract::ProjectPrivacyMode>(item, "privacy_mode");
-    } else {
-        throw std::invalid_argument("privacy_mode is required and must not be null");
-    }
-    if (value.contains("project_key_id") && !value.at("project_key_id").is_null()) {
-        const auto& item = value.at("project_key_id");
-        out.project_key_id = check_text(decode_field<std::string>(item, "project_key_id"), "project_key_id", 0, std::numeric_limits<std::size_t>::max());
-    }
-    if (value.contains("created_at") && !value.at("created_at").is_null()) {
-        const auto& item = value.at("created_at");
-        out.created_at = decode_field<long long>(item, "created_at");
-    } else {
-        throw std::invalid_argument("created_at is required and must not be null");
-    }
-    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
-        const auto& item = value.at("updated_at");
-        out.updated_at = decode_field<long long>(item, "updated_at");
-    } else {
-        throw std::invalid_argument("updated_at is required and must not be null");
     }
     return out;
 }
@@ -2217,6 +2671,463 @@ inline holder::contract::ReindexResult codec<holder::contract::ReindexResult>::d
         out.message = check_text(decode_field<std::string>(item, "message"), "message", 0, std::numeric_limits<std::size_t>::max());
     } else {
         throw std::invalid_argument("message is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotLink>::encode(const holder::contract::RecoverySnapshotLink& value) {
+    json result = json::object();
+    result["target_type"] = codec<holder::contract::RecoverySnapshotLinkTargetType>::encode(value.target_type);
+    result["target_id"] = codec<std::string>::encode(value.target_id);
+    if (value.target_project_id) result["target_project_id"] = codec<std::string>::encode(*value.target_project_id);
+    result["kind"] = codec<std::string>::encode(value.kind);
+    result["label"] = value.label ? codec<std::string>::encode(*value.label) : json(nullptr);
+    return result;
+}
+inline holder::contract::RecoverySnapshotLink codec<holder::contract::RecoverySnapshotLink>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotLink object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "target_type" && it.key() != "target_id" && it.key() != "target_project_id" && it.key() != "kind" && it.key() != "label") throw std::invalid_argument("RecoverySnapshotLink has no field " + it.key());
+    holder::contract::RecoverySnapshotLink out;
+    if (value.contains("target_type") && !value.at("target_type").is_null()) {
+        const auto& item = value.at("target_type");
+        out.target_type = decode_field<holder::contract::RecoverySnapshotLinkTargetType>(item, "target_type");
+    } else {
+        throw std::invalid_argument("target_type is required and must not be null");
+    }
+    if (value.contains("target_id") && !value.at("target_id").is_null()) {
+        const auto& item = value.at("target_id");
+        out.target_id = check_text(decode_field<std::string>(item, "target_id"), "target_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("target_id is required and must not be null");
+    }
+    if (value.contains("target_project_id") && !value.at("target_project_id").is_null()) {
+        const auto& item = value.at("target_project_id");
+        out.target_project_id = check_text(decode_field<std::string>(item, "target_project_id"), "target_project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else if (value.contains("target_project_id")) {
+        throw std::invalid_argument("target_project_id must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("kind is required and must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotMilestone>::encode(const holder::contract::RecoverySnapshotMilestone& value) {
+    json result = json::object();
+    result["dates"] = codec<std::vector<holder::contract::MilestoneDate>>::encode(value.dates);
+    result["kind"] = value.kind ? codec<std::string>::encode(*value.kind) : json(nullptr);
+    result["description"] = value.description ? codec<std::string>::encode(*value.description) : json(nullptr);
+    return result;
+}
+inline holder::contract::RecoverySnapshotMilestone codec<holder::contract::RecoverySnapshotMilestone>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotMilestone object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dates" && it.key() != "kind" && it.key() != "description") throw std::invalid_argument("RecoverySnapshotMilestone has no field " + it.key());
+    holder::contract::RecoverySnapshotMilestone out;
+    if (value.contains("dates") && !value.at("dates").is_null()) {
+        const auto& item = value.at("dates");
+        out.dates = decode_field<std::vector<holder::contract::MilestoneDate>>(item, "dates");
+    } else {
+        throw std::invalid_argument("dates is required and must not be null");
+    }
+    if (value.contains("kind") && !value.at("kind").is_null()) {
+        const auto& item = value.at("kind");
+        out.kind = check_text(decode_field<std::string>(item, "kind"), "kind", 0, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("description") && !value.at("description").is_null()) {
+        const auto& item = value.at("description");
+        out.description = check_text(decode_field<std::string>(item, "description"), "description", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotPlacement>::encode(const holder::contract::RecoverySnapshotPlacement& value) {
+    json result = json::object();
+    result["placement_id"] = codec<std::string>::encode(value.placement_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["object_key"] = codec<std::string>::encode(value.object_key);
+    result["encoding"] = codec<holder::contract::RecoverySnapshotPlacementEncoding>::encode(value.encoding);
+    result["stored_byte_size"] = codec<long long>::encode(value.stored_byte_size);
+    result["stored_sha256"] = codec<std::string>::encode(value.stored_sha256);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    return result;
+}
+inline holder::contract::RecoverySnapshotPlacement codec<holder::contract::RecoverySnapshotPlacement>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotPlacement object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "placement_id" && it.key() != "location_id" && it.key() != "object_key" && it.key() != "encoding" && it.key() != "stored_byte_size" && it.key() != "stored_sha256" && it.key() != "created_at") throw std::invalid_argument("RecoverySnapshotPlacement has no field " + it.key());
+    holder::contract::RecoverySnapshotPlacement out;
+    if (value.contains("placement_id") && !value.at("placement_id").is_null()) {
+        const auto& item = value.at("placement_id");
+        out.placement_id = check_text(decode_field<std::string>(item, "placement_id"), "placement_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("placement_id is required and must not be null");
+    }
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("object_key") && !value.at("object_key").is_null()) {
+        const auto& item = value.at("object_key");
+        out.object_key = check_text(decode_field<std::string>(item, "object_key"), "object_key", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("object_key is required and must not be null");
+    }
+    if (value.contains("encoding") && !value.at("encoding").is_null()) {
+        const auto& item = value.at("encoding");
+        out.encoding = decode_field<holder::contract::RecoverySnapshotPlacementEncoding>(item, "encoding");
+    } else {
+        throw std::invalid_argument("encoding is required and must not be null");
+    }
+    if (value.contains("stored_byte_size") && !value.at("stored_byte_size").is_null()) {
+        const auto& item = value.at("stored_byte_size");
+        out.stored_byte_size = decode_field<long long>(item, "stored_byte_size");
+    } else {
+        throw std::invalid_argument("stored_byte_size is required and must not be null");
+    }
+    if (value.contains("stored_sha256") && !value.at("stored_sha256").is_null()) {
+        const auto& item = value.at("stored_sha256");
+        out.stored_sha256 = check_text(decode_field<std::string>(item, "stored_sha256"), "stored_sha256", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("stored_sha256 is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotAsset>::encode(const holder::contract::RecoverySnapshotAsset& value) {
+    json result = json::object();
+    result["asset_id"] = codec<std::string>::encode(value.asset_id);
+    result["original_filename"] = codec<std::string>::encode(value.original_filename);
+    result["media_type"] = codec<std::string>::encode(value.media_type);
+    result["byte_size"] = codec<long long>::encode(value.byte_size);
+    result["plaintext_sha256"] = codec<std::string>::encode(value.plaintext_sha256);
+    result["placements"] = codec<std::vector<holder::contract::RecoverySnapshotPlacement>>::encode(value.placements);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::RecoverySnapshotAsset codec<holder::contract::RecoverySnapshotAsset>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotAsset object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "asset_id" && it.key() != "original_filename" && it.key() != "media_type" && it.key() != "byte_size" && it.key() != "plaintext_sha256" && it.key() != "placements" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("RecoverySnapshotAsset has no field " + it.key());
+    holder::contract::RecoverySnapshotAsset out;
+    if (value.contains("asset_id") && !value.at("asset_id").is_null()) {
+        const auto& item = value.at("asset_id");
+        out.asset_id = check_text(decode_field<std::string>(item, "asset_id"), "asset_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("asset_id is required and must not be null");
+    }
+    if (value.contains("original_filename") && !value.at("original_filename").is_null()) {
+        const auto& item = value.at("original_filename");
+        out.original_filename = check_text(decode_field<std::string>(item, "original_filename"), "original_filename", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("original_filename is required and must not be null");
+    }
+    if (value.contains("media_type") && !value.at("media_type").is_null()) {
+        const auto& item = value.at("media_type");
+        out.media_type = check_text(decode_field<std::string>(item, "media_type"), "media_type", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("media_type is required and must not be null");
+    }
+    if (value.contains("byte_size") && !value.at("byte_size").is_null()) {
+        const auto& item = value.at("byte_size");
+        out.byte_size = decode_field<long long>(item, "byte_size");
+    } else {
+        throw std::invalid_argument("byte_size is required and must not be null");
+    }
+    if (value.contains("plaintext_sha256") && !value.at("plaintext_sha256").is_null()) {
+        const auto& item = value.at("plaintext_sha256");
+        out.plaintext_sha256 = check_text(decode_field<std::string>(item, "plaintext_sha256"), "plaintext_sha256", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("plaintext_sha256 is required and must not be null");
+    }
+    if (value.contains("placements") && !value.at("placements").is_null()) {
+        const auto& item = value.at("placements");
+        out.placements = decode_field<std::vector<holder::contract::RecoverySnapshotPlacement>>(item, "placements");
+    } else {
+        throw std::invalid_argument("placements is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotResource>::encode(const holder::contract::RecoverySnapshotResource& value) {
+    json result = json::object();
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    result["type"] = codec<std::string>::encode(value.type);
+    result["label"] = codec<std::string>::encode(value.label);
+    result["metadata"] = codec<std::map<std::string, std::vector<std::string>>>::encode(value.metadata);
+    result["assets"] = codec<std::vector<holder::contract::RecoverySnapshotAsset>>::encode(value.assets);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::RecoverySnapshotResource codec<holder::contract::RecoverySnapshotResource>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotResource object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "resource_id" && it.key() != "type" && it.key() != "label" && it.key() != "metadata" && it.key() != "assets" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("RecoverySnapshotResource has no field " + it.key());
+    holder::contract::RecoverySnapshotResource out;
+    if (value.contains("resource_id") && !value.at("resource_id").is_null()) {
+        const auto& item = value.at("resource_id");
+        out.resource_id = check_text(decode_field<std::string>(item, "resource_id"), "resource_id", 4, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("resource_id is required and must not be null");
+    }
+    if (value.contains("type") && !value.at("type").is_null()) {
+        const auto& item = value.at("type");
+        out.type = check_text(decode_field<std::string>(item, "type"), "type", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("type is required and must not be null");
+    }
+    if (value.contains("label") && !value.at("label").is_null()) {
+        const auto& item = value.at("label");
+        out.label = check_text(decode_field<std::string>(item, "label"), "label", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("label is required and must not be null");
+    }
+    if (value.contains("metadata") && !value.at("metadata").is_null()) {
+        const auto& item = value.at("metadata");
+        out.metadata = [&] { auto entries = decode_field<std::map<std::string, std::vector<std::string>>>(item, "metadata"); for (const auto& [key, values] : entries) { check_text(key, "metadata key", 0, std::numeric_limits<std::size_t>::max()); for (const auto& text : values) check_text(text, "metadata", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else {
+        throw std::invalid_argument("metadata is required and must not be null");
+    }
+    if (value.contains("assets") && !value.at("assets").is_null()) {
+        const auto& item = value.at("assets");
+        out.assets = decode_field<std::vector<holder::contract::RecoverySnapshotAsset>>(item, "assets");
+    } else {
+        throw std::invalid_argument("assets is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotLocation>::encode(const holder::contract::RecoverySnapshotLocation& value) {
+    json result = json::object();
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["name"] = codec<std::string>::encode(value.name);
+    result["provider"] = codec<holder::contract::RecoverySnapshotLocationProvider>::encode(value.provider);
+    result["configuration"] = codec<std::map<std::string, std::string>>::encode(value.configuration);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    return result;
+}
+inline holder::contract::RecoverySnapshotLocation codec<holder::contract::RecoverySnapshotLocation>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotLocation object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "location_id" && it.key() != "name" && it.key() != "provider" && it.key() != "configuration" && it.key() != "created_at" && it.key() != "updated_at") throw std::invalid_argument("RecoverySnapshotLocation has no field " + it.key());
+    holder::contract::RecoverySnapshotLocation out;
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("name") && !value.at("name").is_null()) {
+        const auto& item = value.at("name");
+        out.name = check_text(decode_field<std::string>(item, "name"), "name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("name is required and must not be null");
+    }
+    if (value.contains("provider") && !value.at("provider").is_null()) {
+        const auto& item = value.at("provider");
+        out.provider = decode_field<holder::contract::RecoverySnapshotLocationProvider>(item, "provider");
+    } else {
+        throw std::invalid_argument("provider is required and must not be null");
+    }
+    if (value.contains("configuration") && !value.at("configuration").is_null()) {
+        const auto& item = value.at("configuration");
+        out.configuration = [&] { auto entries = decode_field<std::map<std::string, std::string>>(item, "configuration"); for (const auto& [key, text] : entries) { check_text(key, "configuration key", 0, std::numeric_limits<std::size_t>::max()); check_text(text, "configuration", 0, std::numeric_limits<std::size_t>::max()); } return entries; }();
+    } else {
+        throw std::invalid_argument("configuration is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotCard>::encode(const holder::contract::RecoverySnapshotCard& value) {
+    json result = json::object();
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["project_name"] = codec<std::string>::encode(value.project_name);
+    result["privacy_mode"] = codec<holder::contract::RecoverySnapshotCardPrivacyMode>::encode(value.privacy_mode);
+    result["title"] = codec<std::string>::encode(value.title);
+    result["content"] = codec<std::string>::encode(value.content);
+    result["parent_card_id"] = value.parent_card_id ? codec<std::string>::encode(*value.parent_card_id) : json(nullptr);
+    result["sort_key"] = codec<double>::encode(value.sort_key);
+    result["created_at"] = codec<long long>::encode(value.created_at);
+    result["updated_at"] = codec<long long>::encode(value.updated_at);
+    result["links"] = codec<std::vector<holder::contract::RecoverySnapshotLink>>::encode(value.links);
+    result["milestones"] = codec<std::vector<holder::contract::RecoverySnapshotMilestone>>::encode(value.milestones);
+    result["resources"] = codec<std::vector<holder::contract::RecoverySnapshotResource>>::encode(value.resources);
+    result["locations"] = codec<std::vector<holder::contract::RecoverySnapshotLocation>>::encode(value.locations);
+    return result;
+}
+inline holder::contract::RecoverySnapshotCard codec<holder::contract::RecoverySnapshotCard>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotCard object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "card_id" && it.key() != "project_id" && it.key() != "project_name" && it.key() != "privacy_mode" && it.key() != "title" && it.key() != "content" && it.key() != "parent_card_id" && it.key() != "sort_key" && it.key() != "created_at" && it.key() != "updated_at" && it.key() != "links" && it.key() != "milestones" && it.key() != "resources" && it.key() != "locations") throw std::invalid_argument("RecoverySnapshotCard has no field " + it.key());
+    holder::contract::RecoverySnapshotCard out;
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("project_name") && !value.at("project_name").is_null()) {
+        const auto& item = value.at("project_name");
+        out.project_name = check_text(decode_field<std::string>(item, "project_name"), "project_name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_name is required and must not be null");
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::RecoverySnapshotCardPrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("title") && !value.at("title").is_null()) {
+        const auto& item = value.at("title");
+        out.title = check_text(decode_field<std::string>(item, "title"), "title", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("title is required and must not be null");
+    }
+    if (value.contains("content") && !value.at("content").is_null()) {
+        const auto& item = value.at("content");
+        out.content = check_text(decode_field<std::string>(item, "content"), "content", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("content is required and must not be null");
+    }
+    if (value.contains("parent_card_id") && !value.at("parent_card_id").is_null()) {
+        const auto& item = value.at("parent_card_id");
+        out.parent_card_id = check_text(decode_field<std::string>(item, "parent_card_id"), "parent_card_id", 1, std::numeric_limits<std::size_t>::max());
+    }
+    if (value.contains("sort_key") && !value.at("sort_key").is_null()) {
+        const auto& item = value.at("sort_key");
+        out.sort_key = decode_field<double>(item, "sort_key");
+    } else {
+        throw std::invalid_argument("sort_key is required and must not be null");
+    }
+    if (value.contains("created_at") && !value.at("created_at").is_null()) {
+        const auto& item = value.at("created_at");
+        out.created_at = decode_field<long long>(item, "created_at");
+    } else {
+        throw std::invalid_argument("created_at is required and must not be null");
+    }
+    if (value.contains("updated_at") && !value.at("updated_at").is_null()) {
+        const auto& item = value.at("updated_at");
+        out.updated_at = decode_field<long long>(item, "updated_at");
+    } else {
+        throw std::invalid_argument("updated_at is required and must not be null");
+    }
+    if (value.contains("links") && !value.at("links").is_null()) {
+        const auto& item = value.at("links");
+        out.links = decode_field<std::vector<holder::contract::RecoverySnapshotLink>>(item, "links");
+    } else {
+        throw std::invalid_argument("links is required and must not be null");
+    }
+    if (value.contains("milestones") && !value.at("milestones").is_null()) {
+        const auto& item = value.at("milestones");
+        out.milestones = decode_field<std::vector<holder::contract::RecoverySnapshotMilestone>>(item, "milestones");
+    } else {
+        throw std::invalid_argument("milestones is required and must not be null");
+    }
+    if (value.contains("resources") && !value.at("resources").is_null()) {
+        const auto& item = value.at("resources");
+        out.resources = decode_field<std::vector<holder::contract::RecoverySnapshotResource>>(item, "resources");
+    } else {
+        throw std::invalid_argument("resources is required and must not be null");
+    }
+    if (value.contains("locations") && !value.at("locations").is_null()) {
+        const auto& item = value.at("locations");
+        out.locations = decode_field<std::vector<holder::contract::RecoverySnapshotLocation>>(item, "locations");
+    } else {
+        throw std::invalid_argument("locations is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotPage>::encode(const holder::contract::RecoverySnapshotPage& value) {
+    json result = json::object();
+    result["cards"] = codec<std::vector<holder::contract::RecoverySnapshotCard>>::encode(value.cards);
+    result["lines"] = codec<std::vector<std::string>>::encode(value.lines);
+    result["next_cursor"] = value.next_cursor ? codec<std::string>::encode(*value.next_cursor) : json(nullptr);
+    return result;
+}
+inline holder::contract::RecoverySnapshotPage codec<holder::contract::RecoverySnapshotPage>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotPage object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "cards" && it.key() != "lines" && it.key() != "next_cursor") throw std::invalid_argument("RecoverySnapshotPage has no field " + it.key());
+    holder::contract::RecoverySnapshotPage out;
+    if (value.contains("cards") && !value.at("cards").is_null()) {
+        const auto& item = value.at("cards");
+        out.cards = decode_field<std::vector<holder::contract::RecoverySnapshotCard>>(item, "cards");
+    } else {
+        throw std::invalid_argument("cards is required and must not be null");
+    }
+    if (value.contains("lines") && !value.at("lines").is_null()) {
+        const auto& item = value.at("lines");
+        out.lines = [&] { auto items = decode_field<std::vector<std::string>>(item, "lines"); for (const auto& text : items) check_text(text, "lines", 0, std::numeric_limits<std::size_t>::max()); return items; }();
+    } else {
+        throw std::invalid_argument("lines is required and must not be null");
+    }
+    if (value.contains("next_cursor") && !value.at("next_cursor").is_null()) {
+        const auto& item = value.at("next_cursor");
+        out.next_cursor = check_text(decode_field<std::string>(item, "next_cursor"), "next_cursor", 0, std::numeric_limits<std::size_t>::max());
     }
     return out;
 }
@@ -3800,6 +4711,46 @@ inline holder::contract::MilestoneUpdate codec<holder::contract::MilestoneUpdate
     return out;
 }
 
+inline json codec<holder::contract::AssetImportRequest>::encode(const holder::contract::AssetImportRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["source_path"] = codec<std::string>::encode(value.source_path);
+    return result;
+}
+inline holder::contract::AssetImportRequest codec<holder::contract::AssetImportRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetImportRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "location_id" && it.key() != "source_path") throw std::invalid_argument("AssetImportRequest has no field " + it.key());
+    holder::contract::AssetImportRequest out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("source_path") && !value.at("source_path").is_null()) {
+        const auto& item = value.at("source_path");
+        out.source_path = check_text(decode_field<std::string>(item, "source_path"), "source_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("source_path is required and must not be null");
+    }
+    return out;
+}
+
 inline json codec<holder::contract::NewResource>::encode(const holder::contract::NewResource& value) {
     json result = json::object();
     if (value.resource_id) result["resource_id"] = codec<std::string>::encode(*value.resource_id);
@@ -4025,6 +4976,46 @@ inline holder::contract::RebuildRequest codec<holder::contract::RebuildRequest>:
         out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
     } else {
         throw std::invalid_argument("project_id is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::RecoverySnapshotRestore>::encode(const holder::contract::RecoverySnapshotRestore& value) {
+    json result = json::object();
+    result["project_name"] = codec<std::string>::encode(value.project_name);
+    result["privacy_mode"] = codec<holder::contract::RecoverySnapshotRestorePrivacyMode>::encode(value.privacy_mode);
+    result["snapshot"] = codec<std::string>::encode(value.snapshot);
+    result["commit_message"] = codec<std::string>::encode(value.commit_message);
+    return result;
+}
+inline holder::contract::RecoverySnapshotRestore codec<holder::contract::RecoverySnapshotRestore>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a RecoverySnapshotRestore object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_name" && it.key() != "privacy_mode" && it.key() != "snapshot" && it.key() != "commit_message") throw std::invalid_argument("RecoverySnapshotRestore has no field " + it.key());
+    holder::contract::RecoverySnapshotRestore out;
+    if (value.contains("project_name") && !value.at("project_name").is_null()) {
+        const auto& item = value.at("project_name");
+        out.project_name = check_text(decode_field<std::string>(item, "project_name"), "project_name", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_name is required and must not be null");
+    }
+    if (value.contains("privacy_mode") && !value.at("privacy_mode").is_null()) {
+        const auto& item = value.at("privacy_mode");
+        out.privacy_mode = decode_field<holder::contract::RecoverySnapshotRestorePrivacyMode>(item, "privacy_mode");
+    } else {
+        throw std::invalid_argument("privacy_mode is required and must not be null");
+    }
+    if (value.contains("snapshot") && !value.at("snapshot").is_null()) {
+        const auto& item = value.at("snapshot");
+        out.snapshot = check_text(decode_field<std::string>(item, "snapshot"), "snapshot", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("snapshot is required and must not be null");
+    }
+    if (value.contains("commit_message") && !value.at("commit_message").is_null()) {
+        const auto& item = value.at("commit_message");
+        out.commit_message = check_text(decode_field<std::string>(item, "commit_message"), "commit_message", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("commit_message is required and must not be null");
     }
     return out;
 }

@@ -14,7 +14,12 @@ private Gee.ArrayList<HolderLinux.CardSummary> rel_cards() {
 }
 
 private HolderLinux.ConnectionsRelationsPresenter make_relations_presenter() {
-    return new HolderLinux.ConnectionsRelationsPresenter(new HolderLinux.ConnectionsController());
+    var controller = new HolderLinux.ConnectionsController();
+    var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+    kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+    kinds.add(new HolderLinux.LinkKindLabels("blocks", "Blocks", "Blocked by"));
+    controller.set_link_kinds(kinds);
+    return new HolderLinux.ConnectionsRelationsPresenter(controller);
 }
 
 private HolderLinux.CardLink rel_link(string from, string to, string to_type, string kind) {
@@ -40,8 +45,9 @@ private void test_outgoing_link_lines_group_by_kind_and_escape_non_card_targets(
     links.add(rel_link("a", "a", "card", "blocks"));
     links.add(rel_link("a", "r<1>", "resource", "attachment"));
     var text = presenter.format_link_lines(links, true, rel_cards());
-    assert(text == "blocks: <a href=\"card:b\">Beta</a>, <a href=\"card:a\">Alpha</a>\n"
-                   + "attachment: r&lt;1&gt;");
+    // A kind the catalog does not know reads as its capitalised words.
+    assert(text == "Blocks: <a href=\"card:b\">Beta</a>, <a href=\"card:a\">Alpha</a>\n"
+                   + "Attachment: r&lt;1&gt;");
 }
 
 private void test_backlink_lines_use_source_cards() {
@@ -49,7 +55,7 @@ private void test_backlink_lines_use_source_cards() {
     var links = new Gee.ArrayList<HolderLinux.CardLink>();
     links.add(rel_link("b", "a", "resource", "ref"));
     var text = presenter.format_link_lines(links, false, rel_cards());
-    assert(text == "ref: <a href=\"card:b\">Beta</a>");
+    assert(text == "Referenced by: <a href=\"card:b\">Beta</a>");
 }
 
 private void test_internal_lines_resolve_titles_and_escape_unknown_targets() {
@@ -89,7 +95,7 @@ private void test_card_presentation_combines_all_sections() {
     assert(presentation.sections_visible);
     assert(presentation.structure.markup.contains("<a href=\"project:p1\">Project 1</a>"));
     assert(presentation.structure.plain.has_prefix("Project: Project 1"));
-    assert(presentation.outgoing.plain == "ref: Beta");
+    assert(presentation.outgoing.plain == "References: Beta");
     assert(presentation.backlinks.markup == "None");
     assert(presentation.internal_links.plain == "Beta");
 }

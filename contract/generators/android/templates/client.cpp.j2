@@ -548,10 +548,18 @@ bool from_java_{{ c.c_type }}(JNIEnv* env, jobject object, {{ c.c_type }}& out, 
 }  // namespace
 {% for op in operations %}
 
-extern "C" JNIEXPORT {{ "jobject" if op.result else "void" }} JNICALL
-{{ op.jni_name }}(JNIEnv* env, jobject, jlong context_handle{% for p in op.parameters %}, {{ p.value.jni_type }} a_{{ p.name }}{% endfor %}) {
-{% set nothing = "nullptr" if op.result else "" %}
+{% if op.context == "closes" %}
+extern "C" JNIEXPORT void JNICALL
+{{ op.jni_name }}(JNIEnv*, jobject, jlong context_handle) {
+  if (context_handle) holder_{{ op.name }}(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)));
+}
+{% else %}
+extern "C" JNIEXPORT {{ "jlong" if op.context == "opens" else ("jobject" if op.result else "void") }} JNICALL
+{{ op.jni_name }}(JNIEnv* env, jobject{% if op.context == "required" %}, jlong context_handle{% endif %}{% for p in op.parameters %}, {{ p.value.jni_type }} a_{{ p.name }}{% endfor %}) {
+{% set nothing = "0" if op.context == "opens" else ("nullptr" if op.result else "") %}
+{% if op.context == "required" %}
   if (!context_handle) { fail(env, "context is required"); return {{ nothing }}; }
+{% endif %}
   Keep keep;
 {% for p in op.parameters %}
 {% if p.shape == "string" %}
@@ -595,13 +603,26 @@ extern "C" JNIEXPORT {{ "jobject" if op.result else "void" }} JNICALL
   if (!from_java_{{ p.c_type }}(env, a_{{ p.name }}, *p_{{ p.name }}, keep)) return {{ nothing }};
 {% endif %}
 {% endfor %}
+{% if op.context == "opens" %}
+  holder_context* opened = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_{{ op.name }}(
+{% for p in op.parameters %}
+      p_{{ p.name }},
+{% endfor %}
+      &opened, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return 0; }
+  return static_cast<jlong>(reinterpret_cast<intptr_t>(opened));
+}
+{% else %}
   Arena arena;
   if (!arena.value) { throw_class(env, "{{ class_path }}/AllocationFailureException", "cannot allocate a result arena"); return {{ nothing }}; }
 {% if op.result %}
   const {{ op.result_c_type }}* out = nullptr;
 {% endif %}
   holder_error* error = nullptr;
-  const int status = holder_{{ op.name }}(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+  const int status = holder_{{ op.name }}({% if op.context == "required" %}reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),{% endif %}
+
 {% for p in op.parameters %}
       p_{{ p.name }},
 {% endfor %}
@@ -611,4 +632,6 @@ extern "C" JNIEXPORT {{ "jobject" if op.result else "void" }} JNICALL
   return {{ to_java(op.result, "(*out)") }};
 {% endif %}
 }
+{% endif %}
+{% endif %}
 {% endfor %}

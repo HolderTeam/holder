@@ -42,7 +42,6 @@ from holder.generated.models import (
     ProjectUpdate,
     RunnerCapabilitiesData,
     RunnerPullJob,
-    StorageLocationProvider,
 )
 from holder.generated.streams import StreamError
 
@@ -442,7 +441,6 @@ def test_async_public_ping():
 
 
 def test_storage_locations_accept_every_daemon_provider():
-    # The daemon supports Google Drive locations; the enums once left them out.
+    # The shared location provider enum includes Google Drive.
     for provider in ("local_directory", "s3_compatible", "google-drive"):
-        assert StorageLocationProvider(provider) == provider
         assert LocationProvider(provider) == provider

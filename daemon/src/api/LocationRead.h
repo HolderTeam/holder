@@ -1,6 +1,7 @@
 #pragma once
 
 #include "api/AiRuntimeTypes.h"
+#include "api/Contract.h"
 #include "api/Schemas.h"
 
 #include <optional>
@@ -10,18 +11,12 @@
 
 namespace holder::platform { class Db; }
 namespace holder::privacy { class SecretStore; }
-namespace holder::resource { class LocationBindingStore; }
-namespace holder::model { struct Location; }
 
 namespace holder::api {
 
-// A location as every location response reports it; unbound without a binding store.
-StorageLocation location_item(const holder::model::Location& location,
-                              const holder::resource::LocationBindingStore* bindings);
-
 struct StorageLocationListResponse {
   bool ok;
-  std::vector<StorageLocation> data;
+  std::vector<holder::contract::ProjectStorageLocation> data;
   std::optional<std::string> preferred_location_id;
 };
 

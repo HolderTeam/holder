@@ -2,6 +2,7 @@
 #include "TestCommand.h"
 #include "http_test_helpers.h"
 
+#include "api/Contract.h"
 #include "api/HttpServer.h"
 #include "card/CardRepo.h"
 #include "card/CardStore.h"
@@ -124,11 +125,7 @@ TEST_CASE("CLI --reindex runs with temp XDG dirs", "[cli]") {
   REQUIRE(cards.size() == 1);
   REQUIRE(cards[0].title == "Welcome to Holder");
 
-  const auto welcome_path = repo_root / "config" / "WELCOME.md";
-  std::ifstream welcome_file(welcome_path);
-  REQUIRE(welcome_file.good());
-  std::ostringstream expected;
-  expected << welcome_file.rdbuf();
+  const std::string expected(holder::contract::WELCOME_CARD);
 
   const auto card_file_path = std::filesystem::path(projects[0].root_path) / cards[0].rel_path;
   REQUIRE(std::filesystem::exists(card_file_path));
@@ -138,13 +135,13 @@ TEST_CASE("CLI --reindex runs with temp XDG dirs", "[cli]") {
   card_raw << card_file_raw.rdbuf();
   const std::string raw_blob = card_raw.str();
   REQUIRE(raw_blob.rfind("HolderPriv1\n", 0) == 0);
-  REQUIRE(raw_blob.find(expected.str()) == std::string::npos);
+  REQUIRE(raw_blob.find(expected) == std::string::npos);
 
   holder::index::FtsIndexer fts(db);
   holder::card::CardStore card_store(db, &fts);
   const auto content = card_store.get_content(cards[0]);
   REQUIRE(content.has_value());
-  REQUIRE(content.value() == expected.str());
+  REQUIRE(content.value() == expected);
 
   // Second boot should not duplicate Home/welcome bootstrap content.
   const int second_code = run_command(cmd);
@@ -337,7 +334,6 @@ TEST_CASE("CLI reindex resolves staged core resources from build cwd", "[cli]") 
   const auto build_dir = std::filesystem::path(bin).parent_path();
   REQUIRE(std::filesystem::exists(build_dir));
   REQUIRE(std::filesystem::exists(build_dir / "schema/schema.sql"));
-  REQUIRE(std::filesystem::exists(build_dir / "config/WELCOME.md"));
   CwdGuard cwd(build_dir);
 
   REQUIRE(run_command("\"" + bin + "\" --reindex") == 0);
@@ -359,140 +355,6 @@ TEST_CASE("CLI reindex fails when schema cannot be found", "[cli]") {
 
   const std::string bin = HOLDER_BIN_PATH;
   REQUIRE(run_command("\"" + bin + "\" --reindex") != 0);
-}
-
-TEST_CASE("CLI reindex fails when welcome markdown path exists but cannot be opened", "[cli]") {
-#ifdef _WIN32
-  SKIP("POSIX permission-bit unreadable-file test is not meaningful on Windows");
-#else
-  const auto dir = holder::test::make_temp_dir();
-  const auto xdg_root = dir / "xdg";
-  std::filesystem::create_directories(xdg_root);
-
-  holder::test::EnvGuard data_env("XDG_DATA_HOME", (xdg_root / "data").string());
-  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (xdg_root / "config").string());
-  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (xdg_root / "cache").string());
-  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (xdg_root / "keystore").string());
-
-  const auto isolated = dir / "with_schema";
-  std::filesystem::create_directories(isolated / "schema");
-  std::filesystem::create_directories(isolated / "config");
-  std::filesystem::copy_file(
-      std::filesystem::path(SCHEMA_SQL_PATH),
-      isolated / "schema" / "schema.sql"
-  );
-  const auto welcome = isolated / "config" / "WELCOME.md";
-  {
-    std::ofstream out(welcome, std::ios::trunc);
-    out << "# Welcome\n";
-  }
-  std::filesystem::permissions(
-      welcome,
-      std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
-          std::filesystem::perms::group_read | std::filesystem::perms::others_read,
-      std::filesystem::perm_options::remove
-  );
-  CwdGuard cwd(isolated);
-
-  const std::string bin = HOLDER_BIN_PATH;
-  REQUIRE(run_command("\"" + bin + "\" --reindex") != 0);
-#endif
-}
-
-TEST_CASE("CLI reindex fails when schema exists but welcome markdown is missing", "[cli]") {
-  const auto dir = holder::test::make_temp_dir();
-  const auto xdg_root = dir / "xdg";
-  std::filesystem::create_directories(xdg_root);
-
-  holder::test::EnvGuard data_env("XDG_DATA_HOME", (xdg_root / "data").string());
-  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (xdg_root / "config").string());
-  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (xdg_root / "cache").string());
-  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (xdg_root / "keystore").string());
-
-  const auto isolated = dir / "with_schema_no_welcome";
-  std::filesystem::create_directories(isolated / "schema");
-  std::filesystem::copy_file(
-      std::filesystem::path(SCHEMA_SQL_PATH),
-      isolated / "schema" / "schema.sql"
-  );
-  CwdGuard cwd(isolated);
-
-  const std::string bin = HOLDER_BIN_PATH;
-  REQUIRE(run_command("\"" + bin + "\" --reindex") != 0);
-}
-
-TEST_CASE("CLI welcome title falls back when first markdown line is not a heading", "[cli]") {
-  const auto dir = holder::test::make_temp_dir();
-  const auto xdg_root = dir / "xdg";
-  std::filesystem::create_directories(xdg_root);
-
-  holder::test::EnvGuard data_env("XDG_DATA_HOME", (xdg_root / "data").string());
-  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (xdg_root / "config").string());
-  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (xdg_root / "cache").string());
-  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (xdg_root / "keystore").string());
-
-  const auto isolated = dir / "with_custom_welcome";
-  std::filesystem::create_directories(isolated / "schema");
-  std::filesystem::create_directories(isolated / "config");
-  std::filesystem::copy_file(
-      std::filesystem::path(SCHEMA_SQL_PATH),
-      isolated / "schema" / "schema.sql"
-  );
-  {
-    std::ofstream out(isolated / "config" / "WELCOME.md", std::ios::trunc);
-    out << "Not a heading first line\nBut still content\n";
-  }
-  CwdGuard cwd(isolated);
-
-  const std::string bin = HOLDER_BIN_PATH;
-  REQUIRE(run_command("\"" + bin + "\" --reindex") == 0);
-
-  holder::platform::Db db;
-  db.open(xdg_root / "data" / "holder" / "server" / "holder.db");
-  holder::project::ProjectRepo project_repo(db);
-  holder::card::CardRepo card_repo(db);
-  const auto projects = project_repo.list();
-  REQUIRE(projects.size() == 1);
-  const auto cards = card_repo.list_all(projects[0].project_id);
-  REQUIRE(cards.size() == 1);
-  REQUIRE(cards[0].title == "Welcome");
-}
-
-TEST_CASE("CLI welcome title falls back when first markdown line is blank", "[cli]") {
-  const auto dir = holder::test::make_temp_dir();
-  const auto xdg_root = dir / "xdg";
-  std::filesystem::create_directories(xdg_root);
-
-  holder::test::EnvGuard data_env("XDG_DATA_HOME", (xdg_root / "data").string());
-  holder::test::EnvGuard config_env("XDG_CONFIG_HOME", (xdg_root / "config").string());
-  holder::test::EnvGuard cache_env("XDG_CACHE_HOME", (xdg_root / "cache").string());
-  holder::test::EnvGuard keystore_env("HOLDER_TEST_KEYSTORE_DIR", (xdg_root / "keystore").string());
-
-  const auto isolated = dir / "with_blank_first_line";
-  std::filesystem::create_directories(isolated / "schema");
-  std::filesystem::create_directories(isolated / "config");
-  std::filesystem::copy_file(
-      std::filesystem::path(SCHEMA_SQL_PATH),
-      isolated / "schema" / "schema.sql"
-  );
-  {
-    std::ofstream out(isolated / "config" / "WELCOME.md", std::ios::trunc);
-    out << "   \n# Heading on second line\n";
-  }
-  CwdGuard cwd(isolated);
-
-  const std::string bin = HOLDER_BIN_PATH;
-  REQUIRE(run_command("\"" + bin + "\" --reindex") == 0);
-
-  holder::platform::Db db;
-  db.open(xdg_root / "data" / "holder" / "server" / "holder.db");
-  holder::project::ProjectRepo project_repo(db);
-  holder::card::CardRepo card_repo(db);
-  const auto projects = project_repo.list();
-  REQUIRE(projects.size() == 1);
-  const auto cards = card_repo.list_all(projects[0].project_id);
-  REQUIRE(cards.size() == 1);
-  REQUIRE(cards[0].title == "Welcome");
 }
 
 TEST_CASE("CLI exits when lock file is busy", "[cli]") {

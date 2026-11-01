@@ -31,6 +31,7 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
                                                                          string tag) throws Error;
+    public abstract async Gee.ArrayList<LinkKindLabels> list_link_kinds() throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_links(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string project_id, string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;

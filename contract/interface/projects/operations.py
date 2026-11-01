@@ -7,11 +7,22 @@ from fastapi import Body, Path, Query
 from authoring import Contract, Field, Int32, Timestamp
 
 from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
+from .home import HomeProject
 from .ids import ProjectId
 from .models import NewProject, Project, ProjectListItem, ProjectUpdate
 
 
 def register(contract: Contract) -> None:
+    @contract.core_operation(errors=[KeyringUnavailable])
+    def ensure_home_project() -> HomeProject:
+        """Make Home, with its welcome card, on a device that has no project; otherwise do nothing.
+
+        Home is named HOME_PROJECT_NAME, is encrypted_git, and holds one card with WELCOME_CARD as its
+        content. The check and the making happen together, so calling this again, or from a second
+        context, never makes a second Home. Projects that already exist keep their privacy mode. The app
+        decides when to call it: the daemon calls it when it starts, and does not serve it over HTTP.
+        """
+
     @contract.route("GET", "/projects", errors=[])
     def list_projects(
         name: Annotated[Annotated[str, Field(min_length=1)] | None, Query(

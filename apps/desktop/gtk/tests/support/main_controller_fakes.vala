@@ -610,6 +610,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return card_links;
     }
 
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        // Five of core's catalog entries, with its labels.
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        kinds.add(new HolderLinux.LinkKindLabels("example_of", "Example of", "Has example"));
+        kinds.add(new HolderLinux.LinkKindLabels("blocks", "Blocks", "Blocked by"));
+        kinds.add(new HolderLinux.LinkKindLabels("related_to", "Related to", "Related to"));
+        return kinds;
+    }
+
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         if (fail_list_card_backlinks) {
             throw new IOError.FAILED("list card backlinks failed");

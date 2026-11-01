@@ -146,3 +146,30 @@ TEST_CASE("Removing a project keeps its files and remembers the removal", "[cont
   REQUIRE_FALSE(registered(host, made));
   REQUIRE_THROWS_AS(contract::delete_project(host.context, "proj-old"), contract::NotFound);
 }
+
+TEST_CASE("ensure_home_project makes Home once, first in the project list and in the registry", "[contract][projects]") {
+  Host host;
+  const auto home = contract::ensure_home_project(host.context);
+  REQUIRE(home.project);
+  REQUIRE(home.project->name == contract::HOME_PROJECT_NAME);
+  REQUIRE(home.project->privacy_mode == contract::ProjectPrivacyMode::EncryptedGit);
+  const auto cards = contract::list_cards(host.context, home.project->project_id, std::nullopt, std::nullopt,
+                                          contract::ListCardsOrder::SortKeyAsc, 10, std::nullopt, true, false);
+  REQUIRE(cards.items.size() == 1);
+  REQUIRE(cards.items[0].title == "Welcome to Holder");
+  REQUIRE(cards.items[0].content == std::string(contract::WELCOME_CARD));
+
+  REQUIRE_FALSE(contract::ensure_home_project(host.context).project);
+  host.make("Another");
+  REQUIRE(host.names() == std::vector<std::string>{"Home", "Another"});
+  std::ifstream registry(host.context.registry_path);
+  const std::string text{std::istreambuf_iterator<char>(registry), std::istreambuf_iterator<char>()};
+  REQUIRE(text.find(home.project->project_id) != std::string::npos);
+}
+
+TEST_CASE("ensure_home_project leaves a device with any project alone", "[contract][projects]") {
+  Host host;
+  host.make("Plain one");
+  REQUIRE_FALSE(contract::ensure_home_project(host.context).project);
+  REQUIRE(host.names() == std::vector<std::string>{"Plain one"});
+}

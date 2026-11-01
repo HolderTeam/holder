@@ -33,6 +33,17 @@ public class CardSummary : Object {
 
 // A link, from a card or an AI message (from_card_id) to a card, AI message, AI thread or resource
 // (to_card_id, of to_type), each in its project.
+// One of the link kinds Holder knows, with how it reads from each end of a link.
+public class LinkKindLabels : Object {
+    public string kind { get; construct; }
+    public string forward_label { get; construct; }
+    public string reverse_label { get; construct; }
+
+    public LinkKindLabels(string kind, string forward_label, string reverse_label) {
+        Object(kind: kind, forward_label: forward_label, reverse_label: reverse_label);
+    }
+}
+
 public class CardLink : Object {
     public string from_card_id { get; construct; }
     public string to_card_id { get; construct; }

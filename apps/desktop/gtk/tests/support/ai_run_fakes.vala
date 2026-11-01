@@ -101,6 +101,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
+    public async Gee.ArrayList<HolderLinux.LinkKindLabels> list_link_kinds() throws Error {
+        var kinds = new Gee.ArrayList<HolderLinux.LinkKindLabels>();
+        kinds.add(new HolderLinux.LinkKindLabels("ref", "References", "Referenced by"));
+        kinds.add(new HolderLinux.LinkKindLabels("depends_on", "Depends on", "Required by"));
+        return kinds;
+    }
+
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string project_id, string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }

@@ -266,7 +266,6 @@ if(HOLDER_CORE_SOURCE_DIR)
   endif()
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SOURCE_DIR}/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SOURCE_DIR}/resources/WELCOME.md")
 elseif(HOLDER_CORE_INSTALL)
   # Let CMake search the installation prefix so it can locate lib, lib64, or
   # a platform-specific library directory. Discard a package path cached by
@@ -279,7 +278,6 @@ elseif(HOLDER_CORE_INSTALL)
   endif()
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${holder_SCHEMA_FILE}")
-  set(HOLDER_CORE_WELCOME "${holder_WELCOME_FILE}")
 elseif(HOLDER_USE_SYSTEM_CORE)
   if(holder_DIR STREQUAL "${HOLDER_CORE_SDK}/lib/cmake/holder" OR holder_DIR STREQUAL HOLDER_LOCAL_CORE_PACKAGE_DIR)
     unset(holder_DIR CACHE)
@@ -296,7 +294,6 @@ elseif(HOLDER_USE_SYSTEM_CORE)
       PATHS /usr/share/holder /usr/local/share/holder REQUIRED)
   endif()
   set(HOLDER_CORE_SCHEMA "${holder_DATA_DIR}/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${holder_DATA_DIR}/resources/WELCOME.md")
 else()
   if(NOT EXISTS "${HOLDER_CORE_SDK}/libholder-manifest.json")
     message(FATAL_ERROR "No core selected. Run make.sh to build and install core separately, or select HOLDER_CORE_INSTALL, HOLDER_CORE_SDK or HOLDER_USE_SYSTEM_CORE.")
@@ -310,14 +307,13 @@ else()
   find_package(holder CONFIG REQUIRED PATHS "${holder_DIR}" NO_DEFAULT_PATH)
   set(HOLDER_CORE_TARGET Holder::Core)
   set(HOLDER_CORE_SCHEMA "${HOLDER_CORE_SDK}/share/holder/schema/schema.sql")
-  set(HOLDER_CORE_WELCOME "${HOLDER_CORE_SDK}/share/holder/resources/WELCOME.md")
   configure_file("${HOLDER_CORE_SDK}/libholder-manifest.json"
     "${CMAKE_CURRENT_BINARY_DIR}/core-build.json" COPYONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/core-build.json"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon)
 endif()
-if(NOT EXISTS "${HOLDER_CORE_SCHEMA}" OR NOT EXISTS "${HOLDER_CORE_WELCOME}")
-  message(FATAL_ERROR "Selected core installation lacks schema or welcome resources")
+if(NOT EXISTS "${HOLDER_CORE_SCHEMA}")
+  message(FATAL_ERROR "Selected core installation lacks its schema")
 endif()
 
 function(holder_stage_windows_runtime target)
@@ -334,15 +330,7 @@ function(holder_stage_windows_runtime target)
   endif()
 endfunction()
 
-# Stage resources from the same core installation used for linking.
-configure_file(
-  "${HOLDER_CORE_WELCOME}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/config/WELCOME.md"
-  COPYONLY
-)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/config")
-configure_file("${HOLDER_CORE_WELCOME}"
-  "${CMAKE_CURRENT_BINARY_DIR}/config/WELCOME.md" COPYONLY)
 
 # Keep a build-tree schema beside holderd for development runs and staged artifacts.
 # The only tracked schema source is core's, installed with it.
@@ -583,7 +571,6 @@ if(WIN32)
       "${CMAKE_CURRENT_BINARY_DIR}/config"
       "${CMAKE_CURRENT_BINARY_DIR}/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/config/WELCOME.md"
       "${CMAKE_CURRENT_SOURCE_DIR}/config/ai_catalog.yaml"
       "${CMAKE_CURRENT_SOURCE_DIR}/config/git_providers.yaml"
       "${CMAKE_CURRENT_BINARY_DIR}/config"
@@ -668,7 +655,6 @@ install(
   DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon/schema
 )
 install(FILES
-  config/WELCOME.md
   config/ai_catalog.yaml
   config/git_providers.yaml
   DESTINATION ${CMAKE_INSTALL_DATADIR}/holder-daemon/config

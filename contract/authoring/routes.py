@@ -91,6 +91,10 @@ class Operation:
     operation_id: str | None = None
     sse_events: dict[str, type] | None = None
     raw_schema: dict[str, Any] | None = None
+    # How the operation uses a context: "required" for the ordinary case, "none" for one that runs
+    # without one (such as an offline rebuild), "opens" for one that makes a context and "closes" for
+    # the one that releases it.
+    context: str = "required"
 
 
 @dataclass
@@ -164,6 +168,19 @@ class Contract:
             self.operations.append(Operation(function, list(errors), core=core, created_when=created_when,
                                              public=public, operation_id=operation_id, sse_events=sse_events,
                                              raw_schema=raw_schema))
+            return function
+
+        return register
+
+    def runtime_operation(self, *, context: str, errors: list[type[HolderError]] = ()) -> Callable[
+            [Callable[..., Any]], Callable[..., Any]]:
+        """Declare one of core's runtime operations, which the daemon does not serve: context="none" runs
+        without a context, "opens" makes one (its result) and "closes" releases the one it is given."""
+        if context not in ("none", "opens", "closes"):
+            raise ValueError(f"runtime_operation context must be none, opens or closes, not {context!r}")
+
+        def register(function: Callable[..., Any]) -> Callable[..., Any]:
+            self.operations.append(Operation(function, list(errors), route=False, context=context))
             return function
 
         return register

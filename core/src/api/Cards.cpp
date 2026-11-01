@@ -3,6 +3,7 @@
 #include "api/Contract.h"
 
 #include "api/CardAccess.h"
+#include "api/CardCursor.h"
 #include "api/CoreErrors.h"
 
 #include "capi/Context.h"
@@ -37,7 +38,7 @@ Card full_card(holder::card::CardStore& store, const holder::model::Card& card) 
   auto content = store.get_content(card);
   if (!content) throw NotFound("card content missing: " + card.card_id);
   // Tags are read from the content, so a card in the trash, which the tag index leaves out, has them too.
-  Card out{card, std::move(*content), {}, {}};
+  Card out{card, std::move(*content), {}, {}, {}};
   std::set<std::string> tags;
   for (const auto& occurrence : holder::core::extract_tag_occurrences(out.content)) {
     out.tag_occurrences.push_back({occurrence.tag, static_cast<long long>(occurrence.byte_start),
@@ -45,53 +46,9 @@ Card full_card(holder::card::CardStore& store, const holder::model::Card& card) 
     tags.insert(occurrence.tag);
   }
   out.tags.assign(tags.begin(), tags.end());
+  for (const auto& tag : out.tags)
+    if (holder::core::tag_removable(out.content, tag)) out.removable_tags.push_back(tag);
   return out;
-}
-
-// Cursors are the hex of a JSON object naming the query they continue, so a cursor cannot be
-// used with a different project, filter or order. The daemon's card page uses the same format.
-std::string encode_cursor(const nlohmann::json& value) {
-  constexpr char hex[] = "0123456789abcdef";
-  std::string result;
-  for (const char character : value.dump()) {
-    const auto byte = static_cast<unsigned char>(character);
-    result += hex[byte >> 4];
-    result += hex[byte & 15];
-  }
-  return result;
-}
-
-holder::card::CardPageCursor decode_cursor(const std::string& cursor, const nlohmann::json& scope, bool sort_key) {
-  if (cursor.size() % 2) throw InvalidArgument("invalid cursor");
-  const auto digit = [](char c) -> int {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    throw InvalidArgument("invalid cursor");
-  };
-  try {
-    std::string text;
-    for (std::size_t i = 0; i < cursor.size(); i += 2)
-      text += static_cast<char>((digit(cursor[i]) << 4) | digit(cursor[i + 1]));
-    const auto decoded = nlohmann::json::parse(text);
-    if (decoded.at("version") != 1 || decoded.at("query") != scope)
-      throw InvalidArgument("the cursor belongs to a different query");
-    const auto id = decoded.at("card_id").get<std::string>();
-    const auto& timestamp = decoded.at("updated_at");
-    if (id.empty() || !timestamp.is_number_integer() ||
-        (timestamp.is_number_unsigned() &&
-         timestamp.get<unsigned long long>() >
-             static_cast<unsigned long long>(std::numeric_limits<long long>::max())))
-      throw InvalidArgument("invalid cursor");
-    holder::card::CardPageCursor result{id, timestamp.get<long long>()};
-    if (sort_key) {
-      const auto& key = decoded.at("sort_key");
-      if (!key.is_number()) throw InvalidArgument("invalid cursor");
-      result.sort_key = key.get<double>();
-    }
-    return result;
-  } catch (const nlohmann::json::exception&) {
-    throw InvalidArgument("invalid cursor");
-  }
 }
 
 const char* order_name(ListCardsOrder order) {
@@ -370,7 +327,7 @@ Card remove_tag(holder_context& context, const std::string& project_id, const st
     return std::find(tags.begin(), tags.end(), normalized) != tags.end();
   };
   if (!carries(*content)) return read_back(store, card_id);
-  if (carries(holder::core::remove_from_trailing_tag_line(*content, normalized).new_body))
+  if (!holder::core::tag_removable(*content, normalized))
     throw Conflict("the card carries #" + normalized +
                    " in its prose, which Holder does not rewrite; edit its content to remove it");
   store.remove_tag(card_id, tag, now_epoch_seconds());

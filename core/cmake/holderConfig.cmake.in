@@ -4,7 +4,6 @@ set(holder_BUILD_TYPE "@CMAKE_BUILD_TYPE@")
 
 set_and_check(holder_DATA_DIR "@PACKAGE_CMAKE_INSTALL_DATADIR@/holder")
 set_and_check(holder_SCHEMA_FILE "${holder_DATA_DIR}/schema/schema.sql")
-set_and_check(holder_WELCOME_FILE "${holder_DATA_DIR}/resources/WELCOME.md")
 
 include(CMakeFindDependencyMacro)
 

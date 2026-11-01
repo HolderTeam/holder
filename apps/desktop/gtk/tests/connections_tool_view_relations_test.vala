@@ -108,8 +108,8 @@ private void test_card_focus_fills_the_relations_panel() {
     assert(titles.contains("Card One") && titles.contains("Card Two") && titles.contains("Card Three"));
     assert(cv_eq(cv_relations_title(h.content()).get_text(), "Card One"));
     assert(cv_structure_label(h.content()).get_text().contains("Project: Project One"));
-    assert(cv_eq(cv_outgoing_label(h.content()).get_text(), "ref: Card Two"));
-    assert(cv_eq(cv_backlinks_label(h.content()).get_text(), "blocks: Card Three"));
+    assert(cv_eq(cv_outgoing_label(h.content()).get_text(), "References: Card Two"));
+    assert(cv_eq(cv_backlinks_label(h.content()).get_text(), "Blocked by: Card Three"));
     assert(cv_eq(cv_internal_label(h.content()).get_text(), "None"));
     assert(cv_outgoing_label(h.content()).get_parent().get_visible());
     assert(cv_backlinks_label(h.content()).get_parent().get_visible());

@@ -57,3 +57,15 @@ class NewLink(Record):
     """A note on the link; null or omitted for none."""
     created_at: Timestamp | MISSING = MISSING
     """When the link was made, for imports; omit for now. A link that already exists keeps its own."""
+
+
+class LinkKindLabels(Record):
+    """One of the link kinds Holder knows, with how it reads from each end of a link. A link's kind is free text;
+    a kind Holder does not know has no labels of its own."""
+
+    kind: LinkKind
+    """The kind, as a link names it."""
+    forward_label: Annotated[str, Field(min_length=1)]
+    """How the link reads from the card it is from, such as Depends on."""
+    reverse_label: Annotated[str, Field(min_length=1)]
+    """How the link reads from what it points at, such as Required by."""

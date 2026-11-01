@@ -62,6 +62,44 @@ void write_card_file(
   repo.write_file(card.rel_path, plain);
 }
 
+// The order create_batch writes items in, each parent before its children, and each item's
+// parent within the batch: none for a root, for a parent outside the batch, or to break a loop.
+std::pair<std::vector<std::size_t>, std::vector<std::optional<std::string>>> batch_order(
+    const std::vector<BatchCardInput>& items
+) {
+  std::map<std::string, std::size_t> index;
+  for (std::size_t i = 0; i < items.size(); ++i) index.emplace(items[i].card_id, i);
+  std::vector<std::optional<std::string>> parents(items.size());
+  for (std::size_t i = 0; i < items.size(); ++i) {
+    const auto& parent = items[i].parent_card_id;
+    if (parent && index.contains(*parent)) parents[i] = *parent;
+  }
+  enum class Mark { None, Visiting, Done };
+  std::vector<Mark> marks(items.size(), Mark::None);
+  std::vector<std::size_t> order;
+  order.reserve(items.size());
+  for (std::size_t start = 0; start < items.size(); ++start) {
+    // Climb to the first ancestor not yet written, then write back down the path.
+    std::vector<std::size_t> path;
+    auto at = start;
+    while (marks[at] == Mark::None) {
+      marks[at] = Mark::Visiting;
+      path.push_back(at);
+      if (!parents[at]) break;
+      at = index.at(*parents[at]);
+      if (marks[at] == Mark::Visiting) {
+        parents[path.back()].reset();  // The loop closes here: make this card a root.
+        break;
+      }
+    }
+    for (auto it = path.rbegin(); it != path.rend(); ++it) {
+      marks[*it] = Mark::Done;
+      order.push_back(*it);
+    }
+  }
+  return {std::move(order), std::move(parents)};
+}
+
 std::string decode_card_blob(const holder::model::Project& project, const std::string& blob) {
   if (project.privacy_mode != "encrypted_git") {
     return blob;
@@ -225,6 +263,7 @@ void CardStore::create_batch(
   for (const auto& item : items) {
     id_remap[item.card_id] = holder::identity::generate_id(project.id_scheme);
   }
+  const auto [order, parents] = batch_order(items);
 
   std::vector<std::string> staged_paths;
   staged_paths.reserve(items.size());
@@ -235,13 +274,15 @@ void CardStore::create_batch(
   // git_->stage_paths below). Rolled back automatically if anything throws before commit().
   holder::platform::Tx tx(db_);
 
-  for (const auto& item : items) {
+  for (const auto index : order) {
+    const auto& item = items[index];
     holder::model::Card card;
     card.card_id = id_remap.at(item.card_id);
     card.project_id = project_id;
     card.title = item.title;
     card.rel_path = holder::core::card_rel_path(card.card_id);
-    card.sort_key = card_repo_.next_sort_key(project_id, std::nullopt);
+    if (parents[index]) card.parent_card_id = id_remap.at(*parents[index]);
+    card.sort_key = item.sort_key.value_or(card_repo_.next_sort_key(project_id, card.parent_card_id));
     card.created_at = item.created_at;
     card.updated_at = item.updated_at;
 

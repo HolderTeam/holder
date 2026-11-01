@@ -280,6 +280,7 @@ class Cards(RuleBasedStateMachine):
             assert written[:1] == "#" and written[1:].lower() == occurrence["tag"], occurrence
             assert valid_tag(occurrence["tag"])
         assert sorted(card["tags"]) == sorted({o["tag"] for o in card["tag_occurrences"]})
+        assert set(card["removable_tags"]) <= set(card["tags"])
 
     @rule(data=st.data())
     def get_card(self, data):
@@ -299,7 +300,7 @@ class Cards(RuleBasedStateMachine):
         if metadata is not None:
             self.conforms("get_card_metadata", metadata)
             assert metadata == {key: value for key, value in self.cards[card_id].items()
-                                if key not in {"content", "tags", "tag_occurrences"}}
+                                if key not in {"content", "tags", "tag_occurrences", "removable_tags"}}
 
     @rule(data=st.data())
     def list_cards(self, data):
@@ -1293,14 +1294,18 @@ class Cards(RuleBasedStateMachine):
         elif not self.is_live(card_id, project):
             kinds.add("NotFound")
         elif tag.lower() in self.cards[card_id]["tags"]:
-            # Whether the trailing tag line alone carries it is core's to read from the content.
+            # Whether the trailing tag line alone carries it is core's to read from the content; the card
+            # says which tags that is, and removing one of them must succeed.
+            removable = tag.lower() in self.cards[card_id]["removable_tags"]
             try:
                 card = self.core.call("remove_card_tag", project_id=project, card_id=card_id, tag=tag)
             except OperationError as error:
                 event(f"remove_card_tag: {error.kind}")
                 assert error.kind == "Conflict", f"unexpected {error}"
+                assert not removable, "a tag the card lists as removable was refused"
                 return  # left as it is, which the invariant checks
             event("remove_card_tag: removed")
+            assert removable, "a tag the card does not list as removable was removed"
             self.conforms("remove_card_tag", card)
             assert tag.lower() not in card["tags"]
             self.check_tags(card)
@@ -1454,7 +1459,8 @@ def test_text_that_is_not_utf8_is_rejected_over_http(text):
 
 CARD = {"card_id": "c1", "project_id": "p1", "title": "A card", "rel_path": "a-card.md", "parent_card_id": None,
         "sort_key": 1.5, "created_at": 1700000000, "updated_at": 1700000000, "deleted_at": None,
-        "content": "#idea", "tags": ["idea"], "tag_occurrences": [{"tag": "idea", "byte_start": 0, "byte_end": 5}]}
+        "content": "#idea", "tags": ["idea"], "tag_occurrences": [{"tag": "idea", "byte_start": 0, "byte_end": 5}],
+        "removable_tags": ["idea"]}
 
 
 def failure(code: str) -> dict:

@@ -2308,6 +2308,31 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /link-kinds:
+    get:
+      summary: List the link kinds Holder knows, with their labels.
+      description: The list is the same for every project and device. A link may have any other kind.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkKindLabelsListResponse'}
+        '400':
+          description: Invalid argument.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /locations:
     get:
       summary: List project storage locations and this device's preferred location.
@@ -7648,7 +7673,7 @@ components:
       type: object
       required: [project_id, card_id, location_id, source_path]
       title: AssetImportRequest
-      description: Start importing a local file into a project resource.
+      description: A local file to import into a project resource and attach to a card.
     AssetPlacement:
       properties:
         placement_id: {type: string, minLength: 1, title: Placement Id, description: The copy's ID.}
@@ -7779,10 +7804,18 @@ components:
           type: array
           title: Tag Occurrences
           description: Each tag written in the content, in order.
+        removable_tags:
+          items: {type: string}
+          type: array
+          title: Removable Tags
+          description: 'The tags remove_card_tag would take off the card: each is on its trailing tag
+            line and nowhere else in its
+
+            content. A tag also written in prose stays until the content is edited.'
       additionalProperties: false
       type: object
       required: [card_id, project_id, title, rel_path, parent_card_id, sort_key, created_at, updated_at,
-        deleted_at, content, tags, tag_occurrences]
+        deleted_at, content, tags, tag_occurrences, removable_tags]
       title: Card
       description: A card, with its content and tags.
     CardBreadcrumb:
@@ -8706,6 +8739,31 @@ components:
 
         each end''s project, type and ID.'
     LinkKind: {type: string, minLength: 1}
+    LinkKindLabels:
+      properties:
+        kind: {$ref: '#/components/schemas/LinkKind', description: 'The kind, as a link names it.'}
+        forward_label: {type: string, minLength: 1, title: Forward Label, description: 'How the link reads
+            from the card it is from, such as Depends on.'}
+        reverse_label: {type: string, minLength: 1, title: Reverse Label, description: 'How the link reads
+            from what it points at, such as Required by.'}
+      additionalProperties: false
+      type: object
+      required: [kind, forward_label, reverse_label]
+      title: LinkKindLabels
+      description: 'One of the link kinds Holder knows, with how it reads from each end of a link. A link''s
+        kind is free text;
+
+        a kind Holder does not know has no labels of its own.'
+    LinkKindLabelsListResponse:
+      properties:
+        ok: {type: boolean, const: true, title: Ok}
+        data:
+          items: {$ref: '#/components/schemas/LinkKindLabels'}
+          type: array
+          title: Data
+      type: object
+      required: [ok, data]
+      title: LinkKindLabelsListResponse
     LinkListResponse:
       properties:
         ok: {type: boolean, const: true, title: Ok}
@@ -9802,40 +9860,11 @@ components:
       type: object
       required: [ok, data]
       title: SearchMessageListResponse
-    StorageLocation:
-      properties:
-        location_id: {type: string, title: Location Id, description: The location ID.}
-        project_id: {type: string, title: Project Id, description: The owning project.}
-        name: {type: string, title: Name, description: Display name.}
-        provider: {$ref: '#/components/schemas/StorageLocationProvider', description: Storage provider
-            kind.}
-        configuration:
-          additionalProperties: {type: string}
-          type: object
-          title: Configuration
-          description: Portable non-secret provider configuration.
-        bound: {type: boolean, title: Bound, description: Whether this device has a binding.}
-        binding_preview:
-          anyOf:
-          - {type: string}
-          - {type: 'null'}
-          title: Binding Preview
-          description: Safe binding display text; credentials are never returned.
-        created_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
-          title: Created At, description: Creation time.}
-        updated_at: {type: integer, maximum: 9223372036854775807, minimum: -9223372036854775808, format: int64,
-          title: Updated At, description: Last update time.}
-      additionalProperties: false
-      type: object
-      required: [location_id, project_id, name, provider, configuration, bound, binding_preview, created_at,
-        updated_at]
-      title: StorageLocation
-      description: A portable storage declaration with this device's binding status.
     StorageLocationListResponse:
       properties:
         ok: {type: boolean, title: Ok, description: Whether the request succeeded.}
         data:
-          items: {$ref: '#/components/schemas/StorageLocation'}
+          items: {$ref: '#/components/schemas/ProjectStorageLocation'}
           type: array
           title: Data
           description: The project's locations.
@@ -9850,9 +9879,6 @@ components:
       required: [ok, data, preferred_location_id]
       title: StorageLocationListResponse
       description: Project storage locations and this device's preference.
-    StorageLocationProvider:
-      type: string
-      enum: [local_directory, s3_compatible, google-drive]
     StorageLocationUpdate:
       properties:
         name: {type: string, minLength: 1, title: Name, description: Replacement display name.}

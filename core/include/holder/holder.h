@@ -22,42 +22,6 @@ extern "C" {
 typedef struct holder_context holder_context;
 typedef struct holder_error holder_error;
 
-const char* holder_version_string(void);
-int holder_version_major(void);
-int holder_version_minor(void);
-int holder_version_patch(void);
-
-// THREADING: a context owns one SQLite connection and is not safe to use from
-// two threads at once. Calls on one context must not overlap: a call made
-// while another is still running on the same connection can see that call's
-// uncommitted writes or join its transaction. To work on several threads,
-// open one context per thread (or per serial worker) on the same data_dir;
-// each sees only committed data, SQLite orders their writes, and core
-// serializes Git work on a project across contexts. Open the first context
-// before the others, since opening may rebuild the database.
-// holder_context_destroy must not run while a call on that context is still
-// running.
-int holder_context_open(
-    const char* data_dir,
-    const char* schema_sql,
-    holder_context** out_context,
-    holder_error** out_error
-);
-
-void holder_context_destroy(holder_context* context);
-
-// Rebuilds the disposable SQLite projection from durable project files beneath
-// data_dir/projects. The platform keyring provider must already be registered
-// when encrypted projects may be present. This function must be called while
-// no holder_context for data_dir is open. Sets *out_json to a rebuild report.
-int holder_database_rebuild(
-    const char* data_dir,
-    const char* schema_sql,
-    int dry_run,
-    char** out_json,
-    holder_error** out_error
-);
-
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error);
 
 // Returns one project's metadata in the same JSON shape as holder_project_list.
@@ -245,63 +209,6 @@ int holder_card_query_json(
     holder_error** out_error
 );
 
-// The Android backup snapshot's query: project_id's cards, most-recently-updated first,
-// cursor-paginated (pass cursor_card_id as null/empty for the first page; for later pages,
-// pass back the previous response's next_cursor fields). Each returned card carries its own
-// project's name/privacy_mode, its body text, links, milestones, and portable metadata for
-// linked resources and their storage locations. External object bytes and private storage
-// credentials are not included. Tags are re-derived from the body on restore. Response shape:
-// {"cards": [{"card_id", "project_id", "project_name", "privacy_mode", "title", "body",
-//             "created_at", "updated_at", "links": [...], "milestones": [...],
-//             "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}, ...],
-//  "next_cursor": {"updated_at", "card_id"} | null}
-// A link to a card in another project includes target_project_id. Local links omit it.
-// See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 1.
-int holder_backup_snapshot_page(
-    holder_context* context,
-    const char* project_id,
-    long long cursor_updated_at,
-    const char* cursor_card_id,
-    int limit,
-    char** out_json,
-    holder_error** out_error
-);
-
-// Bulk-restores a batch of cards (the shape holder_backup_snapshot_page emits) into a brand
-// new project: fresh project_id, fresh git repo, no remote, one commit for the cards
-// (resource and storage location manifests have their own commits)
-// (message "Restored from Android backup" is the caller's convention, not enforced here --
-// pass whatever commit_message you want). Every restored card also gets a fresh card_id --
-// card_id is a global primary key, not scoped per project, so reusing the snapshot's original
-// ids isn't safe (the source project this snapshot came from may still exist on the same
-// device); the input's "card_id" values are used only to resolve link targets within the
-// batch, not preserved on the restored cards. Every card lands at the root (no
-// parent_card_id -- restore is deliberately flat, no hierarchy). Local card links survive
-// when their target is in the batch and are remapped to its new card_id. Card links with
-// target_project_id retain that project and card ID even when the target is unavailable.
-// Resource links survive when their target bundle is present in the snapshot; resource,
-// asset, placement, and location IDs are remapped. Other links and absent local targets are
-// dropped rather than written dangling. On failure the newly-created project's database row and
-// working directory are removed.
-// cards_json shape: a JSON array of {"card_id", "title", "body", "created_at", "updated_at",
-// "links": [{"to_id"|"to_card_id", "to_type", "kind", "label", "target_project_id"?}],
-// "milestones": [{"dates": [{"role", "date"|"datetime"}],
-//                  "kind", "description"}],
-// "resources": [{"resource": {...}, "assets": [...], "locations": [...]}]}. Extra fields
-// (project_id, project_name, privacy_mode) present because the input came straight from
-// holder_backup_snapshot_page are ignored -- project_name/privacy_mode are passed separately
-// since they're project-level, not per-card. Sets *out_json to the created project, same
-// shape as holder_project_create. See BACKUP_RESTORE_IMPLEMENTATION_PLAN.md step 4.
-int holder_backup_restore(
-    holder_context* context,
-    const char* project_name,
-    const char* privacy_mode,
-    const char* cards_json,
-    const char* commit_message,
-    char** out_json,
-    holder_error** out_error
-);
-
 // Returns the card's markdown body (not front matter). Fails with
 // HOLDER_ERROR_RUNTIME if the card is not found or its content file is missing.
 int holder_card_get_content(
@@ -370,19 +277,6 @@ int holder_card_create(
     const char* title,
     const char* content,
     const char* parent_card_id,
-    char** out_json,
-    holder_error** out_error
-);
-
-// If any project already exists, does nothing and sets *out_json to the JSON
-// literal "null". Otherwise creates a plain project named `name` with a
-// single welcome card, and sets *out_json to the created project. welcome_content
-// may be NULL.
-int holder_ensure_default_project(
-    holder_context* context,
-    const char* name,
-    const char* welcome_title,
-    const char* welcome_content,
     char** out_json,
     holder_error** out_error
 );
@@ -1099,8 +993,8 @@ int holder_keyring_set_provider(
 // -- Asset storage providers --
 //
 // A Location's `provider` field (e.g. "local_directory", "google-drive") selects which
-// storage provider actually holds an Asset's bytes; holder_asset_import_file/
-// holder_asset_retrieve look one up by that name. "local_directory" always resolves to
+// storage provider actually holds an Asset's bytes; import_asset_file and retrieve_asset_file
+// (holder_api.h) look one up by that name. "local_directory" always resolves to
 // a built-in filesystem provider rooted at data_dir/resource-store, with no
 // registration required -- named to match holder-desktop's own local-storage Location
 // provider string, since Locations are portable/git-synced. Any other provider
@@ -1172,39 +1066,6 @@ int holder_storage_provider_register(
     holder_storage_remove_fn remove_fn,
     void* user_data,
     holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-);
-
-// Imports source_file_path into project_id's Resource/Asset/Placement model (deduplicated
-// by content hash within the project), stores it via location_id's storage provider (its
-// `provider` field selects which one, per above), and attaches it to card_id via a
-// structural CardLink (to_type "resource", kind "attachment") -- mirroring
-// holder::resource::AssetImportService::import_file exactly; see that function for the
-// full staging/hashing/encryption/git-commit/cleanup-on-failure behavior. Does not modify
-// the card's Markdown body -- inserting a `![label](holder://resource/<resource_id>)`
-// reference at the right place in the text is the caller's job, the same as it is for
-// holder-desktop.
-// Sets *out_json to {resource_id, asset_id, duplicate_reused, link_created}.
-int holder_asset_import_file(
-    holder_context* context,
-    const char* project_id,
-    const char* card_id,
-    const char* location_id,
-    const char* source_file_path,
-    char** out_json,
-    holder_error** out_error
-);
-
-// Downloads asset_id's placement_id back to destination_file_path via that placement's
-// Location's storage provider, verifying it against the Asset's recorded size/hash and
-// decrypting it if the project is encrypted_git -- mirroring
-// holder::resource::AssetImportService::retrieve exactly.
-int holder_asset_retrieve(
-    holder_context* context,
-    const char* resource_id,
-    const char* asset_id,
-    const char* placement_id,
-    const char* destination_file_path,
     holder_error** out_error
 );
 

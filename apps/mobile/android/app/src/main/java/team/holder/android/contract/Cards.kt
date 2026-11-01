@@ -88,6 +88,8 @@ data class Card(
     val tags: List<String>,
     /** Each tag written in the content, in order. */
     val tagOccurrences: List<TagOccurrence>,
+    /** The tags remove_card_tag would take off the card: each is on its trailing tag line and nowhere else in its content. A tag also written in prose stays until the content is edited. */
+    val removableTags: List<String>,
 )
 
 /** Everything about a card except its content. */

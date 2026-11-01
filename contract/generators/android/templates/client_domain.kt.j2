@@ -1,4 +1,11 @@
 package {{ package }}
+{% for constant in domain.constants %}
+
+{% for line in kdoc(constant.doc) %}
+{{ line }}
+{% endfor %}
+const val {{ constant.name }} = {{ constant.value|kstring }}
+{% endfor %}
 {% for enum in domain.enums %}
 
 {% for line in kdoc(enum.doc) %}
@@ -58,15 +65,22 @@ object {{ domain.kotlin_name }} {
     }
 {% for op in domain.operations %}
 
-{% for line in kdoc(op.doc, "    ") %}
+{% set doc = op.doc ~ "\n@return The new context's handle, which the caller releases with the closing operation." if op.context == "opens" else op.doc %}
+{% for line in kdoc(doc, "    ") %}
 {{ line }}
 {% endfor %}
+{% if op.context == "none" and not op.parameters %}
+    external fun {{ op.kotlin_name }}(){% if op.result %}: {{ op.result.kotlin }}{% endif %}
+{% else %}
     external fun {{ op.kotlin_name }}(
+{% if op.context in ("required", "closes") %}
         contextHandle: Long,
+{% endif %}
 {% for param in op.parameters %}
         {{ param.kotlin_name }}: {{ param.value.kotlin }}{% if param.default %} = {{ param.default }}{% endif %},
 {% endfor %}
-    ){% if op.result %}: {{ op.result.kotlin }}{% endif %}
+    ){% if op.context == "opens" %}: Long{% elif op.result %}: {{ op.result.kotlin }}{% endif %}
+{% endif %}
 
 {% endfor %}
 }

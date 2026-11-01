@@ -382,6 +382,23 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         return out_list; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
 
+    public static Gee.ArrayList<LinkKindLabels> parse_link_kinds(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for link kinds response");
+        }
+        var out_list = new Gee.ArrayList<LinkKindLabels>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            out_list.add(new LinkKindLabels(
+                item.get_string_member("kind"),
+                item.get_string_member("forward_label"),
+                item.get_string_member("reverse_label")
+            ));
+        }
+        return out_list;
+    }
+
     public static CardLink parse_card_link(Json.Object item) { // LCOV_EXCL_BR_LINE: declaration branch artifact
         return new CardLink( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
             item.get_string_member("source_id"),

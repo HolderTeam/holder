@@ -18,7 +18,13 @@ import team.holder.android.contract.EmptyTrashType
 import team.holder.android.contract.ListCardsOrder
 import team.holder.android.contract.ListCardsParent
 import team.holder.android.contract.NewCard
+import team.holder.android.contract.HOME_PROJECT_NAME
 import team.holder.android.contract.Page
+import team.holder.android.contract.Runtime
+import team.holder.android.contract.DatabaseRebuildReport
+import team.holder.android.contract.RecoverySnapshotPage
+import team.holder.android.contract.RecoverySnapshotRestore
+import team.holder.android.contract.RecoverySnapshotRestorePrivacyMode
 import team.holder.android.contract.Search
 import team.holder.android.contract.Trash
 import team.holder.android.contract.CardHistoryRestoreResult
@@ -58,8 +64,7 @@ import team.holder.android.contract.RemoteTest
 import team.holder.android.contract.RemoteTestResultStatus
 import team.holder.android.contract.Resource
 import team.holder.android.contract.Resources
-import org.json.JSONArray
-import org.json.JSONObject
+import team.holder.android.contract.AssetImportRequest
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -96,20 +101,6 @@ data class HolderCard(
 
 data class HolderTrashedCard(val cardId: String, val title: String, val deletedAt: Long)
 
-/** Matches holder_card_query_json's "view" values (lowercased on the wire). */
-/** One page of [HolderNative.backupSnapshotPage]: a project's cards, most-recently-updated
- * first. [cards] are kept as raw [JSONObject]s rather than reshaped into a typed data class --
- * [team.holder.android.git.backup.SnapshotWriter] writes each one straight through as one
- * JSONL line, unchanged, so restore can read the same fields back (card_id, project_id,
- * project_name, privacy_mode, title, body, created_at, updated_at, links, milestones) without
- * a round trip through a Kotlin model that would risk silently dropping a field. */
-data class BackupSnapshotPage(
-    val cards: List<JSONObject>,
-    val nextCursor: BackupSnapshotCursor?,
-)
-
-data class BackupSnapshotCursor(val updatedAt: Long, val cardId: String)
-
 data class HolderOutgoingLink(
     val toCardId: String,
     val toType: String,
@@ -140,8 +131,8 @@ sealed interface CardReferenceResolution {
 
 data class HolderCardReferenceCandidate(val cardId: String, val title: String, val deletedAt: Long?)
 
-/** Matches holder_card_move_json's "intent" values (lowercased, underscore-separated, on the
- * wire) -- see holder-core's CardPlacementResolver for the full algorithm each one runs. */
+/** The contract's move_card intents (CardMove.intent) -- see core's CardPlacementResolver for
+ * the full algorithm each one runs. */
 enum class CardPlacementIntent { INTO, BEFORE, AFTER, TO_START, TO_END, LEFT, RIGHT, UP_LEVEL }
 
 /** Result of [HolderNative.moveCard] -- the card's new placement, same shape holder-daemon's
@@ -159,6 +150,12 @@ data class HolderCardLinks(
      * addCardLink/removeCardLink. Null at the root of a project. */
     val parent: HolderCardRef?,
     val children: List<HolderCardRef>,
+)
+
+/** A card's tags, and those of them [HolderNative.removeCardTag] would remove. */
+data class HolderCardTags(
+    val tags: List<String>,
+    val removable: List<String>,
 )
 
 data class HolderTagCount(
@@ -417,12 +414,11 @@ data class RecoveryTokenImportGlobalResult(
  * app's lifetime instead of reopening the SQLite store on every call.
  */
 object HolderNative {
-    /** The project `ensure_default_project` seeds on first run -- see RestoreOffer/
+    /** The project `ensure_home_project` seeds on first run -- see RestoreOffer/
      * SnapshotProtection's doc comments. Not private: the share-in project picker (see
      * MainActivity's ProjectPickerDialog usage) sorts this project first since it's the one
      * most people land in most often. */
-    const val DEFAULT_PROJECT_NAME = "Home"
-    private const val WELCOME_CARD_TITLE_FALLBACK = "Welcome"
+    const val DEFAULT_PROJECT_NAME = HOME_PROJECT_NAME
 
     private val loadError: Throwable? = runCatching {
         System.loadLibrary("holder_jni")
@@ -459,66 +455,24 @@ object HolderNative {
     @Volatile
     private var dataDir: File? = null
 
-    private external fun nativeVersion(): String
-    private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
-    private external fun nativeContextClose(contextHandle: Long)
-    private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-    private external fun nativeBackupSnapshotPage(
-        contextHandle: Long,
-        projectId: String,
-        cursorUpdatedAt: Long,
-        cursorCardId: String?,
-        limit: Int,
-    ): String
-    private external fun nativeBackupRestore(
-        contextHandle: Long,
-        projectName: String,
-        privacyMode: String?,
-        cardsJson: String,
-        commitMessage: String,
-    ): String
-    private external fun nativeEnsureDefaultProject(
-        contextHandle: Long,
-        name: String,
-        welcomeTitle: String,
-        welcomeContent: String?,
-    ): String
-    private external fun nativeListLinkKinds(): String
-    private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
-    private external fun nativeLocationList(contextHandle: Long, projectId: String): String
-    private external fun nativeAssetImportFile(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        locationId: String,
-        sourceFilePath: String,
-    ): String
-    private external fun nativeAssetRetrieve(
-        contextHandle: Long,
-        resourceId: String,
-        assetId: String,
-        placementId: String,
-        destinationFilePath: String,
-    )
-
     fun version(): String {
         loadError?.let {
             return "native load failed: ${it.message ?: it::class.java.simpleName}"
         }
 
         return runCatching {
-            nativeVersion()
+            Runtime.version().version
         }.getOrElse {
             "native call failed: ${it.message ?: it::class.java.simpleName}"
         }
     }
 
     /**
-     * Opens the native store (once; safe to call again) and, on first launch,
-     * bootstraps a default Home project with a welcome card.
+     * Opens the native store (once; safe to call again) and, on a device with no project,
+     * makes Home with core's welcome card (the contract's ensure_home_project).
      */
     @Synchronized
-    fun initialize(context: Context, dataDir: File, schemaSql: String, welcomeContent: String) {
+    fun initialize(context: Context, dataDir: File, schemaSql: String) {
         loadError?.let { throw it }
 
         if (!isOpen) {
@@ -531,7 +485,7 @@ object HolderNative {
             // database, and the others then find it healthy.
             try {
                 for (lane in listOf(saveLane, readLane, backgroundLane)) {
-                    lane.attach(nativeContextOpen(dataDir.absolutePath, schemaSql))
+                    lane.attach(Runtime.contextOpen(dataDir.absolutePath, schemaSql))
                 }
             } catch (failure: Throwable) {
                 closeLanes()
@@ -548,14 +502,7 @@ object HolderNative {
                 runCatching { team.holder.android.git.GitIdentity.registerWithNative(it, dataDir) }
             }
         }
-        saveLane.call {
-            nativeEnsureDefaultProject(
-                it,
-                DEFAULT_PROJECT_NAME,
-                deriveWelcomeTitle(welcomeContent, WELCOME_CARD_TITLE_FALLBACK),
-                welcomeContent,
-            )
-        }
+        saveLane.call { Projects.ensureHomeProject(it) }
     }
 
     /**
@@ -568,9 +515,8 @@ object HolderNative {
         context: Context,
         dataDir: File,
         schemaSql: String,
-        welcomeContent: String,
         dryRun: Boolean = false,
-    ): JSONObject {
+    ): DatabaseRebuildReport {
         loadError?.let { throw it }
         var primaryFailure: Throwable? = null
         return try {
@@ -578,13 +524,13 @@ object HolderNative {
             // As in initialize(), let holder-core decide whether a missing keyring
             // is material for the projects being reconstructed.
             runCatching { team.holder.android.keyring.AndroidKeyringStore.registerWithNative(context) }
-            JSONObject(nativeDatabaseRebuild(dataDir.absolutePath, schemaSql, dryRun))
+            Runtime.databaseRebuild(dataDir.absolutePath, schemaSql, dryRun)
         } catch (failure: Throwable) {
             primaryFailure = failure
             throw failure
         } finally {
             try {
-                initialize(context, dataDir, schemaSql, welcomeContent)
+                initialize(context, dataDir, schemaSql)
             } catch (reopenFailure: Throwable) {
                 if (primaryFailure != null) {
                     primaryFailure.addSuppressed(reopenFailure)
@@ -606,7 +552,7 @@ object HolderNative {
 
     private fun closeLanes() {
         for (lane in listOf(saveLane, readLane, backgroundLane)) {
-            lane.detach { nativeContextClose(it) }
+            lane.detach { Runtime.contextDestroy(it) }
         }
     }
 
@@ -696,41 +642,26 @@ object HolderNative {
         }
     }
 
-    /** One page of projectId's cards, most-recently-updated first, for
-     * [team.holder.android.git.backup.SnapshotWriter]. Pass cursorCardId = null for the first
-     * page; for later pages, pass back the previous page's [BackupSnapshotPage.nextCursor]. */
-    fun backupSnapshotPage(
-        projectId: String,
-        cursorUpdatedAt: Long,
-        cursorCardId: String?,
-        limit: Int,
-    ): BackupSnapshotPage {
-        val json = JSONObject(
-            backgroundLane.call { nativeBackupSnapshotPage(it, projectId, cursorUpdatedAt, cursorCardId, limit) },
-        )
-        val cardsJson = json.getJSONArray("cards")
-        val cards = List(cardsJson.length()) { cardsJson.getJSONObject(it) }
-        val cursorJson = json.optJSONObject("next_cursor")
-        val nextCursor = cursorJson?.let {
-            BackupSnapshotCursor(updatedAt = it.getLong("updated_at"), cardId = it.getString("card_id"))
-        }
-        return BackupSnapshotPage(cards = cards, nextCursor = nextCursor)
-    }
+    /** One page of projectId's recovery snapshot, most recently updated first, for
+     * [team.holder.android.git.backup.SnapshotWriter]. Pass cursor = null for the first page,
+     * then the previous page's [RecoverySnapshotPage.nextCursor]. */
+    fun recoverySnapshotPage(projectId: String, cursor: String?, limit: Int): RecoverySnapshotPage =
+        backgroundLane.call { Recovery.readRecoverySnapshot(it, projectId, cursor, limit) }
 
-    /** Bulk-restores one [team.holder.android.git.backup.SnapshotGroup]'s worth of cards
-     * (already `.toString()`'d as [cardsJson], a JSON array) into a brand-new project --
-     * fresh id, fresh git repo, no remote, one commit. See `holder_backup_restore` in
-     * holder.h for the full contract (fresh card_id per card, dangling-link handling,
-     * rollback on failure). */
-    fun backupRestore(
+    /** Restores [snapshot], recovery snapshot lines one per line, into a new project with one commit.
+     * Core gives every card, resource and storage location a new ID and keeps the card tree and
+     * links between them; a snapshot core cannot read fails and leaves no project behind. */
+    fun restoreRecoverySnapshot(
         projectName: String,
-        privacyMode: String?,
-        cardsJson: String,
+        privacyMode: String,
+        snapshot: String,
         commitMessage: String,
-    ): HolderProject =
-        parseProject(
-            JSONObject(saveLane.call { nativeBackupRestore(it, projectName, privacyMode, cardsJson, commitMessage) }),
-        )
+    ): HolderProject {
+        val mode = RecoverySnapshotRestorePrivacyMode.entries.singleOrNull { it.value == privacyMode }
+            ?: RecoverySnapshotRestorePrivacyMode.PLAIN
+        val request = RecoverySnapshotRestore(projectName, mode, snapshot, commitMessage)
+        return fromContractProject(saveLane.call { Recovery.restoreRecoverySnapshot(it, request) })
+    }
 
     /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
     fun createProject(name: String, privacyMode: String? = null): HolderProject {
@@ -969,20 +900,12 @@ object HolderNative {
     @Volatile
     private var linkKindCatalog: List<HolderLinkKind>? = null
 
-    /** Holder's built-in vocabulary of card_links.kind values with curated English labels.
-     * Fetched once and cached -- static reference data, independent of which project/context
-     * is open. */
+    /** Holder's built-in vocabulary of link kinds with curated English labels, from the contract's
+     * list_link_kinds. Fetched once and cached -- the same for every project and device. */
     fun listLinkKinds(): List<HolderLinkKind> {
         linkKindCatalog?.let { return it }
-        val kinds = JSONArray(nativeListLinkKinds())
-        val parsed = List(kinds.length()) { index ->
-            val entry = kinds.getJSONObject(index)
-            HolderLinkKind(
-                id = entry.getString("id"),
-                forward = entry.getString("forward"),
-                reverse = entry.getString("reverse"),
-            )
-        }
+        val parsed = readLane.call { Links.listLinkKinds(it) }
+            .map { HolderLinkKind(id = it.kind, forward = it.forwardLabel, reverse = it.reverseLabel) }
         linkKindCatalog = parsed
         return parsed
     }
@@ -1027,14 +950,12 @@ object HolderNative {
         RemoveTagResult.PRESENT_OUTSIDE_EDITABLE_TAG_LINE
     }
 
-    /** The subset of cardId's tags that removeCardTag can actually remove -- those on the
-     * card's trailing tag line. A tag can be in this list and still occur in prose elsewhere;
-     * removing it still succeeds, but the card remains tagged either way. Callers should use
-     * this to show a remove control only where it will work, rather than offering one on every
-     * tag uniformly. */
-    fun listEditableCardTags(cardId: String): List<String> {
-        val tags = JSONArray(readLane.call { nativeCardListEditableTags(it, cardId) })
-        return List(tags.length()) { index -> tags.getString(index) }
+    /** cardId's tags, and those of them removeCardTag would take off: each is on the card's
+     * trailing tag line and nowhere else in it. A tag also written in prose stays until the
+     * content is edited, so callers should offer removal only for [HolderCardTags.removable]. */
+    fun cardTags(projectId: String, cardId: String): HolderCardTags {
+        val card = readLane.call { Cards.getCard(it, projectId, cardId) }
+        return HolderCardTags(card.tags, card.removableTags)
     }
 
     /** Cards in projectId carrying tag (case-insensitive). */
@@ -1388,10 +1309,12 @@ object HolderNative {
 
     /** Storage locations (e.g. a Google Drive folder) available to attach Resources into,
      * within projectId. */
-    fun listLocations(projectId: String): List<HolderLocation> {
-        val locations = JSONArray(readLane.call { nativeLocationList(it, projectId) })
-        return List(locations.length()) { index -> parseLocation(locations.getJSONObject(index)) }
-    }
+    /** projectId's storage locations, most recently updated first. */
+    fun listLocations(projectId: String): List<HolderLocation> =
+        readLane.call { Locations.listStorageLocations(it, projectId) }.data.map { location ->
+            HolderLocation(location.locationId, location.projectId, location.name, location.provider.value,
+                           location.configuration, location.createdAt, location.updatedAt)
+        }
 
     /** Creates or updates a storage location. locationId identifies which -- pass a fresh
      * uuid to create one. */
@@ -1453,27 +1376,18 @@ object HolderNative {
      * like it is for holder-desktop (see HolderMarkdownViewer). Deduplicates by content hash
      * within the project -- a second import of identical bytes reuses the existing Resource. */
     fun importAsset(projectId: String, cardId: String, locationId: String, sourceFilePath: String): HolderAssetImportResult {
-        val json = JSONObject(backgroundLane.call { nativeAssetImportFile(it, projectId, cardId, locationId, sourceFilePath) })
-        return HolderAssetImportResult(
-            resourceId = json.getString("resource_id"),
-            assetId = json.getString("asset_id"),
-            duplicateReused = json.getBoolean("duplicate_reused"),
-            linkCreated = json.getBoolean("link_created"),
-        )
+        val result = backgroundLane.call {
+            Resources.importAssetFile(it, AssetImportRequest(projectId, cardId, locationId, sourceFilePath))
+        }
+        return HolderAssetImportResult(result.resourceId, result.assetId, result.duplicateReused, result.linkCreated)
     }
 
     /** Downloads assetId's placementId back down to destinationFilePath via that placement's
-     * Location's storage provider, verified against the Asset's recorded size/hash. */
+     * Location's storage provider, verified against the Asset's recorded size/hash; bytes that fail
+     * the check throw DataCorruptedException and leave no file. */
     fun retrieveAsset(resourceId: String, assetId: String, placementId: String, destinationFilePath: String) {
-        backgroundLane.call { nativeAssetRetrieve(it, resourceId, assetId, placementId, destinationFilePath) }
+        backgroundLane.call { Resources.retrieveAssetFile(it, resourceId, assetId, placementId, destinationFilePath) }
     }
-
-    private fun parseProject(json: JSONObject) = HolderProject(
-        projectId = json.getString("project_id"),
-        name = json.getString("name"),
-        gitRemoteUrl = json.optStringOrNull("git_remote_url"),
-        privacyMode = json.getString("privacy_mode"),
-    )
 
     private fun fromContractMetadata(card: CardMetadata) = HolderCard(
         card.cardId, card.projectId, card.title, card.parentCardId,
@@ -1484,39 +1398,4 @@ object HolderNative {
         card.cardId, card.projectId, card.title, card.parentCardId,
         card.createdAt, card.updatedAt, card.sortKey, card.deletedAt,
     )
-
-    private fun JSONArray.toStringList(): List<String> = List(length()) { index -> getString(index) }
-
-    private fun JSONObject.optStringOrNull(name: String): String? =
-        if (isNull(name)) null else getString(name)
-
-    private fun JSONObject.optLongOrNull(name: String): Long? =
-        if (isNull(name)) null else getLong(name)
-
-    private fun JSONObject.optIntOrNull(name: String): Int? =
-        if (isNull(name)) null else getInt(name)
-
-    private fun JSONObject.toStringMap(): Map<String, String> {
-        val map = mutableMapOf<String, String>()
-        keys().forEach { key -> map[key] = getString(key) }
-        return map
-    }
-
-    private fun parseLocation(json: JSONObject) = HolderLocation(
-        locationId = json.getString("location_id"),
-        projectId = json.getString("project_id"),
-        name = json.getString("name"),
-        provider = json.getString("provider"),
-        configuration = json.optJSONObject("configuration")?.toStringMap().orEmpty(),
-        createdAt = json.getLong("created_at"),
-        updatedAt = json.getLong("updated_at"),
-    )
-
-    /** Mirrors holder-daemon's Bootstrap.cpp: first line, only if it's a markdown heading. */
-    private fun deriveWelcomeTitle(content: String, fallback: String): String {
-        val firstLine = content.substringBefore('\n').trimStart(' ', '\t', '\r')
-        if (firstLine.isEmpty() || firstLine[0] != '#') return fallback
-        val title = firstLine.trimStart('#', ' ', '\t')
-        return title.ifEmpty { fallback }
-    }
 }

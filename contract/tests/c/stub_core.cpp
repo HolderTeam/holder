@@ -188,6 +188,11 @@ std::vector<TagCount> list_project_tags(holder_context& context, std::string pro
   return out;
 }
 // Links, from the card to whatever it names: the stand-in neither checks targets nor lists backlinks.
+// Two of the catalog's kinds stand in for it.
+std::vector<LinkKindLabels> list_link_kinds(holder_context&) {
+  return {{"ref", "References", "Referenced by"}, {"depends_on", "Depends on", "Required by"}};
+}
+
 std::vector<Link> list_card_links(holder_context& context, std::string project_id, std::string card_id,
                                   bool include_deleted) {
   (void)include_deleted;
@@ -382,6 +387,13 @@ std::vector<ProjectListItem> list_projects(holder_context& context, std::optiona
   return out;
 }
 
+HomeProject ensure_home_project(holder_context& context) {
+  if (!context.projects.empty()) return {};
+  NewProject home;
+  home.name = std::string(HOME_PROJECT_NAME);
+  return {create_project(context, home)};
+}
+
 Project get_project(holder_context& context, std::string project_id) { return project_named(context, project_id); }
 
 Project create_project(holder_context& context, const NewProject& request) {
@@ -397,6 +409,51 @@ Project create_project(holder_context& context, const NewProject& request) {
                   request.updated_at.value_or(request.created_at.value_or(1793000600))};
   context.projects.push_back(project);
   return project;
+}
+
+// The stand-in keeps no files: an import names the project's first resource, and retrieval writes nothing.
+AssetImport import_asset_file(holder_context& context, const AssetImportRequest& request) {
+  project_named(context, request.project_id);
+  return {"r1", "a1", false, true};
+}
+
+AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, std::string asset_id,
+                              std::string placement_id, std::string destination_path) {
+  (void)context, (void)resource_id, (void)asset_id, (void)placement_id;
+  return {destination_path, "file", "application/octet-stream", 0};
+}
+
+// The runtime: the stand-in's contexts hold everything in memory, so there is nothing to rebuild.
+CoreVersion version() { return {"0.0.0-stub", 0, 0, 0}; }
+
+holder_context* context_open(std::string data_dir, std::optional<std::string> schema_sql) {
+  (void)data_dir, (void)schema_sql;
+  return new holder_context();
+}
+
+void context_destroy(holder_context* context) noexcept { delete context; }
+
+DatabaseRebuildReport database_rebuild(std::string data_dir, std::string schema_sql, bool dry_run) {
+  (void)data_dir, (void)schema_sql;
+  return {dry_run, "healthy", 0, 0, 0, 0, 0, 0, 0, 0, 0, std::nullopt};
+}
+
+// A recovery snapshot of the stand-in's projects holds no cards; restoring one makes the project only.
+RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id,
+                                            std::optional<std::string> cursor, std::int32_t limit) {
+  (void)cursor, (void)limit;
+  project_named(context, project_id);
+  return {};
+}
+
+Project restore_recovery_snapshot(holder_context& context, const RecoverySnapshotRestore& request) {
+  if (!request.snapshot.empty()) throw InvalidArgument("the stand-in restores only empty snapshots");
+  NewProject project;
+  project.name = request.project_name;
+  project.privacy_mode = request.privacy_mode == RecoverySnapshotRestorePrivacyMode::Plain
+                             ? NewProjectPrivacyMode::Plain
+                             : NewProjectPrivacyMode::EncryptedGit;
+  return create_project(context, project);
 }
 
 Project update_project(holder_context& context, std::string project_id, const ProjectUpdate& update) {
@@ -586,6 +643,13 @@ RebuildResult rebuild_project(holder_context& context, const RebuildRequest& req
 ReindexResult reindex_search(holder_context& context) {
   (void)context;
   return {"Reindex complete."};
+}
+
+StorageLocationList list_storage_locations(holder_context& context, std::string project_id) {
+  StorageLocationList out;
+  for (const auto& location : context.locations)
+    if (location.project_id == project_id) out.data.push_back(location);
+  return out;
 }
 
 ProjectStorageLocation get_storage_location(holder_context& context, std::string location_id) {
