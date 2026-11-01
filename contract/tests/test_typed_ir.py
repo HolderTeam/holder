@@ -7,13 +7,14 @@ import pytest
 from pydantic import ValidationError
 
 from compiler.ir import ContractView
+from compiler.pipeline import Compiler, ContractSource
 from holder_contract.android import generate_android
 from holder_contract.android_operation import JNI_PATH as OPERATION_JNI_PATH
 from holder_contract.android_operation import KOTLIN_PATH as OPERATION_KOTLIN_PATH
 from holder_contract.android_operation import generate_page_operation
 from holder_contract.daemon import generate_daemon
 from holder_contract.daemon_bindings import RuntimeBinding, bindings
-from holder_contract.extract import extract, extract_typed, load_contract
+from holder_contract.extract import extract, load_contract
 from holder_contract.generate import generate
 
 CONTRACT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ CONTRACT = Path(__file__).resolve().parents[1]
 
 def test_typed_ir_preserves_every_extracted_field():
     raw = extract(CONTRACT, "interface")
-    typed = extract_typed(CONTRACT, "interface")
+    typed = Compiler().compile(ContractSource(CONTRACT, "interface"))
     assert typed.model_dump(exclude_unset=True) == raw
     assert typed.record("AiStatusData").open
     assert any(binding.headers for binding in typed.http)

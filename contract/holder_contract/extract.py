@@ -30,7 +30,6 @@ from pydantic_core import PydanticUndefined
 
 from authoring.routes import Contract
 from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
-from compiler.ir import ContractView
 from compiler.rules import Declarations, Problem, check_file
 
 IR_VERSION = 1
@@ -84,11 +83,6 @@ def extract(root: Path, package: str) -> dict[str, Any]:
     if problems:
         raise ContractError(problems)
     return _Builder(modules, declared, app, app_path.relative_to(root).as_posix()).build()
-
-
-def extract_typed(root: Path, package: str) -> ContractView:
-    """Extract and validate the contract's canonical, target-independent IR."""
-    return ContractView.model_validate(extract(root, package))
 
 
 def load_contract(root: Path, package: str) -> Contract | None:
