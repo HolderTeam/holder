@@ -48,21 +48,17 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
 
 ## Writing the contract
 
-A contract package has model modules for records, error kinds and host interfaces. A domain package can place its operations beside its models; `app.py` assembles domains in order:
+A contract package is a set of domain packages. Each has model modules for its records, error kinds and host interfaces, usually `models.py` and `errors.py`, and an `operations.py` for its operations. Errors every domain shares go in the package's own `errors.py`. `app.py` gives every error kind its status and code and assembles the domains in order, and `DECLARATION_ORDER` in `__init__.py` names every model module:
 
 ```python
 """Cards."""  # cards/models.py, a model module
 
 from typing import Annotated
 
-from authoring import Field, HolderError, Record, Timestamp
+from authoring import Field, Record, Timestamp
 
 type CardId = Annotated[str, Field(min_length=1)]
 """A card's ID."""
-
-
-class NotFound(HolderError):
-    """The thing asked for does not exist, or is in the trash."""
 
 
 class Card(Record):
@@ -77,17 +73,38 @@ class Card(Record):
 ```
 
 ```python
+"""Errors every domain shares."""  # errors.py
+
+from authoring import HolderError
+
+
+class NotFound(HolderError):
+    """The thing asked for does not exist, or is in the trash."""
+```
+
+```python
+"""Errors particular to cards."""  # cards/errors.py
+
+from authoring import HolderError
+
+
+class InvalidMove(HolderError):
+    """A card cannot go where it was asked to."""
+```
+
+```python
 """Card operations."""  # cards/operations.py
 
 from typing import Annotated
 
-from fastapi import Path
+from fastapi import Body, Path
 
 from authoring import Contract
 
-from .models import Card, CardId
-from ..projects.ids import ProjectId
 from ..errors import NotFound
+from ..projects.ids import ProjectId
+from .errors import InvalidMove
+from .models import Card, CardId, CardMove
 
 def register(contract: Contract) -> None:
     @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
@@ -96,18 +113,30 @@ def register(contract: Contract) -> None:
 
         A card in the trash or in another project is not found.
         """
+
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/move", errors=[NotFound, InvalidMove])
+    def move_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()],
+                  move: Annotated[CardMove, Body()]) -> Card:
+        """Move a card."""
 ```
 
 ```python
 """Assemble the public contract."""  # app.py
 
 from authoring import Contract
-from .errors import NotFound
 from .cards import operations as card_operations
+from .cards.errors import InvalidMove
+from .errors import NotFound
 
-contract = Contract(errors={NotFound: (404, 4040)})
+contract = Contract(errors={NotFound: (404, 4040), InvalidMove: (422, 4220)})
 card_operations.register(contract)
 app = contract.app
+```
+
+```python
+"""Holder's contract."""  # __init__.py
+
+DECLARATION_ORDER = ("errors", "projects.ids", "cards.models", "cards.errors")
 ```
 
 A model module may contain only:
