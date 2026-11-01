@@ -1042,8 +1042,8 @@ int holder_keyring_set_provider(
 // -- Asset storage providers --
 //
 // A Location's `provider` field (e.g. "local_directory", "google-drive") selects which
-// storage provider actually holds an Asset's bytes; holder_asset_import_file/
-// holder_asset_retrieve look one up by that name. "local_directory" always resolves to
+// storage provider actually holds an Asset's bytes; import_asset_file and retrieve_asset_file
+// (holder_api.h) look one up by that name. "local_directory" always resolves to
 // a built-in filesystem provider rooted at data_dir/resource-store, with no
 // registration required -- named to match holder-desktop's own local-storage Location
 // provider string, since Locations are portable/git-synced. Any other provider
@@ -1115,39 +1115,6 @@ int holder_storage_provider_register(
     holder_storage_remove_fn remove_fn,
     void* user_data,
     holder_destroy_fn destroy_user_data,
-    holder_error** out_error
-);
-
-// Imports source_file_path into project_id's Resource/Asset/Placement model (deduplicated
-// by content hash within the project), stores it via location_id's storage provider (its
-// `provider` field selects which one, per above), and attaches it to card_id via a
-// structural CardLink (to_type "resource", kind "attachment") -- mirroring
-// holder::resource::AssetImportService::import_file exactly; see that function for the
-// full staging/hashing/encryption/git-commit/cleanup-on-failure behavior. Does not modify
-// the card's Markdown body -- inserting a `![label](holder://resource/<resource_id>)`
-// reference at the right place in the text is the caller's job, the same as it is for
-// holder-desktop.
-// Sets *out_json to {resource_id, asset_id, duplicate_reused, link_created}.
-int holder_asset_import_file(
-    holder_context* context,
-    const char* project_id,
-    const char* card_id,
-    const char* location_id,
-    const char* source_file_path,
-    char** out_json,
-    holder_error** out_error
-);
-
-// Downloads asset_id's placement_id back to destination_file_path via that placement's
-// Location's storage provider, verifying it against the Asset's recorded size/hash and
-// decrypting it if the project is encrypted_git -- mirroring
-// holder::resource::AssetImportService::retrieve exactly.
-int holder_asset_retrieve(
-    holder_context* context,
-    const char* resource_id,
-    const char* asset_id,
-    const char* placement_id,
-    const char* destination_file_path,
     holder_error** out_error
 );
 

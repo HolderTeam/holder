@@ -9,6 +9,7 @@
 #include "card/CardRepo.h"
 #include "card/LinkRepo.h"
 #include "card/MilestoneRepo.h"
+#include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "git/GitRepo.h"
 #include "index/FtsIndexer.h"
@@ -3454,12 +3455,12 @@ TEST_CASE(
   clear_expected_error();
 
   REQUIRE(
-      holder_asset_import_file(context, "", "card-1", "location-1", "/tmp/source", &json, &error) ==
+      holder::test::import_asset_file(context, "", "card-1", "location-1", "/tmp/source", nullptr, &error) ==
       HOLDER_ERROR_INVALID_ARGUMENT
   );
   clear_expected_error();
   REQUIRE(
-      holder_asset_retrieve(context, "", "asset-1", "placement-1", "/tmp/destination", &error) ==
+      holder::test::retrieve_asset_file(context, "", "asset-1", "placement-1", "/tmp/destination", &error) ==
       HOLDER_ERROR_INVALID_ARGUMENT
   );
   clear_expected_error();
@@ -3477,17 +3478,16 @@ TEST_CASE(
   REQUIRE(json == nullptr);
   clear_expected_error();
   REQUIRE(
-      holder_asset_import_file(
+      holder::test::import_asset_file(
           context,
           "project-1",
           "card-1",
           "missing-location",
           "/tmp/source",
-          &json,
+          nullptr,
           &error
-      ) == HOLDER_ERROR_RUNTIME
+      ) == HOLDER_ERROR_NOT_FOUND
   );
-  REQUIRE(json == nullptr);
   clear_expected_error();
 
   REQUIRE(holder_asset_get(context, "missing-asset", &json, &error) == HOLDER_ERROR_RUNTIME);
@@ -3495,7 +3495,7 @@ TEST_CASE(
   REQUIRE(holder_resource_delete(context, "missing-resource", &error) == HOLDER_ERROR_RUNTIME);
   clear_expected_error();
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           nullptr,
           "resource-1",
           "asset-1",
@@ -3506,14 +3506,14 @@ TEST_CASE(
   );
   clear_expected_error();
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           context,
           "missing-resource",
           "asset-1",
           "placement-1",
           "/tmp/destination",
           &error
-      ) == HOLDER_ERROR_RUNTIME
+      ) == HOLDER_ERROR_NOT_FOUND
   );
   clear_expected_error();
 
@@ -6799,20 +6799,18 @@ TEST_CASE(
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "fake jpeg bytes");
 
-  char* import_json = nullptr;
+  nlohmann::json import_result;
   REQUIRE(
-      holder_asset_import_file(
+      holder::test::import_asset_file(
           context,
           project_id.c_str(),
           card_id.c_str(),
           "loc-local-1",
           source_path.c_str(),
-          &import_json,
+          &import_result,
           &error
       ) == HOLDER_OK
   );
-  const auto import_result = nlohmann::json::parse(import_json);
-  holder_string_free(import_json);
   REQUIRE(import_result.at("duplicate_reused").get<bool>() == false);
   REQUIRE(import_result.at("link_created").get<bool>() == true);
   const auto resource_id = import_result.at("resource_id").get<std::string>();
@@ -6827,7 +6825,7 @@ TEST_CASE(
 
   const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           context,
           resource_id.c_str(),
           asset_id.c_str(),
@@ -6917,20 +6915,18 @@ TEST_CASE(
   const auto source_path =
       write_source_file(data_dir / "source" / "photo.jpg", "drive-backed bytes");
 
-  char* import_json = nullptr;
+  nlohmann::json import_result;
   REQUIRE(
-      holder_asset_import_file(
+      holder::test::import_asset_file(
           context,
           project_id.c_str(),
           card_id.c_str(),
           "loc-drive-1",
           source_path.c_str(),
-          &import_json,
+          &import_result,
           &error
       ) == HOLDER_OK
   );
-  const auto import_result = nlohmann::json::parse(import_json);
-  holder_string_free(import_json);
   REQUIRE(backend.put_calls == 1);
   REQUIRE(backend.exists_calls >= 1);
   const auto resource_id = import_result.at("resource_id").get<std::string>();
@@ -6949,7 +6945,7 @@ TEST_CASE(
 
   const auto destination = (data_dir / "downloaded" / "photo.jpg").string();
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           context,
           resource_id.c_str(),
           asset_id.c_str(),
@@ -7039,14 +7035,13 @@ TEST_CASE(
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "won't fit");
 
-  char* import_json = nullptr;
-  const int rc = holder_asset_import_file(
+  const int rc = holder::test::import_asset_file(
       context,
       project_id.c_str(),
       card_id.c_str(),
       "loc-quota-1",
       source_path.c_str(),
-      &import_json,
+      nullptr,
       &error
   );
   REQUIRE(rc == HOLDER_ERROR_RUNTIME);
@@ -7066,15 +7061,15 @@ TEST_CASE(
     failure_code = code;
     error = nullptr;
     REQUIRE(
-        holder_asset_import_file(
+        holder::test::import_asset_file(
             context,
             project_id.c_str(),
             card_id.c_str(),
             "loc-quota-1",
             source_path.c_str(),
-            &import_json,
+            nullptr,
             &error
-        ) == HOLDER_ERROR_RUNTIME
+        ) == (code == HOLDER_STORAGE_ERROR_INTEGRITY ? HOLDER_ERROR_DATA_CORRUPTED : HOLDER_ERROR_RUNTIME)
     );
     REQUIRE(error != nullptr);
     holder_error_destroy(error);
@@ -7162,19 +7157,18 @@ TEST_CASE(
   write_source_file(std::filesystem::path(project_root) / "resources", "blocks resource directory");
   const auto source_path =
       write_source_file(data_dir / "source" / "photo.jpg", "stored then rolled back");
-  char* import_json = nullptr;
+  nlohmann::json import_result;
   REQUIRE(
-      holder_asset_import_file(
+      holder::test::import_asset_file(
           context,
           project_id.c_str(),
           card_id.c_str(),
           "loc-rollback-1",
           source_path.c_str(),
-          &import_json,
+          nullptr,
           &error
       ) == HOLDER_ERROR_RUNTIME
   );
-  REQUIRE(import_json == nullptr);
   REQUIRE(backend.put_calls == 1);
   REQUIRE(backend.exists_calls == 1);
   REQUIRE(backend.remove_calls == 1);
@@ -7236,14 +7230,13 @@ TEST_CASE("C API asset_import_file reports an unregistered provider by name", "[
 
   const auto source_path = write_source_file(data_dir / "source" / "photo.jpg", "bytes");
 
-  char* import_json = nullptr;
-  const int rc = holder_asset_import_file(
+  const int rc = holder::test::import_asset_file(
       context,
       project_id.c_str(),
       card_id.c_str(),
       "loc-unregistered-1",
       source_path.c_str(),
-      &import_json,
+      nullptr,
       &error
   );
   REQUIRE(rc == HOLDER_ERROR_RUNTIME);
@@ -7816,22 +7809,13 @@ TEST_CASE("C API JSON helpers validate output and context before dispatch", "[ca
   expect_invalid(holder_location_put_json(nullptr, "{}", nullptr, &error));
   expect_invalid(holder_location_put_json(nullptr, "{}", &json, &error));
   expect_invalid(holder_location_delete(nullptr, "location-1", &error));
-  expect_invalid(holder_asset_import_file(
+  expect_invalid(holder::test::import_asset_file(
       nullptr,
       "project-1",
       "card-1",
       "location-1",
       "/tmp/source",
       nullptr,
-      &error
-  ));
-  expect_invalid(holder_asset_import_file(
-      nullptr,
-      "project-1",
-      "card-1",
-      "location-1",
-      "/tmp/source",
-      &json,
       &error
   ));
   expect_invalid(holder_card_move_json(
@@ -9731,26 +9715,26 @@ TEST_CASE(
   holder_string_free(json);
 
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           context,
           "resource-1234",
           "missing-asset",
           "placement-1234",
           "/tmp/not-written",
           &error
-      ) == HOLDER_ERROR_RUNTIME
+      ) == HOLDER_ERROR_NOT_FOUND
   );
   holder_error_destroy(error);
   error = nullptr;
   REQUIRE(
-      holder_asset_retrieve(
+      holder::test::retrieve_asset_file(
           context,
           "resource-1234",
           "asset-1234",
           "missing-placement",
           "/tmp/not-written",
           &error
-      ) == HOLDER_ERROR_RUNTIME
+      ) == HOLDER_ERROR_NOT_FOUND
   );
   holder_error_destroy(error);
   error = nullptr;
@@ -9765,16 +9749,16 @@ TEST_CASE(
     );
     const auto destination = data_dir / "missing-location-download";
     REQUIRE(
-        holder_asset_retrieve(
+        holder::test::retrieve_asset_file(
             context,
             "resource-1234",
             "asset-1234",
             "placement-1234",
             destination.string().c_str(),
             &error
-        ) == HOLDER_ERROR_RUNTIME
+        ) == HOLDER_ERROR_NOT_FOUND
     );
-    REQUIRE(std::string(holder_error_message(error)) == "location not found: missing-location");
+    REQUIRE(std::string(holder_error_message(error)) == "storage location not found in project: missing-location");
     REQUIRE_FALSE(std::filesystem::exists(destination));
     holder_error_destroy(error);
     error = nullptr;

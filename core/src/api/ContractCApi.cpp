@@ -447,6 +447,8 @@ holder_milestone_list to_c_list(holder_arena* arena, const std::vector<contract:
 holder_calendar_milestone to_c(holder_arena* arena, const contract::CalendarMilestone& value);
 holder_calendar_milestone_list to_c_list(holder_arena* arena, const std::vector<contract::CalendarMilestone>& values);
 holder_calendar to_c(holder_arena* arena, const contract::Calendar& value);
+holder_asset_import to_c(holder_arena* arena, const contract::AssetImport& value);
+holder_asset_file to_c(holder_arena* arena, const contract::AssetFile& value);
 holder_asset_placement to_c(holder_arena* arena, const contract::AssetPlacement& value);
 holder_asset_placement_list to_c_list(holder_arena* arena, const std::vector<contract::AssetPlacement>& values);
 holder_resource_asset to_c(holder_arena* arena, const contract::ResourceAsset& value);
@@ -771,6 +773,24 @@ holder_calendar to_c(holder_arena* arena, const contract::Calendar& value) {
   out.milestones = to_c_list(arena, value.milestones);
   out.created_cards = to_c_list(arena, value.created_cards);
   out.updated_cards = to_c_list(arena, value.updated_cards);
+  return out;
+}
+
+holder_asset_import to_c(holder_arena* arena, const contract::AssetImport& value) {
+  holder_asset_import out{};
+  out.resource_id = copy(arena, value.resource_id);
+  out.asset_id = copy(arena, value.asset_id);
+  out.duplicate_reused = value.duplicate_reused;
+  out.link_created = value.link_created;
+  return out;
+}
+
+holder_asset_file to_c(holder_arena* arena, const contract::AssetFile& value) {
+  holder_asset_file out{};
+  out.path = copy(arena, value.path);
+  out.original_filename = copy(arena, value.original_filename);
+  out.media_type = copy(arena, value.media_type);
+  out.byte_size = value.byte_size;
   return out;
 }
 
@@ -1506,6 +1526,15 @@ contract::MilestoneUpdate from_c(const holder_milestone_update& value) {
   return out;
 }
 
+contract::AssetImportRequest from_c(const holder_asset_import_request& value) {
+  contract::AssetImportRequest out;
+  out.project_id = text(value.project_id, "asset_import_request.project_id", 1, SIZE_MAX);
+  out.card_id = text(value.card_id, "asset_import_request.card_id", 0, SIZE_MAX);
+  out.location_id = text(value.location_id, "asset_import_request.location_id", 0, SIZE_MAX);
+  out.source_path = text(value.source_path, "asset_import_request.source_path", 0, SIZE_MAX);
+  return out;
+}
+
 contract::NewResource from_c(const holder_new_resource& value) {
   contract::NewResource out;
   out.resource_id = optional_text(value.resource_id, "new_resource.resource_id", 4, SIZE_MAX);
@@ -2061,6 +2090,34 @@ int holder_get_calendar(holder_context* context, const char* project_id, int64_t
     auto* out = make<holder_calendar>(arena);
     *out = to_c(arena, contract::get_calendar(*context, project_id_value, first_instant_value, last_instant_value, first_day_value, last_day_value));
     *out_calendar = out;
+  });
+}
+
+int holder_import_asset_file(holder_context* context, const holder_asset_import_request* request, holder_arena* arena, const holder_asset_import** out_asset_import, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_asset_import != nullptr, "out_asset_import must not be null");
+    *out_asset_import = nullptr;
+    require(request != nullptr, "request must not be null");
+    const auto request_value = from_c(*request);
+    auto* out = make<holder_asset_import>(arena);
+    *out = to_c(arena, contract::import_asset_file(*context, request_value));
+    *out_asset_import = out;
+  });
+}
+
+int holder_retrieve_asset_file(holder_context* context, const char* resource_id, const char* asset_id, const char* placement_id, const char* destination_path, holder_arena* arena, const holder_asset_file** out_asset_file, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(context != nullptr, "context must not be null");
+    require(out_asset_file != nullptr, "out_asset_file must not be null");
+    *out_asset_file = nullptr;
+    const auto resource_id_value = text(resource_id, "resource_id", 4, SIZE_MAX);
+    const auto asset_id_value = text(asset_id, "asset_id", 1, SIZE_MAX);
+    const auto placement_id_value = text(placement_id, "placement_id", 1, SIZE_MAX);
+    const auto destination_path_value = text(destination_path, "destination_path", 1, SIZE_MAX);
+    auto* out = make<holder_asset_file>(arena);
+    *out = to_c(arena, contract::retrieve_asset_file(*context, resource_id_value, asset_id_value, placement_id_value, destination_path_value));
+    *out_asset_file = out;
   });
 }
 

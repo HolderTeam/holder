@@ -61,6 +61,7 @@ import team.holder.android.contract.RemoteTest
 import team.holder.android.contract.RemoteTestResultStatus
 import team.holder.android.contract.Resource
 import team.holder.android.contract.Resources
+import team.holder.android.contract.AssetImportRequest
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -464,20 +465,6 @@ object HolderNative {
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeAssetImportFile(
-        contextHandle: Long,
-        projectId: String,
-        cardId: String,
-        locationId: String,
-        sourceFilePath: String,
-    ): String
-    private external fun nativeAssetRetrieve(
-        contextHandle: Long,
-        resourceId: String,
-        assetId: String,
-        placementId: String,
-        destinationFilePath: String,
-    )
 
     fun version(): String {
         loadError?.let {
@@ -1408,19 +1395,17 @@ object HolderNative {
      * like it is for holder-desktop (see HolderMarkdownViewer). Deduplicates by content hash
      * within the project -- a second import of identical bytes reuses the existing Resource. */
     fun importAsset(projectId: String, cardId: String, locationId: String, sourceFilePath: String): HolderAssetImportResult {
-        val json = JSONObject(backgroundLane.call { nativeAssetImportFile(it, projectId, cardId, locationId, sourceFilePath) })
-        return HolderAssetImportResult(
-            resourceId = json.getString("resource_id"),
-            assetId = json.getString("asset_id"),
-            duplicateReused = json.getBoolean("duplicate_reused"),
-            linkCreated = json.getBoolean("link_created"),
-        )
+        val result = backgroundLane.call {
+            Resources.importAssetFile(it, AssetImportRequest(projectId, cardId, locationId, sourceFilePath))
+        }
+        return HolderAssetImportResult(result.resourceId, result.assetId, result.duplicateReused, result.linkCreated)
     }
 
     /** Downloads assetId's placementId back down to destinationFilePath via that placement's
-     * Location's storage provider, verified against the Asset's recorded size/hash. */
+     * Location's storage provider, verified against the Asset's recorded size/hash; bytes that fail
+     * the check throw DataCorruptedException and leave no file. */
     fun retrieveAsset(resourceId: String, assetId: String, placementId: String, destinationFilePath: String) {
-        backgroundLane.call { nativeAssetRetrieve(it, resourceId, assetId, placementId, destinationFilePath) }
+        backgroundLane.call { Resources.retrieveAssetFile(it, resourceId, assetId, placementId, destinationFilePath) }
     }
 
     private fun fromContractMetadata(card: CardMetadata) = HolderCard(

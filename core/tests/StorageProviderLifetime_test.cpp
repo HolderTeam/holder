@@ -1,3 +1,4 @@
+#include "capi_asset_helpers.h"
 #include "core_test_helpers.h"
 #include "resource/LocalDirectoryProvider.h"
 
@@ -144,17 +145,15 @@ struct AssetFixture {
   nlohmann::json import() {
     const auto source = (root / "input.txt").string();
     std::ofstream(source) << "provider lifetime bytes";
-    return call_json([&](char** out, holder_error** err) {
-      return holder_asset_import_file(
-          context.get(),
-          project_id.c_str(),
-          card_id.c_str(),
-          "lifetime-location",
-          source.c_str(),
-          out,
-          err
-      );
-    });
+    nlohmann::json result;
+    holder_error* error = nullptr;
+    const int rc = holder::test::import_asset_file(
+        context.get(), project_id.c_str(), card_id.c_str(), "lifetime-location", source.c_str(), &result, &error);
+    const std::string message = error != nullptr ? holder_error_message(error) : "";
+    holder_error_destroy(error);
+    INFO(message);
+    REQUIRE(rc == HOLDER_OK);
+    return result;
   }
 };
 
@@ -186,7 +185,7 @@ TEST_CASE("C API asset operations retain providers replaced inside callbacks", "
     original->on_get = replace;
     holder_error* error = nullptr;
     const auto destination = (fixture.root / "download.txt").string();
-    const int result = holder_asset_retrieve(
+    const int result = holder::test::retrieve_asset_file(
         fixture.context.get(),
         resource_id.c_str(),
         asset_id.c_str(),
@@ -274,7 +273,7 @@ TEST_CASE(
   } else {
     holder_error* error = nullptr;
     const auto destination = (fixture.root / "concurrent-download.txt").string();
-    const auto result = holder_asset_retrieve(
+    const auto result = holder::test::retrieve_asset_file(
         fixture.context.get(),
         resource_id.c_str(),
         asset_id.c_str(),

@@ -2,6 +2,7 @@
 
 #include "api/Contract.h"
 #include "capi/Context.h"
+#include "capi/StorageProviders.h"
 
 #include "card/CardPlacementResolver.h"
 #include "card/CardReferenceResolver.h"
@@ -1146,6 +1147,15 @@ int resolve_pull_conflicts(
 
 } // namespace
 
+namespace holder::capi {
+
+std::shared_ptr<holder::resource::StorageProvider> storage_provider(holder_context& context,
+                                                                    const std::string& provider_name) {
+  return resolve_storage_provider(&context, provider_name);
+}
+
+} // namespace holder::capi
+
 // The generated C API (src/api/ContractCApi.cpp) reports errors through the same holder_error as
 // the rest of the C API.
 int holder::contract::detail::fail(holder_error** out_error, int code, const std::string& message) {
@@ -1612,110 +1622,6 @@ int holder_storage_provider_register(
     return set_unknown_exception(out_error);
   }
   // LCOV_EXCL_STOP
-}
-
-int holder_asset_import_file(
-    holder_context* context,
-    const char* project_id,
-    const char* card_id,
-    const char* location_id,
-    const char* source_file_path,
-    char** out_json,
-    holder_error** out_error
-) {
-  if (project_id == nullptr || project_id[0] == '\0' || card_id == nullptr || card_id[0] == '\0' ||
-      location_id == nullptr || location_id[0] == '\0' || source_file_path == nullptr ||
-      source_file_path[0] == '\0') {
-    clear_error(out_error);
-    if (out_json != nullptr) *out_json = nullptr;
-    return set_error(
-        out_error,
-        HOLDER_ERROR_INVALID_ARGUMENT,
-        "project_id, card_id, location_id, and source_file_path must not be empty"
-    );
-  }
-  return with_json_output(context, out_json, out_error, [&]() {
-    const auto location = holder::resource::LocationRepo(context->db).get(location_id);
-    if (!location.has_value())
-      throw std::runtime_error("location not found: " + std::string(location_id));
-
-    holder::resource::AssetImportRequest request;
-    request.project_id = project_id;
-    request.card_id = card_id;
-    request.location_id = location_id;
-    request.source_file = std::filesystem::path(source_file_path);
-    request.now = now_epoch_seconds();
-
-    holder::resource::AssetImportService service(
-        context->db,
-        context->data_dir / "server" / "asset-staging",
-        holder::identity::uuid_v4
-    );
-    const auto provider = resolve_storage_provider(context, location->provider);
-    const auto result = service.import_file(request, *provider);
-    return nlohmann::json{
-        {"resource_id", result.resource_id},
-        {"asset_id", result.asset_id},
-        {"duplicate_reused", result.duplicate_reused},
-        {"link_created", result.link_created},
-    };
-  });
-}
-
-int holder_asset_retrieve(
-    holder_context* context,
-    const char* resource_id,
-    const char* asset_id,
-    const char* placement_id,
-    const char* destination_file_path,
-    holder_error** out_error
-) {
-  if (resource_id == nullptr || resource_id[0] == '\0' || asset_id == nullptr ||
-      asset_id[0] == '\0' || placement_id == nullptr || placement_id[0] == '\0' ||
-      destination_file_path == nullptr || destination_file_path[0] == '\0') {
-    clear_error(out_error);
-    return set_error(
-        out_error,
-        HOLDER_ERROR_INVALID_ARGUMENT,
-        "resource_id, asset_id, placement_id, and destination_file_path must not be empty"
-    );
-  }
-  return with_void_output(context, out_error, [&]() {
-    const auto bundle = holder::resource::ResourceRepo(context->db).get_bundle(resource_id);
-    if (!bundle.has_value())
-      throw std::runtime_error("resource not found: " + std::string(resource_id));
-    const auto asset =
-        std::find_if(bundle->assets.begin(), bundle->assets.end(), [&](const auto& item) {
-          return item.asset_id == asset_id;
-        });
-    if (asset == bundle->assets.end()) {
-      throw std::runtime_error("asset not found in resource: " + std::string(asset_id));
-    }
-    const auto placement =
-        std::find_if(asset->placements.begin(), asset->placements.end(), [&](const auto& item) {
-          return item.placement_id == placement_id;
-        });
-    if (placement == asset->placements.end()) {
-      throw std::runtime_error("placement not found in asset: " + std::string(placement_id));
-    }
-    const auto location = holder::resource::LocationRepo(context->db).get(placement->location_id);
-    if (!location.has_value())
-      throw std::runtime_error("location not found: " + placement->location_id);
-
-    holder::resource::AssetImportService service(
-        context->db,
-        context->data_dir / "server" / "asset-staging",
-        holder::identity::uuid_v4
-    );
-    const auto provider = resolve_storage_provider(context, location->provider);
-    service.retrieve(
-        resource_id,
-        asset_id,
-        placement_id,
-        *provider,
-        std::filesystem::path(destination_file_path)
-    );
-  });
 }
 
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error) {

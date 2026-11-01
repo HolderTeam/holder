@@ -404,6 +404,18 @@ Project create_project(holder_context& context, const NewProject& request) {
   return project;
 }
 
+// The stand-in keeps no files: an import names the project's first resource, and retrieval writes nothing.
+AssetImport import_asset_file(holder_context& context, const AssetImportRequest& request) {
+  project_named(context, request.project_id);
+  return {"r1", "a1", false, true};
+}
+
+AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, std::string asset_id,
+                              std::string placement_id, std::string destination_path) {
+  (void)context, (void)resource_id, (void)asset_id, (void)placement_id;
+  return {destination_path, "file", "application/octet-stream", 0};
+}
+
 // A recovery snapshot of the stand-in's projects holds no cards; restoring one makes the project only.
 RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id,
                                             std::optional<std::string> cursor, std::int32_t limit) {

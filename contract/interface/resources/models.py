@@ -107,7 +107,7 @@ class ResourceUpdate(Record):
 
 
 class AssetImportRequest(Record):
-    """Start importing a local file into a project resource."""
+    """A local file to import into a project resource and attach to a card."""
 
     project_id: ProjectId
     """The project that will own the asset."""
@@ -117,6 +117,32 @@ class AssetImportRequest(Record):
     """The storage location to receive the asset."""
     source_path: str
     """A local readable regular file; its path is never saved in project metadata."""
+
+
+class AssetImport(Record):
+    """What importing a local file made or reused."""
+
+    resource_id: ResourceId
+    """The resource holding the file: a new one, or the one already holding the same bytes."""
+    asset_id: Annotated[str, Field(min_length=1)]
+    """The asset holding the file's bytes."""
+    duplicate_reused: bool
+    """Whether the project already held the same bytes, so nothing new was stored."""
+    link_created: bool
+    """Whether an attachment link from the card was made; false when it already existed."""
+
+
+class AssetFile(Record):
+    """A file an asset's bytes were written to."""
+
+    path: str
+    """The local file written."""
+    original_filename: str
+    """The file's name when it was imported."""
+    media_type: str
+    """The file's media type."""
+    byte_size: Int64
+    """The file's size in bytes."""
 
 
 class AssetImportJob(Record):

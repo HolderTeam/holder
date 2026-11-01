@@ -216,6 +216,14 @@ typedef struct holder_milestone_update {
     holder_string_change description; /* A note on the milestone; null for none. Zero keeps it. */
 } holder_milestone_update;
 
+/* A local file to import into a project resource and attach to a card. */
+typedef struct holder_asset_import_request {
+    const char* project_id; /* The project that will own the asset. */
+    const char* card_id; /* The card to attach the imported resource to. */
+    const char* location_id; /* The storage location to receive the asset. */
+    const char* source_path; /* A local readable regular file; its path is never saved in project metadata. */
+} holder_asset_import_request;
+
 /* A resource to make. */
 typedef struct holder_new_resource {
     const char* resource_id; /* The resource's ID, for imports; omit for a new one. NULL when absent. */
@@ -567,6 +575,22 @@ typedef struct holder_calendar {
     holder_card_metadata_list created_cards; /* The live cards made in the window, by when they were made and then by ID. */
     holder_card_metadata_list updated_cards; /* The live cards last changed in the window, other than by being made, by when and then by ID. */
 } holder_calendar;
+
+/* What importing a local file made or reused. */
+typedef struct holder_asset_import {
+    const char* resource_id; /* The resource holding the file: a new one, or the one already holding the same bytes. */
+    const char* asset_id; /* The asset holding the file's bytes. */
+    bool duplicate_reused; /* Whether the project already held the same bytes, so nothing new was stored. */
+    bool link_created; /* Whether an attachment link from the card was made; false when it already existed. */
+} holder_asset_import;
+
+/* A file an asset's bytes were written to. */
+typedef struct holder_asset_file {
+    const char* path; /* The local file written. */
+    const char* original_filename; /* The file's name when it was imported. */
+    const char* media_type; /* The file's media type. */
+    int64_t byte_size; /* The file's size in bytes. */
+} holder_asset_file;
 
 /* How the copy is stored: as the file is, or encrypted for the project. */
 typedef enum holder_asset_placement_encoding {
@@ -1498,6 +1522,25 @@ int holder_list_milestones_by_instant(holder_context* context, const char* proje
  * Errors: HOLDER_ERROR_NOT_FOUND.
  */
 int holder_get_calendar(holder_context* context, const char* project_id, int64_t first_instant, int64_t last_instant, const char* first_day, const char* last_day, holder_arena* arena, const holder_calendar** out_calendar, holder_error** out_error);
+
+/* Import a local file into a project and attach it to a card.
+ * The file is hashed, stored in the storage location through this device's provider for it,
+ * encrypted first in an encrypted project, and recorded as a resource and asset with a placement.
+ * Bytes the project already holds reuse their resource. The card gets an attachment link to the
+ * resource; its content is not changed. The source path is never saved. The source must be a
+ * readable regular file. The daemon does not serve this: its asset imports run as jobs.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_import_asset_file(holder_context* context, const holder_asset_import_request* request, holder_arena* arena, const holder_asset_import** out_asset_import, holder_error** out_error);
+
+/* Write an asset's bytes from one of its placements to a local file.
+ * The stored copy is fetched through this device's provider for its storage location, checked
+ * against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
+ * check are data corrupted, and nothing is left at the destination. The daemon does not serve
+ * this: it streams asset content over HTTP.
+ * Errors: HOLDER_ERROR_NOT_FOUND, HOLDER_ERROR_KEYRING_UNAVAILABLE, HOLDER_ERROR_KEY_MISSING, HOLDER_ERROR_DATA_CORRUPTED.
+ */
+int holder_retrieve_asset_file(holder_context* context, const char* resource_id, const char* asset_id, const char* placement_id, const char* destination_path, holder_arena* arena, const holder_asset_file** out_asset_file, holder_error** out_error);
 
 /* List a project's resources.
  * By when they last changed, latest first, then by ID.

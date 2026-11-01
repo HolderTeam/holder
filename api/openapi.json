@@ -15005,7 +15005,7 @@
           "source_path"
         ],
         "title": "AssetImportRequest",
-        "description": "Start importing a local file into a project resource."
+        "description": "A local file to import into a project resource and attach to a card."
       },
       "AssetPlacement": {
         "properties": {

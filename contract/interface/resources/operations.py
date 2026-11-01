@@ -4,17 +4,52 @@ from typing import Annotated
 
 from fastapi import Body, Path, Query
 
-from authoring import Bytes, Contract
+from authoring import Bytes, Contract, Field
 from authoring.routes import ErrorResponse
 
 from ..cards.models import CardId
 from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..links.models import Link
 from ..projects.ids import ProjectId
-from .models import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate
+from .models import (
+    AssetFile,
+    AssetImport,
+    AssetImportJob,
+    AssetImportRequest,
+    NewResource,
+    Resource,
+    ResourceId,
+    ResourceUpdate,
+)
 
 
 def register(contract: Contract) -> None:
+    @contract.core_operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def import_asset_file(request: AssetImportRequest) -> AssetImport:
+        """Import a local file into a project and attach it to a card.
+
+        The file is hashed, stored in the storage location through this device's provider for it,
+        encrypted first in an encrypted project, and recorded as a resource and asset with a placement.
+        Bytes the project already holds reuse their resource. The card gets an attachment link to the
+        resource; its content is not changed. The source path is never saved. The source must be a
+        readable regular file. The daemon does not serve this: its asset imports run as jobs.
+        """
+
+    @contract.core_operation(errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
+    def retrieve_asset_file(
+        resource_id: ResourceId,
+        asset_id: Annotated[str, Field(min_length=1)],
+        placement_id: Annotated[str, Field(min_length=1)],
+        destination_path: Annotated[str, Field(min_length=1)],
+    ) -> AssetFile:
+        """Write an asset's bytes from one of its placements to a local file.
+
+        The stored copy is fetched through this device's provider for its storage location, checked
+        against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
+        check are data corrupted, and nothing is left at the destination. The daemon does not serve
+        this: it streams asset content over HTTP.
+        """
+
     @contract.route("GET", "/projects/{project_id}/resources", errors=[NotFound])
     def list_resources(project_id: Annotated[ProjectId, Path()]) -> list[Resource]:
         """List a project's resources.

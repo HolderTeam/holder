@@ -202,6 +202,14 @@ struct MilestoneUpdate {
   Change<std::string> description;  ///< A note on the milestone; null for none.
 };
 
+/// A local file to import into a project resource and attach to a card.
+struct AssetImportRequest {
+  std::string project_id;  ///< The project that will own the asset.
+  std::string card_id;  ///< The card to attach the imported resource to.
+  std::string location_id;  ///< The storage location to receive the asset.
+  std::string source_path;  ///< A local readable regular file; its path is never saved in project metadata.
+};
+
 /// A resource to make.
 struct NewResource {
   std::optional<std::string> resource_id;  ///< The resource's ID, for imports; omit for a new one.
@@ -429,6 +437,22 @@ struct Calendar {
   std::vector<CalendarMilestone> milestones;  ///< The milestones with a date in the window, as a day in its days or an instant in its instants, each once, by when they were made and then by ID.
   std::vector<CardMetadata> created_cards;  ///< The live cards made in the window, by when they were made and then by ID.
   std::vector<CardMetadata> updated_cards;  ///< The live cards last changed in the window, other than by being made, by when and then by ID.
+};
+
+/// What importing a local file made or reused.
+struct AssetImport {
+  std::string resource_id;  ///< The resource holding the file: a new one, or the one already holding the same bytes.
+  std::string asset_id;  ///< The asset holding the file's bytes.
+  bool duplicate_reused{};  ///< Whether the project already held the same bytes, so nothing new was stored.
+  bool link_created{};  ///< Whether an attachment link from the card was made; false when it already existed.
+};
+
+/// A file an asset's bytes were written to.
+struct AssetFile {
+  std::string path;  ///< The local file written.
+  std::string original_filename;  ///< The file's name when it was imported.
+  std::string media_type;  ///< The file's media type.
+  long long byte_size{};  ///< The file's size in bytes.
 };
 
 /// How the copy is stored: as the file is, or encrypted for the project.
@@ -1101,6 +1125,23 @@ std::vector<Milestone> list_milestones_by_instant(holder_context& context, std::
 /// @param last_day The day last_instant falls on where the caller is.
 /// @throws NotFound
 Calendar get_calendar(holder_context& context, std::string project_id, long long first_instant, long long last_instant, std::string first_day, std::string last_day);
+
+/// Import a local file into a project and attach it to a card.
+/// The file is hashed, stored in the storage location through this device's provider for it,
+/// encrypted first in an encrypted project, and recorded as a resource and asset with a placement.
+/// Bytes the project already holds reuse their resource. The card gets an attachment link to the
+/// resource; its content is not changed. The source path is never saved. The source must be a
+/// readable regular file. The daemon does not serve this: its asset imports run as jobs.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+AssetImport import_asset_file(holder_context& context, const AssetImportRequest& request);
+
+/// Write an asset's bytes from one of its placements to a local file.
+/// The stored copy is fetched through this device's provider for its storage location, checked
+/// against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
+/// check are data corrupted, and nothing is left at the destination. The daemon does not serve
+/// this: it streams asset content over HTTP.
+/// @throws NotFound, KeyringUnavailable, KeyMissing, DataCorrupted
+AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, std::string asset_id, std::string placement_id, std::string destination_path);
 
 /// List a project's resources.
 /// By when they last changed, latest first, then by ID.

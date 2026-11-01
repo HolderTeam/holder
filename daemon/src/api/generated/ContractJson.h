@@ -745,6 +745,14 @@ template <> struct codec<holder::contract::Calendar> {
     static json encode(const holder::contract::Calendar& value);
     static holder::contract::Calendar decode(const json& value);
 };
+template <> struct codec<holder::contract::AssetImport> {
+    static json encode(const holder::contract::AssetImport& value);
+    static holder::contract::AssetImport decode(const json& value);
+};
+template <> struct codec<holder::contract::AssetFile> {
+    static json encode(const holder::contract::AssetFile& value);
+    static holder::contract::AssetFile decode(const json& value);
+};
 template <> struct codec<holder::contract::AssetPlacement> {
     static json encode(const holder::contract::AssetPlacement& value);
     static holder::contract::AssetPlacement decode(const json& value);
@@ -964,6 +972,10 @@ template <> struct codec<holder::contract::NewMilestone> {
 template <> struct codec<holder::contract::MilestoneUpdate> {
     static json encode(const holder::contract::MilestoneUpdate& value);
     static holder::contract::MilestoneUpdate decode(const json& value);
+};
+template <> struct codec<holder::contract::AssetImportRequest> {
+    static json encode(const holder::contract::AssetImportRequest& value);
+    static holder::contract::AssetImportRequest decode(const json& value);
 };
 template <> struct codec<holder::contract::NewResource> {
     static json encode(const holder::contract::NewResource& value);
@@ -1871,6 +1883,86 @@ inline holder::contract::Calendar codec<holder::contract::Calendar>::decode(cons
         out.updated_cards = decode_field<std::vector<holder::contract::CardMetadata>>(item, "updated_cards");
     } else {
         throw std::invalid_argument("updated_cards is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::AssetImport>::encode(const holder::contract::AssetImport& value) {
+    json result = json::object();
+    result["resource_id"] = codec<std::string>::encode(value.resource_id);
+    result["asset_id"] = codec<std::string>::encode(value.asset_id);
+    result["duplicate_reused"] = codec<bool>::encode(value.duplicate_reused);
+    result["link_created"] = codec<bool>::encode(value.link_created);
+    return result;
+}
+inline holder::contract::AssetImport codec<holder::contract::AssetImport>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetImport object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "resource_id" && it.key() != "asset_id" && it.key() != "duplicate_reused" && it.key() != "link_created") throw std::invalid_argument("AssetImport has no field " + it.key());
+    holder::contract::AssetImport out;
+    if (value.contains("resource_id") && !value.at("resource_id").is_null()) {
+        const auto& item = value.at("resource_id");
+        out.resource_id = check_text(decode_field<std::string>(item, "resource_id"), "resource_id", 4, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("resource_id is required and must not be null");
+    }
+    if (value.contains("asset_id") && !value.at("asset_id").is_null()) {
+        const auto& item = value.at("asset_id");
+        out.asset_id = check_text(decode_field<std::string>(item, "asset_id"), "asset_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("asset_id is required and must not be null");
+    }
+    if (value.contains("duplicate_reused") && !value.at("duplicate_reused").is_null()) {
+        const auto& item = value.at("duplicate_reused");
+        out.duplicate_reused = decode_field<bool>(item, "duplicate_reused");
+    } else {
+        throw std::invalid_argument("duplicate_reused is required and must not be null");
+    }
+    if (value.contains("link_created") && !value.at("link_created").is_null()) {
+        const auto& item = value.at("link_created");
+        out.link_created = decode_field<bool>(item, "link_created");
+    } else {
+        throw std::invalid_argument("link_created is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::AssetFile>::encode(const holder::contract::AssetFile& value) {
+    json result = json::object();
+    result["path"] = codec<std::string>::encode(value.path);
+    result["original_filename"] = codec<std::string>::encode(value.original_filename);
+    result["media_type"] = codec<std::string>::encode(value.media_type);
+    result["byte_size"] = codec<long long>::encode(value.byte_size);
+    return result;
+}
+inline holder::contract::AssetFile codec<holder::contract::AssetFile>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetFile object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "path" && it.key() != "original_filename" && it.key() != "media_type" && it.key() != "byte_size") throw std::invalid_argument("AssetFile has no field " + it.key());
+    holder::contract::AssetFile out;
+    if (value.contains("path") && !value.at("path").is_null()) {
+        const auto& item = value.at("path");
+        out.path = check_text(decode_field<std::string>(item, "path"), "path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("path is required and must not be null");
+    }
+    if (value.contains("original_filename") && !value.at("original_filename").is_null()) {
+        const auto& item = value.at("original_filename");
+        out.original_filename = check_text(decode_field<std::string>(item, "original_filename"), "original_filename", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("original_filename is required and must not be null");
+    }
+    if (value.contains("media_type") && !value.at("media_type").is_null()) {
+        const auto& item = value.at("media_type");
+        out.media_type = check_text(decode_field<std::string>(item, "media_type"), "media_type", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("media_type is required and must not be null");
+    }
+    if (value.contains("byte_size") && !value.at("byte_size").is_null()) {
+        const auto& item = value.at("byte_size");
+        out.byte_size = decode_field<long long>(item, "byte_size");
+    } else {
+        throw std::invalid_argument("byte_size is required and must not be null");
     }
     return out;
 }
@@ -4452,6 +4544,46 @@ inline holder::contract::MilestoneUpdate codec<holder::contract::MilestoneUpdate
         out.description = check_text(decode_field<std::string>(item, "description"), "description", 1, std::numeric_limits<std::size_t>::max());
     } else if (value.contains("description")) {
         out.description.emplace();
+    }
+    return out;
+}
+
+inline json codec<holder::contract::AssetImportRequest>::encode(const holder::contract::AssetImportRequest& value) {
+    json result = json::object();
+    result["project_id"] = codec<std::string>::encode(value.project_id);
+    result["card_id"] = codec<std::string>::encode(value.card_id);
+    result["location_id"] = codec<std::string>::encode(value.location_id);
+    result["source_path"] = codec<std::string>::encode(value.source_path);
+    return result;
+}
+inline holder::contract::AssetImportRequest codec<holder::contract::AssetImportRequest>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a AssetImportRequest object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "project_id" && it.key() != "card_id" && it.key() != "location_id" && it.key() != "source_path") throw std::invalid_argument("AssetImportRequest has no field " + it.key());
+    holder::contract::AssetImportRequest out;
+    if (value.contains("project_id") && !value.at("project_id").is_null()) {
+        const auto& item = value.at("project_id");
+        out.project_id = check_text(decode_field<std::string>(item, "project_id"), "project_id", 1, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("project_id is required and must not be null");
+    }
+    if (value.contains("card_id") && !value.at("card_id").is_null()) {
+        const auto& item = value.at("card_id");
+        out.card_id = check_text(decode_field<std::string>(item, "card_id"), "card_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("card_id is required and must not be null");
+    }
+    if (value.contains("location_id") && !value.at("location_id").is_null()) {
+        const auto& item = value.at("location_id");
+        out.location_id = check_text(decode_field<std::string>(item, "location_id"), "location_id", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("location_id is required and must not be null");
+    }
+    if (value.contains("source_path") && !value.at("source_path").is_null()) {
+        const auto& item = value.at("source_path");
+        out.source_path = check_text(decode_field<std::string>(item, "source_path"), "source_path", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("source_path is required and must not be null");
     }
     return out;
 }

@@ -634,6 +634,8 @@ bool from_java_holder_milestone_date(JNIEnv* env, jobject object, holder_milesto
 jobject to_java_holder_milestone(JNIEnv* env, const holder_milestone& value);
 jobject to_java_holder_calendar_milestone(JNIEnv* env, const holder_calendar_milestone& value);
 jobject to_java_holder_calendar(JNIEnv* env, const holder_calendar& value);
+jobject to_java_holder_asset_import(JNIEnv* env, const holder_asset_import& value);
+jobject to_java_holder_asset_file(JNIEnv* env, const holder_asset_file& value);
 jobject to_java_holder_asset_placement(JNIEnv* env, const holder_asset_placement& value);
 jobject to_java_holder_resource_asset(JNIEnv* env, const holder_resource_asset& value);
 jobject to_java_holder_resource(JNIEnv* env, const holder_resource& value);
@@ -689,6 +691,7 @@ bool from_java_holder_card_move(JNIEnv* env, jobject object, holder_card_move& o
 bool from_java_holder_new_link(JNIEnv* env, jobject object, holder_new_link& out, Keep& keep);
 bool from_java_holder_new_milestone(JNIEnv* env, jobject object, holder_new_milestone& out, Keep& keep);
 bool from_java_holder_milestone_update(JNIEnv* env, jobject object, holder_milestone_update& out, Keep& keep);
+bool from_java_holder_asset_import_request(JNIEnv* env, jobject object, holder_asset_import_request& out, Keep& keep);
 bool from_java_holder_new_resource(JNIEnv* env, jobject object, holder_new_resource& out, Keep& keep);
 bool from_java_holder_resource_update(JNIEnv* env, jobject object, holder_resource_update& out, Keep& keep);
 bool from_java_holder_new_project(JNIEnv* env, jobject object, holder_new_project& out, Keep& keep);
@@ -1052,6 +1055,39 @@ jobject to_java_holder_calendar(JNIEnv* env, const holder_calendar& value) {
   if (env->ExceptionCheck()) return nullptr;
   args[2].l = locals.add(to_java_list(env, (value.updated_cards).items, (value.updated_cards).count, [&](const auto& item) -> jobject { return to_java_holder_card_metadata(env, item); }));
   if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_asset_import(JNIEnv* env, const holder_asset_import& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/AssetImport");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;ZZ)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[4] = {};
+  args[0].l = locals.add(string(env, value.resource_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.asset_id));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].z = static_cast<jboolean>(value.duplicate_reused ? JNI_TRUE : JNI_FALSE);
+  args[3].z = static_cast<jboolean>(value.link_created ? JNI_TRUE : JNI_FALSE);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_asset_file(JNIEnv* env, const holder_asset_file& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/AssetFile");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[4] = {};
+  args[0].l = locals.add(string(env, value.path));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].l = locals.add(string(env, value.original_filename));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].l = locals.add(string(env, value.media_type));
+  if (env->ExceptionCheck()) return nullptr;
+  args[3].j = static_cast<jlong>(value.byte_size);
   return env->NewObjectA(type, constructor, args);
 }
 
@@ -2390,6 +2426,41 @@ bool from_java_holder_milestone_update(JNIEnv* env, jobject object, holder_miles
   return !env->ExceptionCheck();
 }
 
+bool from_java_holder_asset_import_request(JNIEnv* env, jobject object, holder_asset_import_request& out, Keep& keep) {
+  static const jclass type = global_class(env, "team/holder/android/contract/AssetImportRequest");
+  if (!type) return false;
+  static const jfieldID field_project_id = env->GetFieldID(type, "projectId", "Ljava/lang/String;");
+  static const jfieldID field_card_id = env->GetFieldID(type, "cardId", "Ljava/lang/String;");
+  static const jfieldID field_location_id = env->GetFieldID(type, "locationId", "Ljava/lang/String;");
+  static const jfieldID field_source_path = env->GetFieldID(type, "sourcePath", "Ljava/lang/String;");
+  out = holder_asset_import_request{};
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_project_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.project_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_card_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.card_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_location_id));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.location_id)) return false;
+  }
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_source_path));
+    if (env->ExceptionCheck()) return false;
+    if (!c_text(env, static_cast<jstring>(item), keep, out.source_path)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
 bool from_java_holder_new_resource(JNIEnv* env, jobject object, holder_new_resource& out, Keep& keep) {
   static const jclass type = global_class(env, "team/holder/android/contract/NewResource");
   if (!type) return false;
@@ -3413,6 +3484,50 @@ Java_team_holder_android_contract_Milestones_getCalendar(JNIEnv* env, jobject, j
       arena.value, &out, &error);
   if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
   return to_java_holder_calendar(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Resources_importAssetFile(JNIEnv* env, jobject, jlong context_handle, jobject a_request) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  if (!a_request) { fail(env, "request is required"); return nullptr; }
+  auto* p_request = keep.make<holder_asset_import_request>();
+  if (!from_java_holder_asset_import_request(env, a_request, *p_request, keep)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_asset_import* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_import_asset_file(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_request,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_asset_import(env, (*out));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Resources_retrieveAssetFile(JNIEnv* env, jobject, jlong context_handle, jstring a_resource_id, jstring a_asset_id, jstring a_placement_id, jstring a_destination_path) {
+  if (!context_handle) { fail(env, "context is required"); return nullptr; }
+  Keep keep;
+  const char* p_resource_id = nullptr;
+  if (!c_text(env, a_resource_id, keep, p_resource_id)) return nullptr;
+  const char* p_asset_id = nullptr;
+  if (!c_text(env, a_asset_id, keep, p_asset_id)) return nullptr;
+  const char* p_placement_id = nullptr;
+  if (!c_text(env, a_placement_id, keep, p_placement_id)) return nullptr;
+  const char* p_destination_path = nullptr;
+  if (!c_text(env, a_destination_path, keep, p_destination_path)) return nullptr;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_asset_file* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_retrieve_asset_file(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+      p_resource_id,
+      p_asset_id,
+      p_placement_id,
+      p_destination_path,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_asset_file(env, (*out));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

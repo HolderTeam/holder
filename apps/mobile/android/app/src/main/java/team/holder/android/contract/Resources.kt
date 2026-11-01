@@ -7,6 +7,30 @@ enum class AssetPlacementEncoding(val value: String) {
     HOLDER_ASSET_V1("holder_asset_v1"),
 }
 
+/** What importing a local file made or reused. */
+data class AssetImport(
+    /** The resource holding the file: a new one, or the one already holding the same bytes. */
+    val resourceId: String,
+    /** The asset holding the file's bytes. */
+    val assetId: String,
+    /** Whether the project already held the same bytes, so nothing new was stored. */
+    val duplicateReused: Boolean,
+    /** Whether an attachment link from the card was made; false when it already existed. */
+    val linkCreated: Boolean,
+)
+
+/** A file an asset's bytes were written to. */
+data class AssetFile(
+    /** The local file written. */
+    val path: String,
+    /** The file's name when it was imported. */
+    val originalFilename: String,
+    /** The file's media type. */
+    val mediaType: String,
+    /** The file's size in bytes. */
+    val byteSize: Long,
+)
+
 /** One stored copy of an asset. */
 data class AssetPlacement(
     /** The copy's ID. */
@@ -61,6 +85,18 @@ data class Resource(
     val updatedAt: Long,
 )
 
+/** A local file to import into a project resource and attach to a card. */
+data class AssetImportRequest(
+    /** The project that will own the asset. */
+    val projectId: String,
+    /** The card to attach the imported resource to. */
+    val cardId: String,
+    /** The storage location to receive the asset. */
+    val locationId: String,
+    /** A local readable regular file; its path is never saved in project metadata. */
+    val sourcePath: String,
+)
+
 /** A resource to make. */
 data class NewResource(
     /** The resource's ID, for imports; omit for a new one. */
@@ -94,6 +130,34 @@ object Resources {
     init {
         System.loadLibrary("holder_jni")
     }
+
+    /**
+     * Import a local file into a project and attach it to a card.
+     * The file is hashed, stored in the storage location through this device's provider for it,
+     * encrypted first in an encrypted project, and recorded as a resource and asset with a placement.
+     * Bytes the project already holds reuse their resource. The card gets an attachment link to the
+     * resource; its content is not changed. The source path is never saved. The source must be a
+     * readable regular file. The daemon does not serve this: its asset imports run as jobs.
+     */
+    external fun importAssetFile(
+        contextHandle: Long,
+        request: AssetImportRequest,
+    ): AssetImport
+
+    /**
+     * Write an asset's bytes from one of its placements to a local file.
+     * The stored copy is fetched through this device's provider for its storage location, checked
+     * against the asset's size and hash, and decrypted in an encrypted project. Bytes that fail the
+     * check are data corrupted, and nothing is left at the destination. The daemon does not serve
+     * this: it streams asset content over HTTP.
+     */
+    external fun retrieveAssetFile(
+        contextHandle: Long,
+        resourceId: String,
+        assetId: String,
+        placementId: String,
+        destinationPath: String,
+    ): AssetFile
 
     /**
      * List a project's resources.

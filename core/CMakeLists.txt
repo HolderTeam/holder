@@ -139,6 +139,7 @@ set(HOLDER_CORE_SOURCES
   src/api/ProjectMaintenance.cpp
   src/api/RecoveryTokens.cpp
   src/api/RecoverySnapshots.cpp
+  src/api/Assets.cpp
   src/api/Rebuild.cpp
   src/api/Resources.cpp
   src/api/Locations.cpp
