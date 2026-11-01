@@ -6,7 +6,8 @@ import textwrap
 
 import pytest
 
-from holder_contract.extract import ContractError, extract
+from compiler.errors import ContractError
+from holder_contract.extract import extract
 
 PREAMBLE = """\
 from enum import StrEnum

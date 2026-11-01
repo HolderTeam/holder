@@ -30,59 +30,24 @@ from pydantic_core import PydanticUndefined
 
 from authoring.routes import Contract
 from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
-from compiler.rules import Declarations, Problem, check_file
+from compiler.errors import ContractError
+from compiler.rules import Declarations, Problem
+from compiler.source import APP_FILE, ContractSource, LoadedSource, load_source
 
 IR_VERSION = 1
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
-# The module of a contract package that declares its operations, as FastAPI routes.
-APP_FILE = "app.py"
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
-
-
-class ContractError(Exception):
-    def __init__(self, problems: list[Problem]):
-        self.problems = problems
-        super().__init__("\n".join(str(p) for p in problems))
 
 
 def extract(root: Path, package: str) -> dict[str, Any]:
     """The IR of the contract package `package` in directory `root`."""
-    root = Path(root).resolve()
-    app_path = root / package / APP_FILE
-    files = [f for f in sorted((root / package).rglob("*.py")) if f != app_path]
-    problems: list[Problem] = []
-    declared: dict[str, tuple[str, Declarations]] = {}
-    for path in files:
-        display = path.relative_to(root).as_posix()
-        module = ".".join(path.relative_to(root).with_suffix("").parts)
-        if module.endswith(".__init__"):
-            module = module.removesuffix(".__init__")
-        found_problems, declarations = check_file(path, display, package)
-        problems += found_problems
-        declared[module] = (display, declarations)
-    if problems:
-        raise ContractError(problems)
+    return build_ir(load_source(ContractSource(root, package)))
 
-    sys.path.insert(0, str(root))
-    try:
-        modules = {}
-        for name in declared:
-            try:
-                modules[name] = importlib.import_module(name)
-            except Exception as error:  # noqa: BLE001 - any failure to import is a problem in the contract
-                problems.append(Problem(declared[name][0], 1, f"cannot be imported: {error}"))
-        app = None
-        if app_path.exists():
-            try:
-                app = importlib.import_module(f"{package}.{app_path.stem}")
-            except Exception as error:  # noqa: BLE001 - any failure to import is a problem in the contract
-                problems.append(Problem(app_path.relative_to(root).as_posix(), 1, f"cannot be imported: {error}"))
-    finally:
-        sys.path.remove(str(root))
-    if problems:
-        raise ContractError(problems)
-    return _Builder(modules, declared, app, app_path.relative_to(root).as_posix()).build()
+
+def build_ir(source: LoadedSource) -> dict[str, Any]:
+    """Convert checked declaration objects into the legacy dictionary IR."""
+    return _Builder(source.modules, source.declared, source.app, source.app_source).build()
 
 
 def load_contract(root: Path, package: str) -> Contract | None:

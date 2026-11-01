@@ -2,24 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
-from holder_contract.extract import extract
+from holder_contract.extract import build_ir
 
 from .ir import ContractView
-
-
-@dataclass(frozen=True, slots=True)
-class ContractSource:
-    """A Python package containing contract declarations and an optional app.py."""
-
-    root: Path
-    package: str
+from .source import ContractSource, load_source
 
 
 class Compiler:
-    """Run declaration extraction and validate its complete typed result."""
+    """Load, extract, and validate a declaration package's complete typed result."""
 
     def compile(self, source: ContractSource) -> ContractView:
-        return ContractView.model_validate(extract(source.root, source.package))
+        loaded = load_source(source)
+        return ContractView.model_validate(build_ir(loaded))
