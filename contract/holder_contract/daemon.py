@@ -6,13 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from authoring.routes import Contract
+
 from .ai_codec import generate_ai_codec
 from .ai_routes import generate_ai_routes
 from .generate import Model
 from .http_routes import generate_routes
 from .json_codec import generate_codec
 from .openapi import document, dumps, merge
-from .routes import Contract
 
 # Included as the daemon includes them: core's C++ declarations from its SDK, the codec beside the routes.
 API_HEADER = "api/Contract.h"

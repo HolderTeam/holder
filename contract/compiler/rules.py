@@ -3,7 +3,7 @@
 A model module holds declarations only: imports of the vocabulary, records, enums, error kinds,
 host interfaces and `type` statements. Anything that could run logic, such as a validator, an
 assignment or a function, is rejected with the line it is on. Operations are FastAPI routes in the
-package's app.py, which these rules do not cover (holder_contract.routes).
+package's app.py, which these rules do not cover (authoring.routes).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ALLOWED_IMPORTS = {"__future__", "enum", "typing", "pydantic", "holder_contract"}
+ALLOWED_IMPORTS = {"__future__", "authoring", "enum", "typing", "pydantic"}
 ENUM_BASES = {"StrEnum"}
 
 

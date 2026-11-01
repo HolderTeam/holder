@@ -30,9 +30,9 @@ from typing import Any
 from fastapi.routing import APIRoute
 from pydantic import ValidationError
 
+from authoring.routes import Contract, ErrorResponse
 from holder_capi import OperationError, Unrepresentable
 from holder_contract.generate import snake
-from holder_contract.routes import Contract, ErrorResponse
 
 # The longest request target to send. The daemon reads at most 8 KB of request line and headers,
 # and drops a connection whose request is longer (#300), so a longer argument cannot be sent over HTTP.

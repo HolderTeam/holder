@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from holder_contract import MISSING, Field, Record, Timestamp
+from authoring import MISSING, Field, Record, Timestamp
 
 from .cards import CardId, CardMetadata, ProjectId
 

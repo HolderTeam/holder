@@ -1,4 +1,4 @@
-"""Typed, target-agnostic intermediate representation (IR) of Holder's contract.
+"""Typed, target-independent intermediate representation (IR) of Holder's contract.
 
 Describes the IR grammar as defined in contract/IR.md. The declarations in
 contract/interface remain the source of every field and operation.

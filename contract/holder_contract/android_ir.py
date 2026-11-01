@@ -1,8 +1,8 @@
-"""Backward-compatibility module alias for holder_contract.ir."""
+"""Backward-compatibility module alias for compiler.ir."""
 
 from __future__ import annotations
 
-from .ir import (
+from compiler.ir import (
     AliasView,
     ContractView,
     EnumMemberView,

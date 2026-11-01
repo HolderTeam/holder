@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from fastapi import Body, Path, Query
 
-from holder_contract import Bytes, Contract, Field, Int32, Stream
+from authoring import Bytes, Contract, Field, Int32, Stream
 
 from .cards import Card, CardId, CardListItem, Conflict, MessagePatch, NotFound, Page, RunEvent
 

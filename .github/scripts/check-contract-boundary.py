@@ -2,7 +2,7 @@
 """Check that nothing outside contract/ uses the contract's tooling, and that it cannot be published.
 
 The contract describes Holder's interface; generated code implements it. Code that ships, and the
-generated code in particular, must never import holder_contract or depend on it, or the contract
+generated code in particular, must never import the contract tooling or depend on it, or the contract
 would become runtime code. contract/pyproject.toml holds only tool settings, so the tooling cannot
 be built or uploaded. Documentation is not checked."""
 
@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-IMPORT = re.compile(r"^\s*(?:from|import)\s+holder_contract\b")
+IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:authoring|compiler|generators|holder_contract)\b")
 DEPENDENCY = re.compile(r"holder[_-]contract")
 MANIFESTS = {"pyproject.toml", "setup.py", "setup.cfg", "CMakeLists.txt", "meson.build", "package.json",
              "build.gradle", "build.gradle.kts", "settings.gradle.kts", "vcpkg.json"}
@@ -38,7 +38,7 @@ def main():
             if (is_python and IMPORT.search(line)) or (is_manifest and DEPENDENCY.search(line)):
                 problems.append(f"{name}:{number}: {line.strip()}")
     if problems:
-        print("Only contract/ may use the contract's tooling (holder_contract):")
+        print("Only contract/ may use the contract's authoring, compiler and generator tooling:")
         print("\n".join(f"  {line}" for line in problems))
     if PACKAGE_TABLE.search((ROOT / "contract" / "pyproject.toml").read_text()):
         problems.append("contract/pyproject.toml")

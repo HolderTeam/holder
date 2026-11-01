@@ -1,6 +1,6 @@
 """Read the contract into its intermediate representation (IR), the input of every generator.
 
-Each file is first checked against holder_contract.rules, and only then imported. Problems are
+Each file is first checked against compiler.rules, and only then imported. Problems are
 collected rather than raised one at a time, so a single run reports everything wrong with the
 contract. IR.md describes the result.
 """
@@ -28,10 +28,10 @@ except ImportError:
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from .ir import ContractView
-from .routes import Contract
-from .rules import Declarations, Problem, check_file
-from .vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
+from authoring.routes import Contract
+from authoring.vocabulary import Bytes, HolderError, Native, OpenRecord, Record, Stream
+from compiler.ir import ContractView
+from compiler.rules import Declarations, Problem, check_file
 
 IR_VERSION = 1
 CONSTRAINTS = ("min_length", "max_length", "pattern", "ge", "le", "gt", "lt")

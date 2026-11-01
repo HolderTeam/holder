@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
+from authoring import MISSING, Field, Float64, Int32, Int64, Record, Timestamp
 
 type ProjectId = Annotated[str, Field(min_length=1)]
 """A project's ID."""

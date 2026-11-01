@@ -1,6 +1,6 @@
 """The contract's HTTP operations in OpenAPI 3.2: FastAPI's document of the contract's app.
 
-FastAPI writes the document from the routes in app.py (holder_contract.routes) and the Pydantic
+FastAPI writes the document from the routes in app.py (authoring.routes) and the Pydantic
 models they use. What is added here is only what makes it the daemon's API: FastAPI's own 422
 validation responses go, since the daemon answers an invalid argument with 400 and the error
 envelope (the routes declare those themselves); operation IDs go, as in the rest of the daemon's
@@ -18,8 +18,9 @@ import copy
 import json
 from typing import Any
 
+from authoring.routes import Contract
+
 from .http_routes import _more_specific, _segments_overlap, route_segments
-from .routes import Contract
 
 OPENAPI_VERSION = "3.2.0"
 ERROR_SCHEMAS = {

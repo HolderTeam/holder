@@ -1,7 +1,7 @@
 """Holder's operations, as the daemon's routes, and what core's C API needs besides.
 
 Each operation is a FastAPI route whose body never runs: the daemon serves it, and core implements
-it, from code generated from the IR. holder_contract.routes says what a route declares.
+it, from code generated from the IR. authoring.routes says what a route declares.
 
 A card is named by its project and its card ID; an operation on a card in another project does not find it.
 """
@@ -10,8 +10,8 @@ from typing import Annotated, Literal
 
 from fastapi import Body, Header, Path, Query
 
-from holder_contract import Bytes, Contract, Field, Int32, JsonValue, Stream, Timestamp
-from holder_contract.routes import ErrorResponse
+from authoring import Bytes, Contract, Field, Int32, JsonValue, Stream, Timestamp
+from authoring.routes import ErrorResponse
 
 from . import ai
 from .card_references import CardReferenceResolveData, CardReferenceResolveRequest

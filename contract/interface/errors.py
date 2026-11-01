@@ -4,7 +4,7 @@ Each names a condition the caller can act on, not how a transport reports it; ap
 its HTTP status.
 """
 
-from holder_contract import HolderError
+from authoring import HolderError
 
 
 class NotFound(HolderError):

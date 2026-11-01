@@ -14,14 +14,14 @@ from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, field_validator
 
-from holder_contract import MISSING, Field, HolderError, Int32, Record, Stream, host_interface
+from authoring import MISSING, Field, HolderError, Int32, Record, Stream, host_interface
 """
 APP_PREAMBLE = """\
 from typing import Annotated
 
 from fastapi import Body, Header, Path, Query
 
-from holder_contract import MISSING, Contract, Int32
+from authoring import MISSING, Contract, Int32
 
 from .m0 import *  # noqa: F403
 

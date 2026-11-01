@@ -1,6 +1,6 @@
 """Relevance-ranked matches from a project's full-text index."""
 
-from holder_contract import Float64, Record, Timestamp
+from authoring import Float64, Record, Timestamp
 
 
 class SearchCard(Record):

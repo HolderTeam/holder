@@ -3,7 +3,7 @@
 from enum import StrEnum
 from typing import Annotated, Literal, Protocol
 
-from holder_contract import (
+from authoring import (
     MISSING,
     Field,
     HolderError,

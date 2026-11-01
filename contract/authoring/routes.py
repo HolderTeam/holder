@@ -17,7 +17,7 @@ core has it (core=False for an operation only the daemon serves). An operation o
 has is declared with @contract.core_operation, and is not a route. Each error kind's HTTP status is
 given once, in statuses.
 
-The extractor reads the routes from contract.router, FastAPI's analysis of their paths, methods and
+The compiler reads the routes from contract.router, FastAPI's analysis of their paths, methods and
 statuses, and the rest from the Contract.
 """
 

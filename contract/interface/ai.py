@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Float64, Int64, JsonValue, OpenRecord
+from authoring import MISSING, Field, Float64, Int64, JsonValue, OpenRecord
 
 
 class RunnerPullProgress(OpenRecord):

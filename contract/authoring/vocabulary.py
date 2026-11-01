@@ -1,8 +1,8 @@
 """The words Holder's contract is written in.
 
 Model modules import these to declare records, error kinds and host interfaces; app.py declares the
-operations with holder_contract.routes. Nothing here does any work at run time: decorators only mark
-what they decorate, and the extractor (holder_contract.extract) reads the marks.
+operations with authoring.routes. Nothing here does any work at run time: decorators only mark
+what they decorate, and the compiler's extractor reads the marks.
 """
 
 from __future__ import annotations

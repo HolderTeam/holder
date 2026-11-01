@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from compiler.ir import ContractView
 from holder_contract.android import generate_android
 from holder_contract.android_operation import JNI_PATH as OPERATION_JNI_PATH
 from holder_contract.android_operation import KOTLIN_PATH as OPERATION_KOTLIN_PATH
@@ -14,7 +15,6 @@ from holder_contract.daemon import generate_daemon
 from holder_contract.daemon_bindings import RuntimeBinding, bindings
 from holder_contract.extract import extract, extract_typed, load_contract
 from holder_contract.generate import generate
-from holder_contract.ir import ContractView
 
 CONTRACT = Path(__file__).resolve().parents[1]
 

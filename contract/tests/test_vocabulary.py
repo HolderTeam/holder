@@ -10,9 +10,9 @@ from typing import Annotated
 import pydantic
 import pytest
 
-from holder_contract import Field, Float64, Int32, Int64, Record, Timestamp
+from authoring import Field, Float64, Int32, Int64, Record, Timestamp
+from authoring.vocabulary import Native
 from holder_contract.extract import extract
-from holder_contract.vocabulary import Native
 
 INT32 = {"type": "integer", "format": "int32", "minimum": -(2**31), "maximum": 2**31 - 1}
 INT64 = {"type": "integer", "format": "int64", "minimum": -(2**63), "maximum": 2**63 - 1}

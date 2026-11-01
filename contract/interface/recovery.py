@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import Field, Record
+from authoring import Field, Record
 
 from .cards import ProjectId
 

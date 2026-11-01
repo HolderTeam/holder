@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from holder_contract import MISSING, Field, Int32, Int64, Record
+from authoring import MISSING, Field, Int32, Int64, Record
 
 type StorageLocationProvider = Literal["local_directory", "s3_compatible", "google-drive"]
 """The storage provider kind in a location listing."""

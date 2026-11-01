@@ -9,9 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from .android_templates import TEMPLATES
-from .generate import Model, c_out, c_param, literal_member, snake
-from .ir import (
+from compiler.ir import (
     ContractView,
     ListType,
     LiteralType,
@@ -22,6 +20,9 @@ from .ir import (
     ScalarType,
     UnionType,
 )
+
+from .android_templates import TEMPLATES
+from .generate import Model, c_out, c_param, literal_member, snake
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractOperations.kt"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_operations.cpp"
