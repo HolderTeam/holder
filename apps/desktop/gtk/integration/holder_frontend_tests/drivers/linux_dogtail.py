@@ -424,6 +424,7 @@ class LinuxDogtailDriver(FrontendDriver):
         self._click_named_control("Add graph connection")
         dialog = self._wait_for(lambda: self._find_dialog("Add Graph Connection"), timeout=10.0)
         self._select_dropdown_option(dialog, "Target card", target_title)
+        self._select_dropdown_option(dialog, "Kind", "Related to")
         add = self._wait_for(lambda: self._find_sensitive_named(dialog, "Add"), timeout=10.0)
         self._click_node(add)
         self._wait_for(
@@ -437,8 +438,7 @@ class LinuxDogtailDriver(FrontendDriver):
         try:
             return self._wait_for(
                 lambda: True if (
-                    self._visible_text_contains("ref:")
-                    and self._visible_text_contains(target_title)
+                    self._visible_text_contains(f"Related to: {target_title}")
                 ) else None,
                 timeout=20.0,
                 interval=0.2,
@@ -852,10 +852,28 @@ class LinuxDogtailDriver(FrontendDriver):
     def _select_dropdown_option(self, scope, dropdown_name: str, option_text: str) -> None:
         dropdown = self._find_named_with_role_containing(scope, dropdown_name, "combo")
         if dropdown is None:
+            # GTK exposes these dropdowns under their selected value, so locate
+            # the control immediately following its visible field label.
+            label = self._find_named_with_role_containing(scope, dropdown_name, "label")
+            if label is not None:
+                siblings = list(label.parent.children)
+                index = siblings.index(label) + 1
+                if index < len(siblings):
+                    control = siblings[index]
+                    if "combo" in control.roleName.lower():
+                        dropdown = control
+                    else:
+                        matches = control.findChildren(
+                            lambda node: "combo" in node.roleName.lower()
+                        )
+                        dropdown = matches[0] if matches else None
+        if dropdown is None:
+            raise RuntimeError(f"Dropdown {dropdown_name!r} not found")
+        if option_text in (dropdown.name or ""):
             return
         self._click_node(dropdown)
         option = self._wait_for(
-            lambda: self._find_visible_text_containing(self._current_app(), option_text),
+            lambda: self._find_visible_text_containing(dropdown, option_text),
             timeout=5.0,
             interval=0.2,
         )
