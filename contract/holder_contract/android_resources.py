@@ -24,7 +24,7 @@ def generate_resources(contract: ContractView) -> dict[str, str]:
     for name, fields in expected.items():
         if [field.name for field in contract.record(name).fields] != fields:
             raise ValueError(f"Android {name} fields need a generator update")
-    header = "// Generated from contract/interface/resources.py and contract/interface/app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/resources.py and contract/interface/operations/resources.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     return {
         KOTLIN_PATH: header + TEMPLATES.get_template("android_resources.kt.j2").render(),

@@ -223,7 +223,7 @@ class _Builder:
         self.draft.interfaces.append(InterfaceView(name=cls.__name__, source=source, doc=_doc(cls), methods=methods))
 
     def operations(self) -> None:
-        """The operations app.py declares through its Contract, in the order it declares them."""
+        """The operations registered through app.py's Contract, in registration order."""
         contracts = [v for v in vars(self.app).values() if isinstance(v, Contract)]
         if len(contracts) != 1:
             self.where = (self.app_source, 1)
@@ -233,7 +233,8 @@ class _Builder:
         routes = {r.endpoint: r for r in contract.router.routes if isinstance(r, APIRoute)}
         for operation in contract.operations:
             function = operation.function
-            self.where = (self.app_source, function.__code__.co_firstlineno)
+            operation_source = self.declared.get(function.__module__, (self.app_source, None))[0]
+            self.where = (operation_source, function.__code__.co_firstlineno)
             self.unique(function.__name__)
             signature = self.callable(function, function.__name__, allow_stream=True)
             errors = []
@@ -242,7 +243,7 @@ class _Builder:
                     self.problem(f"{function.__name__}: {error!r} is not an error kind declared in the contract")
                 else:
                     errors.append(error.__name__)
-            self.draft.operations.append(OperationView(name=signature.name, source=self.app_source,
+            self.draft.operations.append(OperationView(name=signature.name, source=operation_source,
                                                        summary=signature.summary, description=signature.description,
                                                        parameters=signature.parameters, returns=signature.returns,
                                                        errors=errors, daemon_only=not operation.core))

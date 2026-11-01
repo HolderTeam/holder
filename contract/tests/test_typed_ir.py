@@ -79,6 +79,12 @@ def test_page_lowering_uses_operation_data_for_a_second_operation():
     assert "holder_find_cards(" in generated[OPERATION_JNI_PATH]
 
 
+def test_operation_source_names_its_domain_module():
+    contract = ContractView.model_validate(extract(CONTRACT, "interface"))
+    assert contract.operation("list_cards").source == "interface/operations/cards.py"
+    assert contract.operation("search_cards").source == "interface/operations/search.py"
+
+
 def test_c_enum_choice_is_shared_with_android_jni():
     raw = deepcopy(extract(CONTRACT, "interface"))
     operation = next(op for op in raw["operations"] if op["name"] == "list_cards")

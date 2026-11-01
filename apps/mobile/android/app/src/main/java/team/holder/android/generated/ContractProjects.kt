@@ -1,4 +1,4 @@
-// Generated from contract/interface/projects.py, maintenance.py, git.py and app.py by holder_contract.
+// Generated from contract/interface/projects.py, maintenance.py, git.py and operations/ by holder_contract.
 // Do not edit; run make -C contract update.
 package team.holder.android.generated
 

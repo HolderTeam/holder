@@ -99,7 +99,7 @@ def generate_android(ir: dict[str, Any]) -> dict[str, str]:
     ]:
         raise ValueError("Android NewCard fields need a generator update")
     metadata = [(field.name, *_field_type(field, contract)) for field in contract.record("CardMetadata").fields]
-    header = "// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/cards.py and contract/interface/operations/cards.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     metadata_descriptor = "(" + "".join(signature for _, _, signature, _ in metadata) + ")V"
     from .android_card_writes import generate_card_writes

@@ -2,7 +2,7 @@
 
 Ported from RIG's http_routes.py and the route rules in its ir.py (https://github.com/zeth/rig,
 src/rig/http_routes.py and src/rig/ir.py at e32ea68), which read declarations reflected from C++;
-this reads the contract's IR and its HTTP bindings (the routes in interface/app.py).
+this reads the contract's IR and its HTTP bindings (the routes in interface/operations/).
 
 contract_http::dispatch matches a request to an operation, decodes and checks its arguments, calls
 core's C++ function for it (core/src/api/Contract.h) with the caller's holder_context, and encodes

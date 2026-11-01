@@ -143,7 +143,7 @@ def generate_ai_routes(ir: dict[str, Any]) -> str:
     if declared != runtime_bindings.keys():
         raise Unsupported(f"AI handler wiring differs from contract: missing={sorted(declared - runtime_bindings.keys())}, "
                           f"unused={sorted(runtime_bindings.keys() - declared)}")
-    lines = [*header_lines(ir, "AI HTTP routes generated from contract/interface/app.py.", "cpp"),
+    lines = [*header_lines(ir, "AI HTTP routes generated from contract/interface/operations/ai.py.", "cpp"),
              "#pragma once", '#include "api/generated/AiJson.h"',
              '#include "api/generated/ContractRoutes.h"',
              "#include <any>", "#include <charconv>", "#include <functional>", "#include <optional>",

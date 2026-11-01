@@ -50,7 +50,7 @@ def stated_in_words(case) -> bool:
     query or the path, a page with content holds at most 1000 cards, and a day and an instant have
     forms, and a milestone's date holds exactly one of them (see interface/milestones.py), and a
     resource's ID, in the path or the body, and metadata names have forms (see interface/resources.py).
-    Search q must also be valid SQLite FTS5 syntax (see interface/app.py). An asset import's
+    Search q must also be valid SQLite FTS5 syntax (see interface/operations/search.py). An asset import's
     source_path must name a readable regular file on the daemon's host. History revision references
     must resolve in the project's Git repository. Google Drive OAuth state
     must be issued by the daemon. AI operations also depend on configured providers, runners,

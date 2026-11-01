@@ -34,7 +34,7 @@ def test_cores_generated_files_are_up_to_date():
 def test_every_generated_file_names_its_source():
     for name, text in generate(holder_ir()).items():
         header = "\n".join(text.splitlines()[:2])
-        assert "Generated from contract/interface/app.py," in header, name
+        assert "contract/interface/operations/cards.py" in header, name
         assert "contract/interface/cards.py" in header, name
 
 

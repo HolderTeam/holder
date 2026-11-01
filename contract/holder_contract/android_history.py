@@ -44,7 +44,7 @@ def generate_history(contract: ContractView) -> dict[str, str]:
         "card_id", "restored_from_oid", "result_oid", "title", "updated_at", "deleted_at"
     ]:
         raise ValueError("Android CardHistoryRestoreResult fields need a generator update")
-    header = "// Generated from contract/interface/history.py and contract/interface/app.py by holder_contract.\n" \
+    header = "// Generated from contract/interface/history.py and contract/interface/operations/history.py by holder_contract.\n" \
              "// Do not edit; run make -C contract update.\n"
     return {
         KOTLIN_PATH: header + TEMPLATES.get_template("android_history.kt.j2").render(),

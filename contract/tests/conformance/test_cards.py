@@ -4,7 +4,7 @@ HTTP, against the contract.
 Hypothesis drives a model of a project with the contract's operations, drawing arguments from the
 strategies in holder_contract.values, and checks every result two ways: it conforms to the
 operation's declared result type, and it is what the model expects. Over HTTP, every response must
-also be one its route in interface/app.py declares (see holder_http). The machine talks to Holder
+also be one its route in interface/operations/cards.py declares (see holder_http). The machine talks to Holder
 through a transport's call method and a few set-up helpers, and runs once per transport:
 
 - through the C API, with HOLDER_LIBRARY set to a shared libholder built from the same commit (for

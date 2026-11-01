@@ -10,7 +10,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 ## Layout
 
-- `interface/` is the contract: one module per area of Holder's interface.
+- `interface/` is the contract: domain model modules, `operations/` modules with public signatures and routes, and a small `app.py` that assembles them.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
 - `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
 - `generators/` describes the backend boundary in its [README](generators/README.md). It contains the typed C ABI plan shared by core and Android, and Android's generated page operation renderer.
@@ -48,7 +48,7 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
 
 ## Writing the contract
 
-A contract package has model modules, which declare records, error kinds and host interfaces, and one `app.py`, which declares the operations as FastAPI routes:
+A contract package has model modules for records, error kinds and host interfaces; domain modules under `operations/` declare the public operations. `app.py` assembles them in order:
 
 ```python
 """Cards."""  # cards.py, a model module
@@ -77,7 +77,7 @@ class Card(Record):
 ```
 
 ```python
-"""Holder's operations."""  # app.py
+"""Card operations."""  # operations/cards.py
 
 from typing import Annotated
 
@@ -85,17 +85,28 @@ from fastapi import Path
 
 from authoring import Contract
 
-from .cards import Card, CardId, NotFound, ProjectId
+from ..cards import Card, CardId, ProjectId
+from ..errors import NotFound
+
+def register(contract: Contract) -> None:
+    @contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
+    def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
+        """Fetch a card.
+
+        A card in the trash or in another project is not found.
+        """
+```
+
+```python
+"""Assemble the public contract."""  # app.py
+
+from authoring import Contract
+from .errors import NotFound
+from .operations import cards
 
 contract = Contract(statuses={NotFound: 404})
-
-
-@contract.route("GET", "/projects/{project_id}/cards/{card_id}", errors=[NotFound])
-def get_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
-    """Fetch a card.
-
-    A card in the trash or in another project is not found.
-    """
+cards.register(contract)
+app = contract.app
 ```
 
 A model module may contain only:
@@ -109,13 +120,13 @@ A model module may contain only:
 
 Anything else, such as a validator, a `model_config`, a function or an assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
 
-`app.py` is ordinary FastAPI. It makes one `Contract` (`authoring.routes`) and declares every operation through it:
+`app.py` makes one `Contract` (`authoring.routes`) and calls each domain's `register(contract)` in public operation order. An operation module may import FastAPI's declaration helpers and define only route functions inside `register`; their bodies never run:
 
 - **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
 - **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.
 - **error statuses:** `Contract(statuses={NotFound: 404, ...})` gives each error kind its HTTP status. Every error kind of a route needs one.
 
-The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)).
+The extractor reads the routes FastAPI analysed, and the rest from the `Contract` ([HTTP.md](HTTP.md)). The IR records each operation's domain module as its source.
 
 The rest of the vocabulary:
 

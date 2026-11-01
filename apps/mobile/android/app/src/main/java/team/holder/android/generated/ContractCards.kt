@@ -1,4 +1,4 @@
-// Generated from contract/interface/cards.py and contract/interface/app.py by holder_contract.
+// Generated from contract/interface/cards.py and contract/interface/operations/cards.py by holder_contract.
 // Do not edit; run make -C contract update.
 package team.holder.android.generated
 
