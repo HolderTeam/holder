@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Int32, Record, Timestamp
 
-from .cards import ProjectId
+from .cards.models import ProjectId
 
 type ProjectName = Annotated[str, Field(min_length=1)]
 """A project's name."""

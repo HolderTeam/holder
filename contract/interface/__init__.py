@@ -8,7 +8,7 @@ daemon's routes.
 DECLARATION_ORDER = (
     "ai",
     "card_references",
-    "cards",
+    "cards.models",
     "daemon_routes",
     "errors",
     "git",

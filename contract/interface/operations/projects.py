@@ -6,7 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Field, Int32, Timestamp
 
-from ..cards import ProjectId
+from ..cards.models import ProjectId
 from ..errors import Conflict, NotFound
 from ..projects import NewProject, Project, ProjectListItem, ProjectUpdate
 from .common import KEYS

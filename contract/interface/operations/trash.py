@@ -6,7 +6,7 @@ from fastapi import Path, Query
 
 from authoring import Contract
 
-from ..cards import ProjectId
+from ..cards.models import ProjectId
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound, NotTrashed
 from ..trash import TrashDeleteResult, TrashEmptyResult, TrashFilter, TrashItem, TrashItemType
 

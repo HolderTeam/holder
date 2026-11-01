@@ -6,7 +6,7 @@ from fastapi import Query
 
 from authoring import Contract, Int32
 
-from ..cards import ProjectId
+from ..cards.models import ProjectId
 from ..search import SearchCard, SearchMessage
 
 

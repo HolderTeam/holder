@@ -6,6 +6,7 @@ single Contract loaded by the compiler and sets shared HTTP error statuses.
 
 from authoring import Contract
 
+from .cards import operations as card_operations
 from .errors import (
     Conflict,
     DataCorrupted,
@@ -24,7 +25,6 @@ from .errors import (
 )
 from .operations import (
     ai,
-    cards,
     git,
     history,
     links,
@@ -58,7 +58,7 @@ contract = Contract(statuses={
 })
 
 locations.register(contract)
-cards.register(contract)
+card_operations.register(contract)
 links.register(contract)
 milestones.register(contract)
 resources.register(contract)

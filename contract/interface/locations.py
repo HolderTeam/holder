@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Record, Timestamp
 
-from .cards import ProjectId
+from .cards.models import ProjectId
 
 type LocationId = Annotated[str, Field(min_length=1)]
 type LocationProvider = Literal["local_directory", "s3_compatible", "google-drive"]

@@ -6,7 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
-from ..cards import ProjectId
+from ..cards.models import ProjectId
 from ..errors import NotFound
 from ..git import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 from .common import KEYS

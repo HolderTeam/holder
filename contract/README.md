@@ -10,7 +10,7 @@ The plan is tracked in [#286](https://github.com/HolderTeam/holder/issues/286). 
 
 ## Layout
 
-- `interface/` is the contract: domain model modules, `operations/` modules with public signatures and routes, and a small `app.py` that assembles them.
+- `interface/` is the contract. `cards/` keeps its models and operations together; other domains are moving from root model modules and `operations/` modules to the same layout. `app.py` assembles operations, and `DECLARATION_ORDER` in `__init__.py` fixes model ordering independently of file paths.
 - `authoring/` is the Pydantic and FastAPI vocabulary imported by the contract: records, native types, errors, host interfaces and route declarations.
 - `compiler/` holds declaration rules, source loading, the target-independent Pydantic IR, and `Compiler.compile(ContractSource)`, the typed entry point. Its builder produces typed IR objects.
 - `generators/` describes the backend boundary in its [README](generators/README.md). It contains the typed C ABI plan shared by core and Android, and Android's generated page operation renderer.
@@ -48,10 +48,10 @@ HOLDER_LIBRARY=$PWD/core/build/libholder.so HOLDER_DAEMON=$PWD/daemon/build/hold
 
 ## Writing the contract
 
-A contract package has model modules for records, error kinds and host interfaces; domain modules under `operations/` declare the public operations. `app.py` assembles them in order:
+A contract package has model modules for records, error kinds and host interfaces. A domain package can place its operations beside its models; `app.py` assembles domains in order:
 
 ```python
-"""Cards."""  # cards.py, a model module
+"""Cards."""  # cards/models.py, a model module
 
 from typing import Annotated
 
@@ -77,7 +77,7 @@ class Card(Record):
 ```
 
 ```python
-"""Card operations."""  # operations/cards.py
+"""Card operations."""  # cards/operations.py
 
 from typing import Annotated
 
@@ -85,7 +85,7 @@ from fastapi import Path
 
 from authoring import Contract
 
-from ..cards import Card, CardId, ProjectId
+from .models import Card, CardId, ProjectId
 from ..errors import NotFound
 
 def register(contract: Contract) -> None:
@@ -102,10 +102,10 @@ def register(contract: Contract) -> None:
 
 from authoring import Contract
 from .errors import NotFound
-from .operations import cards
+from .cards import operations as card_operations
 
 contract = Contract(statuses={NotFound: 404})
-cards.register(contract)
+card_operations.register(contract)
 app = contract.app
 ```
 
@@ -120,7 +120,7 @@ A model module may contain only:
 
 Anything else, such as a validator, a `model_config`, a function or an assignment, is rejected before the file is imported, so a file that breaks the rules never runs.
 
-`app.py` makes one `Contract` (`authoring.routes`) and calls each domain's `register(contract)` in public operation order. An operation module may import FastAPI's declaration helpers and define only route functions inside `register`; their bodies never run:
+`app.py` makes one `Contract` (`authoring.routes`) and calls each domain's `register(contract)` in public operation order. An operation module may import FastAPI's declaration helpers and define only route functions inside `register`; their bodies never run. `DECLARATION_ORDER` names every model module in the required IR order, so moving a module does not silently reorder declarations:
 
 - **routes:** `@contract.route(method, path, errors=[...], status=..., core=...)` on a function whose body never runs. Each parameter says where it comes from, with FastAPI's `Path()`, `Query()` or `Body()`, which also carry its documentation (`Query(description=...)`). `errors` lists the error kinds it may fail with, besides an invalid argument; `status` is the success status, 200 unless given; `core=False` keeps an operation the daemon alone serves out of core's C API.
 - **core-only operations:** `@contract.core_operation(errors=[...])`, for an operation only core's C API has; it is not a route.

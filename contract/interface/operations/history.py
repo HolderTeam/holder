@@ -6,7 +6,7 @@ from fastapi import Path, Query
 
 from authoring import Contract, Int32
 
-from ..cards import CardId, ProjectId
+from ..cards.models import CardId, ProjectId
 from ..errors import HistoryKeyUnavailable, HistoryResponseTooLarge, HistoryUnavailable, NotFound, RevisionAmbiguous
 from ..history import (
     CardHistoryComparison,

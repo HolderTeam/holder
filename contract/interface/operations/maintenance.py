@@ -6,7 +6,7 @@ from fastapi import Body, Path
 
 from authoring import Contract
 
-from ..cards import ProjectId
+from ..cards.models import ProjectId
 from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound, RebuildFailed, RecoveryTokenInvalid
 from ..maintenance import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
 from ..rebuild import RebuildRequest, RebuildResult, ReindexResult

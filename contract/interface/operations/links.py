@@ -6,7 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract
 
-from ..cards import CardId, ProjectId
+from ..cards.models import CardId, ProjectId
 from ..errors import NotFound
 from ..links import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 from .common import KEYS

@@ -7,7 +7,7 @@ from fastapi import Body, Path, Query
 from authoring import Bytes, Contract
 from authoring.routes import ErrorResponse
 
-from ..cards import CardId, ProjectId
+from ..cards.models import CardId, ProjectId
 from ..errors import Conflict, NotFound
 from ..links import Link
 from ..resources import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate

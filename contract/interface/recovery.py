@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from authoring import Field, Record
 
-from .cards import ProjectId
+from .cards.models import ProjectId
 
 
 class RecoveryTokenExportRequest(Record):

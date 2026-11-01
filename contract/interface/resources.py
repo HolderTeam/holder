@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from authoring import MISSING, Field, Int64, Record, Timestamp
 
-from .cards import ProjectId
+from .cards.models import ProjectId
 
 type ResourceId = Annotated[str, Field(min_length=4)]
 """A resource's ID, unique on this device: ASCII letters, digits, - and _. Holder makes a UUID."""

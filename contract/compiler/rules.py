@@ -87,7 +87,7 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
     except SyntaxError as error:
         return [Problem(display, error.lineno or 1, f"syntax error: {error.msg}")], found
 
-    if "operations" in path.parts:
+    if "operations" in path.parts or path.name == "operations.py":
         return _check_operation_file(tree, display, package), found
 
     found.alias_docs = _following_docs(tree.body)
@@ -106,14 +106,16 @@ def check_file(path: Path, display: str, package: str) -> tuple[list[Problem], D
                               f"and other contract modules, not {module}")
         elif isinstance(node, ast.TypeAlias):
             found.names.append((node.name.id, node.lineno))
-        elif (path.parent.name == package and path.name == "__init__.py" and
-              isinstance(node, ast.Assign) and len(node.targets) == 1 and
-              isinstance(node.targets[0], ast.Name) and node.targets[0].id == "DECLARATION_ORDER"):
+        elif (path.name == "__init__.py" and isinstance(node, ast.Assign) and len(node.targets) == 1 and
+              isinstance(node.targets[0], ast.Name) and node.targets[0].id in {"DECLARATION_ORDER", "__all__"}):
+            target = node.targets[0].id
+            if target == "DECLARATION_ORDER" and path.parent.name != package:
+                problem(node, "DECLARATION_ORDER belongs in the contract package's __init__.py")
             if (not isinstance(node.value, ast.Tuple) or
                     not all(isinstance(value, ast.Constant) and isinstance(value.value, str)
                             for value in node.value.elts)):
-                problem(node, "DECLARATION_ORDER must be a tuple of module names")
-            else:
+                problem(node, f"{target} must be a tuple of names")
+            elif target == "DECLARATION_ORDER" and path.parent.name == package:
                 found.module_order = tuple(value.value for value in node.value.elts)
         elif isinstance(node, ast.ClassDef):
             found.names.append((node.name, node.lineno))

@@ -104,8 +104,8 @@ def test_every_generated_file_names_its_source():
     for name, text in generate_daemon(holder_ir(), holder_contract()).items():
         if name.endswith(".h"):
             header = text.splitlines()[0]
-            assert "contract/interface/operations/cards.py" in header, name
-            assert "contract/interface/cards.py" in header, name
+            assert "contract/interface/cards/operations.py" in header, name
+            assert "contract/interface/cards/models.py" in header, name
 
 
 def test_unsupported_parts_of_the_contract_stop_generation():

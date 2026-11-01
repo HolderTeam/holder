@@ -4,7 +4,7 @@ from typing import Annotated
 
 from authoring import Field, Int32, Record
 
-from .cards import ProjectId
+from .cards.models import ProjectId
 
 
 class RebuildRequest(Record):

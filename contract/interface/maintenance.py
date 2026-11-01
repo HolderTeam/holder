@@ -4,7 +4,7 @@ from typing import Annotated
 
 from authoring import Field, Int32, Record
 
-from .cards import CardId, ProjectId
+from .cards.models import CardId, ProjectId
 from .projects import PrivacyMode
 
 
