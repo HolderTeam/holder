@@ -7,8 +7,7 @@ from fastapi import Body, Path, Query
 from authoring import Contract, Timestamp
 
 from ..cards.models import CardId
-from ..errors import NotFound
-from ..operations.common import KEYS
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .models import Calendar, Day, Milestone, MilestoneId, MilestoneRole, MilestoneUpdate, NewMilestone
 
@@ -22,7 +21,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/milestones", status=201, errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/milestones", status=201,
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def add_card_milestone(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -36,7 +36,7 @@ def register(contract: Contract) -> None:
 
 
     @contract.route("PATCH", "/projects/{project_id}/cards/{card_id}/milestones/{milestone_id}",
-                    errors=[NotFound, *KEYS])
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def update_card_milestone(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -52,7 +52,7 @@ def register(contract: Contract) -> None:
 
 
     @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/milestones/{milestone_id}",
-                    errors=[NotFound, *KEYS])
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def remove_card_milestone(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],

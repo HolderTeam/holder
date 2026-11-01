@@ -7,8 +7,7 @@ from fastapi import Body, Path, Query
 from authoring import Contract
 
 from ..cards.models import CardId
-from ..errors import NotFound
-from ..operations.common import KEYS
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .models import Link, LinkKind, LinkTargetId, LinkTargetType, NewLink
 
@@ -45,7 +44,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/links", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/links",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def add_card_link(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -60,7 +60,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/links", errors=[NotFound, *KEYS])
+    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/links",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def remove_card_link(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],

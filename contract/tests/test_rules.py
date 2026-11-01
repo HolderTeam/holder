@@ -118,13 +118,13 @@ def test_functions_are_rejected_in_model_modules(tmp_path):
 def helper() -> None:
     """Help."""
 ''')
-    assert "helper: operations are routes in app.py, not functions in a model module" in found
+    assert "helper: operations are routes in a domain's operations.py, not functions in a model module" in found
 
 
 def test_operation_modules_allow_routes_but_reject_executable_bodies(tmp_path):
-    directory = tmp_path / "sample" / "operations"
+    directory = tmp_path / "sample" / "cards"
     directory.mkdir(parents=True)
-    module = directory / "cards.py"
+    module = directory / "operations.py"
     module.write_text('''\
 from fastapi import Path
 from authoring import Contract
@@ -134,9 +134,9 @@ def register(contract: Contract) -> None:
     def list_cards() -> list[str]:
         """List cards."""
 ''')
-    assert check_file(module, "sample/operations/cards.py", "sample")[0] == []
+    assert check_file(module, "sample/cards/operations.py", "sample")[0] == []
     module.write_text(module.read_text() + '        print("ran")\n')
-    problems, _ = check_file(module, "sample/operations/cards.py", "sample")
+    problems, _ = check_file(module, "sample/cards/operations.py", "sample")
     assert "an operation body may hold only its docstring" in str(problems[0])
 
 

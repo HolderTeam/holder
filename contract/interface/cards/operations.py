@@ -7,7 +7,6 @@ from fastapi import Body, Path, Query
 from authoring import Contract, Field, Int32
 
 from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
-from ..operations.common import KEYS
 from ..pagination.models import Page
 from ..projects.ids import ProjectId
 from .errors import HierarchyInvalid, InvalidMove
@@ -94,7 +93,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("PATCH", "/projects/{project_id}/cards/{card_id}", errors=[NotFound, InvalidMove, *KEYS])
+    @contract.route("PATCH", "/projects/{project_id}/cards/{card_id}",
+                    errors=[NotFound, InvalidMove, KeyringUnavailable, KeyMissing, DataCorrupted])
     def update_card(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -109,7 +109,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}", errors=[NotFound, *KEYS])
+    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def trash_card(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -124,7 +125,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/restore", errors=[NotFound, Conflict, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/restore",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
     def restore_card(project_id: Annotated[ProjectId, Path()], card_id: Annotated[CardId, Path()]) -> Card:
         """Restore a card from the trash.
 
@@ -135,7 +137,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/move", errors=[NotFound, InvalidMove, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/cards/{card_id}/move",
+                    errors=[NotFound, InvalidMove, KeyringUnavailable, KeyMissing, DataCorrupted])
     def move_card(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -150,7 +153,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("PUT", "/projects/{project_id}/cards/{card_id}/tags/{tag}", errors=[NotFound, *KEYS])
+    @contract.route("PUT", "/projects/{project_id}/cards/{card_id}/tags/{tag}",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def add_card_tag(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -164,7 +168,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/tags/{tag}", errors=[NotFound, Conflict, *KEYS])
+    @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/tags/{tag}",
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
     def remove_card_tag(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],

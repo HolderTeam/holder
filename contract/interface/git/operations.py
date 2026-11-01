@@ -6,8 +6,7 @@ from fastapi import Body, Path, Query
 
 from authoring import Contract, Int32
 
-from ..errors import NotFound
-from ..operations.common import KEYS
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .models import DueSyncResult, PushOptions, RemoteTest, RemoteTestResult, SyncResult, SyncState
 
@@ -18,7 +17,8 @@ def register(contract: Contract) -> None:
         """What this device last recorded about a project's sync."""
 
 
-    @contract.route("POST", "/projects/{project_id}/git/pull", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/git/pull",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def pull_project(project_id: Annotated[ProjectId, Path()]) -> SyncResult:
         """Pull a project's checked-out branch from its Git remote.
 
@@ -28,7 +28,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/git/push", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/git/push",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def push_project(project_id: Annotated[ProjectId, Path()], options: Annotated[PushOptions, Body()]) -> SyncResult:
         """Push a project to its Git remote.
 
@@ -38,7 +39,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/git/sync", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/git/sync",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def sync_project(project_id: Annotated[ProjectId, Path()], options: Annotated[PushOptions, Body()]) -> SyncResult:
         """Pull a project, then push it.
 
@@ -46,7 +48,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/git/sync-if-due", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/git/sync-if-due",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def sync_project_if_due(
         project_id: Annotated[ProjectId, Path()],
         push_interval_seconds: Annotated[Int32, Query(ge=0)] = 0,

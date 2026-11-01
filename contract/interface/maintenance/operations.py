@@ -6,8 +6,7 @@ from fastapi import Body, Path
 
 from authoring import Contract
 
-from ..errors import NotFound
-from ..operations.common import KEYS
+from ..errors import DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..projects.ids import ProjectId
 from .errors import RebuildFailed
 from .models import HierarchyRepair, HierarchyRepairRequest, ProjectEncryptionCheck
@@ -23,7 +22,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/repair-hierarchy", errors=[NotFound, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/repair-hierarchy",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def repair_project_hierarchy(
         project_id: Annotated[ProjectId, Path()], request: Annotated[HierarchyRepairRequest, Body()],
     ) -> HierarchyRepair:

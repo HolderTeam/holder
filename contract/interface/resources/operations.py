@@ -8,9 +8,8 @@ from authoring import Bytes, Contract
 from authoring.routes import ErrorResponse
 
 from ..cards.models import CardId
-from ..errors import Conflict, NotFound
+from ..errors import Conflict, DataCorrupted, KeyMissing, KeyringUnavailable, NotFound
 from ..links.models import Link
-from ..operations.common import KEYS
 from ..projects.ids import ProjectId
 from .models import AssetImportJob, AssetImportRequest, NewResource, Resource, ResourceId, ResourceUpdate
 
@@ -32,7 +31,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("POST", "/projects/{project_id}/resources", status=201, errors=[NotFound, Conflict, *KEYS])
+    @contract.route("POST", "/projects/{project_id}/resources", status=201,
+                    errors=[NotFound, Conflict, KeyringUnavailable, KeyMissing, DataCorrupted])
     def create_resource(project_id: Annotated[ProjectId, Path()], resource: Annotated[NewResource, Body()]) -> Resource:
         """Make a resource.
 
@@ -41,7 +41,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("PATCH", "/projects/{project_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+    @contract.route("PATCH", "/projects/{project_id}/resources/{resource_id}",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def update_resource(
         project_id: Annotated[ProjectId, Path()],
         resource_id: Annotated[ResourceId, Path()],
@@ -53,7 +54,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("DELETE", "/projects/{project_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+    @contract.route("DELETE", "/projects/{project_id}/resources/{resource_id}",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def delete_resource(project_id: Annotated[ProjectId, Path()], resource_id: Annotated[ResourceId, Path()]) -> Resource:
         """Delete a resource.
 
@@ -84,7 +86,8 @@ def register(contract: Contract) -> None:
         """
 
 
-    @contract.route("PUT", "/projects/{project_id}/cards/{card_id}/resources/{resource_id}", errors=[NotFound, *KEYS])
+    @contract.route("PUT", "/projects/{project_id}/cards/{card_id}/resources/{resource_id}",
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def attach_card_resource(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
@@ -99,7 +102,7 @@ def register(contract: Contract) -> None:
 
 
     @contract.route("DELETE", "/projects/{project_id}/cards/{card_id}/resources/{resource_id}",
-                    errors=[NotFound, *KEYS])
+                    errors=[NotFound, KeyringUnavailable, KeyMissing, DataCorrupted])
     def detach_card_resource(
         project_id: Annotated[ProjectId, Path()],
         card_id: Annotated[CardId, Path()],
