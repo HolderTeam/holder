@@ -400,6 +400,10 @@ object HolderNative {
     private val readLane = NativeLane("holder-read")
     private val backgroundLane = NativeLane("holder-background")
 
+    /** Runs [block] with the open context's handle on the save lane, for calls to the generated
+     * contract client (team.holder.android.contract), which take the handle first. */
+    internal fun <T> onContract(block: (Long) -> T): T = saveLane.call(block)
+
     @Volatile
     private var isOpen = false
 

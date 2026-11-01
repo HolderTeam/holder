@@ -32,5 +32,5 @@ project(holder_android_native LANGUAGES CXX)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory("${HOLDER_CORE_DIR}" "${CMAKE_BINARY_DIR}/holder-core")
 
-add_library(holder_jni SHARED holder_jni.cpp generated/contract_cards.cpp generated/contract_operations.cpp generated/contract_projects.cpp generated/contract_history.cpp generated/contract_resources.cpp holder_git_signer.cpp holder_keyring_bridge.cpp holder_storage_provider_bridge.cpp)
+add_library(holder_jni SHARED holder_jni.cpp generated/contract_cards.cpp generated/contract_operations.cpp generated/contract_projects.cpp generated/contract_history.cpp generated/contract_resources.cpp generated/contract_client.cpp holder_git_signer.cpp holder_keyring_bridge.cpp holder_storage_provider_bridge.cpp)
 target_link_libraries(holder_jni PRIVATE Holder::Core)

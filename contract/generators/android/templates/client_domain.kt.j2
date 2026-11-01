@@ -1,0 +1,73 @@
+package {{ package }}
+{% for enum in domain.enums %}
+
+{% for line in kdoc(enum.doc) %}
+{{ line }}
+{% endfor %}
+enum class {{ enum.kotlin_name }}(val value: String) {
+{% for entry, value in enum.entries %}
+    {{ entry }}({{ value|kstring }}),
+{% endfor %}
+}
+{% endfor %}
+{% for union in domain.unions %}
+
+{% for line in kdoc(union.doc) %}
+{{ line }}
+{% endfor %}
+sealed interface {{ union.kotlin_name }} {
+{% for object, value in union.choices %}
+    /** {{ value|kstring }} */
+    object {{ object }} : {{ union.kotlin_name }}
+
+{% endfor %}
+    data class {{ union.value_class }}(val value: String) : {{ union.kotlin_name }}
+}
+{% endfor %}
+{% for record in domain.records %}
+
+{% for line in kdoc(record.doc) %}
+{{ line }}
+{% endfor %}
+{% if record.fields %}
+data class {{ record.kotlin_name }}{% if record.type_parameters %}<{{ record.type_parameters|join(", ") }}>{% endif %}(
+{% for field in record.fields %}
+{% for line in kdoc(field.doc, "    ") %}
+{{ line }}
+{% endfor %}
+    val {{ field.kotlin_name }}: {{ field.value.kotlin }}{% if field.default %} = {{ field.default }}{% endif %},
+{% endfor %}
+)
+{% else %}
+class {{ record.kotlin_name }}
+{% endif %}
+{% endfor %}
+{% for error in domain.errors %}
+
+{% for line in kdoc(error.doc) %}
+{{ line }}
+{% endfor %}
+class {{ error.kotlin_name }}(message: String) : ContractException({{ error.code }}, message)
+{% endfor %}
+{% if domain.operations %}
+
+/** The {{ domain.name }} operations of core's C API. Each fails with a [ContractException]. */
+object {{ domain.kotlin_name }} {
+    init {
+        System.loadLibrary("holder_jni")
+    }
+{% for op in domain.operations %}
+
+{% for line in kdoc(op.doc, "    ") %}
+{{ line }}
+{% endfor %}
+    external fun {{ op.kotlin_name }}(
+        contextHandle: Long,
+{% for param in op.parameters %}
+        {{ param.kotlin_name }}: {{ param.value.kotlin }}{% if param.default %} = {{ param.default }}{% endif %},
+{% endfor %}
+    ){% if op.result %}: {{ op.result.kotlin }}{% endif %}
+
+{% endfor %}
+}
+{% endif %}

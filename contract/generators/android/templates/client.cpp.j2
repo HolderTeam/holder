@@ -1,0 +1,614 @@
+{#- Kotlin <-> C conversion of one value, as a C++ expression yielding a jobject or a primitive. -#}
+{% macro to_java(v, e) -%}
+{%- if v.kind == "string" -%}
+string(env, {{ e }})
+{%- elif v.kind in ("int32", "int64", "float64", "bool") and v.c_pointer and v.nullable -%}
+({{ e }} ? box_{{ v.kind }}(env, *{{ e }}) : nullptr)
+{%- elif v.kind in ("int32", "int64", "float64", "bool") and v.nullable -%}
+box_{{ v.kind }}(env, {{ e }})
+{%- elif v.kind in ("int32", "int64", "float64", "bool") and v.c_pointer -%}
+({{ e }} ? static_cast<{{ v.jni_type }}>(*{{ e }}) : {{ v.jni_type }}{})
+{%- elif v.kind == "bool" -%}
+static_cast<jboolean>({{ e }} ? JNI_TRUE : JNI_FALSE)
+{%- elif v.kind in ("int32", "int64", "float64") -%}
+static_cast<{{ v.jni_type }}>({{ e }})
+{%- elif v.kind == "enum" -%}
+to_java_{{ v.c_type }}(env, static_cast<int>({{ e }}))
+{%- elif v.kind == "record" and v.c_pointer -%}
+({{ e }} ? to_java_{{ v.c_type }}(env, *{{ e }}) : nullptr)
+{%- elif v.kind == "record" -%}
+to_java_{{ v.c_type }}(env, {{ e }})
+{%- elif v.kind == "list" and v.c_pointer -%}
+({{ e }} ? to_java_list(env, {{ e }}->items, {{ e }}->count, [&](const auto& item) -> jobject { return {{ to_java(v.item, "item") }}; }) : nullptr)
+{%- elif v.kind == "list" -%}
+to_java_list(env, ({{ e }}).items, ({{ e }}).count, [&](const auto& item) -> jobject { return {{ to_java(v.item, "item") }}; })
+{%- elif v.kind == "map" and v.c_pointer -%}
+({{ e }} ? to_java_{{ "list" if v.list_values else "text" }}_map(env, *{{ e }}) : nullptr)
+{%- elif v.kind == "map" -%}
+to_java_{{ "list" if v.list_values else "text" }}_map(env, {{ e }})
+{%- endif -%}
+{%- endmacro %}
+{#- Statements converting jobject o into the C lvalue target, returning false on failure. -#}
+{% macro from_java(v, o, target, indent) -%}
+{%- if v.kind == "string" -%}
+{{ indent }}if (!c_text(env, static_cast<jstring>({{ o }}), keep, {{ target }})) return false;
+{% elif v.kind in ("int32", "int64", "float64", "bool") -%}
+{{ indent }}if ({{ o }}) {
+{{ indent }}  auto* held = keep.make<std::remove_cv_t<std::remove_pointer_t<std::remove_cv_t<decltype({{ target }})>>>>();
+{{ indent }}  *held = unbox_{{ v.kind }}(env, {{ o }});
+{{ indent }}  {{ target }} = held;
+{{ indent }}} else {
+{{ indent }}  {{ target }} = nullptr;
+{{ indent }}}
+{% elif v.kind == "enum" -%}
+{{ indent }}{{ target }} = {{ o }} ? static_cast<{{ v.c_type }}>(ordinal(env, {{ o }}) + 1) : static_cast<{{ v.c_type }}>(0);
+{% elif v.kind == "change" -%}
+{{ indent }}if (!from_java_change(env, {{ o }}, keep, {{ target }})) return false;
+{% elif v.kind == "record" and v.c_pointer -%}
+{{ indent }}if ({{ o }}) {
+{{ indent }}  auto* held = keep.make<{{ v.c_type }}>();
+{{ indent }}  if (!from_java_{{ v.c_type }}(env, {{ o }}, *held, keep)) return false;
+{{ indent }}  {{ target }} = held;
+{{ indent }}} else {
+{{ indent }}  {{ target }} = nullptr;
+{{ indent }}}
+{% elif v.kind == "record" -%}
+{{ indent }}if (!{{ o }}) { fail(env, "a record is required"); return false; }
+{{ indent }}if (!from_java_{{ v.c_type }}(env, {{ o }}, {{ target }}, keep)) return false;
+{% elif v.kind in ("list", "map") -%}
+{% if v.c_pointer %}
+{{ indent }}if ({{ o }}) {
+{{ indent }}  auto* held = keep.make<{{ v.c_type }}>();
+{{ convert_collection(v, o, "(*held)", indent ~ "  ") }}{{ indent }}  {{ target }} = held;
+{{ indent }}} else {
+{{ indent }}  {{ target }} = nullptr;
+{{ indent }}}
+{% else %}
+{{ indent }}if (!{{ o }}) { fail(env, "a collection is required"); return false; }
+{{ convert_collection(v, o, target, indent) }}{% endif %}
+{%- endif -%}
+{%- endmacro %}
+{% macro convert_collection(v, o, target, indent) -%}
+{%- if v.kind == "list" -%}
+{{ indent }}if (!from_java_list(env, {{ o }}, keep, {{ target }}.items, {{ target }}.count,
+{{ indent }}                    [&](jobject item, auto& element) { return from_java_{{ v.item.c_type }}(env, item, element, keep); }))
+{{ indent }}  return false;
+{% else -%}
+{{ indent }}if (!from_java_{{ "list" if v.list_values else "text" }}_map(env, {{ o }}, keep, {{ target }})) return false;
+{% endif -%}
+{%- endmacro -%}
+#include "holder/holder.h"
+#include <jni.h>
+#include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+// The generated Kotlin client (team.holder.android.contract) over core's C API: each
+// operation converts its Kotlin arguments to the C API's, calls it, and converts its result
+// back, or throws the Kotlin exception for the C error code.
+
+namespace {
+
+struct Arena {
+  holder_arena* value = holder_arena_new();
+  ~Arena() { holder_arena_free(value); }
+};
+
+// What a call's C arguments point into, kept until the call returns.
+class Keep {
+ public:
+  const char* text(std::string value) {
+    texts_.push_back(std::move(value));
+    return texts_.back().c_str();
+  }
+  template <class T> T* make(std::size_t count = 1) {
+    std::shared_ptr<T[]> block(new T[count]());
+    T* data = block.get();
+    blocks_.push_back(std::move(block));
+    return data;
+  }
+
+ private:
+  std::deque<std::string> texts_;
+  std::vector<std::shared_ptr<void>> blocks_;
+};
+
+// Local references made while building one object, deleted when it is built.
+class Locals {
+ public:
+  explicit Locals(JNIEnv* env) : env_(env) {}
+  ~Locals() {
+    for (jobject ref : refs_)
+      if (ref) env_->DeleteLocalRef(ref);
+  }
+  jobject add(jobject ref) {
+    refs_.push_back(ref);
+    return ref;
+  }
+
+ private:
+  JNIEnv* env_;
+  std::vector<jobject> refs_;
+};
+
+jclass global_class(JNIEnv* env, const char* name) {
+  jclass local = env->FindClass(name);
+  if (!local) return nullptr;
+  auto global = static_cast<jclass>(env->NewGlobalRef(local));
+  env->DeleteLocalRef(local);
+  return global;
+}
+
+void throw_class(JNIEnv* env, const char* name, const char* message) {
+  if (env->ExceptionCheck()) return;
+  jclass type = env->FindClass(name);
+  if (type) env->ThrowNew(type, message);
+}
+
+void fail(JNIEnv* env, const char* message) {
+  throw_class(env, "{{ class_path }}/InvalidArgumentException", message);
+}
+
+void throw_status(JNIEnv* env, int status, holder_error* error) {
+  std::string message = error ? holder_error_message(error) : "contract operation failed";
+  if (error) holder_error_destroy(error);
+  const char* type = "{{ class_path }}/UnexpectedFailureException";
+  switch (status) {
+{% for code, name in errors %}
+  case {{ code }}: type = "{{ class_path }}/{{ name }}"; break;
+{% endfor %}
+  default: break;
+  }
+  throw_class(env, type, message.c_str());
+}
+
+// NewStringUTF expects modified UTF-8; the contract uses ordinary UTF-8.
+jstring string(JNIEnv* env, const char* utf8) {
+  if (!utf8) return nullptr;
+  std::u16string out;
+  const auto* p = reinterpret_cast<const unsigned char*>(utf8);
+  while (*p) {
+    uint32_t cp = *p++;
+    if (cp >= 0xf0) { cp = (cp & 7) << 18; cp |= (*p++ & 63) << 12; cp |= (*p++ & 63) << 6; cp |= *p++ & 63; }
+    else if (cp >= 0xe0) { cp = (cp & 15) << 12; cp |= (*p++ & 63) << 6; cp |= *p++ & 63; }
+    else if (cp >= 0xc0) { cp = (cp & 31) << 6; cp |= *p++ & 63; }
+    if (cp <= 0xffff) out.push_back(static_cast<char16_t>(cp));
+    else { cp -= 0x10000; out.push_back(static_cast<char16_t>(0xd800 + (cp >> 10))); out.push_back(static_cast<char16_t>(0xdc00 + (cp & 1023))); }
+  }
+  return env->NewString(reinterpret_cast<const jchar*>(out.data()), static_cast<jsize>(out.size()));
+}
+
+bool utf8(JNIEnv* env, jstring input, std::string& out) {
+  const jchar* chars = env->GetStringChars(input, nullptr);
+  if (!chars) return false;
+  const jsize count = env->GetStringLength(input);
+  for (jsize i = 0; i < count; ++i) {
+    uint32_t cp = chars[i];
+    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < count &&
+        chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+      cp = 0x10000 + ((cp - 0xd800) << 10) + (chars[++i] - 0xdc00);
+    } else if (cp >= 0xd800 && cp <= 0xdfff) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "unpaired UTF-16 surrogate"); return false;
+    }
+    if (cp == 0) {
+      env->ReleaseStringChars(input, chars);
+      fail(env, "NUL is not allowed in C strings"); return false;
+    }
+    if (cp < 0x80) out.push_back(static_cast<char>(cp));
+    else if (cp < 0x800) {
+      out.push_back(static_cast<char>(0xc0 | (cp >> 6)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else if (cp < 0x10000) {
+      out.push_back(static_cast<char>(0xe0 | (cp >> 12)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else {
+      out.push_back(static_cast<char>(0xf0 | (cp >> 18)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));
+      out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+      out.push_back(static_cast<char>(0x80 | (cp & 63)));
+    }
+  }
+  env->ReleaseStringChars(input, chars);
+  return true;
+}
+
+// A Kotlin string as a C string the call can use, NULL for null.
+bool c_text(JNIEnv* env, jstring value, Keep& keep, const char*& out) {
+  if (!value) {
+    out = nullptr;
+    return true;
+  }
+  std::string text;
+  if (!utf8(env, value, text)) return false;
+  out = keep.text(std::move(text));
+  return true;
+}
+
+[[maybe_unused]] jobject box_int32(JNIEnv* env, int32_t value) {
+  static const jclass type = global_class(env, "java/lang/Integer");
+  static const jmethodID of = env->GetStaticMethodID(type, "valueOf", "(I)Ljava/lang/Integer;");
+  return env->CallStaticObjectMethod(type, of, static_cast<jint>(value));
+}
+
+[[maybe_unused]] jobject box_int64(JNIEnv* env, int64_t value) {
+  static const jclass type = global_class(env, "java/lang/Long");
+  static const jmethodID of = env->GetStaticMethodID(type, "valueOf", "(J)Ljava/lang/Long;");
+  return env->CallStaticObjectMethod(type, of, static_cast<jlong>(value));
+}
+
+[[maybe_unused]] jobject box_float64(JNIEnv* env, double value) {
+  static const jclass type = global_class(env, "java/lang/Double");
+  static const jmethodID of = env->GetStaticMethodID(type, "valueOf", "(D)Ljava/lang/Double;");
+  return env->CallStaticObjectMethod(type, of, static_cast<jdouble>(value));
+}
+
+[[maybe_unused]] jobject box_bool(JNIEnv* env, bool value) {
+  static const jclass type = global_class(env, "java/lang/Boolean");
+  static const jmethodID of = env->GetStaticMethodID(type, "valueOf", "(Z)Ljava/lang/Boolean;");
+  return env->CallStaticObjectMethod(type, of, static_cast<jboolean>(value ? JNI_TRUE : JNI_FALSE));
+}
+
+[[maybe_unused]] int32_t unbox_int32(JNIEnv* env, jobject value) {
+  static const jclass type = global_class(env, "java/lang/Integer");
+  static const jmethodID get = env->GetMethodID(type, "intValue", "()I");
+  return static_cast<int32_t>(env->CallIntMethod(value, get));
+}
+
+[[maybe_unused]] int64_t unbox_int64(JNIEnv* env, jobject value) {
+  static const jclass type = global_class(env, "java/lang/Long");
+  static const jmethodID get = env->GetMethodID(type, "longValue", "()J");
+  return static_cast<int64_t>(env->CallLongMethod(value, get));
+}
+
+[[maybe_unused]] double unbox_float64(JNIEnv* env, jobject value) {
+  static const jclass type = global_class(env, "java/lang/Double");
+  static const jmethodID get = env->GetMethodID(type, "doubleValue", "()D");
+  return static_cast<double>(env->CallDoubleMethod(value, get));
+}
+
+[[maybe_unused]] bool unbox_bool(JNIEnv* env, jobject value) {
+  static const jclass type = global_class(env, "java/lang/Boolean");
+  static const jmethodID get = env->GetMethodID(type, "booleanValue", "()Z");
+  return env->CallBooleanMethod(value, get) == JNI_TRUE;
+}
+
+// A Kotlin enum's position, counting from 0; C counts the same choices from 1.
+[[maybe_unused]] int ordinal(JNIEnv* env, jobject value) {
+  static const jclass type = global_class(env, "java/lang/Enum");
+  static const jmethodID get = env->GetMethodID(type, "ordinal", "()I");
+  return static_cast<int>(env->CallIntMethod(value, get));
+}
+
+jobject new_list(JNIEnv* env, std::size_t size) {
+  static const jclass type = global_class(env, "java/util/ArrayList");
+  static const jmethodID make = env->GetMethodID(type, "<init>", "(I)V");
+  return env->NewObject(type, make, static_cast<jint>(size));
+}
+
+bool list_add(JNIEnv* env, jobject list, jobject item) {
+  static const jclass type = global_class(env, "java/util/List");
+  static const jmethodID add = env->GetMethodID(type, "add", "(Ljava/lang/Object;)Z");
+  env->CallBooleanMethod(list, add, item);
+  if (item) env->DeleteLocalRef(item);
+  return !env->ExceptionCheck();
+}
+
+template <class T, class F>
+jobject to_java_list(JNIEnv* env, const T* items, std::size_t count, F convert) {
+  jobject list = new_list(env, count);
+  if (!list) return nullptr;
+  for (std::size_t i = 0; i < count; ++i) {
+    jobject item = convert(items[i]);
+    if (env->ExceptionCheck() || !list_add(env, list, item)) {
+      env->DeleteLocalRef(list);
+      return nullptr;
+    }
+  }
+  return list;
+}
+
+template <class P, class F>
+bool from_java_list(JNIEnv* env, jobject list, Keep& keep, P*& items, std::size_t& count, F convert) {
+  using T = std::remove_const_t<P>;
+  static const jclass type = global_class(env, "java/util/List");
+  static const jmethodID size_of = env->GetMethodID(type, "size", "()I");
+  static const jmethodID get = env->GetMethodID(type, "get", "(I)Ljava/lang/Object;");
+  const jint size = env->CallIntMethod(list, size_of);
+  if (env->ExceptionCheck()) return false;
+  T* out = keep.make<T>(static_cast<std::size_t>(size));
+  for (jint i = 0; i < size; ++i) {
+    jobject item = env->CallObjectMethod(list, get, i);
+    if (env->ExceptionCheck()) return false;
+    const bool converted = item ? convert(item, out[i]) : (fail(env, "a list item must not be null"), false);
+    if (item) env->DeleteLocalRef(item);
+    if (!converted) return false;
+  }
+  items = out;
+  count = static_cast<std::size_t>(size);
+  return true;
+}
+
+jobject new_map(JNIEnv* env) {
+  static const jclass type = global_class(env, "java/util/LinkedHashMap");
+  static const jmethodID make = env->GetMethodID(type, "<init>", "()V");
+  return env->NewObject(type, make);
+}
+
+bool map_put(JNIEnv* env, jobject map, jobject key, jobject value) {
+  static const jclass type = global_class(env, "java/util/Map");
+  static const jmethodID put = env->GetMethodID(type, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  jobject previous = env->CallObjectMethod(map, put, key, value);
+  if (previous) env->DeleteLocalRef(previous);
+  if (key) env->DeleteLocalRef(key);
+  if (value) env->DeleteLocalRef(value);
+  return !env->ExceptionCheck();
+}
+
+template <class M> jobject to_java_text_map(JNIEnv* env, const M& value) {
+  jobject map = new_map(env);
+  if (!map) return nullptr;
+  for (std::size_t i = 0; i < value.count; ++i) {
+    if (!map_put(env, map, string(env, value.items[i].key), string(env, value.items[i].values))) {
+      env->DeleteLocalRef(map);
+      return nullptr;
+    }
+  }
+  return map;
+}
+
+template <class M> jobject to_java_list_map(JNIEnv* env, const M& value) {
+  jobject map = new_map(env);
+  if (!map) return nullptr;
+  for (std::size_t i = 0; i < value.count; ++i) {
+    const auto& values = value.items[i].values;
+    jobject list = to_java_list(env, values.items, values.count, [&](const char* text) -> jobject { return string(env, text); });
+    if (!list || !map_put(env, map, string(env, value.items[i].key), list)) {
+      env->DeleteLocalRef(map);
+      return nullptr;
+    }
+  }
+  return map;
+}
+
+// Calls convert(key, value) for each entry of a Kotlin map, in its iteration order.
+template <class F> bool for_each_entry(JNIEnv* env, jobject map, F convert) {
+  static const jclass map_type = global_class(env, "java/util/Map");
+  static const jclass set_type = global_class(env, "java/util/Set");
+  static const jclass iterator_type = global_class(env, "java/util/Iterator");
+  static const jclass entry_type = global_class(env, "java/util/Map$Entry");
+  static const jmethodID entries = env->GetMethodID(map_type, "entrySet", "()Ljava/util/Set;");
+  static const jmethodID iterator = env->GetMethodID(set_type, "iterator", "()Ljava/util/Iterator;");
+  static const jmethodID has_next = env->GetMethodID(iterator_type, "hasNext", "()Z");
+  static const jmethodID next = env->GetMethodID(iterator_type, "next", "()Ljava/lang/Object;");
+  static const jmethodID key_of = env->GetMethodID(entry_type, "getKey", "()Ljava/lang/Object;");
+  static const jmethodID value_of = env->GetMethodID(entry_type, "getValue", "()Ljava/lang/Object;");
+  Locals locals(env);
+  jobject set = locals.add(env->CallObjectMethod(map, entries));
+  if (!set) return false;
+  jobject it = locals.add(env->CallObjectMethod(set, iterator));
+  if (!it) return false;
+  while (env->CallBooleanMethod(it, has_next) == JNI_TRUE) {
+    Locals entry_locals(env);
+    jobject entry = entry_locals.add(env->CallObjectMethod(it, next));
+    jobject key = entry_locals.add(env->CallObjectMethod(entry, key_of));
+    jobject value = entry_locals.add(env->CallObjectMethod(entry, value_of));
+    if (env->ExceptionCheck()) return false;
+    if (!key || !value) { fail(env, "a map key or value must not be null"); return false; }
+    if (!convert(static_cast<jstring>(key), value)) return false;
+  }
+  return !env->ExceptionCheck();
+}
+
+jint map_size(JNIEnv* env, jobject map) {
+  static const jclass type = global_class(env, "java/util/Map");
+  static const jmethodID size = env->GetMethodID(type, "size", "()I");
+  return env->CallIntMethod(map, size);
+}
+
+template <class M> bool from_java_text_map(JNIEnv* env, jobject map, Keep& keep, M& out) {
+  using Entry = std::remove_cv_t<std::remove_pointer_t<decltype(out.items)>>;
+  const jint size = map_size(env, map);
+  if (env->ExceptionCheck()) return false;
+  Entry* entries = keep.make<Entry>(static_cast<std::size_t>(size));
+  std::size_t i = 0;
+  if (!for_each_entry(env, map, [&](jstring key, jobject value) {
+        if (i >= static_cast<std::size_t>(size)) return false;
+        Entry& entry = entries[i++];
+        return c_text(env, key, keep, entry.key) && c_text(env, static_cast<jstring>(value), keep, entry.values);
+      }))
+    return false;
+  out.items = entries;
+  out.count = i;
+  return true;
+}
+
+template <class M> bool from_java_list_map(JNIEnv* env, jobject map, Keep& keep, M& out) {
+  using Entry = std::remove_cv_t<std::remove_pointer_t<decltype(out.items)>>;
+  const jint size = map_size(env, map);
+  if (env->ExceptionCheck()) return false;
+  Entry* entries = keep.make<Entry>(static_cast<std::size_t>(size));
+  std::size_t i = 0;
+  if (!for_each_entry(env, map, [&](jstring key, jobject value) {
+        if (i >= static_cast<std::size_t>(size)) return false;
+        Entry& entry = entries[i++];
+        return c_text(env, key, keep, entry.key) &&
+               from_java_list(env, value, keep, entry.values.items, entry.values.count,
+                              [&](jobject text, const char*& element) { return c_text(env, static_cast<jstring>(text), keep, element); });
+      }))
+    return false;
+  out.items = entries;
+  out.count = i;
+  return true;
+}
+{% if has_changes %}
+
+bool from_java_change(JNIEnv* env, jobject change, Keep& keep, holder_string_change& out) {
+  static const jclass set = global_class(env, "{{ class_path }}/Change$Set");
+  static const jclass clear = global_class(env, "{{ class_path }}/Change$Clear");
+  static const jfieldID value = env->GetFieldID(set, "value", "Ljava/lang/Object;");
+  out = holder_string_change{};
+  if (change && env->IsInstanceOf(change, set)) {
+    jobject text = env->GetObjectField(change, value);
+    const bool converted = text && c_text(env, static_cast<jstring>(text), keep, out.value);
+    if (text) env->DeleteLocalRef(text);
+    if (!converted) {
+      if (!env->ExceptionCheck()) fail(env, "a set change needs a value");
+      return false;
+    }
+    out.change = HOLDER_SET;
+  } else if (change && env->IsInstanceOf(change, clear)) {
+    out.change = HOLDER_CLEAR;
+  } else {
+    out.change = HOLDER_KEEP;
+  }
+  return true;
+}
+{% endif %}
+{% for enum in enums if enum.c_type in output_enums %}
+
+// {{ enum.kotlin_name }}, from its C value, which counts from 1.
+jobject to_java_{{ enum.c_type }}(JNIEnv* env, int value) {
+  static const jclass type = global_class(env, "{{ class_path }}/{{ enum.kotlin_name }}");
+  static const jmethodID values = env->GetStaticMethodID(type, "values", "()[L{{ class_path }}/{{ enum.kotlin_name }};");
+  auto entries = static_cast<jobjectArray>(env->CallStaticObjectMethod(type, values));
+  if (!entries) return nullptr;
+  jobject entry = env->GetObjectArrayElement(entries, value - 1);
+  env->DeleteLocalRef(entries);
+  return entry;
+}
+{% endfor %}
+
+{% for c in conversions %}
+{% if c.to_java %}
+jobject to_java_{{ c.c_type }}(JNIEnv* env, const {{ c.c_type }}& value);
+{% endif %}
+{% if c.from_java %}
+bool from_java_{{ c.c_type }}(JNIEnv* env, jobject object, {{ c.c_type }}& out, Keep& keep);
+{% endif %}
+{% endfor %}
+{% for c in conversions if c.to_java %}
+
+jobject to_java_{{ c.c_type }}(JNIEnv* env, const {{ c.c_type }}& value) {
+  static const jclass type = global_class(env, "{{ c.java_class }}");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "{{ c.constructor }}");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[{{ [c.fields|length, 1]|max }}] = {};
+{% for f in c.fields %}
+{% if f.value.is_object %}
+  args[{{ loop.index0 }}].l = locals.add({{ to_java(f.value, "value." ~ f.name) }});
+  if (env->ExceptionCheck()) return nullptr;
+{% else %}
+  args[{{ loop.index0 }}].{{ f.value.jvalue }} = {{ to_java(f.value, "value." ~ f.name) }};
+{% endif %}
+{% endfor %}
+  return env->NewObjectA(type, constructor, args);
+}
+{% endfor %}
+{% for c in conversions if c.from_java %}
+
+bool from_java_{{ c.c_type }}(JNIEnv* env, jobject object, {{ c.c_type }}& out, Keep& keep) {
+  static const jclass type = global_class(env, "{{ c.java_class }}");
+  if (!type) return false;
+{% for f in c.fields %}
+  static const jfieldID field_{{ f.name }} = env->GetFieldID(type, "{{ f.kotlin_name|replace("`", "") }}", "{{ f.value.descriptor }}");
+{% endfor %}
+  out = {{ c.c_type }}{};
+{% for f in c.fields %}
+{% if f.value.is_object %}
+  {
+    Locals locals(env);
+    jobject item = locals.add(env->GetObjectField(object, field_{{ f.name }}));
+    if (env->ExceptionCheck()) return false;
+{{ from_java(f.value, "item", "out." ~ f.name, "    ") }}  }
+{% elif f.value.c_pointer %}
+  {
+    auto* held = keep.make<std::remove_cv_t<std::remove_pointer_t<decltype(out.{{ f.name }})>>>();
+    *held = {% if f.value.kind == "bool" %}env->GetBooleanField(object, field_{{ f.name }}) == JNI_TRUE{% else %}static_cast<std::remove_cv_t<std::remove_pointer_t<decltype(out.{{ f.name }})>>>(env->Get{{ {"int32": "Int", "int64": "Long", "float64": "Double"}[f.value.kind] }}Field(object, field_{{ f.name }})){% endif %};
+    out.{{ f.name }} = held;
+  }
+{% elif f.value.kind == "bool" %}
+  out.{{ f.name }} = env->GetBooleanField(object, field_{{ f.name }}) == JNI_TRUE;
+{% else %}
+  out.{{ f.name }} = static_cast<decltype(out.{{ f.name }})>(env->Get{{ {"int32": "Int", "int64": "Long", "float64": "Double"}[f.value.kind] }}Field(object, field_{{ f.name }}));
+{% endif %}
+{% endfor %}
+  return !env->ExceptionCheck();
+}
+{% endfor %}
+
+}  // namespace
+{% for op in operations %}
+
+extern "C" JNIEXPORT {{ "jobject" if op.result else "void" }} JNICALL
+{{ op.jni_name }}(JNIEnv* env, jobject, jlong context_handle{% for p in op.parameters %}, {{ p.value.jni_type }} a_{{ p.name }}{% endfor %}) {
+{% set nothing = "nullptr" if op.result else "" %}
+  if (!context_handle) { fail(env, "context is required"); return {{ nothing }}; }
+  Keep keep;
+{% for p in op.parameters %}
+{% if p.shape == "string" %}
+  const char* p_{{ p.name }} = nullptr;
+  if (!c_text(env, a_{{ p.name }}, keep, p_{{ p.name }})) return {{ nothing }};
+{% elif p.shape == "scalar" %}
+  const {{ p.c_type }} p_{{ p.name }} = {% if p.value.kind == "bool" %}a_{{ p.name }} == JNI_TRUE{% else %}static_cast<{{ p.c_type }}>(a_{{ p.name }}){% endif %};
+{% elif p.shape == "scalar_pointer" and p.value.nullable %}
+  {{ p.c_type }}* p_{{ p.name }} = nullptr;
+  if (a_{{ p.name }}) {
+    p_{{ p.name }} = keep.make<{{ p.c_type }}>();
+    *p_{{ p.name }} = unbox_{{ p.value.kind }}(env, a_{{ p.name }});
+  }
+{% elif p.shape == "scalar_pointer" %}
+  {{ p.c_type }} v_{{ p.name }} = {% if p.value.kind == "bool" %}a_{{ p.name }} == JNI_TRUE{% else %}static_cast<{{ p.c_type }}>(a_{{ p.name }}){% endif %};
+  const {{ p.c_type }}* p_{{ p.name }} = &v_{{ p.name }};
+{% elif p.shape == "enum" %}
+  const {{ p.c_type }} p_{{ p.name }} = a_{{ p.name }} ? static_cast<{{ p.c_type }}>(ordinal(env, a_{{ p.name }}) + 1) : static_cast<{{ p.c_type }}>(0);
+{% elif p.shape == "union" %}
+  {{ p.c_type }} p_{{ p.name }}{};
+  if (a_{{ p.name }}) {
+{% for class_name, symbol in p.choices %}
+    static const jclass choice_{{ loop.index }} = global_class(env, "{{ class_name }}");
+{% endfor %}
+    static const jclass text_class = global_class(env, "{{ p.union_value_class }}");
+    static const jfieldID text_field = env->GetFieldID(text_class, "value", "Ljava/lang/String;");
+{% for class_name, symbol in p.choices %}
+    {{ "else " if not loop.first }}if (env->IsInstanceOf(a_{{ p.name }}, choice_{{ loop.index }})) p_{{ p.name }}.kind = {{ symbol }};
+{% endfor %}
+    else {
+      auto text = static_cast<jstring>(env->GetObjectField(a_{{ p.name }}, text_field));
+      const bool converted = c_text(env, text, keep, p_{{ p.name }}.{{ p.union_value_field }});
+      if (text) env->DeleteLocalRef(text);
+      if (!converted) return {{ nothing }};
+      p_{{ p.name }}.kind = {{ p.union_value_kind }};
+    }
+  }
+{% elif p.shape == "record" %}
+  if (!a_{{ p.name }}) { fail(env, "{{ p.name }} is required"); return {{ nothing }}; }
+  auto* p_{{ p.name }} = keep.make<{{ p.c_type }}>();
+  if (!from_java_{{ p.c_type }}(env, a_{{ p.name }}, *p_{{ p.name }}, keep)) return {{ nothing }};
+{% endif %}
+{% endfor %}
+  Arena arena;
+  if (!arena.value) { throw_class(env, "{{ class_path }}/AllocationFailureException", "cannot allocate a result arena"); return {{ nothing }}; }
+{% if op.result %}
+  const {{ op.result_c_type }}* out = nullptr;
+{% endif %}
+  holder_error* error = nullptr;
+  const int status = holder_{{ op.name }}(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)),
+{% for p in op.parameters %}
+      p_{{ p.name }},
+{% endfor %}
+      arena.value, {% if op.result %}&out, {% endif %}&error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return {{ nothing }}; }
+{% if op.result %}
+  return {{ to_java(op.result, "(*out)") }};
+{% endif %}
+}
+{% endfor %}
