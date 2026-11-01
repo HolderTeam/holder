@@ -18,7 +18,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import team.holder.android.generated.ContractNewProject
+import team.holder.android.contract.NewProject
+import team.holder.android.contract.NewProjectPrivacyMode
 
 /**
  * Representative Kotlin -> JNI -> C API -> libholder tests.
@@ -276,12 +277,12 @@ class HolderNativeIntegrationTest {
         val id = UUID.randomUUID().toString()
         val root = dataDir.resolve("imported-project").absolutePath
         val createdAt = 1_700_000_000L
-        val project = HolderNative.createProjectContract(ContractNewProject(
+        val project = HolderNative.createProjectContract(NewProject(
             projectId = id,
             name = "Imported project",
             rootPath = root,
             gitProvider = "example",
-            privacyMode = "plain",
+            privacyMode = NewProjectPrivacyMode.PLAIN,
             createdAt = createdAt,
             updatedAt = createdAt + 10,
         ))
@@ -563,13 +564,10 @@ class HolderNativeIntegrationTest {
         val jsonRepo = dataDir.resolve("projects/json-sync-now")
         HolderNative.updateProjectGitRemote(generatedProject.projectId, generatedRepo.absolutePath)
         HolderNative.updateProjectGitRemote(jsonProject.projectId, jsonRepo.absolutePath)
-        for (push in listOf(false, true)) {
-            val json = HolderNative.gitSyncNowJsonForBenchmark(jsonProject.projectId, push)
-            val generated = HolderNative.gitSyncNow(generatedProject.projectId, push = push)
-            assertEquals(json.copy(pushLocalHeadCommit = null),
-                generated.copy(pushLocalHeadCommit = null))
-            assertEquals(json.pushLocalHeadCommit != null, generated.pushLocalHeadCommit != null)
-        }
+        val json = HolderNative.gitSyncNowJsonForBenchmark(jsonProject.projectId)
+        val generated = HolderNative.gitSyncNow(generatedProject.projectId)
+        assertEquals(json.copy(pushLocalHeadCommit = null), generated.copy(pushLocalHeadCommit = null))
+        assertEquals(json.pushLocalHeadCommit != null, generated.pushLocalHeadCommit != null)
     }
 
     @Test

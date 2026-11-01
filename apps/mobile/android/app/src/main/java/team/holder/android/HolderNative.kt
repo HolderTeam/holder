@@ -21,11 +21,26 @@ import team.holder.android.contract.NewCard
 import team.holder.android.contract.Page
 import team.holder.android.contract.Search
 import team.holder.android.contract.Trash
-import team.holder.android.generated.ContractHistory
-import team.holder.android.generated.ContractResources
-import team.holder.android.generated.ContractProjects
-import team.holder.android.generated.ContractProject
-import team.holder.android.generated.ContractNewProject
+import team.holder.android.contract.CardHistoryVersion
+import team.holder.android.contract.CompareCardHistoryMode
+import team.holder.android.contract.Git
+import team.holder.android.contract.History
+import team.holder.android.contract.ListProjectsOrder
+import team.holder.android.contract.Maintenance
+import team.holder.android.contract.NewProject
+import team.holder.android.contract.NewProjectPrivacyMode
+import team.holder.android.contract.Project
+import team.holder.android.contract.ProjectUpdate
+import team.holder.android.contract.Projects
+import team.holder.android.contract.PullPhase
+import team.holder.android.contract.PushOptions
+import team.holder.android.contract.PushPhase
+import team.holder.android.contract.Recovery
+import team.holder.android.contract.RecoveryTokenExportRequest
+import team.holder.android.contract.RecoveryTokenImportRequest
+import team.holder.android.contract.RemoteTest
+import team.holder.android.contract.RemoteTestResultStatus
+import team.holder.android.contract.Resources
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -409,6 +424,9 @@ object HolderNative {
      *   (whose storage provider may be on the network), so none of it blocks the other two.
      * Writes on different lanes are ordered by SQLite, and Git work on one project by core's
      * per-repository lock. */
+    // Projects are listed in pages of the contract's largest page.
+    private const val PROJECT_PAGE = 1000
+
     private val saveLane = NativeLane("holder-save")
     private val readLane = NativeLane("holder-read")
     private val backgroundLane = NativeLane("holder-background")
@@ -733,13 +751,14 @@ object HolderNative {
         readLane.call { context ->
             var count: Int
             do {
-                val page = ContractProjects.nativeListProjectsPage(context, result.size)
+                val page = Projects.listProjects(context, order = ListProjectsOrder.UPDATED_AT_DESC,
+                                                 limit = PROJECT_PAGE, offset = result.size)
                 count = page.size
                 page.forEach { project ->
                     result.add(HolderProject(project.projectId, project.name,
-                        project.gitRemoteUrl, project.privacyMode))
+                        project.gitRemoteUrl, project.privacyMode.value))
                 }
-            } while (count == 1000)
+            } while (count == PROJECT_PAGE)
         }
         return result
     }
@@ -931,17 +950,20 @@ object HolderNative {
         )
 
     /** Android's absent privacy mode means plain; the contract request defaults to encrypted_git. */
-    fun createProject(name: String, privacyMode: String? = null): HolderProject =
-        fromContractProject(createProjectContract(ContractNewProject(name = name, privacyMode = privacyMode ?: "plain")))
+    fun createProject(name: String, privacyMode: String? = null): HolderProject {
+        val mode = privacyMode?.let { value -> NewProjectPrivacyMode.entries.single { it.value == value } }
+            ?: NewProjectPrivacyMode.PLAIN
+        return fromContractProject(createProjectContract(NewProject(name = name, privacyMode = mode)))
+    }
 
-    internal fun createProjectContract(project: ContractNewProject): ContractProject =
-        saveLane.call { ContractProjects.nativeCreateProject(it, project) }
+    internal fun createProjectContract(project: NewProject): Project =
+        saveLane.call { Projects.createProject(it, project) }
 
     fun renameProject(projectId: String, name: String): HolderProject =
-        fromContractProject(saveLane.call { ContractProjects.nativeRenameProject(it, projectId, name) })
+        fromContractProject(saveLane.call { Projects.updateProject(it, projectId, ProjectUpdate(name = name)) })
 
     fun deleteProject(projectId: String) {
-        saveLane.call { ContractProjects.nativeDeleteProject(it, projectId) }
+        saveLane.call { Projects.deleteProject(it, projectId) }
     }
 
     /** Previous JSON paths retained for parity and timing during migration. */
@@ -955,8 +977,8 @@ object HolderNative {
         saveLane.call { nativeProjectDelete(it, projectId) }
     }
 
-    private fun fromContractProject(project: ContractProject) = HolderProject(
-        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode,
+    private fun fromContractProject(project: Project) = HolderProject(
+        project.projectId, project.name, project.gitRemoteUrl, project.privacyMode.value,
     )
 
     fun createCard(projectId: String, title: String, content: String, parentCardId: String? = null): HolderCard =
@@ -1056,7 +1078,7 @@ object HolderNative {
         cursor: String? = null,
         limit: Int = 50,
     ): HolderCardHistoryPage {
-        val page = backgroundLane.call { ContractHistory.nativeListCardHistory(it, projectId, cardId, limit, cursor) }
+        val page = backgroundLane.call { History.listCardHistory(it, projectId, cardId, limit, cursor) }
         return HolderCardHistoryPage(
             headOid = page.headOid,
             entries = page.entries.map { entry ->
@@ -1111,10 +1133,12 @@ object HolderNative {
         fromOid: String?,
         toOid: String,
     ): HolderCardHistoryComparison {
+        // Android compares from a given version, or shows the change a creation made.
+        val mode = if (fromOid != null) CompareCardHistoryMode.SINCE else CompareCardHistoryMode.CHANGE
         val comparison = backgroundLane.call {
-            ContractHistory.nativeCompareCardHistory(it, projectId, cardId, fromOid, toOid)
+            History.compareCardHistory(it, projectId, cardId, toOid, fromOid, mode)
         }
-        fun version(value: team.holder.android.generated.ContractCardHistoryVersion) = HolderCardHistoryVersion(
+        fun version(value: CardHistoryVersion) = HolderCardHistoryVersion(
             exists = value.exists, oid = value.oid, title = value.title, body = value.body,
         )
         return HolderCardHistoryComparison(
@@ -1152,7 +1176,7 @@ object HolderNative {
      * reachable history entry. Returns the restored card. */
     fun restoreCardHistory(projectId: String, cardId: String, historicalOid: String): HolderCard {
         val cardJson = saveLane.call { context ->
-            val result = ContractHistory.nativeRestoreCardHistory(context, projectId, cardId, historicalOid)
+            val result = History.restoreCardHistorySnapshot(context, projectId, cardId, historicalOid)
             // The contract result omits hierarchy and creation fields in HolderCard. Keep this
             // read until the Android-facing return shape is settled in #344.
             nativeCardGet(context, result.cardId, 2)
@@ -1414,10 +1438,11 @@ object HolderNative {
         }
     }
 
-    /** remoteUrl null clears the configured remote. */
+    /** remoteUrl null or empty, as from an emptied remote field, clears the configured remote. */
     fun updateProjectGitRemote(projectId: String, remoteUrl: String?): HolderProject =
         fromContractProject(saveLane.call {
-            ContractProjects.nativeUpdateProjectGitRemote(it, projectId, remoteUrl)
+            val change = if (remoteUrl.isNullOrEmpty()) Change.Clear else Change.Set(remoteUrl)
+            Projects.updateProject(it, projectId, ProjectUpdate(gitRemoteUrl = change))
         })
 
     /** Previous JSON path, retained for parity and timing during migration. */
@@ -1446,12 +1471,12 @@ object HolderNative {
     fun testGitRemote(projectId: String, branch: String? = null): GitTestRemoteResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeTestProjectRemote(it, projectId, null)
+            Git.testProjectRemote(it, projectId, RemoteTest())
         }
         return GitTestRemoteResult(
-            status = result.status,
+            status = result.status.value,
             remoteHasHead = result.remoteHasHead,
-            errorMessage = if (result.status == "remote_unset") "Remote URL is not configured."
+            errorMessage = if (result.status == RemoteTestResultStatus.REMOTE_UNSET) "Remote URL is not configured."
                 else result.errorMessage,
         )
     }
@@ -1472,10 +1497,10 @@ object HolderNative {
     fun probeRemoteUrl(projectId: String, url: String): GitTestRemoteResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeTestProjectRemote(it, projectId, url)
+            Git.testProjectRemote(it, projectId, RemoteTest(remoteUrl = url))
         }
         return GitTestRemoteResult(
-            status = result.status,
+            status = result.status.value,
             remoteHasHead = result.remoteHasHead,
             errorMessage = result.errorMessage,
         )
@@ -1497,10 +1522,10 @@ object HolderNative {
     fun pushGit(projectId: String, branch: String? = null, setUpstream: Boolean = true): GitPushResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativePushProject(it, projectId, branch, setUpstream)
+            Git.pushProject(it, projectId, PushOptions(branch = branch, setUpstream = setUpstream)).push
         }
         return GitPushResult(
-            status = result.status,
+            status = result.status.value,
             aheadCount = result.aheadCount,
             behindCount = result.behindCount,
             errorMessage = result.errorMessage,
@@ -1524,11 +1549,12 @@ object HolderNative {
     fun pullGit(projectId: String): GitPullResult {
         val pull = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativePullProject(it, projectId)
+            Git.pullProject(it, projectId).pull
         }
         return GitPullResult(
             // The old Android result reports an unset remote as a failed pull.
-            status = if (pull.status == "remote_unset") "failed" else pull.status,
+            status = if (pull.status == team.holder.android.contract.PullPhaseStatus.REMOTE_UNSET) "failed"
+                else pull.status.value,
             errorMessage = pull.errorMessage,
             conflictsResolved = pull.conflictsResolved,
         )
@@ -1548,7 +1574,7 @@ object HolderNative {
     }
 
     fun gitSyncStatus(projectId: String): GitSyncStatus {
-        val sync = readLane.call { ContractProjects.nativeGetProjectSyncState(it, projectId) }
+        val sync = readLane.call { Git.getProjectSyncState(it, projectId) }
         return GitSyncStatus(
             lastPushAt = sync.lastPushAt,
             lastPullAt = sync.lastPullAt,
@@ -1589,16 +1615,16 @@ object HolderNative {
     ): GitSyncIfDueResult {
         val result = backgroundLane.call {
             selectGitSignerForProject(it, projectId)
-            ContractProjects.nativeSyncProjectIfDue(it, projectId, pushIntervalSeconds, pullIntervalSeconds)
+            Git.syncProjectIfDue(it, projectId, maxOf(pushIntervalSeconds, 0), maxOf(pullIntervalSeconds, 0))
         }
         return GitSyncIfDueResult(
-            pullAttempted = result.pullAttempted,
-            pullStatus = result.pullStatus,
-            pullError = result.pullError,
-            pullConflictsResolved = result.pullConflictsResolved,
-            pushAttempted = result.pushAttempted,
-            pushStatus = result.pushStatus,
-            pushError = result.pushError,
+            pullAttempted = result.pull.attempted,
+            pullStatus = attemptedStatus(result.pull),
+            pullError = result.pull.errorMessage,
+            pullConflictsResolved = result.pull.conflictsResolved,
+            pushAttempted = result.push.attempted,
+            pushStatus = attemptedStatus(result.push),
+            pushError = result.push.errorMessage,
         )
     }
 
@@ -1628,37 +1654,41 @@ object HolderNative {
      * gated by cadence. A failed pull always skips the push phase, so this is safe to call
      * as a single "Sync now" action rather than composing separate [pullGit]/[pushGit] calls
      * (which have no such ordering guarantee between them). A no-op if the project has no
-     * remote configured. push = false performs a pull-only forced sync.
+     * remote configured.
      */
     fun gitSyncNow(
         projectId: String,
         branch: String? = null,
-        push: Boolean = true,
         setUpstream: Boolean = true,
     ): GitSyncNowResult {
         return backgroundLane.call {
             selectGitSignerForProject(it, projectId)
             // The existing Android action leaves a project without a remote untouched.
-            if (ContractProjects.nativeGetProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
+            if (Projects.getProject(it, projectId).gitRemoteUrl.isNullOrEmpty()) {
                 GitSyncNowResult(false, null, null, 0, false, null, null, 0, 0, null)
             } else {
-                val result = ContractProjects.nativeSyncProject(
-                    it, projectId, branch?.takeIf { value -> value.isNotEmpty() }, push, setUpstream)
+                val options = PushOptions(branch = branch?.takeIf { value -> value.isNotEmpty() }, setUpstream = setUpstream)
+                val result = Git.syncProject(it, projectId, options)
                 GitSyncNowResult(
-                    pullAttempted = result.pullAttempted,
-                    pullStatus = result.pullStatus,
-                    pullError = result.pullError,
-                    pullConflictsResolved = result.pullConflictsResolved,
-                    pushAttempted = result.pushAttempted,
-                    pushStatus = result.pushStatus,
-                    pushError = result.pushError,
-                    pushAheadCount = result.pushAheadCount,
-                    pushBehindCount = result.pushBehindCount,
-                    pushLocalHeadCommit = result.pushLocalHeadCommit,
+                    pullAttempted = result.pull.attempted,
+                    pullStatus = attemptedStatus(result.pull),
+                    pullError = result.pull.errorMessage,
+                    pullConflictsResolved = result.pull.conflictsResolved,
+                    pushAttempted = result.push.attempted,
+                    pushStatus = attemptedStatus(result.push),
+                    pushError = result.push.errorMessage,
+                    pushAheadCount = result.push.aheadCount,
+                    pushBehindCount = result.push.behindCount,
+                    pushLocalHeadCommit = result.push.localHeadCommit,
                 )
             }
         }
     }
+
+    /** A sync phase's status, or null when the phase was not attempted, as Android reports it. */
+    private fun attemptedStatus(phase: PullPhase): String? = if (phase.attempted) phase.status.value else null
+
+    private fun attemptedStatus(phase: PushPhase): String? = if (phase.attempted) phase.status.value else null
 
     /** Previous JSON path, retained for parity during migration. */
     internal fun gitSyncNowJsonForBenchmark(projectId: String, push: Boolean = true): GitSyncNowResult {
@@ -1681,9 +1711,10 @@ object HolderNative {
     }
 
     fun encryptionCheck(projectId: String): EncryptionCheckResult {
-        val check = backgroundLane.call { ContractProjects.nativeCheckProjectEncryption(it, projectId) }
+        val result = backgroundLane.call { Maintenance.checkProjectEncryption(it, projectId) }
+        val check = result.check
         return EncryptionCheckResult(
-            privacyMode = check.privacyMode,
+            privacyMode = result.privacyMode.value,
             ok = check.ok,
             checkedFiles = check.checkedFiles,
             unsafeFiles = check.unsafeFiles,
@@ -1708,7 +1739,9 @@ object HolderNative {
     }
 
     fun exportRecoveryToken(projectId: String, pin: String): RecoveryTokenExportResult {
-        val result = backgroundLane.call { ContractProjects.nativeExportRecoveryToken(it, projectId, pin) }
+        val result = backgroundLane.call {
+            Recovery.exportProjectRecoveryToken(it, projectId, RecoveryTokenExportRequest(pin = pin))
+        }
         return RecoveryTokenExportResult(
             projectId = result.projectId,
             keyId = result.keyId,
@@ -1729,7 +1762,9 @@ object HolderNative {
      * exist and match the token's own project id. See importRecoveryTokenGlobal for recovering
      * onto a device that doesn't have the project yet. */
     fun importRecoveryToken(projectId: String, pin: String, recoveryToken: String) {
-        saveLane.call { ContractProjects.nativeImportRecoveryToken(it, projectId, pin, recoveryToken) }
+        saveLane.call {
+            Recovery.importProjectRecoveryToken(it, projectId, RecoveryTokenImportRequest(pin = pin, recoveryToken = recoveryToken))
+        }
     }
 
     internal fun importRecoveryTokenJsonForBenchmark(projectId: String, pin: String, recoveryToken: String) {
@@ -1752,14 +1787,16 @@ object HolderNative {
      * it first if this device has never seen it before, and pulling its remote if the token
      * includes one. */
     fun importRecoveryTokenGlobal(pin: String, recoveryToken: String): RecoveryTokenImportGlobalResult {
-        val result = saveLane.call { ContractProjects.nativeImportRecoveryTokenGlobal(it, pin, recoveryToken) }
+        val result = saveLane.call {
+            Recovery.importRecoveryTokenGlobal(it, RecoveryTokenImportRequest(pin = pin, recoveryToken = recoveryToken))
+        }
         return RecoveryTokenImportGlobalResult(
             projectId = result.projectId,
             projectCreated = result.projectCreated,
             remoteHintPresent = result.remoteHintPresent,
             remoteConfigured = result.remoteConfigured,
             remoteError = result.remoteError,
-            pullStatus = result.pullStatus,
+            pullStatus = result.pullStatus.value,
             pullError = result.pullError,
         )
     }
@@ -1810,7 +1847,7 @@ object HolderNative {
         parseResourceBundle(JSONObject(readLane.call { nativeResourceGet(it, resourceId) }))
 
     fun listResources(projectId: String): List<HolderResource> {
-        return readLane.call { ContractResources.nativeListResources(it, projectId) }.map { resource ->
+        return readLane.call { Resources.listResources(it, projectId) }.map { resource ->
             HolderResource(
                 resourceId = resource.resourceId,
                 projectId = resource.projectId,
@@ -1830,7 +1867,7 @@ object HolderNative {
                     placements = asset.placements.map { placement -> HolderPlacement(
                         placementId = placement.placementId,
                         locationId = placement.locationId,
-                        encoding = placement.encoding,
+                        encoding = placement.encoding.value,
                         storedByteSize = placement.storedByteSize,
                         createdAt = placement.createdAt,
                     ) },

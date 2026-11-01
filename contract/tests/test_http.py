@@ -278,11 +278,8 @@ def test_generate_command_writes_core_daemon_and_android_files(tmp_path):
     client = {path.rsplit("/", 1)[-1] for path in generate_android_client(ContractView.model_validate(holder_ir()))}
     assert {"Cards.kt", "Client.kt", "contract_client.cpp"} <= client
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted([
-        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractCards.kt",
-        "ContractHistory.kt", "ContractJson.h", "ContractOperations.kt", "ContractProjects.kt", "ContractResources.kt",
-        "ContractRoutes.h", "contract_cards.cpp", "contract_history.cpp", "contract_operations.cpp",
-        "contract_projects.cpp",
-        "contract_resources.cpp", "holder_api.h", "openapi.json", *client])
+        "AiJson.h", "AiRoutes.h", "Contract.h", "ContractCApi.cpp", "ContractJson.h", "ContractRoutes.h",
+        "holder_api.h", "openapi.json", *client])
 
 
 def daemon_document(paths):
