@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The C entry points: argument checks, conversions and error codes.
@@ -139,9 +139,8 @@ double finite(double value, const char* name) {
 }
 
 template <class Body>
-int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+int run_guarded(holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
   try {
     body();
     return HOLDER_OK;
@@ -184,6 +183,16 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
   } catch (...) {
     return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
   }
+}
+
+// Runs body as guarded does, for an operation that writes its result into an arena.
+template <class Body>
+int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+  if (arena == nullptr) {
+    if (out_error != nullptr) *out_error = nullptr;
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
+  }
+  return run_guarded(out_error, std::forward<Body>(body));
 }
 
 // A partial update's text field: kept, set to its value, or cleared.
@@ -417,6 +426,8 @@ holder_trash_item_type to_c_enum(contract::TrashItemType value) {
   throw std::logic_error("not a contract::TrashItemType value");
 }
 
+holder_core_version to_c(holder_arena* arena, const contract::CoreVersion& value);
+holder_database_rebuild_report to_c(holder_arena* arena, const contract::DatabaseRebuildReport& value);
 holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value);
 holder_project_storage_location_list to_c_list(holder_arena* arena, const std::vector<contract::ProjectStorageLocation>& values);
 holder_storage_location_list to_c(holder_arena* arena, const contract::StorageLocationList& value);
@@ -517,6 +528,32 @@ holder_search_card to_c(holder_arena* arena, const contract::SearchCard& value);
 holder_search_card_list to_c_list(holder_arena* arena, const std::vector<contract::SearchCard>& values);
 holder_search_message to_c(holder_arena* arena, const contract::SearchMessage& value);
 holder_search_message_list to_c_list(holder_arena* arena, const std::vector<contract::SearchMessage>& values);
+
+holder_core_version to_c(holder_arena* arena, const contract::CoreVersion& value) {
+  holder_core_version out{};
+  out.version = copy(arena, value.version);
+  out.major = value.major;
+  out.minor = value.minor;
+  out.patch = value.patch;
+  return out;
+}
+
+holder_database_rebuild_report to_c(holder_arena* arena, const contract::DatabaseRebuildReport& value) {
+  holder_database_rebuild_report out{};
+  out.dry_run = value.dry_run;
+  out.previous_health = copy(arena, value.previous_health);
+  out.projects = value.projects;
+  out.cards = value.cards;
+  out.ai_threads = value.ai_threads;
+  out.ai_messages = value.ai_messages;
+  out.resources = value.resources;
+  out.assets = value.assets;
+  out.placements = value.placements;
+  out.locations = value.locations;
+  out.quarantined_cards = value.quarantined_cards;
+  out.backup_path = copy_text(arena, value.backup_path);
+  return out;
+}
 
 holder_project_storage_location to_c(holder_arena* arena, const contract::ProjectStorageLocation& value) {
   holder_project_storage_location out{};
@@ -1645,6 +1682,41 @@ extern "C" {
 
 holder_arena* holder_arena_new(void) { return new (std::nothrow) holder_arena; }
 void holder_arena_free(holder_arena* arena) { delete arena; }
+
+int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(out_core_version != nullptr, "out_core_version must not be null");
+    *out_core_version = nullptr;
+    auto* out = make<holder_core_version>(arena);
+    *out = to_c(arena, contract::version());
+    *out_core_version = out;
+  });
+}
+
+int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, holder_error** out_error) {
+  return run_guarded(out_error, [&] {
+    require(out_context != nullptr, "out_context must not be null");
+    *out_context = nullptr;
+    const auto data_dir_value = text(data_dir, "data_dir", 1, SIZE_MAX);
+    const auto schema_sql_value = optional_text(schema_sql, "schema_sql", 0, SIZE_MAX);
+    *out_context = contract::context_open(data_dir_value, schema_sql_value);
+  });
+}
+
+void holder_context_destroy(holder_context* context) { contract::context_destroy(context); }
+
+int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena, const holder_database_rebuild_report** out_database_rebuild_report, holder_error** out_error) {
+  return guarded(arena, out_error, [&] {
+    require(out_database_rebuild_report != nullptr, "out_database_rebuild_report must not be null");
+    *out_database_rebuild_report = nullptr;
+    const auto data_dir_value = text(data_dir, "data_dir", 1, SIZE_MAX);
+    const auto schema_sql_value = text(schema_sql, "schema_sql", 1, SIZE_MAX);
+    const auto dry_run_value = dry_run;
+    auto* out = make<holder_database_rebuild_report>(arena);
+    *out = to_c(arena, contract::database_rebuild(data_dir_value, schema_sql_value, dry_run_value));
+    *out_database_rebuild_report = out;
+  });
+}
 
 int holder_list_storage_locations(holder_context* context, const char* project_id, holder_arena* arena, const holder_storage_location_list** out_storage_location_list, holder_error** out_error) {
   return guarded(arena, out_error, [&] {

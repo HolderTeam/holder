@@ -172,8 +172,9 @@ def _check_operation_file(tree: ast.Module, display: str, package: str) -> list[
                         isinstance(operation.decorator_list[0].func, ast.Attribute) and
                         isinstance(operation.decorator_list[0].func.value, ast.Name) and
                         operation.decorator_list[0].func.value.id == "contract" and
-                        operation.decorator_list[0].func.attr in {"route", "core_operation"}):
-                    problem(operation, "register holds only @contract.route or @contract.core_operation declarations")
+                        operation.decorator_list[0].func.attr in {"route", "core_operation", "runtime_operation"}):
+                    problem(operation, "register holds only @contract.route, @contract.core_operation or "
+                                       "@contract.runtime_operation declarations")
                 elif not _declaration_body(operation.body):
                     problem(operation, f"{operation.name}: an operation body may hold only its docstring")
         else:

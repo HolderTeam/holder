@@ -237,10 +237,15 @@ void init_bare_repo(const std::filesystem::path& repo_path) {
 } // namespace
 
 TEST_CASE("C API exposes core version", "[capi]") {
-  REQUIRE(std::string(holder_version_string()) == EXPECTED_HOLDER_VERSION_STRING);
-  REQUIRE(holder_version_major() == EXPECTED_HOLDER_VERSION_MAJOR);
-  REQUIRE(holder_version_minor() == EXPECTED_HOLDER_VERSION_MINOR);
-  REQUIRE(holder_version_patch() == EXPECTED_HOLDER_VERSION_PATCH);
+  holder_arena* arena = holder_arena_new();
+  const holder_core_version* version = nullptr;
+  holder_error* error = nullptr;
+  REQUIRE(holder_version(arena, &version, &error) == HOLDER_OK);
+  REQUIRE(std::string(version->version) == EXPECTED_HOLDER_VERSION_STRING);
+  REQUIRE(version->major == EXPECTED_HOLDER_VERSION_MAJOR);
+  REQUIRE(version->minor == EXPECTED_HOLDER_VERSION_MINOR);
+  REQUIRE(version->patch == EXPECTED_HOLDER_VERSION_PATCH);
+  holder_arena_free(arena);
 }
 
 TEST_CASE("C API reports invalid context open arguments", "[capi]") {
@@ -293,31 +298,33 @@ TEST_CASE(
   const auto data_dir = holder::test::make_temp_dir();
   const auto schema = read_schema_sql();
   holder_error* error = nullptr;
-  char* json = nullptr;
+  holder_arena* arena = holder_arena_new();
+  const holder_database_rebuild_report* report = nullptr;
 
   REQUIRE(
-      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), 1, nullptr, &error) ==
+      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), true, arena, nullptr, &error) ==
       HOLDER_ERROR_INVALID_ARGUMENT
   );
   holder_error_destroy(error);
   error = nullptr;
   REQUIRE(
-      holder_database_rebuild("", schema.c_str(), 1, &json, &error) == HOLDER_ERROR_INVALID_ARGUMENT
+      holder_database_rebuild("", schema.c_str(), true, arena, &report, &error) == HOLDER_ERROR_INVALID_ARGUMENT
   );
   holder_error_destroy(error);
   error = nullptr;
   REQUIRE(
-      holder_database_rebuild(data_dir.string().c_str(), "", 1, &json, &error) ==
+      holder_database_rebuild(data_dir.string().c_str(), "", true, arena, &report, &error) ==
       HOLDER_ERROR_INVALID_ARGUMENT
   );
   holder_error_destroy(error);
   error = nullptr;
   REQUIRE(
-      holder_database_rebuild(data_dir.string().c_str(), "not valid SQL", 1, &json, &error) ==
+      holder_database_rebuild(data_dir.string().c_str(), "not valid SQL", true, arena, &report, &error) ==
       HOLDER_ERROR_RUNTIME
   );
-  REQUIRE(json == nullptr);
+  REQUIRE(report == nullptr);
   holder_error_destroy(error);
+  holder_arena_free(arena);
 }
 
 TEST_CASE("C API rebuilds its SQLite projection from managed project files", "[capi][rebuild]") {
@@ -354,16 +361,16 @@ TEST_CASE("C API rebuilds its SQLite projection from managed project files", "[c
   holder_string_free(card_json);
   holder_context_destroy(context);
 
-  char* report_json = nullptr;
+  holder_arena* arena = holder_arena_new();
+  const holder_database_rebuild_report* dry_run = nullptr;
   REQUIRE(
-      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), 1, &report_json, &error) ==
+      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), true, arena, &dry_run, &error) ==
       HOLDER_OK
   );
-  const auto dry_run = nlohmann::json::parse(report_json);
-  REQUIRE(dry_run.at("dry_run") == true);
-  REQUIRE(dry_run.at("projects") == 1);
-  REQUIRE(dry_run.at("cards") == 1);
-  holder_string_free(report_json);
+  REQUIRE(dry_run->dry_run);
+  REQUIRE(dry_run->projects == 1);
+  REQUIRE(dry_run->cards == 1);
+  REQUIRE(dry_run->backup_path == nullptr);
 
   REQUIRE(std::filesystem::remove(data_dir / "server" / "holder.db"));
   context = nullptr;
@@ -375,15 +382,15 @@ TEST_CASE("C API rebuilds its SQLite projection from managed project files", "[c
   REQUIRE(std::string(holder_error_message(error)).find("schema SQL") != std::string::npos);
   holder_error_destroy(error);
   error = nullptr;
+  const holder_database_rebuild_report* rebuilt = nullptr;
   REQUIRE(
-      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), 0, &report_json, &error) ==
+      holder_database_rebuild(data_dir.string().c_str(), schema.c_str(), false, arena, &rebuilt, &error) ==
       HOLDER_OK
   );
-  const auto rebuilt = nlohmann::json::parse(report_json);
-  REQUIRE(rebuilt.at("previous_health") == "missing");
-  REQUIRE(rebuilt.at("projects") == 1);
-  REQUIRE(rebuilt.at("cards") == 1);
-  holder_string_free(report_json);
+  REQUIRE(std::string(rebuilt->previous_health) == "missing");
+  REQUIRE(rebuilt->projects == 1);
+  REQUIRE(rebuilt->cards == 1);
+  holder_arena_free(arena);
   const auto rebuild_temporary = data_dir / "server" / "holder.db.rebuild.tmp";
   REQUIRE_FALSE(std::filesystem::exists(rebuild_temporary));
   REQUIRE_FALSE(std::filesystem::exists(rebuild_temporary.string() + "-wal"));

@@ -175,6 +175,7 @@ class OperationView(View):
     returns: TypeRef
     errors: list[str]
     daemon_only: bool
+    context: Literal["required", "none", "opens", "closes"] = "required"
 
     def parameter(self, name: str) -> ParameterView:
         try:

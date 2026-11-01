@@ -615,6 +615,8 @@ jobject to_java_holder_trash_item_type(JNIEnv* env, int value) {
   return entry;
 }
 
+jobject to_java_holder_core_version(JNIEnv* env, const holder_core_version& value);
+jobject to_java_holder_database_rebuild_report(JNIEnv* env, const holder_database_rebuild_report& value);
 jobject to_java_holder_project_storage_location(JNIEnv* env, const holder_project_storage_location& value);
 jobject to_java_holder_storage_location_list(JNIEnv* env, const holder_storage_location_list& value);
 jobject to_java_holder_location_delete_result(JNIEnv* env, const holder_location_delete_result& value);
@@ -704,6 +706,45 @@ bool from_java_holder_recovery_token_export_request(JNIEnv* env, jobject object,
 bool from_java_holder_recovery_token_import_request(JNIEnv* env, jobject object, holder_recovery_token_import_request& out, Keep& keep);
 bool from_java_holder_push_options(JNIEnv* env, jobject object, holder_push_options& out, Keep& keep);
 bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_test& out, Keep& keep);
+
+jobject to_java_holder_core_version(JNIEnv* env, const holder_core_version& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/CoreVersion");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(Ljava/lang/String;III)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[4] = {};
+  args[0].l = locals.add(string(env, value.version));
+  if (env->ExceptionCheck()) return nullptr;
+  args[1].i = static_cast<jint>(value.major);
+  args[2].i = static_cast<jint>(value.minor);
+  args[3].i = static_cast<jint>(value.patch);
+  return env->NewObjectA(type, constructor, args);
+}
+
+jobject to_java_holder_database_rebuild_report(JNIEnv* env, const holder_database_rebuild_report& value) {
+  static const jclass type = global_class(env, "team/holder/android/contract/DatabaseRebuildReport");
+  if (!type) return nullptr;
+  static const jmethodID constructor = env->GetMethodID(type, "<init>", "(ZLjava/lang/String;IIIIIIIIILjava/lang/String;)V");
+  if (!constructor) return nullptr;
+  Locals locals(env);
+  jvalue args[12] = {};
+  args[0].z = static_cast<jboolean>(value.dry_run ? JNI_TRUE : JNI_FALSE);
+  args[1].l = locals.add(string(env, value.previous_health));
+  if (env->ExceptionCheck()) return nullptr;
+  args[2].i = static_cast<jint>(value.projects);
+  args[3].i = static_cast<jint>(value.cards);
+  args[4].i = static_cast<jint>(value.ai_threads);
+  args[5].i = static_cast<jint>(value.ai_messages);
+  args[6].i = static_cast<jint>(value.resources);
+  args[7].i = static_cast<jint>(value.assets);
+  args[8].i = static_cast<jint>(value.placements);
+  args[9].i = static_cast<jint>(value.locations);
+  args[10].i = static_cast<jint>(value.quarantined_cards);
+  args[11].l = locals.add(string(env, value.backup_path));
+  if (env->ExceptionCheck()) return nullptr;
+  return env->NewObjectA(type, constructor, args);
+}
 
 jobject to_java_holder_project_storage_location(JNIEnv* env, const holder_project_storage_location& value) {
   static const jclass type = global_class(env, "team/holder/android/contract/ProjectStorageLocation");
@@ -2823,6 +2864,62 @@ bool from_java_holder_remote_test(JNIEnv* env, jobject object, holder_remote_tes
 }
 
 }  // namespace
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Runtime_version(JNIEnv* env, jobject) {
+  Keep keep;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_core_version* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_version(
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_core_version(env, (*out));
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_team_holder_android_contract_Runtime_contextOpen(JNIEnv* env, jobject, jstring a_data_dir, jstring a_schema_sql) {
+  Keep keep;
+  const char* p_data_dir = nullptr;
+  if (!c_text(env, a_data_dir, keep, p_data_dir)) return 0;
+  const char* p_schema_sql = nullptr;
+  if (!c_text(env, a_schema_sql, keep, p_schema_sql)) return 0;
+  holder_context* opened = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_context_open(
+      p_data_dir,
+      p_schema_sql,
+      &opened, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return 0; }
+  return static_cast<jlong>(reinterpret_cast<intptr_t>(opened));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_team_holder_android_contract_Runtime_contextDestroy(JNIEnv*, jobject, jlong context_handle) {
+  if (context_handle) holder_context_destroy(reinterpret_cast<holder_context*>(static_cast<intptr_t>(context_handle)));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_team_holder_android_contract_Runtime_databaseRebuild(JNIEnv* env, jobject, jstring a_data_dir, jstring a_schema_sql, jboolean a_dry_run) {
+  Keep keep;
+  const char* p_data_dir = nullptr;
+  if (!c_text(env, a_data_dir, keep, p_data_dir)) return nullptr;
+  const char* p_schema_sql = nullptr;
+  if (!c_text(env, a_schema_sql, keep, p_schema_sql)) return nullptr;
+  const bool p_dry_run = a_dry_run == JNI_TRUE;
+  Arena arena;
+  if (!arena.value) { throw_class(env, "team/holder/android/contract/AllocationFailureException", "cannot allocate a result arena"); return nullptr; }
+  const holder_database_rebuild_report* out = nullptr;
+  holder_error* error = nullptr;
+  const int status = holder_database_rebuild(
+      p_data_dir,
+      p_schema_sql,
+      p_dry_run,
+      arena.value, &out, &error);
+  if (status != HOLDER_OK) { throw_status(env, status, error); return nullptr; }
+  return to_java_holder_database_rebuild_report(env, (*out));
+}
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_team_holder_android_contract_Locations_listStorageLocations(JNIEnv* env, jobject, jlong context_handle, jstring a_project_id) {

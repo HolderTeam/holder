@@ -305,3 +305,35 @@ def test_a_documented_string_constant_is_declared(tmp_path):
 ])
 def test_only_documented_capitalised_final_strings_are_constants(tmp_path, body, message):
     assert message in problems(tmp_path, "from typing import Final\n\n" + body)
+
+
+@pytest.mark.parametrize("decorator, signature, message", [
+    ('context="opens"', "def open_it(path: str) -> str:", "open_it: an operation that opens a context returns None"),
+    ('context="closes"', "def close_it(path: str) -> None:", "close_it: an operation that closes a context takes only"),
+    ('context="closes"', "def close_it() -> str:", "close_it: an operation that closes a context returns None"),
+])
+def test_runtime_operations_are_checked(tmp_path, decorator, signature, message):
+    found = problems(tmp_path, app=f'''
+@contract.runtime_operation({decorator})
+{signature}
+    """Do it."""
+''')
+    assert message in found
+
+
+def test_runtime_operations_carry_their_context_mode(tmp_path):
+    assert problems(tmp_path, app='''
+@contract.runtime_operation(context="none")
+def check(path: str) -> None:
+    """Check."""
+
+
+@contract.runtime_operation(context="opens")
+def open_it(path: str) -> None:
+    """Open."""
+
+
+@contract.runtime_operation(context="closes")
+def close_it() -> None:
+    """Close."""
+''') == ""

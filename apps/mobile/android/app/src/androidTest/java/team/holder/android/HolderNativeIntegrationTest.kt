@@ -49,7 +49,7 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
-    fun nativeVersion_isAvailableThroughJni() {
+    fun version_isAvailableThroughTheGeneratedClient() {
         val version = HolderNative.version()
 
         assertFalse(version.startsWith("native load failed:"))
@@ -561,8 +561,8 @@ class HolderNativeIntegrationTest {
             schemaSql = schemaSql,
             dryRun = true,
         )
-        assertTrue(dryRun.getBoolean("dry_run"))
-        assertEquals(2, dryRun.getInt("projects"))
+        assertTrue(dryRun.dryRun)
+        assertEquals(2, dryRun.projects)
 
         HolderNative.close()
         assertTrue(dataDir.resolve("server/holder.db").delete())
@@ -572,8 +572,8 @@ class HolderNativeIntegrationTest {
             dataDir = dataDir,
             schemaSql = schemaSql,
         )
-        assertEquals("missing", rebuilt.getString("previous_health"))
-        assertEquals(2, rebuilt.getInt("projects"))
+        assertEquals("missing", rebuilt.previousHealth)
+        assertEquals(2, rebuilt.projects)
         assertEquals(
             "# Rebuilt card\n\nThis body is durable.",
             HolderNative.getCardContent(project.projectId, card.cardId),

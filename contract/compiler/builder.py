@@ -261,13 +261,23 @@ class _Builder:
             self.draft.operations.append(OperationView(name=signature.name, source=operation_source,
                                                        summary=signature.summary, description=signature.description,
                                                        parameters=signature.parameters, returns=signature.returns,
-                                                       errors=errors, daemon_only=not operation.core))
+                                                       errors=errors, daemon_only=not operation.core,
+                                                       **({"context": operation.context}
+                                                          if operation.context != "required" else {})))
+            self.check_context(function.__name__, operation.context, signature)
             if operation.route:
                 self.bind(function, routes[function], operation.created_when, operation.public,
                           operation.core)
         self.where = (self.app_source, 1)
         for error, entry in contract.errors.items():
             self.bind_error(error, entry)
+
+    def check_context(self, name: str, context: str, signature: _Signature) -> None:
+        """An operation that opens a context returns nothing else; one that closes takes and returns nothing."""
+        if context in ("opens", "closes") and signature.returns.kind != "none":
+            self.problem(f"{name}: an operation that {context} a context returns None")
+        if context == "closes" and signature.parameters:
+            self.problem(f"{name}: an operation that closes a context takes only that context")
 
     def callable(self, function: Any, where: str, skip_self: bool = False, allow_stream: bool = False) -> _Signature:
         doc = _doc(function)

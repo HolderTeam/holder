@@ -264,3 +264,19 @@ int main() {
         '{"intent":"into"}', '{"intent":"into","parent_card_id":null}', '{"intent":"to_end","parent_card_id":"c2"}',
         "parent_card_id must not be empty", "parent_card_id must be a string",
         "intent must be one of into, to_end", "intent is required and must not be null"]
+
+
+def test_runtime_operations_get_the_c_and_cpp_signatures_of_their_context_modes():
+    files = generate(holder_ir())
+    header, cpp, glue = files["holder_api.h"], files["Contract.h"], files["ContractCApi.cpp"]
+    assert ("int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, "
+            "holder_error** out_error);") in header
+    assert "void holder_context_destroy(holder_context* context);" in header
+    assert ("int holder_version(holder_arena* arena, const holder_core_version** out_core_version, "
+            "holder_error** out_error);") in header
+    assert "int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena" in header
+    assert "holder_context* context_open(std::string data_dir, std::optional<std::string> schema_sql);" in cpp
+    assert "void context_destroy(holder_context* context) noexcept;" in cpp
+    assert "CoreVersion version();" in cpp
+    assert "{ contract::context_destroy(context); }" in glue
+    assert "*out_context = contract::context_open(data_dir_value, schema_sql_value);" in glue

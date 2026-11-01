@@ -119,9 +119,8 @@ double finite(double value, const char* name) {
 }
 
 template <class Body>
-int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+int run_guarded(holder_error** out_error, Body&& body) {
   if (out_error != nullptr) *out_error = nullptr;
-  if (arena == nullptr) return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
   try {
     body();
     return HOLDER_OK;
@@ -140,4 +139,14 @@ int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
   } catch (...) {
     return contract::detail::fail(out_error, HOLDER_ERROR_RUNTIME, "unknown failure");
   }
+}
+
+// Runs body as guarded does, for an operation that writes its result into an arena.
+template <class Body>
+int guarded(holder_arena* arena, holder_error** out_error, Body&& body) {
+  if (arena == nullptr) {
+    if (out_error != nullptr) *out_error = nullptr;
+    return contract::detail::fail(out_error, HOLDER_ERROR_INVALID_ARGUMENT, "arena must not be null");
+  }
+  return run_guarded(out_error, std::forward<Body>(body));
 }

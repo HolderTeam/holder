@@ -22,42 +22,6 @@ extern "C" {
 typedef struct holder_context holder_context;
 typedef struct holder_error holder_error;
 
-const char* holder_version_string(void);
-int holder_version_major(void);
-int holder_version_minor(void);
-int holder_version_patch(void);
-
-// THREADING: a context owns one SQLite connection and is not safe to use from
-// two threads at once. Calls on one context must not overlap: a call made
-// while another is still running on the same connection can see that call's
-// uncommitted writes or join its transaction. To work on several threads,
-// open one context per thread (or per serial worker) on the same data_dir;
-// each sees only committed data, SQLite orders their writes, and core
-// serializes Git work on a project across contexts. Open the first context
-// before the others, since opening may rebuild the database.
-// holder_context_destroy must not run while a call on that context is still
-// running.
-int holder_context_open(
-    const char* data_dir,
-    const char* schema_sql,
-    holder_context** out_context,
-    holder_error** out_error
-);
-
-void holder_context_destroy(holder_context* context);
-
-// Rebuilds the disposable SQLite projection from durable project files beneath
-// data_dir/projects. The platform keyring provider must already be registered
-// when encrypted projects may be present. This function must be called while
-// no holder_context for data_dir is open. Sets *out_json to a rebuild report.
-int holder_database_rebuild(
-    const char* data_dir,
-    const char* schema_sql,
-    int dry_run,
-    char** out_json,
-    holder_error** out_error
-);
-
 int holder_project_list(holder_context* context, char** out_json, holder_error** out_error);
 
 // Returns one project's metadata in the same JSON shape as holder_project_list.

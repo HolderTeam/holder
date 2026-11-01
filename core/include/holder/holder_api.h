@@ -1,5 +1,5 @@
 /*
- * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+ * Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
  * Do not edit; change the contract, then run make -C contract update.
  *
  * The C declarations for the contract's operations, included by holder/holder.h, which declares holder_context, holder_error and the base status codes. Results live in the holder_arena the caller passes, until holder_arena_free.
@@ -315,6 +315,30 @@ typedef struct holder_push_options {
 typedef struct holder_remote_test {
     const char* remote_url; /* The Git remote to test; omit for the project's own. NULL when absent. */
 } holder_remote_test;
+
+/* The version of the core library loaded. */
+typedef struct holder_core_version {
+    const char* version; /* The whole version, such as 1.4.2. */
+    int32_t major; /* Its major number. */
+    int32_t minor; /* Its minor number. */
+    int32_t patch; /* Its patch number. */
+} holder_core_version;
+
+/* What rebuilding a data directory's database from its project files found, or would find. */
+typedef struct holder_database_rebuild_report {
+    bool dry_run; /* Whether the database was left as it was and only counted. */
+    const char* previous_health; /* The old database's state: healthy, missing, corrupt or stale. */
+    int32_t projects; /* Projects read. */
+    int32_t cards; /* Cards read. */
+    int32_t ai_threads; /* AI threads read. */
+    int32_t ai_messages; /* AI messages read. */
+    int32_t resources; /* Resources read. */
+    int32_t assets; /* Assets read. */
+    int32_t placements; /* Asset placements read. */
+    int32_t locations; /* Storage locations read. */
+    int32_t quarantined_cards; /* Cards left out because their file is missing; each is logged beside the database. */
+    const char* backup_path; /* Where the old database was kept; null when there was none to keep, or on a dry run. May be NULL. */
+} holder_database_rebuild_report;
 
 /* Storage provider kind. */
 typedef enum holder_project_storage_location_provider {
@@ -1261,6 +1285,29 @@ typedef struct holder_search_message_list {
     const holder_search_message* items;
     size_t count;
 } holder_search_message_list;
+
+/* The version of the core library loaded. */
+int holder_version(holder_arena* arena, const holder_core_version** out_core_version, holder_error** out_error);
+
+/* Open a context on a data directory: the handle every other operation works through.
+ * Opening makes the directory's database, or rebuilds it from the project files when it is
+ * missing, damaged or from an older schema; that needs schema_sql. A context holds one database
+ * connection and must not run two calls at once: open one per thread or serial worker, the first
+ * before the others since it may rebuild. The platform keyring must be registered first when
+ * encrypted projects may need rebuilding. Release the context with context_destroy.
+ * schema_sql: May be NULL.
+ */
+int holder_context_open(const char* data_dir, const char* schema_sql, holder_context** out_context, holder_error** out_error);
+
+/* Release a context. No call on it may still be running, and it must not be used again. */
+void holder_context_destroy(holder_context* context);
+
+/* Rebuild a data directory's database from its project files, keeping the old one aside.
+ * No context on the directory may be open while this runs: close them all first and open them
+ * again after. The platform keyring must be registered first when encrypted projects are present.
+ * A dry run only counts what a rebuild would read.
+ */
+int holder_database_rebuild(const char* data_dir, const char* schema_sql, bool dry_run, holder_arena* arena, const holder_database_rebuild_report** out_database_rebuild_report, holder_error** out_error);
 
 /* List a project's storage declarations, with this device's binding status and preferred location.
  * Locations are most recently updated first. A project with none, or one this device does not have, lists none.

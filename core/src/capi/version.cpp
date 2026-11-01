@@ -1,4 +1,4 @@
-#include "holder/holder.h"
+#include "api/Contract.h"
 
 #ifndef HOLDER_VERSION_STRING
 #define HOLDER_VERSION_STRING "0.0.0"
@@ -16,10 +16,6 @@
 #define HOLDER_VERSION_PATCH 0
 #endif
 
-const char* holder_version_string(void) { return HOLDER_VERSION_STRING; }
-
-int holder_version_major(void) { return HOLDER_VERSION_MAJOR; }
-
-int holder_version_minor(void) { return HOLDER_VERSION_MINOR; }
-
-int holder_version_patch(void) { return HOLDER_VERSION_PATCH; }
+holder::contract::CoreVersion holder::contract::version() {
+  return {HOLDER_VERSION_STRING, HOLDER_VERSION_MAJOR, HOLDER_VERSION_MINOR, HOLDER_VERSION_PATCH};
+}

@@ -107,8 +107,14 @@ def main():
         )
         (source / "main.cpp").write_text(
             '#include <holder/holder.h>\n#include <string>\n'
-            'int main() { return std::string(holder_version_string()) == '
-            f'"{manifest["version"]}" ? 0 : 1; }}\n'
+            'int main() {\n'
+            '  holder_arena* arena = holder_arena_new();\n'
+            '  const holder_core_version* version = nullptr;\n'
+            '  const bool ok = holder_version(arena, &version, nullptr) == HOLDER_OK &&\n'
+            f'                  std::string(version->version) == "{manifest["version"]}";\n'
+            '  holder_arena_free(arena);\n'
+            '  return ok ? 0 : 1;\n'
+            '}\n'
         )
         build = root / "consumer-build"
         configure = ["cmake", "-S", str(source), "-B", str(build),

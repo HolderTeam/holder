@@ -14,7 +14,7 @@ from compiler.ir import ListType, LiteralType, MapType, NamedType, OperationView
 
 from ..common import Unsupported, contract_sources, header_lines
 from .abi import SCALARS_C, SCALARS_CPP, literal_member, snake
-from .render import Param, c_out, c_param, cpp_base, cpp_literal
+from .render import Param, c_out, c_param, c_signature, cpp_base, cpp_literal
 from .types import CoreTypes, Slot, c_enum_name, camel, constrained, constraint, list_c_name, map_c_name, unique
 
 TEMPLATES = Environment(
@@ -213,21 +213,27 @@ def glue_param(types: CoreTypes, op: OperationView, param: Param) -> list[str]:
 
 def glue_operation(types: CoreTypes, op: OperationView) -> list[str]:
     params = [c_param(types, op, p) for p in op.parameters]
+    if op.context == "closes":
+        return [c_signature(types, op) + " { contract::" + op.name + "(context); }", ""]
     result = c_out(types, op)
-    args = ["holder_context* context", *[p.c_decl for p in params], "holder_arena* arena"]
-    if result:
-        args.append(f"const {result[0]}** {result[1]}")
-    args.append("holder_error** out_error")
-    lines = [f"int holder_{op.name}(" + ", ".join(args) + ") {", "  return guarded(arena, out_error, [&] {",
-             '    require(context != nullptr, "context must not be null");']
-    if result:
-        lines += [f'    require({result[1]} != nullptr, "{result[1]} must not be null");', f"    *{result[1]} = nullptr;"]
-    call_args = ["*context"]
+    if op.context == "opens":
+        lines = [c_signature(types, op) + " {", "  return run_guarded(out_error, [&] {",
+                 '    require(out_context != nullptr, "out_context must not be null");', "    *out_context = nullptr;"]
+    else:
+        lines = [c_signature(types, op) + " {", "  return guarded(arena, out_error, [&] {"]
+        if op.context == "required":
+            lines.append('    require(context != nullptr, "context must not be null");')
+        if result:
+            lines += [f'    require({result[1]} != nullptr, "{result[1]} must not be null");',
+                      f"    *{result[1]} = nullptr;"]
+    call_args = ["*context"] if op.context == "required" else []
     for param in params:
         lines += glue_param(types, op, param)
         call_args.append(f"{param.slot.name}_value")
     call = f"contract::{op.name}(" + ", ".join(call_args) + ")"
-    if result:
+    if op.context == "opens":
+        lines.append(f"    *out_context = {call};")
+    elif result:
         returns = types.resolve(op.returns).type
         convert = "to_c"
         if isinstance(returns, ListType):

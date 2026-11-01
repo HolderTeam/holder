@@ -20,6 +20,8 @@ import team.holder.android.contract.ListCardsParent
 import team.holder.android.contract.NewCard
 import team.holder.android.contract.HOME_PROJECT_NAME
 import team.holder.android.contract.Page
+import team.holder.android.contract.Runtime
+import team.holder.android.contract.DatabaseRebuildReport
 import team.holder.android.contract.RecoverySnapshotPage
 import team.holder.android.contract.RecoverySnapshotRestore
 import team.holder.android.contract.RecoverySnapshotRestorePrivacyMode
@@ -455,18 +457,13 @@ object HolderNative {
     @Volatile
     private var dataDir: File? = null
 
-    private external fun nativeVersion(): String
-    private external fun nativeContextOpen(dataDir: String, schemaSql: String): Long
-    private external fun nativeContextClose(contextHandle: Long)
-    private external fun nativeDatabaseRebuild(dataDir: String, schemaSql: String, dryRun: Boolean): String
-
     fun version(): String {
         loadError?.let {
             return "native load failed: ${it.message ?: it::class.java.simpleName}"
         }
 
         return runCatching {
-            nativeVersion()
+            Runtime.version().version
         }.getOrElse {
             "native call failed: ${it.message ?: it::class.java.simpleName}"
         }
@@ -490,7 +487,7 @@ object HolderNative {
             // database, and the others then find it healthy.
             try {
                 for (lane in listOf(saveLane, readLane, backgroundLane)) {
-                    lane.attach(nativeContextOpen(dataDir.absolutePath, schemaSql))
+                    lane.attach(Runtime.contextOpen(dataDir.absolutePath, schemaSql))
                 }
             } catch (failure: Throwable) {
                 closeLanes()
@@ -521,7 +518,7 @@ object HolderNative {
         dataDir: File,
         schemaSql: String,
         dryRun: Boolean = false,
-    ): JSONObject {
+    ): DatabaseRebuildReport {
         loadError?.let { throw it }
         var primaryFailure: Throwable? = null
         return try {
@@ -529,7 +526,7 @@ object HolderNative {
             // As in initialize(), let holder-core decide whether a missing keyring
             // is material for the projects being reconstructed.
             runCatching { team.holder.android.keyring.AndroidKeyringStore.registerWithNative(context) }
-            JSONObject(nativeDatabaseRebuild(dataDir.absolutePath, schemaSql, dryRun))
+            Runtime.databaseRebuild(dataDir.absolutePath, schemaSql, dryRun)
         } catch (failure: Throwable) {
             primaryFailure = failure
             throw failure
@@ -557,7 +554,7 @@ object HolderNative {
 
     private fun closeLanes() {
         for (lane in listOf(saveLane, readLane, backgroundLane)) {
-            lane.detach { nativeContextClose(it) }
+            lane.detach { Runtime.contextDestroy(it) }
         }
     }
 

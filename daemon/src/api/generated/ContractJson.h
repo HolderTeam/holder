@@ -1,4 +1,4 @@
-// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
+// Generated from contract/interface/ai/models.py, contract/interface/ai/operations.py, contract/interface/cards/errors.py, contract/interface/cards/models.py, contract/interface/cards/operations.py, contract/interface/cards/references.py, contract/interface/daemon/models.py, contract/interface/daemon/operations.py, contract/interface/documents/operations.py, contract/interface/errors.py, contract/interface/events/models.py, contract/interface/events/operations.py, contract/interface/git/models.py, contract/interface/git/operations.py, contract/interface/history/errors.py, contract/interface/history/models.py, contract/interface/history/operations.py, contract/interface/links/models.py, contract/interface/links/operations.py, contract/interface/locations/models.py, contract/interface/locations/operations.py, contract/interface/maintenance/errors.py, contract/interface/maintenance/models.py, contract/interface/maintenance/operations.py, contract/interface/maintenance/rebuild.py, contract/interface/milestones/models.py, contract/interface/milestones/operations.py, contract/interface/pagination/models.py, contract/interface/projects/home.py, contract/interface/projects/ids.py, contract/interface/projects/models.py, contract/interface/projects/operations.py, contract/interface/recovery/errors.py, contract/interface/recovery/models.py, contract/interface/recovery/operations.py, contract/interface/recovery/snapshot.py, contract/interface/resources/models.py, contract/interface/resources/operations.py, contract/interface/runtime/models.py, contract/interface/runtime/operations.py, contract/interface/search/models.py, contract/interface/search/operations.py, contract/interface/trash/errors.py, contract/interface/trash/models.py, contract/interface/trash/operations.py by holder_contract.
 // Do not edit; change the contract, then run make -C contract update.
 //
 // The JSON codec for the contract's types, for the daemon's generated routes.
@@ -673,6 +673,14 @@ template <> struct codec<holder::contract::RecoverySnapshotRestorePrivacyMode> {
     }
 };
 
+template <> struct codec<holder::contract::CoreVersion> {
+    static json encode(const holder::contract::CoreVersion& value);
+    static holder::contract::CoreVersion decode(const json& value);
+};
+template <> struct codec<holder::contract::DatabaseRebuildReport> {
+    static json encode(const holder::contract::DatabaseRebuildReport& value);
+    static holder::contract::DatabaseRebuildReport decode(const json& value);
+};
 template <> struct codec<holder::contract::ProjectStorageLocation> {
     static json encode(const holder::contract::ProjectStorageLocation& value);
     static holder::contract::ProjectStorageLocation decode(const json& value);
@@ -1025,6 +1033,140 @@ template <> struct codec<holder::contract::RemoteTest> {
     static json encode(const holder::contract::RemoteTest& value);
     static holder::contract::RemoteTest decode(const json& value);
 };
+
+inline json codec<holder::contract::CoreVersion>::encode(const holder::contract::CoreVersion& value) {
+    json result = json::object();
+    result["version"] = codec<std::string>::encode(value.version);
+    result["major"] = codec<std::int32_t>::encode(value.major);
+    result["minor"] = codec<std::int32_t>::encode(value.minor);
+    result["patch"] = codec<std::int32_t>::encode(value.patch);
+    return result;
+}
+inline holder::contract::CoreVersion codec<holder::contract::CoreVersion>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a CoreVersion object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "version" && it.key() != "major" && it.key() != "minor" && it.key() != "patch") throw std::invalid_argument("CoreVersion has no field " + it.key());
+    holder::contract::CoreVersion out;
+    if (value.contains("version") && !value.at("version").is_null()) {
+        const auto& item = value.at("version");
+        out.version = check_text(decode_field<std::string>(item, "version"), "version", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("version is required and must not be null");
+    }
+    if (value.contains("major") && !value.at("major").is_null()) {
+        const auto& item = value.at("major");
+        out.major = decode_field<std::int32_t>(item, "major");
+    } else {
+        throw std::invalid_argument("major is required and must not be null");
+    }
+    if (value.contains("minor") && !value.at("minor").is_null()) {
+        const auto& item = value.at("minor");
+        out.minor = decode_field<std::int32_t>(item, "minor");
+    } else {
+        throw std::invalid_argument("minor is required and must not be null");
+    }
+    if (value.contains("patch") && !value.at("patch").is_null()) {
+        const auto& item = value.at("patch");
+        out.patch = decode_field<std::int32_t>(item, "patch");
+    } else {
+        throw std::invalid_argument("patch is required and must not be null");
+    }
+    return out;
+}
+
+inline json codec<holder::contract::DatabaseRebuildReport>::encode(const holder::contract::DatabaseRebuildReport& value) {
+    json result = json::object();
+    result["dry_run"] = codec<bool>::encode(value.dry_run);
+    result["previous_health"] = codec<std::string>::encode(value.previous_health);
+    result["projects"] = codec<std::int32_t>::encode(value.projects);
+    result["cards"] = codec<std::int32_t>::encode(value.cards);
+    result["ai_threads"] = codec<std::int32_t>::encode(value.ai_threads);
+    result["ai_messages"] = codec<std::int32_t>::encode(value.ai_messages);
+    result["resources"] = codec<std::int32_t>::encode(value.resources);
+    result["assets"] = codec<std::int32_t>::encode(value.assets);
+    result["placements"] = codec<std::int32_t>::encode(value.placements);
+    result["locations"] = codec<std::int32_t>::encode(value.locations);
+    result["quarantined_cards"] = codec<std::int32_t>::encode(value.quarantined_cards);
+    result["backup_path"] = value.backup_path ? codec<std::string>::encode(*value.backup_path) : json(nullptr);
+    return result;
+}
+inline holder::contract::DatabaseRebuildReport codec<holder::contract::DatabaseRebuildReport>::decode(const json& value) {
+    if (!value.is_object()) throw std::invalid_argument("expected a DatabaseRebuildReport object");
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "dry_run" && it.key() != "previous_health" && it.key() != "projects" && it.key() != "cards" && it.key() != "ai_threads" && it.key() != "ai_messages" && it.key() != "resources" && it.key() != "assets" && it.key() != "placements" && it.key() != "locations" && it.key() != "quarantined_cards" && it.key() != "backup_path") throw std::invalid_argument("DatabaseRebuildReport has no field " + it.key());
+    holder::contract::DatabaseRebuildReport out;
+    if (value.contains("dry_run") && !value.at("dry_run").is_null()) {
+        const auto& item = value.at("dry_run");
+        out.dry_run = decode_field<bool>(item, "dry_run");
+    } else {
+        throw std::invalid_argument("dry_run is required and must not be null");
+    }
+    if (value.contains("previous_health") && !value.at("previous_health").is_null()) {
+        const auto& item = value.at("previous_health");
+        out.previous_health = check_text(decode_field<std::string>(item, "previous_health"), "previous_health", 0, std::numeric_limits<std::size_t>::max());
+    } else {
+        throw std::invalid_argument("previous_health is required and must not be null");
+    }
+    if (value.contains("projects") && !value.at("projects").is_null()) {
+        const auto& item = value.at("projects");
+        out.projects = check_range<std::int32_t>(decode_field<std::int32_t>(item, "projects"), "projects", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("projects is required and must not be null");
+    }
+    if (value.contains("cards") && !value.at("cards").is_null()) {
+        const auto& item = value.at("cards");
+        out.cards = check_range<std::int32_t>(decode_field<std::int32_t>(item, "cards"), "cards", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("cards is required and must not be null");
+    }
+    if (value.contains("ai_threads") && !value.at("ai_threads").is_null()) {
+        const auto& item = value.at("ai_threads");
+        out.ai_threads = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_threads"), "ai_threads", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_threads is required and must not be null");
+    }
+    if (value.contains("ai_messages") && !value.at("ai_messages").is_null()) {
+        const auto& item = value.at("ai_messages");
+        out.ai_messages = check_range<std::int32_t>(decode_field<std::int32_t>(item, "ai_messages"), "ai_messages", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("ai_messages is required and must not be null");
+    }
+    if (value.contains("resources") && !value.at("resources").is_null()) {
+        const auto& item = value.at("resources");
+        out.resources = check_range<std::int32_t>(decode_field<std::int32_t>(item, "resources"), "resources", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("resources is required and must not be null");
+    }
+    if (value.contains("assets") && !value.at("assets").is_null()) {
+        const auto& item = value.at("assets");
+        out.assets = check_range<std::int32_t>(decode_field<std::int32_t>(item, "assets"), "assets", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("assets is required and must not be null");
+    }
+    if (value.contains("placements") && !value.at("placements").is_null()) {
+        const auto& item = value.at("placements");
+        out.placements = check_range<std::int32_t>(decode_field<std::int32_t>(item, "placements"), "placements", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("placements is required and must not be null");
+    }
+    if (value.contains("locations") && !value.at("locations").is_null()) {
+        const auto& item = value.at("locations");
+        out.locations = check_range<std::int32_t>(decode_field<std::int32_t>(item, "locations"), "locations", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("locations is required and must not be null");
+    }
+    if (value.contains("quarantined_cards") && !value.at("quarantined_cards").is_null()) {
+        const auto& item = value.at("quarantined_cards");
+        out.quarantined_cards = check_range<std::int32_t>(decode_field<std::int32_t>(item, "quarantined_cards"), "quarantined_cards", 0, std::numeric_limits<std::int32_t>::max());
+    } else {
+        throw std::invalid_argument("quarantined_cards is required and must not be null");
+    }
+    if (value.contains("backup_path") && !value.at("backup_path").is_null()) {
+        const auto& item = value.at("backup_path");
+        out.backup_path = check_text(decode_field<std::string>(item, "backup_path"), "backup_path", 0, std::numeric_limits<std::size_t>::max());
+    }
+    return out;
+}
 
 inline json codec<holder::contract::ProjectStorageLocation>::encode(const holder::contract::ProjectStorageLocation& value) {
     json result = json::object();

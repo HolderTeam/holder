@@ -127,7 +127,14 @@ def generate_cpp_header(types: CoreTypes) -> str:
             out.append(f"/// @throws {', '.join(op.errors)}")
         result = types.resolve(op.returns).type
         returns = "void" if result.kind == "none" else cpp_base(types, result, {})
-        out.append(f"{returns} {op.name}(" + ", ".join(["holder_context& context", *declarations]) + ");")
+        if op.context == "opens":
+            out.append("/// @return A new context, which the caller owns and releases with the closing operation.")
+            out.append(f"holder_context* {op.name}(" + ", ".join(declarations) + ");")
+        elif op.context == "closes":
+            out.append(f"void {op.name}(holder_context* context) noexcept;")
+        else:
+            context = ["holder_context& context"] if op.context == "required" else []
+            out.append(f"{returns} {op.name}(" + ", ".join([*context, *declarations]) + ");")
         out.append("")
     out += ["namespace detail {", "",
             "/// Core supplies this: sets *out_error (when not null) to a new holder_error with message, and",

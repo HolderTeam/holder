@@ -199,6 +199,8 @@ class OperationPlan:
     result: Value | None
     result_c_type: str | None
     errors: tuple[str, ...]
+    # How it uses a context, as in the IR: "required", "none", "opens" or "closes".
+    context: str = "required"
 
 
 @dataclass(frozen=True)
@@ -452,7 +454,8 @@ class AndroidClient:
                 raise Unsupported(f"{op.name}: {returns.kind} results in the Android client")
         doc = "\n".join(x for x in [op.summary, op.description] if x) or None
         return OperationPlan(op.name, kotlin_name, f"Java_{CLASS_PATH.replace('/', '_')}_{object_name}_{kotlin_name}",
-                             doc, parameters, value, result.type_name if result else None, tuple(op.errors))
+                             doc, parameters, value, result.type_name if result else None, tuple(op.errors),
+                             op.context)
 
     # ---- the client ----------------------------------------------------------------------------
 

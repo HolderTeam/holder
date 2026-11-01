@@ -423,6 +423,21 @@ AssetFile retrieve_asset_file(holder_context& context, std::string resource_id, 
   return {destination_path, "file", "application/octet-stream", 0};
 }
 
+// The runtime: the stand-in's contexts hold everything in memory, so there is nothing to rebuild.
+CoreVersion version() { return {"0.0.0-stub", 0, 0, 0}; }
+
+holder_context* context_open(std::string data_dir, std::optional<std::string> schema_sql) {
+  (void)data_dir, (void)schema_sql;
+  return new holder_context();
+}
+
+void context_destroy(holder_context* context) noexcept { delete context; }
+
+DatabaseRebuildReport database_rebuild(std::string data_dir, std::string schema_sql, bool dry_run) {
+  (void)data_dir, (void)schema_sql;
+  return {dry_run, "healthy", 0, 0, 0, 0, 0, 0, 0, 0, 0, std::nullopt};
+}
+
 // A recovery snapshot of the stand-in's projects holds no cards; restoring one makes the project only.
 RecoverySnapshotPage read_recovery_snapshot(holder_context& context, std::string project_id,
                                             std::optional<std::string> cursor, std::int32_t limit) {
