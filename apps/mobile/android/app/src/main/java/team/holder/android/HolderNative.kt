@@ -483,7 +483,6 @@ object HolderNative {
         welcomeTitle: String,
         welcomeContent: String?,
     ): String
-    private external fun nativeListLinkKinds(): String
     private external fun nativeCardListEditableTags(contextHandle: Long, cardId: String): String
     private external fun nativeLocationList(contextHandle: Long, projectId: String): String
     private external fun nativeAssetImportFile(
@@ -969,20 +968,12 @@ object HolderNative {
     @Volatile
     private var linkKindCatalog: List<HolderLinkKind>? = null
 
-    /** Holder's built-in vocabulary of card_links.kind values with curated English labels.
-     * Fetched once and cached -- static reference data, independent of which project/context
-     * is open. */
+    /** Holder's built-in vocabulary of link kinds with curated English labels, from the contract's
+     * list_link_kinds. Fetched once and cached -- the same for every project and device. */
     fun listLinkKinds(): List<HolderLinkKind> {
         linkKindCatalog?.let { return it }
-        val kinds = JSONArray(nativeListLinkKinds())
-        val parsed = List(kinds.length()) { index ->
-            val entry = kinds.getJSONObject(index)
-            HolderLinkKind(
-                id = entry.getString("id"),
-                forward = entry.getString("forward"),
-                reverse = entry.getString("reverse"),
-            )
-        }
+        val parsed = readLane.call { Links.listLinkKinds(it) }
+            .map { HolderLinkKind(id = it.kind, forward = it.forwardLabel, reverse = it.reverseLabel) }
         linkKindCatalog = parsed
         return parsed
     }

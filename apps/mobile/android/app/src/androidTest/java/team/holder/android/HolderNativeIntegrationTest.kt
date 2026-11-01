@@ -652,6 +652,17 @@ class HolderNativeIntegrationTest {
     }
 
     @Test
+    fun linkKinds_labelBothEndsAndHumanizeUnknownKinds() {
+        initialize("# Welcome\n\nWelcome")
+        val kinds = HolderNative.listLinkKinds()
+        assertEquals(100, kinds.size)
+        assertEquals(HolderLinkKind("ref", "References", "Referenced by"), kinds.single { it.id == "ref" })
+        assertEquals("Depends on", HolderNative.linkKindLabel("depends_on", forward = true))
+        assertEquals("Required by", HolderNative.linkKindLabel("depends_on", forward = false))
+        assertEquals("My custom kind", HolderNative.linkKindLabel("my_custom_kind", forward = false))
+    }
+
+    @Test
     fun cardLinks_reflectParentChildHierarchyThroughTheFullJniBoundary() {
         initialize("# Welcome\n\nWelcome")
         val project = HolderNative.createProject("Hierarchy test project")
