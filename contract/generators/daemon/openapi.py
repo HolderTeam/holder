@@ -19,7 +19,8 @@ import json
 from typing import Any
 
 from authoring.routes import Contract
-from generators.daemon.paths import _more_specific, _segments_overlap, route_segments
+
+from .paths import _more_specific, _segments_overlap, route_segments
 
 OPENAPI_VERSION = "3.2.0"
 ERROR_SCHEMAS = {

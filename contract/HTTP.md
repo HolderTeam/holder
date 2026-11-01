@@ -6,7 +6,7 @@
 - **`ContractJson.h`:** the JSON codec for the contract's C++ types (`core/src/api/Contract.h`).
 - **`AiRoutes.h`:** dispatch for daemon owned AI handlers, with paths, arguments and status codes from the Python contract.
 - **`AiJson.h`:** the JSON codec for the daemon's AI records (`interface/ai/models.py`).
-- **`openapi.json`:** the operations' OpenAPI paths and the schemas they use: FastAPI's document of `app.py`, with FastAPI's own 422 validation responses and the operation IDs removed, the daemon's error schemas, and each schema named by its title, so that a generic record's use is `CardListItemPage` rather than Pydantic's `Page_CardListItem_` (`openapi.py`).
+- **`openapi.json`:** the operations' OpenAPI paths and the schemas they use: FastAPI's document of `app.py`, with FastAPI's own 422 validation responses and the operation IDs removed, the daemon's error schemas, and each schema named by its title, so that a generic record's use is `CardListItemPage` rather than Pydantic's `Page_CardListItem_` (`generators/daemon/openapi.py`).
 
 `make -C contract update` writes the four C++ headers into `daemon/src/api/generated/` and merges the OpenAPI paths with `api/openapi-base.json`, which supplies API metadata and security, to write `api/openapi.yaml` and `api/openapi.json`. `make -C contract check` fails when any generated file is out of date. `python -m holder_contract generate --output <directory>` writes every generated file, including core's C API files, into one directory.
 
