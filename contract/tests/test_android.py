@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from generators.android.page import JNI_PATH as OPERATION_JNI_PATH
+from generators.android.page import KOTLIN_PATH as OPERATION_KOTLIN_PATH
 from holder_contract.android import JNI_PATH, KOTLIN_PATH, PROJECT_JNI_PATH, PROJECT_KOTLIN_PATH, generate_android
 from holder_contract.android_history import JNI_PATH as HISTORY_JNI_PATH
 from holder_contract.android_history import KOTLIN_PATH as HISTORY_KOTLIN_PATH
 from holder_contract.android_ir import ContractView, NullableType, ScalarType
-from holder_contract.android_operation import JNI_PATH as OPERATION_JNI_PATH
-from holder_contract.android_operation import KOTLIN_PATH as OPERATION_KOTLIN_PATH
 from holder_contract.android_resources import JNI_PATH as RESOURCES_JNI_PATH
 from holder_contract.android_resources import KOTLIN_PATH as RESOURCES_KOTLIN_PATH
 from holder_contract.extract import extract

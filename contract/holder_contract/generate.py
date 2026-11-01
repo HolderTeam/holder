@@ -21,6 +21,9 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from compiler.ir import ContractView
+from generators.core.abi import SCALARS_C, CAbi, CAbiError, format_default, literal_member, snake
+
 _TEMPLATES = Environment(
     loader=FileSystemLoader(Path(__file__).with_name("templates")),
     undefined=StrictUndefined,
@@ -31,17 +34,12 @@ _TEMPLATES = Environment(
 )
 
 FIRST_ERROR_CODE = 100
-SCALARS_C = {"int32": "int32_t", "int64": "int64_t", "float64": "double", "bool": "bool"}
 # C++ uses core's own spelling of a 64-bit integer; the glue converts to int64_t at the C boundary.
 SCALARS_CPP = {"int32": "std::int32_t", "int64": "long long", "float64": "double", "bool": "bool"}
 
 
 class Unsupported(Exception):
     """The contract uses something the C generator does not support yet."""
-
-
-def snake(name: str) -> str:
-    return re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name).lower()
 
 
 def camel(name: str) -> str:
@@ -112,6 +110,7 @@ class Model:
             if error["fields"]:
                 raise Unsupported(f"error kinds with fields ({error['name']})")
         self.codes = {e["name"]: FIRST_ERROR_CODE + i for i, e in enumerate(self.errors)}
+        self.abi = CAbi(ContractView.model_validate(ir))
         self.outputs: list[Instance] = []
         self.inputs: list[Instance] = []
         self.listed: set[Instance] = set()
@@ -250,10 +249,6 @@ def map_c_name(ref: dict[str, Any]) -> str:
     return "holder_" + snake(ref["alias"])
 
 
-def literal_member(value: str) -> str:
-    return re.sub(r"\W", "_", str(value)).upper()
-
-
 # ---- C header ---------------------------------------------------------------------------------
 
 
@@ -299,10 +294,6 @@ def c_field_note(slot: Slot) -> str:
     return " ".join(notes)
 
 
-def format_default(value: Any) -> str:
-    return '""' if value == "" else ("null" if value is None else str(value).lower() if isinstance(value, bool) else str(value))
-
-
 @dataclass
 class Param:
     """How one operation parameter is passed in C."""
@@ -316,70 +307,20 @@ class Param:
 def c_param(model: Model, op: dict[str, Any], parameter: dict[str, Any]) -> Param:
     slot = model.slot(parameter["name"], parameter["type"], parameter.get("doc"),
                       default=parameter.get("default"), has_default="default" in parameter)
-    t, name, prefix = slot.type, slot.name, f"holder_{op['name']}_{slot.name}"
-    upper = prefix.upper()
-    if t["kind"] == "string":
-        note = "May be NULL." if slot.nullable else (f"NULL for {format_default(slot.default)}." if slot.has_default else "")
-        return Param(slot, f"const char* {name}", note, [])
-    if t["kind"] in SCALARS_C:
-        zero_default = slot.has_default and not slot.nullable and slot.default in (0, False, 0.0)
-        if slot.nullable or (slot.optional and not zero_default):
-            note = "May be NULL." if slot.nullable else f"NULL for {format_default(slot.default)}."
-            return Param(slot, f"const {SCALARS_C[t['kind']]}* {name}", note, [])
-        return Param(slot, f"{SCALARS_C[t['kind']]} {name}", "", [])
-    if t["kind"] == "literal" and slot.nullable:
-        members = [f"    {upper}_NONE = 0, /* null */"]
-        for i, value in enumerate(t["values"], 1):
-            members.append(f"    {upper}_{literal_member(value)} = {i},")
-        members.append(f"    {upper}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */")
-        lines = ["typedef enum " + prefix + " {", *members, "} " + prefix + ";"]
-        return Param(slot, f"{prefix} {name}", "The zero value is null.", lines)
-    if t["kind"] == "literal" and not slot.nullable:
-        members = []
-        if slot.has_default:
-            members.append(f"    {upper}_DEFAULT = 0, /* {format_default(slot.default)} */")
-        for i, value in enumerate(t["values"], 1):
-            members.append(f"    {upper}_{literal_member(value)} = {i},")
-        members.append(f"    {upper}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */")
-        lines = ["typedef enum " + prefix + " {", *members, "} " + prefix + ";"]
-        return Param(slot, f"{prefix} {name}", "", lines)
-    if t["kind"] == "union" and slot.nullable:
-        literals = [a for a in t["alternatives"] if a["kind"] == "literal"]
-        others = [model.resolve(a) for a in t["alternatives"] if a["kind"] != "literal"]
-        if len(others) != 1 or others[0]["kind"] != "string":
-            raise Unsupported(f"{name}: unions other than literals plus one string")
-        value_name = snake(others[0].get("alias", "value"))
-        members = [f"    {upper}_NONE = 0,"]
-        for value in [v for lit in literals for v in lit["values"]]:
-            members.append(f"    {upper}_{literal_member(value)},")
-        members.append(f"    {upper}_{value_name.upper()},")
-        members.append(f"    {upper}_MAX_ENUM = 0x7FFFFFFF /* Makes every int a valid value, so bad ones can be rejected. */")
-        lines = ["typedef enum " + prefix + "_kind {", *members, "} " + prefix + "_kind;", "",
-                 "typedef struct " + prefix + " {", f"    {prefix}_kind kind;",
-                 f"    const char* {value_name}; /* Set when kind is {upper}_{value_name.upper()}. */",
-                 "} " + prefix + ";"]
-        return Param(slot, f"{prefix} {name}", "The zero value is null.", lines)
-    if t["kind"] == "named" and not slot.nullable:
-        return Param(slot, f"const {model.instance(t, {}).c_name}* {name}", "", [])
-    raise Unsupported(f"{op['name']}({name}): {t['kind']} parameters")
+    try:
+        planned = model.abi.operation(op["name"]).parameter(parameter["name"])
+    except CAbiError as error:
+        raise Unsupported(str(error)) from error
+    return Param(slot, planned.c_decl, planned.note, list(planned.enum_lines))
 
 
 def c_out(model: Model, op: dict[str, Any]) -> tuple[str, str] | None:
     """The result's C type and its out parameter's name; a list is a {items, count} struct."""
-    ref = model.resolve(op["returns"])
-    if ref["kind"] == "none":
-        return None
-    if ref["kind"] == "list":
-        items = model.resolve(ref["items"])
-        if items["kind"] == "string":
-            return "holder_string_list", "out_strings"
-        if items["kind"] == "named":
-            return list_c_name(model, items), "out_" + snake(model.instance(items, {}).record) + "_list"
-        raise Unsupported(f"{op['name']}: lists of {items['kind']} as results")
-    if ref["kind"] != "named":
-        raise Unsupported(f"{op['name']}: {ref['kind']} results")
-    instance = model.instance(ref, {})
-    return instance.c_name, "out_" + snake(instance.record)
+    try:
+        result = model.abi.operation(op["name"]).result
+    except CAbiError as error:
+        raise Unsupported(str(error)) from error
+    return (result.type_name, result.out_name) if result else None
 
 
 def header_lines(ir: dict[str, Any], what: str, style: str) -> list[str]:

@@ -8,10 +8,11 @@ from pydantic import ValidationError
 
 from compiler.ir import ContractView
 from compiler.pipeline import Compiler, ContractSource
+from generators.android.page import JNI_PATH as OPERATION_JNI_PATH
+from generators.android.page import KOTLIN_PATH as OPERATION_KOTLIN_PATH
+from generators.android.page import generate_page_operation
+from generators.core.abi import CAbi
 from holder_contract.android import generate_android
-from holder_contract.android_operation import JNI_PATH as OPERATION_JNI_PATH
-from holder_contract.android_operation import KOTLIN_PATH as OPERATION_KOTLIN_PATH
-from holder_contract.android_operation import generate_page_operation
 from holder_contract.daemon import generate_daemon
 from holder_contract.daemon_bindings import RuntimeBinding, bindings
 from holder_contract.extract import extract, load_contract
@@ -76,6 +77,19 @@ def test_page_lowering_uses_operation_data_for_a_second_operation():
     generated = generate_page_operation(ContractView.model_validate(raw), "find_cards")
     assert "nativeFindCards(" in generated[OPERATION_KOTLIN_PATH]
     assert "holder_find_cards(" in generated[OPERATION_JNI_PATH]
+
+
+def test_c_enum_choice_is_shared_with_android_jni():
+    raw = deepcopy(extract(CONTRACT, "interface"))
+    operation = next(op for op in raw["operations"] if op["name"] == "list_cards")
+    order = next(parameter for parameter in operation["parameters"] if parameter["name"] == "order")
+    order["type"]["values"].append("proof_order")
+    contract = ContractView.model_validate(raw)
+    symbol = CAbi(contract).operation("list_cards").parameter("order").choices[-1].symbol
+
+    assert symbol == "HOLDER_LIST_CARDS_ORDER_PROOF_ORDER"
+    assert symbol in generate(contract.model_dump(exclude_unset=True))["holder_api.h"]
+    assert symbol in generate_android(contract.model_dump(exclude_unset=True))[OPERATION_JNI_PATH]
 
 
 def test_daemon_only_record_flows_through_same_ir():

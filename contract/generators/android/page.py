@@ -20,9 +20,9 @@ from compiler.ir import (
     ScalarType,
     UnionType,
 )
+from generators.core.abi import CAbi, CParameter
 
-from .android_templates import TEMPLATES
-from .generate import Model, c_out, c_param, literal_member, snake
+from .jinja import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractOperations.kt"
 JNI_PATH = "apps/mobile/android/app/src/main/cpp/generated/contract_operations.cpp"
@@ -85,16 +85,14 @@ class PageOperation:
     fields: tuple[ResultField, ...]
 
 
-def _argument(contract: ContractView, model: Model, op: dict, value: ParameterView) -> Argument:
-    param = c_param(model, op, value.model_dump(exclude_unset=True))
-    ref, nullable = contract.resolve_type(value.type)
+def _argument(operation_name: str, value: ParameterView, param: CParameter) -> Argument:
+    ref, nullable = param.ref, param.nullable
     kind = ref.kind
     default = json.dumps(value.default) if "default" in value.model_fields_set else None
     if default == "null" and not nullable:
-        raise ValueError(f"{op['name']}({value.name}): null default needs a nullable type")
+        raise ValueError(f"{operation_name}({value.name}): null default needs a nullable type")
     if nullable and kind in {"literal", "int32", "bool"}:
-        raise ValueError(f"{op['name']}({value.name}): nullable {kind} needs a JNI conversion rule")
-    prefix = f"holder_{op['name']}_{value.name}"
+        raise ValueError(f"{operation_name}({value.name}): nullable {kind} needs a JNI conversion rule")
     choices: tuple[Choice, ...] = ()
     union_value_field = union_value_kind = None
     if kind in {"string", "literal", "union"}:
@@ -104,29 +102,20 @@ def _argument(contract: ContractView, model: Model, op: dict, value: ParameterVi
     elif kind == "bool":
         kotlin_type, jni_type = "Boolean", "jboolean"
     else:
-        raise ValueError(f"{op['name']}({value.name}): Android page calls do not support {kind}")
+        raise ValueError(f"{operation_name}({value.name}): Android page calls do not support {kind}")
     if kind == "literal":
         if not isinstance(ref, LiteralType) or not all(isinstance(v, str) for v in ref.values):
-            raise ValueError(f"{op['name']}({value.name}): expected string literals")
-        choices = tuple(Choice(v, f"{prefix.upper()}_{literal_member(v)}") for v in ref.values)
+            raise ValueError(f"{operation_name}({value.name}): expected string literals")
+        choices = tuple(Choice(choice.value, choice.symbol) for choice in param.choices)
     if kind == "union":
         if not isinstance(ref, UnionType) or not nullable:
-            raise ValueError(f"{op['name']}({value.name}): expected a nullable literal/string union")
-        literals = [a for a in ref.alternatives if isinstance(a, LiteralType)]
-        others = [a for a in ref.alternatives if not isinstance(a, LiteralType)]
-        if len(others) != 1 or not all(isinstance(v, str) for a in literals for v in a.values):
-            raise ValueError(f"{op['name']}({value.name}): expected string literals and one string")
-        resolved, _ = contract.resolve_type(others[0])
-        if not isinstance(resolved, ScalarType) or resolved.kind != "string":
-            raise ValueError(f"{op['name']}({value.name}): union value must be text")
-        choices = tuple(Choice(v, f"{prefix.upper()}_{literal_member(v)}")
-                        for a in literals for v in a.values)
-        alias = others[0].name if isinstance(others[0], NamedType) else "value"
-        union_value_field = snake(alias)
-        union_value_kind = f"{prefix.upper()}_{union_value_field.upper()}"
-    c_type = param.c_decl.rsplit(" ", 1)[0].removeprefix("const ").removesuffix("*").strip()
+            raise ValueError(f"{operation_name}({value.name}): expected a nullable literal/string union")
+        if not all(isinstance(choice.value, str) for choice in param.choices):
+            raise ValueError(f"{operation_name}({value.name}): expected string literals and one string")
+        choices = tuple(Choice(choice.value, choice.symbol) for choice in param.choices)
+        union_value_field, union_value_kind = param.union_value_field, param.union_value_kind
     return Argument(value.name, camel(value.name), kotlin_type, jni_type, kind, nullable,
-                    default, c_type, "*" in param.c_decl, choices, union_value_field, union_value_kind)
+                    default, param.c_type, param.pointer, choices, union_value_field, union_value_kind)
 
 
 def lower_page_operation(contract: ContractView, operation_name: str) -> PageOperation:
@@ -148,10 +137,8 @@ def lower_page_operation(contract: ContractView, operation_name: str) -> PageOpe
             not isinstance(cursor.type.value, ScalarType) or cursor.type.value.kind != "string"):
         raise ValueError(f"{operation_name}: unsupported page fields")
     item = contract.record(item_ref.name)
-    model = Model(contract.model_dump(exclude_unset=True))
-    raw = operation.model_dump(exclude_unset=True)
-    result_type, _ = c_out(model, raw) or (None, None)
-    if result_type is None:
+    abi = CAbi(contract).operation(operation_name)
+    if abi.result is None:
         raise ValueError(f"{operation_name}: page has no C result")
     fields = []
     chain = []
@@ -180,9 +167,9 @@ def lower_page_operation(contract: ContractView, operation_name: str) -> PageOpe
                            "float64": "Double", "bool": "Boolean"}[kind]
             fields.append(ResultField(field.name, camel(field.name), kotlin_type,
                                       kind, optional, jni_type, descriptor))
-    arguments = tuple(_argument(contract, model, raw, value) for value in operation.parameters)
+    arguments = tuple(_argument(operation_name, value, abi.parameter(value.name)) for value in operation.parameters)
     return PageOperation(operation.name, "native" + pascal(operation.name), arguments,
-                         result_type, items.name, camel(items.name), cursor.name, camel(cursor.name), item.name,
+                         abi.result.type_name, items.name, camel(items.name), cursor.name, camel(cursor.name), item.name,
                          "(" + "".join(f.descriptor for f in fields) + ")V", tuple(fields))
 
 
@@ -190,7 +177,7 @@ def generate_page_operation(contract: ContractView, operation_name: str) -> dict
     plan = lower_page_operation(contract, operation_name)
     header = "// Generated from contract/interface by holder_contract. Do not edit.\n"
     return {
-        KOTLIN_PATH: header + TEMPLATES.get_template("android_page_operation.kt.j2").render(plan=plan),
-        JNI_PATH: header + TEMPLATES.get_template("android_page_operation.cpp.j2").render(
+        KOTLIN_PATH: header + TEMPLATES.get_template("page_operation.kt.j2").render(plan=plan),
+        JNI_PATH: header + TEMPLATES.get_template("page_operation.cpp.j2").render(
             plan=plan, include_boxed_double=any(f.kind == "float64" and f.optional for f in plan.fields)),
     }

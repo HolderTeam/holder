@@ -12,4 +12,4 @@ extend-exclude = ["tests/fixtures"]
 
 [tool.ruff.lint.isort]
 # holder_capi and holder_http are the conformance tests' own modules, imported from their directory.
-known-first-party = ["authoring", "compiler", "holder_contract", "holder_capi", "holder_http", "interface"]
+known-first-party = ["authoring", "compiler", "generators", "holder_contract", "holder_capi", "holder_http", "interface"]

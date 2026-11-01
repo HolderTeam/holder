@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from generators.android.page import generate_page_operation
+
 from .android_ir import ContractView, FieldView, NamedType, ScalarType
-from .android_operation import generate_page_operation
 from .android_templates import TEMPLATES
 
 KOTLIN_PATH = "apps/mobile/android/app/src/main/java/team/holder/android/generated/ContractCards.kt"
